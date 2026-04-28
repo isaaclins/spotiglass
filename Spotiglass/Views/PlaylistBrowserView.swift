@@ -130,11 +130,16 @@ struct PlaylistBrowserView: View {
                 ProgressView("Loading tracks...")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             case let .loaded(detail), let .refreshing(detail), let .staleCache(detail, _):
-                PlaylistDetailContent(detail: detail) {
-                    Task { await viewModel.refreshSelectedPlaylist() }
-                } playURI: { uri in
-                    Task { await playbackViewModel.play(uri: uri) }
-                }
+                PlaylistDetailContent(
+                    detail: detail,
+                    refresh: {
+                        Task { await viewModel.refreshSelectedPlaylist() }
+                    },
+                    playURI: { uri in
+                        Task { await playbackViewModel.play(uri: uri) }
+                    },
+                    currentPlaybackURI: currentPlaybackURI
+                )
                 .overlay(alignment: .bottom) {
                     if case let .staleCache(_, error) = viewModel.detailState {
                         StaleCacheBanner(error: error)
@@ -179,6 +184,17 @@ struct PlaylistBrowserView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(SpotiglassDesign.spacingM)
     }
+
+    private var currentPlaybackURI: String? {
+        switch playbackViewModel.connectionState {
+        case let .playing(nowPlaying):
+            nowPlaying.uri
+        case let .paused(nowPlaying):
+            nowPlaying?.uri
+        case .disconnected, .connecting, .ready, .transferring, .unavailable, .error:
+            nil
+        }
+    }
 }
 
 private struct PlaylistListRow: View {
@@ -210,6 +226,7 @@ private struct PlaylistDetailContent: View {
     let detail: PlaylistDetailViewModel
     let refresh: () -> Void
     let playURI: (String) -> Void
+    let currentPlaybackURI: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -241,7 +258,11 @@ private struct PlaylistDetailContent: View {
                 EmptyStateView(title: "No tracks", message: "This playlist is empty.", retry: refresh)
             } else {
                 List(detail.tracks) { track in
-                    TrackListRow(track: track, playURI: playURI)
+                    TrackListRow(
+                        track: track,
+                        playURI: playURI,
+                        isCurrent: track.playableURI != nil && track.playableURI == currentPlaybackURI
+                    )
                 }
             }
         }
@@ -251,6 +272,7 @@ private struct PlaylistDetailContent: View {
 private struct TrackListRow: View {
     let track: TrackRowViewModel
     let playURI: (String) -> Void
+    let isCurrent: Bool
 
     var body: some View {
         HStack(spacing: SpotiglassDesign.spacingS) {
@@ -297,9 +319,18 @@ private struct TrackListRow: View {
             }
         }
         .padding(.vertical, SpotiglassDesign.spacingXS)
+        .padding(.horizontal, SpotiglassDesign.spacingXS)
+        .background(
+            RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
+                .fill(isCurrent ? Color.accentColor.opacity(0.14) : .clear)
+        )
         .contentShape(Rectangle())
+        .onTapGesture(count: 2) {
+            guard let playableURI = track.playableURI else { return }
+            playURI(playableURI)
+        }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(track.title), \(track.subtitle), \(track.durationText)")
+        .accessibilityLabel("\(track.title), \(track.subtitle), \(track.durationText)\(isCurrent ? ", currently playing" : "")")
     }
 }
 

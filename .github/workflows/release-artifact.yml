@@ -66,7 +66,7 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             clean build
 
-      - name: Stage Spotiglass.app at workspace root
+      - name: Stage Spotiglass.app in artifact folder
         run: |
           set -euo pipefail
           APP_SOURCE="$DERIVED_DATA/Build/Products/$CONFIGURATION/Spotiglass.app"
@@ -75,16 +75,18 @@ jobs:
             ls -la "$DERIVED_DATA/Build/Products/$CONFIGURATION/" || true
             exit 1
           fi
-          rm -rf "$GITHUB_WORKSPACE/Spotiglass.app"
-          cp -R "$APP_SOURCE" "$GITHUB_WORKSPACE/Spotiglass.app"
-          file "$GITHUB_WORKSPACE/Spotiglass.app/Contents/MacOS/Spotiglass"
-          codesign -dv "$GITHUB_WORKSPACE/Spotiglass.app" 2>&1 || true
+          ARTIFACT_DIR="$GITHUB_WORKSPACE/artifact"
+          rm -rf "$ARTIFACT_DIR"
+          mkdir -p "$ARTIFACT_DIR"
+          cp -R "$APP_SOURCE" "$ARTIFACT_DIR/Spotiglass.app"
+          file "$ARTIFACT_DIR/Spotiglass.app/Contents/MacOS/Spotiglass"
+          codesign -dv "$ARTIFACT_DIR/Spotiglass.app" 2>&1 || true
 
       - name: Upload Spotiglass.app artifact bundle
         uses: actions/upload-artifact@v4
         with:
           name: Spotiglass-release-app
-          path: Spotiglass.app
+          path: artifact/
           if-no-files-found: error
           retention-days: 14
           include-hidden-files: false

@@ -96,7 +96,7 @@ To produce an artifact:
 1. Open the GitHub repository's **Actions** tab.
 2. Select the **Release artifact** workflow.
 3. Click **Run workflow** and pick the branch.
-4. After the run succeeds, open the run's **Summary** page and download the `Spotiglass-release-app` artifact. GitHub serves workflow artifacts as a zip download; unzipping it yields `Spotiglass.app/Contents/...` ready to launch.
+4. After the run succeeds, open the run's **Summary** page and download the `Spotiglass-release-app` artifact. GitHub serves workflow artifacts as a zip download; unzipping it yields `artifact/Spotiglass.app/Contents/...` ready to launch.
 
 ### Unsigned distribution expectations
 
