@@ -5,7 +5,7 @@ alwaysApply: true
 
 # ROADMAP.mdc
 
-> **Project:** _[Cursor fills this in after the first planning session: one sentence describing what this software does.]_
+> **Project:** Spotiglass is a personal macOS 26 SwiftUI Spotify client that uses OAuth PKCE, the Spotify Web API, and Web Playback SDK playback in a hidden `WKWebView` inside a glass-style native shell.
 
 ## How to use this roadmap
 
@@ -49,9 +49,11 @@ When the user sends their first message in a new project:
 
 ## Step index (master checklist)
 
-_[Cursor fills this in during the first planning session. Format shown below.]_
-
-<!-- Example format — replace entirely:
-- [x] **STEP 1** — Brief step name → [.cursor/rules/roadmap/01-step-name.mdc](.cursor/rules/roadmap/01-step-name.mdc)
-- [ ] **STEP 2** — Brief step name → [.cursor/rules/roadmap/02-step-name.mdc](.cursor/rules/roadmap/02-step-name.mdc)
--->
+- [x] **STEP 1** — Project foundation → [.cursor/rules/roadmap/01-project-foundation.mdc](.cursor/rules/roadmap/01-project-foundation.mdc)
+- [x] **STEP 2** — Spotify OAuth PKCE → [.cursor/rules/roadmap/02-spotify-auth-pkce.mdc](.cursor/rules/roadmap/02-spotify-auth-pkce.mdc)
+- [x] **STEP 3** — Spotify Web API library → [.cursor/rules/roadmap/03-web-api-library.mdc](.cursor/rules/roadmap/03-web-api-library.mdc)
+- [x] **STEP 4** — Playlist browsing UI → [.cursor/rules/roadmap/04-playlist-browsing-ui.mdc](.cursor/rules/roadmap/04-playlist-browsing-ui.mdc)
+- [x] **STEP 5** — Web Playback WKWebView → [.cursor/rules/roadmap/05-web-playback-webview.mdc](.cursor/rules/roadmap/05-web-playback-webview.mdc)
+- [x] **STEP 6** — Glass shell polish → [.cursor/rules/roadmap/06-glass-shell-polish.mdc](.cursor/rules/roadmap/06-glass-shell-polish.mdc)
+- [x] **STEP 7** — Release artifact CI → [.cursor/rules/roadmap/07-release-artifact-ci.mdc](.cursor/rules/roadmap/07-release-artifact-ci.mdc)
+- [x] **STEP 8** — Integration hardening → [.cursor/rules/roadmap/08-integration-hardening.mdc](.cursor/rules/roadmap/08-integration-hardening.mdc)

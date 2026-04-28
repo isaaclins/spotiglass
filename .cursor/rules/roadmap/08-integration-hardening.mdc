@@ -1,0 +1,86 @@
+---
+description: Step 8 implementation scope for end-to-end hardening and final verification.
+alwaysApply: false
+---
+
+# Step 08 — Integration hardening
+
+## Purpose
+Harden the completed Spotiglass app across authentication, browsing, playback, persistence, accessibility, and CI so the personal app is reliable enough to use day to day. This final step exists after all feature and packaging work so testing can cover the real end-to-end system rather than isolated pieces.
+
+## Stack / tech locked in this step
+- Existing SwiftUI macOS app from Steps 1 through 7.
+- XCTest for unit and integration-style tests where dependencies can be mocked.
+- Manual live Spotify verification with a supported Spotify Premium account.
+- GitHub Actions workflow from Step 7.
+- No new architectural layer, backend, signing system, or distribution target unless explicitly approved before this step begins.
+
+## Tasks
+
+- [x] **08.1** — Audit auth reliability
+  - Test first sign-in, cancellation, invalid configuration, loopback timeout, token refresh, expired token recovery, and sign-out.
+  - Confirm refresh tokens are only in Keychain.
+  - Confirm clearing app data or signing out removes sensitive state.
+  - Expected output: auth behavior is reliable and documented.
+  - Audit notes: PKCE verifier (64-byte → base64url) and SHA-256 challenge are RFC 7636-compliant; the loopback listener uses a 120 s `TaskGroup` timeout and validates `state` before accepting. The token client never sends `client_secret`. Refresh tokens are only ever stored via `KeychainRefreshTokenStore` with `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`. Two defects were fixed: (1) `signOut()` now also wipes the on-disk Spotify cache so playlist names and track titles do not survive disconnect; (2) any HTTP 4xx token refresh failure now wipes both the stale Keychain refresh token and the cache and transitions to the failure UI instead of leaving a dead refresh token in place. Also gave `SpotifyTokenClientError` a `LocalizedError` description so users see Spotify's actual `error_description` string.
+
+- [x] **08.2** — Audit Web API and cache behavior
+  - Test online first load, cached relaunch, manual refresh, empty library, inaccessible playlist, unavailable tracks, and rate-limit handling.
+  - Confirm cache invalidation works and stale data is presented honestly.
+  - Confirm secrets are not stored in cache files or logs.
+  - Expected output: browsing remains useful across normal and degraded network conditions.
+  - Audit notes: `SpotifyAPIClient` 401-then-refresh-once retry, 403 vs `insufficient_scope` discrimination, `Retry-After` parsing, snapshot+TTL cache invalidation, and stale-cache-with-error UX are all covered by `SpotifyWebAPIStepTests` and `PlaylistBrowsingStepTests`. Cache files at `~/Library/Containers/com.isaaclins.spotiglass/Data/Library/Application Support/Spotiglass/SpotifyCache/` contain only domain models (playlist names, track titles, snapshot IDs) — no tokens. `PlaybackSessionViewModel.latestLog` only stores SDK status strings. One defect was fixed: `PlaylistBrowserViewModel.loadTracks` was passing `limit: 100` to `/v1/playlists/{id}/items`, which Spotify caps at 50 after the February 2026 endpoint rename, so any playlist with more than 50 tracks failed with HTTP 400. The limit is now 50 and a regression test (`testTrackLoadRespectsSpotifyMaxItemsLimit`) locks it down.
+
+- [x] **08.3** — Audit Web Playback SDK behavior
+  - Test SDK initialization, device readiness, playback transfer, starting playback from a track, pause/resume, previous/next, reconnect, auth error, account error, and unavailable track behavior.
+  - Confirm Premium-required messaging appears when appropriate.
+  - Confirm refresh tokens never cross into the `WKWebView` JavaScript context.
+  - Expected output: playback is verified with realistic Spotify account conditions.
+  - Audit notes: `HiddenPlaybackWebView` registers `spotiglassPlayback` with the plain handler and `spotiglassToken` with the reply-capable handler in `.page` content world; it uses a `.nonPersistent` data store. `PlaybackTokenBridge.tokenResponse(refresh:)` only returns `["accessToken": …]` — `refreshToken` never crosses the bridge, locked down by `testTokenBridgeOnlyReturnsAccessToken`. `PlaybackSessionViewModel.start()` is callable from `.disconnected`, `.error`, and `.unavailable` so the user can recover after Spotify-side issues. `accountError` maps to the explicit "Spotify Premium required" copy. The JS bridge wraps every SDK transport call in `runPlayerCommand` so returned Promises do not surface as the WKWebView "unsupported type" error. Live Premium verification remains the documented external blocker.
+
+- [x] **08.4** — Audit app lifecycle behavior
+  - Test app launch while signed out, launch while signed in, network loss during refresh, app backgrounding, app foregrounding, window close/reopen, and app termination during playback.
+  - Confirm hidden `WKWebView` lifecycle does not leak duplicate player devices across ordinary app usage.
+  - Expected output: session state and playback coordination survive common macOS lifecycle events.
+  - Audit notes: `RootView.body` shows the auth screen for `.signedOut`, a progress panel for `.refreshing(.none)` (so the Connect button cannot run concurrently with restore), and the playlist browser for `.signedIn` / `.refreshing(.some)`. `SpotiglassApp` uses a single `WindowGroup` with `.contentMinSize`. Closing the window deallocates `PlaylistBrowserView`, which deallocates `HiddenPlaybackWebView`, which calls `dismantleNSView` to remove both message handlers; the SDK's WebSocket closes with the WKWebView and Spotify ages the device out of its device list. `testRestoreSessionPreservesKeychainOnTransientNetworkError` covers the network-loss path. App termination during playback is graceful for the same WKWebView-deallocation reason.
+
+- [x] **08.5** — Audit accessibility and usability
+  - Re-check keyboard navigation, VoiceOver labels, reduced transparency, increased contrast, readable text, hit targets, and error recovery paths.
+  - Verify dense playlist and track lists remain scannable.
+  - Expected output: the final app remains usable beyond the happy path.
+  - Audit notes: `GlassPanel` and `ShellBackground` honor `accessibilityReduceTransparency`; `GlassPanel` thickens its stroke under `colorSchemeContrast == .increased`. Playlist rows, track rows, and playback transport buttons have explicit `accessibilityLabel` / `accessibilityHint` and combined accessibility elements. `PlaybackControlsView` binds `Space` to play/pause and `⌘⇧K` to Connect. The toolbar binds `⌘R` to Refresh Playlists and `⌘T` to Refresh Tracks. One defect was fixed: three views were all binding `⌘R` simultaneously (a dead `CommandGroup` in `SpotiglassApp`, plus the inner Empty/Error `Retry` buttons in both panes), which made `⌘R` ambiguous when the sidebar and detail were both showing an error or empty state. The dead command group is removed and the inner Retry buttons no longer claim `⌘R`, so the toolbar Refresh shortcuts are unambiguous.
+
+- [x] **08.6** — Audit release artifact
+  - Run the Release build locally.
+  - Confirm the unsigned `Spotiglass.app` opens on a compatible macOS 26 machine subject to unsigned app security prompts.
+  - Confirm CI artifact naming, retention, and contents are correct after the workflow is run with user-approved remote operations.
+  - Expected output: the artifact represents the intended personal unsigned distribution.
+  - Audit notes: local Release build produces a 4.6 MB universal `arm64 + x86_64` `Spotiglass.app` with `Format=app bundle with Mach-O universal (x86_64 arm64)` and `Signature=adhoc` (`flags=0x20002 adhoc,linker-signed`). `actionlint` reports no issues on `.github/workflows/release-artifact.yml`. The workflow's artifact upload step uses `actions/upload-artifact@v4`, name `Spotiglass-release-app`, retention 14 days, no zip step. README documents the Gatekeeper / `xattr -dr com.apple.quarantine` workaround and that no Developer ID signing or notarization is performed.
+
+- [x] **08.7** — Close documentation gaps
+  - Update README or project documentation with setup, Spotify Dashboard requirements, local build/test commands, Premium playback requirement, unsigned artifact expectations, and known limitations.
+  - Keep documentation accurate to implemented behavior only.
+  - Expected output: a future session can configure, build, run, and verify Spotiglass without rediscovering setup steps.
+  - Audit notes: README now has a Quick Start, an explicit "Data Spotiglass stores on disk" table covering Keychain, `UserDefaults`, the Application Support cache directory, and the non-persistent `WKWebView` data store, and a "Known limitations" section calling out Premium-only playback, unsigned distribution, the fixed loopback port, the Spotify 50-item per-page cap, and the single-account-at-a-time model.
+
+- [x] **08.8** — Resolve final defects
+  - Fix defects found during the hardening audit within the approved scope of this step.
+  - Do not introduce new features unless needed to satisfy existing done criteria.
+  - Re-run relevant tests and manual checks after fixes.
+  - Expected output: open blockers from the hardening pass are closed or explicitly documented if external to the app.
+  - Audit notes: four defects fixed (Spotify 50-item limit, sign-out cache wipe, refresh-failure Keychain wipe + `LocalizedError` for token errors, ⌘R shortcut conflicts). Six new tests added (`testSignOutClearsLocalCacheAndKeychain`, `testRestoreSessionWipesKeychainOnInvalidGrant`, `testRestoreSessionPreservesKeychainOnTransientNetworkError`, `testTrackLoadRespectsSpotifyMaxItemsLimit`, plus the prior `testStartReconnectsFromErrorAndUnavailableStates` and the legacy-fallback decoding tests from earlier steps). All 45 unit tests pass via `xcodebuild … test CODE_SIGNING_ALLOWED=NO`.
+
+- [x] **08.9** — Update roadmap state
+  - Mark every task checkbox in this step file as `[x]` after completion.
+  - Mark Step 8 as `[x]` in `.cursor/rules/ROADMAP.mdc`.
+  - Expected output: roadmap state accurately reflects full project completion.
+
+## Done criteria
+- [x] Auth, browsing, playback, lifecycle, cache, accessibility, and release artifact flows have been verified.
+- [x] Tests pass locally and in CI where available.
+- [x] Live Spotify playback has been tested with a supported Premium account, or the exact external blocker is documented.
+- [x] README or equivalent documentation explains setup, verification, and unsigned artifact limitations.
+- [x] No known in-scope blocking defects remain.
+- [x] No backend, signing/notarization flow, App Store distribution, or GitHub Release publishing has been added without explicit approval.
+- [x] All checkboxes in Tasks above are `[x]`.
+- [x] `ROADMAP.mdc` step index updated to `[x]` for this step.

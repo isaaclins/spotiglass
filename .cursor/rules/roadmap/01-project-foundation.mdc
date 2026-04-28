@@ -1,0 +1,68 @@
+---
+description: Step 1 implementation scope for creating the macOS app foundation.
+alwaysApply: false
+---
+
+# Step 01 — Project foundation
+
+## Purpose
+Create the production project foundation for Spotiglass: a native SwiftUI macOS 26 app, a test target, baseline project settings, and a minimal app shell that can launch locally before Spotify integration begins. This step exists first so every later feature lands in a real Xcode project with agreed build settings, organization, and verification commands.
+
+## Stack / tech locked in this step
+- Swift and SwiftUI.
+- macOS 26 minimum deployment target.
+- Latest stable Xcode that supports the macOS 26 SDK.
+- Xcode project or workspace committed in the repository.
+- XCTest for unit tests.
+- No backend service.
+- No third-party Swift packages unless this step explicitly adds one after user approval.
+- Native app bundle identifier pattern: `com.isaaclins.spotiglass`, unless the user explicitly chooses a different identifier before implementation starts.
+
+## Tasks
+
+- [x] **01.1** — Create the Xcode app project
+  - Create a macOS SwiftUI app named `Spotiglass`.
+  - Set the minimum deployment target to macOS 26.
+  - Use Swift as the implementation language.
+  - Add an app target and a unit test target.
+  - Expected output: an Xcode project or workspace exists and opens with app and test targets configured.
+
+- [x] **01.2** — Establish source layout
+  - Create a clear source structure for app entry, views, domain models, services, playback, auth, persistence, and utilities.
+  - Keep the source layout simple and aligned with SwiftUI app conventions.
+  - Add only files required for the foundation to build and launch.
+  - Expected output: future steps have obvious locations for auth, API, playback, UI, and persistence code.
+
+- [x] **01.3** — Implement the minimal SwiftUI shell
+  - Add the `SpotiglassApp` entry point.
+  - Add a root view that launches as a macOS window.
+  - Show a minimal shell state indicating that Spotify connection is not configured yet.
+  - Do not implement OAuth, API calls, playback, or cache behavior in this step.
+  - Expected output: the app launches locally and displays a working native SwiftUI window.
+
+- [x] **01.4** — Configure app capabilities and sandbox baseline
+  - Enable the app sandbox if compatible with the planned OAuth loopback callback and Web API networking.
+  - Enable outgoing network client access.
+  - Do not add hardened runtime, signing, notarization, or App Store distribution settings beyond what is needed for local unsigned builds.
+  - Expected output: entitlements are explicit and ready for Spotify network access in later steps.
+
+- [x] **01.5** — Add baseline tests and build verification
+  - Add at least one unit test proving the test target runs.
+  - Document or capture the exact local `xcodebuild` command used to build and test.
+  - Run the build and test command locally if Xcode is available.
+  - Expected output: the project has a repeatable build/test command and passing baseline tests.
+
+- [x] **01.6** — Update roadmap state
+  - Mark every task checkbox in this step file as `[x]` after completion.
+  - Mark Step 1 as `[x]` in `.cursor/rules/ROADMAP.mdc`.
+  - Expected output: roadmap state accurately reflects Step 1 completion.
+
+## Done criteria
+- [x] A macOS 26 SwiftUI app project named `Spotiglass` exists in the repository.
+- [x] The app target and unit test target build with the latest stable Xcode that supports the macOS 26 SDK.
+- [x] The app launches to a minimal native SwiftUI window.
+- [x] Entitlements permit outgoing network access needed by later Spotify calls.
+- [x] Baseline tests pass, or any inability to run them is documented with the exact reason.
+- [x] No OAuth, Spotify API, playback, CI, or production UI polish is implemented ahead of later steps.
+- [x] All checkboxes in Tasks above are `[x]`.
+- [x] `ROADMAP.mdc` step index updated to `[x]` for this step.

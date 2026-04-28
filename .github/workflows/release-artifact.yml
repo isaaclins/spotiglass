@@ -1,0 +1,82 @@
+name: Release artifact
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build unsigned Release Spotiglass.app
+    runs-on: macos-latest
+    timeout-minutes: 45
+    env:
+      PROJECT: Spotiglass.xcodeproj
+      SCHEME: Spotiglass
+      CONFIGURATION: Release
+      DERIVED_DATA: ${{ github.workspace }}/build/DerivedData
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select latest stable Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Show toolchain versions
+        run: |
+          set -euo pipefail
+          sw_vers
+          xcodebuild -version
+          xcrun --show-sdk-path --sdk macosx
+          xcrun --show-sdk-version --sdk macosx
+
+      - name: Run unit tests
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -destination 'platform=macOS' \
+            -derivedDataPath "$DERIVED_DATA" \
+            CODE_SIGNING_ALLOWED=NO \
+            test
+
+      - name: Build unsigned Release Spotiglass.app
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -configuration "$CONFIGURATION" \
+            -destination 'generic/platform=macOS' \
+            -derivedDataPath "$DERIVED_DATA" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            clean build
+
+      - name: Stage Spotiglass.app at workspace root
+        run: |
+          set -euo pipefail
+          APP_SOURCE="$DERIVED_DATA/Build/Products/$CONFIGURATION/Spotiglass.app"
+          if [ ! -d "$APP_SOURCE" ]; then
+            echo "Spotiglass.app not found at $APP_SOURCE" >&2
+            ls -la "$DERIVED_DATA/Build/Products/$CONFIGURATION/" || true
+            exit 1
+          fi
+          rm -rf "$GITHUB_WORKSPACE/Spotiglass.app"
+          cp -R "$APP_SOURCE" "$GITHUB_WORKSPACE/Spotiglass.app"
+          file "$GITHUB_WORKSPACE/Spotiglass.app/Contents/MacOS/Spotiglass"
+          codesign -dv "$GITHUB_WORKSPACE/Spotiglass.app" 2>&1 || true
+
+      - name: Upload Spotiglass.app artifact bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: Spotiglass-release-app
+          path: Spotiglass.app
+          if-no-files-found: error
+          retention-days: 14
+          include-hidden-files: false

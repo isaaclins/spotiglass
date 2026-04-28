@@ -1,0 +1,72 @@
+---
+description: Step 3 implementation scope for the Spotify Web API client and local cache.
+alwaysApply: false
+---
+
+# Step 03 — Spotify Web API library
+
+## Purpose
+Create a typed Spotify Web API layer for user identity, playlists, playlist tracks, and lightweight local caching. This step follows auth so every request can use valid access tokens, and it precedes UI work so playlist browsing is built on tested data contracts rather than view-specific networking.
+
+## Stack / tech locked in this step
+- Swift `URLSession` for direct Spotify Web API calls.
+- Swift `Codable` DTOs for Spotify API responses.
+- A small domain model layer separate from raw Spotify response payloads.
+- Local-only lightweight cache for playlists, tracks, and user settings.
+- Keychain remains the only storage location for auth secrets.
+- XCTest with mocked URL loading or injectable HTTP transport.
+- No backend and no database server.
+
+## Tasks
+
+- [x] **03.1** — Define API transport boundaries
+  - Add a Spotify API client that depends on the auth token provider from Step 2.
+  - Centralize base URL, request construction, authorization headers, JSON decoding, and error mapping.
+  - Keep retry behavior conservative and explicit; do not hide auth failures.
+  - Expected output: feature code can call typed API methods without constructing raw HTTP requests.
+
+- [x] **03.2** — Model user identity
+  - Implement the `/v1/me` call.
+  - Decode relevant fields such as Spotify user ID, display name, image URL, country, and product tier when available.
+  - Represent unsupported or missing product data without crashing.
+  - Expected output: the app can identify the signed-in Spotify account.
+
+- [x] **03.3** — Model playlist lists
+  - Implement current user's playlists with pagination support.
+  - Capture playlist ID, name, description, owner, images, track count, public/collaborative flags, and snapshot ID where available.
+  - Add unit tests for pagination and partial response decoding.
+  - Expected output: callers can fetch all visible user playlists predictably.
+
+- [x] **03.4** — Model playlist tracks
+  - Implement playlist item fetching with pagination.
+  - Decode track IDs, names, artists, album artwork, duration, explicit flag, playable status, linked-from metadata, and Spotify URIs.
+  - Handle local tracks, episodes, unavailable items, and null track payloads intentionally.
+  - Expected output: playlist detail screens can render robust track rows.
+
+- [x] **03.5** — Implement API error handling
+  - Map Spotify rate limits, expired tokens, forbidden responses, unavailable resources, decoding failures, and network failures into app-level errors.
+  - Preserve enough diagnostic context for user-facing messages and logs.
+  - Ensure a 401 response can trigger token refresh through the auth layer when appropriate.
+  - Expected output: UI and playback steps receive actionable errors rather than raw transport failures.
+
+- [x] **03.6** — Add lightweight local cache
+  - Persist user settings and lightweight playlist/track cache locally.
+  - Avoid storing secrets or full unnecessary Spotify payloads in cache.
+  - Include cache invalidation based on playlist snapshot IDs, timestamps, or explicit refresh actions.
+  - Add tests for cache read/write and invalidation rules.
+  - Expected output: browsing can show recent data quickly while preserving a refresh path.
+
+- [x] **03.7** — Update roadmap state
+  - Mark every task checkbox in this step file as `[x]` after completion.
+  - Mark Step 3 as `[x]` in `.cursor/rules/ROADMAP.mdc`.
+  - Expected output: roadmap state accurately reflects Step 3 completion.
+
+## Done criteria
+- [x] The Spotify Web API client exposes typed methods for `/v1/me`, playlists, and playlist tracks.
+- [x] Pagination works for playlist and track collections.
+- [x] API errors are mapped into app-level errors with user-actionable categories.
+- [x] Local settings and lightweight playlist/track cache persist without storing auth secrets.
+- [x] Unit tests cover request construction, decoding, pagination, error mapping, and cache behavior.
+- [x] No playlist browsing UI or playback behavior is implemented ahead of later steps.
+- [x] All checkboxes in Tasks above are `[x]`.
+- [x] `ROADMAP.mdc` step index updated to `[x]` for this step.

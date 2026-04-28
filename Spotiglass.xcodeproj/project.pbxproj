@@ -1,0 +1,638 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A10000000000000000000001 /* SpotiglassApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000011 /* SpotiglassApp.swift */; };
+		A10000000000000000000002 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000012 /* RootView.swift */; };
+		A10000000000000000000003 /* AppConnectionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000013 /* AppConnectionState.swift */; };
+		A10000000000000000000004 /* AppMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000014 /* AppMetadata.swift */; };
+		A10000000000000000000005 /* SpotiglassFoundationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000015 /* SpotiglassFoundationTests.swift */; };
+		B20000000000000000000001 /* SpotifyAuthModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000011 /* SpotifyAuthModels.swift */; };
+		B20000000000000000000002 /* PKCE.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000012 /* PKCE.swift */; };
+		B20000000000000000000003 /* LoopbackOAuthCallback.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000013 /* LoopbackOAuthCallback.swift */; };
+		B20000000000000000000004 /* SpotifyAuthorizationFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000014 /* SpotifyAuthorizationFlow.swift */; };
+		B20000000000000000000005 /* SpotifyTokenClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000015 /* SpotifyTokenClient.swift */; };
+		B20000000000000000000006 /* AuthPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000016 /* AuthPersistence.swift */; };
+		B20000000000000000000007 /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000017 /* AuthViewModel.swift */; };
+		B20000000000000000000008 /* SpotifyAuthStepTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000018 /* SpotifyAuthStepTests.swift */; };
+		C30000000000000000000001 /* SpotifyWebAPIDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000011 /* SpotifyWebAPIDomain.swift */; };
+		C30000000000000000000002 /* SpotifyAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000012 /* SpotifyAPIClient.swift */; };
+		C30000000000000000000003 /* SpotifyAPIError.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000013 /* SpotifyAPIError.swift */; };
+		C30000000000000000000004 /* SpotifyAPIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000014 /* SpotifyAPIModels.swift */; };
+		C30000000000000000000005 /* SpotifyLocalCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000015 /* SpotifyLocalCache.swift */; };
+		C30000000000000000000006 /* SpotifyWebAPIStepTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000016 /* SpotifyWebAPIStepTests.swift */; };
+		D40000000000000000000001 /* PlaylistBrowserViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000011 /* PlaylistBrowserViewModel.swift */; };
+		D40000000000000000000002 /* PlaylistBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000012 /* PlaylistBrowserView.swift */; };
+		D40000000000000000000003 /* PlaylistBrowsingStepTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000013 /* PlaylistBrowsingStepTests.swift */; };
+		E50000000000000000000001 /* SpotifyPlaybackModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000011 /* SpotifyPlaybackModels.swift */; };
+		E50000000000000000000002 /* SpotifyPlaybackBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000012 /* SpotifyPlaybackBridge.swift */; };
+		E50000000000000000000003 /* SpotifyPlaybackAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000013 /* SpotifyPlaybackAPI.swift */; };
+		E50000000000000000000004 /* PlaybackSessionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000014 /* PlaybackSessionViewModel.swift */; };
+		E50000000000000000000005 /* HiddenPlaybackWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000015 /* HiddenPlaybackWebView.swift */; };
+		E50000000000000000000006 /* PlaybackControlsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000016 /* PlaybackControlsView.swift */; };
+		E50000000000000000000007 /* PlaybackStepTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000017 /* PlaybackStepTests.swift */; };
+		F60000000000000000000001 /* SpotiglassDesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60000000000000000000011 /* SpotiglassDesignSystem.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		A10000000000000000000020 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A10000000000000000000030 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A10000000000000000000040;
+			remoteInfo = Spotiglass;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		A10000000000000000000010 /* Spotiglass.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Spotiglass.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10000000000000000000011 /* SpotiglassApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotiglassApp.swift; sourceTree = "<group>"; };
+		A10000000000000000000012 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		A10000000000000000000013 /* AppConnectionState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConnectionState.swift; sourceTree = "<group>"; };
+		A10000000000000000000014 /* AppMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppMetadata.swift; sourceTree = "<group>"; };
+		A10000000000000000000015 /* SpotiglassFoundationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotiglassFoundationTests.swift; sourceTree = "<group>"; };
+		A10000000000000000000016 /* Spotiglass.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Spotiglass.entitlements; sourceTree = "<group>"; };
+		A10000000000000000000017 /* SpotiglassTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SpotiglassTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B20000000000000000000011 /* SpotifyAuthModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyAuthModels.swift; sourceTree = "<group>"; };
+		B20000000000000000000012 /* PKCE.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PKCE.swift; sourceTree = "<group>"; };
+		B20000000000000000000013 /* LoopbackOAuthCallback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoopbackOAuthCallback.swift; sourceTree = "<group>"; };
+		B20000000000000000000014 /* SpotifyAuthorizationFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyAuthorizationFlow.swift; sourceTree = "<group>"; };
+		B20000000000000000000015 /* SpotifyTokenClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyTokenClient.swift; sourceTree = "<group>"; };
+		B20000000000000000000016 /* AuthPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthPersistence.swift; sourceTree = "<group>"; };
+		B20000000000000000000017 /* AuthViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthViewModel.swift; sourceTree = "<group>"; };
+		B20000000000000000000018 /* SpotifyAuthStepTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyAuthStepTests.swift; sourceTree = "<group>"; };
+		C30000000000000000000011 /* SpotifyWebAPIDomain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyWebAPIDomain.swift; sourceTree = "<group>"; };
+		C30000000000000000000012 /* SpotifyAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyAPIClient.swift; sourceTree = "<group>"; };
+		C30000000000000000000013 /* SpotifyAPIError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyAPIError.swift; sourceTree = "<group>"; };
+		C30000000000000000000014 /* SpotifyAPIModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyAPIModels.swift; sourceTree = "<group>"; };
+		C30000000000000000000015 /* SpotifyLocalCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyLocalCache.swift; sourceTree = "<group>"; };
+		C30000000000000000000016 /* SpotifyWebAPIStepTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyWebAPIStepTests.swift; sourceTree = "<group>"; };
+		D40000000000000000000011 /* PlaylistBrowserViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserViewModel.swift; sourceTree = "<group>"; };
+		D40000000000000000000012 /* PlaylistBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserView.swift; sourceTree = "<group>"; };
+		D40000000000000000000013 /* PlaylistBrowsingStepTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowsingStepTests.swift; sourceTree = "<group>"; };
+		E50000000000000000000011 /* SpotifyPlaybackModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyPlaybackModels.swift; sourceTree = "<group>"; };
+		E50000000000000000000012 /* SpotifyPlaybackBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyPlaybackBridge.swift; sourceTree = "<group>"; };
+		E50000000000000000000013 /* SpotifyPlaybackAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyPlaybackAPI.swift; sourceTree = "<group>"; };
+		E50000000000000000000014 /* PlaybackSessionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackSessionViewModel.swift; sourceTree = "<group>"; };
+		E50000000000000000000015 /* HiddenPlaybackWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HiddenPlaybackWebView.swift; sourceTree = "<group>"; };
+		E50000000000000000000016 /* PlaybackControlsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackControlsView.swift; sourceTree = "<group>"; };
+		E50000000000000000000017 /* PlaybackStepTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackStepTests.swift; sourceTree = "<group>"; };
+		F60000000000000000000011 /* SpotiglassDesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotiglassDesignSystem.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A10000000000000000000050 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A10000000000000000000051 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A10000000000000000000060 = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000061 /* Spotiglass */,
+				A10000000000000000000068 /* SpotiglassTests */,
+				A10000000000000000000069 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A10000000000000000000061 /* Spotiglass */ = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000062 /* App */,
+				A10000000000000000000063 /* Views */,
+				A10000000000000000000064 /* Domain */,
+				A10000000000000000000065 /* Services */,
+				A10000000000000000000066 /* Playback */,
+				A10000000000000000000067 /* Auth */,
+				A1000000000000000000006A /* Persistence */,
+				A1000000000000000000006B /* Utilities */,
+				A10000000000000000000016 /* Spotiglass.entitlements */,
+			);
+			path = Spotiglass;
+			sourceTree = "<group>";
+		};
+		A10000000000000000000062 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000011 /* SpotiglassApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		A10000000000000000000063 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				D40000000000000000000012 /* PlaylistBrowserView.swift */,
+				D40000000000000000000011 /* PlaylistBrowserViewModel.swift */,
+				A10000000000000000000012 /* RootView.swift */,
+				F60000000000000000000011 /* SpotiglassDesignSystem.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		A10000000000000000000064 /* Domain */ = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000013 /* AppConnectionState.swift */,
+				C30000000000000000000011 /* SpotifyWebAPIDomain.swift */,
+			);
+			path = Domain;
+			sourceTree = "<group>";
+		};
+		A10000000000000000000065 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				C30000000000000000000012 /* SpotifyAPIClient.swift */,
+				C30000000000000000000013 /* SpotifyAPIError.swift */,
+				C30000000000000000000014 /* SpotifyAPIModels.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		A10000000000000000000066 /* Playback */ = {
+			isa = PBXGroup;
+			children = (
+				E50000000000000000000015 /* HiddenPlaybackWebView.swift */,
+				E50000000000000000000016 /* PlaybackControlsView.swift */,
+				E50000000000000000000014 /* PlaybackSessionViewModel.swift */,
+				E50000000000000000000013 /* SpotifyPlaybackAPI.swift */,
+				E50000000000000000000012 /* SpotifyPlaybackBridge.swift */,
+				E50000000000000000000011 /* SpotifyPlaybackModels.swift */,
+			);
+			path = Playback;
+			sourceTree = "<group>";
+		};
+		A10000000000000000000067 /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				B20000000000000000000017 /* AuthViewModel.swift */,
+				B20000000000000000000013 /* LoopbackOAuthCallback.swift */,
+				B20000000000000000000012 /* PKCE.swift */,
+				B20000000000000000000014 /* SpotifyAuthorizationFlow.swift */,
+				B20000000000000000000011 /* SpotifyAuthModels.swift */,
+				B20000000000000000000015 /* SpotifyTokenClient.swift */,
+			);
+			path = Auth;
+			sourceTree = "<group>";
+		};
+		A10000000000000000000068 /* SpotiglassTests */ = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000015 /* SpotiglassFoundationTests.swift */,
+				D40000000000000000000013 /* PlaylistBrowsingStepTests.swift */,
+				E50000000000000000000017 /* PlaybackStepTests.swift */,
+				B20000000000000000000018 /* SpotifyAuthStepTests.swift */,
+				C30000000000000000000016 /* SpotifyWebAPIStepTests.swift */,
+			);
+			path = SpotiglassTests;
+			sourceTree = "<group>";
+		};
+		A10000000000000000000069 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000010 /* Spotiglass.app */,
+				A10000000000000000000017 /* SpotiglassTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		A1000000000000000000006A /* Persistence */ = {
+			isa = PBXGroup;
+			children = (
+				B20000000000000000000016 /* AuthPersistence.swift */,
+				C30000000000000000000015 /* SpotifyLocalCache.swift */,
+			);
+			path = Persistence;
+			sourceTree = "<group>";
+		};
+		A1000000000000000000006B /* Utilities */ = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000014 /* AppMetadata.swift */,
+			);
+			path = Utilities;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A10000000000000000000040 /* Spotiglass */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A10000000000000000000090 /* Build configuration list for PBXNativeTarget "Spotiglass" */;
+			buildPhases = (
+				A10000000000000000000070 /* Sources */,
+				A10000000000000000000050 /* Frameworks */,
+				A10000000000000000000071 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Spotiglass;
+			productName = Spotiglass;
+			productReference = A10000000000000000000010 /* Spotiglass.app */;
+			productType = "com.apple.product-type.application";
+		};
+		A10000000000000000000041 /* SpotiglassTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A10000000000000000000091 /* Build configuration list for PBXNativeTarget "SpotiglassTests" */;
+			buildPhases = (
+				A10000000000000000000072 /* Sources */,
+				A10000000000000000000051 /* Frameworks */,
+				A10000000000000000000073 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A10000000000000000000021 /* PBXTargetDependency */,
+			);
+			name = SpotiglassTests;
+			productName = SpotiglassTests;
+			productReference = A10000000000000000000017 /* SpotiglassTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A10000000000000000000030 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2600;
+				LastUpgradeCheck = 2640;
+				TargetAttributes = {
+					A10000000000000000000040 = {
+						CreatedOnToolsVersion = 26.0;
+					};
+					A10000000000000000000041 = {
+						CreatedOnToolsVersion = 26.0;
+						TestTargetID = A10000000000000000000040;
+					};
+				};
+			};
+			buildConfigurationList = A10000000000000000000092 /* Build configuration list for PBXProject "Spotiglass" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = A10000000000000000000060;
+			productRefGroup = A10000000000000000000069 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A10000000000000000000040 /* Spotiglass */,
+				A10000000000000000000041 /* SpotiglassTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A10000000000000000000071 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A10000000000000000000073 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A10000000000000000000070 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000000000000000000001 /* SpotiglassApp.swift in Sources */,
+				A10000000000000000000002 /* RootView.swift in Sources */,
+				A10000000000000000000003 /* AppConnectionState.swift in Sources */,
+				A10000000000000000000004 /* AppMetadata.swift in Sources */,
+				B20000000000000000000001 /* SpotifyAuthModels.swift in Sources */,
+				B20000000000000000000002 /* PKCE.swift in Sources */,
+				B20000000000000000000003 /* LoopbackOAuthCallback.swift in Sources */,
+				B20000000000000000000004 /* SpotifyAuthorizationFlow.swift in Sources */,
+				B20000000000000000000005 /* SpotifyTokenClient.swift in Sources */,
+				B20000000000000000000006 /* AuthPersistence.swift in Sources */,
+				B20000000000000000000007 /* AuthViewModel.swift in Sources */,
+				C30000000000000000000001 /* SpotifyWebAPIDomain.swift in Sources */,
+				C30000000000000000000002 /* SpotifyAPIClient.swift in Sources */,
+				C30000000000000000000003 /* SpotifyAPIError.swift in Sources */,
+				C30000000000000000000004 /* SpotifyAPIModels.swift in Sources */,
+				C30000000000000000000005 /* SpotifyLocalCache.swift in Sources */,
+				D40000000000000000000001 /* PlaylistBrowserViewModel.swift in Sources */,
+				D40000000000000000000002 /* PlaylistBrowserView.swift in Sources */,
+				E50000000000000000000001 /* SpotifyPlaybackModels.swift in Sources */,
+				E50000000000000000000002 /* SpotifyPlaybackBridge.swift in Sources */,
+				E50000000000000000000003 /* SpotifyPlaybackAPI.swift in Sources */,
+				E50000000000000000000004 /* PlaybackSessionViewModel.swift in Sources */,
+				E50000000000000000000005 /* HiddenPlaybackWebView.swift in Sources */,
+				E50000000000000000000006 /* PlaybackControlsView.swift in Sources */,
+				F60000000000000000000001 /* SpotiglassDesignSystem.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A10000000000000000000072 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000000000000000000005 /* SpotiglassFoundationTests.swift in Sources */,
+				D40000000000000000000003 /* PlaylistBrowsingStepTests.swift in Sources */,
+				E50000000000000000000007 /* PlaybackStepTests.swift in Sources */,
+				B20000000000000000000008 /* SpotifyAuthStepTests.swift in Sources */,
+				C30000000000000000000006 /* SpotifyWebAPIStepTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		A10000000000000000000021 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A10000000000000000000040 /* Spotiglass */;
+			targetProxy = A10000000000000000000020 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		A10000000000000000000080 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		A10000000000000000000081 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+			};
+			name = Release;
+		};
+		A10000000000000000000082 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Spotiglass/Spotiglass.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_ASSET_PATHS = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Spotiglass;
+				INFOPLIST_KEY_CFBundleName = Spotiglass;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.isaaclins.spotiglass;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		A10000000000000000000083 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Spotiglass/Spotiglass.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_ASSET_PATHS = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Spotiglass;
+				INFOPLIST_KEY_CFBundleName = Spotiglass;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.isaaclins.spotiglass;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		A10000000000000000000084 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.isaaclins.spotiglass.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Spotiglass.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Spotiglass";
+			};
+			name = Debug;
+		};
+		A10000000000000000000085 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.isaaclins.spotiglass.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Spotiglass.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Spotiglass";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A10000000000000000000090 /* Build configuration list for PBXNativeTarget "Spotiglass" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A10000000000000000000082 /* Debug */,
+				A10000000000000000000083 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A10000000000000000000091 /* Build configuration list for PBXNativeTarget "SpotiglassTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A10000000000000000000084 /* Debug */,
+				A10000000000000000000085 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A10000000000000000000092 /* Build configuration list for PBXProject "Spotiglass" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A10000000000000000000080 /* Debug */,
+				A10000000000000000000081 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = A10000000000000000000030 /* Project object */;
+}
