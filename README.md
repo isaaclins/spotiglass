@@ -85,9 +85,11 @@ The resulting bundle is at `build/DerivedData/Build/Products/Release/Spotiglass.
 `.github/workflows/release-artifact.yml` builds the same unsigned Release `Spotiglass.app` on a GitHub-hosted macOS runner, runs the unit tests first, and uploads the `.app` bundle directly as a workflow artifact.
 
 - Trigger: `workflow_dispatch` only — the workflow does not run automatically on push or pull request.
-- Runner: `macos-latest` with the latest stable Xcode selected via `maxim-lobanov/setup-xcode`.
+- Runner: `macos-26` (pinned). The default `macos-latest` label still maps to macOS 15, whose host OS is older than this project's macOS 26.0 deployment target, so `xcodebuild test` aborts with `My Mac's macOS 15.7.x doesn't match SpotiglassTests's macOS 26.0 deployment target.` `macos-26` went generally available on 2026-02-26 (see [`actions/runner-images#13739`](https://github.com/actions/runner-images/issues/13739)) and ships Xcode 26.x by default. The latest stable Xcode is still selected explicitly via `maxim-lobanov/setup-xcode`.
 - Steps: checkout → select Xcode → run unit tests → build Release `.app` unsigned → stage `Spotiglass.app` at the workspace root → upload as a workflow artifact.
 - Artifact name: `Spotiglass-release-app` (retention 14 days). The artifact path is the `Spotiglass.app` bundle directory itself, uploaded with `actions/upload-artifact@v4` — no manual `zip` step is involved.
+
+> **Why the runner is pinned.** Both `Spotiglass` and `SpotiglassTests` declare `MACOSX_DEPLOYMENT_TARGET = 26.0`. `xcodebuild test` requires the host running the tests to be at least the test target's deployment target; on `macos-latest` (currently macOS 15.7.x) the test runner refuses to attach. If the project ever raises its deployment target above the `macos-26` host OS (issue [`actions/runner-images#13901`](https://github.com/actions/runner-images/issues/13901) tracks the gap between the runner image's host OS and the latest macOS 26 minor release), the runner label needs to be revisited.
 
 To produce an artifact:
 

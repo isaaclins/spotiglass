@@ -9,7 +9,15 @@ permissions:
 jobs:
   build:
     name: Build unsigned Release Spotiglass.app
-    runs-on: macos-latest
+    # Pinned to the macos-26 (Tahoe) runner because Spotiglass and
+    # SpotiglassTests both have a macOS 26.0 deployment target. The default
+    # macos-latest label currently maps to macOS 15, whose host OS (15.7.x)
+    # is older than the deployment target, so xcodebuild test refuses to
+    # launch the test runner with: "My Mac's macOS 15.7.4 doesn't match
+    # SpotiglassTests's macOS 26.0 deployment target." macos-26 went GA on
+    # 2026-02-26 and includes Xcode 26.x by default.
+    # See: https://github.com/actions/runner-images/issues/13739
+    runs-on: macos-26
     timeout-minutes: 45
     env:
       PROJECT: Spotiglass.xcodeproj
