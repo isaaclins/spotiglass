@@ -3,19 +3,52 @@ import SwiftUI
 @MainActor
 struct RootView: View {
     @StateObject private var viewModel: AuthViewModel
+    @StateObject private var commandPaletteManager: CommandPaletteManager
+    @Environment(\.openSettings) private var openSettingsAction
 
     init() {
+        let commandPaletteManager = CommandPaletteManager()
         _viewModel = StateObject(wrappedValue: AuthViewModel())
+        _commandPaletteManager = StateObject(wrappedValue: commandPaletteManager)
     }
 
-    init(viewModel: AuthViewModel) {
+    init(commandPaletteManager: CommandPaletteManager) {
+        _viewModel = StateObject(wrappedValue: AuthViewModel())
+        _commandPaletteManager = StateObject(wrappedValue: commandPaletteManager)
+    }
+
+    init(viewModel: AuthViewModel, commandPaletteManager: CommandPaletteManager) {
         _viewModel = StateObject(wrappedValue: viewModel)
+        _commandPaletteManager = StateObject(wrappedValue: commandPaletteManager)
     }
 
     var body: some View {
         content
+            .overlay {
+                if commandPaletteManager.viewModel.isPresented {
+                    CommandPaletteView(viewModel: commandPaletteManager.viewModel)
+                }
+            }
+            .background {
+                CommandPaletteEventMonitor(manager: commandPaletteManager)
+                    .frame(width: 0, height: 0)
+            }
             .task {
                 await viewModel.restoreSessionIfAvailable()
+            }
+            .onAppear {
+                commandPaletteManager.signOut = viewModel.signOut
+                commandPaletteManager.openSettings = {
+                    openSettingsAction()
+                }
+            }
+            .onChange(of: viewModel.state) { _, newState in
+                switch newState {
+                case .signedIn, .refreshing(.some):
+                    commandPaletteManager.isSignedIn = true
+                case .signedOut, .signingIn, .failed, .refreshing(.none):
+                    commandPaletteManager.isSignedIn = false
+                }
             }
     }
 
@@ -26,6 +59,8 @@ struct RootView: View {
             PlaylistBrowserView(
                 viewModel: .live(tokenProvider: viewModel),
                 playbackTokenProvider: viewModel,
+                searchTokenProvider: viewModel,
+                commandPaletteManager: commandPaletteManager,
                 signOut: viewModel.signOut
             )
         case .refreshing(.none):
@@ -144,5 +179,5 @@ private extension AppConnectionState {
 }
 
 #Preview {
-    RootView(viewModel: .preview())
+    RootView(viewModel: .preview(), commandPaletteManager: CommandPaletteManager())
 }

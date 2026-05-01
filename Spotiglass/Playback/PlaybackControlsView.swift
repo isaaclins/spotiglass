@@ -2,53 +2,18 @@ import SwiftUI
 
 struct PlaybackControlsView: View {
     @ObservedObject var viewModel: PlaybackSessionViewModel
+    @State private var dragFraction: Double?
 
     var body: some View {
         GlassPanel {
             HStack(spacing: SpotiglassDesign.spacingM) {
                 nowPlayingSummary
+                    .frame(minWidth: 240, idealWidth: 280, maxWidth: 320, alignment: .leading)
 
-                Spacer()
+                centerScrubberGroup
+                    .frame(maxWidth: .infinity)
 
-                HStack(spacing: SpotiglassDesign.spacingS) {
-                    Button {
-                        viewModel.start()
-                    } label: {
-                        Label("Connect", systemImage: "dot.radiowaves.left.and.right")
-                    }
-                    .keyboardShortcut("k", modifiers: [.command, .shift])
-                    .accessibilityLabel("Connect playback")
-                    .accessibilityHint("Connects the hidden Spotify Web Playback SDK device. Spotify Premium is required.")
-
-                    Button {
-                        Task { await viewModel.previous() }
-                    } label: {
-                        Image(systemName: "backward.fill")
-                    }
-                    .disabled(!hasReadyDevice)
-                    .accessibilityLabel("Previous track")
-                    .accessibilityHint("Skips to the previous Spotify track when playback is connected.")
-
-                    Button {
-                        Task { await viewModel.togglePlayPause() }
-                    } label: {
-                        Image(systemName: playPauseIcon)
-                    }
-                    .keyboardShortcut(.space, modifiers: [])
-                    .disabled(!hasReadyDevice)
-                    .accessibilityLabel(playPauseAccessibilityLabel)
-                    .accessibilityHint("Toggles Spotify playback in Spotiglass.")
-
-                    Button {
-                        Task { await viewModel.next() }
-                    } label: {
-                        Image(systemName: "forward.fill")
-                    }
-                    .disabled(!hasReadyDevice)
-                    .accessibilityLabel("Next track")
-                    .accessibilityHint("Skips to the next Spotify track when playback is connected.")
-                }
-                .controlSize(.regular)
+                controlsCluster
             }
             .padding(.horizontal, SpotiglassDesign.spacingM)
             .padding(.vertical, SpotiglassDesign.spacingS)
@@ -74,18 +39,77 @@ struct PlaybackControlsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
-
-                if let progressFraction {
-                    ProgressView(value: progressFraction)
-                        .controlSize(.small)
-                        .frame(maxWidth: 260)
-                        .accessibilityLabel("Playback progress")
-                        .accessibilityValue(progressAccessibilityValue)
-                }
             }
         }
-        .frame(minWidth: 280, alignment: .leading)
         .accessibilityElement(children: .combine)
+    }
+
+    private var centerScrubberGroup: some View {
+        HStack(spacing: SpotiglassDesign.spacingS) {
+            Text(elapsedText)
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .frame(minWidth: 36, alignment: .trailing)
+
+            ScrubberView(
+                positionFraction: positionFraction ?? 0,
+                durationMilliseconds: nowPlaying?.durationMilliseconds ?? 0,
+                onSeek: { milliseconds in
+                    Task { await viewModel.seek(to: milliseconds) }
+                },
+                onDragUpdate: { fraction in
+                    dragFraction = fraction
+                }
+            )
+            .frame(maxWidth: .infinity)
+            .opacity(nowPlaying != nil ? 1 : 0.4)
+            .disabled(nowPlaying == nil)
+
+            Text(remainingText)
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .frame(minWidth: 40, alignment: .leading)
+        }
+    }
+
+    private var controlsCluster: some View {
+        HStack(spacing: SpotiglassDesign.spacingS) {
+            Button {
+                viewModel.start()
+            } label: {
+                Label("Connect", systemImage: "dot.radiowaves.left.and.right")
+            }
+            .accessibilityLabel("Connect playback")
+            .accessibilityHint("Connects the hidden Spotify Web Playback SDK device. Spotify Premium is required.")
+
+            Button {
+                Task { await viewModel.previous() }
+            } label: {
+                Image(systemName: "backward.fill")
+            }
+            .disabled(!hasReadyDevice)
+            .accessibilityLabel("Previous track")
+            .accessibilityHint("Skips to the previous Spotify track when playback is connected.")
+
+            Button {
+                Task { await viewModel.togglePlayPause() }
+            } label: {
+                Image(systemName: playPauseIcon)
+            }
+            .disabled(!hasReadyDevice)
+            .accessibilityLabel(playPauseAccessibilityLabel)
+            .accessibilityHint("Toggles Spotify playback in Spotiglass.")
+
+            Button {
+                Task { await viewModel.next() }
+            } label: {
+                Image(systemName: "forward.fill")
+            }
+            .disabled(!hasReadyDevice)
+            .accessibilityLabel("Next track")
+            .accessibilityHint("Skips to the next Spotify track when playback is connected.")
+        }
+        .controlSize(.regular)
     }
 
     private var title: String {
@@ -120,9 +144,9 @@ struct PlaybackControlsView: View {
         case .transferring:
             "Moving Spotify playback to Spotiglass."
         case let .playing(nowPlaying):
-            "\(nowPlaying.artistText) • \(nowPlaying.progressText)"
+            nowPlaying.artistText
         case let .paused(nowPlaying):
-            nowPlaying.map { "\($0.artistText) • Paused • \($0.progressText)" } ?? "Paused"
+            nowPlaying.map { "\($0.artistText) • Paused" } ?? "Paused"
         case let .unavailable(message):
             message
         case let .error(error):
@@ -187,15 +211,33 @@ struct PlaybackControlsView: View {
         }
     }
 
-    private var progressFraction: Double? {
-        nowPlaying.flatMap { item in
-            guard item.durationMilliseconds > 0 else { return nil }
-            return min(max(Double(item.positionMilliseconds) / Double(item.durationMilliseconds), 0), 1)
-        }
+    private var positionFraction: Double? {
+        if let dragFraction { return dragFraction }
+        guard let item = nowPlaying, item.durationMilliseconds > 0 else { return nil }
+        return min(max(Double(item.positionMilliseconds) / Double(item.durationMilliseconds), 0), 1)
     }
 
-    private var progressAccessibilityValue: String {
-        nowPlaying?.progressText ?? ""
+    private var elapsedText: String {
+        guard let item = nowPlaying else { return "0:00" }
+        let positionMs: Int
+        if let dragFraction {
+            positionMs = Int((dragFraction * Double(item.durationMilliseconds)).rounded())
+        } else {
+            positionMs = item.positionMilliseconds
+        }
+        return PlaybackNowPlaying.mmss(milliseconds: positionMs)
+    }
+
+    private var remainingText: String {
+        guard let item = nowPlaying else { return "−0:00" }
+        let positionMs: Int
+        if let dragFraction {
+            positionMs = Int((dragFraction * Double(item.durationMilliseconds)).rounded())
+        } else {
+            positionMs = item.positionMilliseconds
+        }
+        let remainingMs = max(0, item.durationMilliseconds - positionMs)
+        return "−" + PlaybackNowPlaying.mmss(milliseconds: remainingMs)
     }
 
     private var nowPlaying: PlaybackNowPlaying? {

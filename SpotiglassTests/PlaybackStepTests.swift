@@ -94,6 +94,59 @@ final class PlaybackStepTests: XCTestCase {
         XCTAssertEqual(commander.commands.last?.payload["uri"] as? String, "spotify:track:1")
     }
 
+    func testPlayURIDoesNotTransferAgainForConsecutiveTrackSwitchesOnSameDevice() async {
+        let commander = MockWebPlaybackCommander()
+        let playbackAPI = MockPlaybackAPI()
+        let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: commander)
+        viewModel.handle(.ready(deviceID: "device-1"))
+
+        await viewModel.play(uri: "spotify:track:1")
+        await viewModel.play(uri: "spotify:track:2")
+
+        XCTAssertEqual(playbackAPI.actions, [
+            "transfer:device-1:false",
+            "play:device-1:spotify:track:1",
+            "play:device-1:spotify:track:2"
+        ])
+    }
+
+    func testPlayURITransfersAgainAfterDeviceBecomesNotReady() async {
+        let commander = MockWebPlaybackCommander()
+        let playbackAPI = MockPlaybackAPI()
+        let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: commander)
+        viewModel.handle(.ready(deviceID: "device-1"))
+
+        await viewModel.play(uri: "spotify:track:1")
+        viewModel.handle(.notReady(deviceID: "device-1"))
+        viewModel.handle(.ready(deviceID: "device-1"))
+        await viewModel.play(uri: "spotify:track:2")
+
+        XCTAssertEqual(playbackAPI.actions, [
+            "transfer:device-1:false",
+            "play:device-1:spotify:track:1",
+            "transfer:device-1:false",
+            "play:device-1:spotify:track:2"
+        ])
+    }
+
+    func testNextPreviousAndSeekUseWebAPIOnly() async {
+        let commander = MockWebPlaybackCommander()
+        let playbackAPI = MockPlaybackAPI()
+        let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: commander)
+        viewModel.handle(.ready(deviceID: "device-1"))
+
+        await viewModel.next()
+        await viewModel.previous()
+        await viewModel.seek(to: 12_000)
+
+        XCTAssertEqual(playbackAPI.actions, [
+            "next:device-1",
+            "previous:device-1",
+            "seek:device-1:12000"
+        ])
+        XCTAssertTrue(commander.commands.isEmpty, "Transport commands should not be mirrored to the Web Playback SDK.")
+    }
+
     func testPremiumAccountErrorMapsToClearState() {
         let viewModel = PlaybackSessionViewModel(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander())
 
@@ -150,6 +203,157 @@ final class PlaybackStepTests: XCTestCase {
         XCTAssertEqual(viewModel.connectionState, .connecting)
         XCTAssertNil(viewModel.deviceID)
     }
+
+    func testPlayingStateProgressAdvancesBetweenBridgeStateUpdates() async {
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: MockPlaybackAPI(),
+            webCommander: MockWebPlaybackCommander(),
+            progressTickInterval: 0.02
+        )
+        viewModel.handle(.stateChanged(PlaybackNowPlaying(
+            name: "Track",
+            artists: ["Artist"],
+            albumArtURL: nil,
+            durationMilliseconds: 180_000,
+            positionMilliseconds: 5_000,
+            uri: "spotify:track:1"
+        ), isPaused: false))
+
+        try? await Task.sleep(nanoseconds: 120_000_000)
+
+        guard case let .playing(nowPlaying) = viewModel.connectionState else {
+            return XCTFail("Expected playing state")
+        }
+        XCTAssertGreaterThan(nowPlaying.positionMilliseconds, 5_000)
+    }
+
+    func testPlayURIOptimisticallyResetsPositionForKnownCurrentTrack() async {
+        let commander = MockWebPlaybackCommander()
+        let playbackAPI = MockPlaybackAPI()
+        let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: commander)
+        viewModel.handle(.ready(deviceID: "device-1"))
+        viewModel.handle(.stateChanged(PlaybackNowPlaying(
+            name: "Track",
+            artists: ["Artist"],
+            albumArtURL: nil,
+            durationMilliseconds: 180_000,
+            positionMilliseconds: 32_000,
+            uri: "spotify:track:1"
+        ), isPaused: false))
+
+        await viewModel.play(uri: "spotify:track:1")
+
+        guard case let .playing(nowPlaying) = viewModel.connectionState else {
+            return XCTFail("Expected playing state")
+        }
+        XCTAssertEqual(nowPlaying.positionMilliseconds, 0)
+        XCTAssertEqual(nowPlaying.uri, "spotify:track:1")
+    }
+
+    func testPlayFromPlaylistQueuesRemainingURIsInOrderFromClickedTrack() async {
+        let commander = MockWebPlaybackCommander()
+        let playbackAPI = MockPlaybackAPI()
+        let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: commander)
+        viewModel.handle(.ready(deviceID: "device-1"))
+
+        await viewModel.playFromPlaylist(
+            clickedURI: "spotify:track:2",
+            playableURIs: [
+                "spotify:track:1",
+                "spotify:track:2",
+                "spotify:episode:3",
+                "spotify:track:4"
+            ]
+        )
+
+        XCTAssertEqual(playbackAPI.actions, [
+            "transfer:device-1:false",
+            "play-list:device-1:spotify:track:2,spotify:episode:3,spotify:track:4"
+        ])
+        XCTAssertEqual(commander.commands.last?.payload["uri"] as? String, "spotify:track:2")
+    }
+
+    func testPlayFromPlaylistIncludesEpisodesInQueueOrder() async {
+        let playbackAPI = MockPlaybackAPI()
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: playbackAPI,
+            webCommander: MockWebPlaybackCommander()
+        )
+        viewModel.handle(.ready(deviceID: "device-1"))
+
+        await viewModel.playFromPlaylist(
+            clickedURI: "spotify:episode:2",
+            playableURIs: [
+                "spotify:track:1",
+                "spotify:episode:2",
+                "spotify:track:3"
+            ]
+        )
+
+        XCTAssertEqual(playbackAPI.actions, [
+            "transfer:device-1:false",
+            "play-list:device-1:spotify:episode:2,spotify:track:3"
+        ])
+    }
+
+    func testPlayFromPlaylistFallsBackToSingleTrackWhenClickedURIMissing() async {
+        let playbackAPI = MockPlaybackAPI()
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: playbackAPI,
+            webCommander: MockWebPlaybackCommander()
+        )
+        viewModel.handle(.ready(deviceID: "device-1"))
+
+        await viewModel.playFromPlaylist(
+            clickedURI: "spotify:track:missing",
+            playableURIs: ["spotify:track:1", "spotify:track:2"]
+        )
+
+        XCTAssertEqual(playbackAPI.actions, [
+            "transfer:device-1:false",
+            "play:device-1:spotify:track:missing"
+        ])
+    }
+
+    func testActivePlaylistIDIsSetByPlayFromPlaylistAndClearedByPlayURI() async {
+        let playbackAPI = MockPlaybackAPI()
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: playbackAPI,
+            webCommander: MockWebPlaybackCommander()
+        )
+        viewModel.handle(.ready(deviceID: "device-1"))
+
+        XCTAssertNil(viewModel.activePlaylistID)
+
+        await viewModel.playFromPlaylist(
+            clickedURI: "spotify:track:1",
+            playableURIs: ["spotify:track:1", "spotify:track:2"],
+            playlistID: "playlist-42"
+        )
+        XCTAssertEqual(viewModel.activePlaylistID, "playlist-42")
+
+        await viewModel.play(uri: "spotify:track:standalone")
+        XCTAssertNil(viewModel.activePlaylistID)
+    }
+
+    func testActivePlaylistIDClearedByDisconnect() async {
+        let playbackAPI = MockPlaybackAPI()
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: playbackAPI,
+            webCommander: MockWebPlaybackCommander()
+        )
+        viewModel.handle(.ready(deviceID: "device-1"))
+
+        await viewModel.playFromPlaylist(
+            clickedURI: "spotify:track:1",
+            playableURIs: ["spotify:track:1"],
+            playlistID: "playlist-9"
+        )
+        XCTAssertEqual(viewModel.activePlaylistID, "playlist-9")
+
+        await viewModel.disconnect()
+        XCTAssertNil(viewModel.activePlaylistID)
+    }
 }
 
 @MainActor
@@ -200,6 +404,10 @@ private final class MockPlaybackAPI: SpotifyPlaybackControlling {
 
     func play(uri: String, deviceID: String) async throws {
         actions.append("play:\(deviceID):\(uri)")
+    }
+
+    func play(uris: [String], deviceID: String) async throws {
+        actions.append("play-list:\(deviceID):\(uris.joined(separator: ","))")
     }
 
     func pause(deviceID: String) async throws {

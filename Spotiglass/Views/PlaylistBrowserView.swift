@@ -6,11 +6,15 @@ struct PlaylistBrowserView: View {
     @StateObject private var playbackViewModel: PlaybackSessionViewModel
     private let commander: WebPlaybackViewCommander
     private let playbackCoordinator: SpotifyPlaybackWebViewCoordinator
+    @ObservedObject private var commandPaletteManager: CommandPaletteManager
+    private let spotifySearchClient: SpotifyAPIClient
     let signOut: () -> Void
 
     init(
         viewModel: PlaylistBrowserViewModel,
         playbackTokenProvider: PlaybackAccessTokenProviding,
+        searchTokenProvider: SpotifyAccessTokenProviding,
+        commandPaletteManager: CommandPaletteManager,
         signOut: @escaping () -> Void
     ) {
         let commander = WebPlaybackViewCommander()
@@ -27,6 +31,8 @@ struct PlaylistBrowserView: View {
 
         _viewModel = StateObject(wrappedValue: viewModel)
         _playbackViewModel = StateObject(wrappedValue: playbackViewModel)
+        _commandPaletteManager = ObservedObject(wrappedValue: commandPaletteManager)
+        spotifySearchClient = SpotifyAPIClient(tokenProvider: searchTokenProvider)
         self.commander = commander
         self.playbackCoordinator = playbackCoordinator
         self.signOut = signOut
@@ -58,7 +64,6 @@ struct PlaylistBrowserView: View {
                 } label: {
                     Label("Refresh Playlists", systemImage: "arrow.clockwise")
                 }
-                .keyboardShortcut("r", modifiers: .command)
                 .accessibilityHint("Reloads playlists from Spotify and updates cached data.")
 
                 Button {
@@ -74,6 +79,12 @@ struct PlaylistBrowserView: View {
         }
         .task {
             playbackViewModel.start()
+        }
+        .onAppear {
+            bindCommandPalette()
+        }
+        .onChange(of: viewModel.selectedPlaylistID) { _, _ in
+            bindCommandPalette()
         }
     }
 
@@ -100,27 +111,44 @@ struct PlaylistBrowserView: View {
     }
 
     private func playlistList(_ playlists: [PlaylistRowViewModel]) -> some View {
-        List(selection: $viewModel.selectedPlaylistID) {
-            ForEach(playlists) { playlist in
-                PlaylistListRow(playlist: playlist)
+        let activePlaylistID = playbackViewModel.activePlaylistID
+        let isPlaying: Bool = {
+            if case .playing = playbackViewModel.connectionState { return true }
+            return false
+        }()
+        return ScrollViewReader { proxy in
+            List(selection: $viewModel.selectedPlaylistID) {
+                ForEach(playlists) { playlist in
+                    PlaylistListRow(
+                        playlist: playlist,
+                        isActive: playlist.id == activePlaylistID,
+                        isPlaying: isPlaying
+                    )
                     .tag(playlist.id)
+                    .id(playlist.id)
+                }
             }
-        }
-        .onChange(of: viewModel.selectedPlaylistID) { _, newValue in
-            Task { await viewModel.selectPlaylist(id: newValue) }
-        }
-        .overlay(alignment: .bottom) {
-            if case let .staleCache(_, error) = viewModel.playlistState {
-                StaleCacheBanner(error: error)
-            } else if case .refreshing = viewModel.playlistState {
-                ProgressView("Refreshing playlists...")
-                    .controlSize(.small)
-                    .padding(SpotiglassDesign.spacingS)
-                    .background(.background, in: Capsule())
-                    .padding(SpotiglassDesign.spacingM)
+            .onChange(of: viewModel.selectedPlaylistID) { _, newValue in
+                Task { await viewModel.selectPlaylist(id: newValue) }
             }
+            .onChange(of: playbackViewModel.activePlaylistID) { _, newActiveID in
+                guard let newActiveID else { return }
+                // Instant scroll, no animation per spec.
+                proxy.scrollTo(newActiveID, anchor: .center)
+            }
+            .overlay(alignment: .bottom) {
+                if case let .staleCache(_, error) = viewModel.playlistState {
+                    StaleCacheBanner(error: error)
+                } else if case .refreshing = viewModel.playlistState {
+                    ProgressView("Refreshing playlists...")
+                        .controlSize(.small)
+                        .padding(SpotiglassDesign.spacingS)
+                        .background(.background, in: Capsule())
+                        .padding(SpotiglassDesign.spacingM)
+                }
+            }
+            .listStyle(.sidebar)
         }
-        .listStyle(.sidebar)
     }
 
     private var playlistDetail: some View {
@@ -136,9 +164,21 @@ struct PlaylistBrowserView: View {
                         Task { await viewModel.refreshSelectedPlaylist() }
                     },
                     playURI: { uri in
-                        Task { await playbackViewModel.play(uri: uri) }
+                        let playableURIs = detail.tracks.compactMap(\.playableURI)
+                        let playlistID = detail.playlist.id
+                        Task {
+                            await playbackViewModel.playFromPlaylist(
+                                clickedURI: uri,
+                                playableURIs: playableURIs,
+                                playlistID: playlistID
+                            )
+                        }
                     },
-                    currentPlaybackURI: currentPlaybackURI
+                    currentPlaybackURI: currentPlaybackURI,
+                    isPlaying: isCurrentlyPlaying,
+                    togglePlayPause: {
+                        Task { await playbackViewModel.togglePlayPause() }
+                    }
                 )
                 .overlay(alignment: .bottom) {
                     if case let .staleCache(_, error) = viewModel.detailState {
@@ -195,14 +235,142 @@ struct PlaylistBrowserView: View {
             nil
         }
     }
+
+    private var isCurrentlyPlaying: Bool {
+        if case .playing = playbackViewModel.connectionState { return true }
+        return false
+    }
+
+    private func bindCommandPalette() {
+        commandPaletteManager.isSignedIn = true
+        commandPaletteManager.signOut = signOut
+        commandPaletteManager.refreshPlaylists = { [weak viewModel] in
+            await viewModel?.refreshPlaylists()
+        }
+        commandPaletteManager.refreshTracks = { [weak viewModel] in
+            await viewModel?.refreshSelectedPlaylist()
+        }
+        commandPaletteManager.selectNextPlaylist = { [weak viewModel] in
+            await viewModel?.selectNextPlaylist()
+        }
+        commandPaletteManager.selectPreviousPlaylist = { [weak viewModel] in
+            await viewModel?.selectPreviousPlaylist()
+        }
+        commandPaletteManager.connectPlayback = { [weak playbackViewModel] in
+            playbackViewModel?.start()
+        }
+        commandPaletteManager.togglePlayback = { [weak playbackViewModel] in
+            await playbackViewModel?.togglePlayPause()
+        }
+        commandPaletteManager.nextTrack = { [weak playbackViewModel] in
+            await playbackViewModel?.next()
+        }
+        commandPaletteManager.previousTrack = { [weak playbackViewModel] in
+            await playbackViewModel?.previous()
+        }
+        commandPaletteManager.disconnectPlayback = { [weak playbackViewModel] in
+            await playbackViewModel?.disconnect()
+        }
+        commandPaletteManager.playURI = { [weak playbackViewModel] uri in
+            await playbackViewModel?.play(uri: uri)
+        }
+        commandPaletteManager.openPlaylist = { [weak viewModel] playlistID in
+            await viewModel?.selectPlaylist(id: playlistID)
+        }
+        commandPaletteManager.filterByArtist = { [weak commandPaletteManager] name in
+            // Re-query in songs scope using the artist name as the search term.
+            commandPaletteManager?.viewModel.applyExternalQuery(name)
+        }
+        commandPaletteManager.spotifySearch = { [spotifySearchClient, commandPaletteManager] query in
+            let results = try await spotifySearchClient.search(query: query, limit: 4)
+            var mapped = CommandPaletteSearchResults()
+
+            mapped.playlists = results.playlists.map { playlist in
+                CommandPaletteItem(
+                    id: "playlist-\(playlist.id)",
+                    title: playlist.name,
+                    subtitle: "Playlist • \(playlist.ownerName)",
+                    iconSystemName: "music.note.list",
+                    section: .playlists,
+                    keywords: [playlist.ownerName, playlist.id]
+                ) {
+                    commandPaletteManager.execute(
+                        commandID: "navigation.playlist.open",
+                        args: ["playlistID": .string(playlist.id)]
+                    )
+                }
+            }
+
+            mapped.tracks = results.tracks.map { track in
+                CommandPaletteItem(
+                    id: "track-\(track.id)",
+                    title: track.name,
+                    subtitle: track.artists.joined(separator: ", "),
+                    iconSystemName: "music.note",
+                    section: .tracks,
+                    keywords: track.artists + [track.uri]
+                ) {
+                    commandPaletteManager.execute(
+                        commandID: "playback.playURI",
+                        args: ["uri": .string(track.uri)]
+                    )
+                }
+            }
+
+            mapped.artists = results.artists.map { artist in
+                CommandPaletteItem(
+                    id: "artist-\(artist.id)",
+                    title: artist.name,
+                    subtitle: "Artist",
+                    iconSystemName: "person.wave.2",
+                    section: .artists,
+                    keywords: [artist.uri],
+                    keepsPaletteOpen: true
+                ) {
+                    commandPaletteManager.execute(
+                        commandID: CommandPaletteCommandID.filterByArtist,
+                        args: ["name": .string(artist.name)]
+                    )
+                }
+            }
+
+            mapped.albums = results.albums.map { album in
+                CommandPaletteItem(
+                    id: "album-\(album.id)",
+                    title: album.name,
+                    subtitle: album.artists.joined(separator: ", "),
+                    iconSystemName: "opticaldisc",
+                    section: .albums,
+                    keywords: album.artists + [album.uri]
+                ) {}
+            }
+
+            return mapped
+        }
+        commandPaletteManager.viewModel.refresh()
+    }
 }
 
 private struct PlaylistListRow: View {
     let playlist: PlaylistRowViewModel
+    var isActive: Bool = false
+    var isPlaying: Bool = false
 
     var body: some View {
         HStack(spacing: SpotiglassDesign.spacingS) {
             ArtworkView(url: playlist.artworkURL, size: 46)
+                .overlay(alignment: .bottomTrailing) {
+                    if isActive {
+                        PlayingWaveformIcon(isPlaying: isPlaying)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 3)
+                            .background(
+                                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                    .fill(Color.black.opacity(0.55))
+                            )
+                            .padding(3)
+                    }
+                }
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(playlist.title)
@@ -218,7 +386,7 @@ private struct PlaylistListRow: View {
         .padding(.vertical, SpotiglassDesign.spacingXS)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(playlist.title), by \(playlist.owner), \(playlist.trackCountText)")
+        .accessibilityLabel("\(playlist.title), by \(playlist.owner), \(playlist.trackCountText)\(isActive ? ", now playing" : "")")
     }
 }
 
@@ -227,6 +395,8 @@ private struct PlaylistDetailContent: View {
     let refresh: () -> Void
     let playURI: (String) -> Void
     let currentPlaybackURI: String?
+    let isPlaying: Bool
+    let togglePlayPause: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -247,7 +417,6 @@ private struct PlaylistDetailContent: View {
                 Button(action: refresh) {
                     Label("Refresh Tracks", systemImage: "arrow.clockwise")
                 }
-                .keyboardShortcut("t", modifiers: .command)
                 .accessibilityHint("Reloads tracks for the selected playlist.")
             }
             .padding(SpotiglassDesign.spacingL)
@@ -257,11 +426,14 @@ private struct PlaylistDetailContent: View {
             if detail.tracks.isEmpty {
                 EmptyStateView(title: "No tracks", message: "This playlist is empty.", retry: refresh)
             } else {
-                List(detail.tracks) { track in
+                List(Array(detail.tracks.enumerated()), id: \.element.id) { index, track in
                     TrackListRow(
+                        trackNumber: index + 1,
                         track: track,
                         playURI: playURI,
-                        isCurrent: track.playableURI != nil && track.playableURI == currentPlaybackURI
+                        togglePlayPause: togglePlayPause,
+                        isCurrent: track.playableURI != nil && track.playableURI == currentPlaybackURI,
+                        isPlaying: isPlaying
                     )
                 }
             }
@@ -270,12 +442,20 @@ private struct PlaylistDetailContent: View {
 }
 
 private struct TrackListRow: View {
+    let trackNumber: Int
     let track: TrackRowViewModel
     let playURI: (String) -> Void
+    let togglePlayPause: () -> Void
     let isCurrent: Bool
+    let isPlaying: Bool
+
+    @State private var isHovering: Bool = false
 
     var body: some View {
         HStack(spacing: SpotiglassDesign.spacingS) {
+            leadingColumn
+                .frame(width: 40, alignment: .trailing)
+
             ArtworkView(url: track.artworkURL, size: 40)
 
             VStack(alignment: .leading, spacing: 4) {
@@ -305,32 +485,58 @@ private struct TrackListRow: View {
             Text(track.durationText)
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
-
-            if let playableURI = track.playableURI {
-                Button {
-                    playURI(playableURI)
-                } label: {
-                    Image(systemName: "play.fill")
-                }
-                .buttonStyle(.borderless)
-                .help("Play in Spotiglass")
-                .accessibilityLabel("Play \(track.title)")
-                .accessibilityHint("Starts playback in the hidden Spotify Web Playback device.")
-            }
         }
         .padding(.vertical, SpotiglassDesign.spacingXS)
         .padding(.horizontal, SpotiglassDesign.spacingXS)
-        .background(
-            RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
-                .fill(isCurrent ? Color.accentColor.opacity(0.14) : .clear)
-        )
+        .background(rowBackground)
         .contentShape(Rectangle())
-        .onTapGesture(count: 2) {
-            guard let playableURI = track.playableURI else { return }
-            playURI(playableURI)
+        .onHover { hovering in
+            isHovering = hovering
+        }
+        .onTapGesture {
+            if isCurrent {
+                togglePlayPause()
+            } else if let playableURI = track.playableURI {
+                playURI(playableURI)
+            }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(track.title), \(track.subtitle), \(track.durationText)\(isCurrent ? ", currently playing" : "")")
+        .accessibilityLabel("\(trackNumber). \(track.title), \(track.subtitle), \(track.durationText)\(isCurrent ? ", currently playing" : "")")
+    }
+
+    @ViewBuilder
+    private var leadingColumn: some View {
+        if isCurrent && isHovering {
+            Image(systemName: "pause.fill")
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity, alignment: .center)
+        } else if isCurrent {
+            PlayingWaveformIcon(isPlaying: isPlaying)
+                .frame(maxWidth: .infinity, alignment: .center)
+        } else if isHovering {
+            Image(systemName: "play.fill")
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity, alignment: .center)
+        } else {
+            Text("\(trackNumber)")
+                .font(.callout.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+    }
+
+    @ViewBuilder
+    private var rowBackground: some View {
+        ZStack {
+            if isCurrent {
+                RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
+                    .fill(Color.primary.opacity(0.10))
+            }
+            if isHovering {
+                RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
+                    .fill(Color.primary.opacity(0.05))
+            }
+        }
     }
 }
 
@@ -464,6 +670,8 @@ private struct StaleCacheBanner: View {
             cache: PreviewBrowsingCache()
         ),
         playbackTokenProvider: PreviewPlaybackTokenProvider(),
+        searchTokenProvider: PreviewPlaybackTokenProvider(),
+        commandPaletteManager: CommandPaletteManager(),
         signOut: {}
     )
 }
@@ -494,4 +702,9 @@ private struct PreviewBrowsingCache: SpotifyBrowsingCache {
 private final class PreviewPlaybackTokenProvider: PlaybackAccessTokenProviding {
     func playbackAccessToken() async throws -> String { "preview-token" }
     func refreshedPlaybackAccessToken() async throws -> String { "preview-token" }
+}
+
+extension PreviewPlaybackTokenProvider: SpotifyAccessTokenProviding {
+    func accessToken() async throws -> String { "preview-token" }
+    func refreshAccessTokenAfterUnauthorized() async throws -> String { "preview-token" }
 }

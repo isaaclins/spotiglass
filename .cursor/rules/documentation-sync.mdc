@@ -1,0 +1,21 @@
+---
+description: After code changes, verify docs under docs/ still match; points to doc index
+alwaysApply: true
+---
+
+# Documentation sync
+
+Product documentation lives in **`docs/`**. Start from **`docs/README.md`** (index of all guides).
+
+When your change affects anything users or operators need to know, update the **narrowest** matching doc (do not duplicate long prose in the root `README.md`; keep that file as a short overview + links).
+
+| If you changed… | Consider updating… |
+|----------------|-------------------|
+| Run/setup, Spotify dashboard, scopes, OAuth | `docs/getting-started.md` |
+| `xcodebuild`, local Release bundle | `docs/building-and-testing.md` |
+| GitHub Actions, artifacts, Gatekeeper | `docs/ci-and-releases.md` |
+| Keychain, cache paths, privacy-related storage | `docs/data-storage.md` |
+| Premium requirement, signing, ports, API limits | `docs/limitations.md` |
+| High-level “what is this” only | Root `README.md` (brief) + link into `docs/` |
+
+Skip doc edits for pure refactors, renames with no behavior change, or internal-only changes that are not reflected in shipped behavior or operator setup.

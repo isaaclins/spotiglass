@@ -11,13 +11,31 @@ final class PlaybackSessionViewModel: ObservableObject {
     @Published private(set) var connectionState: PlaybackConnectionState = .disconnected
     @Published private(set) var deviceID: String?
     @Published private(set) var latestLog: String?
+    /// The Spotify playlist ID that the current playback originated from, or
+    /// `nil` if playback was started from a single track URI or external context.
+    /// Used by the sidebar to highlight which playlist row is "now playing".
+    @Published private(set) var activePlaylistID: String?
 
     private let playbackAPI: SpotifyPlaybackControlling
     private let webCommander: WebPlaybackCommanding
+    private let progressTickInterval: TimeInterval
+    private let clock = ContinuousClock()
+    private var progressTickerTask: Task<Void, Never>?
+    private var lastProgressTickInstant: ContinuousClock.Instant?
+    private var hasTransferredPlaybackToCurrentDevice = false
 
-    init(playbackAPI: SpotifyPlaybackControlling, webCommander: WebPlaybackCommanding) {
+    init(
+        playbackAPI: SpotifyPlaybackControlling,
+        webCommander: WebPlaybackCommanding,
+        progressTickInterval: TimeInterval = 0.25
+    ) {
         self.playbackAPI = playbackAPI
         self.webCommander = webCommander
+        self.progressTickInterval = progressTickInterval
+    }
+
+    deinit {
+        progressTickerTask?.cancel()
     }
 
     func start() {
@@ -27,7 +45,8 @@ final class PlaybackSessionViewModel: ObservableObject {
         case .connecting, .ready, .transferring, .playing, .paused:
             return
         }
-        connectionState = .connecting
+        hasTransferredPlaybackToCurrentDevice = false
+        setConnectionState(.connecting)
         deviceID = nil
         webCommander.loadHost()
         Task {
@@ -38,23 +57,30 @@ final class PlaybackSessionViewModel: ObservableObject {
     func handle(_ event: PlaybackBridgeEvent) {
         switch event {
         case let .ready(deviceID):
+            if self.deviceID != deviceID {
+                hasTransferredPlaybackToCurrentDevice = false
+            }
             self.deviceID = deviceID
-            connectionState = .ready(deviceID: deviceID)
+            setConnectionState(.ready(deviceID: deviceID))
         case let .notReady(deviceID):
             if self.deviceID == deviceID {
                 self.deviceID = nil
             }
-            connectionState = .unavailable("Spotify playback device is no longer available. Reconnect playback to continue.")
+            hasTransferredPlaybackToCurrentDevice = false
+            setConnectionState(.unavailable("Spotify playback device is no longer available. Reconnect playback to continue."))
         case let .stateChanged(nowPlaying, isPaused):
-            connectionState = isPaused ? .paused(nowPlaying) : .playing(nowPlaying ?? fallbackNowPlaying())
+            if nowPlaying != nil {
+                hasTransferredPlaybackToCurrentDevice = true
+            }
+            setConnectionState(isPaused ? .paused(nowPlaying) : .playing(nowPlaying ?? fallbackNowPlaying()))
         case let .initializationError(message):
-            connectionState = .error(PlaybackDisplayError(title: "Playback could not start", message: message, recoveryAction: .reconnect))
+            setConnectionState(.error(PlaybackDisplayError(title: "Playback could not start", message: message, recoveryAction: .reconnect)))
         case let .authenticationError(message):
-            connectionState = .error(PlaybackDisplayError(title: "Sign in again", message: message, recoveryAction: .reauthenticate))
+            setConnectionState(.error(PlaybackDisplayError(title: "Sign in again", message: message, recoveryAction: .reauthenticate)))
         case let .accountError(message):
-            connectionState = .error(PlaybackDisplayError(title: "Spotify Premium required", message: message, recoveryAction: nil))
+            setConnectionState(.error(PlaybackDisplayError(title: "Spotify Premium required", message: message, recoveryAction: nil)))
         case let .playbackError(message):
-            connectionState = .error(PlaybackDisplayError(title: "Playback error", message: message, recoveryAction: .retryTransfer))
+            setConnectionState(.error(PlaybackDisplayError(title: "Playback error", message: message, recoveryAction: .retryTransfer)))
         case let .log(message):
             latestLog = message
         }
@@ -62,21 +88,60 @@ final class PlaybackSessionViewModel: ObservableObject {
 
     func play(uri: String) async {
         guard let deviceID else {
-            connectionState = .error(PlaybackDisplayError(
+            setConnectionState(.error(PlaybackDisplayError(
                 title: "Playback device unavailable",
                 message: "The Spotify Web Playback SDK has not reported a ready device yet.",
                 recoveryAction: .reconnect
-            ))
+            )))
             return
         }
 
-        connectionState = .transferring(deviceID: deviceID)
+        activePlaylistID = nil
+
         do {
-            try await playbackAPI.transferPlayback(to: deviceID, play: false)
+            try await ensurePlaybackTransferredIfNeeded(deviceID: deviceID)
             try await playbackAPI.play(uri: uri, deviceID: deviceID)
+            if let optimisticNowPlaying = optimisticNowPlaying(for: uri) {
+                setConnectionState(.playing(optimisticNowPlaying.with(positionMilliseconds: 0)))
+            }
             try await webCommander.send(.playURI, payload: ["uri": uri])
         } catch {
-            connectionState = .error(Self.displayError(for: error))
+            setConnectionState(.error(Self.displayError(for: error)))
+        }
+    }
+
+    func playFromPlaylist(clickedURI: String, playableURIs: [String], playlistID: String? = nil) async {
+        guard let deviceID else {
+            setConnectionState(.error(PlaybackDisplayError(
+                title: "Playback device unavailable",
+                message: "The Spotify Web Playback SDK has not reported a ready device yet.",
+                recoveryAction: .reconnect
+            )))
+            return
+        }
+
+        guard let startIndex = playableURIs.firstIndex(of: clickedURI) else {
+            await play(uri: clickedURI)
+            return
+        }
+
+        let queue = Array(playableURIs[startIndex...])
+        guard !queue.isEmpty else {
+            await play(uri: clickedURI)
+            return
+        }
+
+        activePlaylistID = playlistID
+
+        do {
+            try await ensurePlaybackTransferredIfNeeded(deviceID: deviceID)
+            try await playbackAPI.play(uris: queue, deviceID: deviceID)
+            if let optimisticNowPlaying = optimisticNowPlaying(for: clickedURI) {
+                setConnectionState(.playing(optimisticNowPlaying.with(positionMilliseconds: 0)))
+            }
+            try await webCommander.send(.playURI, payload: ["uri": clickedURI])
+        } catch {
+            setConnectionState(.error(Self.displayError(for: error)))
         }
     }
 
@@ -84,24 +149,24 @@ final class PlaybackSessionViewModel: ObservableObject {
         do {
             try await webCommander.send(.togglePlay, payload: [:])
         } catch {
-            connectionState = .error(Self.displayError(for: error))
+            setConnectionState(.error(Self.displayError(for: error)))
         }
     }
 
     func previous() async {
-        await sendDeviceCommand(.previous) { deviceID in
+        await sendDeviceCommand { deviceID in
             try await playbackAPI.previous(deviceID: deviceID)
         }
     }
 
     func next() async {
-        await sendDeviceCommand(.next) { deviceID in
+        await sendDeviceCommand { deviceID in
             try await playbackAPI.next(deviceID: deviceID)
         }
     }
 
     func seek(to milliseconds: Int) async {
-        await sendDeviceCommand(.seek) { deviceID in
+        await sendDeviceCommand { deviceID in
             try await playbackAPI.seek(to: milliseconds, deviceID: deviceID)
         }
     }
@@ -113,22 +178,20 @@ final class PlaybackSessionViewModel: ObservableObject {
             latestLog = error.localizedDescription
         }
         deviceID = nil
-        connectionState = .disconnected
+        hasTransferredPlaybackToCurrentDevice = false
+        activePlaylistID = nil
+        setConnectionState(.disconnected)
     }
 
-    private func sendDeviceCommand(
-        _ command: PlaybackBridgeCommand,
-        action: (String) async throws -> Void
-    ) async {
+    private func sendDeviceCommand(action: (String) async throws -> Void) async {
         guard let deviceID else {
-            connectionState = .error(PlaybackDisplayError(title: "Playback device unavailable", message: "Reconnect playback before using controls.", recoveryAction: .reconnect))
+            setConnectionState(.error(PlaybackDisplayError(title: "Playback device unavailable", message: "Reconnect playback before using controls.", recoveryAction: .reconnect)))
             return
         }
         do {
             try await action(deviceID)
-            try await webCommander.send(command, payload: [:])
         } catch {
-            connectionState = .error(Self.displayError(for: error))
+            setConnectionState(.error(Self.displayError(for: error)))
         }
     }
 
@@ -151,6 +214,90 @@ final class PlaybackSessionViewModel: ObservableObject {
 
     private func fallbackNowPlaying() -> PlaybackNowPlaying {
         PlaybackNowPlaying(name: "Spotify playback", artists: [], albumArtURL: nil, durationMilliseconds: 0, positionMilliseconds: 0, uri: nil)
+    }
+
+    private func ensurePlaybackTransferredIfNeeded(deviceID: String) async throws {
+        guard !hasTransferredPlaybackToCurrentDevice else {
+            return
+        }
+        setConnectionState(.transferring(deviceID: deviceID))
+        try await playbackAPI.transferPlayback(to: deviceID, play: false)
+        hasTransferredPlaybackToCurrentDevice = true
+    }
+
+    private func optimisticNowPlaying(for uri: String) -> PlaybackNowPlaying? {
+        switch connectionState {
+        case let .playing(nowPlaying), let .paused(.some(nowPlaying)):
+            return nowPlaying.uri == uri ? nowPlaying : nil
+        case .paused(.none), .disconnected, .connecting, .ready, .transferring, .unavailable, .error:
+            return nil
+        }
+    }
+
+    private func setConnectionState(_ state: PlaybackConnectionState) {
+        connectionState = state
+
+        switch state {
+        case .playing:
+            startProgressTickerIfNeeded()
+        case .disconnected, .connecting, .ready, .transferring, .paused, .unavailable, .error:
+            stopProgressTicker()
+        }
+    }
+
+    private func startProgressTickerIfNeeded() {
+        guard progressTickerTask == nil else {
+            return
+        }
+
+        lastProgressTickInstant = clock.now
+        let intervalNanoseconds = UInt64(max(progressTickInterval, 0.01) * 1_000_000_000)
+        progressTickerTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: intervalNanoseconds)
+                await self?.tickPlaybackProgress()
+            }
+        }
+    }
+
+    private func stopProgressTicker() {
+        progressTickerTask?.cancel()
+        progressTickerTask = nil
+        lastProgressTickInstant = nil
+    }
+
+    private func tickPlaybackProgress() {
+        guard case let .playing(nowPlaying) = connectionState else {
+            return
+        }
+        guard nowPlaying.durationMilliseconds > 0 else {
+            return
+        }
+
+        let currentInstant = clock.now
+        let previousInstant = lastProgressTickInstant ?? currentInstant
+        lastProgressTickInstant = currentInstant
+        let deltaComponents = currentInstant - previousInstant
+        let deltaSeconds = Double(deltaComponents.components.seconds)
+            + (Double(deltaComponents.components.attoseconds) / 1_000_000_000_000_000_000.0)
+        guard deltaSeconds > 0 else {
+            return
+        }
+
+        let deltaMilliseconds = Int((deltaSeconds * 1_000).rounded())
+        guard deltaMilliseconds > 0 else {
+            return
+        }
+
+        let newPosition = min(
+            max(0, nowPlaying.positionMilliseconds + deltaMilliseconds),
+            nowPlaying.durationMilliseconds
+        )
+        guard newPosition != nowPlaying.positionMilliseconds else {
+            return
+        }
+
+        connectionState = .playing(nowPlaying.with(positionMilliseconds: newPosition))
     }
 }
 

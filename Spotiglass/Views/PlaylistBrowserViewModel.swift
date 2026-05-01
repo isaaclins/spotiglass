@@ -148,6 +148,10 @@ final class PlaylistBrowserViewModel: ObservableObject {
     private var playlistsByID: [String: SpotifyPlaylistSummary] = [:]
     private var hasLoaded = false
 
+    var visiblePlaylists: [PlaylistRowViewModel] {
+        playlistState.currentValue ?? []
+    }
+
     init(
         api: SpotifyBrowsingAPI,
         cache: SpotifyBrowsingCache,
@@ -227,6 +231,14 @@ final class PlaylistBrowserViewModel: ObservableObject {
         await loadTracks(for: selectedPlaylistID, refreshCachedData: false)
     }
 
+    func selectNextPlaylist() async {
+        await selectAdjacentPlaylist(offset: 1)
+    }
+
+    func selectPreviousPlaylist() async {
+        await selectAdjacentPlaylist(offset: -1)
+    }
+
     func clearForSignOut() {
         selectedPlaylistID = nil
         playlistsByID = [:]
@@ -279,6 +291,14 @@ final class PlaylistBrowserViewModel: ObservableObject {
                 detailState = .error(displayError)
             }
         }
+    }
+
+    private func selectAdjacentPlaylist(offset: Int) async {
+        let playlists = visiblePlaylists
+        guard !playlists.isEmpty else { return }
+        let currentIndex = playlists.firstIndex { $0.id == selectedPlaylistID } ?? 0
+        let nextIndex = min(max(0, currentIndex + offset), playlists.count - 1)
+        await selectPlaylist(id: playlists[nextIndex].id)
     }
 
     private func apply(

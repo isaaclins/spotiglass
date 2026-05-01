@@ -3,6 +3,7 @@ import Foundation
 protocol SpotifyPlaybackControlling {
     func transferPlayback(to deviceID: String, play: Bool) async throws
     func play(uri: String, deviceID: String) async throws
+    func play(uris: [String], deviceID: String) async throws
     func pause(deviceID: String) async throws
     func resume(deviceID: String) async throws
     func seek(to milliseconds: Int, deviceID: String) async throws
@@ -11,6 +12,7 @@ protocol SpotifyPlaybackControlling {
 }
 
 struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
+    private static let maxQueuedURIs = 100
     private let baseURL: URL
     private let tokenProvider: PlaybackAccessTokenProviding
     private let httpClient: HTTPClient
@@ -32,7 +34,19 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
     }
 
     func play(uri: String, deviceID: String) async throws {
-        let body = PlayURIRequest(uris: [uri])
+        // Explicitly reset track position to 0ms when starting a new URI.
+        // Without this, Spotify can occasionally resume at the previous
+        // playback offset when switching tracks on the same device.
+        let body = PlayURIRequest(uris: [uri], positionMilliseconds: 0)
+        try await send(path: "/v1/me/player/play", method: "PUT", body: body, queryItems: [URLQueryItem(name: "device_id", value: deviceID)])
+    }
+
+    func play(uris: [String], deviceID: String) async throws {
+        let sanitizedURIs = Array(uris.prefix(Self.maxQueuedURIs))
+        guard !sanitizedURIs.isEmpty else {
+            throw SpotifyAPIError.invalidRequest("At least one Spotify URI is required to start playback.")
+        }
+        let body = PlayURIRequest(uris: sanitizedURIs, positionMilliseconds: 0)
         try await send(path: "/v1/me/player/play", method: "PUT", body: body, queryItems: [URLQueryItem(name: "device_id", value: deviceID)])
     }
 
@@ -116,6 +130,12 @@ private struct TransferPlaybackRequest: Encodable {
 
 private struct PlayURIRequest: Encodable {
     let uris: [String]
+    let positionMilliseconds: Int
+
+    enum CodingKeys: String, CodingKey {
+        case uris
+        case positionMilliseconds = "position_ms"
+    }
 }
 
 private struct EmptyBody: Encodable {}

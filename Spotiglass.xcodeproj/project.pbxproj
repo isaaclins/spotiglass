@@ -37,6 +37,17 @@
 		E50000000000000000000006 /* PlaybackControlsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000016 /* PlaybackControlsView.swift */; };
 		E50000000000000000000007 /* PlaybackStepTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000017 /* PlaybackStepTests.swift */; };
 		F60000000000000000000001 /* SpotiglassDesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60000000000000000000011 /* SpotiglassDesignSystem.swift */; };
+		G70000000000000000000001 /* CommandPaletteModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = G70000000000000000000011 /* CommandPaletteModels.swift */; };
+		G70000000000000000000002 /* CommandPaletteKeymap.swift in Sources */ = {isa = PBXBuildFile; fileRef = G70000000000000000000012 /* CommandPaletteKeymap.swift */; };
+		G70000000000000000000003 /* CommandPaletteKeymapStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = G70000000000000000000013 /* CommandPaletteKeymapStore.swift */; };
+		G70000000000000000000004 /* CommandPaletteViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = G70000000000000000000014 /* CommandPaletteViewModel.swift */; };
+		G70000000000000000000005 /* CommandPaletteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = G70000000000000000000015 /* CommandPaletteView.swift */; };
+		G70000000000000000000006 /* CommandPaletteManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = G70000000000000000000016 /* CommandPaletteManager.swift */; };
+		G70000000000000000000007 /* CommandPaletteEventMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = G70000000000000000000017 /* CommandPaletteEventMonitor.swift */; };
+		G70000000000000000000008 /* CommandPaletteSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = G70000000000000000000018 /* CommandPaletteSettingsView.swift */; };
+		G70000000000000000000009 /* CommandPaletteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = G70000000000000000000019 /* CommandPaletteTests.swift */; };
+		H80000000000000000000001 /* PlayingWaveformIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = H80000000000000000000011 /* PlayingWaveformIcon.swift */; };
+		H80000000000000000000002 /* ScrubberView.swift in Sources */ = {isa = PBXBuildFile; fileRef = H80000000000000000000012 /* ScrubberView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -83,6 +94,17 @@
 		E50000000000000000000016 /* PlaybackControlsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackControlsView.swift; sourceTree = "<group>"; };
 		E50000000000000000000017 /* PlaybackStepTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackStepTests.swift; sourceTree = "<group>"; };
 		F60000000000000000000011 /* SpotiglassDesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotiglassDesignSystem.swift; sourceTree = "<group>"; };
+		G70000000000000000000011 /* CommandPaletteModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteModels.swift; sourceTree = "<group>"; };
+		G70000000000000000000012 /* CommandPaletteKeymap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteKeymap.swift; sourceTree = "<group>"; };
+		G70000000000000000000013 /* CommandPaletteKeymapStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteKeymapStore.swift; sourceTree = "<group>"; };
+		G70000000000000000000014 /* CommandPaletteViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteViewModel.swift; sourceTree = "<group>"; };
+		G70000000000000000000015 /* CommandPaletteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteView.swift; sourceTree = "<group>"; };
+		G70000000000000000000016 /* CommandPaletteManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteManager.swift; sourceTree = "<group>"; };
+		G70000000000000000000017 /* CommandPaletteEventMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteEventMonitor.swift; sourceTree = "<group>"; };
+		G70000000000000000000018 /* CommandPaletteSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteSettingsView.swift; sourceTree = "<group>"; };
+		G70000000000000000000019 /* CommandPaletteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteTests.swift; sourceTree = "<group>"; };
+		H80000000000000000000011 /* PlayingWaveformIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayingWaveformIcon.swift; sourceTree = "<group>"; };
+		H80000000000000000000012 /* ScrubberView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrubberView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -120,6 +142,7 @@
 				A10000000000000000000064 /* Domain */,
 				A10000000000000000000065 /* Services */,
 				A10000000000000000000066 /* Playback */,
+				G70000000000000000000060 /* CommandPalette */,
 				A10000000000000000000067 /* Auth */,
 				A1000000000000000000006A /* Persistence */,
 				A1000000000000000000006B /* Utilities */,
@@ -141,6 +164,7 @@
 			children = (
 				D40000000000000000000012 /* PlaylistBrowserView.swift */,
 				D40000000000000000000011 /* PlaylistBrowserViewModel.swift */,
+				H80000000000000000000011 /* PlayingWaveformIcon.swift */,
 				A10000000000000000000012 /* RootView.swift */,
 				F60000000000000000000011 /* SpotiglassDesignSystem.swift */,
 			);
@@ -172,6 +196,7 @@
 				E50000000000000000000015 /* HiddenPlaybackWebView.swift */,
 				E50000000000000000000016 /* PlaybackControlsView.swift */,
 				E50000000000000000000014 /* PlaybackSessionViewModel.swift */,
+				H80000000000000000000012 /* ScrubberView.swift */,
 				E50000000000000000000013 /* SpotifyPlaybackAPI.swift */,
 				E50000000000000000000012 /* SpotifyPlaybackBridge.swift */,
 				E50000000000000000000011 /* SpotifyPlaybackModels.swift */,
@@ -200,6 +225,7 @@
 				E50000000000000000000017 /* PlaybackStepTests.swift */,
 				B20000000000000000000018 /* SpotifyAuthStepTests.swift */,
 				C30000000000000000000016 /* SpotifyWebAPIStepTests.swift */,
+				G70000000000000000000019 /* CommandPaletteTests.swift */,
 			);
 			path = SpotiglassTests;
 			sourceTree = "<group>";
@@ -228,6 +254,21 @@
 				A10000000000000000000014 /* AppMetadata.swift */,
 			);
 			path = Utilities;
+			sourceTree = "<group>";
+		};
+		G70000000000000000000060 /* CommandPalette */ = {
+			isa = PBXGroup;
+			children = (
+				G70000000000000000000016 /* CommandPaletteManager.swift */,
+				G70000000000000000000012 /* CommandPaletteKeymap.swift */,
+				G70000000000000000000013 /* CommandPaletteKeymapStore.swift */,
+				G70000000000000000000011 /* CommandPaletteModels.swift */,
+				G70000000000000000000017 /* CommandPaletteEventMonitor.swift */,
+				G70000000000000000000014 /* CommandPaletteViewModel.swift */,
+				G70000000000000000000015 /* CommandPaletteView.swift */,
+				G70000000000000000000018 /* CommandPaletteSettingsView.swift */,
+			);
+			path = CommandPalette;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -353,6 +394,16 @@
 				E50000000000000000000005 /* HiddenPlaybackWebView.swift in Sources */,
 				E50000000000000000000006 /* PlaybackControlsView.swift in Sources */,
 				F60000000000000000000001 /* SpotiglassDesignSystem.swift in Sources */,
+				G70000000000000000000001 /* CommandPaletteModels.swift in Sources */,
+				G70000000000000000000002 /* CommandPaletteKeymap.swift in Sources */,
+				G70000000000000000000003 /* CommandPaletteKeymapStore.swift in Sources */,
+				G70000000000000000000004 /* CommandPaletteViewModel.swift in Sources */,
+				G70000000000000000000005 /* CommandPaletteView.swift in Sources */,
+				G70000000000000000000006 /* CommandPaletteManager.swift in Sources */,
+				G70000000000000000000007 /* CommandPaletteEventMonitor.swift in Sources */,
+				G70000000000000000000008 /* CommandPaletteSettingsView.swift in Sources */,
+				H80000000000000000000001 /* PlayingWaveformIcon.swift in Sources */,
+				H80000000000000000000002 /* ScrubberView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -365,6 +416,7 @@
 				E50000000000000000000007 /* PlaybackStepTests.swift in Sources */,
 				B20000000000000000000008 /* SpotifyAuthStepTests.swift in Sources */,
 				C30000000000000000000006 /* SpotifyWebAPIStepTests.swift in Sources */,
+				G70000000000000000000009 /* CommandPaletteTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

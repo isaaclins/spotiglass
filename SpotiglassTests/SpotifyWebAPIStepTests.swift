@@ -433,6 +433,69 @@ final class SpotifyWebAPIStepTests: XCTestCase {
         }
     }
 
+    func testSearchDecodingMapsTracksArtistsAlbumsAndPlaylists() async throws {
+        let httpClient = QueueHTTPClient([
+            .json("""
+            {
+              "tracks": {
+                "items": [
+                  {
+                    "type": "track",
+                    "id": "track-1",
+                    "name": "Midnight City",
+                    "artists": [{ "name": "M83" }],
+                    "album": { "images": [] },
+                    "duration_ms": 240000,
+                    "explicit": false,
+                    "uri": "spotify:track:track-1"
+                  }
+                ]
+              },
+              "artists": {
+                "items": [
+                  { "id": "artist-1", "name": "M83", "images": [], "uri": "spotify:artist:artist-1" }
+                ]
+              },
+              "albums": {
+                "items": [
+                  {
+                    "id": "album-1",
+                    "name": "Hurry Up, We're Dreaming",
+                    "artists": [{ "name": "M83" }],
+                    "images": [],
+                    "uri": "spotify:album:album-1"
+                  }
+                ]
+              },
+              "playlists": {
+                "items": [
+                  {
+                    "id": "playlist-1",
+                    "name": "Midnight",
+                    "owner": { "id": "owner-1", "display_name": "Isaac" },
+                    "images": [],
+                    "items": { "total": 10 },
+                    "snapshot_id": "snapshot-1"
+                  }
+                ]
+              }
+            }
+            """)
+        ])
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+
+        let results = try await client.search(query: "Midnight", limit: 4)
+
+        XCTAssertEqual(results.tracks.map(\.id), ["track-1"])
+        XCTAssertEqual(results.artists.map(\.name), ["M83"])
+        XCTAssertEqual(results.albums.map(\.id), ["album-1"])
+        XCTAssertEqual(results.playlists.map(\.id), ["playlist-1"])
+        XCTAssertEqual(
+            httpClient.requests.first?.url?.absoluteString,
+            "https://api.spotify.com/v1/search?q=Midnight&type=track,artist,album,playlist&limit=4"
+        )
+    }
+
     func testErrorMappingCoversRateLimitForbiddenAuthDecodeAndNetwork() async throws {
         let rateLimited = QueueHTTPClient([
             .json("""

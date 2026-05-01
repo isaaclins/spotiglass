@@ -31,6 +31,23 @@ struct PlaybackNowPlaying: Equatable {
         let totalSeconds = max(0, milliseconds / 1_000)
         return "\(totalSeconds / 60):\(String(format: "%02d", totalSeconds % 60))"
     }
+
+    /// Formats a duration as `M:SS` (no leading zero on minutes), used by the
+    /// now-playing scrubber timestamps.
+    static func mmss(milliseconds: Int) -> String {
+        durationText(milliseconds: milliseconds)
+    }
+
+    func with(positionMilliseconds: Int) -> PlaybackNowPlaying {
+        PlaybackNowPlaying(
+            name: name,
+            artists: artists,
+            albumArtURL: albumArtURL,
+            durationMilliseconds: durationMilliseconds,
+            positionMilliseconds: positionMilliseconds,
+            uri: uri
+        )
+    }
 }
 
 struct PlaybackDisplayError: Error, Equatable, Identifiable {

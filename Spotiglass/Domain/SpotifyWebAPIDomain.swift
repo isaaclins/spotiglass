@@ -52,6 +52,28 @@ struct SpotifyTrack: Codable, Equatable, Identifiable {
     let uri: String
 }
 
+struct SpotifyArtist: Codable, Equatable, Identifiable {
+    let id: String
+    let name: String
+    let imageURL: URL?
+    let uri: String
+}
+
+struct SpotifyAlbum: Codable, Equatable, Identifiable {
+    let id: String
+    let name: String
+    let artists: [String]
+    let imageURL: URL?
+    let uri: String
+}
+
+struct SpotifySearchResults: Codable, Equatable {
+    let tracks: [SpotifyTrack]
+    let artists: [SpotifyArtist]
+    let albums: [SpotifyAlbum]
+    let playlists: [SpotifyPlaylistSummary]
+}
+
 struct SpotifyEpisode: Codable, Equatable, Identifiable {
     let id: String
     let name: String

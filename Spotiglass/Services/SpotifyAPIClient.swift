@@ -54,6 +54,22 @@ struct SpotifyAPIClient {
         }
     }
 
+    func search(query: String, limit: Int = 6) async throws -> SpotifySearchResults {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return SpotifySearchResults(tracks: [], artists: [], albums: [], playlists: [])
+        }
+        let dto: SpotifySearchResponseDTO = try await send(
+            path: "/v1/search",
+            queryItems: [
+                URLQueryItem(name: "q", value: trimmed),
+                URLQueryItem(name: "type", value: "track,artist,album,playlist"),
+                URLQueryItem(name: "limit", value: String(limit))
+            ]
+        )
+        return dto.domainModel()
+    }
+
     func makeRequest(path: String, queryItems: [URLQueryItem] = [], accessToken: String) throws -> URLRequest {
         guard var components = URLComponents(url: baseURL.appendingPathComponent(path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))), resolvingAgainstBaseURL: false) else {
             throw SpotifyAPIError.invalidRequest("Invalid Spotify API path: \(path)")
