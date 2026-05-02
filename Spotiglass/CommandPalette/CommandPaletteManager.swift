@@ -5,7 +5,7 @@ import Foundation
 @MainActor
 final class CommandPaletteManager: ObservableObject {
     let viewModel = CommandPaletteViewModel()
-    let keymapStore = CommandPaletteKeymapStore()
+    let keymapStore: CommandPaletteKeymapStore
 
     /// While a Settings hotkey field is recording, global shortcut matching is suspended so the same chord is not executed as a command.
     @Published var isRecordingHotkey = false
@@ -24,13 +24,15 @@ final class CommandPaletteManager: ObservableObject {
     var disconnectPlayback: (() async -> Void)?
     var playURI: ((String) async -> Void)?
     var openPlaylist: ((String) async -> Void)?
+    var openArtist: ((String) async -> Void)?
     var spotifySearch: ((String) async throws -> CommandPaletteSearchResults)?
     var filterByArtist: ((String) -> Void)?
     var toggleQueue: (() -> Void)?
 
     private var cancellables: Set<AnyCancellable> = []
 
-    init() {
+    init(keymapStore: CommandPaletteKeymapStore? = nil) {
+        self.keymapStore = keymapStore ?? CommandPaletteKeymapStore()
         viewModel.staticItemsProvider = { [weak self] in
             self?.baseItems() ?? []
         }
@@ -49,7 +51,7 @@ final class CommandPaletteManager: ObservableObject {
                 self?.objectWillChange.send()
             }
             .store(in: &cancellables)
-        keymapStore.objectWillChange
+        self.keymapStore.objectWillChange
             .sink { [weak self] _ in
                 self?.objectWillChange.send()
             }
@@ -122,6 +124,10 @@ final class CommandPaletteManager: ObservableObject {
         case "navigation.playlist.open":
             if case let .string(playlistID)? = args?["playlistID"] {
                 Task { await openPlaylist?(playlistID) }
+            }
+        case CommandPaletteCommandID.openArtist:
+            if case let .string(artistID)? = args?["artistID"] {
+                Task { await openArtist?(artistID) }
             }
         case CommandPaletteCommandID.filterByArtist:
             if case let .string(name)? = args?["name"] {

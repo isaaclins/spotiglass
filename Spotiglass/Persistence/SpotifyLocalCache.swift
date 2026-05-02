@@ -69,6 +69,14 @@ struct SpotifyLocalCache {
         return cached.playlists
     }
 
+    /// Read saved playlists without a TTL filter; used to decide whether to skip a redundant `me/playlists` fetch on launch.
+    func loadPlaylistsBundle(now: Date = Date()) throws -> (playlists: [SpotifyPlaylistSummary], age: TimeInterval)? {
+        guard let cached: CachedPlaylists = try read(from: playlistsURL) else {
+            return nil
+        }
+        return (cached.playlists, now.timeIntervalSince(cached.cachedAt))
+    }
+
     func saveTracks(
         _ tracks: [SpotifyPlaylistTrackItem],
         playlistID: String,

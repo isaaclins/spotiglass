@@ -63,6 +63,20 @@ struct ShellBackground: View {
     }
 }
 
+/// Brand mark from `Assets.xcassets/AppLogo`.
+struct SpotiglassBrandLogo: View {
+    var length: CGFloat = 72
+
+    var body: some View {
+        Image("AppLogo")
+            .resizable()
+            .interpolation(.high)
+            .scaledToFit()
+            .frame(width: length, height: length)
+            .accessibilityLabel("\(AppMetadata.displayName) logo")
+    }
+}
+
 struct StatusPill: View {
     let text: String
     let systemImage: String

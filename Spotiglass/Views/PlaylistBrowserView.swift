@@ -6,7 +6,7 @@ struct PlaylistBrowserView: View {
     @StateObject private var playbackViewModel: PlaybackSessionViewModel
     @StateObject private var queueViewModel: QueueViewModel
     @AppStorage("queue.panel.visible") private var isQueueVisible = false
-    /// Drives only the **playlist** sidebar (leading column). Queue visibility is separate — see `HSplitView` below.
+    /// Drives only the **playlist** sidebar (leading column). Queue visibility is separate — see `detailWithQueueSplit` below.
     @State private var playlistColumnVisibility: NavigationSplitViewVisibility = .doubleColumn
     private let commander: WebPlaybackViewCommander
     private let playbackCoordinator: SpotifyPlaybackWebViewCoordinator
@@ -106,7 +106,7 @@ struct PlaylistBrowserView: View {
             queueViewModel.setPanelVisible(visible)
         }
         .onChange(of: playbackViewModel.sdkNextTracks) { _, _ in
-            queueViewModel.syncFromPlaybackSession()
+            queueViewModel.handleSdkQueueSnapshotChanged()
         }
         .onChange(of: queueRelevantPlaybackKey) { _, _ in
             queueViewModel.handlePlaybackStateChange()
@@ -114,6 +114,8 @@ struct PlaylistBrowserView: View {
     }
 
     /// Playback identity without scrubber position ticks (avoids re-running queue hooks every progress frame).
+    /// Includes playing vs paused so the queue refetches after transport changes (Spotify’s REST queue reflects play state).
+    /// Track URI still identifies the current item when it advances.
     private var queueRelevantPlaybackKey: String {
         switch playbackViewModel.connectionState {
         case .disconnected:
@@ -126,8 +128,10 @@ struct PlaylistBrowserView: View {
             "transferring:\(deviceID)"
         case let .playing(item):
             "playing:\(item.uri ?? "")"
-        case let .paused(item):
-            "paused:\(item?.uri ?? "nil")"
+        case let .paused(.some(item)):
+            "paused:\(item.uri ?? "")"
+        case .paused(.none):
+            "paused-empty"
         case let .unavailable(message):
             "unavailable:\(message)"
         case let .error(error):
@@ -200,14 +204,25 @@ struct PlaylistBrowserView: View {
 
     @ViewBuilder
     private var detailWithQueueSplit: some View {
-        HSplitView {
+        // Use `HStack` instead of `HSplitView` so the queue animates in from the **screen trailing**
+        // edge. `HSplitView` drives NSSplitView divider motion from the leading pane, which reads as
+        // “slides in from the left” even with `.move(edge: .trailing)` on the second column.
+        HStack(spacing: 0) {
             playlistDetail
                 .background(.background)
                 .frame(minWidth: 360)
+                .layoutPriority(1)
             if isQueueVisible {
                 queuePanelColumn
+                    .transition(
+                        .asymmetric(
+                            insertion: .offset(x: SpotiglassDesign.sidebarWidth).combined(with: .opacity),
+                            removal: .offset(x: SpotiglassDesign.sidebarWidth).combined(with: .opacity)
+                        )
+                    )
             }
         }
+        .animation(.spring(response: 0.38, dampingFraction: 0.84), value: isQueueVisible)
     }
 
     @ViewBuilder
@@ -221,40 +236,80 @@ struct PlaylistBrowserView: View {
         VStack(spacing: 0) {
             switch viewModel.detailState {
             case .loading:
-                ProgressView("Loading tracks...")
+                ProgressView("Loading…")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-            case let .loaded(detail), let .refreshing(detail), let .staleCache(detail, _):
-                PlaylistDetailContent(
-                    detail: detail,
-                    refresh: {
-                        Task { await viewModel.refreshSelectedPlaylist() }
-                    },
-                    playURI: { uri in
-                        let playableURIs = detail.tracks.compactMap(\.playableURI)
-                        let playlistID = detail.playlist.id
-                        Task {
-                            await playbackViewModel.playFromPlaylist(
-                                clickedURI: uri,
-                                playableURIs: playableURIs,
-                                playlistID: playlistID
-                            )
-                        }
-                    },
-                    currentPlaybackURI: currentPlaybackURI,
-                    isPlaying: isCurrentlyPlaying,
-                    togglePlayPause: {
-                        Task { await playbackViewModel.togglePlayPause() }
-                    },
-                    hasPlaybackDevice: hasPlaybackDevice,
-                    addToQueue: { uri in
-                        await queueViewModel.addToQueue(uri: uri)
+            case let .loaded(content), let .refreshing(content), let .staleCache(content, _):
+                Group {
+                    switch content {
+                    case let .playlist(detail):
+                        PlaylistDetailContent(
+                            detail: detail,
+                            refresh: {
+                                Task { await viewModel.refreshSelectedPlaylist() }
+                            },
+                            playURI: { uri in
+                                let playableURIs = detail.tracks.compactMap(\.playableURI)
+                                let playlistID = detail.playlist.id
+                                Task {
+                                    await playbackViewModel.playFromPlaylist(
+                                        clickedURI: uri,
+                                        playableURIs: playableURIs,
+                                        playlistID: playlistID
+                                    )
+                                }
+                            },
+                            currentPlaybackURI: currentPlaybackURI,
+                            isPlaying: isCurrentlyPlaying,
+                            togglePlayPause: {
+                                Task { await playbackViewModel.togglePlayPause() }
+                            },
+                            hasPlaybackDevice: hasPlaybackDevice,
+                            addToQueue: { uri in
+                                await queueViewModel.addToQueue(uri: uri)
+                            },
+                            openArtist: { artistID in
+                                Task { await viewModel.selectArtist(id: artistID) }
+                            }
+                        )
+                    case let .artist(detail):
+                        ArtistDetailContent(
+                            detail: detail,
+                            refresh: {
+                                Task { await viewModel.refreshSelectedPlaylist() }
+                            },
+                            playTrack: { uri in
+                                let playableURIs = detail.tracks.compactMap(\.playableURI)
+                                Task {
+                                    await playbackViewModel.playFromPlaylist(
+                                        clickedURI: uri,
+                                        playableURIs: playableURIs,
+                                        playlistID: nil
+                                    )
+                                }
+                            },
+                            playAlbumContext: { albumURI in
+                                Task { await playbackViewModel.play(contextURI: albumURI) }
+                            },
+                            currentPlaybackURI: currentPlaybackURI,
+                            isPlaying: isCurrentlyPlaying,
+                            togglePlayPause: {
+                                Task { await playbackViewModel.togglePlayPause() }
+                            },
+                            hasPlaybackDevice: hasPlaybackDevice,
+                            addToQueue: { uri in
+                                await queueViewModel.addToQueue(uri: uri)
+                            },
+                            openArtist: { artistID in
+                                Task { await viewModel.selectArtist(id: artistID) }
+                            }
+                        )
                     }
-                )
+                }
                 .overlay(alignment: .bottom) {
                     if case let .staleCache(_, error) = viewModel.detailState {
                         StaleCacheBanner(error: error)
                     } else if case .refreshing = viewModel.detailState {
-                        ProgressView("Refreshing tracks...")
+                        ProgressView("Refreshing…")
                             .controlSize(.small)
                             .padding(SpotiglassDesign.spacingS)
                             .background(.background, in: Capsule())
@@ -351,6 +406,9 @@ struct PlaylistBrowserView: View {
         commandPaletteManager.openPlaylist = { [weak viewModel] playlistID in
             await viewModel?.selectPlaylist(id: playlistID)
         }
+        commandPaletteManager.openArtist = { [weak viewModel] artistID in
+            await viewModel?.selectArtist(id: artistID)
+        }
         commandPaletteManager.toggleQueue = {
             queueVisible.wrappedValue.toggle()
         }
@@ -431,11 +489,11 @@ struct PlaylistBrowserView: View {
                     iconSystemName: "person.wave.2",
                     section: .artists,
                     keywords: [artist.uri],
-                    keepsPaletteOpen: true
+                    keepsPaletteOpen: false
                 ) {
                     commandPaletteManager.execute(
-                        commandID: CommandPaletteCommandID.filterByArtist,
-                        args: ["name": .string(artist.name)]
+                        commandID: CommandPaletteCommandID.openArtist,
+                        args: ["artistID": .string(artist.id)]
                     )
                 }
             }
@@ -505,6 +563,7 @@ private struct PlaylistDetailContent: View {
     let togglePlayPause: () -> Void
     let hasPlaybackDevice: Bool
     let addToQueue: (String) async -> Void
+    let openArtist: (String) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -543,117 +602,10 @@ private struct PlaylistDetailContent: View {
                         isCurrent: track.playableURI != nil && track.playableURI == currentPlaybackURI,
                         isPlaying: isPlaying,
                         hasPlaybackDevice: hasPlaybackDevice,
-                        addToQueue: addToQueue
+                        addToQueue: addToQueue,
+                        openArtist: openArtist
                     )
                 }
-            }
-        }
-    }
-}
-
-private struct TrackListRow: View {
-    let trackNumber: Int
-    let track: TrackRowViewModel
-    let playURI: (String) -> Void
-    let togglePlayPause: () -> Void
-    let isCurrent: Bool
-    let isPlaying: Bool
-    let hasPlaybackDevice: Bool
-    let addToQueue: (String) async -> Void
-
-    @State private var isHovering: Bool = false
-
-    var body: some View {
-        HStack(spacing: SpotiglassDesign.spacingS) {
-            leadingColumn
-                .frame(width: 40, alignment: .trailing)
-
-            ArtworkView(url: track.artworkURL, size: 40)
-
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text(track.title)
-                        .font(.headline)
-                        .foregroundStyle(track.isUnavailable ? .secondary : .primary)
-                        .lineLimit(1)
-
-                    if let badgeText = track.badgeText {
-                        Text(badgeText)
-                            .font(.caption2.weight(.medium))
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(.secondary.opacity(0.15), in: Capsule())
-                    }
-                }
-
-                Text(track.subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-
-            Spacer()
-
-            Text(track.durationText)
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.secondary)
-        }
-        .padding(.vertical, SpotiglassDesign.spacingXS)
-        .padding(.horizontal, SpotiglassDesign.spacingXS)
-        .background(rowBackground)
-        .contentShape(Rectangle())
-        .onHover { hovering in
-            isHovering = hovering
-        }
-        .onTapGesture {
-            if isCurrent {
-                togglePlayPause()
-            } else if let playableURI = track.playableURI {
-                playURI(playableURI)
-            }
-        }
-        .contextMenu {
-            Button("Add to Queue") {
-                guard let uri = track.playableURI else { return }
-                Task { await addToQueue(uri) }
-            }
-            .disabled(!hasPlaybackDevice || track.playableURI == nil)
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(trackNumber). \(track.title), \(track.subtitle), \(track.durationText)\(isCurrent ? ", currently playing" : "")")
-    }
-
-    @ViewBuilder
-    private var leadingColumn: some View {
-        if isCurrent && isHovering {
-            Image(systemName: "pause.fill")
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity, alignment: .center)
-        } else if isCurrent {
-            PlayingWaveformIcon(isPlaying: isPlaying)
-                .frame(maxWidth: .infinity, alignment: .center)
-        } else if isHovering {
-            Image(systemName: "play.fill")
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity, alignment: .center)
-        } else {
-            Text("\(trackNumber)")
-                .font(.callout.monospacedDigit())
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .trailing)
-        }
-    }
-
-    @ViewBuilder
-    private var rowBackground: some View {
-        ZStack {
-            if isCurrent {
-                RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
-                    .fill(Color.primary.opacity(0.10))
-            }
-            if isHovering {
-                RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
-                    .fill(Color.primary.opacity(0.05))
             }
         }
     }
@@ -760,6 +712,30 @@ private struct StaleCacheBanner: View {
 }
 
 private struct PreviewBrowsingAPI: SpotifyBrowsingAPI {
+    func currentUserProfile() async throws -> SpotifyUserProfile {
+        SpotifyUserProfile(id: "preview", displayName: nil, imageURL: nil, country: "US", product: .premium)
+    }
+
+    func artist(id: String) async throws -> SpotifyArtistDetail {
+        throw SpotifyAPIError.invalidRequest("Preview does not load artists.")
+    }
+
+    func artistTopTracks(id: String, market: String?) async throws -> [SpotifyTrack] {
+        []
+    }
+
+    func search(query: String, limit: Int) async throws -> SpotifySearchResults {
+        SpotifySearchResults(tracks: [], artists: [], albums: [], playlists: [])
+    }
+
+    func albumTracks(albumID: String, market: String?, limit: Int) async throws -> [SpotifyTrack] {
+        []
+    }
+
+    func artistAlbums(id: String, includeGroups: String, limit: Int) async throws -> [SpotifyArtistAlbum] {
+        []
+    }
+
     func currentUserPlaylists(limit: Int) async throws -> [SpotifyPlaylistSummary] {
         [
             SpotifyPlaylistSummary(id: "playlist", name: "Preview Playlist", description: nil, ownerName: "Isaac", imageURL: nil, trackCount: 2, isPublic: nil, isCollaborative: false, snapshotID: "snapshot")
@@ -775,6 +751,7 @@ private struct PreviewBrowsingAPI: SpotifyBrowsingAPI {
 
 private struct PreviewBrowsingCache: SpotifyBrowsingCache {
     func loadPlaylists(now: Date, maxAge: TimeInterval) throws -> [SpotifyPlaylistSummary]? { nil }
+    func loadPlaylistsBundle(now: Date) throws -> (playlists: [SpotifyPlaylistSummary], age: TimeInterval)? { nil }
     func savePlaylists(_ playlists: [SpotifyPlaylistSummary], cachedAt: Date) throws {}
     func loadTracks(playlistID: String, snapshotID: String, now: Date, maxAge: TimeInterval) throws -> [SpotifyPlaylistTrackItem]? { nil }
     func saveTracks(_ tracks: [SpotifyPlaylistTrackItem], playlistID: String, snapshotID: String, cachedAt: Date) throws {}

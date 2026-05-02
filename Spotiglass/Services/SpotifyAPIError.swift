@@ -6,7 +6,9 @@ enum SpotifyAPIError: Error, Equatable, LocalizedError {
     case forbidden(message: String?, details: String?)
     case rateLimited(retryAfter: TimeInterval?)
     case notFound(message: String?)
-    case server(statusCode: Int, message: String?)
+    /// HTTP 400 — client rejected parameters (copy-paste diagnostics when present).
+    case badRequest(message: String?, details: String?)
+    case server(statusCode: Int, message: String?, details: String?)
     case decoding(String)
     case network(String)
     case invalidRequest(String)
@@ -32,7 +34,12 @@ enum SpotifyAPIError: Error, Equatable, LocalizedError {
                 ?? "Spotify is rate limiting requests. Try again shortly."
         case let .notFound(message):
             return message ?? "This Spotify item is unavailable or was removed."
-        case let .server(statusCode, message):
+        case let .badRequest(message, _):
+            if let message, !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return "Spotify rejected this request: \(message)"
+            }
+            return "Spotify rejected this request."
+        case let .server(statusCode, message, _):
             let codeHint = "status code \(statusCode)"
             if let message, !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 return "Spotify’s servers had a problem (\(codeHint)): \(message). Please try again in a moment."
@@ -49,9 +56,9 @@ enum SpotifyAPIError: Error, Equatable, LocalizedError {
 
     var diagnosticDetails: String? {
         switch self {
-        case let .insufficientScope(_, _, details), let .forbidden(_, details):
+        case let .insufficientScope(_, _, details), let .forbidden(_, details), let .badRequest(_, details), let .server(_, _, details):
             details
-        case .unauthorized, .rateLimited, .notFound, .server, .decoding, .network, .invalidRequest:
+        case .unauthorized, .rateLimited, .notFound, .decoding, .network, .invalidRequest:
             nil
         }
     }

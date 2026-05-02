@@ -16,6 +16,7 @@ enum CommandPaletteCommandID {
     static let disconnectPlayback = "playback.disconnect"
     static let filterByArtist = "search.filterByArtist"
     static let toggleQueue = "queue.toggle"
+    static let openArtist = "navigation.artist.open"
 }
 
 enum CommandPaletteSection: String {

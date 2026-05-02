@@ -17,9 +17,21 @@ struct RootView: View {
     var body: some View {
         content
             .overlay {
-                if commandPaletteManager.viewModel.isPresented {
-                    CommandPaletteView(viewModel: commandPaletteManager.viewModel)
+                ZStack {
+                    if commandPaletteManager.viewModel.isPresented {
+                        CommandPaletteView(viewModel: commandPaletteManager.viewModel)
+                            .transition(
+                                .asymmetric(
+                                    insertion: .scale(scale: 0.96).combined(with: .opacity),
+                                    removal: .scale(scale: 0.98).combined(with: .opacity)
+                                )
+                            )
+                    }
                 }
+                .animation(
+                    .spring(response: 0.32, dampingFraction: 0.86),
+                    value: commandPaletteManager.viewModel.isPresented
+                )
             }
             .background {
                 CommandPaletteEventMonitor(manager: commandPaletteManager)
@@ -83,11 +95,7 @@ struct RootView: View {
 
             GlassPanel {
                 VStack(spacing: SpotiglassDesign.spacingL) {
-                    Image(systemName: "music.note.list")
-                        .font(.system(size: 52, weight: .semibold))
-                        .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(.primary, .secondary)
-                        .accessibilityHidden(true)
+                    SpotiglassBrandLogo(length: 72)
 
                     VStack(spacing: SpotiglassDesign.spacingS) {
                         Text(AppMetadata.displayName)

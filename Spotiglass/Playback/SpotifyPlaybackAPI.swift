@@ -70,6 +70,7 @@ private struct SpotifyQueueResponseDTO: Decodable {
 protocol SpotifyPlaybackControlling {
     func transferPlayback(to deviceID: String, play: Bool) async throws
     func play(uri: String, deviceID: String) async throws
+    func play(contextURI: String, deviceID: String) async throws
     func play(uris: [String], deviceID: String) async throws
     func pause(deviceID: String) async throws
     func resume(deviceID: String) async throws
@@ -108,6 +109,11 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
         // Without this, Spotify can occasionally resume at the previous
         // playback offset when switching tracks on the same device.
         let body = PlayURIRequest(uris: [uri], positionMilliseconds: 0)
+        try await send(path: "/v1/me/player/play", method: "PUT", body: body, queryItems: [URLQueryItem(name: "device_id", value: deviceID)])
+    }
+
+    func play(contextURI: String, deviceID: String) async throws {
+        let body = PlayContextRequest(contextURI: contextURI)
         try await send(path: "/v1/me/player/play", method: "PUT", body: body, queryItems: [URLQueryItem(name: "device_id", value: deviceID)])
     }
 
@@ -212,7 +218,7 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
         case 429:
             return .rateLimited(retryAfter: nil)
         default:
-            return .server(statusCode: statusCode, message: message)
+            return .server(statusCode: statusCode, message: message, details: nil)
         }
     }
 }
@@ -224,6 +230,14 @@ private struct TransferPlaybackRequest: Encodable {
     enum CodingKeys: String, CodingKey {
         case deviceIDs = "device_ids"
         case play
+    }
+}
+
+private struct PlayContextRequest: Encodable {
+    let contextURI: String
+
+    enum CodingKeys: String, CodingKey {
+        case contextURI = "context_uri"
     }
 }
 

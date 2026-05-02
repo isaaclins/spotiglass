@@ -27,14 +27,28 @@ struct PlaybackControlsView: View {
             leadingNowPlayingVisual
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.headline)
-                    .lineLimit(1)
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(title)
+                        .font(.headline)
+                        .lineLimit(1)
+                        .contentTransition(.opacity)
+                        .animation(.smooth(duration: 0.28), value: title)
+                    if shouldShowPausedIndicator {
+                        Text("Paused")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                    }
+                }
+                .animation(.smooth(duration: 0.22), value: shouldShowPausedIndicator)
 
                 Text(subtitle)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                    .contentTransition(.opacity)
+                    .animation(.smooth(duration: 0.28), value: subtitle)
             }
         }
         .accessibilityElement(children: .combine)
@@ -42,16 +56,23 @@ struct PlaybackControlsView: View {
 
     @ViewBuilder
     private var leadingNowPlayingVisual: some View {
-        if let item = nowPlaying {
-            ArtworkView(url: item.albumArtURL, size: 44)
-                .accessibilityHidden(true)
-        } else {
-            Image(systemName: stateIcon)
-                .font(.title3)
-                .foregroundStyle(stateIconColor)
-                .frame(width: 28)
-                .accessibilityHidden(true)
+        ZStack {
+            if let item = nowPlaying {
+                ArtworkView(url: item.albumArtURL, size: 44)
+                    .id("artwork:\(item.uri ?? item.name)")
+                    .transition(.opacity.combined(with: .scale(scale: 0.94)))
+                    .accessibilityHidden(true)
+            } else {
+                Image(systemName: stateIcon)
+                    .font(.title3)
+                    .foregroundStyle(stateIconColor)
+                    .frame(width: 28)
+                    .id("state-icon:\(stateIcon)")
+                    .transition(.opacity)
+                    .accessibilityHidden(true)
+            }
         }
+        .animation(.smooth(duration: 0.32), value: nowPlaying?.uri ?? "no-uri:\(stateIcon)")
     }
 
     private var centerScrubberGroup: some View {
@@ -60,6 +81,8 @@ struct PlaybackControlsView: View {
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
                 .frame(minWidth: 36, alignment: .trailing)
+                .contentTransition(.numericText())
+                .animation(.smooth(duration: 0.18), value: elapsedText)
 
             ScrubberView(
                 positionFraction: positionFraction ?? 0,
@@ -74,17 +97,21 @@ struct PlaybackControlsView: View {
             .frame(maxWidth: .infinity)
             .opacity(nowPlaying != nil ? 1 : 0.4)
             .disabled(nowPlaying == nil)
+            .animation(.smooth(duration: 0.24), value: nowPlaying != nil)
 
             Text(remainingText)
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
                 .frame(minWidth: 40, alignment: .leading)
+                .contentTransition(.numericText())
+                .animation(.smooth(duration: 0.18), value: remainingText)
         }
     }
 
     private var controlsCluster: some View {
         HStack(spacing: SpotiglassDesign.spacingS) {
             recoveryLeadingControl
+                .animation(.smooth(duration: 0.22), value: recoveryControlKey)
 
             Button {
                 Task { await viewModel.previous() }
@@ -99,6 +126,8 @@ struct PlaybackControlsView: View {
                 Task { await viewModel.togglePlayPause() }
             } label: {
                 Image(systemName: playPauseIcon)
+                    .contentTransition(.symbolEffect(.replace))
+                    .animation(.smooth(duration: 0.18), value: playPauseIcon)
             }
             .disabled(!hasReadyDevice)
             .accessibilityLabel(playPauseAccessibilityLabel)
@@ -178,6 +207,13 @@ struct PlaybackControlsView: View {
         }
     }
 
+    private var shouldShowPausedIndicator: Bool {
+        if case let .paused(item) = viewModel.connectionState {
+            return item != nil
+        }
+        return false
+    }
+
     private var subtitle: String {
         switch viewModel.connectionState {
         case .disconnected:
@@ -191,7 +227,7 @@ struct PlaybackControlsView: View {
         case let .playing(nowPlaying):
             nowPlaying.artistText
         case let .paused(nowPlaying):
-            nowPlaying.map { "\($0.artistText) • Paused" } ?? "Paused"
+            nowPlaying?.artistText ?? "Paused"
         case let .unavailable(message):
             message
         case let .error(error):
@@ -214,6 +250,24 @@ struct PlaybackControlsView: View {
             "Pause"
         default:
             "Play"
+        }
+    }
+
+    /// String key that changes whenever the recovery (leading) control should
+    /// switch between Reconnect / Retry / progress / hidden. Drives a smooth
+    /// crossfade rather than a hard cut when the playback state transitions.
+    private var recoveryControlKey: String {
+        switch viewModel.connectionState {
+        case .disconnected: "disconnected"
+        case .unavailable: "unavailable"
+        case .connecting: "connecting"
+        case let .error(error):
+            switch error.recoveryAction {
+            case .reconnect: "error.reconnect"
+            case .retryTransfer: "error.retry"
+            case .reauthenticate, .none: "error.passive"
+            }
+        case .ready, .transferring, .playing, .paused: "transport"
         }
     }
 

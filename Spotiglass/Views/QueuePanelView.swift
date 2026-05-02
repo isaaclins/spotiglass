@@ -10,6 +10,9 @@ struct QueuePanelView: View {
 
             if let error = viewModel.lastError {
                 errorBanner(error)
+                    .transition(
+                        .move(edge: .top).combined(with: .opacity)
+                    )
             }
 
             ScrollView {
@@ -22,6 +25,7 @@ struct QueuePanelView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(.background)
+        .animation(.spring(response: 0.34, dampingFraction: 0.86), value: viewModel.lastError?.id)
     }
 
     private var header: some View {
@@ -86,24 +90,30 @@ struct QueuePanelView: View {
             Text("Now playing")
                 .font(.headline)
 
-            if let item = viewModel.nowPlayingItem {
-                QueueRowView(
-                    item: item,
-                    isCurrent: true,
-                    isPlaying: viewModel.isPlaybackPlaying,
-                    onSelect: {
-                        Task { await viewModel.playItem(item) }
-                    },
-                    onCopyURI: { copyURI(item.uri) }
-                )
-            } else {
-                Text("Nothing playing")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(SpotiglassDesign.spacingM)
-                    .background(.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous))
+            ZStack {
+                if let item = viewModel.nowPlayingItem {
+                    QueueRowView(
+                        item: item,
+                        isCurrent: true,
+                        isPlaying: viewModel.isPlaybackPlaying,
+                        onSelect: {
+                            Task { await viewModel.playItem(item) }
+                        },
+                        onCopyURI: { copyURI(item.uri) }
+                    )
+                    .id("now-playing-row:\(item.id)")
+                    .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                } else {
+                    Text("Nothing playing")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(SpotiglassDesign.spacingM)
+                        .background(.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous))
+                        .transition(.opacity)
+                }
             }
+            .animation(.smooth(duration: 0.3), value: viewModel.nowPlayingItem?.id)
         }
     }
 
@@ -120,20 +130,30 @@ struct QueuePanelView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(SpotiglassDesign.spacingM)
                     .background(.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous))
+                    .transition(.opacity)
             } else {
-                ForEach(viewModel.upcomingItems) { item in
-                    QueueRowView(
-                        item: item,
-                        isCurrent: false,
-                        isPlaying: false,
-                        onSelect: {
-                            Task { await viewModel.playItem(item) }
-                        },
-                        onCopyURI: { copyURI(item.uri) }
-                    )
+                VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
+                    ForEach(viewModel.upcomingItems) { item in
+                        QueueRowView(
+                            item: item,
+                            isCurrent: false,
+                            isPlaying: false,
+                            onSelect: {
+                                Task { await viewModel.playItem(item) }
+                            },
+                            onCopyURI: { copyURI(item.uri) }
+                        )
+                        .transition(
+                            .asymmetric(
+                                insertion: .opacity.combined(with: .move(edge: .top)),
+                                removal: .opacity.combined(with: .scale(scale: 0.96))
+                            )
+                        )
+                    }
                 }
             }
         }
+        .animation(.spring(response: 0.36, dampingFraction: 0.86), value: viewModel.upcomingItems.map(\.id))
     }
 
     private func copyURI(_ uri: String?) {

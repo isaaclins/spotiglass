@@ -26,6 +26,19 @@ final class PlaybackSessionViewModel: ObservableObject {
     private var lastProgressTickInstant: ContinuousClock.Instant?
     private var hasTransferredPlaybackToCurrentDevice = false
 
+    /// URI the user most recently asked to play. While set, any incoming
+    /// Web Playback SDK `state_changed` event whose track URI does not match
+    /// this URI is ignored as stale. The Spotify SDK can briefly emit a final
+    /// event for the previous track during a transition, which would otherwise
+    /// cause the now-playing display to flash back to the old song name.
+    private var pendingPlayURI: String?
+    private var pendingPlayURIDeadline: ContinuousClock.Instant?
+    /// Maximum time we'll suppress mismatched events while waiting for the
+    /// Spotify SDK to confirm the requested URI. After this window we fall
+    /// back to whatever the SDK reports so the UI cannot deadlock on a track
+    /// that Spotify ultimately refused to play.
+    private let pendingPlayURITimeout: Duration = .seconds(6)
+
     init(
         playbackAPI: SpotifyPlaybackControlling,
         webCommander: WebPlaybackCommanding,
@@ -72,6 +85,9 @@ final class PlaybackSessionViewModel: ObservableObject {
             sdkNextTracks = []
             setConnectionState(.unavailable("Spotify playback device is no longer available. Reconnect playback to continue."))
         case let .stateChanged(nowPlaying, isPaused, nextTracks):
+            if shouldSuppressStaleStateChange(nowPlaying: nowPlaying) {
+                return
+            }
             sdkNextTracks = nextTracks
             if nowPlaying != nil {
                 hasTransferredPlaybackToCurrentDevice = true
@@ -101,6 +117,7 @@ final class PlaybackSessionViewModel: ObservableObject {
         }
 
         activePlaylistID = nil
+        beginPendingPlay(uri: uri)
 
         do {
             try await ensurePlaybackTransferredIfNeeded(deviceID: deviceID)
@@ -109,6 +126,28 @@ final class PlaybackSessionViewModel: ObservableObject {
                 setConnectionState(.playing(optimisticNowPlaying.with(positionMilliseconds: 0)))
             }
             try await webCommander.send(.playURI, payload: ["uri": uri])
+        } catch {
+            clearPendingPlay()
+            setConnectionState(.error(Self.displayError(for: error)))
+        }
+    }
+
+    func play(contextURI: String) async {
+        guard let deviceID else {
+            setConnectionState(.error(PlaybackDisplayError(
+                title: "Playback device unavailable",
+                message: "The Spotify Web Playback SDK has not reported a ready device yet.",
+                recoveryAction: .reconnect
+            )))
+            return
+        }
+
+        activePlaylistID = nil
+
+        do {
+            try await ensurePlaybackTransferredIfNeeded(deviceID: deviceID)
+            try await playbackAPI.play(contextURI: contextURI, deviceID: deviceID)
+            try await webCommander.send(.playURI, payload: ["uri": contextURI])
         } catch {
             setConnectionState(.error(Self.displayError(for: error)))
         }
@@ -136,6 +175,7 @@ final class PlaybackSessionViewModel: ObservableObject {
         }
 
         activePlaylistID = playlistID
+        beginPendingPlay(uri: clickedURI)
 
         do {
             try await ensurePlaybackTransferredIfNeeded(deviceID: deviceID)
@@ -145,6 +185,7 @@ final class PlaybackSessionViewModel: ObservableObject {
             }
             try await webCommander.send(.playURI, payload: ["uri": clickedURI])
         } catch {
+            clearPendingPlay()
             setConnectionState(.error(Self.displayError(for: error)))
         }
     }
@@ -185,6 +226,7 @@ final class PlaybackSessionViewModel: ObservableObject {
         hasTransferredPlaybackToCurrentDevice = false
         activePlaylistID = nil
         sdkNextTracks = []
+        clearPendingPlay()
         setConnectionState(.disconnected)
     }
 
@@ -246,6 +288,39 @@ final class PlaybackSessionViewModel: ObservableObject {
         setConnectionState(.transferring(deviceID: deviceID))
         try await playbackAPI.transferPlayback(to: deviceID, play: false)
         hasTransferredPlaybackToCurrentDevice = true
+    }
+
+    private func beginPendingPlay(uri: String) {
+        pendingPlayURI = uri
+        pendingPlayURIDeadline = clock.now.advanced(by: pendingPlayURITimeout)
+    }
+
+    private func clearPendingPlay() {
+        pendingPlayURI = nil
+        pendingPlayURIDeadline = nil
+    }
+
+    /// Returns true when an incoming SDK `state_changed` event should be
+    /// dropped because we are still waiting for the user-requested track to
+    /// take effect. Allows matching events through, lets the timeout window
+    /// fall back gracefully, and lets nil-track teardown events through so
+    /// the SDK can still report errors / device loss while a play is pending.
+    private func shouldSuppressStaleStateChange(nowPlaying: PlaybackNowPlaying?) -> Bool {
+        guard let pending = pendingPlayURI else {
+            return false
+        }
+        if let deadline = pendingPlayURIDeadline, clock.now >= deadline {
+            clearPendingPlay()
+            return false
+        }
+        guard let eventURI = nowPlaying?.uri else {
+            return false
+        }
+        if eventURI == pending {
+            clearPendingPlay()
+            return false
+        }
+        return true
     }
 
     private func optimisticNowPlaying(for uri: String) -> PlaybackNowPlaying? {

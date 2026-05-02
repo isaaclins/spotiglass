@@ -39,6 +39,86 @@ struct SpotifyAPIClient {
         return dto.domainModel()
     }
 
+    func artist(id: String) async throws -> SpotifyArtistDetail {
+        guard !id.isEmpty else {
+            throw SpotifyAPIError.invalidRequest("Artist ID is required.")
+        }
+        let dto: SpotifyArtistDetailDTO = try await send(path: "/v1/artists/\(id)")
+        return dto.domainModel()
+    }
+
+    func artistTopTracks(id: String, market: String?) async throws -> [SpotifyTrack] {
+        guard !id.isEmpty else {
+            throw SpotifyAPIError.invalidRequest("Artist ID is required.")
+        }
+        let marketValue = market ?? "from_token"
+        let dto: SpotifyTopTracksResponseDTO = try await send(
+            path: "/v1/artists/\(id)/top-tracks",
+            queryItems: [URLQueryItem(name: "market", value: marketValue)]
+        )
+        return dto.tracks.compactMap { $0.domainModel() }
+    }
+
+    /// Tracks on an album (`GET /v1/albums/{id}/tracks`). Paginates until `next` is nil.
+    func albumTracks(albumID: String, market: String?, limit: Int = 50) async throws -> [SpotifyTrack] {
+        guard !albumID.isEmpty else {
+            throw SpotifyAPIError.invalidRequest("Album ID is required.")
+        }
+        var results: [SpotifyTrack] = []
+        var nextURL: URL?
+        repeat {
+            let page: SpotifyPagingDTO<SpotifyTrackDTO>
+            if let url = nextURL {
+                page = try await send(url: url)
+            } else {
+                var queryItems: [URLQueryItem] = [
+                    URLQueryItem(name: "limit", value: String(limit)),
+                    URLQueryItem(name: "offset", value: "0")
+                ]
+                if let market {
+                    queryItems.append(URLQueryItem(name: "market", value: market))
+                }
+                page = try await send(
+                    path: "/v1/albums/\(albumID)/tracks",
+                    queryItems: queryItems
+                )
+            }
+            results.append(contentsOf: page.items.compactMap { $0.domainModel() })
+            nextURL = page.next
+        } while nextURL != nil
+
+        return results
+    }
+
+    /// Spotify documents `GET /v1/artists/{id}/albums` with **maximum `limit` of 10**. Larger values return HTTP 400.
+    func artistAlbums(id: String, includeGroups: String = "album,single,compilation,appears_on", limit: Int = 10) async throws -> [SpotifyArtistAlbum] {
+        guard !id.isEmpty else {
+            throw SpotifyAPIError.invalidRequest("Artist ID is required.")
+        }
+        let effectiveLimit = min(max(1, limit), 10)
+        var results: [SpotifyArtistAlbum] = []
+        var nextURL: URL?
+        repeat {
+            let page: SpotifyPagingDTO<SpotifyArtistAlbumDTO>
+            if let url = nextURL {
+                page = try await send(url: url)
+            } else {
+                page = try await send(
+                    path: "/v1/artists/\(id)/albums",
+                    queryItems: [
+                        URLQueryItem(name: "include_groups", value: includeGroups),
+                        URLQueryItem(name: "limit", value: String(effectiveLimit)),
+                        URLQueryItem(name: "offset", value: "0")
+                    ]
+                )
+            }
+            results.append(contentsOf: page.items.compactMap { $0.domainModel() })
+            nextURL = page.next
+        } while nextURL != nil
+
+        return results
+    }
+
     func currentUserPlaylists(limit: Int = 50) async throws -> [SpotifyPlaylistSummary] {
         try await collectPaged(path: "/v1/me/playlists", limit: limit) { (dto: SpotifyPlaylistDTO, _) in
             dto.domainModel()
@@ -173,11 +253,13 @@ struct SpotifyAPIClient {
 
     private func mapHTTPError(statusCode: Int, data: Data, headers: [AnyHashable: Any], request: URLRequest) -> SpotifyAPIError {
         let message = try? decoder.decode(SpotifyAPIErrorResponse.self, from: data).error.message
+        let details = diagnosticDetails(statusCode: statusCode, data: data, headers: headers, request: request, message: message)
         switch statusCode {
         case 401:
             return .unauthorized
+        case 400:
+            return .badRequest(message: message, details: details)
         case 403:
-            let details = diagnosticDetails(statusCode: statusCode, data: data, headers: headers, request: request, message: message)
             if isInsufficientScope(headers: headers, message: message) {
                 return .insufficientScope(
                     requiredScopes: requiredScopes(for: request),
@@ -191,9 +273,9 @@ struct SpotifyAPIClient {
         case 429:
             return .rateLimited(retryAfter: retryAfter(from: headers))
         case 500...599:
-            return .server(statusCode: statusCode, message: message)
+            return .server(statusCode: statusCode, message: message, details: details)
         default:
-            return .server(statusCode: statusCode, message: message)
+            return .server(statusCode: statusCode, message: message, details: details)
         }
     }
 

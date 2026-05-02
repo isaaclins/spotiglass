@@ -6,5 +6,6 @@
 | [Building and testing](building-and-testing.md) | `xcodebuild` commands, local Release bundle |
 | [CI and releases](ci-and-releases.md) | GitHub Actions workflow, artifacts, Gatekeeper |
 | [Data storage](data-storage.md) | Keychain, cache paths, what is stored locally |
+| [Equalizer](equalizer.md) | Live 10-band EQ, presets, settings.json layout |
 | [Limitations](limitations.md) | Premium requirement, unsigned builds, operational constraints |
 | [Development roadmap](development/roadmap.md) | Where implementation specs live in this repo |

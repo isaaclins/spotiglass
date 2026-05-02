@@ -40,6 +40,7 @@ final class AuthViewModel: ObservableObject {
         // leak the previous account's library through the cache layer.
         guard let cache = try? SpotifyLocalCache() else { return }
         try? cache.clear()
+        Task { await ArtworkImageStore.shared.clearAllCachedImages() }
     }
 
     func restoreSessionIfAvailable() async {

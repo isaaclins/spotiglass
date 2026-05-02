@@ -103,6 +103,23 @@ final class QueuePanelTests: XCTestCase {
         XCTAssertTrue(api.actions.contains("addToQueue:device-42:spotify:track:add-me"))
         XCTAssertTrue(api.actions.filter { $0 == "fetchQueue" }.count >= 1)
     }
+
+    func testQueueViewModelDoesNotShowErrorBannerForCancellation() async {
+        let api = QueueTestPlaybackAPI()
+        let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: StubWebPlaybackCommander())
+        playback.handle(.ready(deviceID: "device-1"))
+
+        let queue = QueueViewModel(playbackAPI: api, playbackSession: playback)
+        queue.setPanelVisible(true)
+
+        api.errorToThrow = CancellationError()
+        await queue.refreshQueue()
+        XCTAssertNil(queue.lastError, "CancellationError must not surface as a user-visible queue banner.")
+
+        api.errorToThrow = URLError(.cancelled)
+        await queue.refreshQueue()
+        XCTAssertNil(queue.lastError, "URLError.cancelled must not surface as a user-visible queue banner.")
+    }
 }
 
 private final class StubWebPlaybackCommander: WebPlaybackCommanding {
@@ -114,6 +131,7 @@ private final class StubWebPlaybackCommander: WebPlaybackCommanding {
 private final class QueueTestPlaybackAPI: SpotifyPlaybackControlling {
     private(set) var actions: [String] = []
     var queueResponse = SpotifyQueueResponse(currentlyPlaying: nil, queue: [])
+    var errorToThrow: Error?
 
     func transferPlayback(to deviceID: String, play: Bool) async throws {
         actions.append("transfer:\(deviceID):\(play)")
@@ -121,6 +139,10 @@ private final class QueueTestPlaybackAPI: SpotifyPlaybackControlling {
 
     func play(uri: String, deviceID: String) async throws {
         actions.append("play:\(deviceID):\(uri)")
+    }
+
+    func play(contextURI: String, deviceID: String) async throws {
+        actions.append("play-context:\(deviceID):\(contextURI)")
     }
 
     func play(uris: [String], deviceID: String) async throws {
@@ -139,6 +161,9 @@ private final class QueueTestPlaybackAPI: SpotifyPlaybackControlling {
 
     func fetchQueue() async throws -> SpotifyQueueResponse {
         actions.append("fetchQueue")
+        if let errorToThrow {
+            throw errorToThrow
+        }
         return queueResponse
     }
 

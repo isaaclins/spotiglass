@@ -73,6 +73,23 @@ final class SpotifyPlaybackAPIStepTests: XCTestCase {
         XCTAssertEqual(uris.first, "spotify:track:0")
         XCTAssertEqual(uris.last, "spotify:track:99")
     }
+
+    func testPlayContextURIEncodesContextURIField() async throws {
+        let tokenProvider = StaticPlaybackAccessTokenProvider(token: "token")
+        let httpClient = RecordingPlaybackHTTPClient()
+        let api = SpotifyPlaybackAPI(
+            baseURL: URL(string: "https://api.spotify.com")!,
+            tokenProvider: tokenProvider,
+            httpClient: httpClient
+        )
+
+        try await api.play(contextURI: "spotify:album:album-1", deviceID: "device-1")
+
+        let request = try XCTUnwrap(httpClient.requests.first)
+        let body = try XCTUnwrap(request.httpBody)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        XCTAssertEqual(object["context_uri"] as? String, "spotify:album:album-1")
+    }
 }
 
 @MainActor

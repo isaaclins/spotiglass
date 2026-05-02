@@ -550,6 +550,207 @@ final class SpotifyWebAPIStepTests: XCTestCase {
         )
     }
 
+    func testSearchDecodingSkipsNullEntriesInPagingItemsArrays() async throws {
+        let httpClient = QueueHTTPClient([
+            .json("""
+            {
+              "tracks": { "items": [null] },
+              "artists": { "items": [] },
+              "albums": { "items": [] },
+              "playlists": {
+                "items": [
+                  {
+                    "id": "playlist-0",
+                    "name": "First",
+                    "owner": { "id": "o", "display_name": "Owner" },
+                    "images": [],
+                    "items": { "total": 1 },
+                    "snapshot_id": "s0"
+                  },
+                  null,
+                  {
+                    "id": "playlist-2",
+                    "name": "Third",
+                    "owner": { "id": "o", "display_name": "Owner" },
+                    "images": [],
+                    "items": { "total": 2 },
+                    "snapshot_id": "s2"
+                  }
+                ]
+              }
+            }
+            """)
+        ])
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+
+        let results = try await client.search(query: "q", limit: 4)
+
+        XCTAssertEqual(results.tracks.count, 0)
+        XCTAssertEqual(results.playlists.map(\.id), ["playlist-0", "playlist-2"])
+    }
+
+    func testArtistDetailRequestAndDecoding() async throws {
+        let httpClient = QueueHTTPClient([
+            .json("""
+            {
+              "id": "ar1",
+              "name": "Test Artist",
+              "images": [],
+              "followers": { "total": 42 },
+              "genres": ["pop"],
+              "uri": "spotify:artist:ar1"
+            }
+            """)
+        ])
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+
+        let artist = try await client.artist(id: "ar1")
+
+        XCTAssertEqual(httpClient.requests.first?.url?.absoluteString, "https://api.spotify.com/v1/artists/ar1")
+        XCTAssertEqual(artist.id, "ar1")
+        XCTAssertEqual(artist.name, "Test Artist")
+        XCTAssertEqual(artist.followersTotal, 42)
+        XCTAssertEqual(artist.genres, ["pop"])
+    }
+
+    func testArtistTopTracksPassesMarketQueryItem() async throws {
+        let httpClient = QueueHTTPClient([
+            .json(#"{"tracks":[]}"#)
+        ])
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+
+        _ = try await client.artistTopTracks(id: "ar1", market: "US")
+
+        let url = try XCTUnwrap(httpClient.requests.first?.url?.absoluteString)
+        XCTAssertTrue(url.contains("/v1/artists/ar1/top-tracks"))
+        XCTAssertTrue(url.contains("market=US"))
+    }
+
+    func testAlbumTracksRequestsCorrectURLAndDecodes() async throws {
+        let httpClient = QueueHTTPClient([
+            .json("""
+            {
+              "href": "https://api.spotify.com/v1/albums/al1/tracks?offset=0&limit=50",
+              "limit": 50,
+              "next": null,
+              "offset": 0,
+              "previous": null,
+              "total": 1,
+              "items": [
+                {
+                  "id": "tr1",
+                  "name": "Song",
+                  "artists": [{ "id": "ar1", "name": "Artist" }],
+                  "album": { "images": [] },
+                  "duration_ms": 1000,
+                  "explicit": false,
+                  "uri": "spotify:track:tr1"
+                }
+              ]
+            }
+            """)
+        ])
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+
+        let tracks = try await client.albumTracks(albumID: "al1", market: "US", limit: 50)
+
+        let url = try XCTUnwrap(httpClient.requests.first?.url?.absoluteString)
+        XCTAssertTrue(url.contains("/v1/albums/al1/tracks"))
+        XCTAssertTrue(url.contains("market=US"))
+        XCTAssertEqual(tracks.count, 1)
+        XCTAssertEqual(tracks.first?.id, "tr1")
+        XCTAssertEqual(tracks.first?.name, "Song")
+    }
+
+    func testArtistAlbumsRequestsLimitTenAndPaginates() async throws {
+        let httpClient = QueueHTTPClient([
+            .json("""
+            {
+              "href": "https://api.spotify.com/v1/artists/ar1/albums?offset=0&limit=10",
+              "limit": 10,
+              "next": "https://api.spotify.com/v1/artists/ar1/albums?include_groups=album%2Csingle%2Ccompilation%2Cappears_on&limit=10&offset=10",
+              "offset": 0,
+              "previous": null,
+              "total": 2,
+              "items": [
+                {
+                  "id": "alb1",
+                  "name": "First Album",
+                  "images": [],
+                  "release_date": "2020-01-01",
+                  "total_tracks": 10,
+                  "uri": "spotify:album:alb1",
+                  "album_group": "album"
+                }
+              ]
+            }
+            """),
+            .json("""
+            {
+              "href": "https://api.spotify.com/v1/artists/ar1/albums?offset=10&limit=10",
+              "limit": 10,
+              "next": null,
+              "offset": 10,
+              "previous": null,
+              "total": 2,
+              "items": [
+                {
+                  "id": "alb2",
+                  "name": "Second Album",
+                  "images": [],
+                  "release_date": "2021-01-01",
+                  "total_tracks": 8,
+                  "uri": "spotify:album:alb2",
+                  "album_group": "single"
+                }
+              ]
+            }
+            """)
+        ])
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+
+        let albums = try await client.artistAlbums(id: "ar1")
+
+        let firstURL = try XCTUnwrap(httpClient.requests.first?.url?.absoluteString)
+        XCTAssertTrue(firstURL.contains("/v1/artists/ar1/albums"))
+        XCTAssertTrue(firstURL.contains("limit=10"))
+        XCTAssertFalse(firstURL.contains("limit=50"))
+        XCTAssertEqual(albums.count, 2)
+        XCTAssertEqual(albums.map(\.id), ["alb1", "alb2"])
+    }
+
+    func testBadRequestMapsToBadRequestCaseWithDiagnostics() async throws {
+        let httpClient = QueueHTTPClient([
+            .json("""
+            { "error": { "status": 400, "message": "Invalid limit" } }
+            """, statusCode: 400)
+        ])
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+
+        do {
+            _ = try await client.currentUserProfile()
+            XCTFail("Expected badRequest")
+        } catch let error as SpotifyAPIError {
+            guard case let .badRequest(message, details) = error else {
+                return XCTFail("Expected badRequest, got \(error)")
+            }
+            XCTAssertEqual(message, "Invalid limit")
+            XCTAssertTrue(details?.contains("GET https://api.spotify.com/v1/me") == true)
+            XCTAssertTrue(details?.contains("HTTP 400") == true)
+            XCTAssertTrue(details?.contains("\"message\": \"Invalid limit\"") == true)
+        }
+    }
+
+    func testTrackDTOBuildsArtistRefsWhenSpotifyIncludesArtistIds() throws {
+        let json = """
+        {"id":"t1","name":"Song","artists":[{"id":"a1","name":"One"},{"id":"a2","name":"Two"}],"album":{"images":[]},"duration_ms":1000,"explicit":false,"uri":"spotify:track:t1"}
+        """.data(using: .utf8)!
+        let dto = try JSONDecoder().decode(SpotifyTrackDTO.self, from: json)
+        let track = try XCTUnwrap(dto.domainModel())
+        XCTAssertEqual(track.artistRefs.map(\.id), ["a1", "a2"])
+        XCTAssertEqual(track.artists, ["One", "Two"])
+    }
+
     func testErrorMappingCoversRateLimitForbiddenAuthDecodeAndNetwork() async throws {
         let rateLimited = QueueHTTPClient([
             .json("""
@@ -702,6 +903,7 @@ final class SpotifyWebAPIStepTests: XCTestCase {
                 id: "track-1",
                 name: "Track",
                 artists: ["Artist"],
+                artistRefs: [],
                 albumArtworkURL: nil,
                 durationMilliseconds: 100,
                 isExplicit: false,
@@ -718,6 +920,10 @@ final class SpotifyWebAPIStepTests: XCTestCase {
 
         XCTAssertEqual(try cache.loadPlaylists(now: Date(timeIntervalSince1970: 1_100), maxAge: 300), [playlist])
         XCTAssertNil(try cache.loadPlaylists(now: Date(timeIntervalSince1970: 1_400), maxAge: 300))
+
+        let bundle = try XCTUnwrap(try cache.loadPlaylistsBundle(now: Date(timeIntervalSince1970: 1_400)))
+        XCTAssertEqual(bundle.playlists, [playlist])
+        XCTAssertEqual(bundle.age, 400, accuracy: 0.001)
         XCTAssertEqual(try cache.loadTracks(playlistID: "playlist-1", snapshotID: "snapshot-1", now: Date(timeIntervalSince1970: 1_100), maxAge: 300), [track])
         XCTAssertNil(try cache.loadTracks(playlistID: "playlist-1", snapshotID: "snapshot-2", now: Date(timeIntervalSince1970: 1_100), maxAge: 300))
         XCTAssertEqual(try cache.loadSettings(), CachedSpotifySettings(lastSelectedPlaylistID: "playlist-1", lastUserID: "user-1"))
@@ -727,13 +933,13 @@ final class SpotifyWebAPIStepTests: XCTestCase {
     }
 
     func testServerErrorUsesPlainLanguageNotNSErrorCaseIndex() {
-        let withoutMessage = SpotifyAPIError.server(statusCode: 502, message: nil)
+        let withoutMessage = SpotifyAPIError.server(statusCode: 502, message: nil, details: nil)
         XCTAssertTrue(withoutMessage.localizedDescription.contains("502"))
         XCTAssertTrue(withoutMessage.localizedDescription.lowercased().contains("try again"))
         XCTAssertFalse(withoutMessage.localizedDescription.contains("error 5"))
         XCTAssertEqual(withoutMessage.errorDescription, withoutMessage.userMessage)
 
-        let withMessage = SpotifyAPIError.server(statusCode: 500, message: "Upstream timeout")
+        let withMessage = SpotifyAPIError.server(statusCode: 500, message: "Upstream timeout", details: nil)
         XCTAssertTrue(withMessage.localizedDescription.contains("500"))
         XCTAssertTrue(withMessage.localizedDescription.contains("Upstream timeout"))
     }

@@ -27,7 +27,13 @@ struct SpotifyPagingDTO<Item: Decodable>: Decodable {
         offset = try container.decodeIfPresent(Int.self, forKey: .offset) ?? 0
         previous = try container.decodeIfPresent(URL.self, forKey: .previous)
         total = try container.decodeIfPresent(Int.self, forKey: .total) ?? 0
-        items = try container.decodeIfPresent([Item].self, forKey: .items) ?? []
+        // Spotify sometimes embeds `null` entries in paging `items` (e.g. search playlists).
+        // Decoding `[Item]` fails at those indices; optional elements decode as nil and are dropped.
+        if let optionalItems = try container.decodeIfPresent([Item?].self, forKey: .items) {
+            items = optionalItems.compactMap { $0 }
+        } else {
+            items = []
+        }
     }
 }
 
@@ -311,10 +317,15 @@ struct SpotifyTrackDTO: Decodable {
 
     func domainModel() -> SpotifyTrack? {
         guard let id else { return nil }
+        let artistRefs: [SpotifyArtistRef] = artists.compactMap { dto in
+            guard let artistID = dto.id else { return nil }
+            return SpotifyArtistRef(id: artistID, name: dto.name)
+        }
         return SpotifyTrack(
             id: id,
             name: name,
             artists: artists.map(\.name),
+            artistRefs: artistRefs,
             albumArtworkURL: album?.images.largestImageURL,
             durationMilliseconds: durationMilliseconds,
             isExplicit: isExplicit,
@@ -384,14 +395,17 @@ struct SpotifyEpisodeDTO: Decodable {
 }
 
 struct SpotifyArtistDTO: Decodable {
+    let id: String?
     let name: String
 
     enum CodingKeys: String, CodingKey {
+        case id
         case name
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(String.self, forKey: .id)
         name = try container.decodeIfPresent(String.self, forKey: .name) ?? "Unknown artist"
     }
 }
@@ -517,6 +531,88 @@ struct SpotifySearchAlbumDTO: Decodable {
             artists: artists.map(\.name),
             imageURL: images?.largestImageURL,
             uri: uri ?? "spotify:album:\(resolvedID)"
+        )
+    }
+}
+
+// MARK: - Artist detail (GET /v1/artists/{id}, top-tracks, albums)
+
+struct SpotifyFollowersDTO: Decodable {
+    let total: Int?
+}
+
+struct SpotifyArtistDetailDTO: Decodable {
+    let id: String?
+    let name: String?
+    let images: [SpotifyImageDTO]?
+    let followers: SpotifyFollowersDTO?
+    let genres: [String]?
+    let uri: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case images
+        case followers
+        case genres
+        case uri
+    }
+
+    func domainModel() -> SpotifyArtistDetail {
+        let resolvedID = id ?? "unknown-artist"
+        return SpotifyArtistDetail(
+            id: resolvedID,
+            name: name ?? "Artist",
+            imageURL: images?.largestImageURL,
+            followersTotal: followers?.total,
+            genres: genres ?? [],
+            uri: uri ?? "spotify:artist:\(resolvedID)"
+        )
+    }
+}
+
+struct SpotifyTopTracksResponseDTO: Decodable {
+    let tracks: [SpotifyTrackDTO]
+}
+
+struct SpotifyArtistAlbumDTO: Decodable {
+    let id: String?
+    let name: String?
+    let images: [SpotifyImageDTO]?
+    let releaseDate: String?
+    let totalTracks: Int?
+    let uri: String?
+    let albumGroup: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case images
+        case releaseDate = "release_date"
+        case totalTracks = "total_tracks"
+        case uri
+        case albumGroup = "album_group"
+    }
+
+    func domainModel() -> SpotifyArtistAlbum? {
+        guard let id else { return nil }
+        let resolvedName = name ?? "Album"
+        let groupRaw = albumGroup ?? "album"
+        let group = SpotifyArtistAlbumGroup(rawValue: groupRaw) ?? .album
+        let year: String?
+        if let releaseDate {
+            year = String(releaseDate.prefix(4))
+        } else {
+            year = nil
+        }
+        return SpotifyArtistAlbum(
+            id: id,
+            name: resolvedName,
+            imageURL: images?.largestImageURL,
+            releaseYear: year,
+            totalTracks: totalTracks ?? 0,
+            group: group,
+            uri: uri ?? "spotify:album:\(id)"
         )
     }
 }

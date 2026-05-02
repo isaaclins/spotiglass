@@ -13,6 +13,9 @@ DERIVED_DATA  := build/DerivedData
 DEBUG_APP     := $(DERIVED_DATA)/Build/Products/Debug/Spotiglass.app
 RELEASE_APP   := $(DERIVED_DATA)/Build/Products/Release/Spotiglass.app
 
+# Must match KeychainRefreshTokenStore.service in Spotiglass/Persistence/AuthPersistence.swift
+KEYCHAIN_SERVICE := com.isaaclins.spotiglass.spotify-auth
+
 # Optional: UNSIGNED=1 → CODE_SIGNING_ALLOWED=NO (see docs/building-and-testing.md).
 CODE_SIGN_FLAGS :=
 ifeq ($(UNSIGNED),1)
@@ -65,6 +68,9 @@ test:
 
 clean:
 	rm -rf "$(DERIVED_DATA)"
+	@echo "Removing Keychain generic-password items with service $(KEYCHAIN_SERVICE)…"
+	@svc="$(KEYCHAIN_SERVICE)"; \
+	while security delete-generic-password -s "$$svc" >/dev/null 2>&1; do :; done
 
 help:
 	@echo "Targets:"
@@ -73,5 +79,5 @@ help:
 	@echo "  make release       — unsigned Release → $(RELEASE_APP)"
 	@echo "  make test          — unit tests"
 	@echo "  make list          — list schemes"
-	@echo "  make clean         — remove $(DERIVED_DATA)"
+	@echo "  make clean         — remove $(DERIVED_DATA) + Keychain items (service $(KEYCHAIN_SERVICE))"
 	@echo "Vars: UNSIGNED=1 (CODE_SIGNING_ALLOWED=NO); XCODE_EXTRA for extra settings"

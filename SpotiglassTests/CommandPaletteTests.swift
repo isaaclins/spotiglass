@@ -21,24 +21,18 @@ final class CommandPaletteTests: XCTestCase {
     }
 
     func testConflictingCommandIDDetectsOverlappingAlwaysBindings() throws {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: dir) }
-        let url = dir.appendingPathComponent("keymap.json")
-        try CommandPaletteKeymapStore.defaultKeymapText.write(to: url, atomically: true, encoding: .utf8)
-        let store = CommandPaletteKeymapStore(fileURL: url)
+        let url = makeTempSettingsURL()
+        let settingsStore = SpotiglassSettingsStore(fileURL: url)
+        let store = CommandPaletteKeymapStore(settingsStore: settingsStore)
         let cmdK = try CommandShortcut(keystroke: "cmd-k")
         let other = store.conflictingCommandID(for: cmdK, proposedForCommand: CommandPaletteCommandID.openSettings)
         XCTAssertEqual(other, CommandPaletteCommandID.openPalette)
     }
 
     func testSetBindingPersistsAndClears() throws {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: dir) }
-        let url = dir.appendingPathComponent("keymap.json")
-        try CommandPaletteKeymapStore.defaultKeymapText.write(to: url, atomically: true, encoding: .utf8)
-        let store = CommandPaletteKeymapStore(fileURL: url)
+        let url = makeTempSettingsURL()
+        let settingsStore = SpotiglassSettingsStore(fileURL: url)
+        let store = CommandPaletteKeymapStore(settingsStore: settingsStore)
         let newShortcut = try CommandShortcut(keystroke: "shift-cmd-9")
         try store.setBinding(commandID: CommandPaletteCommandID.openSettings, shortcut: newShortcut, replaceConflicting: false)
         XCTAssertEqual(store.primaryShortcut(for: CommandPaletteCommandID.openSettings), newShortcut)
@@ -47,17 +41,19 @@ final class CommandPaletteTests: XCTestCase {
         let row = file.bindings.first { $0.command == CommandPaletteCommandID.openSettings }
         XCTAssertEqual(row?.keystrokes, ["shift-cmd-9"])
 
+        // Confirm the merged settings.json on disk also reflects the change.
+        let onDisk = try JSONDecoder().decode(SpotiglassSettingsFile.self, from: try Data(contentsOf: url))
+        let onDiskRow = onDisk.keybinds.first { $0.command == CommandPaletteCommandID.openSettings }
+        XCTAssertEqual(onDiskRow?.keystrokes, ["shift-cmd-9"])
+
         try store.clearBinding(commandID: CommandPaletteCommandID.openSettings)
         XCTAssertNil(store.primaryShortcut(for: CommandPaletteCommandID.openSettings))
     }
 
     func testSetBindingThrowsConflictUnlessReplace() throws {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: dir) }
-        let url = dir.appendingPathComponent("keymap.json")
-        try CommandPaletteKeymapStore.defaultKeymapText.write(to: url, atomically: true, encoding: .utf8)
-        let store = CommandPaletteKeymapStore(fileURL: url)
+        let url = makeTempSettingsURL()
+        let settingsStore = SpotiglassSettingsStore(fileURL: url)
+        let store = CommandPaletteKeymapStore(settingsStore: settingsStore)
         let stolen = try CommandShortcut(keystroke: "cmd-k")
         XCTAssertThrowsError(
             try store.setBinding(commandID: CommandPaletteCommandID.openSettings, shortcut: stolen, replaceConflicting: false)
@@ -70,6 +66,14 @@ final class CommandPaletteTests: XCTestCase {
         try store.setBinding(commandID: CommandPaletteCommandID.openSettings, shortcut: stolen, replaceConflicting: true)
         XCTAssertEqual(store.primaryShortcut(for: CommandPaletteCommandID.openSettings), stolen)
         XCTAssertNil(store.primaryShortcut(for: CommandPaletteCommandID.openPalette))
+    }
+
+    private func makeTempSettingsURL() -> URL {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: dir)
+        }
+        return dir.appendingPathComponent("settings.json", isDirectory: false)
     }
 
     func testKeymapDecodingParsesContextAndArgs() throws {
@@ -98,6 +102,19 @@ final class CommandPaletteTests: XCTestCase {
         XCTAssertFalse(manager.viewModel.isPresented)
         manager.execute(commandID: CommandPaletteCommandID.openPalette)
         XCTAssertTrue(manager.viewModel.isPresented)
+    }
+
+    func testOpenArtistCommandInvokesHandler() async {
+        let manager = CommandPaletteManager()
+        let expectation = expectation(description: "openArtist")
+        var receivedID: String?
+        manager.openArtist = { id in
+            receivedID = id
+            expectation.fulfill()
+        }
+        manager.execute(commandID: CommandPaletteCommandID.openArtist, args: ["artistID": .string("abc123")])
+        await fulfillment(of: [expectation], timeout: 2)
+        XCTAssertEqual(receivedID, "abc123")
     }
 
     // MARK: - Scope parser

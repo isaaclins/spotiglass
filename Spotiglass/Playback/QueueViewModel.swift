@@ -46,6 +46,20 @@ final class QueueViewModel: ObservableObject {
         publishMergedState()
     }
 
+    /// Web Playback SDK updated `track_window.next_tracks` (e.g. track advanced, queue context changed).
+    /// Merges immediately and refetches the REST queue so the panel matches Spotify without waiting for the poll interval.
+    func handleSdkQueueSnapshotChanged() {
+        publishMergedState()
+        guard isPanelVisible else { return }
+        switch playbackSession.connectionState {
+        case .playing, .paused:
+            Task { await refreshQueue() }
+            restartPollingIfNeeded()
+        default:
+            break
+        }
+    }
+
     func handlePlaybackStateChange() {
         publishMergedState()
         switch playbackSession.connectionState {
@@ -71,7 +85,14 @@ final class QueueViewModel: ObservableObject {
             lastFetchedQueue = try await playbackAPI.fetchQueue()
             lastError = nil
         } catch {
-            lastError = Self.displayError(for: error)
+            // A queue refresh that is superseded by a newer one (e.g. the
+            // poll task is restarted because the user paused/unpaused) shows
+            // up here as a CancellationError or URLError.cancelled. Those
+            // are not real failures from the user's perspective, so don't
+            // surface them as a "Queue update failed" banner.
+            if let mapped = Self.displayError(for: error) {
+                lastError = mapped
+            }
         }
         publishMergedState()
     }
@@ -95,7 +116,9 @@ final class QueueViewModel: ObservableObject {
             lastError = nil
             await refreshQueue()
         } catch {
-            lastError = Self.displayError(for: error)
+            if let mapped = Self.displayError(for: error) {
+                lastError = mapped
+            }
         }
     }
 
@@ -130,7 +153,9 @@ final class QueueViewModel: ObservableObject {
             lastFetchedQueue = try await playbackAPI.fetchQueue()
             lastError = nil
         } catch {
-            lastError = Self.displayError(for: error)
+            if let mapped = Self.displayError(for: error) {
+                lastError = mapped
+            }
         }
         publishMergedState()
     }
@@ -196,8 +221,19 @@ final class QueueViewModel: ObservableObject {
         }
     }
 
-    private static func displayError(for error: Error) -> BrowsingDisplayError {
+    /// Maps an underlying error to a user-visible banner, or returns nil for
+    /// silent classes of error (cancellation from a superseded refresh).
+    private static func displayError(for error: Error) -> BrowsingDisplayError? {
+        if error is CancellationError {
+            return nil
+        }
+        if let urlError = error as? URLError, urlError.code == .cancelled {
+            return nil
+        }
         if let apiError = error as? SpotifyAPIError {
+            if case let .network(message) = apiError, message.contains("cancelled") {
+                return nil
+            }
             switch apiError {
             case .unauthorized:
                 return BrowsingDisplayError(title: "Sign in again", message: "Spotify rejected the access token.", canRetry: false)

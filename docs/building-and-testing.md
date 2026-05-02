@@ -4,7 +4,7 @@ All commands assume the repository root as the current directory.
 
 ## Makefile
 
-From the repo root, `make` / `make build` runs a Debug build into `build/DerivedData`. `make run` builds (if needed) and opens the Debug app. `make release` matches the unsigned Release layout below. `make test` runs unit tests. `make clean` removes `build/DerivedData`. Use `UNSIGNED=1` to pass `CODE_SIGNING_ALLOWED=NO` on Debug and test builds (same idea as the raw `xcodebuild` examples).
+From the repo root, `make` / `make build` runs a Debug build into `build/DerivedData`. `make run` builds (if needed) and opens the Debug app. `make release` matches the unsigned Release layout below. `make test` runs unit tests. `make clean` removes `build/DerivedData` and deletes every **generic password** Keychain item whose **service** is exactly `com.isaaclins.spotiglass.spotify-auth` (the Spotify refresh token; see `KeychainRefreshTokenStore` in the app). That uses the `security` CLI against your default keychain list; you may be prompted for keychain access the same way the app would. For a full reset when testing auth, use `make clean && make build && make run`. Use `UNSIGNED=1` to pass `CODE_SIGNING_ALLOWED=NO` on Debug and test builds (same idea as the raw `xcodebuild` examples).
 
 ## List schemes
 

@@ -11,6 +11,7 @@
 		A10000000000000000000002 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000012 /* RootView.swift */; };
 		A10000000000000000000003 /* AppConnectionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000013 /* AppConnectionState.swift */; };
 		A10000000000000000000004 /* AppMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000014 /* AppMetadata.swift */; };
+		FC00000000000000000000001 /* ArtworkImageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC00000000000000000000011 /* ArtworkImageStore.swift */; };
 		A10000000000000000000005 /* SpotiglassFoundationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000015 /* SpotiglassFoundationTests.swift */; };
 		B20000000000000000000001 /* SpotifyAuthModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000011 /* SpotifyAuthModels.swift */; };
 		B20000000000000000000002 /* PKCE.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000012 /* PKCE.swift */; };
@@ -30,6 +31,8 @@
 		D40000000000000000000002 /* PlaylistBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000012 /* PlaylistBrowserView.swift */; };
 		D40000000000000000000003 /* PlaylistBrowsingStepTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000013 /* PlaylistBrowsingStepTests.swift */; };
 		D40000000000000000000004 /* QueuePanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000014 /* QueuePanelView.swift */; };
+		D40000000000000000000005 /* TrackListRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000015 /* TrackListRow.swift */; };
+		D40000000000000000000006 /* ArtistDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000016 /* ArtistDetailView.swift */; };
 		E50000000000000000000001 /* SpotifyPlaybackModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000011 /* SpotifyPlaybackModels.swift */; };
 		E50000000000000000000002 /* SpotifyPlaybackBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000012 /* SpotifyPlaybackBridge.swift */; };
 		E50000000000000000000003 /* SpotifyPlaybackAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000013 /* SpotifyPlaybackAPI.swift */; };
@@ -59,6 +62,13 @@
 		J90000000000000000000102 /* PlaybackSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = J90000000000000000000152 /* PlaybackSettingsView.swift */; };
 		J90000000000000000000103 /* AccountSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = J90000000000000000000153 /* AccountSettingsView.swift */; };
 		J90000000000000000000104 /* SpotifyClientIDAndActionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = J90000000000000000000154 /* SpotifyClientIDAndActionsView.swift */; };
+		K10000000000000000000001 /* SpotiglassSettingsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = K10000000000000000000011 /* SpotiglassSettingsModel.swift */; };
+		K10000000000000000000002 /* SpotiglassSettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = K10000000000000000000012 /* SpotiglassSettingsStore.swift */; };
+		K10000000000000000000003 /* EqualizerPresets.swift in Sources */ = {isa = PBXBuildFile; fileRef = K10000000000000000000013 /* EqualizerPresets.swift */; };
+		K10000000000000000000004 /* EqualizerSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = K10000000000000000000014 /* EqualizerSettingsView.swift */; };
+		K10000000000000000000005 /* AudioEqualizerEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = K10000000000000000000015 /* AudioEqualizerEngine.swift */; };
+		K10000000000000000000006 /* SpotiglassSettingsStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = K10000000000000000000016 /* SpotiglassSettingsStoreTests.swift */; };
+		K10000000000000000000007 /* EqualizerPresetsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = K10000000000000000000017 /* EqualizerPresetsTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -77,6 +87,7 @@
 		A10000000000000000000012 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		A10000000000000000000013 /* AppConnectionState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConnectionState.swift; sourceTree = "<group>"; };
 		A10000000000000000000014 /* AppMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppMetadata.swift; sourceTree = "<group>"; };
+		FC00000000000000000000011 /* ArtworkImageStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkImageStore.swift; sourceTree = "<group>"; };
 		A10000000000000000000015 /* SpotiglassFoundationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotiglassFoundationTests.swift; sourceTree = "<group>"; };
 		A10000000000000000000016 /* Spotiglass.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Spotiglass.entitlements; sourceTree = "<group>"; };
 		A10000000000000000000017 /* SpotiglassTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SpotiglassTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -98,6 +109,8 @@
 		D40000000000000000000012 /* PlaylistBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserView.swift; sourceTree = "<group>"; };
 		D40000000000000000000013 /* PlaylistBrowsingStepTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowsingStepTests.swift; sourceTree = "<group>"; };
 		D40000000000000000000014 /* QueuePanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueuePanelView.swift; sourceTree = "<group>"; };
+		D40000000000000000000015 /* TrackListRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackListRow.swift; sourceTree = "<group>"; };
+		D40000000000000000000016 /* ArtistDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtistDetailView.swift; sourceTree = "<group>"; };
 		E50000000000000000000011 /* SpotifyPlaybackModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyPlaybackModels.swift; sourceTree = "<group>"; };
 		E50000000000000000000012 /* SpotifyPlaybackBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyPlaybackBridge.swift; sourceTree = "<group>"; };
 		E50000000000000000000013 /* SpotifyPlaybackAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyPlaybackAPI.swift; sourceTree = "<group>"; };
@@ -127,6 +140,13 @@
 		J90000000000000000000152 /* PlaybackSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackSettingsView.swift; sourceTree = "<group>"; };
 		J90000000000000000000153 /* AccountSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSettingsView.swift; sourceTree = "<group>"; };
 		J90000000000000000000154 /* SpotifyClientIDAndActionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyClientIDAndActionsView.swift; sourceTree = "<group>"; };
+		K10000000000000000000011 /* SpotiglassSettingsModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotiglassSettingsModel.swift; sourceTree = "<group>"; };
+		K10000000000000000000012 /* SpotiglassSettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotiglassSettingsStore.swift; sourceTree = "<group>"; };
+		K10000000000000000000013 /* EqualizerPresets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EqualizerPresets.swift; sourceTree = "<group>"; };
+		K10000000000000000000014 /* EqualizerSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EqualizerSettingsView.swift; sourceTree = "<group>"; };
+		K10000000000000000000015 /* AudioEqualizerEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioEqualizerEngine.swift; sourceTree = "<group>"; };
+		K10000000000000000000016 /* SpotiglassSettingsStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotiglassSettingsStoreTests.swift; sourceTree = "<group>"; };
+		K10000000000000000000017 /* EqualizerPresetsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EqualizerPresetsTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -189,6 +209,8 @@
 				D40000000000000000000012 /* PlaylistBrowserView.swift */,
 				D40000000000000000000011 /* PlaylistBrowserViewModel.swift */,
 				D40000000000000000000014 /* QueuePanelView.swift */,
+				D40000000000000000000015 /* TrackListRow.swift */,
+				D40000000000000000000016 /* ArtistDetailView.swift */,
 				H80000000000000000000011 /* PlayingWaveformIcon.swift */,
 				A10000000000000000000012 /* RootView.swift */,
 				F60000000000000000000011 /* SpotiglassDesignSystem.swift */,
@@ -227,6 +249,7 @@
 				E50000000000000000000013 /* SpotifyPlaybackAPI.swift */,
 				E50000000000000000000012 /* SpotifyPlaybackBridge.swift */,
 				E50000000000000000000011 /* SpotifyPlaybackModels.swift */,
+				K10000000000000000000015 /* AudioEqualizerEngine.swift */,
 			);
 			path = Playback;
 			sourceTree = "<group>";
@@ -237,6 +260,10 @@
 				J90000000000000000000151 /* SpotiglassSettingsView.swift */,
 				J90000000000000000000152 /* PlaybackSettingsView.swift */,
 				J90000000000000000000153 /* AccountSettingsView.swift */,
+				K10000000000000000000011 /* SpotiglassSettingsModel.swift */,
+				K10000000000000000000012 /* SpotiglassSettingsStore.swift */,
+				K10000000000000000000013 /* EqualizerPresets.swift */,
+				K10000000000000000000014 /* EqualizerSettingsView.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -265,6 +292,8 @@
 				B20000000000000000000018 /* SpotifyAuthStepTests.swift */,
 				C30000000000000000000016 /* SpotifyWebAPIStepTests.swift */,
 				G70000000000000000000019 /* CommandPaletteTests.swift */,
+				K10000000000000000000016 /* SpotiglassSettingsStoreTests.swift */,
+				K10000000000000000000017 /* EqualizerPresetsTests.swift */,
 			);
 			path = SpotiglassTests;
 			sourceTree = "<group>";
@@ -291,6 +320,7 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000014 /* AppMetadata.swift */,
+				FC00000000000000000000011 /* ArtworkImageStore.swift */,
 			);
 			path = Utilities;
 			sourceTree = "<group>";
@@ -415,6 +445,7 @@
 				A10000000000000000000002 /* RootView.swift in Sources */,
 				A10000000000000000000003 /* AppConnectionState.swift in Sources */,
 				A10000000000000000000004 /* AppMetadata.swift in Sources */,
+				FC00000000000000000000001 /* ArtworkImageStore.swift in Sources */,
 				B20000000000000000000001 /* SpotifyAuthModels.swift in Sources */,
 				B20000000000000000000002 /* PKCE.swift in Sources */,
 				B20000000000000000000003 /* LoopbackOAuthCallback.swift in Sources */,
@@ -430,6 +461,8 @@
 				D40000000000000000000001 /* PlaylistBrowserViewModel.swift in Sources */,
 				D40000000000000000000002 /* PlaylistBrowserView.swift in Sources */,
 				D40000000000000000000004 /* QueuePanelView.swift in Sources */,
+				D40000000000000000000005 /* TrackListRow.swift in Sources */,
+				D40000000000000000000006 /* ArtistDetailView.swift in Sources */,
 				E50000000000000000000001 /* SpotifyPlaybackModels.swift in Sources */,
 				E50000000000000000000002 /* SpotifyPlaybackBridge.swift in Sources */,
 				E50000000000000000000003 /* SpotifyPlaybackAPI.swift in Sources */,
@@ -455,6 +488,11 @@
 				J90000000000000000000102 /* PlaybackSettingsView.swift in Sources */,
 				J90000000000000000000103 /* AccountSettingsView.swift in Sources */,
 				J90000000000000000000104 /* SpotifyClientIDAndActionsView.swift in Sources */,
+				K10000000000000000000001 /* SpotiglassSettingsModel.swift in Sources */,
+				K10000000000000000000002 /* SpotiglassSettingsStore.swift in Sources */,
+				K10000000000000000000003 /* EqualizerPresets.swift in Sources */,
+				K10000000000000000000004 /* EqualizerSettingsView.swift in Sources */,
+				K10000000000000000000005 /* AudioEqualizerEngine.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -469,6 +507,8 @@
 				B20000000000000000000008 /* SpotifyAuthStepTests.swift in Sources */,
 				C30000000000000000000006 /* SpotifyWebAPIStepTests.swift in Sources */,
 				G70000000000000000000009 /* CommandPaletteTests.swift in Sources */,
+				K10000000000000000000006 /* SpotiglassSettingsStoreTests.swift in Sources */,
+				K10000000000000000000007 /* EqualizerPresetsTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -619,6 +659,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Spotiglass;
 				INFOPLIST_KEY_CFBundleName = Spotiglass;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
+				INFOPLIST_KEY_NSAudioCaptureUsageDescription = "Spotiglass needs system audio recording permission so the equalizer can apply live filters to playback.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -648,6 +689,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Spotiglass;
 				INFOPLIST_KEY_CFBundleName = Spotiglass;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
+				INFOPLIST_KEY_NSAudioCaptureUsageDescription = "Spotiglass needs system audio recording permission so the equalizer can apply live filters to playback.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

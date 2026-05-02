@@ -1,19 +1,41 @@
 import AppKit
+import Combine
 import Foundation
 
+/// Editable view of the keybinds slice of `~/.config/spotiglass/settings.json`.
+///
+/// Storage is delegated to ``SpotiglassSettingsStore`` so that keybinds and the
+/// equalizer share one on-disk file. The public API (``bindings``, ``setBinding``,
+/// ``clearBinding``, ``editorText``, ``applyEditorText``, …) is unchanged from the
+/// pre-merge keymap store so existing settings UI and event handling keep working.
 @MainActor
 final class CommandPaletteKeymapStore: ObservableObject {
     @Published private(set) var bindings: [CommandShortcut: [CommandPaletteKeyBinding]] = [:]
     @Published var editorText: String = ""
     @Published var lastError: String?
-    @Published private(set) var fileURL: URL
 
-    private let fileManager: FileManager
+    let settingsStore: SpotiglassSettingsStore
 
-    init(fileManager: FileManager = .default, fileURL customFileURL: URL? = nil) {
-        self.fileManager = fileManager
-        self.fileURL = customFileURL ?? Self.defaultFileURL(fileManager: fileManager)
-        loadOrBootstrap()
+    var fileURL: URL { settingsStore.fileURL }
+
+    private var settingsCancellable: AnyCancellable?
+
+    init(settingsStore: SpotiglassSettingsStore) {
+        self.settingsStore = settingsStore
+        applyFromStore(settingsStore.settings.keybinds)
+        settingsCancellable = settingsStore.$settings
+            .removeDuplicates { $0.keybinds == $1.keybinds }
+            .sink { [weak self] file in
+                self?.applyFromStore(file.keybinds)
+            }
+    }
+
+    /// Convenience initializer for tests: spins up a fresh ``SpotiglassSettingsStore``
+    /// pointed at `fileURL`. Production code should construct one shared
+    /// ``SpotiglassSettingsStore`` and pass it via the designated initializer.
+    convenience init(fileManager: FileManager = .default, fileURL: URL? = nil) {
+        let store = SpotiglassSettingsStore(fileManager: fileManager, fileURL: fileURL)
+        self.init(settingsStore: store)
     }
 
     // MARK: - Structured editing (Settings GUI)
@@ -99,13 +121,11 @@ final class CommandPaletteKeymapStore: ObservableObject {
 
     private func applyNormalizedPersisting(_ bindings: [CommandPaletteKeyBinding]) throws {
         let normalized = normalizedBindingList(bindings)
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys, .prettyPrinted]
-        let data = try encoder.encode(CommandPaletteKeymapFile(bindings: normalized))
-        guard let text = String(data: data, encoding: .utf8) else {
-            throw NSError(domain: NSCocoaErrorDomain, code: 517, userInfo: nil) // NSFileWriteIncompatibleStringEncodingError
-        }
-        try apply(text: text, persist: true)
+        try settingsStore.updateKeybinds(normalized)
+        // Re-render the focused JSON snippet from the canonical normalized list so the
+        // editor view always matches what is on disk.
+        editorText = Self.editorTextRepresentation(normalized)
+        try indexCurrent(normalized)
     }
 
     private static func conflictingCommandID(
@@ -138,7 +158,8 @@ final class CommandPaletteKeymapStore: ObservableObject {
 
     func applyEditorText() {
         do {
-            try apply(text: editorText, persist: true)
+            let parsed = try JSONDecoder().decode(CommandPaletteKeymapFile.self, from: Data(editorText.utf8))
+            try applyNormalizedPersisting(parsed.bindings)
             lastError = nil
         } catch {
             lastError = error.localizedDescription
@@ -146,19 +167,18 @@ final class CommandPaletteKeymapStore: ObservableObject {
     }
 
     func reloadFromDisk() {
-        do {
-            let content = try String(contentsOf: fileURL, encoding: .utf8)
-            try apply(text: content, persist: false)
+        settingsStore.reloadFromDisk()
+        applyFromStore(settingsStore.settings.keybinds)
+        if let storeError = settingsStore.lastError {
+            lastError = storeError
+        } else {
             lastError = nil
-        } catch {
-            lastError = error.localizedDescription
         }
     }
 
     func resetToDefaults() {
         do {
-            let defaults = Self.defaultKeymapText
-            try apply(text: defaults, persist: true)
+            try applyNormalizedPersisting(SpotiglassSettingsStore.defaultKeybinds())
             lastError = nil
         } catch {
             lastError = error.localizedDescription
@@ -166,48 +186,25 @@ final class CommandPaletteKeymapStore: ObservableObject {
     }
 
     func openKeymapFile() {
-        NSWorkspace.shared.open(fileURL)
+        settingsStore.openFileInDefaultEditor()
     }
 
-    private func loadOrBootstrap() {
+    private func applyFromStore(_ keybinds: [CommandPaletteKeyBinding]) {
         do {
-            if !fileManager.fileExists(atPath: fileURL.path) {
-                try ensureDirectory()
-                try Self.defaultKeymapText.write(to: fileURL, atomically: true, encoding: .utf8)
-            }
-            let content = try String(contentsOf: fileURL, encoding: .utf8)
-            try apply(text: content, persist: false)
+            try indexCurrent(keybinds)
+            editorText = Self.editorTextRepresentation(keybinds)
+            lastError = nil
         } catch {
-            do {
-                // Never leave the app without active bindings: fallback to defaults
-                // if disk contents are missing or malformed.
-                try apply(text: Self.defaultKeymapText, persist: true)
-                lastError = "Keymap on disk was invalid and has been reset to defaults. \(error.localizedDescription)"
-            } catch {
-                editorText = Self.defaultKeymapText
-                bindings = [:]
-                lastError = error.localizedDescription
-            }
+            // Fall back to defaults so the app never runs without a usable keymap.
+            let fallback = SpotiglassSettingsStore.defaultKeybinds()
+            (try? indexCurrent(fallback)) ?? ()
+            editorText = Self.editorTextRepresentation(fallback)
+            lastError = "Keybinds in settings.json were invalid and have been reset to defaults. \(error.localizedDescription)"
         }
     }
 
-    private func apply(text: String, persist: Bool) throws {
-        let data = Data(text.utf8)
-        let parsed = try JSONDecoder().decode(CommandPaletteKeymapFile.self, from: data)
-        let indexed = try Self.indexBindings(parsed.bindings)
-        if persist {
-            try ensureDirectory()
-            try text.write(to: fileURL, atomically: true, encoding: .utf8)
-        }
-        editorText = text
-        bindings = indexed
-    }
-
-    private func ensureDirectory() throws {
-        try fileManager.createDirectory(
-            at: fileURL.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
+    private func indexCurrent(_ list: [CommandPaletteKeyBinding]) throws {
+        bindings = try Self.indexBindings(list)
     }
 
     private static func indexBindings(_ bindings: [CommandPaletteKeyBinding]) throws -> [CommandShortcut: [CommandPaletteKeyBinding]] {
@@ -222,12 +219,18 @@ final class CommandPaletteKeymapStore: ObservableObject {
         return output
     }
 
-    private static func defaultFileURL(fileManager: FileManager) -> URL {
-        let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? fileManager.homeDirectoryForCurrentUser
-        return appSupport
-            .appendingPathComponent("Spotiglass", isDirectory: true)
-            .appendingPathComponent("keymap.json")
+    /// Serializes the focused keybinds slice for the in-app JSON editor. The on-disk
+    /// `settings.json` always contains the full ``SpotiglassSettingsFile``; this snippet
+    /// is just what the user sees and edits in the GUI.
+    static func editorTextRepresentation(_ bindings: [CommandPaletteKeyBinding]) -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .prettyPrinted]
+        guard let data = try? encoder.encode(CommandPaletteKeymapFile(bindings: bindings)),
+              let text = String(data: data, encoding: .utf8)
+        else {
+            return defaultKeymapText
+        }
+        return text
     }
 
     static let defaultKeymapText = CommandPaletteCommandCatalog.defaultKeymapJSON

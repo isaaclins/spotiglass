@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct ArtworkView: View {
@@ -7,15 +8,9 @@ struct ArtworkView: View {
     var body: some View {
         Group {
             if let url {
-                AsyncImage(url: url) { image in
-                    image
-                        .resizable()
-                        .scaledToFill()
-                } placeholder: {
-                    placeholder
-                }
+                CachedArtworkImage(url: url)
             } else {
-                placeholder
+                ArtworkPlaceholderContent()
             }
         }
         .frame(width: size, height: size)
@@ -25,13 +20,35 @@ struct ArtworkView: View {
                 .strokeBorder(.white.opacity(0.14), lineWidth: 1)
         }
     }
+}
 
-    private var placeholder: some View {
+private struct ArtworkPlaceholderContent: View {
+    var body: some View {
         RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
             .fill(.secondary.opacity(0.16))
             .overlay {
                 Image(systemName: "music.note")
                     .foregroundStyle(.secondary)
             }
+    }
+}
+
+private struct CachedArtworkImage: View {
+    let url: URL
+    @State private var image: NSImage?
+
+    var body: some View {
+        Group {
+            if let image {
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                ArtworkPlaceholderContent()
+            }
+        }
+        .task(id: url.absoluteString) {
+            image = await ArtworkImageStore.shared.image(for: url)
+        }
     }
 }

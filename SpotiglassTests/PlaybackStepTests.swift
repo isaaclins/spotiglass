@@ -364,6 +364,65 @@ final class PlaybackStepTests: XCTestCase {
         XCTAssertNil(viewModel.activePlaylistID)
     }
 
+    func testPlayURISuppressesStaleStateChangedEventsForPreviousTrack() async {
+        let commander = MockWebPlaybackCommander()
+        let playbackAPI = MockPlaybackAPI()
+        let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: commander)
+        viewModel.handle(.ready(deviceID: "device-1"))
+
+        // Establish a current track via the SDK.
+        let oldTrack = PlaybackNowPlaying(
+            name: "Old",
+            artists: ["A"],
+            albumArtURL: nil,
+            durationMilliseconds: 200_000,
+            positionMilliseconds: 50_000,
+            uri: "spotify:track:old"
+        )
+        viewModel.handle(.stateChanged(oldTrack, isPaused: false, nextTracks: []))
+        guard case let .playing(initial) = viewModel.connectionState else {
+            return XCTFail("Expected .playing after initial stateChanged")
+        }
+        XCTAssertEqual(initial.uri, "spotify:track:old")
+
+        // User asks to play a new track. Until the SDK confirms it, any
+        // mid-transition state event still showing the old URI must be
+        // suppressed so the now-playing label does not jitter back.
+        await viewModel.play(uri: "spotify:track:new")
+
+        let staleOld = oldTrack.with(positionMilliseconds: 51_000)
+        viewModel.handle(.stateChanged(staleOld, isPaused: false, nextTracks: []))
+        guard case let .playing(afterStale) = viewModel.connectionState else {
+            return XCTFail("Expected stale event to leave previous state intact")
+        }
+        XCTAssertEqual(
+            afterStale.uri,
+            "spotify:track:old",
+            "Stale event for previous track should not change the connection state because the user already requested a new track."
+        )
+        XCTAssertEqual(
+            afterStale.positionMilliseconds,
+            initial.positionMilliseconds,
+            "Stale event for the previous track must not advance position either."
+        )
+
+        // Once the SDK confirms the new track, the gating clears and the
+        // event is applied normally.
+        let newTrack = PlaybackNowPlaying(
+            name: "New",
+            artists: ["B"],
+            albumArtURL: nil,
+            durationMilliseconds: 180_000,
+            positionMilliseconds: 0,
+            uri: "spotify:track:new"
+        )
+        viewModel.handle(.stateChanged(newTrack, isPaused: false, nextTracks: []))
+        guard case let .playing(afterNew) = viewModel.connectionState else {
+            return XCTFail("Expected .playing after new track confirmed")
+        }
+        XCTAssertEqual(afterNew.uri, "spotify:track:new")
+    }
+
     func testActivePlaylistIDClearedByDisconnect() async {
         let playbackAPI = MockPlaybackAPI()
         let viewModel = PlaybackSessionViewModel(
@@ -432,6 +491,10 @@ private final class MockPlaybackAPI: SpotifyPlaybackControlling {
 
     func play(uri: String, deviceID: String) async throws {
         actions.append("play:\(deviceID):\(uri)")
+    }
+
+    func play(contextURI: String, deviceID: String) async throws {
+        actions.append("play-context:\(deviceID):\(contextURI)")
     }
 
     func play(uris: [String], deviceID: String) async throws {

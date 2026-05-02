@@ -2,6 +2,7 @@ import SwiftUI
 
 enum SpotiglassSettingsSection: String, CaseIterable, Identifiable {
     case playback
+    case equalizer
     case account
     case keyboard
 
@@ -10,6 +11,7 @@ enum SpotiglassSettingsSection: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .playback: "Playback"
+        case .equalizer: "Equalizer"
         case .account: "Account"
         case .keyboard: "Keyboard"
         }
@@ -18,6 +20,7 @@ enum SpotiglassSettingsSection: String, CaseIterable, Identifiable {
     var systemImage: String {
         switch self {
         case .playback: "play.circle"
+        case .equalizer: "slider.horizontal.3"
         case .account: "person.crop.circle"
         case .keyboard: "keyboard"
         }
@@ -27,6 +30,8 @@ enum SpotiglassSettingsSection: String, CaseIterable, Identifiable {
 struct SpotiglassSettingsView: View {
     @EnvironmentObject private var authViewModel: AuthViewModel
     @ObservedObject var commandPaletteManager: CommandPaletteManager
+    @ObservedObject var settingsStore: SpotiglassSettingsStore
+    @ObservedObject var equalizerEngine: AudioEqualizerEngine
 
     @State private var section: SpotiglassSettingsSection = .playback
 
@@ -53,6 +58,11 @@ struct SpotiglassSettingsView: View {
                 switch section {
                 case .playback:
                     PlaybackSettingsView()
+                case .equalizer:
+                    EqualizerSettingsView(
+                        settingsStore: settingsStore,
+                        engine: equalizerEngine
+                    )
                 case .account:
                     AccountSettingsView(viewModel: authViewModel)
                 case .keyboard:

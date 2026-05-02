@@ -50,8 +50,18 @@ struct CommandPaletteSettingsView: View {
                 VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
                     ForEach(CommandPaletteCommandCatalog.editable) { spec in
                         keybindingRow(spec: spec)
+                            .transition(
+                                .asymmetric(
+                                    insertion: .opacity.combined(with: .move(edge: .top)),
+                                    removal: .opacity.combined(with: .scale(scale: 0.96))
+                                )
+                            )
                     }
                 }
+                .animation(
+                    .spring(response: 0.34, dampingFraction: 0.86),
+                    value: CommandPaletteCommandCatalog.editable.map(\.commandID)
+                )
 
                 HStack(spacing: SpotiglassDesign.spacingS) {
                     Button("Reset to Defaults") {
@@ -127,8 +137,13 @@ struct CommandPaletteSettingsView: View {
                         }
                         .buttonStyle(.plain)
                         .help("Clear shortcut")
+                        .transition(.opacity.combined(with: .scale(scale: 0.7)))
                     }
                 }
+                .animation(
+                    .spring(response: 0.3, dampingFraction: 0.82),
+                    value: keymapStore.primaryShortcut(for: spec.commandID) != nil
+                )
             }
 
             if let pending = pendingConflictByCommand[spec.commandID] {
@@ -153,9 +168,19 @@ struct CommandPaletteSettingsView: View {
                     .controlSize(.small)
                 }
                 .padding(.leading, 28 + SpotiglassDesign.spacingM)
+                .transition(
+                    .asymmetric(
+                        insertion: .move(edge: .top).combined(with: .opacity),
+                        removal: .opacity
+                    )
+                )
             }
         }
         .padding(.vertical, 4)
+        .animation(
+            .spring(response: 0.34, dampingFraction: 0.86),
+            value: pendingConflictByCommand[spec.commandID] != nil
+        )
     }
 
     private func displayTitle(for commandID: String) -> String {
@@ -197,7 +222,7 @@ struct CommandPaletteSettingsView: View {
                     pendingConflictByCommand = [:]
                     keymapStore.resetToDefaults()
                 }
-                Button("Open Keymap File") {
+                Button("Open settings.json") {
                     keymapStore.openKeymapFile()
                 }
             }
