@@ -9,8 +9,10 @@
 
 1. Create a Spotify app in the dashboard and copy its **client ID**.
 2. Open `Spotiglass.xcodeproj` in Xcode and run the **Spotiglass** scheme on macOS.
-3. Paste the client ID in Spotiglass, choose **Connect Spotify**, and complete sign-in in your default browser.
+3. Paste the client ID in Spotiglass (welcome screen or **Settings → Account**, ⌘,), choose **Connect Spotify**, and complete sign-in in your default browser.
 4. Browse playlists and play tracks.
+
+**Settings** (Spotiglass menu or ⌘,) is organized into **Playback** (how Web Playback behaves), **Account** (client ID and Spotify connection), and **Keyboard** (shortcuts). On **Keyboard**, each command has a **Click to record** field: focus it, press the shortcut you want, then release (Esc cancels; Delete clears). If a chord is already used elsewhere, use **Replace** to move it. Power users can still edit the raw JSON under **Advanced (JSON)**; the on-disk path is shown there. With no `>` or `@` prefix, the palette searches tracks and albums, merges Spotify results with playlists already loaded in the sidebar, and surfaces readable messages when Spotify returns an error.
 
 **Spotify Premium** is required for in-app playback via the Web Playback SDK. Free accounts can browse playlists but playback from the embedded SDK will fail with an account error surfaced in the UI.
 

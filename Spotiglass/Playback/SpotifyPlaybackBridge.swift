@@ -85,13 +85,29 @@ enum SpotifyPlaybackHost {
             });
           };
 
+          function mapNextTrack(t) {
+            return {
+              name: t.name || '',
+              artists: (t.artists || []).map(artist => artist.name).filter(Boolean),
+              albumArtURL: t.album && t.album.images && t.album.images[0] ? t.album.images[0].url : null,
+              durationMilliseconds: Number(t.duration_ms || 0),
+              positionMilliseconds: 0,
+              uri: t.uri || null
+            };
+          }
+
           function normalizeState(state) {
-            if (!state || !state.track_window || !state.track_window.current_track) {
-              return { track: null, paused: true };
+            if (!state || !state.track_window) {
+              return { track: null, paused: true, nextTracks: [] };
+            }
+            const nextTracks = (state.track_window.next_tracks || []).map(mapNextTrack);
+            if (!state.track_window.current_track) {
+              return { track: null, paused: Boolean(state.paused), nextTracks };
             }
             const track = state.track_window.current_track;
             return {
               paused: Boolean(state.paused),
+              nextTracks,
               track: {
                 name: track.name || '',
                 artists: (track.artists || []).map(artist => artist.name).filter(Boolean),
@@ -175,7 +191,11 @@ enum SpotifyPlaybackBridgeParser {
             return .notReady(deviceID: deviceID)
         case "state_changed":
             let isPaused = payload["paused"] as? Bool ?? true
-            return .stateChanged(parseNowPlaying(from: payload["track"]), isPaused: isPaused)
+            return .stateChanged(
+                parseNowPlaying(from: payload["track"]),
+                isPaused: isPaused,
+                nextTracks: parseNowPlayingArray(from: payload["nextTracks"])
+            )
         case "initialization_error":
             return .initializationError(message(from: payload))
         case "authentication_error":
@@ -203,6 +223,13 @@ enum SpotifyPlaybackBridgeParser {
             positionMilliseconds: track["positionMilliseconds"] as? Int ?? 0,
             uri: track["uri"] as? String
         )
+    }
+
+    private static func parseNowPlayingArray(from value: Any?) -> [PlaybackNowPlaying] {
+        guard let tracks = value as? [[String: Any]] else {
+            return []
+        }
+        return tracks.compactMap { parseNowPlaying(from: $0) }
     }
 
     private static func message(from payload: [String: Any]) -> String {

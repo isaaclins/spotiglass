@@ -232,12 +232,14 @@ struct SpotifyPlaylistTrackItemDTO: Decodable {
         )
     }
 
+    /// Playlist rows must be uniquely identifiable for SwiftUI (`List`/`ForEach`). The same catalog
+    /// track or episode can appear multiple times in one playlist, so the Spotify id alone is not unique.
     private func itemID(position: Int, content: SpotifyPlaylistItemContent) -> String {
         switch content {
         case let .track(track):
-            return track.id
+            return "\(track.id):\(position)"
         case let .episode(episode):
-            return episode.id
+            return "\(episode.id):\(position)"
         case let .localTrack(track):
             return "local:\(track.uri):\(position)"
         case .unavailable:

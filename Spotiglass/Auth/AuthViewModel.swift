@@ -172,22 +172,42 @@ final class AuthViewModel: ObservableObject {
         if let localized = error as? LocalizedError, let description = localized.errorDescription {
             return description
         }
-        if let callbackError = error as? LoopbackOAuthCallbackError {
-            switch callbackError {
-            case .timedOut:
-                return "Spotify sign-in timed out before the callback was received."
-            case .stateMismatch:
-                return "Spotify returned an invalid authorization state."
-            case let .oauthError(code, description):
-                return description ?? "Spotify authorization failed with error: \(code)."
-            default:
-                return "Spotify sign-in could not be completed."
-            }
-        }
         if let apiError = error as? SpotifyAPIError {
             return apiError.userMessage
         }
-        return error.localizedDescription
+        if let urlError = error as? URLError {
+            return Self.urlErrorMessage(urlError)
+        }
+        if error is DecodingError {
+            return "Spotify returned a response Spotiglass could not read. Check your connection, try again, or disconnect and connect Spotify again."
+        }
+        return Self.genericAuthFailureMessage
+    }
+
+    private static let genericAuthFailureMessage =
+        "Something went wrong. Check your connection, try again, or disconnect and connect Spotify again."
+
+    private static func urlErrorMessage(_ error: URLError) -> String {
+        switch error.code {
+        case .notConnectedToInternet:
+            return "You appear to be offline. Check your network, then try again."
+        case .timedOut:
+            return "The connection to Spotify timed out. Try again."
+        case .cannotFindHost, .dnsLookupFailed:
+            return "Could not reach Spotify. Check your network and DNS settings."
+        case .cannotConnectToHost, .networkConnectionLost:
+            return "Could not connect to Spotify. Check your network, then try again."
+        case .secureConnectionFailed, .serverCertificateUntrusted, .clientCertificateRejected:
+            return "Could not establish a secure connection to Spotify. Check your network or VPN, then try again."
+        case .cancelled:
+            return "The request was cancelled. Try again."
+        default:
+            let text = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+            if text.isEmpty || text.localizedCaseInsensitiveContains("couldn’t be completed") || text.localizedCaseInsensitiveContains("couldn't be completed") {
+                return genericAuthFailureMessage
+            }
+            return text
+        }
     }
 }
 

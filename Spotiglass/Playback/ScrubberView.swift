@@ -44,7 +44,7 @@ struct ScrubberView: View {
 
                 // Filled (elapsed) portion.
                 RoundedRectangle(cornerRadius: trackHeight / 2, style: .continuous)
-                    .fill(Color.green)
+                    .fill(SpotiglassDesign.controlAccent)
                     .frame(width: max(filledWidth, 0), height: trackHeight)
 
                 // Always-visible circular thumb at the current position.

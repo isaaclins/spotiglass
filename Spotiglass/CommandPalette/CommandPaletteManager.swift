@@ -7,6 +7,9 @@ final class CommandPaletteManager: ObservableObject {
     let viewModel = CommandPaletteViewModel()
     let keymapStore = CommandPaletteKeymapStore()
 
+    /// While a Settings hotkey field is recording, global shortcut matching is suspended so the same chord is not executed as a command.
+    @Published var isRecordingHotkey = false
+
     var isSignedIn = false
     var signOut: (() -> Void)?
     var openSettings: (() -> Void)?
@@ -23,6 +26,7 @@ final class CommandPaletteManager: ObservableObject {
     var openPlaylist: ((String) async -> Void)?
     var spotifySearch: ((String) async throws -> CommandPaletteSearchResults)?
     var filterByArtist: ((String) -> Void)?
+    var toggleQueue: (() -> Void)?
 
     private var cancellables: Set<AnyCancellable> = []
 
@@ -72,6 +76,10 @@ final class CommandPaletteManager: ObservableObject {
             }
         }
 
+        if isRecordingHotkey {
+            return false
+        }
+
         let context: CommandPaletteContext = viewModel.isPresented ? .paletteOpen : (isSignedIn ? .signedIn : .signedOut)
         let matched = keymapStore.commandBindings(for: event, context: context)
         guard !matched.isEmpty else { return false }
@@ -119,99 +127,53 @@ final class CommandPaletteManager: ObservableObject {
             if case let .string(name)? = args?["name"] {
                 filterByArtist?(name)
             }
+        case CommandPaletteCommandID.toggleQueue:
+            toggleQueue?()
         default:
             break
         }
     }
 
     private func baseItems() -> [CommandPaletteItem] {
-        var items: [CommandPaletteItem] = [
-            CommandPaletteItem(
-                id: CommandPaletteCommandID.openSettings,
-                title: "Open Settings",
-                subtitle: "Edit keymap and command palette preferences",
-                iconSystemName: "gearshape",
+        CommandPaletteCommandCatalog.editable.compactMap { spec in
+            guard !spec.requiresSignInForPalette || isSignedIn else { return nil }
+            return CommandPaletteItem(
+                id: spec.commandID,
+                title: spec.title,
+                subtitle: spec.subtitle,
+                iconSystemName: spec.iconSystemName,
                 section: .commands,
-                keywords: ["settings", "preferences", "keymap"]
+                keywords: defaultKeywords(for: spec.commandID)
             ) { [weak self] in
-                self?.execute(commandID: CommandPaletteCommandID.openSettings)
+                self?.execute(commandID: spec.commandID)
             }
-        ]
-
-        if isSignedIn {
-            items.append(contentsOf: [
-                CommandPaletteItem(
-                    id: CommandPaletteCommandID.refreshPlaylists,
-                    title: "Refresh Playlists",
-                    subtitle: "Reload your Spotify playlists",
-                    iconSystemName: "arrow.clockwise",
-                    section: .commands,
-                    keywords: ["reload", "sync", "playlist"]
-                ) { [weak self] in
-                    self?.execute(commandID: CommandPaletteCommandID.refreshPlaylists)
-                },
-                CommandPaletteItem(
-                    id: CommandPaletteCommandID.refreshTracks,
-                    title: "Refresh Tracks",
-                    subtitle: "Reload tracks for selected playlist",
-                    iconSystemName: "text.badge.plus",
-                    section: .commands,
-                    keywords: ["track", "playlist", "reload"]
-                ) { [weak self] in
-                    self?.execute(commandID: CommandPaletteCommandID.refreshTracks)
-                },
-                CommandPaletteItem(
-                    id: CommandPaletteCommandID.connectPlayback,
-                    title: "Connect Playback",
-                    subtitle: "Connect Spotiglass playback device",
-                    iconSystemName: "dot.radiowaves.left.and.right",
-                    section: .commands,
-                    keywords: ["playback", "device", "connect"]
-                ) { [weak self] in
-                    self?.execute(commandID: CommandPaletteCommandID.connectPlayback)
-                },
-                CommandPaletteItem(
-                    id: CommandPaletteCommandID.togglePlayback,
-                    title: "Toggle Play/Pause",
-                    subtitle: "Pause or resume Spotify playback",
-                    iconSystemName: "playpause",
-                    section: .commands,
-                    keywords: ["play", "pause"]
-                ) { [weak self] in
-                    self?.execute(commandID: CommandPaletteCommandID.togglePlayback)
-                },
-                CommandPaletteItem(
-                    id: CommandPaletteCommandID.nextTrack,
-                    title: "Next Track",
-                    subtitle: "Skip to the next track",
-                    iconSystemName: "forward.fill",
-                    section: .commands,
-                    keywords: ["next", "skip"]
-                ) { [weak self] in
-                    self?.execute(commandID: CommandPaletteCommandID.nextTrack)
-                },
-                CommandPaletteItem(
-                    id: CommandPaletteCommandID.previousTrack,
-                    title: "Previous Track",
-                    subtitle: "Return to previous track",
-                    iconSystemName: "backward.fill",
-                    section: .commands,
-                    keywords: ["previous", "back"]
-                ) { [weak self] in
-                    self?.execute(commandID: CommandPaletteCommandID.previousTrack)
-                },
-                CommandPaletteItem(
-                    id: CommandPaletteCommandID.signOut,
-                    title: "Disconnect Spotify",
-                    subtitle: "Sign out and clear local session",
-                    iconSystemName: "xmark.circle",
-                    section: .commands,
-                    keywords: ["disconnect", "logout", "sign out"]
-                ) { [weak self] in
-                    self?.execute(commandID: CommandPaletteCommandID.signOut)
-                }
-            ])
         }
-        return items
+    }
+
+    private func defaultKeywords(for commandID: String) -> [String] {
+        switch commandID {
+        case CommandPaletteCommandID.openSettings:
+            ["settings", "preferences", "keymap"]
+        case CommandPaletteCommandID.openPalette:
+            ["palette", "command", "search"]
+        case CommandPaletteCommandID.refreshPlaylists:
+            ["reload", "sync", "playlist"]
+        case CommandPaletteCommandID.refreshTracks:
+            ["track", "playlist", "reload"]
+        case CommandPaletteCommandID.connectPlayback:
+            ["playback", "device", "connect"]
+        case CommandPaletteCommandID.togglePlayback:
+            ["play", "pause"]
+        case CommandPaletteCommandID.nextTrack:
+            ["next", "skip"]
+        case CommandPaletteCommandID.previousTrack:
+            ["previous", "back"]
+        case CommandPaletteCommandID.toggleQueue:
+            ["queue", "up next", "sidebar"]
+        case CommandPaletteCommandID.signOut:
+            ["disconnect", "logout", "sign out"]
+        default:
+            []
+        }
     }
 }

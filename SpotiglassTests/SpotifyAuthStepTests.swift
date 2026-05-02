@@ -1,3 +1,4 @@
+import Security
 import XCTest
 @testable import Spotiglass
 
@@ -225,6 +226,27 @@ final class SpotifyAuthStepTests: XCTestCase {
         }
         XCTAssertEqual(try store.loadRefreshToken(), "good-refresh-token", "Transient network failures must not wipe the refresh token.")
         XCTAssertEqual(cleaner.callCount, 0, "Cache must survive a transient refresh failure.")
+    }
+
+    func testKeychainRefreshTokenStoreErrorDescriptionsAreUserFacing() {
+        let invalid = KeychainRefreshTokenStoreError.invalidStoredData
+        XCTAssertTrue(((invalid as LocalizedError).errorDescription ?? "").contains("Disconnect"))
+
+        let entitlement = KeychainRefreshTokenStoreError.unexpectedStatus(errSecMissingEntitlement)
+        let entitlementDescription = (entitlement as LocalizedError).errorDescription ?? ""
+        XCTAssertTrue(entitlementDescription.contains("macOS") || entitlementDescription.contains("Keychain"))
+        XCTAssertFalse(entitlementDescription.localizedCaseInsensitiveContains("couldn't be completed"))
+
+        let unknown = KeychainRefreshTokenStoreError.unexpectedStatus(OSStatus(-99_999))
+        XCTAssertTrue(((unknown as LocalizedError).errorDescription ?? "").contains("-99999"))
+    }
+
+    func testLoopbackOAuthCallbackErrorLocalizedDescriptions() {
+        XCTAssertTrue(((LoopbackOAuthCallbackError.timedOut as LocalizedError).errorDescription ?? "").contains("timed out"))
+        XCTAssertEqual(
+            (LoopbackOAuthCallbackError.oauthError("access_denied", "User declined") as LocalizedError).errorDescription,
+            "User declined"
+        )
     }
 
     private func makeSettings(clientID: String) -> SpotifyAuthSettings {

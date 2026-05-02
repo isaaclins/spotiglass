@@ -10,6 +10,68 @@ final class CommandPaletteTests: XCTestCase {
         XCTAssertTrue(shortcut.modifiers.contains(.shift))
     }
 
+    func testCanonicalTokenRoundTrips() throws {
+        let keystrokes = ["shift-cmd-k", "cmd-,", "space", "shift-cmd-right", "shift-cmd-left", "ctrl-alt-shift-cmd-a"]
+        for ks in keystrokes {
+            let shortcut = try CommandShortcut(keystroke: ks)
+            let token = try shortcut.canonicalToken()
+            let roundTrip = try CommandShortcut(keystroke: token)
+            XCTAssertEqual(shortcut, roundTrip, "Round-trip failed for \(ks) → \(token)")
+        }
+    }
+
+    func testConflictingCommandIDDetectsOverlappingAlwaysBindings() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let url = dir.appendingPathComponent("keymap.json")
+        try CommandPaletteKeymapStore.defaultKeymapText.write(to: url, atomically: true, encoding: .utf8)
+        let store = CommandPaletteKeymapStore(fileURL: url)
+        let cmdK = try CommandShortcut(keystroke: "cmd-k")
+        let other = store.conflictingCommandID(for: cmdK, proposedForCommand: CommandPaletteCommandID.openSettings)
+        XCTAssertEqual(other, CommandPaletteCommandID.openPalette)
+    }
+
+    func testSetBindingPersistsAndClears() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let url = dir.appendingPathComponent("keymap.json")
+        try CommandPaletteKeymapStore.defaultKeymapText.write(to: url, atomically: true, encoding: .utf8)
+        let store = CommandPaletteKeymapStore(fileURL: url)
+        let newShortcut = try CommandShortcut(keystroke: "shift-cmd-9")
+        try store.setBinding(commandID: CommandPaletteCommandID.openSettings, shortcut: newShortcut, replaceConflicting: false)
+        XCTAssertEqual(store.primaryShortcut(for: CommandPaletteCommandID.openSettings), newShortcut)
+
+        let file = try JSONDecoder().decode(CommandPaletteKeymapFile.self, from: Data(store.editorText.utf8))
+        let row = file.bindings.first { $0.command == CommandPaletteCommandID.openSettings }
+        XCTAssertEqual(row?.keystrokes, ["shift-cmd-9"])
+
+        try store.clearBinding(commandID: CommandPaletteCommandID.openSettings)
+        XCTAssertNil(store.primaryShortcut(for: CommandPaletteCommandID.openSettings))
+    }
+
+    func testSetBindingThrowsConflictUnlessReplace() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let url = dir.appendingPathComponent("keymap.json")
+        try CommandPaletteKeymapStore.defaultKeymapText.write(to: url, atomically: true, encoding: .utf8)
+        let store = CommandPaletteKeymapStore(fileURL: url)
+        let stolen = try CommandShortcut(keystroke: "cmd-k")
+        XCTAssertThrowsError(
+            try store.setBinding(commandID: CommandPaletteCommandID.openSettings, shortcut: stolen, replaceConflicting: false)
+        ) { error in
+            XCTAssertEqual(
+                error as? KeymapConflictError,
+                .conflict(existingCommandID: CommandPaletteCommandID.openPalette)
+            )
+        }
+        try store.setBinding(commandID: CommandPaletteCommandID.openSettings, shortcut: stolen, replaceConflicting: true)
+        XCTAssertEqual(store.primaryShortcut(for: CommandPaletteCommandID.openSettings), stolen)
+        XCTAssertNil(store.primaryShortcut(for: CommandPaletteCommandID.openPalette))
+    }
+
     func testKeymapDecodingParsesContextAndArgs() throws {
         let json = """
         {
@@ -74,7 +136,7 @@ final class CommandPaletteTests: XCTestCase {
 
     // MARK: - Sectioned view-model state
 
-    func testSongsScopeEmitsOnlySongsSection() async {
+    func testSongsScopeEmitsTracksSectionWhenOnlyTracksReturned() async {
         let viewModel = CommandPaletteViewModel()
         viewModel.staticItemsProvider = {
             [
@@ -122,6 +184,54 @@ final class CommandPaletteTests: XCTestCase {
         XCTAssertEqual(viewModel.sections.first?.section, .tracks)
         XCTAssertEqual(viewModel.sections.first?.items.map(\.id), ["track-1"])
         XCTAssertEqual(viewModel.visibleItems.map(\.id), ["track-1"])
+    }
+
+    func testSongsScopeEmitsPlaylistsTracksAlbumsInOrder() async {
+        let viewModel = CommandPaletteViewModel()
+        viewModel.searchProvider = { _ in
+            CommandPaletteSearchResults(
+                tracks: [
+                    CommandPaletteItem(
+                        id: "track-1",
+                        title: "Song",
+                        subtitle: "Artist",
+                        iconSystemName: "music.note",
+                        section: .tracks,
+                        keywords: []
+                    ) {}
+                ],
+                artists: [],
+                albums: [
+                    CommandPaletteItem(
+                        id: "album-1",
+                        title: "Album",
+                        subtitle: "Artist",
+                        iconSystemName: "opticaldisc",
+                        section: .albums,
+                        keywords: []
+                    ) {}
+                ],
+                playlists: [
+                    CommandPaletteItem(
+                        id: "playlist-a",
+                        title: "Workout",
+                        subtitle: "Owner",
+                        iconSystemName: "music.note.list",
+                        section: .playlists,
+                        keywords: []
+                    ) {}
+                ]
+            )
+        }
+
+        viewModel.show()
+        viewModel.query = "any"
+        viewModel.refresh()
+        try? await Task.sleep(for: .milliseconds(320))
+
+        XCTAssertEqual(viewModel.sections.count, 3)
+        XCTAssertEqual(viewModel.sections.map(\.section), [.playlists, .tracks, .albums])
+        XCTAssertEqual(viewModel.visibleItems.map(\.id), ["playlist-a", "track-1", "album-1"])
     }
 
     func testArtistsScopeEmitsOnlyArtistsSection() async {

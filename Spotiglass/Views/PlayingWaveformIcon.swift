@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// A 3-bar animated green waveform icon used to indicate the currently playing
+/// A 3-bar animated waveform icon (system control accent) for the currently playing
 /// playlist (sidebar) or track (track list).
 ///
 /// When `isPlaying` is true the bars animate continuously up and down with
@@ -8,7 +8,7 @@ import SwiftUI
 /// indicate that playback is paused.
 struct PlayingWaveformIcon: View {
     var isPlaying: Bool
-    var color: Color = .green
+    var color: Color = SpotiglassDesign.controlAccent
 
     private let barCount = 3
     private let barWidth: CGFloat = 3

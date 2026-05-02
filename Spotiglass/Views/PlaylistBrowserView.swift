@@ -4,6 +4,10 @@ import SwiftUI
 struct PlaylistBrowserView: View {
     @StateObject private var viewModel: PlaylistBrowserViewModel
     @StateObject private var playbackViewModel: PlaybackSessionViewModel
+    @StateObject private var queueViewModel: QueueViewModel
+    @AppStorage("queue.panel.visible") private var isQueueVisible = false
+    /// Drives only the **playlist** sidebar (leading column). Queue visibility is separate — see `HSplitView` below.
+    @State private var playlistColumnVisibility: NavigationSplitViewVisibility = .doubleColumn
     private let commander: WebPlaybackViewCommander
     private let playbackCoordinator: SpotifyPlaybackWebViewCoordinator
     @ObservedObject private var commandPaletteManager: CommandPaletteManager
@@ -18,9 +22,14 @@ struct PlaylistBrowserView: View {
         signOut: @escaping () -> Void
     ) {
         let commander = WebPlaybackViewCommander()
+        let playbackAPI = SpotifyPlaybackAPI(tokenProvider: playbackTokenProvider)
         let playbackViewModel = PlaybackSessionViewModel(
-            playbackAPI: SpotifyPlaybackAPI(tokenProvider: playbackTokenProvider),
+            playbackAPI: playbackAPI,
             webCommander: commander
+        )
+        let queueViewModel = QueueViewModel(
+            playbackAPI: playbackAPI,
+            playbackSession: playbackViewModel
         )
         let playbackCoordinator = SpotifyPlaybackWebViewCoordinator(
             tokenBridge: PlaybackTokenBridge(provider: playbackTokenProvider)
@@ -31,6 +40,7 @@ struct PlaylistBrowserView: View {
 
         _viewModel = StateObject(wrappedValue: viewModel)
         _playbackViewModel = StateObject(wrappedValue: playbackViewModel)
+        _queueViewModel = StateObject(wrappedValue: queueViewModel)
         _commandPaletteManager = ObservedObject(wrappedValue: commandPaletteManager)
         spotifySearchClient = SpotifyAPIClient(tokenProvider: searchTokenProvider)
         self.commander = commander
@@ -40,15 +50,13 @@ struct PlaylistBrowserView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            NavigationSplitView {
+            NavigationSplitView(columnVisibility: $playlistColumnVisibility) {
                 playlistSidebar
                     .background(.background)
                     .navigationSplitViewColumnWidth(min: 280, ideal: SpotiglassDesign.sidebarWidth)
             } detail: {
-                playlistDetail
-                    .background(.background)
+                detailWithQueueSplit
             }
-
             PlaybackControlsView(viewModel: playbackViewModel)
         }
         .background(.background)
@@ -59,6 +67,13 @@ struct PlaylistBrowserView: View {
         }
         .toolbar {
             ToolbarItemGroup {
+                Button {
+                    isQueueVisible.toggle()
+                } label: {
+                    Label("Queue", systemImage: "list.bullet.indent")
+                }
+                .accessibilityHint("Shows or hides the playback queue.")
+
                 Button {
                     Task { await viewModel.refreshPlaylists() }
                 } label: {
@@ -81,10 +96,42 @@ struct PlaylistBrowserView: View {
             playbackViewModel.start()
         }
         .onAppear {
-            bindCommandPalette()
+            bindCommandPalette(queueVisible: $isQueueVisible)
+            queueViewModel.setPanelVisible(isQueueVisible)
         }
         .onChange(of: viewModel.selectedPlaylistID) { _, _ in
-            bindCommandPalette()
+            bindCommandPalette(queueVisible: $isQueueVisible)
+        }
+        .onChange(of: isQueueVisible) { _, visible in
+            queueViewModel.setPanelVisible(visible)
+        }
+        .onChange(of: playbackViewModel.sdkNextTracks) { _, _ in
+            queueViewModel.syncFromPlaybackSession()
+        }
+        .onChange(of: queueRelevantPlaybackKey) { _, _ in
+            queueViewModel.handlePlaybackStateChange()
+        }
+    }
+
+    /// Playback identity without scrubber position ticks (avoids re-running queue hooks every progress frame).
+    private var queueRelevantPlaybackKey: String {
+        switch playbackViewModel.connectionState {
+        case .disconnected:
+            "disconnected"
+        case .connecting:
+            "connecting"
+        case let .ready(deviceID):
+            "ready:\(deviceID)"
+        case let .transferring(deviceID):
+            "transferring:\(deviceID)"
+        case let .playing(item):
+            "playing:\(item.uri ?? "")"
+        case let .paused(item):
+            "paused:\(item?.uri ?? "nil")"
+        case let .unavailable(message):
+            "unavailable:\(message)"
+        case let .error(error):
+            "error:\(error.title)"
         }
     }
 
@@ -151,6 +198,25 @@ struct PlaylistBrowserView: View {
         }
     }
 
+    @ViewBuilder
+    private var detailWithQueueSplit: some View {
+        HSplitView {
+            playlistDetail
+                .background(.background)
+                .frame(minWidth: 360)
+            if isQueueVisible {
+                queuePanelColumn
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var queuePanelColumn: some View {
+        QueuePanelView(viewModel: queueViewModel)
+            .background(.background)
+            .frame(minWidth: 280, idealWidth: SpotiglassDesign.sidebarWidth, maxWidth: 420)
+    }
+
     private var playlistDetail: some View {
         VStack(spacing: 0) {
             switch viewModel.detailState {
@@ -178,6 +244,10 @@ struct PlaylistBrowserView: View {
                     isPlaying: isCurrentlyPlaying,
                     togglePlayPause: {
                         Task { await playbackViewModel.togglePlayPause() }
+                    },
+                    hasPlaybackDevice: hasPlaybackDevice,
+                    addToQueue: { uri in
+                        await queueViewModel.addToQueue(uri: uri)
                     }
                 )
                 .overlay(alignment: .bottom) {
@@ -241,7 +311,11 @@ struct PlaylistBrowserView: View {
         return false
     }
 
-    private func bindCommandPalette() {
+    private var hasPlaybackDevice: Bool {
+        playbackViewModel.deviceID != nil
+    }
+
+    private func bindCommandPalette(queueVisible: Binding<Bool>) {
         commandPaletteManager.isSignedIn = true
         commandPaletteManager.signOut = signOut
         commandPaletteManager.refreshPlaylists = { [weak viewModel] in
@@ -277,11 +351,15 @@ struct PlaylistBrowserView: View {
         commandPaletteManager.openPlaylist = { [weak viewModel] playlistID in
             await viewModel?.selectPlaylist(id: playlistID)
         }
+        commandPaletteManager.toggleQueue = {
+            queueVisible.wrappedValue.toggle()
+        }
         commandPaletteManager.filterByArtist = { [weak commandPaletteManager] name in
             // Re-query in songs scope using the artist name as the search term.
             commandPaletteManager?.viewModel.applyExternalQuery(name)
         }
-        commandPaletteManager.spotifySearch = { [spotifySearchClient, commandPaletteManager] query in
+        commandPaletteManager.spotifySearch = { [spotifySearchClient, commandPaletteManager, weak viewModel] query in
+            let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
             let results = try await spotifySearchClient.search(query: query, limit: 4)
             var mapped = CommandPaletteSearchResults()
 
@@ -299,6 +377,34 @@ struct PlaylistBrowserView: View {
                         args: ["playlistID": .string(playlist.id)]
                     )
                 }
+            }
+
+            let apiPlaylistIDs = Set(results.playlists.map(\.id))
+            if let viewModel {
+                var libraryExtras: [(item: CommandPaletteItem, score: Int)] = []
+                for row in viewModel.visiblePlaylists where !apiPlaylistIDs.contains(row.id) {
+                    let item = CommandPaletteItem(
+                        id: "playlist-\(row.id)",
+                        title: row.title,
+                        subtitle: "Playlist • \(row.owner)",
+                        iconSystemName: "music.note.list",
+                        section: .playlists,
+                        keywords: [row.owner, row.title, row.id]
+                    ) {
+                        commandPaletteManager.execute(
+                            commandID: "navigation.playlist.open",
+                            args: ["playlistID": .string(row.id)]
+                        )
+                    }
+                    let score = item.score(for: trimmed)
+                    guard score < 100 else { continue }
+                    libraryExtras.append((item, score))
+                }
+                libraryExtras.sort { lhs, rhs in
+                    if lhs.score != rhs.score { return lhs.score < rhs.score }
+                    return lhs.item.title < rhs.item.title
+                }
+                mapped.playlists.append(contentsOf: libraryExtras.map(\.item))
             }
 
             mapped.tracks = results.tracks.map { track in
@@ -397,6 +503,8 @@ private struct PlaylistDetailContent: View {
     let currentPlaybackURI: String?
     let isPlaying: Bool
     let togglePlayPause: () -> Void
+    let hasPlaybackDevice: Bool
+    let addToQueue: (String) async -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -433,7 +541,9 @@ private struct PlaylistDetailContent: View {
                         playURI: playURI,
                         togglePlayPause: togglePlayPause,
                         isCurrent: track.playableURI != nil && track.playableURI == currentPlaybackURI,
-                        isPlaying: isPlaying
+                        isPlaying: isPlaying,
+                        hasPlaybackDevice: hasPlaybackDevice,
+                        addToQueue: addToQueue
                     )
                 }
             }
@@ -448,6 +558,8 @@ private struct TrackListRow: View {
     let togglePlayPause: () -> Void
     let isCurrent: Bool
     let isPlaying: Bool
+    let hasPlaybackDevice: Bool
+    let addToQueue: (String) async -> Void
 
     @State private var isHovering: Bool = false
 
@@ -500,6 +612,13 @@ private struct TrackListRow: View {
                 playURI(playableURI)
             }
         }
+        .contextMenu {
+            Button("Add to Queue") {
+                guard let uri = track.playableURI else { return }
+                Task { await addToQueue(uri) }
+            }
+            .disabled(!hasPlaybackDevice || track.playableURI == nil)
+        }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(trackNumber). \(track.title), \(track.subtitle), \(track.durationText)\(isCurrent ? ", currently playing" : "")")
     }
@@ -537,42 +656,6 @@ private struct TrackListRow: View {
                     .fill(Color.primary.opacity(0.05))
             }
         }
-    }
-}
-
-private struct ArtworkView: View {
-    let url: URL?
-    let size: CGFloat
-
-    var body: some View {
-        Group {
-            if let url {
-                AsyncImage(url: url) { image in
-                    image
-                        .resizable()
-                        .scaledToFill()
-                } placeholder: {
-                    placeholder
-                }
-            } else {
-                placeholder
-            }
-        }
-        .frame(width: size, height: size)
-        .clipShape(RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
-                .strokeBorder(.white.opacity(0.14), lineWidth: 1)
-        }
-    }
-
-    private var placeholder: some View {
-        RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
-            .fill(.secondary.opacity(0.16))
-            .overlay {
-                Image(systemName: "music.note")
-                    .foregroundStyle(.secondary)
-            }
     }
 }
 

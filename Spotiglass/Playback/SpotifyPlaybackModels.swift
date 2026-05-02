@@ -67,10 +67,103 @@ enum PlaybackRecoveryAction: Equatable {
     case retryTransfer
 }
 
+enum QueueItemSource: Equatable {
+    /// From Web Playback SDK `track_window.next_tracks` (immediate).
+    case sdk
+    /// User explicitly queued (heuristic: appears after SDK prefix in Web API queue).
+    case userQueued
+    /// From Spotify Web API queue or general upcoming context.
+    case upcoming
+}
+
+struct QueueItem: Identifiable, Equatable {
+    let id: String
+    let name: String
+    let subtitle: String
+    let albumArtURL: URL?
+    let durationMilliseconds: Int
+    let uri: String?
+    let source: QueueItemSource
+
+    init(
+        id: String? = nil,
+        name: String,
+        subtitle: String,
+        albumArtURL: URL?,
+        durationMilliseconds: Int,
+        uri: String?,
+        source: QueueItemSource
+    ) {
+        self.id = id ?? uri ?? UUID().uuidString
+        self.name = name
+        self.subtitle = subtitle
+        self.albumArtURL = albumArtURL
+        self.durationMilliseconds = durationMilliseconds
+        self.uri = uri
+        self.source = source
+    }
+}
+
+extension QueueItem {
+    static func from(track: SpotifyTrack, source: QueueItemSource) -> QueueItem {
+        QueueItem(
+            name: track.name,
+            subtitle: track.artists.joined(separator: ", "),
+            albumArtURL: track.albumArtworkURL,
+            durationMilliseconds: track.durationMilliseconds,
+            uri: track.uri,
+            source: source
+        )
+    }
+
+    static func from(episode: SpotifyEpisode, source: QueueItemSource) -> QueueItem {
+        QueueItem(
+            name: episode.name,
+            subtitle: episode.showName ?? "Podcast",
+            albumArtURL: episode.artworkURL,
+            durationMilliseconds: episode.durationMilliseconds,
+            uri: episode.uri,
+            source: source
+        )
+    }
+
+    static func from(queueItem: SpotifyQueueTrackItem, source: QueueItemSource) -> QueueItem {
+        switch queueItem {
+        case let .track(track):
+            .from(track: track, source: source)
+        case let .episode(episode):
+            .from(episode: episode, source: source)
+        }
+    }
+
+    static func from(playback: PlaybackNowPlaying, source: QueueItemSource) -> QueueItem {
+        QueueItem(
+            name: playback.name,
+            subtitle: playback.artistText,
+            albumArtURL: playback.albumArtURL,
+            durationMilliseconds: playback.durationMilliseconds,
+            uri: playback.uri,
+            source: source
+        )
+    }
+}
+
+/// Response from `GET /v1/me/player/queue`.
+struct SpotifyQueueResponse: Equatable {
+    let currentlyPlaying: SpotifyQueueTrackItem?
+    let queue: [SpotifyQueueTrackItem]
+}
+
+/// Unified track-or-episode slot from the queue endpoint.
+enum SpotifyQueueTrackItem: Equatable {
+    case track(SpotifyTrack)
+    case episode(SpotifyEpisode)
+}
+
 enum PlaybackBridgeEvent: Equatable {
     case ready(deviceID: String)
     case notReady(deviceID: String)
-    case stateChanged(PlaybackNowPlaying?, isPaused: Bool)
+    case stateChanged(PlaybackNowPlaying?, isPaused: Bool, nextTracks: [PlaybackNowPlaying])
     case initializationError(String)
     case authenticationError(String)
     case accountError(String)

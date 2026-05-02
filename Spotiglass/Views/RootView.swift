@@ -2,23 +2,15 @@ import SwiftUI
 
 @MainActor
 struct RootView: View {
-    @StateObject private var viewModel: AuthViewModel
+    @EnvironmentObject private var viewModel: AuthViewModel
     @StateObject private var commandPaletteManager: CommandPaletteManager
     @Environment(\.openSettings) private var openSettingsAction
 
     init() {
-        let commandPaletteManager = CommandPaletteManager()
-        _viewModel = StateObject(wrappedValue: AuthViewModel())
-        _commandPaletteManager = StateObject(wrappedValue: commandPaletteManager)
+        _commandPaletteManager = StateObject(wrappedValue: CommandPaletteManager())
     }
 
     init(commandPaletteManager: CommandPaletteManager) {
-        _viewModel = StateObject(wrappedValue: AuthViewModel())
-        _commandPaletteManager = StateObject(wrappedValue: commandPaletteManager)
-    }
-
-    init(viewModel: AuthViewModel, commandPaletteManager: CommandPaletteManager) {
-        _viewModel = StateObject(wrappedValue: viewModel)
         _commandPaletteManager = StateObject(wrappedValue: commandPaletteManager)
     }
 
@@ -110,47 +102,13 @@ struct RootView: View {
                             .frame(maxWidth: 420)
                     }
 
-                    VStack(spacing: SpotiglassDesign.spacingM) {
-                        TextField("Spotify client ID", text: $viewModel.clientID)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(maxWidth: 420)
-                            .disabled(viewModel.state == .signingIn)
-                            .accessibilityLabel("Spotify client ID")
-                            .accessibilityHint("Paste the client ID from your Spotify Developer Dashboard app.")
-                            .onSubmit {
-                                guard canSignIn else { return }
-                                Task { await viewModel.signIn() }
-                            }
-
-                        HStack(spacing: SpotiglassDesign.spacingS) {
-                            Button {
-                                Task { await viewModel.signIn() }
-                            } label: {
-                                Label("Connect Spotify", systemImage: "person.crop.circle.badge.plus")
-                            }
-                            .keyboardShortcut(.defaultAction)
-                            .disabled(!canSignIn)
-                            .accessibilityHint("Starts Spotify sign-in using the configured client ID.")
-
-                            Button {
-                                viewModel.signOut()
-                            } label: {
-                                Label("Disconnect", systemImage: "xmark.circle")
-                            }
-                            .disabled(!viewModel.state.isConnectedOrRefreshing)
-                            .accessibilityHint("Clears the current Spotify sign-in state.")
-                        }
-                    }
+                    SpotifyClientIDAndActionsView(viewModel: viewModel, layout: .welcome)
                 }
                 .padding(SpotiglassDesign.spacingXL)
             }
             .frame(maxWidth: 560)
             .padding(SpotiglassDesign.spacingL)
         }
-    }
-
-    private var canSignIn: Bool {
-        !viewModel.clientID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && viewModel.state != .signingIn
     }
 
     private var statusIcon: String {
@@ -167,17 +125,7 @@ struct RootView: View {
     }
 }
 
-private extension AppConnectionState {
-    var isConnectedOrRefreshing: Bool {
-        switch self {
-        case .signedIn, .refreshing:
-            true
-        case .signedOut, .signingIn, .failed:
-            false
-        }
-    }
-}
-
 #Preview {
-    RootView(viewModel: .preview(), commandPaletteManager: CommandPaletteManager())
+    RootView(commandPaletteManager: CommandPaletteManager())
+        .environmentObject(AuthViewModel.preview())
 }

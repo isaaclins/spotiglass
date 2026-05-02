@@ -20,3 +20,7 @@ Spotiglass keeps minimal state on disk. Refresh tokens never leave the Keychain 
 - Does not contain tokens or credentials.
 
 Logs surfaced via playback diagnostics contain SDK status strings only — never tokens.
+
+## Troubleshooting Keychain errors
+
+If sign-in fails with a message about **Keychain**, **macOS blocked access**, or a **security error code**, try: unlock your Mac and retry; use **Disconnect** then **Connect** again; reinstall Spotiglass from the same distribution you used before (Keychain items are tied to the app’s code signature). When reporting an issue, include the numeric **security error** code shown in the message if present.

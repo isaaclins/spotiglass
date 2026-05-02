@@ -33,10 +33,11 @@ final class PlaybackStepTests: XCTestCase {
             ]
         ])
 
-        guard case let .stateChanged(nowPlaying, isPaused) = event else {
+        guard case let .stateChanged(nowPlaying, isPaused, nextTracks) = event else {
             return XCTFail("Expected state changed")
         }
         XCTAssertFalse(isPaused)
+        XCTAssertEqual(nextTracks.count, 0)
         XCTAssertEqual(nowPlaying?.name, "Track")
         XCTAssertEqual(nowPlaying?.progressText, "0:42 / 3:00")
     }
@@ -66,7 +67,7 @@ final class PlaybackStepTests: XCTestCase {
             durationMilliseconds: 100_000,
             positionMilliseconds: 5_000,
             uri: "spotify:track:1"
-        ), isPaused: false))
+        ), isPaused: false, nextTracks: []))
         try? await Task.sleep(nanoseconds: 10_000_000)
 
         XCTAssertTrue(commander.didLoadHost)
@@ -147,6 +148,33 @@ final class PlaybackStepTests: XCTestCase {
         XCTAssertTrue(commander.commands.isEmpty, "Transport commands should not be mirrored to the Web Playback SDK.")
     }
 
+    func testRetryPlaybackTransferCallsTransferAPIWhenDeviceKnown() async {
+        let commander = MockWebPlaybackCommander()
+        let playbackAPI = MockPlaybackAPI()
+        let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: commander)
+        viewModel.handle(.ready(deviceID: "device-1"))
+        viewModel.handle(.playbackError("Slow down"))
+
+        await viewModel.retryPlaybackTransfer()
+
+        XCTAssertEqual(playbackAPI.actions, ["transfer:device-1:false"])
+        guard case let .ready(id) = viewModel.connectionState else {
+            return XCTFail("Expected ready after retry transfer")
+        }
+        XCTAssertEqual(id, "device-1")
+        XCTAssertEqual(viewModel.deviceID, "device-1")
+    }
+
+    func testRetryPlaybackTransferWithoutDeviceStartsPlaybackHost() async {
+        let commander = MockWebPlaybackCommander()
+        let viewModel = PlaybackSessionViewModel(playbackAPI: MockPlaybackAPI(), webCommander: commander)
+
+        await viewModel.retryPlaybackTransfer()
+
+        XCTAssertEqual(viewModel.connectionState, .connecting)
+        XCTAssertTrue(commander.didLoadHost)
+    }
+
     func testPremiumAccountErrorMapsToClearState() {
         let viewModel = PlaybackSessionViewModel(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander())
 
@@ -185,7 +213,7 @@ final class PlaybackStepTests: XCTestCase {
         }
         XCTAssertEqual(displayError.title, "Playback device unavailable")
 
-        // Clicking Connect from the error state must restart the SDK host.
+        // Choosing Reconnect from the error state must restart the SDK host.
         viewModel.start()
         try? await Task.sleep(nanoseconds: 10_000_000)
 
@@ -217,7 +245,7 @@ final class PlaybackStepTests: XCTestCase {
             durationMilliseconds: 180_000,
             positionMilliseconds: 5_000,
             uri: "spotify:track:1"
-        ), isPaused: false))
+        ), isPaused: false, nextTracks: []))
 
         try? await Task.sleep(nanoseconds: 120_000_000)
 
@@ -239,7 +267,7 @@ final class PlaybackStepTests: XCTestCase {
             durationMilliseconds: 180_000,
             positionMilliseconds: 32_000,
             uri: "spotify:track:1"
-        ), isPaused: false))
+        ), isPaused: false, nextTracks: []))
 
         await viewModel.play(uri: "spotify:track:1")
 
@@ -428,5 +456,16 @@ private final class MockPlaybackAPI: SpotifyPlaybackControlling {
 
     func previous(deviceID: String) async throws {
         actions.append("previous:\(deviceID)")
+    }
+
+    var queueResponse = SpotifyQueueResponse(currentlyPlaying: nil, queue: [])
+
+    func fetchQueue() async throws -> SpotifyQueueResponse {
+        actions.append("fetchQueue")
+        return queueResponse
+    }
+
+    func addToQueue(uri: String, deviceID: String) async throws {
+        actions.append("addToQueue:\(deviceID):\(uri)")
     }
 }

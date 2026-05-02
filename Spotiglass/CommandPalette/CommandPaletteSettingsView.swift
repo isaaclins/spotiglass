@@ -1,16 +1,169 @@
 import SwiftUI
 
 struct CommandPaletteSettingsView: View {
+    enum Presentation {
+        /// Full Settings window or standalone sheet (large title, fixed minimum size).
+        case standalone
+        /// Embedded in the tabbed Settings window (no large title; fills the pane).
+        case settingsTabs
+    }
+
     @ObservedObject var keymapStore: CommandPaletteKeymapStore
+    @ObservedObject var commandPaletteManager: CommandPaletteManager
+    var presentation: Presentation = .standalone
+
+    @State private var pendingConflictByCommand: [String: PendingHotkeyConflict] = [:]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: SpotiglassDesign.spacingM) {
-            Text("Command Palette Keymap")
-                .font(.title2.weight(.semibold))
+        Group {
+            switch presentation {
+            case .standalone:
+                content
+                    .padding(SpotiglassDesign.spacingL)
+                    .frame(minWidth: 720, minHeight: 520, alignment: .topLeading)
+            case .settingsTabs:
+                content
+                    .padding(SpotiglassDesign.spacingL)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }
+        }
+        .onDisappear {
+            commandPaletteManager.isRecordingHotkey = false
+        }
+    }
 
-            Text("Edit a JSON keymap similar to Zed-style bindings. Changes apply immediately after validation.")
-                .foregroundStyle(.secondary)
+    private var content: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: SpotiglassDesign.spacingM) {
+                if presentation == .standalone {
+                    Text("Command Palette Keymap")
+                        .font(.title2.weight(.semibold))
+                }
 
+                Text("Shortcuts")
+                    .font(presentation == .settingsTabs ? .headline : .title3.weight(.semibold))
+
+                Text("Click a field and press a shortcut. Esc cancels; Delete clears. Conflicts can replace the other binding.")
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
+                    ForEach(CommandPaletteCommandCatalog.editable) { spec in
+                        keybindingRow(spec: spec)
+                    }
+                }
+
+                HStack(spacing: SpotiglassDesign.spacingS) {
+                    Button("Reset to Defaults") {
+                        pendingConflictByCommand = [:]
+                        keymapStore.resetToDefaults()
+                    }
+                }
+
+                Divider()
+                    .padding(.vertical, SpotiglassDesign.spacingXS)
+
+                DisclosureGroup("Advanced (JSON)") {
+                    advancedJSONSection
+                }
+                .tint(SpotiglassDesign.controlAccent)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func keybindingRow(spec: CommandPaletteCommandSpec) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .center, spacing: SpotiglassDesign.spacingM) {
+                Image(systemName: spec.iconSystemName)
+                    .font(.system(size: 18, weight: .medium))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 28, alignment: .center)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(spec.title)
+                        .font(.subheadline.weight(.semibold))
+                    Text(spec.subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                HStack(spacing: SpotiglassDesign.spacingXS) {
+                    HotkeyRecorderField(
+                        commandID: spec.commandID,
+                        keymapStore: keymapStore,
+                        onRecordingChange: { active in
+                            commandPaletteManager.isRecordingHotkey = active
+                            if active {
+                                pendingConflictByCommand[spec.commandID] = nil
+                            }
+                        },
+                        onCaptureConflict: { shortcut, otherID in
+                            pendingConflictByCommand[spec.commandID] = PendingHotkeyConflict(
+                                shortcut: shortcut,
+                                otherCommandID: otherID
+                            )
+                        },
+                        onApplied: {
+                            pendingConflictByCommand[spec.commandID] = nil
+                        }
+                    )
+                    .fixedSize(horizontal: true, vertical: false)
+
+                    if keymapStore.primaryShortcut(for: spec.commandID) != nil {
+                        Button {
+                            pendingConflictByCommand[spec.commandID] = nil
+                            do {
+                                try keymapStore.clearBinding(commandID: spec.commandID)
+                            } catch {
+                                keymapStore.lastError = error.localizedDescription
+                            }
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .symbolRenderingMode(.hierarchical)
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Clear shortcut")
+                    }
+                }
+            }
+
+            if let pending = pendingConflictByCommand[spec.commandID] {
+                HStack(alignment: .firstTextBaseline, spacing: SpotiglassDesign.spacingS) {
+                    (Text("Already assigned to ") + Text(displayTitle(for: pending.otherCommandID)).bold()
+                        + Text(" — use Replace to move it here."))
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                    Button("Replace") {
+                        do {
+                            try keymapStore.setBinding(
+                                commandID: spec.commandID,
+                                shortcut: pending.shortcut,
+                                replaceConflicting: true
+                            )
+                            pendingConflictByCommand[spec.commandID] = nil
+                        } catch {
+                            keymapStore.lastError = error.localizedDescription
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                }
+                .padding(.leading, 28 + SpotiglassDesign.spacingM)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func displayTitle(for commandID: String) -> String {
+        CommandPaletteCommandCatalog.editable.first { $0.commandID == commandID }?.title ?? commandID
+    }
+
+    private var advancedJSONSection: some View {
+        VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
             Text("File: \(keymapStore.fileURL.path)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -18,7 +171,7 @@ struct CommandPaletteSettingsView: View {
 
             TextEditor(text: $keymapStore.editorText)
                 .font(.system(.body, design: .monospaced))
-                .frame(minHeight: 260)
+                .frame(minHeight: 200)
                 .padding(6)
                 .background(.background, in: RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous))
                 .overlay {
@@ -37,9 +190,11 @@ struct CommandPaletteSettingsView: View {
                     keymapStore.applyEditorText()
                 }
                 Button("Revert") {
+                    pendingConflictByCommand = [:]
                     keymapStore.reloadFromDisk()
                 }
                 Button("Reset Defaults") {
+                    pendingConflictByCommand = [:]
                     keymapStore.resetToDefaults()
                 }
                 Button("Open Keymap File") {
@@ -47,7 +202,11 @@ struct CommandPaletteSettingsView: View {
                 }
             }
         }
-        .padding(SpotiglassDesign.spacingL)
-        .frame(minWidth: 720, minHeight: 520, alignment: .topLeading)
+        .padding(.top, SpotiglassDesign.spacingXS)
     }
+}
+
+private struct PendingHotkeyConflict: Equatable {
+    let shortcut: CommandShortcut
+    let otherCommandID: String
 }

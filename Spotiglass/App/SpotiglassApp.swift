@@ -2,11 +2,13 @@ import SwiftUI
 
 @main
 struct SpotiglassApp: App {
+    @StateObject private var authViewModel = AuthViewModel()
     @StateObject private var commandPaletteManager = CommandPaletteManager()
 
     var body: some Scene {
         WindowGroup {
             RootView(commandPaletteManager: commandPaletteManager)
+                .environmentObject(authViewModel)
                 .frame(minWidth: 520, minHeight: 360)
         }
         .windowResizability(.contentMinSize)
@@ -20,7 +22,8 @@ struct SpotiglassApp: App {
         }
 
         Settings {
-            CommandPaletteSettingsView(keymapStore: commandPaletteManager.keymapStore)
+            SpotiglassSettingsView(commandPaletteManager: commandPaletteManager)
+                .environmentObject(authViewModel)
         }
     }
 }

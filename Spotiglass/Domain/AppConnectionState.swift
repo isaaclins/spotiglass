@@ -36,4 +36,14 @@ enum AppConnectionState: Equatable {
             error.message
         }
     }
+
+    /// Whether the user has an active signed-in session or an in-flight refresh that should keep Connect disabled / Disconnect enabled.
+    var isConnectedOrRefreshing: Bool {
+        switch self {
+        case .signedIn, .refreshing:
+            true
+        case .signedOut, .signingIn, .failed:
+            false
+        }
+    }
 }

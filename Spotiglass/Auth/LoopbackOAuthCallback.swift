@@ -5,7 +5,7 @@ struct OAuthCallback: Equatable {
     let code: String
 }
 
-enum LoopbackOAuthCallbackError: Error, Equatable {
+enum LoopbackOAuthCallbackError: Error, Equatable, LocalizedError {
     case invalidRequest
     case oauthError(String, String?)
     case missingState
@@ -13,6 +13,25 @@ enum LoopbackOAuthCallbackError: Error, Equatable {
     case missingCode
     case socketSetupFailed(String)
     case timedOut
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidRequest:
+            "Spotify’s redirect didn’t return a usable response. Close extra browser tabs and try Connect again."
+        case let .oauthError(code, description):
+            description ?? "Spotify authorization failed with error: \(code)."
+        case .missingState:
+            "Spotify’s callback was missing required data. Try Connect again."
+        case .stateMismatch:
+            "Spotify returned an invalid authorization state. Try Connect again."
+        case .missingCode:
+            "Spotify’s callback did not include an authorization code. Try Connect again."
+        case let .socketSetupFailed(step):
+            "Could not listen on the local port for Spotify’s redirect (\(step)). Another app may be using it, or macOS blocked the listener. Quit conflicting apps or restart Spotiglass, then try Connect again."
+        case .timedOut:
+            "Spotify sign-in timed out before the callback was received."
+        }
+    }
 }
 
 enum LoopbackOAuthCallbackValidator {

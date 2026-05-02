@@ -377,6 +377,60 @@ final class SpotifyWebAPIStepTests: XCTestCase {
         XCTAssertEqual(legacy.name, "Legacy")
     }
 
+    func testPlaylistTrackItemIDsAreUniqueWhenSameTrackAppearsTwice() async throws {
+        let httpClient = QueueHTTPClient([
+            .json("""
+            {
+              "limit": 50,
+              "offset": 0,
+              "total": 2,
+              "items": [
+                {
+                  "is_local": false,
+                  "item": {
+                    "type": "track",
+                    "id": "dup-track",
+                    "name": "Same",
+                    "artists": [{ "name": "A" }],
+                    "album": { "name": "Alb", "images": [] },
+                    "duration_ms": 1000,
+                    "explicit": false,
+                    "uri": "spotify:track:dup-track",
+                    "is_local": false
+                  }
+                },
+                {
+                  "is_local": false,
+                  "item": {
+                    "type": "track",
+                    "id": "dup-track",
+                    "name": "Same",
+                    "artists": [{ "name": "A" }],
+                    "album": { "name": "Alb", "images": [] },
+                    "duration_ms": 1000,
+                    "explicit": false,
+                    "uri": "spotify:track:dup-track",
+                    "is_local": false
+                  }
+                }
+              ]
+            }
+            """)
+        ])
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+
+        let tracks = try await client.playlistTracks(playlistID: "playlist-1")
+
+        XCTAssertEqual(tracks.count, 2)
+        XCTAssertEqual(tracks[0].id, "dup-track:0")
+        XCTAssertEqual(tracks[1].id, "dup-track:1")
+        guard case let .track(a) = tracks[0].content, case let .track(b) = tracks[1].content else {
+            return XCTFail("Expected two tracks")
+        }
+        XCTAssertEqual(a.id, "dup-track")
+        XCTAssertEqual(b.id, "dup-track")
+    }
+
     func testPlaylistTrackDecodingToleratesMissingSpotifyOptionalFields() async throws {
         let httpClient = QueueHTTPClient([
             .json("""
@@ -670,6 +724,18 @@ final class SpotifyWebAPIStepTests: XCTestCase {
 
         try cache.invalidateTracks(playlistID: "playlist-1")
         XCTAssertNil(try cache.loadTracks(playlistID: "playlist-1", snapshotID: "snapshot-1", now: Date(timeIntervalSince1970: 1_100), maxAge: 300))
+    }
+
+    func testServerErrorUsesPlainLanguageNotNSErrorCaseIndex() {
+        let withoutMessage = SpotifyAPIError.server(statusCode: 502, message: nil)
+        XCTAssertTrue(withoutMessage.localizedDescription.contains("502"))
+        XCTAssertTrue(withoutMessage.localizedDescription.lowercased().contains("try again"))
+        XCTAssertFalse(withoutMessage.localizedDescription.contains("error 5"))
+        XCTAssertEqual(withoutMessage.errorDescription, withoutMessage.userMessage)
+
+        let withMessage = SpotifyAPIError.server(statusCode: 500, message: "Upstream timeout")
+        XCTAssertTrue(withMessage.localizedDescription.contains("500"))
+        XCTAssertTrue(withMessage.localizedDescription.contains("Upstream timeout"))
     }
 
     private func temporaryDirectory() -> URL {

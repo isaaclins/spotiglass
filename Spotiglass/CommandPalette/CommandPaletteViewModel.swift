@@ -133,11 +133,39 @@ final class CommandPaletteViewModel: ObservableObject {
                 selectedIndex = 0
                 return
             }
-            await runRemoteSearch(query: trimmed) { results in
-                results.tracks
-            } sectionKind: {
-                .tracks
+            await runSongScopeSearch(query: trimmed)
+        }
+    }
+
+    /// Default search: playlists, then tracks, then albums (each section omitted when empty).
+    private func runSongScopeSearch(query: String) async {
+        isLoading = true
+        errorText = nil
+        do {
+            try await Task.sleep(for: .milliseconds(220))
+            try Task.checkCancellation()
+            let searchResults = try await searchProvider(query)
+            try Task.checkCancellation()
+            var built: [(section: CommandPaletteSection, items: [CommandPaletteItem])] = []
+            if !searchResults.playlists.isEmpty {
+                built.append((.playlists, searchResults.playlists))
             }
+            if !searchResults.tracks.isEmpty {
+                built.append((.tracks, searchResults.tracks))
+            }
+            if !searchResults.albums.isEmpty {
+                built.append((.albums, searchResults.albums))
+            }
+            sections = built
+            isLoading = false
+            selectedIndex = 0
+        } catch is CancellationError {
+            isLoading = false
+        } catch {
+            sections = []
+            isLoading = false
+            errorText = error.localizedDescription
+            selectedIndex = 0
         }
     }
 

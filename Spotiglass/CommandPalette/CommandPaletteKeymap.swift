@@ -157,4 +157,155 @@ struct CommandShortcut: Hashable {
         key = characters.lowercased()
         modifiers = event.modifierFlags.intersection([.command, .control, .option, .shift])
     }
+
+    /// Builds a shortcut from a key-down event while recording in Settings (handles arrow keys, etc.).
+    init?(recordingKeyDown event: NSEvent) {
+        if Self.modifierOnlyKeyCodes.contains(event.keyCode) {
+            return nil
+        }
+        modifiers = event.modifierFlags.intersection([.command, .control, .option, .shift])
+        if let chars = event.charactersIgnoringModifiers, !chars.isEmpty {
+            key = Self.normalizedRecordingKey(from: chars)
+            return
+        }
+        guard let fallback = Self.keyString(forSpecialKeyCode: event.keyCode) else {
+            return nil
+        }
+        key = fallback
+    }
+
+    init(key: String, modifiers: NSEvent.ModifierFlags) {
+        self.modifiers = modifiers.intersection([.command, .control, .option, .shift])
+        self.key = Self.normalizedRecordingKey(from: key)
+    }
+
+    /// Keystroke string as stored in `keymap.json` (e.g. `shift-cmd-k`, `cmd-,`).
+    func canonicalToken() throws -> String {
+        var parts: [String] = []
+        if modifiers.contains(.control) { parts.append("ctrl") }
+        if modifiers.contains(.option) { parts.append("alt") }
+        if modifiers.contains(.shift) { parts.append("shift") }
+        if modifiers.contains(.command) { parts.append("cmd") }
+        parts.append(try Self.keystrokeKeyToken(from: key))
+        return parts.joined(separator: "-")
+    }
+
+    /// Symbols for UI chips in Mac modifier order: ⌃ ⌥ ⇧ ⌘ then key label.
+    var displayChips: [String] {
+        var chips: [String] = []
+        if modifiers.contains(.control) { chips.append("⌃") }
+        if modifiers.contains(.option) { chips.append("⌥") }
+        if modifiers.contains(.shift) { chips.append("⇧") }
+        if modifiers.contains(.command) { chips.append("⌘") }
+        chips.append(Self.displayKeyLabel(for: key))
+        return chips
+    }
+
+    private static let modifierOnlyKeyCodes: Set<UInt16> = [
+        54, 55, 56, 57, 58, 59, 60, 61, 62, 63,
+    ]
+
+    private static func normalizedRecordingKey(from characters: String) -> String {
+        let first = String(characters.prefix(1))
+        guard let ch = first.first else { return "" }
+        if ch.isLetter {
+            return first.lowercased()
+        }
+        return first
+    }
+
+    private static func keyString(forSpecialKeyCode keyCode: UInt16) -> String? {
+        switch Int(keyCode) {
+        case 123:
+            return String(Character(UnicodeScalar(NSLeftArrowFunctionKey)!))
+        case 124:
+            return String(Character(UnicodeScalar(NSRightArrowFunctionKey)!))
+        case 125:
+            return String(Character(UnicodeScalar(NSDownArrowFunctionKey)!))
+        case 126:
+            return String(Character(UnicodeScalar(NSUpArrowFunctionKey)!))
+        default:
+            return nil
+        }
+    }
+
+    private static func keystrokeKeyToken(from key: String) throws -> String {
+        switch key {
+        case " ":
+            return "space"
+        case "\r", "\n":
+            return "return"
+        case "\t":
+            return "tab"
+        case String(Character(UnicodeScalar(NSUpArrowFunctionKey)!)):
+            return "up"
+        case String(Character(UnicodeScalar(NSDownArrowFunctionKey)!)):
+            return "down"
+        case String(Character(UnicodeScalar(NSLeftArrowFunctionKey)!)):
+            return "left"
+        case String(Character(UnicodeScalar(NSRightArrowFunctionKey)!)):
+            return "right"
+        case "\u{1B}":
+            return "esc"
+        default:
+            if key.count == 1, let scalar = key.unicodeScalars.first, scalar.value < 128 {
+                return String(Character(UnicodeScalar(scalar.value)!)).lowercased()
+            }
+            throw KeymapValidationError.unsupportedToken(key)
+        }
+    }
+
+    private static func displayKeyLabel(for key: String) -> String {
+        switch key {
+        case " ":
+            return "Space"
+        case "\r", "\n":
+            return "↩"
+        case "\t":
+            return "⇥"
+        case String(Character(UnicodeScalar(NSUpArrowFunctionKey)!)):
+            return "↑"
+        case String(Character(UnicodeScalar(NSDownArrowFunctionKey)!)):
+            return "↓"
+        case String(Character(UnicodeScalar(NSLeftArrowFunctionKey)!)):
+            return "←"
+        case String(Character(UnicodeScalar(NSRightArrowFunctionKey)!)):
+            return "→"
+        case "\u{1B}":
+            return "esc"
+        default:
+            if key.count == 1, let ch = key.first, ch.isLetter {
+                return String(ch).uppercased()
+            }
+            return key
+        }
+    }
+}
+
+enum KeymapConflictError: LocalizedError, Equatable {
+    case conflict(existingCommandID: String)
+
+    var errorDescription: String? {
+        switch self {
+        case let .conflict(id):
+            "That shortcut is already assigned to \"\(id)\"."
+        }
+    }
+}
+
+extension CommandPaletteContext {
+    /// Context values passed from `CommandPaletteManager.handleKeyEvent` into `commandBindings`.
+    static let conflictCheckContexts: [CommandPaletteContext] = [.signedIn, .signedOut, .paletteOpen]
+
+    /// Mirrors `commandBindings(for:context:)` `when` filtering.
+    static func runtimeFilterMatchesBinding(when: CommandPaletteContext?, context: CommandPaletteContext) -> Bool {
+        guard let when else { return true }
+        return when == .always || when == context
+    }
+
+    static func bindingsOverlapInRuntime(_ a: CommandPaletteContext?, _ b: CommandPaletteContext?) -> Bool {
+        conflictCheckContexts.contains { ctx in
+            runtimeFilterMatchesBinding(when: a, context: ctx) && runtimeFilterMatchesBinding(when: b, context: ctx)
+        }
+    }
 }

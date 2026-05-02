@@ -3,7 +3,12 @@ import SwiftUI
 
 struct CommandPaletteView: View {
     @ObservedObject var viewModel: CommandPaletteViewModel
-    @FocusState private var isFocused: Bool
+
+    private enum SearchFocusField {
+        case query
+    }
+
+    @FocusState private var focusedField: SearchFocusField?
     @State private var previousResponder: NSResponder?
     @State private var previousWindow: NSWindow?
 
@@ -21,7 +26,7 @@ struct CommandPaletteView: View {
                         .foregroundStyle(scopeIconColor)
                     TextField(searchPlaceholder, text: $viewModel.query)
                         .textFieldStyle(.plain)
-                        .focused($isFocused)
+                        .focused($focusedField, equals: .query)
                         .onChange(of: viewModel.query) { _, _ in
                             viewModel.refresh()
                         }
@@ -78,7 +83,22 @@ struct CommandPaletteView: View {
                     window.makeFirstResponder(responder)
                 }
             }
-            isFocused = true
+            scheduleSearchFieldFocus()
+        }
+        .onChange(of: viewModel.isLoading) { _, isLoading in
+            if !isLoading {
+                scheduleSearchFieldFocus()
+            }
+        }
+    }
+
+    /// SwiftUI on macOS often ignores immediate `@FocusState` updates in `onAppear`; deferring fixes typing-at-open.
+    private func scheduleSearchFieldFocus() {
+        DispatchQueue.main.async {
+            focusedField = .query
+            DispatchQueue.main.async {
+                focusedField = .query
+            }
         }
     }
 
@@ -139,6 +159,8 @@ struct CommandPaletteView: View {
         }
         .listStyle(.plain)
         .frame(height: 360)
+        // Arrow keys are handled by `CommandPaletteEventMonitor`; keep keyboard focus on the query field for typing.
+        .focusable(false)
     }
 
     private func paletteRow(item: CommandPaletteItem, isSelected: Bool) -> some View {
@@ -179,7 +201,7 @@ struct CommandPaletteView: View {
 
     private var searchPlaceholder: String {
         switch viewModel.currentScope {
-        case .songs: "Search songs"
+        case .songs: "Search songs & playlists"
         case .artists: "Filter by artist"
         case .commands: "Run a command"
         }
@@ -187,7 +209,7 @@ struct CommandPaletteView: View {
 
     private var scopeHintText: String {
         switch viewModel.currentScope {
-        case .songs: "type > for commands, @ for artists"
+        case .songs: "type > for commands, @ for artists — search includes your playlists"
         case .artists: "@ artist scope"
         case .commands: "> command scope"
         }

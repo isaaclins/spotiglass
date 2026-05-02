@@ -1,5 +1,72 @@
 import Foundation
 
+// MARK: - Queue response decoding (declared before `SpotifyPlaybackAPI` so the type is in scope for instance methods)
+
+private enum SpotifyQueueUnionDTO: Decodable {
+    case track(SpotifyTrackDTO)
+    case episode(SpotifyEpisodeDTO)
+
+    enum CodingKeys: String, CodingKey {
+        case show
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        if container.contains(.show) {
+            self = .episode(try SpotifyEpisodeDTO(from: decoder))
+        } else {
+            self = .track(try SpotifyTrackDTO(from: decoder))
+        }
+    }
+
+    var domainModel: SpotifyQueueTrackItem? {
+        switch self {
+        case let .track(dto):
+            guard let track = dto.domainModel() else { return nil }
+            return .track(track)
+        case let .episode(dto):
+            guard let episode = dto.domainModel() else { return nil }
+            return .episode(episode)
+        }
+    }
+}
+
+private struct SpotifyQueueResponseDTO: Decodable {
+    let currentlyPlaying: SpotifyQueueUnionDTO?
+    let queue: [SpotifyQueueUnionDTO]
+
+    enum CodingKeys: String, CodingKey {
+        case currentlyPlaying = "currently_playing"
+        case queue
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        currentlyPlaying = try container.decodeIfPresent(SpotifyQueueUnionDTO.self, forKey: .currentlyPlaying)
+        queue = try container.decodeIfPresent([SpotifyQueueUnionDTO].self, forKey: .queue) ?? []
+    }
+
+    func domainModel() -> SpotifyQueueResponse {
+        let currentItem = currentlyPlaying?.domainModel
+        let currentURI = currentItem.flatMap(Self.uri(for:))
+        let queued = queue.compactMap(\.domainModel)
+        let filteredQueue: [SpotifyQueueTrackItem]
+        if let currentURI {
+            filteredQueue = queued.filter { Self.uri(for: $0) != currentURI }
+        } else {
+            filteredQueue = queued
+        }
+        return SpotifyQueueResponse(currentlyPlaying: currentItem, queue: filteredQueue)
+    }
+
+    private static func uri(for item: SpotifyQueueTrackItem) -> String {
+        switch item {
+        case let .track(t): t.uri
+        case let .episode(e): e.uri
+        }
+    }
+}
+
 protocol SpotifyPlaybackControlling {
     func transferPlayback(to deviceID: String, play: Bool) async throws
     func play(uri: String, deviceID: String) async throws
@@ -9,6 +76,8 @@ protocol SpotifyPlaybackControlling {
     func seek(to milliseconds: Int, deviceID: String) async throws
     func next(deviceID: String) async throws
     func previous(deviceID: String) async throws
+    func fetchQueue() async throws -> SpotifyQueueResponse
+    func addToQueue(uri: String, deviceID: String) async throws
 }
 
 struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
@@ -17,6 +86,7 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
     private let tokenProvider: PlaybackAccessTokenProviding
     private let httpClient: HTTPClient
     private let encoder = JSONEncoder()
+    private let decoder = JSONDecoder()
 
     init(
         baseURL: URL = URL(string: "https://api.spotify.com")!,
@@ -76,6 +146,35 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
 
     func previous(deviceID: String) async throws {
         try await send(path: "/v1/me/player/previous", method: "POST", body: EmptyBody(), queryItems: [URLQueryItem(name: "device_id", value: deviceID)])
+    }
+
+    func fetchQueue() async throws -> SpotifyQueueResponse {
+        let data = try await get(path: "/v1/me/player/queue", queryItems: [])
+        let dto = try decoder.decode(SpotifyQueueResponseDTO.self, from: data)
+        return dto.domainModel()
+    }
+
+    func addToQueue(uri: String, deviceID: String) async throws {
+        let queryItems: [URLQueryItem] = [
+            URLQueryItem(name: "uri", value: uri),
+            URLQueryItem(name: "device_id", value: deviceID)
+        ]
+        try await send(path: "/v1/me/player/queue", method: "POST", body: EmptyBody(), queryItems: queryItems)
+    }
+
+    private func get(path: String, queryItems: [URLQueryItem]) async throws -> Data {
+        let accessToken = try await tokenProvider.playbackAccessToken()
+        var components = URLComponents(url: baseURL.appendingPathComponent(path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))), resolvingAgainstBaseURL: false)!
+        components.queryItems = queryItems.isEmpty ? nil : queryItems
+        var request = URLRequest(url: components.url!)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await httpClient.data(for: request)
+        guard (200..<300).contains(response.statusCode) else {
+            throw mapPlaybackError(statusCode: response.statusCode, data: data)
+        }
+        return data
     }
 
     private func send<Body: Encodable>(

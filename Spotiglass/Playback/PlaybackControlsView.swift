@@ -24,11 +24,7 @@ struct PlaybackControlsView: View {
 
     private var nowPlayingSummary: some View {
         HStack(spacing: SpotiglassDesign.spacingS) {
-            Image(systemName: stateIcon)
-                .font(.title3)
-                .foregroundStyle(stateIconColor)
-                .frame(width: 28)
-                .accessibilityHidden(true)
+            leadingNowPlayingVisual
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
@@ -42,6 +38,20 @@ struct PlaybackControlsView: View {
             }
         }
         .accessibilityElement(children: .combine)
+    }
+
+    @ViewBuilder
+    private var leadingNowPlayingVisual: some View {
+        if let item = nowPlaying {
+            ArtworkView(url: item.albumArtURL, size: 44)
+                .accessibilityHidden(true)
+        } else {
+            Image(systemName: stateIcon)
+                .font(.title3)
+                .foregroundStyle(stateIconColor)
+                .frame(width: 28)
+                .accessibilityHidden(true)
+        }
     }
 
     private var centerScrubberGroup: some View {
@@ -74,13 +84,7 @@ struct PlaybackControlsView: View {
 
     private var controlsCluster: some View {
         HStack(spacing: SpotiglassDesign.spacingS) {
-            Button {
-                viewModel.start()
-            } label: {
-                Label("Connect", systemImage: "dot.radiowaves.left.and.right")
-            }
-            .accessibilityLabel("Connect playback")
-            .accessibilityHint("Connects the hidden Spotify Web Playback SDK device. Spotify Premium is required.")
+            recoveryLeadingControl
 
             Button {
                 Task { await viewModel.previous() }
@@ -112,6 +116,47 @@ struct PlaybackControlsView: View {
         .controlSize(.regular)
     }
 
+    @ViewBuilder
+    private var recoveryLeadingControl: some View {
+        switch viewModel.connectionState {
+        case .disconnected, .unavailable:
+            Button {
+                viewModel.start()
+            } label: {
+                Label("Reconnect", systemImage: "dot.radiowaves.left.and.right")
+            }
+            .accessibilityLabel("Reconnect playback")
+            .accessibilityHint("Registers the Spotiglass Web Playback device with Spotify. Spotify Premium is required.")
+        case .connecting:
+            ProgressView()
+                .controlSize(.small)
+                .accessibilityLabel("Connecting playback")
+        case let .error(error):
+            switch error.recoveryAction {
+            case .reconnect:
+                Button {
+                    viewModel.start()
+                } label: {
+                    Label("Reconnect", systemImage: "dot.radiowaves.left.and.right")
+                }
+                .accessibilityLabel("Reconnect playback")
+                .accessibilityHint("Restarts the hidden Spotify Web Playback SDK device.")
+            case .retryTransfer:
+                Button {
+                    Task { await viewModel.retryPlaybackTransfer() }
+                } label: {
+                    Label("Retry", systemImage: "arrow.clockwise")
+                }
+                .accessibilityLabel("Retry playback transfer")
+                .accessibilityHint("Attempts to move Spotify playback to Spotiglass again.")
+            case .reauthenticate, .none:
+                EmptyView()
+            }
+        case .ready, .transferring, .playing, .paused:
+            EmptyView()
+        }
+    }
+
     private var title: String {
         switch viewModel.connectionState {
         case .disconnected:
@@ -136,11 +181,11 @@ struct PlaybackControlsView: View {
     private var subtitle: String {
         switch viewModel.connectionState {
         case .disconnected:
-            "Connect the hidden Spotify Web Playback SDK device."
+            "Spotiglass connects playback automatically when signed in. Use Reconnect if playback stops."
         case .connecting:
             "Spotify Premium is required for in-app playback."
-        case let .ready(deviceID):
-            "Device ready: \(deviceID)"
+        case .ready:
+            "Choose a track or press play."
         case .transferring:
             "Moving Spotify playback to Spotiglass."
         case let .playing(nowPlaying):

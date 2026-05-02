@@ -15,6 +15,8 @@ final class PlaybackSessionViewModel: ObservableObject {
     /// `nil` if playback was started from a single track URI or external context.
     /// Used by the sidebar to highlight which playlist row is "now playing".
     @Published private(set) var activePlaylistID: String?
+    /// Upcoming tracks from Web Playback SDK `track_window.next_tracks` (immediate UI).
+    @Published private(set) var sdkNextTracks: [PlaybackNowPlaying] = []
 
     private let playbackAPI: SpotifyPlaybackControlling
     private let webCommander: WebPlaybackCommanding
@@ -67,8 +69,10 @@ final class PlaybackSessionViewModel: ObservableObject {
                 self.deviceID = nil
             }
             hasTransferredPlaybackToCurrentDevice = false
+            sdkNextTracks = []
             setConnectionState(.unavailable("Spotify playback device is no longer available. Reconnect playback to continue."))
-        case let .stateChanged(nowPlaying, isPaused):
+        case let .stateChanged(nowPlaying, isPaused, nextTracks):
+            sdkNextTracks = nextTracks
             if nowPlaying != nil {
                 hasTransferredPlaybackToCurrentDevice = true
             }
@@ -180,7 +184,26 @@ final class PlaybackSessionViewModel: ObservableObject {
         deviceID = nil
         hasTransferredPlaybackToCurrentDevice = false
         activePlaylistID = nil
+        sdkNextTracks = []
         setConnectionState(.disconnected)
+    }
+
+    /// Retries Spotify “transfer playback” to this device after API or transport failures that set `recoveryAction` to `.retryTransfer`.
+    /// If no device ID is known, falls back to `start()` (full Web Playback SDK reconnect).
+    func retryPlaybackTransfer() async {
+        guard let deviceID else {
+            start()
+            return
+        }
+        hasTransferredPlaybackToCurrentDevice = false
+        do {
+            setConnectionState(.transferring(deviceID: deviceID))
+            try await playbackAPI.transferPlayback(to: deviceID, play: false)
+            hasTransferredPlaybackToCurrentDevice = true
+            setConnectionState(.ready(deviceID: deviceID))
+        } catch {
+            setConnectionState(.error(Self.displayError(for: error)))
+        }
     }
 
     private func sendDeviceCommand(action: (String) async throws -> Void) async {

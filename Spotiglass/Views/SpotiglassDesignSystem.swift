@@ -1,6 +1,11 @@
 import SwiftUI
 
 enum SpotiglassDesign {
+    /// System accent used by native controls (sliders, progress, focus)—matches System Settings → Accent color.
+    static var controlAccent: Color {
+        Color(nsColor: .controlAccentColor)
+    }
+
     static let spacingXS: CGFloat = 6
     static let spacingS: CGFloat = 10
     static let spacingM: CGFloat = 16

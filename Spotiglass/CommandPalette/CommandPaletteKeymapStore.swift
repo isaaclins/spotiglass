@@ -10,10 +10,121 @@ final class CommandPaletteKeymapStore: ObservableObject {
 
     private let fileManager: FileManager
 
-    init(fileManager: FileManager = .default) {
+    init(fileManager: FileManager = .default, fileURL customFileURL: URL? = nil) {
         self.fileManager = fileManager
-        self.fileURL = Self.defaultFileURL(fileManager: fileManager)
+        self.fileURL = customFileURL ?? Self.defaultFileURL(fileManager: fileManager)
         loadOrBootstrap()
+    }
+
+    // MARK: - Structured editing (Settings GUI)
+
+    /// First shortcut for a catalog command, if any.
+    func primaryShortcut(for commandID: String) -> CommandShortcut? {
+        guard let list = try? decodedBindingsFromEditor() else { return nil }
+        return list.first { $0.command == commandID }
+            .flatMap(\.keystrokes.first)
+            .flatMap { try? CommandShortcut(keystroke: $0) }
+    }
+
+    /// Returns another command id that already uses this shortcut in an overlapping runtime context.
+    func conflictingCommandID(for shortcut: CommandShortcut, proposedForCommand commandID: String) -> String? {
+        guard let spec = CommandPaletteCommandCatalog.editable.first(where: { $0.commandID == commandID }),
+              let list = try? decodedBindingsFromEditor()
+        else { return nil }
+        return Self.conflictingCommandID(
+            for: shortcut,
+            excludingCommand: commandID,
+            proposedWhen: spec.defaultWhen,
+            in: list
+        )
+    }
+
+    func setBinding(commandID: String, shortcut: CommandShortcut, replaceConflicting: Bool) throws {
+        guard let spec = CommandPaletteCommandCatalog.editable.first(where: { $0.commandID == commandID }) else {
+            return
+        }
+        var list = try decodedBindingsFromEditor()
+        if let other = Self.conflictingCommandID(
+            for: shortcut,
+            excludingCommand: commandID,
+            proposedWhen: spec.defaultWhen,
+            in: list
+        ), !replaceConflicting {
+            throw KeymapConflictError.conflict(existingCommandID: other)
+        }
+        if replaceConflicting {
+            list.removeAll { existing in
+                guard existing.command != commandID else { return false }
+                guard let first = existing.keystrokes.first, let sh = try? CommandShortcut(keystroke: first) else {
+                    return false
+                }
+                guard sh == shortcut else { return false }
+                return CommandPaletteContext.bindingsOverlapInRuntime(existing.when, spec.defaultWhen)
+            }
+        }
+        let preservedArgs = list.first { $0.command == commandID }?.args
+        list.removeAll { $0.command == commandID }
+        list.append(
+            CommandPaletteKeyBinding(
+                keystrokes: [try shortcut.canonicalToken()],
+                command: commandID,
+                when: spec.defaultWhen,
+                args: preservedArgs
+            )
+        )
+        try applyNormalizedPersisting(list)
+        lastError = nil
+    }
+
+    func clearBinding(commandID: String) throws {
+        guard CommandPaletteCommandCatalog.editable.contains(where: { $0.commandID == commandID }) else { return }
+        var list = try decodedBindingsFromEditor()
+        list.removeAll { $0.command == commandID }
+        try applyNormalizedPersisting(list)
+        lastError = nil
+    }
+
+    private func decodedBindingsFromEditor() throws -> [CommandPaletteKeyBinding] {
+        try JSONDecoder().decode(CommandPaletteKeymapFile.self, from: Data(editorText.utf8)).bindings
+    }
+
+    private func normalizedBindingList(_ bindings: [CommandPaletteKeyBinding]) -> [CommandPaletteKeyBinding] {
+        let catalogIDs = Set(CommandPaletteCommandCatalog.editable.map(\.commandID))
+        let extras = bindings.filter { !catalogIDs.contains($0.command) }.sorted { $0.command < $1.command }
+        let catalogOrdered = CommandPaletteCommandCatalog.editable.compactMap { spec in
+            bindings.first { $0.command == spec.commandID }
+        }
+        return catalogOrdered + extras
+    }
+
+    private func applyNormalizedPersisting(_ bindings: [CommandPaletteKeyBinding]) throws {
+        let normalized = normalizedBindingList(bindings)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .prettyPrinted]
+        let data = try encoder.encode(CommandPaletteKeymapFile(bindings: normalized))
+        guard let text = String(data: data, encoding: .utf8) else {
+            throw NSError(domain: NSCocoaErrorDomain, code: 517, userInfo: nil) // NSFileWriteIncompatibleStringEncodingError
+        }
+        try apply(text: text, persist: true)
+    }
+
+    private static func conflictingCommandID(
+        for shortcut: CommandShortcut,
+        excludingCommand: String,
+        proposedWhen: CommandPaletteContext,
+        in list: [CommandPaletteKeyBinding]
+    ) -> String? {
+        for binding in list {
+            guard binding.command != excludingCommand else { continue }
+            guard let first = binding.keystrokes.first, let sh = try? CommandShortcut(keystroke: first) else {
+                continue
+            }
+            guard sh == shortcut else { continue }
+            if CommandPaletteContext.bindingsOverlapInRuntime(binding.when, proposedWhen) {
+                return binding.command
+            }
+        }
+        return nil
     }
 
     func commandBindings(for event: NSEvent, context: CommandPaletteContext) -> [CommandPaletteKeyBinding] {
@@ -119,18 +230,5 @@ final class CommandPaletteKeymapStore: ObservableObject {
             .appendingPathComponent("keymap.json")
     }
 
-    static let defaultKeymapText = """
-    {
-      "bindings": [
-        { "keystrokes": ["cmd-k"], "command": "palette.open", "when": "always" },
-        { "keystrokes": ["cmd-r"], "command": "playlists.refresh", "when": "signed_in" },
-        { "keystrokes": ["cmd-t"], "command": "playlists.refreshTracks", "when": "signed_in" },
-        { "keystrokes": ["shift-cmd-k"], "command": "playback.connect", "when": "signed_in" },
-        { "keystrokes": ["space"], "command": "playback.toggle", "when": "signed_in" },
-        { "keystrokes": ["shift-cmd-right"], "command": "playback.next", "when": "signed_in" },
-        { "keystrokes": ["shift-cmd-left"], "command": "playback.previous", "when": "signed_in" },
-        { "keystrokes": ["cmd-,"], "command": "app.openSettings", "when": "always" }
-      ]
-    }
-    """
+    static let defaultKeymapText = CommandPaletteCommandCatalog.defaultKeymapJSON
 }
