@@ -2,13 +2,14 @@ import AppKit
 import SwiftUI
 
 struct QueuePanelView: View {
-    @ObservedObject var viewModel: QueueViewModel
+    @ObservedObject var queueViewModel: QueueViewModel
+    @ObservedObject var playbackViewModel: PlaybackSessionViewModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
 
-            if let error = viewModel.lastError {
+            if let error = queueViewModel.lastError {
                 errorBanner(error)
                     .transition(
                         .move(edge: .top).combined(with: .opacity)
@@ -25,7 +26,7 @@ struct QueuePanelView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(.background)
-        .animation(.spring(response: 0.34, dampingFraction: 0.86), value: viewModel.lastError?.id)
+        .animation(.spring(response: 0.34, dampingFraction: 0.86), value: queueViewModel.lastError?.id)
     }
 
     private var header: some View {
@@ -39,11 +40,22 @@ struct QueuePanelView: View {
             }
             Spacer()
             Button {
-                Task { await viewModel.refreshQueue() }
+                Task { await queueViewModel.toggleShuffle() }
+            } label: {
+                Image(systemName: "shuffle")
+                    .foregroundStyle(playbackViewModel.shuffleEnabled ? SpotiglassDesign.controlAccent : Color.primary)
+            }
+            .disabled(queueViewModel.isLoading || playbackViewModel.deviceID == nil)
+            .accessibilityLabel(playbackViewModel.shuffleEnabled ? "Shuffle on" : "Shuffle off")
+            .accessibilityHint("Toggles shuffle for Spotify playback on this device.")
+            .help("Shuffle playback order")
+
+            Button {
+                Task { await queueViewModel.refreshQueue() }
             } label: {
                 Image(systemName: "arrow.clockwise")
             }
-            .disabled(viewModel.isLoading)
+            .disabled(queueViewModel.isLoading)
             .accessibilityLabel("Refresh queue")
             .help("Reload queue from Spotify")
         }
@@ -51,11 +63,22 @@ struct QueuePanelView: View {
     }
 
     private var subtitleText: String {
-        let count = viewModel.upcomingItems.count
-        if viewModel.isLoading {
-            return "Updating…"
+        let countLine: String
+        if queueViewModel.isLoading {
+            countLine = "Updating…"
+        } else {
+            let count = queueViewModel.upcomingItems.count
+            countLine = count == 1 ? "1 track up next" : "\(count) tracks up next"
         }
-        return count == 1 ? "1 track up next" : "\(count) tracks up next"
+        let repeatSuffix: String = {
+            switch playbackViewModel.repeatMode {
+            case .off: return ""
+            case .context: return "Repeat playlist"
+            case .track: return "Repeat one"
+            }
+        }()
+        if repeatSuffix.isEmpty { return countLine }
+        return "\(countLine) · \(repeatSuffix)"
     }
 
     private func errorBanner(_ error: BrowsingDisplayError) -> some View {
@@ -67,13 +90,13 @@ struct QueuePanelView: View {
                 .foregroundStyle(.secondary)
             if error.canRetry {
                 Button("Retry") {
-                    Task { await viewModel.refreshQueue() }
+                    Task { await queueViewModel.refreshQueue() }
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
             }
             Button("Dismiss") {
-                viewModel.clearError()
+                queueViewModel.clearError()
             }
             .buttonStyle(.borderless)
             .font(.caption)
@@ -91,13 +114,13 @@ struct QueuePanelView: View {
                 .font(.headline)
 
             ZStack {
-                if let item = viewModel.nowPlayingItem {
+                if let item = queueViewModel.nowPlayingItem {
                     QueueRowView(
                         item: item,
                         isCurrent: true,
-                        isPlaying: viewModel.isPlaybackPlaying,
+                        isPlaying: queueViewModel.isPlaybackPlaying,
                         onSelect: {
-                            Task { await viewModel.playItem(item) }
+                            Task { await queueViewModel.playItem(item) }
                         },
                         onCopyURI: { copyURI(item.uri) }
                     )
@@ -113,7 +136,7 @@ struct QueuePanelView: View {
                         .transition(.opacity)
                 }
             }
-            .animation(.smooth(duration: 0.3), value: viewModel.nowPlayingItem?.id)
+            .animation(.smooth(duration: 0.3), value: queueViewModel.nowPlayingItem?.id)
         }
     }
 
@@ -123,7 +146,7 @@ struct QueuePanelView: View {
             Text("Up next")
                 .font(.headline)
 
-            if viewModel.upcomingItems.isEmpty {
+            if queueViewModel.upcomingItems.isEmpty {
                 Text("No upcoming tracks. Start a playlist or add tracks to the queue.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -133,13 +156,13 @@ struct QueuePanelView: View {
                     .transition(.opacity)
             } else {
                 VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
-                    ForEach(viewModel.upcomingItems) { item in
+                    ForEach(queueViewModel.upcomingItems) { item in
                         QueueRowView(
                             item: item,
                             isCurrent: false,
                             isPlaying: false,
                             onSelect: {
-                                Task { await viewModel.playItem(item) }
+                                Task { await queueViewModel.playItem(item) }
                             },
                             onCopyURI: { copyURI(item.uri) }
                         )
@@ -153,7 +176,7 @@ struct QueuePanelView: View {
                 }
             }
         }
-        .animation(.spring(response: 0.36, dampingFraction: 0.86), value: viewModel.upcomingItems.map(\.id))
+        .animation(.spring(response: 0.36, dampingFraction: 0.86), value: queueViewModel.upcomingItems.map(\.id))
     }
 
     private func copyURI(_ uri: String?) {

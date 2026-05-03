@@ -2,6 +2,7 @@ import SwiftUI
 
 struct PlaybackControlsView: View {
     @ObservedObject var viewModel: PlaybackSessionViewModel
+    @Binding var isLyricsPresented: Bool
     @State private var dragFraction: Double?
 
     var body: some View {
@@ -13,7 +14,10 @@ struct PlaybackControlsView: View {
                 centerScrubberGroup
                     .frame(maxWidth: .infinity)
 
-                controlsCluster
+                HStack(spacing: SpotiglassDesign.spacingM) {
+                    controlsCluster
+                    volumeGroup
+                }
             }
             .padding(.horizontal, SpotiglassDesign.spacingM)
             .padding(.vertical, SpotiglassDesign.spacingS)
@@ -33,6 +37,18 @@ struct PlaybackControlsView: View {
                         .lineLimit(1)
                         .contentTransition(.opacity)
                         .animation(.smooth(duration: 0.28), value: title)
+                    if showsLyricsButton {
+                        Button {
+                            isLyricsPresented = true
+                        } label: {
+                            Image(systemName: "music.note.list")
+                                .font(.body.weight(.medium))
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Lyrics")
+                        .accessibilityHint("Opens synchronized lyrics for the current track.")
+                    }
                     if shouldShowPausedIndicator {
                         Text("Paused")
                             .font(.caption)
@@ -141,8 +157,66 @@ struct PlaybackControlsView: View {
             .disabled(!hasReadyDevice)
             .accessibilityLabel("Next track")
             .accessibilityHint("Skips to the next Spotify track when playback is connected.")
+
+            Button {
+                Task { await viewModel.cycleRepeat() }
+            } label: {
+                Image(systemName: repeatButtonIcon)
+                    .foregroundStyle(repeatButtonUsesAccent ? SpotiglassDesign.controlAccent : Color.secondary)
+            }
+            .disabled(!hasReadyDevice)
+            .accessibilityLabel(repeatAccessibilityLabel)
+            .accessibilityHint("Cycles repeat: off, repeat playlist, repeat one track.")
         }
         .controlSize(.regular)
+    }
+
+    private var repeatButtonIcon: String {
+        switch viewModel.repeatMode {
+        case .off, .context:
+            "repeat"
+        case .track:
+            "repeat.1"
+        }
+    }
+
+    private var repeatButtonUsesAccent: Bool {
+        viewModel.repeatMode != .off
+    }
+
+    private var repeatAccessibilityLabel: String {
+        switch viewModel.repeatMode {
+        case .off:
+            "Repeat off"
+        case .context:
+            "Repeat playlist"
+        case .track:
+            "Repeat one"
+        }
+    }
+
+    private var volumeGroup: some View {
+        HStack(spacing: SpotiglassDesign.spacingS) {
+            Image(systemName: "speaker.wave.2")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+
+            Slider(value: playbackVolumeBinding, in: 0 ... 1)
+                .controlSize(.small)
+                .frame(minWidth: 100, idealWidth: 120, maxWidth: 140)
+                .disabled(!hasReadyDevice)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Playback volume")
+        .accessibilityHint("Adjusts Spotify Web Playback output in Spotiglass. This is not the Mac system volume.")
+    }
+
+    private var playbackVolumeBinding: Binding<Double> {
+        Binding(
+            get: { viewModel.playbackVolume },
+            set: { viewModel.setPlaybackVolume($0) }
+        )
     }
 
     @ViewBuilder
@@ -212,6 +286,11 @@ struct PlaybackControlsView: View {
             return item != nil
         }
         return false
+    }
+
+    private var showsLyricsButton: Bool {
+        guard let uri = nowPlaying?.uri else { return false }
+        return uri.hasPrefix("spotify:track:")
     }
 
     private var subtitle: String {

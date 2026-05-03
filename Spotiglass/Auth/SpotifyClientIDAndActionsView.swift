@@ -29,8 +29,10 @@ struct SpotifyClientIDAndActionsView: View {
                 Button {
                     Task { await viewModel.signIn() }
                 } label: {
-                    Label("Connect Spotify", systemImage: "person.crop.circle.badge.plus")
+                    Label("Connect Spotify", systemImage: "arrow.right.circle.fill")
+                        .symbolRenderingMode(.hierarchical)
                 }
+                .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
                 .disabled(!canSignIn)
                 .accessibilityHint("Starts Spotify sign-in using the configured client ID.")
@@ -38,8 +40,10 @@ struct SpotifyClientIDAndActionsView: View {
                 Button {
                     viewModel.signOut()
                 } label: {
-                    Label("Disconnect", systemImage: "xmark.circle")
+                    Label("Disconnect", systemImage: "rectangle.portrait.and.arrow.right")
+                        .symbolRenderingMode(.hierarchical)
                 }
+                .buttonStyle(.bordered)
                 .disabled(!viewModel.state.isConnectedOrRefreshing)
                 .accessibilityHint("Clears the current Spotify sign-in state.")
             }

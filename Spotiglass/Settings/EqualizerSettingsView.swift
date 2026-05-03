@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Settings → Equalizer pane: enable toggle, preset picker (built-ins + user-saved),
-/// preamp slider, ten vertical band sliders. Mutations write through the shared
+/// preamp slider, and a frequency-response graph for the ten band gains. Mutations write through the shared
 /// ``SpotiglassSettingsStore`` and are forwarded live to ``AudioEqualizerEngine``.
 struct EqualizerSettingsView: View {
     @ObservedObject var settingsStore: SpotiglassSettingsStore
@@ -53,7 +53,7 @@ struct EqualizerSettingsView: View {
         VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
             Text("Equalizer")
                 .font(.title3.weight(.semibold))
-            Text("A live 10-band parametric equalizer applied to Spotiglass playback. Drag any slider while a song is playing — changes apply immediately.")
+            Text("A live 10-band parametric equalizer applied to Spotiglass playback. Drag the graph control points while a song is playing — changes apply immediately.")
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -162,14 +162,12 @@ struct EqualizerSettingsView: View {
             Text("Bands")
                 .font(.subheadline.weight(.semibold))
 
-            HStack(alignment: .top, spacing: SpotiglassDesign.spacingS) {
-                ForEach(0..<EqualizerSettings.bandCount, id: \.self) { index in
-                    EqualizerBandColumn(
-                        frequencyHz: EqualizerSettings.bandFrequenciesHz[index],
-                        gain: gainBinding(forBand: index)
-                    )
+            EqualizerCurveGraphView(
+                bandGainsDB: settingsStore.settings.equalizer.bands,
+                onBandGainChange: { index, value in
+                    gainBinding(forBand: index).wrappedValue = value
                 }
-            }
+            )
             .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
@@ -342,62 +340,6 @@ private enum SavePresetError: LocalizedError {
         case .reservedName:
             "That name is reserved for a built-in preset."
         }
-    }
-}
-
-private struct EqualizerBandColumn: View {
-    let frequencyHz: Double
-    @Binding var gain: Double
-
-    var body: some View {
-        VStack(spacing: SpotiglassDesign.spacingXS) {
-            Text(formattedGain)
-                .font(.system(.caption2, design: .monospaced))
-                .foregroundStyle(gain == 0 ? .secondary : .primary)
-                .frame(height: 14)
-
-            VerticalGainSlider(value: $gain)
-                .frame(width: 28, height: 200)
-
-            Text(formattedFrequency)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-        }
-        .frame(minWidth: 36)
-    }
-
-    private var formattedGain: String {
-        if gain == 0 { return "0" }
-        let prefix = gain > 0 ? "+" : ""
-        return String(format: "%@%.0f", prefix, gain)
-    }
-
-    private var formattedFrequency: String {
-        if frequencyHz >= 1000 {
-            return String(format: "%.0fk", frequencyHz / 1000)
-        }
-        return String(format: "%.0f", frequencyHz)
-    }
-}
-
-private struct VerticalGainSlider: View {
-    @Binding var value: Double
-
-    var body: some View {
-        Slider(
-            value: $value,
-            in: EqualizerSettings.gainRangeDB,
-            step: 0.5
-        ) {
-            Text("Band gain")
-        }
-        // SwiftUI's Slider is horizontal by default on macOS. Rotate it to render
-        // a tall vertical band fader; the binding semantics stay correct.
-        .rotationEffect(.degrees(-90))
-        .frame(width: 200, height: 28)
-        .frame(width: 28, height: 200)
-        .accessibilityValue(Text(String(format: "%.1f dB", value)))
     }
 }
 

@@ -94,6 +94,7 @@ final class QueueViewModel: ObservableObject {
                 lastError = mapped
             }
         }
+        await playbackSession.syncTransportFromSpotify()
         publishMergedState()
     }
 
@@ -124,6 +125,27 @@ final class QueueViewModel: ObservableObject {
 
     func clearError() {
         lastError = nil
+    }
+
+    /// Refetches the Spotify queue for auxiliary UI (lyrics “next up”) even when the queue panel is closed.
+    /// Failures are silent so the strip still shows SDK `next_tracks` via ``publishMergedState``.
+    func prefetchQueueForLyricsOverlay() async {
+        publishMergedState()
+        guard shouldPoll else { return }
+        do {
+            lastFetchedQueue = try await playbackAPI.fetchQueue()
+            lastError = nil
+        } catch {
+            // Best-effort: merged state falls back to Web Playback `sdkNextTracks`.
+        }
+        await playbackSession.syncTransportFromSpotify()
+        publishMergedState()
+    }
+
+    /// Toggles Spotify shuffle for this device, then reloads the queue so **Up next** reorders with existing list animations.
+    func toggleShuffle() async {
+        await playbackSession.toggleShuffle()
+        await refreshQueue()
     }
 
     private func restartPollingIfNeeded() {
@@ -157,6 +179,7 @@ final class QueueViewModel: ObservableObject {
                 lastError = mapped
             }
         }
+        await playbackSession.syncTransportFromSpotify()
         publishMergedState()
     }
 
@@ -240,8 +263,13 @@ final class QueueViewModel: ObservableObject {
             case let .forbidden(message, _):
                 return BrowsingDisplayError(title: "Could not load queue", message: message ?? "Spotify denied access.", canRetry: false)
             case let .rateLimited(retryAfter):
-                let suffix = retryAfter.map { " Try again in \(Int($0)) seconds." } ?? ""
-                return BrowsingDisplayError(title: "Rate limited", message: "Spotify is rate limiting requests.\(suffix)", canRetry: true)
+                let clause = SpotifyRateLimitDisplay.retryAfterClause(seconds: retryAfter)
+                return BrowsingDisplayError(
+                    title: "Rate limited",
+                    message: "Spotify is rate limiting requests. \(clause)",
+                    canRetry: true,
+                    diagnosticDetails: SpotifyRateLimitDisplay.rawRetryDiagnostic(seconds: retryAfter)
+                )
             default:
                 return BrowsingDisplayError(title: "Queue update failed", message: "\(apiError)", canRetry: true)
             }

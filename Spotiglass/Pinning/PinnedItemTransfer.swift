@@ -1,0 +1,37 @@
+import Foundation
+import CoreTransferable
+import UniformTypeIdentifiers
+
+extension UTType {
+    /// In-app drag payload type for pinned-item transfers. Not registered in
+    /// `Info.plist`: only Spotiglass advertises and accepts it, so cross-app
+    /// drops never see this type.
+    static let spotiglassPinnedItem = UTType(exportedAs: "com.spotiglass.pinned-item")
+}
+
+/// Drag payload for pinned-item interactions.
+///
+/// The ``originScopeID`` distinguishes a reorder (drag started from the pinned
+/// area) from a new pin (drag started from a track row, album card, …) so the
+/// drop destination can dispatch to the correct ``PinnedItemsStore`` mutation.
+struct PinnedItemTransfer: Codable, Equatable, Hashable, Transferable {
+    /// Sentinel scope value used by the pinned-area drag source. Anything else
+    /// is treated as "new pin".
+    static let pinnedSidebarScopeID = "sidebarPinned"
+
+    let item: PinnedItem
+    let originScopeID: String
+
+    init(item: PinnedItem, originScopeID: String) {
+        self.item = item
+        self.originScopeID = originScopeID
+    }
+
+    static var transferRepresentation: some TransferRepresentation {
+        CodableRepresentation(contentType: .spotiglassPinnedItem)
+    }
+
+    var isFromPinnedSidebar: Bool {
+        originScopeID == Self.pinnedSidebarScopeID
+    }
+}

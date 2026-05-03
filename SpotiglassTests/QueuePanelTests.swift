@@ -46,11 +46,11 @@ final class QueuePanelTests: XCTestCase {
 
         playback.handle(.ready(deviceID: "device-1"))
         let sdkNext = [
-            PlaybackNowPlaying(name: "A", artists: ["a"], albumArtURL: nil, durationMilliseconds: 100_000, positionMilliseconds: 0, uri: "spotify:track:a"),
-            PlaybackNowPlaying(name: "B", artists: ["b"], albumArtURL: nil, durationMilliseconds: 100_000, positionMilliseconds: 0, uri: "spotify:track:b")
+            PlaybackNowPlaying(name: "A", artists: ["a"], albumName: nil, albumArtURL: nil, durationMilliseconds: 100_000, positionMilliseconds: 0, uri: "spotify:track:a"),
+            PlaybackNowPlaying(name: "B", artists: ["b"], albumName: nil, albumArtURL: nil, durationMilliseconds: 100_000, positionMilliseconds: 0, uri: "spotify:track:b")
         ]
         playback.handle(.stateChanged(
-            PlaybackNowPlaying(name: "Cur", artists: ["c"], albumArtURL: nil, durationMilliseconds: 120_000, positionMilliseconds: 0, uri: "spotify:track:cur"),
+            PlaybackNowPlaying(name: "Cur", artists: ["c"], albumName: nil, albumArtURL: nil, durationMilliseconds: 120_000, positionMilliseconds: 0, uri: "spotify:track:cur"),
             isPaused: false,
             nextTracks: sdkNext
         ))
@@ -78,7 +78,7 @@ final class QueuePanelTests: XCTestCase {
         let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: StubWebPlaybackCommander())
         playback.handle(.ready(deviceID: "device-1"))
         playback.handle(.stateChanged(
-            PlaybackNowPlaying(name: "T", artists: [], albumArtURL: nil, durationMilliseconds: 60_000, positionMilliseconds: 0, uri: "spotify:track:t"),
+            PlaybackNowPlaying(name: "T", artists: [], albumName: nil, albumArtURL: nil, durationMilliseconds: 60_000, positionMilliseconds: 0, uri: "spotify:track:t"),
             isPaused: false,
             nextTracks: []
         ))
@@ -169,5 +169,18 @@ private final class QueueTestPlaybackAPI: SpotifyPlaybackControlling {
 
     func addToQueue(uri: String, deviceID: String) async throws {
         actions.append("addToQueue:\(deviceID):\(uri)")
+    }
+
+    func fetchPlayerTransport() async throws -> SpotifyPlayerTransport? {
+        actions.append("fetchPlayerTransport")
+        return nil
+    }
+
+    func setShuffle(enabled: Bool, deviceID: String) async throws {
+        actions.append("setShuffle:\(deviceID):\(enabled)")
+    }
+
+    func setRepeat(mode: SpotifyRepeatMode, deviceID: String) async throws {
+        actions.append("setRepeat:\(deviceID):\(mode.rawValue)")
     }
 }

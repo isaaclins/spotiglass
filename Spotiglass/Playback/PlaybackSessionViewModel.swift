@@ -17,6 +17,11 @@ final class PlaybackSessionViewModel: ObservableObject {
     @Published private(set) var activePlaylistID: String?
     /// Upcoming tracks from Web Playback SDK `track_window.next_tracks` (immediate UI).
     @Published private(set) var sdkNextTracks: [PlaybackNowPlaying] = []
+    /// Web Playback SDK output gain (`player.setVolume`), 0...1. Persisted between launches.
+    @Published private(set) var playbackVolume: Double
+    /// From `GET /v1/me/player` for the active Spotify player (may be this device or another).
+    @Published private(set) var shuffleEnabled = false
+    @Published private(set) var repeatMode: SpotifyRepeatMode = .off
 
     private let playbackAPI: SpotifyPlaybackControlling
     private let webCommander: WebPlaybackCommanding
@@ -39,6 +44,10 @@ final class PlaybackSessionViewModel: ObservableObject {
     /// that Spotify ultimately refused to play.
     private let pendingPlayURITimeout: Duration = .seconds(6)
 
+    private static let playbackVolumeUserDefaultsKey = "spotiglass.playbackVolume"
+    /// Matches the default passed to `Spotify.Player({ volume: … })` in the embedded host HTML.
+    static let defaultPlaybackVolume: Double = 0.8
+
     init(
         playbackAPI: SpotifyPlaybackControlling,
         webCommander: WebPlaybackCommanding,
@@ -47,6 +56,33 @@ final class PlaybackSessionViewModel: ObservableObject {
         self.playbackAPI = playbackAPI
         self.webCommander = webCommander
         self.progressTickInterval = progressTickInterval
+        self.playbackVolume = Self.loadStoredPlaybackVolume()
+    }
+
+    private static func loadStoredPlaybackVolume() -> Double {
+        guard let object = UserDefaults.standard.object(forKey: playbackVolumeUserDefaultsKey) else {
+            return defaultPlaybackVolume
+        }
+        if let d = object as? Double {
+            return min(max(d, 0), 1)
+        }
+        if let n = object as? NSNumber {
+            return min(max(n.doubleValue, 0), 1)
+        }
+        return defaultPlaybackVolume
+    }
+
+    func setPlaybackVolume(_ value: Double) {
+        let clamped = min(max(value, 0), 1)
+        playbackVolume = clamped
+        UserDefaults.standard.set(clamped, forKey: Self.playbackVolumeUserDefaultsKey)
+        Task {
+            try? await webCommander.send(.setVolume, payload: ["volume": clamped])
+        }
+    }
+
+    private func syncPlaybackVolumeToWebPlayer() async {
+        try? await webCommander.send(.setVolume, payload: ["volume": playbackVolume])
     }
 
     deinit {
@@ -77,6 +113,12 @@ final class PlaybackSessionViewModel: ObservableObject {
             }
             self.deviceID = deviceID
             setConnectionState(.ready(deviceID: deviceID))
+            // WebKit helper PIDs (WebContent, GPU, …) may spawn only after the Web
+            // Playback SDK is ready. Rebuild the equalizer tap so Core Audio includes them.
+            NotificationCenter.default.post(name: .spotiglassPlaybackDeviceReady, object: nil)
+            Task {
+                await syncPlaybackVolumeToWebPlayer()
+            }
         case let .notReady(deviceID):
             if self.deviceID == deviceID {
                 self.deviceID = nil
@@ -210,6 +252,58 @@ final class PlaybackSessionViewModel: ObservableObject {
         }
     }
 
+    /// Refreshes shuffle/repeat from Spotify (`GET /v1/me/player`). Safe to call when the queue panel polls; ignores failures without changing connection state.
+    func syncTransportFromSpotify() async {
+        do {
+            if let transport = try await playbackAPI.fetchPlayerTransport() {
+                shuffleEnabled = transport.shuffle
+                repeatMode = transport.repeatMode
+            }
+        } catch {
+            // Queue poll should not surface transport read failures as playback errors.
+        }
+    }
+
+    func toggleShuffle() async {
+        guard let deviceID else {
+            setConnectionState(.error(PlaybackDisplayError(title: "Playback device unavailable", message: "Reconnect playback before using controls.", recoveryAction: .reconnect)))
+            return
+        }
+        let previousShuffle = shuffleEnabled
+        let target = !shuffleEnabled
+        shuffleEnabled = target
+
+        do {
+            try await playbackAPI.setShuffle(enabled: target, deviceID: deviceID)
+            Task { await syncTransportFromSpotify() }
+        } catch {
+            if shuffleEnabled == target {
+                shuffleEnabled = previousShuffle
+            }
+            setConnectionState(.error(Self.displayError(for: error)))
+        }
+    }
+
+    func cycleRepeat() async {
+        guard let deviceID else {
+            setConnectionState(.error(PlaybackDisplayError(title: "Playback device unavailable", message: "Reconnect playback before using controls.", recoveryAction: .reconnect)))
+            return
+        }
+        let previousMode = repeatMode
+        let nextMode = repeatMode.next
+        repeatMode = nextMode
+
+        do {
+            try await playbackAPI.setRepeat(mode: nextMode, deviceID: deviceID)
+            Task { await syncTransportFromSpotify() }
+        } catch {
+            if repeatMode == nextMode {
+                repeatMode = previousMode
+            }
+            setConnectionState(.error(Self.displayError(for: error)))
+        }
+    }
+
     func seek(to milliseconds: Int) async {
         await sendDeviceCommand { deviceID in
             try await playbackAPI.seek(to: milliseconds, deviceID: deviceID)
@@ -226,6 +320,8 @@ final class PlaybackSessionViewModel: ObservableObject {
         hasTransferredPlaybackToCurrentDevice = false
         activePlaylistID = nil
         sdkNextTracks = []
+        shuffleEnabled = false
+        repeatMode = .off
         clearPendingPlay()
         setConnectionState(.disconnected)
     }
@@ -268,8 +364,12 @@ final class PlaybackSessionViewModel: ObservableObject {
             case let .forbidden(message, _):
                 return PlaybackDisplayError(title: "Spotify Premium required", message: message ?? "Spotify Web Playback SDK playback requires a Premium account.", recoveryAction: nil)
             case let .rateLimited(retryAfter):
-                let suffix = retryAfter.map { " Try again in \(Int($0)) seconds." } ?? ""
-                return PlaybackDisplayError(title: "Playback rate limited", message: "Spotify is rate limiting playback commands.\(suffix)", recoveryAction: .retryTransfer)
+                let clause = SpotifyRateLimitDisplay.retryAfterClause(seconds: retryAfter)
+                return PlaybackDisplayError(
+                    title: "Playback rate limited",
+                    message: "Spotify is rate limiting playback commands. \(clause)",
+                    recoveryAction: .retryTransfer
+                )
             default:
                 return PlaybackDisplayError(title: "Playback command failed", message: "\(apiError)", recoveryAction: .retryTransfer)
             }
@@ -278,7 +378,7 @@ final class PlaybackSessionViewModel: ObservableObject {
     }
 
     private func fallbackNowPlaying() -> PlaybackNowPlaying {
-        PlaybackNowPlaying(name: "Spotify playback", artists: [], albumArtURL: nil, durationMilliseconds: 0, positionMilliseconds: 0, uri: nil)
+        PlaybackNowPlaying(name: "Spotify playback", artists: [], albumName: nil, albumArtURL: nil, durationMilliseconds: 0, positionMilliseconds: 0, uri: nil)
     }
 
     private func ensurePlaybackTransferredIfNeeded(deviceID: String) async throws {
@@ -436,6 +536,14 @@ final class WebPlaybackViewCommander: WebPlaybackCommanding {
             let data = try JSONSerialization.data(withJSONObject: payload, options: [])
             let json = String(data: data, encoding: .utf8) ?? "{}"
             return "window.spotiglassPlayback && window.spotiglassPlayback.playURI(\(json).uri);"
+        case .setVolume:
+            let raw = (payload["volume"] as? NSNumber)?.doubleValue
+                ?? (payload["volume"] as? Double)
+                ?? (payload["volume"] as? Int).map(Double.init)
+                ?? 0.8
+            let clamped = min(max(raw, 0), 1)
+            let literal = String(format: "%.6f", clamped)
+            return "window.spotiglassPlayback && window.spotiglassPlayback.setVolume(\(literal));"
         }
     }
 }

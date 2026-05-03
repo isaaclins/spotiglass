@@ -303,6 +303,49 @@ final class SpotifyWebAPIStepTests: XCTestCase {
         XCTAssertEqual(httpClient.requests.first?.url?.absoluteString, "https://api.spotify.com/v1/playlists/playlist-1/items?limit=50&offset=0")
     }
 
+    func testCurrentUserSavedTracksDecodesMeTracksPage() async throws {
+        let httpClient = QueueHTTPClient([
+            .json("""
+            {
+              "href": "https://api.spotify.com/v1/me/tracks",
+              "limit": 50,
+              "offset": 0,
+              "next": null,
+              "previous": null,
+              "total": 1,
+              "items": [
+                {
+                  "added_at": "2020-01-01T00:00:00Z",
+                  "track": {
+                    "type": "track",
+                    "id": "saved-1",
+                    "name": "Liked Name",
+                    "artists": [{ "id": "artist-1", "name": "Artist" }],
+                    "album": { "name": "Album", "images": [] },
+                    "duration_ms": 180000,
+                    "explicit": false,
+                    "uri": "spotify:track:saved-1",
+                    "is_local": false
+                  }
+                }
+              ]
+            }
+            """)
+        ])
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+
+        let result = try await client.currentUserSavedTracks(limit: 50, maxPages: 20)
+
+        XCTAssertEqual(result.totalAvailable, 1)
+        XCTAssertEqual(result.tracks.count, 1)
+        guard case let .track(track) = result.tracks[0].content else {
+            return XCTFail("Expected track")
+        }
+        XCTAssertEqual(track.id, "saved-1")
+        XCTAssertEqual(track.name, "Liked Name")
+        XCTAssertEqual(httpClient.requests.first?.url?.absoluteString, "https://api.spotify.com/v1/me/tracks?limit=50&offset=0")
+    }
+
     func testPlaylistTrackDecodingPrefersItemAndFallsBackToLegacyTrackField() async throws {
         let httpClient = QueueHTTPClient([
             .json("""
@@ -550,6 +593,104 @@ final class SpotifyWebAPIStepTests: XCTestCase {
         )
     }
 
+    func testSearchTracksUsesTypeTrackAndLimit() async throws {
+        let httpClient = QueueHTTPClient([
+            .json("""
+            {
+              "tracks": {
+                "items": [
+                  {
+                    "type": "track",
+                    "id": "track-99",
+                    "name": "X",
+                    "artists": [{ "name": "A" }],
+                    "album": { "images": [] },
+                    "duration_ms": 1000,
+                    "explicit": false,
+                    "uri": "spotify:track:track-99"
+                  }
+                ]
+              }
+            }
+            """)
+        ])
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+
+        _ = try await client.searchTracks(query: "artist:\"Kanye West\"", limit: 50)
+
+        XCTAssertEqual(
+            httpClient.requests.first?.url?.absoluteString,
+            "https://api.spotify.com/v1/search?q=artist:%22Kanye%20West%22&type=track&limit=50"
+        )
+    }
+
+    func testSearchSecondCallUsesGETResponseCacheSingleHTTPRequest() async throws {
+        let searchJSON = """
+            {
+              "tracks": {
+                "items": [
+                  {
+                    "type": "track",
+                    "id": "track-1",
+                    "name": "Midnight City",
+                    "artists": [{ "name": "M83" }],
+                    "album": { "images": [] },
+                    "duration_ms": 240000,
+                    "explicit": false,
+                    "uri": "spotify:track:track-1"
+                  }
+                ]
+              },
+              "artists": { "items": [] },
+              "albums": { "items": [] },
+              "playlists": { "items": [] }
+            }
+            """
+        let cache = SpotifyGETResponseCache(diskCache: nil)
+        let httpClient = QueueHTTPClient([.json(searchJSON)])
+        let client = SpotifyAPIClient(
+            tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"),
+            httpClient: httpClient,
+            getResponseCache: cache
+        )
+
+        _ = try await client.search(query: "Midnight", limit: 4)
+        let second = try await client.search(query: "Midnight", limit: 4)
+
+        XCTAssertEqual(httpClient.requests.count, 1, "GET response cache should avoid a second HTTP request for the same search.")
+        XCTAssertEqual(second.tracks.map(\.id), ["track-1"])
+    }
+
+    func testRateLimitDisplayUsesFriendlyPhrasesForLongBackoffs() {
+        XCTAssertTrue(SpotifyRateLimitDisplay.retryAfterClause(seconds: 7500).lowercased().contains("several hours"))
+        XCTAssertTrue(SpotifyRateLimitDisplay.retryAfterClause(seconds: 400).lowercased().contains("minute"))
+        XCTAssertEqual(SpotifyRateLimitDisplay.retryAfterClause(seconds: nil), "Try again shortly.")
+    }
+
+    func testRetryAfterHeaderSupportsHTTPDateFormat() async throws {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
+        let future = Date().addingTimeInterval(48 * 3600)
+        let headerValue = formatter.string(from: future)
+
+        let httpClient = QueueHTTPClient([
+            .json(#"{"error":{"status":429,"message":"Slow"}}"#, statusCode: 429, headers: ["Retry-After": headerValue])
+        ])
+        let client = SpotifyAPIClient(tokenProvider: FailingRefreshTokenProvider(), httpClient: httpClient)
+        do {
+            _ = try await client.currentUserProfile()
+            XCTFail("Expected rate limited")
+        } catch let error as SpotifyAPIError {
+            guard case let .rateLimited(seconds) = error, let s = seconds else {
+                return XCTFail("Expected rateLimited with interval")
+            }
+            XCTAssertGreaterThan(s, 24 * 3600)
+            XCTAssertLessThan(s, 72 * 3600)
+        }
+    }
+
     func testSearchDecodingSkipsNullEntriesInPagingItemsArrays() async throws {
         let httpClient = QueueHTTPClient([
             .json("""
@@ -717,6 +858,38 @@ final class SpotifyWebAPIStepTests: XCTestCase {
         XCTAssertFalse(firstURL.contains("limit=50"))
         XCTAssertEqual(albums.count, 2)
         XCTAssertEqual(albums.map(\.id), ["alb1", "alb2"])
+    }
+
+    func testArtistAlbumsPaginationStopsAtMaxPagesWhenNextNeverEnds() async throws {
+        let loopingPage = """
+            {
+              "href": "https://api.spotify.com/v1/artists/ar1/albums?offset=0&limit=10",
+              "limit": 10,
+              "next": "https://api.spotify.com/v1/artists/ar1/albums?include_groups=album&limit=10&offset=10",
+              "offset": 0,
+              "previous": null,
+              "total": 999,
+              "items": [
+                {
+                  "id": "alb-loop",
+                  "name": "Loop Album",
+                  "images": [],
+                  "release_date": "2020-01-01",
+                  "total_tracks": 1,
+                  "uri": "spotify:album:alb-loop",
+                  "album_group": "album"
+                }
+              ]
+            }
+            """
+        let responses = (0..<25).map { _ in QueueHTTPClient.Response.json(loopingPage) }
+        let httpClient = QueueHTTPClient(responses)
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+
+        let albums = try await client.artistAlbums(id: "ar1", includeGroups: "album", limit: 10)
+
+        XCTAssertEqual(httpClient.requests.count, 20, "Should cap at 20 album pages even when Spotify keeps returning next.")
+        XCTAssertEqual(albums.count, 20)
     }
 
     func testBadRequestMapsToBadRequestCaseWithDiagnostics() async throws {

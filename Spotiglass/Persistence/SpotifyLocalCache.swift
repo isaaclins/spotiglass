@@ -25,6 +25,12 @@ struct CachedSpotifySettings: Codable, Equatable {
     var lastUserID: String?
 }
 
+private struct CachedGETResponsePayload: Codable, Equatable {
+    let cachedAt: Date
+    let ttlSeconds: TimeInterval
+    let bodyBase64: String
+}
+
 enum SpotifyLocalCacheError: Error, Equatable {
     case applicationSupportUnavailable
 }
@@ -106,6 +112,30 @@ struct SpotifyLocalCache {
         try removeIfPresent(tracksURL(playlistID: playlistID))
     }
 
+    /// Persists a successful GET response body for `SpotifyGETResponseCache` (keyed by SHA256 hex `digest`).
+    func saveGETResponse(digest: String, body: Data, ttl: TimeInterval, cachedAt: Date = Date()) throws {
+        let payload = CachedGETResponsePayload(
+            cachedAt: cachedAt,
+            ttlSeconds: ttl,
+            bodyBase64: body.base64EncodedString()
+        )
+        try write(payload, to: getResponseURL(digest: digest))
+    }
+
+    func loadGETResponse(digest: String, now: Date = Date()) throws -> (data: Data, expiresAt: Date)? {
+        guard let cached: CachedGETResponsePayload = try read(from: getResponseURL(digest: digest)) else {
+            return nil
+        }
+        guard let data = Data(base64Encoded: cached.bodyBase64) else {
+            return nil
+        }
+        let expiresAt = cached.cachedAt.addingTimeInterval(cached.ttlSeconds)
+        guard expiresAt > now else {
+            return nil
+        }
+        return (data, expiresAt)
+    }
+
     func saveSettings(_ settings: CachedSpotifySettings) throws {
         try write(settings, to: settingsURL)
     }
@@ -114,12 +144,34 @@ struct SpotifyLocalCache {
         try read(from: settingsURL) ?? CachedSpotifySettings()
     }
 
+    /// Persist the per-account pinned-items list. The file lives under
+    /// `pinned/<userID>.json` so multiple Spotify accounts on the same Mac
+    /// keep their pins isolated.
+    func savePinnedItems(_ items: [PinnedItem], userID: String) throws {
+        try write(items, to: pinnedURL(userID: userID))
+    }
+
+    func loadPinnedItems(userID: String) throws -> [PinnedItem] {
+        let url = pinnedURL(userID: userID)
+        guard fileManager.fileExists(atPath: url.path) else {
+            return []
+        }
+        let data = try Data(contentsOf: url)
+        return try decoder.decode([PinnedItem].self, from: data)
+    }
+
     func clear() throws {
         try removeIfPresent(playlistsURL)
         try removeIfPresent(settingsURL)
         let tracksDirectory = self.tracksDirectory
         if fileManager.fileExists(atPath: tracksDirectory.path) {
             try fileManager.removeItem(at: tracksDirectory)
+        }
+        if fileManager.fileExists(atPath: getResponsesDirectory.path) {
+            try fileManager.removeItem(at: getResponsesDirectory)
+        }
+        if fileManager.fileExists(atPath: pinnedDirectory.path) {
+            try fileManager.removeItem(at: pinnedDirectory)
         }
     }
 
@@ -135,8 +187,24 @@ struct SpotifyLocalCache {
         rootDirectory.appendingPathComponent("tracks", isDirectory: true)
     }
 
+    private var getResponsesDirectory: URL {
+        rootDirectory.appendingPathComponent("get_responses", isDirectory: true)
+    }
+
+    private var pinnedDirectory: URL {
+        rootDirectory.appendingPathComponent("pinned", isDirectory: true)
+    }
+
+    private func getResponseURL(digest: String) -> URL {
+        getResponsesDirectory.appendingPathComponent("\(digest).json")
+    }
+
     private func tracksURL(playlistID: String) -> URL {
         tracksDirectory.appendingPathComponent("\(playlistID.fileSafeCacheKey).json")
+    }
+
+    private func pinnedURL(userID: String) -> URL {
+        pinnedDirectory.appendingPathComponent("\(userID.fileSafeCacheKey).json")
     }
 
     private func write<Value: Encodable>(_ value: Value, to url: URL) throws {

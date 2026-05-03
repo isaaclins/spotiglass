@@ -163,7 +163,7 @@ final class AuthViewModel: ObservableObject {
         guard session.includesRequiredBrowsingScopes() else {
             throw SpotifyAPIError.insufficientScope(
                 requiredScopes: SpotifyAuthConfiguration.requiredBrowsingScopes,
-                message: "Your current Spotify session is missing playlist permissions. Disconnect and connect again to grant required scopes.",
+                message: "Your current Spotify session is missing playlist or Liked Songs permissions. Disconnect and connect again to grant required scopes.",
                 details: nil
             )
         }

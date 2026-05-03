@@ -6,6 +6,7 @@ struct SpotifyAuthConfiguration: Equatable {
     static let defaultScopes = [
         "playlist-read-private",
         "playlist-read-collaborative",
+        "user-library-read",
         "user-read-private",
         "user-read-email",
         "user-read-playback-state",

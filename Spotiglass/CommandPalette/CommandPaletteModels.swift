@@ -17,11 +17,17 @@ enum CommandPaletteCommandID {
     static let filterByArtist = "search.filterByArtist"
     static let toggleQueue = "queue.toggle"
     static let openArtist = "navigation.artist.open"
+    /// Pin the currently-selected palette result. Default ⌘↩ in `.paletteOpen`.
+    static let pinSelected = "palette.pin"
+    /// Unpin the currently-selected palette result. No default keystroke.
+    static let unpinSelected = "palette.unpin"
 }
 
 enum CommandPaletteSection: String {
     case commands = "Commands"
     case playlists = "Playlists"
+    case thisPlaylist = "This playlist"
+    case myPlaylists = "My Playlists"
     case tracks = "Tracks"
     case artists = "Artists"
     case albums = "Albums"
@@ -32,6 +38,8 @@ enum CommandPaletteSection: String {
         case .artists: "ARTISTS"
         case .commands: "COMMANDS"
         case .playlists: "PLAYLISTS"
+        case .thisPlaylist: "THIS PLAYLIST"
+        case .myPlaylists: "MY PLAYLISTS"
         case .albums: "ALBUMS"
         }
     }
@@ -39,20 +47,59 @@ enum CommandPaletteSection: String {
 
 enum CommandPaletteScope: Equatable {
     case songs
-    case artists
     case commands
 
     /// Parses raw query input into a scope and stripped query string.
-    /// `>` prefix → commands, `@` prefix → artists, otherwise → songs.
-    /// The prefix character is removed from the returned query.
+    /// `>` prefix → commands; otherwise Spotify search (category comes from `CommandPaletteSearchCategory`).
+    /// A leading `@` is legacy artist-only shorthand; the view model strips it and sets category to artists.
     static func parse(_ raw: String) -> (scope: CommandPaletteScope, query: String) {
         if raw.hasPrefix(">") {
             return (.commands, String(raw.dropFirst()))
         }
-        if raw.hasPrefix("@") {
-            return (.artists, String(raw.dropFirst()))
-        }
         return (.songs, raw)
+    }
+}
+
+/// Spotify search result category shown in the palette footer; filters which sections appear after a query.
+enum CommandPaletteSearchCategory: String, Identifiable, Hashable {
+    case all
+    case tracks
+    case artists
+    case thisPlaylist
+    case myPlaylists
+
+    var id: String { rawValue }
+
+    var segmentLabel: String {
+        switch self {
+        case .all: "All"
+        case .tracks: "Tracks"
+        case .artists: "Artists"
+        case .thisPlaylist: "Here"
+        case .myPlaylists: "My Playlists"
+        }
+    }
+
+    /// Footer segment order; `thisPlaylist` is omitted when no playlist is open in the browser.
+    static func footerOrder(includeThisPlaylist: Bool) -> [CommandPaletteSearchCategory] {
+        var order: [CommandPaletteSearchCategory] = [.all, .tracks, .artists]
+        if includeThisPlaylist {
+            order.append(.thisPlaylist)
+        }
+        order.append(.myPlaylists)
+        return order
+    }
+
+    /// Next category when cycling forward (Tab) within `ordered`.
+    func next(in ordered: [CommandPaletteSearchCategory]) -> CommandPaletteSearchCategory {
+        guard let idx = ordered.firstIndex(of: self), !ordered.isEmpty else { return ordered.first ?? .all }
+        return ordered[(idx + 1) % ordered.count]
+    }
+
+    /// Previous category when cycling backward (Shift+Tab) within `ordered`.
+    func previous(in ordered: [CommandPaletteSearchCategory]) -> CommandPaletteSearchCategory {
+        guard let idx = ordered.firstIndex(of: self), !ordered.isEmpty else { return ordered.first ?? .all }
+        return ordered[(idx + ordered.count - 1) % ordered.count]
     }
 }
 
@@ -68,30 +115,49 @@ struct CommandPaletteItem: Identifiable {
     let title: String
     let subtitle: String?
     let iconSystemName: String
+    /// Spotify artist image URL for palette rows in `.artists`; `nil` uses `iconSystemName` only.
+    let artistAvatarURL: URL?
+    /// Spotify album cover URL for `.tracks` / `.thisPlaylist` rows; `nil` falls back to `iconSystemName`.
+    let trackArtworkURL: URL?
     let section: CommandPaletteSection
     let keywords: [String]
     /// When true, executing this item keeps the palette open instead of dismissing it.
     /// Used for actions like "filter by artist" that re-query the palette in place.
     let keepsPaletteOpen: Bool
     let action: @MainActor () async -> Void
+    /// When non-`nil`, ⌘↩ on this item pins it to the sidebar instead of
+    /// running ``action``. Set by the palette search builder for any pinnable
+    /// kind (track, artist, album, catalog playlist, library playlist).
+    let pinAction: (@MainActor () -> Void)?
+    /// When non-`nil`, marks the row as already pinned and provides the unpin
+    /// closure (used by the future "Unpin from Sidebar" command).
+    let unpinAction: (@MainActor () -> Void)?
 
     init(
         id: String,
         title: String,
         subtitle: String?,
         iconSystemName: String,
+        artistAvatarURL: URL? = nil,
+        trackArtworkURL: URL? = nil,
         section: CommandPaletteSection,
         keywords: [String],
         keepsPaletteOpen: Bool = false,
+        pinAction: (@MainActor () -> Void)? = nil,
+        unpinAction: (@MainActor () -> Void)? = nil,
         action: @escaping @MainActor () async -> Void
     ) {
         self.id = id
         self.title = title
         self.subtitle = subtitle
         self.iconSystemName = iconSystemName
+        self.artistAvatarURL = artistAvatarURL
+        self.trackArtworkURL = trackArtworkURL
         self.section = section
         self.keywords = keywords
         self.keepsPaletteOpen = keepsPaletteOpen
+        self.pinAction = pinAction
+        self.unpinAction = unpinAction
         self.action = action
     }
 
@@ -117,9 +183,29 @@ struct CommandPaletteSearchResults {
     var tracks: [CommandPaletteItem] = []
     var artists: [CommandPaletteItem] = []
     var albums: [CommandPaletteItem] = []
-    var playlists: [CommandPaletteItem] = []
+    /// Spotify catalog playlist hits from `/v1/search`.
+    var catalogPlaylists: [CommandPaletteItem] = []
+    /// Tracks in the currently open playlist (or Liked Songs) matching the query; built locally.
+    var inPlaylistMatches: [CommandPaletteItem] = []
+    /// Current user's library playlists that match the query (filtered in-app).
+    var myPlaylists: [CommandPaletteItem] = []
+
+    /// Catalog hits first, then library playlists not already in the catalog list.
+    func mergedPlaylistsForAllCategory() -> [CommandPaletteItem] {
+        let catalogIDs = Set(catalogPlaylists.compactMap { Self.playlistSpotifyID(fromItemID: $0.id) })
+        let libraryExtras = myPlaylists.filter { item in
+            guard let sid = Self.playlistSpotifyID(fromItemID: item.id) else { return true }
+            return !catalogIDs.contains(sid)
+        }
+        return catalogPlaylists + libraryExtras
+    }
+
+    private static func playlistSpotifyID(fromItemID id: String) -> String? {
+        guard id.hasPrefix("playlist-") else { return nil }
+        return String(id.dropFirst("playlist-".count))
+    }
 
     var allItems: [CommandPaletteItem] {
-        playlists + tracks + artists + albums
+        mergedPlaylistsForAllCategory() + inPlaylistMatches + tracks + artists + albums
     }
 }

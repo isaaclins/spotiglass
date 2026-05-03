@@ -1,6 +1,12 @@
 import SwiftUI
 
 struct TrackListRow: View {
+    /// Width for `m:ss` / `mm:ss` monospaced durations so resize does not reflow every row’s trailing edge.
+    private static let durationColumnWidth: CGFloat = 48
+    /// Source-of-truth row height for the virtualized playlist track list.
+    /// 40pt artwork + 2 * spacingXS (6pt) padding + 4pt headroom = 56pt.
+    static let listRowHeight: CGFloat = 56
+
     let trackNumber: Int
     let track: TrackRowViewModel
     let playURI: (String) -> Void
@@ -10,8 +16,17 @@ struct TrackListRow: View {
     let hasPlaybackDevice: Bool
     let addToQueue: (String) async -> Void
     let openArtist: (String) -> Void
+    /// When set, the row participates in drag-to-pin for this surface (e.g. `pl:<playlistId>` or `ar:<artistID>`).
+    var tracksSurfaceID: String? = nil
+    /// Spotify playlist id when this list is a library playlist; `nil` for Liked Songs and artist top tracks.
+    var originPlaylistID: String? = nil
 
+    @EnvironmentObject private var pinnedStore: PinnedItemsStore
     @State private var isHovering: Bool = false
+
+    private var isTrackPinned: Bool {
+        pinnedStore.isPinned(spotifyID: track.id, kind: .track)
+    }
 
     var body: some View {
         HStack(spacing: SpotiglassDesign.spacingS) {
@@ -19,6 +34,17 @@ struct TrackListRow: View {
                 .frame(width: 40, alignment: .trailing)
 
             ArtworkView(url: track.artworkURL, size: 40)
+                .overlay(alignment: .topTrailing) {
+                    if tracksSurfaceID != nil, isTrackPinned {
+                        Image(systemName: "pin.fill")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .padding(3)
+                            .background(Circle().fill(Color.black.opacity(0.55)))
+                            .padding(2)
+                            .accessibilityLabel("Pinned to sidebar")
+                    }
+                }
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
@@ -44,6 +70,8 @@ struct TrackListRow: View {
             Text(track.durationText)
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
+                .frame(width: Self.durationColumnWidth, alignment: .trailing)
+                .fixedSize(horizontal: true, vertical: false)
         }
         .padding(.vertical, SpotiglassDesign.spacingXS)
         .padding(.horizontal, SpotiglassDesign.spacingXS)
@@ -52,6 +80,11 @@ struct TrackListRow: View {
         .onHover { hovering in
             isHovering = hovering
         }
+        .modifier(TrackListPinningModifier(
+            track: track,
+            tracksSurfaceID: tracksSurfaceID,
+            originPlaylistID: originPlaylistID
+        ))
         .onTapGesture {
             if isCurrent {
                 togglePlayPause()
@@ -74,6 +107,17 @@ struct TrackListRow: View {
                 Task { await addToQueue(uri) }
             }
             .disabled(!hasPlaybackDevice || track.playableURI == nil)
+            if let pinned = track.pinnedTrackItem(originPlaylistID: originPlaylistID) {
+                if isTrackPinned {
+                    Button("Unpin from Sidebar") {
+                        pinnedStore.unpin(id: pinned.id)
+                    }
+                } else {
+                    Button("Pin to Sidebar") {
+                        pinnedStore.pin(pinned)
+                    }
+                }
+            }
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(trackNumber). \(track.title), \(track.subtitle), \(track.durationText)\(isCurrent ? ", currently playing" : "")")
@@ -140,6 +184,26 @@ struct TrackListRow: View {
                 RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
                     .fill(Color.primary.opacity(0.05))
             }
+        }
+    }
+}
+
+/// Keeps `TrackListRow` itself a plain `View` for type-checker performance; pinning is optional via `tracksSurfaceID`.
+private struct TrackListPinningModifier: ViewModifier {
+    let track: TrackRowViewModel
+    let tracksSurfaceID: String?
+    let originPlaylistID: String?
+
+    func body(content: Content) -> some View {
+        if let sid = tracksSurfaceID, let pinned = track.pinnedTrackItem(originPlaylistID: originPlaylistID) {
+            content
+                .draggable(
+                    PinnedItemTransfer(item: pinned, originScopeID: sid)
+                ) {
+                    PinnedItemDragPill(item: pinned)
+                }
+        } else {
+            content
         }
     }
 }

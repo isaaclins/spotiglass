@@ -1,0 +1,26 @@
+import Foundation
+
+/// Pure helpers for command-palette Spotify search (artist-scoped track merge).
+enum SpotifyPaletteSearchAugmentation {
+    /// Whether to run a second `artist:"…"` track search using Spotify’s top artist hit.
+    static func shouldFetchArtistScopedTracks(trimmedUserQuery: String, topArtistName: String) -> Bool {
+        let q = trimmedUserQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let name = topArtistName.lowercased()
+        guard q.count >= 2, !name.isEmpty else { return false }
+        if name.contains(q) { return true }
+        let firstToken = name.split(separator: " ").first.map(String.init) ?? ""
+        guard firstToken.count >= 3, q.contains(firstToken) else { return false }
+        return true
+    }
+
+    /// Keeps `primary` order; appends tracks from `extra` not already present (by track id).
+    static func mergeTracksPreservingOrder(primary: [SpotifyTrack], extra: [SpotifyTrack]) -> [SpotifyTrack] {
+        var seen = Set(primary.map(\.id))
+        var out = primary
+        for track in extra where !seen.contains(track.id) {
+            seen.insert(track.id)
+            out.append(track)
+        }
+        return out
+    }
+}

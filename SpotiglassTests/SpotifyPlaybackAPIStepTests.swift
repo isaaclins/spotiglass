@@ -90,6 +90,77 @@ final class SpotifyPlaybackAPIStepTests: XCTestCase {
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
         XCTAssertEqual(object["context_uri"] as? String, "spotify:album:album-1")
     }
+
+    func testSetShuffleRequestUsesStateAndDeviceQueryItems() async throws {
+        let tokenProvider = StaticPlaybackAccessTokenProvider(token: "token")
+        let httpClient = SeqPlaybackHTTPClient(responses: [(Data(), 204)])
+        let api = SpotifyPlaybackAPI(
+            baseURL: URL(string: "https://api.spotify.com")!,
+            tokenProvider: tokenProvider,
+            httpClient: httpClient
+        )
+
+        try await api.setShuffle(enabled: true, deviceID: "device-1")
+
+        let request = try XCTUnwrap(httpClient.requests.first)
+        XCTAssertEqual(request.httpMethod, "PUT")
+        let url = try XCTUnwrap(request.url?.absoluteString)
+        XCTAssertTrue(url.hasPrefix("https://api.spotify.com/v1/me/player/shuffle?"))
+        XCTAssertTrue(url.contains("state=true"))
+        XCTAssertTrue(url.contains("device_id=device-1"))
+    }
+
+    func testSetRepeatRequestUsesStateAndDeviceQueryItems() async throws {
+        let tokenProvider = StaticPlaybackAccessTokenProvider(token: "token")
+        let httpClient = SeqPlaybackHTTPClient(responses: [(Data(), 204)])
+        let api = SpotifyPlaybackAPI(
+            baseURL: URL(string: "https://api.spotify.com")!,
+            tokenProvider: tokenProvider,
+            httpClient: httpClient
+        )
+
+        try await api.setRepeat(mode: .track, deviceID: "device-2")
+
+        let request = try XCTUnwrap(httpClient.requests.first)
+        XCTAssertEqual(request.httpMethod, "PUT")
+        let url = try XCTUnwrap(request.url?.absoluteString)
+        XCTAssertTrue(url.hasPrefix("https://api.spotify.com/v1/me/player/repeat?"))
+        XCTAssertTrue(url.contains("state=track"))
+        XCTAssertTrue(url.contains("device_id=device-2"))
+    }
+
+    func testFetchPlayerTransportReturnsNilOn204() async throws {
+        let tokenProvider = StaticPlaybackAccessTokenProvider(token: "token")
+        let httpClient = SeqPlaybackHTTPClient(responses: [(Data(), 204)])
+        let api = SpotifyPlaybackAPI(
+            baseURL: URL(string: "https://api.spotify.com")!,
+            tokenProvider: tokenProvider,
+            httpClient: httpClient
+        )
+
+        let transport = try await api.fetchPlayerTransport()
+        XCTAssertNil(transport)
+        let request = try XCTUnwrap(httpClient.requests.first)
+        XCTAssertEqual(request.httpMethod, "GET")
+        XCTAssertEqual(request.url?.absoluteString, "https://api.spotify.com/v1/me/player")
+    }
+
+    func testFetchPlayerTransportDecodesShuffleAndRepeat() async throws {
+        let tokenProvider = StaticPlaybackAccessTokenProvider(token: "token")
+        let body = """
+        {"shuffle_state":true,"repeat_state":"context"}
+        """.data(using: .utf8)!
+        let httpClient = SeqPlaybackHTTPClient(responses: [(body, 200)])
+        let api = SpotifyPlaybackAPI(
+            baseURL: URL(string: "https://api.spotify.com")!,
+            tokenProvider: tokenProvider,
+            httpClient: httpClient
+        )
+
+        let transport = try await api.fetchPlayerTransport()
+        XCTAssertEqual(transport?.shuffle, true)
+        XCTAssertEqual(transport?.repeatMode, .context)
+    }
 }
 
 @MainActor
@@ -122,6 +193,30 @@ private final class RecordingPlaybackHTTPClient: HTTPClient {
                 httpVersion: nil,
                 headerFields: nil
             )!
+        )
+    }
+}
+
+/// Returns queued `(body, statusCode)` pairs in order; defaults to 204 empty when exhausted.
+private final class SeqPlaybackHTTPClient: HTTPClient {
+    private(set) var requests: [URLRequest] = []
+    private var responses: [(Data, Int)]
+
+    init(responses: [(Data, Int)]) {
+        self.responses = responses
+    }
+
+    func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        requests.append(request)
+        let (data, code): (Data, Int)
+        if responses.isEmpty {
+            (data, code) = (Data(), 204)
+        } else {
+            (data, code) = responses.removeFirst()
+        }
+        return (
+            data,
+            HTTPURLResponse(url: request.url!, statusCode: code, httpVersion: nil, headerFields: nil)!
         )
     }
 }

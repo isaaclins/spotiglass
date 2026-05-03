@@ -31,6 +31,23 @@ private enum SpotifyQueueUnionDTO: Decodable {
     }
 }
 
+private struct SpotifyPlayerTransportDTO: Decodable {
+    let shuffleState: Bool
+    let repeatState: String
+
+    enum CodingKeys: String, CodingKey {
+        case shuffleState = "shuffle_state"
+        case repeatState = "repeat_state"
+    }
+
+    func domainModel() -> SpotifyPlayerTransport {
+        SpotifyPlayerTransport(
+            shuffle: shuffleState,
+            repeatMode: SpotifyRepeatMode(rawValue: repeatState) ?? .off
+        )
+    }
+}
+
 private struct SpotifyQueueResponseDTO: Decodable {
     let currentlyPlaying: SpotifyQueueUnionDTO?
     let queue: [SpotifyQueueUnionDTO]
@@ -79,6 +96,10 @@ protocol SpotifyPlaybackControlling {
     func previous(deviceID: String) async throws
     func fetchQueue() async throws -> SpotifyQueueResponse
     func addToQueue(uri: String, deviceID: String) async throws
+    /// `nil` when Spotify returns **204** (no active player).
+    func fetchPlayerTransport() async throws -> SpotifyPlayerTransport?
+    func setShuffle(enabled: Bool, deviceID: String) async throws
+    func setRepeat(mode: SpotifyRepeatMode, deviceID: String) async throws
 }
 
 struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
@@ -166,6 +187,48 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
             URLQueryItem(name: "device_id", value: deviceID)
         ]
         try await send(path: "/v1/me/player/queue", method: "POST", body: EmptyBody(), queryItems: queryItems)
+    }
+
+    func fetchPlayerTransport() async throws -> SpotifyPlayerTransport? {
+        let accessToken = try await tokenProvider.playbackAccessToken()
+        let components = URLComponents(url: baseURL.appendingPathComponent("/v1/me/player".trimmingCharacters(in: CharacterSet(charactersIn: "/"))), resolvingAgainstBaseURL: false)!
+        var request = URLRequest(url: components.url!)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await httpClient.data(for: request)
+        if response.statusCode == 204 {
+            return nil
+        }
+        guard (200..<300).contains(response.statusCode) else {
+            throw mapPlaybackError(statusCode: response.statusCode, data: data)
+        }
+        let dto = try decoder.decode(SpotifyPlayerTransportDTO.self, from: data)
+        return dto.domainModel()
+    }
+
+    func setShuffle(enabled: Bool, deviceID: String) async throws {
+        try await send(
+            path: "/v1/me/player/shuffle",
+            method: "PUT",
+            body: EmptyBody(),
+            queryItems: [
+                URLQueryItem(name: "state", value: enabled ? "true" : "false"),
+                URLQueryItem(name: "device_id", value: deviceID)
+            ]
+        )
+    }
+
+    func setRepeat(mode: SpotifyRepeatMode, deviceID: String) async throws {
+        try await send(
+            path: "/v1/me/player/repeat",
+            method: "PUT",
+            body: EmptyBody(),
+            queryItems: [
+                URLQueryItem(name: "state", value: mode.rawValue),
+                URLQueryItem(name: "device_id", value: deviceID)
+            ]
+        )
     }
 
     private func get(path: String, queryItems: [URLQueryItem]) async throws -> Data {

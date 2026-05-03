@@ -54,13 +54,20 @@ struct CommandPaletteView: View {
                 resultsBody
 
                 Divider()
-                HStack {
-                    Text("↑↓ navigate")
-                    Text("↩ run")
-                    Text("esc close")
-                    Spacer()
-                    Text(scopeHintText)
-                        .foregroundStyle(.secondary)
+                HStack(alignment: .center, spacing: SpotiglassDesign.spacingM) {
+                    HStack(spacing: SpotiglassDesign.spacingS) {
+                        Text("↑↓ navigate")
+                        Text("↩ run")
+                        Text("esc close")
+                        if viewModel.currentScope != .commands {
+                            Text("Tab filter")
+                        }
+                        if viewModel.canPinSelectedItem {
+                            Text("⌘↩ pin")
+                        }
+                    }
+                    Spacer(minLength: 8)
+                    footerTrailing
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -99,6 +106,29 @@ struct CommandPaletteView: View {
             DispatchQueue.main.async {
                 focusedField = .query
             }
+        }
+    }
+
+    @ViewBuilder
+    private var footerTrailing: some View {
+        if viewModel.currentScope == .commands {
+            Text("Remove \(Text(">").foregroundStyle(.tertiary)) prefix to search Spotify")
+                .multilineTextAlignment(.trailing)
+        } else {
+            Picker("Result category", selection: Binding(
+                get: { viewModel.searchCategoryFilter },
+                set: { newValue in
+                    viewModel.searchCategoryFilter = newValue
+                    viewModel.refresh()
+                }
+            )) {
+                ForEach(viewModel.availableSearchCategories, id: \.self) { category in
+                    Text(category.segmentLabel).tag(category)
+                }
+            }
+            .pickerStyle(.segmented)
+            .frame(maxWidth: 560)
+            .accessibilityLabel("Search result category")
         }
     }
 
@@ -165,9 +195,7 @@ struct CommandPaletteView: View {
 
     private func paletteRow(item: CommandPaletteItem, isSelected: Bool) -> some View {
         HStack(spacing: SpotiglassDesign.spacingS) {
-            Image(systemName: item.iconSystemName)
-                .frame(width: 18)
-                .foregroundStyle(.secondary)
+            paletteRowLeading(item: item)
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
                     .lineLimit(1)
@@ -183,35 +211,145 @@ struct CommandPaletteView: View {
         .padding(.vertical, 4)
     }
 
+    @ViewBuilder
+    private func paletteRowLeading(item: CommandPaletteItem) -> some View {
+        if item.section == .artists {
+            CommandPaletteArtistAvatar(
+                imageURL: item.artistAvatarURL,
+                fallbackSystemName: item.iconSystemName
+            )
+        } else if let url = item.trackArtworkURL {
+            CommandPaletteTrackArtwork(
+                imageURL: url,
+                fallbackSystemName: item.iconSystemName
+            )
+        } else {
+            Image(systemName: item.iconSystemName)
+                .frame(width: 18)
+                .foregroundStyle(.secondary)
+        }
+    }
+
     private var scopeIconName: String {
         switch viewModel.currentScope {
-        case .songs: "magnifyingglass"
-        case .artists: "person.wave.2"
-        case .commands: "command"
+        case .commands:
+            "command"
+            case .songs:
+            switch viewModel.searchCategoryFilter {
+            case .all: "magnifyingglass"
+            case .tracks: "music.note"
+            case .artists: "person.wave.2"
+            case .thisPlaylist: "music.note.list"
+            case .myPlaylists: "books.vertical"
+            }
         }
     }
 
     private var scopeIconColor: Color {
         switch viewModel.currentScope {
-        case .songs: .secondary
-        case .artists: .green
-        case .commands: .accentColor
+        case .commands:
+            .accentColor
+            case .songs:
+            switch viewModel.searchCategoryFilter {
+            case .all: .secondary
+            case .tracks: .secondary
+            case .artists: .green
+            case .thisPlaylist: .secondary
+            case .myPlaylists: .secondary
+            }
         }
     }
 
     private var searchPlaceholder: String {
         switch viewModel.currentScope {
-        case .songs: "Search songs & playlists"
-        case .artists: "Filter by artist"
-        case .commands: "Run a command"
+        case .commands:
+            "Run a command"
+            case .songs:
+            switch viewModel.searchCategoryFilter {
+            case .all:
+                "Search Spotify"
+            case .tracks:
+                "Search tracks"
+            case .artists:
+                "Search artists"
+            case .thisPlaylist:
+                "Search in this playlist"
+            case .myPlaylists:
+                "Search your playlists"
+            }
         }
     }
+}
 
-    private var scopeHintText: String {
-        switch viewModel.currentScope {
-        case .songs: "type > for commands, @ for artists — search includes your playlists"
-        case .artists: "@ artist scope"
-        case .commands: "> command scope"
+private struct CommandPaletteArtistAvatar: View {
+    let imageURL: URL?
+    let fallbackSystemName: String
+    private let diameter: CGFloat = 28
+
+    @State private var loadedImage: NSImage?
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(Color.secondary.opacity(0.12))
+            if let loadedImage {
+                Image(nsImage: loadedImage)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                Image(systemName: fallbackSystemName)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(width: diameter, height: diameter)
+        .clipShape(Circle())
+        .overlay {
+            Circle()
+                .strokeBorder(.white.opacity(0.12), lineWidth: 1)
+        }
+        .task(id: imageURL?.absoluteString ?? "") {
+            guard let imageURL else {
+                loadedImage = nil
+                return
+            }
+            loadedImage = await ArtworkImageStore.shared.image(for: imageURL)
+        }
+    }
+}
+
+/// Square album-cover thumbnail for `.tracks` and `.thisPlaylist` palette rows.
+/// Resolves through `ArtworkImageStore`, which serves from memory/disk before
+/// falling back to a single network fetch on a cold cache.
+private struct CommandPaletteTrackArtwork: View {
+    let imageURL: URL
+    let fallbackSystemName: String
+    private let side: CGFloat = 28
+
+    @State private var loadedImage: NSImage?
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
+                .fill(Color.secondary.opacity(0.12))
+            if let loadedImage {
+                Image(nsImage: loadedImage)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                Image(systemName: fallbackSystemName)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(width: side, height: side)
+        .clipShape(RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
+                .strokeBorder(.white.opacity(0.12), lineWidth: 1)
+        }
+        .task(id: imageURL.absoluteString) {
+            loadedImage = await ArtworkImageStore.shared.image(for: imageURL)
         }
     }
 }

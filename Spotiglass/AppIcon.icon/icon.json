@@ -1,0 +1,61 @@
+{
+  "color-space-for-untagged-svg-colors" : "display-p3",
+  "fill" : {
+    "linear-gradient" : [
+      "display-p3:0.29570,0.01370,0.00000,1.00000",
+      "display-p3:0.00000,0.00000,0.00000,1.00000"
+    ],
+    "orientation" : {
+      "start" : {
+        "x" : 0.5,
+        "y" : 0
+      },
+      "stop" : {
+        "x" : 0.5,
+        "y" : 0.7
+      }
+    }
+  },
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "image-name" : "music.note 2.png",
+          "name" : "music.note 2",
+          "position" : {
+            "scale" : 1,
+            "translation-in-points" : [
+              150,
+              50
+            ]
+          }
+        },
+        {
+          "image-name" : "waveform.png",
+          "name" : "waveform",
+          "position" : {
+            "scale" : 1,
+            "translation-in-points" : [
+              -150,
+              -50
+            ]
+          }
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
+}

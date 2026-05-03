@@ -44,6 +44,7 @@ final class SpotifyAuthStepTests: XCTestCase {
         XCTAssertEqual(items["redirect_uri"], "http://127.0.0.1:49152/callback")
         XCTAssertEqual(items["code_challenge_method"], "S256")
         XCTAssertTrue(items["scope"]?.contains("playlist-read-private") == true)
+        XCTAssertTrue(items["scope"]?.contains("user-library-read") == true)
         XCTAssertTrue(items["scope"]?.contains("streaming") == true)
     }
 

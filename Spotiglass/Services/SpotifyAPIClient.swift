@@ -22,16 +22,19 @@ struct SpotifyAPIClient {
     private let tokenProvider: SpotifyAccessTokenProviding
     private let httpClient: HTTPClient
     private let decoder: JSONDecoder
+    private let getResponseCache: SpotifyGETResponseCache?
 
     init(
         baseURL: URL = URL(string: "https://api.spotify.com")!,
         tokenProvider: SpotifyAccessTokenProviding,
-        httpClient: HTTPClient = URLSession.shared
+        httpClient: HTTPClient = URLSession.shared,
+        getResponseCache: SpotifyGETResponseCache? = nil
     ) {
         self.baseURL = baseURL
         self.tokenProvider = tokenProvider
         self.httpClient = httpClient
         self.decoder = JSONDecoder.spotifyWebAPI
+        self.getResponseCache = getResponseCache
     }
 
     func currentUserProfile() async throws -> SpotifyUserProfile {
@@ -91,13 +94,17 @@ struct SpotifyAPIClient {
     }
 
     /// Spotify documents `GET /v1/artists/{id}/albums` with **maximum `limit` of 10**. Larger values return HTTP 400.
+    /// Pagination is **capped** so opening a large discography does not issue hundreds of requests (rate limits, especially in Web API Development mode).
     func artistAlbums(id: String, includeGroups: String = "album,single,compilation,appears_on", limit: Int = 10) async throws -> [SpotifyArtistAlbum] {
         guard !id.isEmpty else {
             throw SpotifyAPIError.invalidRequest("Artist ID is required.")
         }
         let effectiveLimit = min(max(1, limit), 10)
+        /// Upper bound on `GET /v1/artists/{id}/albums` pages per open (limit is at most 10 items per page).
+        let maxPages = 20
         var results: [SpotifyArtistAlbum] = []
         var nextURL: URL?
+        var pagesFetched = 0
         repeat {
             let page: SpotifyPagingDTO<SpotifyArtistAlbumDTO>
             if let url = nextURL {
@@ -112,8 +119,12 @@ struct SpotifyAPIClient {
                     ]
                 )
             }
+            pagesFetched += 1
             results.append(contentsOf: page.items.compactMap { $0.domainModel() })
             nextURL = page.next
+            if pagesFetched >= maxPages {
+                break
+            }
         } while nextURL != nil
 
         return results
@@ -134,6 +145,47 @@ struct SpotifyAPIClient {
         }
     }
 
+    /// Liked Songs (`GET /v1/me/tracks`). Paginates with the same item shape as playlist tracks; stops after `maxPages` to avoid unbounded requests.
+    func currentUserSavedTracks(limit: Int = 50, maxPages: Int = 20) async throws -> SpotifySavedTracksResult {
+        let pageLimit = min(max(1, limit), 50)
+        let maxPages = max(1, maxPages)
+        var results: [SpotifyPlaylistTrackItem] = []
+        var nextURL: URL?
+        var offset = 0
+        var totalAvailable = 0
+        var pagesFetched = 0
+
+        repeat {
+            let page: SpotifyPagingDTO<SpotifyPlaylistTrackItemDTO>
+            if let nextURL {
+                page = try await send(url: nextURL)
+            } else {
+                page = try await send(
+                    path: "/v1/me/tracks",
+                    queryItems: [
+                        URLQueryItem(name: "limit", value: String(pageLimit)),
+                        URLQueryItem(name: "offset", value: String(offset))
+                    ]
+                )
+            }
+            if pagesFetched == 0 {
+                totalAvailable = page.total
+            }
+            let startIndex = results.count
+            results.append(contentsOf: page.items.enumerated().map { index, item in
+                item.domainModel(position: startIndex + index)
+            })
+            nextURL = page.next
+            offset += page.limit
+            pagesFetched += 1
+            if pagesFetched >= maxPages {
+                break
+            }
+        } while nextURL != nil
+
+        return SpotifySavedTracksResult(tracks: results, totalAvailable: totalAvailable)
+    }
+
     func search(query: String, limit: Int = 6) async throws -> SpotifySearchResults {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
@@ -148,6 +200,22 @@ struct SpotifyAPIClient {
             ]
         )
         return dto.domainModel()
+    }
+
+    /// Track-only search (`GET /v1/search` with `type=track`). `limit` is capped at 50 per Spotify.
+    func searchTracks(query: String, limit: Int = 50) async throws -> [SpotifyTrack] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+        let capped = min(max(1, limit), 50)
+        let dto: SpotifySearchResponseDTO = try await send(
+            path: "/v1/search",
+            queryItems: [
+                URLQueryItem(name: "q", value: trimmed),
+                URLQueryItem(name: "type", value: "track"),
+                URLQueryItem(name: "limit", value: String(capped))
+            ]
+        )
+        return dto.domainModel().tracks
     }
 
     func makeRequest(path: String, queryItems: [URLQueryItem] = [], accessToken: String) throws -> URLRequest {
@@ -223,6 +291,15 @@ struct SpotifyAPIClient {
         request: URLRequest,
         didRefreshAfterUnauthorized: Bool
     ) async throws -> Response {
+        if !didRefreshAfterUnauthorized,
+           let cache = getResponseCache,
+           SpotifyGETResponseCachePolicy.shouldCache(request),
+           let key = SpotifyGETResponseCachePolicy.normalizedCacheKey(for: request),
+           let cachedData = cache.cachedBody(forCacheKey: key),
+           let cachedValue = try? decoder.decode(Response.self, from: cachedData) {
+            return cachedValue
+        }
+
         do {
             let (data, response) = try await httpClient.data(for: request)
             if response.statusCode == 401 && !didRefreshAfterUnauthorized {
@@ -240,7 +317,16 @@ struct SpotifyAPIClient {
                 )
             }
             do {
-                return try decoder.decode(Response.self, from: data)
+                let value = try decoder.decode(Response.self, from: data)
+                if !didRefreshAfterUnauthorized,
+                   let cache = getResponseCache,
+                   SpotifyGETResponseCachePolicy.shouldCache(request),
+                   let cacheKey = SpotifyGETResponseCachePolicy.normalizedCacheKey(for: request),
+                   let url = request.url,
+                   let ttl = SpotifyGETResponseCachePolicy.ttl(for: url) {
+                    cache.store(body: data, cacheKey: cacheKey, ttl: ttl)
+                }
+                return value
             } catch {
                 throw SpotifyAPIError.decoding(Self.describeDecodingError(error))
             }
@@ -280,10 +366,25 @@ struct SpotifyAPIClient {
     }
 
     private func retryAfter(from headers: [AnyHashable: Any]) -> TimeInterval? {
-        guard let value = headers["Retry-After"] as? String ?? headers["retry-after"] as? String else {
+        guard let raw = headerValue(named: "Retry-After", in: headers)?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !raw.isEmpty else {
             return nil
         }
-        return TimeInterval(value)
+        if let seconds = TimeInterval(raw), seconds >= 0 {
+            return seconds
+        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
+        if let date = formatter.date(from: raw) {
+            return max(0, date.timeIntervalSinceNow)
+        }
+        formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss 'GMT'"
+        if let date = formatter.date(from: raw) {
+            return max(0, date.timeIntervalSinceNow)
+        }
+        return nil
     }
 
     private func isInsufficientScope(headers: [AnyHashable: Any], message: String?) -> Bool {

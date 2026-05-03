@@ -141,19 +141,32 @@ final class CommandPaletteTests: XCTestCase {
         XCTAssertEqual(withQuery.query, "refresh")
     }
 
-    func testScopeParseAtPrefixYieldsArtistsScope() {
+    func testScopeParseAtPrefixIsStillSongsScopeQueryUnchanged() {
         let bare = CommandPaletteScope.parse("@")
-        XCTAssertEqual(bare.scope, .artists)
-        XCTAssertEqual(bare.query, "")
+        XCTAssertEqual(bare.scope, .songs)
+        XCTAssertEqual(bare.query, "@")
 
         let withQuery = CommandPaletteScope.parse("@malcolm")
-        XCTAssertEqual(withQuery.scope, .artists)
-        XCTAssertEqual(withQuery.query, "malcolm")
+        XCTAssertEqual(withQuery.scope, .songs)
+        XCTAssertEqual(withQuery.query, "@malcolm")
+    }
+
+    func testLegacyAtPrefixSetsArtistCategoryAndStripsQuery() async {
+        let viewModel = CommandPaletteViewModel()
+        viewModel.searchProvider = { _, _ in CommandPaletteSearchResults() }
+
+        viewModel.show()
+        viewModel.query = "@m83"
+        viewModel.refresh()
+        try? await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertEqual(viewModel.searchCategoryFilter, .artists)
+        XCTAssertEqual(viewModel.query, "m83")
     }
 
     // MARK: - Sectioned view-model state
 
-    func testSongsScopeEmitsTracksSectionWhenOnlyTracksReturned() async {
+    func testTracksCategoryEmitsOnlyTracksSection() async {
         let viewModel = CommandPaletteViewModel()
         viewModel.staticItemsProvider = {
             [
@@ -167,7 +180,7 @@ final class CommandPaletteTests: XCTestCase {
                 ) {}
             ]
         }
-        viewModel.searchProvider = { _ in
+        viewModel.searchProvider = { _, _ in
             CommandPaletteSearchResults(
                 tracks: [
                     CommandPaletteItem(
@@ -193,9 +206,10 @@ final class CommandPaletteTests: XCTestCase {
         }
 
         viewModel.show()
+        viewModel.searchCategoryFilter = .tracks
         viewModel.query = "midnight"
         viewModel.refresh()
-        try? await Task.sleep(for: .milliseconds(320))
+        try? await Task.sleep(for: .milliseconds(400))
 
         XCTAssertEqual(viewModel.sections.count, 1)
         XCTAssertEqual(viewModel.sections.first?.section, .tracks)
@@ -203,9 +217,10 @@ final class CommandPaletteTests: XCTestCase {
         XCTAssertEqual(viewModel.visibleItems.map(\.id), ["track-1"])
     }
 
-    func testSongsScopeEmitsPlaylistsTracksAlbumsInOrder() async {
+    func testAllCategoryEmitsPlaylistsThisPlaylistTracksArtistsAlbumsInOrder() async {
         let viewModel = CommandPaletteViewModel()
-        viewModel.searchProvider = { _ in
+        viewModel.searchCategoryFilter = .all
+        viewModel.searchProvider = { _, _ in
             CommandPaletteSearchResults(
                 tracks: [
                     CommandPaletteItem(
@@ -217,7 +232,16 @@ final class CommandPaletteTests: XCTestCase {
                         keywords: []
                     ) {}
                 ],
-                artists: [],
+                artists: [
+                    CommandPaletteItem(
+                        id: "artist-1",
+                        title: "Band",
+                        subtitle: "Artist",
+                        iconSystemName: "person.wave.2",
+                        section: .artists,
+                        keywords: []
+                    ) {}
+                ],
                 albums: [
                     CommandPaletteItem(
                         id: "album-1",
@@ -228,13 +252,23 @@ final class CommandPaletteTests: XCTestCase {
                         keywords: []
                     ) {}
                 ],
-                playlists: [
+                catalogPlaylists: [
                     CommandPaletteItem(
                         id: "playlist-a",
                         title: "Workout",
                         subtitle: "Owner",
                         iconSystemName: "music.note.list",
                         section: .playlists,
+                        keywords: []
+                    ) {}
+                ],
+                inPlaylistMatches: [
+                    CommandPaletteItem(
+                        id: "track-local",
+                        title: "Local Hit",
+                        subtitle: "Artist",
+                        iconSystemName: "music.note",
+                        section: .thisPlaylist,
                         keywords: []
                     ) {}
                 ]
@@ -244,16 +278,16 @@ final class CommandPaletteTests: XCTestCase {
         viewModel.show()
         viewModel.query = "any"
         viewModel.refresh()
-        try? await Task.sleep(for: .milliseconds(320))
+        try? await Task.sleep(for: .milliseconds(400))
 
-        XCTAssertEqual(viewModel.sections.count, 3)
-        XCTAssertEqual(viewModel.sections.map(\.section), [.playlists, .tracks, .albums])
-        XCTAssertEqual(viewModel.visibleItems.map(\.id), ["playlist-a", "track-1", "album-1"])
+        XCTAssertEqual(viewModel.sections.count, 5)
+        XCTAssertEqual(viewModel.sections.map(\.section), [.playlists, .thisPlaylist, .tracks, .artists, .albums])
+        XCTAssertEqual(viewModel.visibleItems.map(\.id), ["playlist-a", "track-local", "track-1", "artist-1", "album-1"])
     }
 
-    func testArtistsScopeEmitsOnlyArtistsSection() async {
+    func testArtistsCategoryEmitsOnlyArtistsSection() async {
         let viewModel = CommandPaletteViewModel()
-        viewModel.searchProvider = { _ in
+        viewModel.searchProvider = { _, _ in
             CommandPaletteSearchResults(
                 tracks: [
                     CommandPaletteItem(
@@ -279,13 +313,147 @@ final class CommandPaletteTests: XCTestCase {
         }
 
         viewModel.show()
-        viewModel.query = "@m83"
+        viewModel.searchCategoryFilter = .artists
+        viewModel.query = "m83"
         viewModel.refresh()
-        try? await Task.sleep(for: .milliseconds(320))
+        try? await Task.sleep(for: .milliseconds(400))
 
         XCTAssertEqual(viewModel.sections.count, 1)
         XCTAssertEqual(viewModel.sections.first?.section, .artists)
         XCTAssertEqual(viewModel.sections.first?.items.map(\.id), ["artist-1"])
+    }
+
+    func testThisPlaylistCategoryEmitsOnlyThisPlaylistSection() async {
+        let viewModel = CommandPaletteViewModel()
+        viewModel.searchProvider = { _, _ in
+            CommandPaletteSearchResults(
+                tracks: [
+                    CommandPaletteItem(
+                        id: "track-1",
+                        title: "Midnight City",
+                        subtitle: "M83",
+                        iconSystemName: "music.note",
+                        section: .tracks,
+                        keywords: []
+                    ) {}
+                ],
+                inPlaylistMatches: [
+                    CommandPaletteItem(
+                        id: "track-in-pl",
+                        title: "In List",
+                        subtitle: "M83",
+                        iconSystemName: "music.note",
+                        section: .thisPlaylist,
+                        keywords: []
+                    ) {}
+                ]
+            )
+        }
+
+        viewModel.show()
+        viewModel.setAvailableSearchCategories(CommandPaletteSearchCategory.footerOrder(includeThisPlaylist: true))
+        viewModel.searchCategoryFilter = .thisPlaylist
+        viewModel.query = "list"
+        viewModel.refresh()
+        try? await Task.sleep(for: .milliseconds(400))
+
+        XCTAssertEqual(viewModel.sections.count, 1)
+        XCTAssertEqual(viewModel.sections.first?.section, .thisPlaylist)
+        XCTAssertEqual(viewModel.sections.first?.items.map(\.id), ["track-in-pl"])
+    }
+
+    func testMyPlaylistsCategoryEmitsOnlyMyPlaylistsSection() async {
+        let viewModel = CommandPaletteViewModel()
+        viewModel.searchProvider = { _, _ in
+            CommandPaletteSearchResults(
+                tracks: [
+                    CommandPaletteItem(
+                        id: "track-1",
+                        title: "Midnight City",
+                        subtitle: "M83",
+                        iconSystemName: "music.note",
+                        section: .tracks,
+                        keywords: []
+                    ) {}
+                ],
+                catalogPlaylists: [
+                    CommandPaletteItem(
+                        id: "playlist-cat",
+                        title: "Spotify List",
+                        subtitle: "Owner",
+                        iconSystemName: "music.note.list",
+                        section: .playlists,
+                        keywords: []
+                    ) {}
+                ],
+                myPlaylists: [
+                    CommandPaletteItem(
+                        id: "playlist-lib",
+                        title: "My List",
+                        subtitle: "Your library • me",
+                        iconSystemName: "music.note.list",
+                        section: .myPlaylists,
+                        keywords: []
+                    ) {}
+                ]
+            )
+        }
+
+        viewModel.show()
+        viewModel.searchCategoryFilter = .myPlaylists
+        viewModel.query = "list"
+        viewModel.refresh()
+        try? await Task.sleep(for: .milliseconds(400))
+
+        XCTAssertEqual(viewModel.sections.count, 1)
+        XCTAssertEqual(viewModel.sections.first?.section, .myPlaylists)
+        XCTAssertEqual(viewModel.sections.first?.items.map(\.id), ["playlist-lib"])
+    }
+
+    func testAllCategoryMergesCatalogPlaylistsThenLibraryNotAlreadyInCatalog() async {
+        let viewModel = CommandPaletteViewModel()
+        viewModel.searchCategoryFilter = .all
+        viewModel.searchProvider = { _, _ in
+            CommandPaletteSearchResults(
+                catalogPlaylists: [
+                    CommandPaletteItem(
+                        id: "playlist-shared",
+                        title: "Shared",
+                        subtitle: "Playlist • Spotify",
+                        iconSystemName: "music.note.list",
+                        section: .playlists,
+                        keywords: []
+                    ) {}
+                ],
+                myPlaylists: [
+                    CommandPaletteItem(
+                        id: "playlist-shared",
+                        title: "Shared",
+                        subtitle: "Your library • me",
+                        iconSystemName: "music.note.list",
+                        section: .myPlaylists,
+                        keywords: []
+                    ) {},
+                    CommandPaletteItem(
+                        id: "playlist-only-lib",
+                        title: "Only Mine",
+                        subtitle: "Your library • me",
+                        iconSystemName: "music.note.list",
+                        section: .myPlaylists,
+                        keywords: []
+                    ) {}
+                ]
+            )
+        }
+
+        viewModel.show()
+        viewModel.query = "any"
+        viewModel.refresh()
+        try? await Task.sleep(for: .milliseconds(400))
+
+        XCTAssertEqual(viewModel.sections.count, 1)
+        XCTAssertEqual(viewModel.sections.first?.section, .playlists)
+        XCTAssertEqual(viewModel.sections.first?.items.map(\.id), ["playlist-shared", "playlist-only-lib"])
     }
 
     func testCommandsScopeEmitsOnlyCommandsSection() async {
@@ -310,7 +478,7 @@ final class CommandPaletteTests: XCTestCase {
                 ) {}
             ]
         }
-        viewModel.searchProvider = { _ in
+        viewModel.searchProvider = { _, _ in
             CommandPaletteSearchResults(
                 tracks: [
                     CommandPaletteItem(
@@ -328,7 +496,7 @@ final class CommandPaletteTests: XCTestCase {
         viewModel.show()
         viewModel.query = ">"
         viewModel.refresh()
-        try? await Task.sleep(for: .milliseconds(320))
+        try? await Task.sleep(for: .milliseconds(400))
 
         XCTAssertEqual(viewModel.sections.count, 1)
         XCTAssertEqual(viewModel.sections.first?.section, .commands)
@@ -337,14 +505,14 @@ final class CommandPaletteTests: XCTestCase {
 
     func testNoResultsLeavesSectionsEmptyForNonEmptyQuery() async {
         let viewModel = CommandPaletteViewModel()
-        viewModel.searchProvider = { _ in
+        viewModel.searchProvider = { _, _ in
             CommandPaletteSearchResults()
         }
 
         viewModel.show()
         viewModel.query = "nothing"
         viewModel.refresh()
-        try? await Task.sleep(for: .milliseconds(320))
+        try? await Task.sleep(for: .milliseconds(400))
 
         XCTAssertTrue(viewModel.sections.isEmpty)
         XCTAssertTrue(viewModel.visibleItems.isEmpty)
@@ -368,10 +536,104 @@ final class CommandPaletteTests: XCTestCase {
         viewModel.show()
         viewModel.query = ">"
         viewModel.refresh()
-        try? await Task.sleep(for: .milliseconds(320))
+        try? await Task.sleep(for: .milliseconds(400))
 
         XCTAssertEqual(viewModel.visibleItems.count, 1)
         await viewModel.executeSelection()
         XCTAssertTrue(viewModel.isPresented, "Items with keepsPaletteOpen should not dismiss the palette")
+    }
+
+    func testSetAvailableSearchCategoriesCoercesThisPlaylistWhenSegmentRemoved() {
+        let viewModel = CommandPaletteViewModel()
+        viewModel.setAvailableSearchCategories(CommandPaletteSearchCategory.footerOrder(includeThisPlaylist: true), refreshIfFilterInvalidated: false)
+        viewModel.searchCategoryFilter = .thisPlaylist
+        viewModel.setAvailableSearchCategories(CommandPaletteSearchCategory.footerOrder(includeThisPlaylist: false), refreshIfFilterInvalidated: false)
+        XCTAssertEqual(viewModel.searchCategoryFilter, .all)
+    }
+
+    func testAugmentationShouldFetchWhenQueryMatchesArtistName() {
+        XCTAssertTrue(
+            SpotifyPaletteSearchAugmentation.shouldFetchArtistScopedTracks(trimmedUserQuery: "kanye", topArtistName: "Kanye West")
+        )
+        XCTAssertTrue(
+            SpotifyPaletteSearchAugmentation.shouldFetchArtistScopedTracks(trimmedUserQuery: "kanye west", topArtistName: "Kanye West")
+        )
+        XCTAssertFalse(
+            SpotifyPaletteSearchAugmentation.shouldFetchArtistScopedTracks(trimmedUserQuery: "love", topArtistName: "The Beatles")
+        )
+    }
+
+    func testAugmentationMergeTracksDedupesById() {
+        let a = SpotifyTrack(
+            id: "t1",
+            name: "A",
+            artists: ["X"],
+            albumArtworkURL: nil,
+            durationMilliseconds: 1,
+            isExplicit: false,
+            isPlayable: true,
+            linkedFromID: nil,
+            uri: "spotify:track:t1"
+        )
+        let b = SpotifyTrack(
+            id: "t2",
+            name: "B",
+            artists: ["Y"],
+            albumArtworkURL: nil,
+            durationMilliseconds: 1,
+            isExplicit: false,
+            isPlayable: true,
+            linkedFromID: nil,
+            uri: "spotify:track:t2"
+        )
+        let dup = SpotifyTrack(
+            id: "t1",
+            name: "A2",
+            artists: ["X"],
+            albumArtworkURL: nil,
+            durationMilliseconds: 1,
+            isExplicit: false,
+            isPlayable: true,
+            linkedFromID: nil,
+            uri: "spotify:track:t1"
+        )
+        let merged = SpotifyPaletteSearchAugmentation.mergeTracksPreservingOrder(primary: [a], extra: [b, dup])
+        XCTAssertEqual(merged.map(\.id), ["t1", "t2"])
+    }
+
+    func testExecuteSelectionPinningRunsPinAction() async {
+        let vm = CommandPaletteViewModel()
+        var didPin = false
+        let item = CommandPaletteItem(
+            id: "track-x",
+            title: "T",
+            subtitle: "S",
+            iconSystemName: "music.note",
+            section: .tracks,
+            keywords: [],
+            pinAction: { didPin = true },
+            unpinAction: nil,
+            action: {}
+        )
+        vm.testingReplaceSections([(.tracks, [item])])
+        vm.selectedIndex = 0
+        await vm.executeSelectionPinning()
+        XCTAssertTrue(didPin)
+    }
+
+    func testCanPinSelectedItemFalseWhenNoPinAction() {
+        let vm = CommandPaletteViewModel()
+        let item = CommandPaletteItem(
+            id: "cmd",
+            title: "Cmd",
+            subtitle: nil,
+            iconSystemName: "gear",
+            section: .commands,
+            keywords: [],
+            action: {}
+        )
+        vm.testingReplaceSections([(.commands, [item])])
+        vm.selectedIndex = 0
+        XCTAssertFalse(vm.canPinSelectedItem)
     }
 }

@@ -101,6 +101,22 @@ enum CommandPaletteCommandCatalog {
             defaultWhen: .signedIn,
             defaultKeystroke: nil
         ),
+        CommandPaletteCommandSpec(
+            commandID: CommandPaletteCommandID.pinSelected,
+            title: "Pin Selected Palette Item",
+            subtitle: "Pin the highlighted result to the sidebar",
+            iconSystemName: "pin",
+            defaultWhen: .paletteOpen,
+            defaultKeystroke: "cmd-return"
+        ),
+        CommandPaletteCommandSpec(
+            commandID: CommandPaletteCommandID.unpinSelected,
+            title: "Unpin Selected Palette Item",
+            subtitle: "Remove the highlighted result from the sidebar",
+            iconSystemName: "pin.slash",
+            defaultWhen: .paletteOpen,
+            defaultKeystroke: nil
+        ),
     ]
 
     /// Stable on-disk order for default `keymap.json` (matches historical Spotiglass defaults).
@@ -114,6 +130,7 @@ enum CommandPaletteCommandCatalog {
         CommandPaletteCommandID.previousTrack,
         CommandPaletteCommandID.toggleQueue,
         CommandPaletteCommandID.openSettings,
+        CommandPaletteCommandID.pinSelected,
     ]
 
     /// Canonical default keymap JSON (matches `CommandPaletteKeymapStore` bootstrap).

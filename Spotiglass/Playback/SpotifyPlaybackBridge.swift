@@ -86,9 +86,11 @@ enum SpotifyPlaybackHost {
           };
 
           function mapNextTrack(t) {
+            const albumName = t.album && t.album.name ? String(t.album.name) : null;
             return {
               name: t.name || '',
               artists: (t.artists || []).map(artist => artist.name).filter(Boolean),
+              albumName: albumName && albumName.length ? albumName : null,
               albumArtURL: t.album && t.album.images && t.album.images[0] ? t.album.images[0].url : null,
               durationMilliseconds: Number(t.duration_ms || 0),
               positionMilliseconds: 0,
@@ -105,12 +107,14 @@ enum SpotifyPlaybackHost {
               return { track: null, paused: Boolean(state.paused), nextTracks };
             }
             const track = state.track_window.current_track;
+            const albumName = track.album && track.album.name ? String(track.album.name) : null;
             return {
               paused: Boolean(state.paused),
               nextTracks,
               track: {
                 name: track.name || '',
                 artists: (track.artists || []).map(artist => artist.name).filter(Boolean),
+                albumName: albumName && albumName.length ? albumName : null,
                 albumArtURL: track.album && track.album.images && track.album.images[0] ? track.album.images[0].url : null,
                 durationMilliseconds: Number(state.duration || 0),
                 positionMilliseconds: Number(state.position || 0),
@@ -142,7 +146,7 @@ enum SpotifyPlaybackHost {
             }
           }
 
-          window.spotiglassPlayback = {
+            window.spotiglassPlayback = {
             connect: () => {
               if (!player) return;
               player.connect().then(success => {
@@ -161,6 +165,11 @@ enum SpotifyPlaybackHost {
             seek: milliseconds => runPlayerCommand('seek', () => player.seek(milliseconds)),
             next: () => runPlayerCommand('next', () => player.nextTrack()),
             previous: () => runPlayerCommand('previous', () => player.previousTrack()),
+            setVolume: fraction => {
+              if (!player) return;
+              const v = Math.min(1, Math.max(0, Number(fraction)));
+              runPlayerCommand('setVolume', () => player.setVolume(v));
+            },
             playURI: uri => post('log', { message: `playURI requested for ${uri} on ${deviceId || 'no-device'}` })
           };
         })();
@@ -215,9 +224,12 @@ enum SpotifyPlaybackBridgeParser {
         guard let track = value as? [String: Any] else {
             return nil
         }
+        let rawAlbum = track["albumName"] as? String
+        let albumName = rawAlbum.flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.flatMap { $0.isEmpty ? nil : $0 }
         return PlaybackNowPlaying(
             name: track["name"] as? String ?? "Unknown track",
             artists: track["artists"] as? [String] ?? [],
+            albumName: albumName,
             albumArtURL: (track["albumArtURL"] as? String).flatMap(URL.init(string:)),
             durationMilliseconds: track["durationMilliseconds"] as? Int ?? 0,
             positionMilliseconds: track["positionMilliseconds"] as? Int ?? 0,

@@ -121,3 +121,21 @@ struct KeychainRefreshTokenStore: RefreshTokenStore {
         ]
     }
 }
+
+/// In-process refresh token storage for the **unit-test host** only (`AppMetadata.isRunningUnitTests`).
+/// Keeps `SecItem*` out of the login keychain while `SpotiglassTests` runs inside `Spotiglass.app`.
+final class MemoryOnlyRefreshTokenStore: RefreshTokenStore {
+    private var token: String?
+
+    func loadRefreshToken() throws -> String? {
+        token
+    }
+
+    func saveRefreshToken(_ refreshToken: String) throws {
+        token = refreshToken
+    }
+
+    func deleteRefreshToken() throws {
+        token = nil
+    }
+}

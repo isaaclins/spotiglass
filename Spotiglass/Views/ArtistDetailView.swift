@@ -13,6 +13,15 @@ struct ArtistDetailContent: View {
     let addToQueue: (String) async -> Void
     let openArtist: (String) -> Void
 
+    @EnvironmentObject private var pinnedStore: PinnedItemsStore
+
+    private var artistID: String { detail.artist.id }
+    private var tracksSurfaceID: String { "ar:\(artistID)" }
+
+    private var isArtistPinned: Bool {
+        pinnedStore.isPinned(spotifyID: artistID, kind: .artist)
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: SpotiglassDesign.spacingL) {
@@ -23,19 +32,31 @@ struct ArtistDetailContent: View {
                         .padding(.horizontal, SpotiglassDesign.spacingL)
                     tracksSection
                 }
-                albumStrip(title: "Albums", albums: detail.albums)
-                albumStrip(title: "Singles", albums: detail.singles)
-                albumStrip(title: "Compilations", albums: detail.compilations)
-                albumStrip(title: "Appears on", albums: detail.appearsOn)
+                albumStrip(title: "Albums", albums: detail.albums, group: .album)
+                albumStrip(title: "Singles", albums: detail.singles, group: .single)
+                albumStrip(title: "Compilations", albums: detail.compilations, group: .compilation)
+                albumStrip(title: "Appears on", albums: detail.appearsOn, group: .appearsOn)
             }
             .padding(.vertical, SpotiglassDesign.spacingM)
         }
+        .acceptsPinnedDropOut(store: pinnedStore)
     }
 
     private var header: some View {
         HStack(alignment: .center, spacing: SpotiglassDesign.spacingL) {
             ArtworkView(url: detail.artist.imageURL, size: 120)
                 .clipShape(RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous))
+                .overlay(alignment: .topTrailing) {
+                    if isArtistPinned {
+                        Image(systemName: "pin.fill")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .padding(4)
+                            .background(Circle().fill(Color.black.opacity(0.55)))
+                            .padding(4)
+                            .accessibilityLabel("Pinned to sidebar")
+                    }
+                }
 
             VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
                 Text(detail.artist.name)
@@ -63,13 +84,32 @@ struct ArtistDetailContent: View {
             .accessibilityHint("Reloads artist details from Spotify.")
         }
         .padding(.horizontal, SpotiglassDesign.spacingL)
+        .draggable(
+            PinnedItemTransfer(
+                item: .artist(detail.artist),
+                originScopeID: "artistHeader:\(artistID)"
+            )
+        ) {
+            PinnedItemDragPill(item: .artist(detail.artist))
+        }
+        .contextMenu {
+            if isArtistPinned {
+                Button("Unpin from Sidebar") {
+                    pinnedStore.unpin(id: PinnedItem.id(forKind: .artist, spotifyID: artistID))
+                }
+            } else {
+                Button("Pin to Sidebar") {
+                    pinnedStore.pin(.artist(detail.artist))
+                }
+            }
+        }
     }
 
     private var tracksSection: some View {
         LazyVStack(spacing: 0) {
-            ForEach(Array(detail.tracks.enumerated()), id: \.element.id) { index, track in
+            ForEach(detail.tracks) { track in
                 TrackListRow(
-                    trackNumber: index + 1,
+                    trackNumber: track.listPosition,
                     track: track,
                     playURI: playTrack,
                     togglePlayPause: togglePlayPause,
@@ -77,7 +117,9 @@ struct ArtistDetailContent: View {
                     isPlaying: isPlaying,
                     hasPlaybackDevice: hasPlaybackDevice,
                     addToQueue: addToQueue,
-                    openArtist: openArtist
+                    openArtist: openArtist,
+                    tracksSurfaceID: tracksSurfaceID,
+                    originPlaylistID: nil
                 )
             }
         }
@@ -85,7 +127,7 @@ struct ArtistDetailContent: View {
     }
 
     @ViewBuilder
-    private func albumStrip(title: String, albums: [ArtistAlbumRowViewModel]) -> some View {
+    private func albumStrip(title: String, albums: [ArtistAlbumRowViewModel], group: SpotifyArtistAlbumGroup) -> some View {
         if albums.isEmpty {
             EmptyView()
         } else {
@@ -97,12 +139,7 @@ struct ArtistDetailContent: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(alignment: .top, spacing: SpotiglassDesign.spacingM) {
                         ForEach(albums) { album in
-                            Button {
-                                playAlbumContext(album.uri)
-                            } label: {
-                                albumCard(album)
-                            }
-                            .buttonStyle(.plain)
+                            albumCardButton(album, group: group)
                         }
                     }
                     .padding(.horizontal, SpotiglassDesign.spacingL)
@@ -112,10 +149,46 @@ struct ArtistDetailContent: View {
         }
     }
 
-    private func albumCard(_ album: ArtistAlbumRowViewModel) -> some View {
+    private func albumCardButton(_ album: ArtistAlbumRowViewModel, group: SpotifyArtistAlbumGroup) -> some View {
+        let pinnedItem = album.pinnedAlbum(group: group)
+        let pinned = pinnedStore.isPinned(id: pinnedItem.id)
+        return Button {
+            playAlbumContext(album.uri)
+        } label: {
+            albumCard(album, showPinGlyph: pinned)
+        }
+        .buttonStyle(.plain)
+        .draggable(
+            PinnedItemTransfer(
+                item: pinnedItem,
+                originScopeID: "artistAlbums:\(artistID)"
+            )
+        ) {
+            PinnedItemDragPill(item: pinnedItem)
+        }
+        .contextMenu {
+            if pinned {
+                Button("Unpin from Sidebar") { pinnedStore.unpin(id: pinnedItem.id) }
+            } else {
+                Button("Pin to Sidebar") { pinnedStore.pin(pinnedItem) }
+            }
+        }
+    }
+
+    private func albumCard(_ album: ArtistAlbumRowViewModel, showPinGlyph: Bool) -> some View {
         VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
             ArtworkView(url: album.artworkURL, size: 132)
                 .clipShape(RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous))
+                .overlay(alignment: .topTrailing) {
+                    if showPinGlyph {
+                        Image(systemName: "pin.fill")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .padding(4)
+                            .background(Circle().fill(Color.black.opacity(0.55)))
+                            .padding(4)
+                    }
+                }
 
             Text(album.title)
                 .font(.subheadline.weight(.medium))

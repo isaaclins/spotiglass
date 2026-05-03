@@ -3,6 +3,7 @@ import AudioToolbox
 import Combine
 import CoreAudio
 import Foundation
+import os
 
 /// Errors raised by ``AudioEqualizerEngine`` while standing up the Core Audio graph.
 ///
@@ -10,6 +11,7 @@ import Foundation
 /// error message in the Settings UI can include the raw HAL/AU code.
 enum AudioEqualizerEngineError: LocalizedError, Equatable {
     case macOSVersionUnsupported
+    case noTapTargets
     case couldNotResolveOwnProcessObject(OSStatus)
     case couldNotCreateTap(OSStatus)
     case couldNotReadTapUID(OSStatus)
@@ -21,6 +23,8 @@ enum AudioEqualizerEngineError: LocalizedError, Equatable {
         switch self {
         case .macOSVersionUnsupported:
             return "The Spotiglass equalizer requires macOS 14.4 or newer Core Audio process taps."
+        case .noTapTargets:
+            return "Could not resolve any Core Audio process objects for Spotiglass or its helper processes."
         case let .couldNotResolveOwnProcessObject(status):
             return "Could not resolve this app's audio process object (OSStatus \(status))."
         case let .couldNotCreateTap(status):
@@ -49,14 +53,18 @@ enum AudioEqualizerEngineError: LocalizedError, Equatable {
 ///    ``AVAudioEngine``.
 /// 3. Routes `inputNode -> AVAudioUnitEQ (10 bands) -> mainMixerNode -> outputNode`,
 ///    where ``outputNode`` plays back to the system default output device.
-/// 4. Mutating any band's `gain`/`bypass` or `globalGain` is live: parameter changes
-///    take effect on the next render quantum without a graph restart.
+/// 4. Mutating any band's `gain`/`bypass`, the unit's ``AVAudioNode/bypass``, or `globalGain` is
+///    live: parameter changes take effect on the next render quantum without a graph restart.
 ///
 /// EME / DRM is not bypassed: only the audio that this process already plays back is
 /// captured for re-routing through the EQ, and the original output is muted at the
 /// device level via the tap so the user only hears the processed copy.
 @MainActor
 final class AudioEqualizerEngine: ObservableObject {
+#if DEBUG
+    private static let logger = Logger(subsystem: AppMetadata.bundleIdentifier, category: "AudioEqualizerEngine")
+#endif
+
     @Published private(set) var isRunning: Bool = false
     @Published var lastError: String?
 
@@ -109,6 +117,14 @@ final class AudioEqualizerEngine: ObservableObject {
             try setupTapAndAggregate()
             try setupEngine()
             try engine.start()
+#if DEBUG
+            print("[EqualizerEngine] eq.bypass immediately after engine.start(): \(eq.bypass)")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+                guard let self else { return }
+                print("[EqualizerEngine] eq.bypass 2s after engine.start(): \(self.eq.bypass)")
+            }
+#endif
+            ensureEQProcessingActive()
             installDefaultOutputListener()
             isRunning = true
             lastError = nil
@@ -135,19 +151,38 @@ final class AudioEqualizerEngine: ObservableObject {
         isRunning = false
     }
 
+    /// Tears down and recreates the tap/aggregate/engine graph so PIDs that spawned
+    /// after the first start (e.g. WKWebView WebContent processes) are included.
+    func restart(with settings: EqualizerSettings) {
+        guard settings.enabled else { return }
+        if isRunning {
+            stop()
+        }
+        do {
+            try start()
+            apply(settings: settings)
+            lastError = nil
+        } catch {
+            // `start()` surfaces HAL failures via `lastError`.
+        }
+    }
+
     /// Live-mutates the dB gain of a single band. No-op if `index` is out of range.
     func setBandGain(_ index: Int, dB: Float) {
         guard index >= 0, index < eq.bands.count else { return }
+        ensureEQProcessingActive()
         eq.bands[index].gain = dB
     }
 
     /// Live-mutates `globalGain` (used as a pre-amp for clipping headroom).
     func setPreamp(dB: Float) {
+        ensureEQProcessingActive()
         eq.globalGain = dB
     }
 
     /// Applies a full settings snapshot at once (gains, preamp, enable/disable).
     func apply(settings: EqualizerSettings) {
+        ensureEQProcessingActive()
         for (index, value) in settings.bands.enumerated() where index < eq.bands.count {
             eq.bands[index].gain = Float(value)
         }
@@ -166,12 +201,31 @@ final class AudioEqualizerEngine: ObservableObject {
             band.bypass = false
         }
         eq.globalGain = 0
+        eq.bypass = false
+    }
+
+    /// `AVAudioUnitEQ` inherits ``AVAudioNode/bypass`` from ``AVAudioUnitEffect``. When that is
+    /// `true`, the unit passes input through unchanged, so per-band `gain` has no timbral effect.
+    /// Attaching to ``AVAudioEngine`` or restarting the engine can restore defaults; keep both the
+    /// node and each band off bypass whenever we run the graph or push parameters.
+    private func ensureEQProcessingActive() {
+        eq.bypass = false
+        for band in eq.bands {
+            band.bypass = false
+        }
     }
 
     private func setupTapAndAggregate() throws {
-        let pid = ProcessInfo.processInfo.processIdentifier
-        let processObjectID = try Self.audioProcessObjectID(forPID: pid)
-        let description = CATapDescription(stereoMixdownOfProcesses: [processObjectID])
+        let audioObjectIDs = ProcessAudioTapResolver.audioObjectIDsForSpotiglassProcessTree()
+        guard !audioObjectIDs.isEmpty else {
+            throw AudioEqualizerEngineError.noTapTargets
+        }
+#if DEBUG
+        Self.logger.debug(
+            "EQ process tap: \(audioObjectIDs.count) Core Audio process object(s) (Spotiglass + WebKit helpers)"
+        )
+#endif
+        let description = CATapDescription(stereoMixdownOfProcesses: audioObjectIDs)
         description.name = "Spotiglass Equalizer Tap"
         description.uuid = UUID()
         description.isPrivate = true
@@ -179,6 +233,11 @@ final class AudioEqualizerEngine: ObservableObject {
 
         var newTap = AudioObjectID(kAudioObjectUnknown)
         let createTap = AudioHardwareCreateProcessTap(description, &newTap)
+#if DEBUG
+        print(
+            "[EqualizerTap] AudioHardwareCreateProcessTap OSStatus=\(createTap) \(Self.describeOSStatus(createTap)) assignedTapObjectID=\(newTap)"
+        )
+#endif
         guard createTap == noErr, newTap != AudioObjectID(kAudioObjectUnknown) else {
             throw AudioEqualizerEngineError.couldNotCreateTap(createTap)
         }
@@ -189,6 +248,10 @@ final class AudioEqualizerEngine: ObservableObject {
         // and outputs separately to the default output (we never write back to the
         // aggregate, so this sub-device is purely the master clock).
         let outputUID = try Self.defaultOutputDeviceUID()
+        // Aggregate wiring must reference the tap UID assigned by Core Audio (readable via
+        // kAudioTapPropertyUID); never assume `CATapDescription.uuid` matches after creation.
+        let tapUIDForAggregate = try Self.copyTapUIDString(tapObjectID: newTap)
+
         let aggregateDict: [String: Any] = [
             kAudioAggregateDeviceNameKey as String: "Spotiglass Equalizer Aggregate",
             kAudioAggregateDeviceUIDKey as String: UUID().uuidString,
@@ -202,7 +265,7 @@ final class AudioEqualizerEngine: ObservableObject {
             kAudioAggregateDeviceTapListKey as String: [
                 [
                     kAudioSubTapDriftCompensationKey as String: true,
-                    kAudioSubTapUIDKey as String: description.uuid.uuidString,
+                    kAudioSubTapUIDKey as String: tapUIDForAggregate,
                 ],
             ],
         ]
@@ -232,10 +295,31 @@ final class AudioEqualizerEngine: ObservableObject {
             throw AudioEqualizerEngineError.couldNotConfigureInputDevice(status)
         }
 
+        engine.reset()
+
         engine.attach(eq)
         let inputFormat = engine.inputNode.outputFormat(forBus: 0)
+#if DEBUG
+        print(
+            "[EqualizerEngine] inputNode.outputFormat(forBus: 0) after aggregate bind: sampleRate=\(inputFormat.sampleRate) channelCount=\(inputFormat.channelCount) isInvalid=\(inputFormat.sampleRate == 0 || inputFormat.channelCount == 0)"
+        )
+#endif
+        guard inputFormat.sampleRate > 0, inputFormat.channelCount > 0 else {
+            engine.detach(eq)
+            throw AudioEqualizerEngineError.couldNotStartEngine(
+                "Equalizer input format is invalid after binding the aggregate device."
+            )
+        }
+
         engine.connect(engine.inputNode, to: eq, format: inputFormat)
-        engine.connect(eq, to: engine.mainMixerNode, format: inputFormat)
+        let eqOutputFormat = eq.outputFormat(forBus: 0)
+        engine.connect(eq, to: engine.mainMixerNode, format: eqOutputFormat)
+
+        let mixerOutputFormat = engine.mainMixerNode.outputFormat(forBus: 0)
+        engine.connect(engine.mainMixerNode, to: engine.outputNode, format: mixerOutputFormat)
+
+        ensureEQProcessingActive()
+
         engine.prepare()
     }
 
@@ -243,11 +327,10 @@ final class AudioEqualizerEngine: ObservableObject {
         if engine.isRunning {
             engine.stop()
         }
+        engine.disconnectNodeInput(engine.outputNode)
         engine.disconnectNodeInput(engine.mainMixerNode)
         engine.disconnectNodeInput(eq)
         engine.detach(eq)
-        // Re-attach EQ for next start so configure remains valid.
-        engine.attach(eq)
     }
 
     private func teardownTapAndAggregate() {
@@ -290,28 +373,19 @@ final class AudioEqualizerEngine: ObservableObject {
 
     // MARK: - HAL helpers
 
-    private static func audioProcessObjectID(forPID pid: pid_t) throws -> AudioObjectID {
-        var pidValue = pid
-        var address = AudioObjectPropertyAddress(
-            mSelector: kAudioHardwarePropertyTranslatePIDToProcessObject,
-            mScope: kAudioObjectPropertyScopeGlobal,
-            mElement: kAudioObjectPropertyElementMain
-        )
-        var processObjectID = AudioObjectID(kAudioObjectUnknown)
-        var size = UInt32(MemoryLayout<AudioObjectID>.size)
-        let status = AudioObjectGetPropertyData(
-            AudioObjectID(kAudioObjectSystemObject),
-            &address,
-            UInt32(MemoryLayout<pid_t>.size),
-            &pidValue,
-            &size,
-            &processObjectID
-        )
-        guard status == noErr, processObjectID != AudioObjectID(kAudioObjectUnknown) else {
-            throw AudioEqualizerEngineError.couldNotResolveOwnProcessObject(status)
-        }
-        return processObjectID
+#if DEBUG
+    private static func describeOSStatus(_ status: OSStatus) -> String {
+        if status == noErr { return "(noErr)" }
+        let u = UInt32(bitPattern: status)
+        let b0 = UInt8(truncatingIfNeeded: (u >> 24) & 0xff)
+        let b1 = UInt8(truncatingIfNeeded: (u >> 16) & 0xff)
+        let b2 = UInt8(truncatingIfNeeded: (u >> 8) & 0xff)
+        let b3 = UInt8(truncatingIfNeeded: u & 0xff)
+        let bytes = [b0, b1, b2, b3]
+        let fourCC = String(bytes: bytes, encoding: .ascii).map { "'\($0)'" } ?? "'????'"
+        return "(non-zero; fourCC=\(fourCC) hex=0x\(String(u, radix: 16)))"
     }
+#endif
 
     private static func defaultOutputDeviceUID() throws -> CFString {
         var defaultDeviceID = AudioObjectID(kAudioObjectUnknown)
@@ -347,5 +421,27 @@ final class AudioEqualizerEngine: ObservableObject {
             throw AudioEqualizerEngineError.couldNotReadTapUID(uidStatus)
         }
         return uid
+    }
+
+    /// HAL-assigned tap UID string for ``kAudioSubTapUIDKey`` (must match ``kAudioTapPropertyUID``).
+    private static func copyTapUIDString(tapObjectID: AudioObjectID) throws -> String {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioTapPropertyUID,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var dataSize: UInt32 = 0
+        let sizeStatus = AudioObjectGetPropertyDataSize(tapObjectID, &address, 0, nil, &dataSize)
+        guard sizeStatus == noErr, dataSize > 0 else {
+            throw AudioEqualizerEngineError.couldNotReadTapUID(sizeStatus)
+        }
+        var cfUID: CFString = "" as CFString
+        let copyStatus = withUnsafeMutablePointer(to: &cfUID) { pointer in
+            AudioObjectGetPropertyData(tapObjectID, &address, 0, nil, &dataSize, pointer)
+        }
+        guard copyStatus == noErr else {
+            throw AudioEqualizerEngineError.couldNotReadTapUID(copyStatus)
+        }
+        return cfUID as String
     }
 }

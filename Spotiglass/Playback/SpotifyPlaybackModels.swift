@@ -14,6 +14,8 @@ enum PlaybackConnectionState: Equatable {
 struct PlaybackNowPlaying: Equatable {
     let name: String
     let artists: [String]
+    /// Album title from Web Playback SDK when available (used for third-party lyrics matching).
+    let albumName: String?
     let albumArtURL: URL?
     let durationMilliseconds: Int
     let positionMilliseconds: Int
@@ -42,6 +44,7 @@ struct PlaybackNowPlaying: Equatable {
         PlaybackNowPlaying(
             name: name,
             artists: artists,
+            albumName: albumName,
             albumArtURL: albumArtURL,
             durationMilliseconds: durationMilliseconds,
             positionMilliseconds: positionMilliseconds,
@@ -146,12 +149,51 @@ extension QueueItem {
             source: source
         )
     }
+
+    /// Builds a minimal ``PlaybackNowPlaying`` for LRCLIB prefetch (album title is unknown from queue rows).
+    func playbackNowPlayingForLyricsPrefetch() -> PlaybackNowPlaying? {
+        guard let uri, uri.hasPrefix("spotify:track:") else { return nil }
+        let trimmed = subtitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        let artistParts = trimmed.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        let artists = artistParts.isEmpty ? (trimmed.isEmpty ? ["Unknown artist"] : [trimmed]) : artistParts
+        return PlaybackNowPlaying(
+            name: name,
+            artists: artists,
+            albumName: nil,
+            albumArtURL: albumArtURL,
+            durationMilliseconds: max(1, durationMilliseconds),
+            positionMilliseconds: 0,
+            uri: uri
+        )
+    }
 }
 
 /// Response from `GET /v1/me/player/queue`.
 struct SpotifyQueueResponse: Equatable {
     let currentlyPlaying: SpotifyQueueTrackItem?
     let queue: [SpotifyQueueTrackItem]
+}
+
+/// Spotify Web API `repeat_state` for the active player (`GET/PUT /v1/me/player` repeat).
+enum SpotifyRepeatMode: String, Equatable, Codable {
+    case off
+    case context
+    case track
+
+    /// Cycles the repeat button: off → context → track → off.
+    var next: SpotifyRepeatMode {
+        switch self {
+        case .off: return .context
+        case .context: return .track
+        case .track: return .off
+        }
+    }
+}
+
+/// Shuffle + repeat from `GET /v1/me/player` (subset of the full player object).
+struct SpotifyPlayerTransport: Equatable {
+    let shuffle: Bool
+    let repeatMode: SpotifyRepeatMode
 }
 
 /// Unified track-or-episode slot from the queue endpoint.
@@ -181,6 +223,7 @@ enum PlaybackBridgeCommand: String, Equatable {
     case next
     case previous
     case playURI
+    case setVolume
 }
 
 enum PlaybackBridgeMessageError: Error, Equatable {

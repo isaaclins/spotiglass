@@ -10,9 +10,9 @@
 1. Create a Spotify app in the dashboard and copy its **client ID**.
 2. Open `Spotiglass.xcodeproj` in Xcode and run the **Spotiglass** scheme on macOS.
 3. Paste the client ID in Spotiglass (welcome screen or **Settings → Account**, ⌘,), choose **Connect Spotify**, and complete sign-in in your default browser.
-4. Browse playlists and play tracks.
+4. Browse **Home** (placeholder), **Liked Songs** under Favorites, your **Playlists**, and play tracks.
 
-**Settings** (Spotiglass menu or ⌘,) is organized into **Playback** (how Web Playback behaves), **Account** (client ID and Spotify connection), and **Keyboard** (shortcuts). On **Keyboard**, each command has a **Click to record** field: focus it, press the shortcut you want, then release (Esc cancels; Delete clears). If a chord is already used elsewhere, use **Replace** to move it. Power users can still edit the raw JSON under **Advanced (JSON)**; the on-disk path is shown there. With no `>` or `@` prefix, the palette searches tracks and albums, merges Spotify results with playlists already loaded in the sidebar, and surfaces readable messages when Spotify returns an error.
+**Settings** (Spotiglass menu or ⌘,) is organized into **Playback** (how Web Playback behaves), **Account** (client ID and Spotify connection), and **Keyboard** (shortcuts). On **Keyboard**, each command has a **Click to record** field: focus it, press the shortcut you want, then release (Esc cancels; Delete clears). If a chord is already used elsewhere, use **Replace** to move it. Power users can still edit the raw JSON under **Advanced (JSON)**; the on-disk path is shown there. Open the command palette with the shortcut shown in **Keyboard** (default ⌘K). Use a `>` prefix to list and filter in-app commands. Otherwise the palette searches Spotify: use the footer to choose **All**, **Tracks**, **Artists**, **Here** (search inside the playlist or Liked Songs you have open, when applicable), or **My Playlists** (your loaded library), or press Tab / Shift+Tab to cycle categories while the search field is focused. A leading `@` still switches to artists-only for one query. **All** merges catalog playlist hits with matching playlists from your sidebar library (same playlist ID appears once, catalog first), shows matches in the current playlist when available, then songs and other hits; **My Playlists** only lists library matches. Readable messages appear when Spotify returns an error.
 
 **Spotify Premium** is required for in-app playback via the Web Playback SDK. Free accounts can browse playlists but playback from the embedded SDK will fail with an account error surfaced in the UI.
 
@@ -32,7 +32,7 @@ Spotiglass binds a temporary OAuth callback listener to `127.0.0.1` on port **43
 Requested scopes (space-separated):
 
 ```text
-playlist-read-private playlist-read-collaborative user-read-private user-read-email user-read-playback-state user-modify-playback-state user-read-currently-playing streaming
+playlist-read-private playlist-read-collaborative user-library-read user-read-private user-read-email user-read-playback-state user-modify-playback-state user-read-currently-playing streaming
 ```
 
 ## Web Playback verification (manual)

@@ -30,8 +30,7 @@ enum SpotifyAPIError: Error, Equatable, LocalizedError {
         case let .forbidden(message, _):
             return message ?? "Spotify denied access to this resource."
         case let .rateLimited(retryAfter):
-            return retryAfter.map { "Spotify is rate limiting requests. Try again in \(Int($0)) seconds." }
-                ?? "Spotify is rate limiting requests. Try again shortly."
+            return "Spotify is rate limiting requests. \(SpotifyRateLimitDisplay.retryAfterClause(seconds: retryAfter))"
         case let .notFound(message):
             return message ?? "This Spotify item is unavailable or was removed."
         case let .badRequest(message, _):
@@ -58,7 +57,9 @@ enum SpotifyAPIError: Error, Equatable, LocalizedError {
         switch self {
         case let .insufficientScope(_, _, details), let .forbidden(_, details), let .badRequest(_, details), let .server(_, _, details):
             details
-        case .unauthorized, .rateLimited, .notFound, .decoding, .network, .invalidRequest:
+        case let .rateLimited(retryAfter):
+            SpotifyRateLimitDisplay.rawRetryDiagnostic(seconds: retryAfter)
+        case .unauthorized, .notFound, .decoding, .network, .invalidRequest:
             nil
         }
     }

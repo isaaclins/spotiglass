@@ -3,6 +3,22 @@ import XCTest
 
 @MainActor
 final class PlaylistBrowsingStepTests: XCTestCase {
+    func testSelectLikedSongsLoadsSavedTracks() async {
+        let liked = Self.track(id: "liked-one")
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([Self.playlist(id: "one", name: "One")])],
+            trackResults: ["one": [.success([Self.track(id: "track-one")])]],
+            savedTracksResult: .success(SpotifySavedTracksResult(tracks: [liked], totalAvailable: 1))
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+
+        await viewModel.load()
+        await viewModel.selectSidebar(.likedSongs)
+
+        XCTAssertEqual(viewModel.sidebarSelection, .likedSongs)
+        XCTAssertEqual(Self.playlistTracks(viewModel.detailState).map(\.title), ["Track liked-one"])
+    }
+
     func testInitialLoadTransitionsToLoadedPlaylistAndTracks() async {
         let api = MockBrowsingAPI(
             playlistResults: [.success([Self.playlist(id: "one", name: "One")])],
@@ -142,7 +158,7 @@ final class PlaylistBrowsingStepTests: XCTestCase {
             return XCTFail("Expected insufficient-scope error state")
         }
         XCTAssertEqual(error.title, "Reconnect Spotify")
-        XCTAssertEqual(error.message, "Your current Spotify session is missing playlist permissions. Disconnect and connect again to grant required scopes.")
+        XCTAssertEqual(error.message, "Your current Spotify session is missing playlist or Liked Songs permissions. Disconnect and connect again to grant required scopes.")
         XCTAssertEqual(error.diagnosticDetails, "status 403 insufficient scope")
         XCTAssertFalse(error.canRetry)
     }
@@ -180,6 +196,25 @@ final class PlaylistBrowsingStepTests: XCTestCase {
         XCTAssertEqual(detail.artist.name, "Artist artist-xyz")
         XCTAssertEqual(detail.tracks.count, 1)
         XCTAssertEqual(detail.tracks.first?.title, "Hit")
+    }
+
+    /// Mirrors `List` + `.onChange(of: sidebarSelection)` calling `selectPlaylist(nil)` after `selectArtist` clears sidebar selection.
+    func testSelectArtistSurvivesSubsequentSelectPlaylistNilFromSidebarOnChange() async {
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([Self.playlist(id: "one", name: "One")])],
+            trackResults: ["one": [.success([Self.track(id: "track-one")])]]
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+
+        await viewModel.load()
+        await viewModel.selectArtist(id: "artist-xyz")
+        await viewModel.selectPlaylist(id: nil)
+
+        XCTAssertNil(viewModel.selectedPlaylistID)
+        guard case let .loaded(.artist(detail)) = viewModel.detailState else {
+            return XCTFail("Expected loaded artist detail after simulated onChange(nil)")
+        }
+        XCTAssertEqual(detail.artist.id, "artist-xyz")
     }
 
     func testArtistDetailFallsBackToSearchWhenTopTracksForbidden() async {
@@ -450,6 +485,10 @@ private final class LimitCapturingBrowsingAPI: SpotifyBrowsingAPI {
         lastTracksLimit = limit
         return tracks
     }
+
+    func currentUserSavedTracks(limit: Int, maxPages: Int) async throws -> SpotifySavedTracksResult {
+        SpotifySavedTracksResult(tracks: [], totalAvailable: 0)
+    }
 }
 
 private final class MockBrowsingAPI: SpotifyBrowsingAPI {
@@ -460,6 +499,7 @@ private final class MockBrowsingAPI: SpotifyBrowsingAPI {
     private let searchHandler: ((String, Int) async throws -> SpotifySearchResults)?
     private let artistAlbumsHandler: ((String, String, Int) async throws -> [SpotifyArtistAlbum])?
     private let albumTracksHandler: ((String, String?, Int) async throws -> [SpotifyTrack])?
+    private let savedTracksResult: Result<SpotifySavedTracksResult, Error>?
 
     init(
         playlistResults: [Result<[SpotifyPlaylistSummary], Error>],
@@ -467,7 +507,8 @@ private final class MockBrowsingAPI: SpotifyBrowsingAPI {
         artistTopTracksHandler: ((String, String?) async throws -> [SpotifyTrack])? = nil,
         searchHandler: ((String, Int) async throws -> SpotifySearchResults)? = nil,
         artistAlbumsHandler: ((String, String, Int) async throws -> [SpotifyArtistAlbum])? = nil,
-        albumTracksHandler: ((String, String?, Int) async throws -> [SpotifyTrack])? = nil
+        albumTracksHandler: ((String, String?, Int) async throws -> [SpotifyTrack])? = nil,
+        savedTracksResult: Result<SpotifySavedTracksResult, Error>? = nil
     ) {
         self.playlistResults = playlistResults
         self.trackResults = trackResults
@@ -475,6 +516,7 @@ private final class MockBrowsingAPI: SpotifyBrowsingAPI {
         self.searchHandler = searchHandler
         self.artistAlbumsHandler = artistAlbumsHandler
         self.albumTracksHandler = albumTracksHandler
+        self.savedTracksResult = savedTracksResult
     }
 
     func currentUserPlaylists(limit: Int) async throws -> [SpotifyPlaylistSummary] {
@@ -536,6 +578,13 @@ private final class MockBrowsingAPI: SpotifyBrowsingAPI {
             return try await artistAlbumsHandler(id, includeGroups, limit)
         }
         return []
+    }
+
+    func currentUserSavedTracks(limit: Int, maxPages: Int) async throws -> SpotifySavedTracksResult {
+        if let savedTracksResult {
+            return try savedTracksResult.get()
+        }
+        return SpotifySavedTracksResult(tracks: [], totalAvailable: 0)
     }
 }
 

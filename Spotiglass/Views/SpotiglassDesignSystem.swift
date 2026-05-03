@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 enum SpotiglassDesign {
@@ -17,6 +18,22 @@ enum SpotiglassDesign {
     static let cornerL: CGFloat = 22
 
     static let sidebarWidth: CGFloat = 320
+
+    // MARK: - Narrow window (playlist sidebar + queue + detail)
+
+    /// When the window is narrower than this and the queue + playlist sidebar are both visible, min column widths shrink so nothing clips.
+    static let tripleColumnCompactBreakpoint: CGFloat = 1080
+
+    static let playlistSidebarMinWidth: CGFloat = 280
+    static let playlistSidebarMinWidthCompact: CGFloat = 232
+
+    static let detailColumnMinWidth: CGFloat = 360
+    static let detailColumnMinWidthCompact: CGFloat = 272
+
+    static let queuePanelMinWidth: CGFloat = 280
+    static let queuePanelMinWidthCompact: CGFloat = 232
+    static let queuePanelMaxWidth: CGFloat = 420
+    static let queuePanelMaxWidthCompact: CGFloat = 360
 }
 
 struct GlassPanel<Content: View>: View {
@@ -63,12 +80,12 @@ struct ShellBackground: View {
     }
 }
 
-/// Brand mark from `Assets.xcassets/AppLogo`.
+/// In-app mark matches the running app’s icon (Icon Composer is not a normal `imageset` name). Use the bundle icon from Launch Services, not `Image("AppIcon")` (that looks up the asset catalog and logs “No image named 'AppIcon'…” when the only source is the `.icon` document).
 struct SpotiglassBrandLogo: View {
     var length: CGFloat = 72
 
     var body: some View {
-        Image("AppLogo")
+        Image(nsImage: NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath))
             .resizable()
             .interpolation(.high)
             .scaledToFit()

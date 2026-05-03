@@ -3,6 +3,8 @@ import SwiftUI
 @MainActor
 struct RootView: View {
     @EnvironmentObject private var viewModel: AuthViewModel
+    @EnvironmentObject private var pinnedStore: PinnedItemsStore
+    @EnvironmentObject private var lyricsOverlay: LyricsOverlayController
     @StateObject private var commandPaletteManager: CommandPaletteManager
     @Environment(\.openSettings) private var openSettingsAction
 
@@ -16,6 +18,9 @@ struct RootView: View {
 
     var body: some View {
         content
+            .overlay {
+                LyricsOverlayLayer()
+            }
             .overlay {
                 ZStack {
                     if commandPaletteManager.viewModel.isPresented {
@@ -41,7 +46,10 @@ struct RootView: View {
                 await viewModel.restoreSessionIfAvailable()
             }
             .onAppear {
-                commandPaletteManager.signOut = viewModel.signOut
+                commandPaletteManager.signOut = { [viewModel] in
+                    pinnedStore.clearForSignOut()
+                    viewModel.signOut()
+                }
                 commandPaletteManager.openSettings = {
                     openSettingsAction()
                 }
@@ -65,7 +73,10 @@ struct RootView: View {
                 playbackTokenProvider: viewModel,
                 searchTokenProvider: viewModel,
                 commandPaletteManager: commandPaletteManager,
-                signOut: viewModel.signOut
+                signOut: {
+                    pinnedStore.clearForSignOut()
+                    viewModel.signOut()
+                }
             )
         case .refreshing(.none):
             ZStack {
@@ -94,46 +105,90 @@ struct RootView: View {
             ShellBackground()
 
             GlassPanel {
-                VStack(spacing: SpotiglassDesign.spacingL) {
-                    SpotiglassBrandLogo(length: 72)
-
-                    VStack(spacing: SpotiglassDesign.spacingS) {
+                VStack(spacing: SpotiglassDesign.spacingM) {
+                    Label {
                         Text(AppMetadata.displayName)
-                            .font(.largeTitle.weight(.semibold))
-
-                        StatusPill(text: viewModel.state.title, systemImage: statusIcon)
-
-                        Text(viewModel.state.message)
-                            .font(.body)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                            .frame(maxWidth: 420)
+                    } icon: {
+                        Image(systemName: "music.note")
+                            .symbolRenderingMode(.hierarchical)
                     }
+                    .font(.title2.weight(.semibold))
+                    .labelStyle(.titleAndIcon)
+
+                    authStatusMessage
 
                     SpotifyClientIDAndActionsView(viewModel: viewModel, layout: .welcome)
                 }
-                .padding(SpotiglassDesign.spacingXL)
+                .padding(SpotiglassDesign.spacingL)
             }
             .frame(maxWidth: 560)
             .padding(SpotiglassDesign.spacingL)
         }
     }
 
-    private var statusIcon: String {
+    @ViewBuilder
+    private var authStatusMessage: some View {
         switch viewModel.state {
         case .signedOut:
-            "wifi.slash"
+            EmptyView()
         case .signingIn:
-            "arrow.triangle.2.circlepath"
+            VStack(alignment: .center, spacing: SpotiglassDesign.spacingXS) {
+                Label(viewModel.state.title, systemImage: "safari")
+                    .font(.subheadline.weight(.medium))
+                    .symbolRenderingMode(.hierarchical)
+                Text(viewModel.state.message)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 420)
+            }
         case .failed:
-            "exclamationmark.triangle"
+            VStack(alignment: .center, spacing: SpotiglassDesign.spacingXS) {
+                Label(viewModel.state.title, systemImage: "exclamationmark.triangle.fill")
+                    .font(.subheadline.weight(.medium))
+                    .symbolRenderingMode(.hierarchical)
+                Text(viewModel.state.message)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 420)
+            }
         case .signedIn, .refreshing:
-            "checkmark.circle"
+            EmptyView()
         }
+    }
+}
+
+/// Renders ``ImmersiveLyricsView`` above the whole window (not only the split-view detail column).
+private struct LyricsOverlayLayer: View {
+    @EnvironmentObject private var lyricsOverlay: LyricsOverlayController
+
+    var body: some View {
+        ZStack {
+            if lyricsOverlay.isPresented,
+               let playback = lyricsOverlay.playbackViewModel,
+               let queue = lyricsOverlay.queueViewModel,
+               let lyrics = lyricsOverlay.lyricsModel {
+                ImmersiveLyricsView(
+                    playbackViewModel: playback,
+                    queueViewModel: queue,
+                    lyricsModel: lyrics,
+                    onDismiss: { lyricsOverlay.dismiss() }
+                )
+                .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                .zIndex(200)
+            }
+        }
+        .animation(.easeOut(duration: 0.22), value: lyricsOverlay.isPresented)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .ignoresSafeArea(edges: .all)
+        .allowsHitTesting(lyricsOverlay.isPresented)
     }
 }
 
 #Preview {
     RootView(commandPaletteManager: CommandPaletteManager())
         .environmentObject(AuthViewModel.preview())
+        .environmentObject(PinnedItemsStore(cache: InMemoryPinnedItemsCache()))
+        .environmentObject(LyricsOverlayController())
 }

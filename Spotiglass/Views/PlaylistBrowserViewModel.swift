@@ -1,8 +1,25 @@
 import Foundation
 
+enum SpotiglassSidebarLibrary {
+    /// Synthetic ID for Liked Songs: disk cache, `List` tags, and `PlaybackSessionViewModel.activePlaylistID`.
+    static let likedSongsVirtualPlaylistID = "spotiglass.likedSongs"
+    static let likedSongsCacheSnapshotID = "saved-tracks"
+}
+
+enum SidebarSelection: Hashable {
+    case home
+    case likedSongs
+    case playlist(String)
+    /// Pinned-area row identified by ``PinnedItem.id``. The browser view
+    /// routes the click through ``PinnedItemsStore`` to dispatch the right
+    /// detail loader (or playback for pinned tracks).
+    case pinnedItem(String)
+}
+
 protocol SpotifyBrowsingAPI {
     func currentUserPlaylists(limit: Int) async throws -> [SpotifyPlaylistSummary]
     func playlistTracks(playlistID: String, limit: Int) async throws -> [SpotifyPlaylistTrackItem]
+    func currentUserSavedTracks(limit: Int, maxPages: Int) async throws -> SpotifySavedTracksResult
     func currentUserProfile() async throws -> SpotifyUserProfile
     func artist(id: String) async throws -> SpotifyArtistDetail
     func artistTopTracks(id: String, market: String?) async throws -> [SpotifyTrack]
@@ -24,6 +41,8 @@ protocol SpotifyBrowsingCache {
 }
 
 extension SpotifyLocalCache: SpotifyBrowsingCache {}
+
+extension SpotifyLocalCache: PinnedItemsCache {}
 
 struct BrowsingDisplayError: Equatable, Identifiable {
     let id = UUID()
@@ -81,6 +100,33 @@ struct PlaylistRowViewModel: Equatable, Identifiable {
         self.artworkURL = playlist.imageURL
         self.snapshotID = playlist.snapshotID
     }
+
+    /// Virtual library row for Liked Songs (sidebar and detail header). Pass `totalTrackCount: nil` for the sidebar before counts are known (`trackCountText` becomes “Saved tracks”).
+    init(likedSongsOwnerDisplay: String, totalTrackCount: Int?, artworkURL: URL?) {
+        self.id = SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID
+        self.title = "Liked Songs"
+        self.owner = likedSongsOwnerDisplay
+        if let totalTrackCount {
+            self.trackCountText = totalTrackCount == 1 ? "1 track" : "\(totalTrackCount) tracks"
+        } else {
+            self.trackCountText = "Saved tracks"
+        }
+        self.artworkURL = artworkURL
+        self.snapshotID = SpotiglassSidebarLibrary.likedSongsCacheSnapshotID
+    }
+
+    /// Pinned-album header rendered through the existing playlist detail UI.
+    /// `albumID` is used as the row id so playback's `activePlaylistID` and the
+    /// click-source identification stay consistent with how the rest of the
+    /// app keys "currently shown collection".
+    init(albumDisplayName: String, artistsDisplay: String, totalTrackCount: Int, artworkURL: URL?, albumID: String) {
+        self.id = albumID
+        self.title = albumDisplayName
+        self.owner = artistsDisplay
+        self.trackCountText = totalTrackCount == 1 ? "1 track" : "\(totalTrackCount) tracks"
+        self.artworkURL = artworkURL
+        self.snapshotID = "album-\(albumID)"
+    }
 }
 
 struct PlaylistDetailViewModel: Equatable {
@@ -121,7 +167,7 @@ struct ArtistDetailViewModel: Equatable {
 
     init(artist: SpotifyArtistDetail, tracks: [SpotifyTrack], albums: [SpotifyArtistAlbum]) {
         self.artist = artist
-        self.tracks = tracks.map { TrackRowViewModel(topTrack: $0) }
+        self.tracks = TrackRowViewModel.numberedTopTracks(tracks)
         let grouped = Dictionary(grouping: albums, by: \.group)
         let sort: (SpotifyArtistAlbum, SpotifyArtistAlbum) -> Bool = { lhs, rhs in
             lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
@@ -135,6 +181,8 @@ struct ArtistDetailViewModel: Equatable {
 
 struct TrackRowViewModel: Equatable, Identifiable {
     let id: String
+    /// 1-based row index in playlist / artist track lists (for ``TrackListRow``).
+    let listPosition: Int
     let title: String
     let subtitle: String
     let artworkURL: URL?
@@ -144,7 +192,22 @@ struct TrackRowViewModel: Equatable, Identifiable {
     let playableURI: String?
     let artistRefs: [SpotifyArtistRef]
 
-    init(_ item: SpotifyPlaylistTrackItem) {
+    /// Builds playlist rows with stable numbering without allocating `enumerated()` in SwiftUI bodies.
+    static func numberedPlaylistRows(_ items: [SpotifyPlaylistTrackItem]) -> [TrackRowViewModel] {
+        items.enumerated().map { index, item in
+            TrackRowViewModel(item, listPosition: index + 1)
+        }
+    }
+
+    /// Builds artist (or album) top-track rows with stable numbering.
+    static func numberedTopTracks(_ tracks: [SpotifyTrack]) -> [TrackRowViewModel] {
+        tracks.enumerated().map { index, track in
+            TrackRowViewModel(topTrack: track, listPosition: index + 1)
+        }
+    }
+
+    init(_ item: SpotifyPlaylistTrackItem, listPosition: Int) {
+        self.listPosition = listPosition
         self.id = item.id
 
         switch item.content {
@@ -187,7 +250,8 @@ struct TrackRowViewModel: Equatable, Identifiable {
         }
     }
 
-    init(topTrack track: SpotifyTrack) {
+    init(topTrack track: SpotifyTrack, listPosition: Int) {
+        self.listPosition = listPosition
         self.id = track.id
         self.title = track.name
         self.subtitle = track.artists.joined(separator: ", ")
@@ -203,13 +267,97 @@ struct TrackRowViewModel: Equatable, Identifiable {
         let totalSeconds = max(0, milliseconds / 1_000)
         return "\(totalSeconds / 60):\(String(format: "%02d", totalSeconds % 60))"
     }
+
+    /// Milliseconds parsed from ``durationText`` (`m:ss`); `0` when unparsable.
+    var durationMillisecondsForPinning: Int {
+        let parts = durationText.split(separator: ":")
+        guard parts.count == 2,
+              let m = Int(parts[0].trimmingCharacters(in: .whitespaces)),
+              let s = Int(parts[1].trimmingCharacters(in: .whitespaces)) else { return 0 }
+        return max(0, (m * 60 + s) * 1_000)
+    }
+
+    /// Domain track for palette pinning and draggable pins; `nil` for episodes, locals, and unavailable rows.
+    func spotifyTrackForPinning(originPlaylistID: String?) -> SpotifyTrack? {
+        guard let playableURI, playableURI.hasPrefix("spotify:track:") else { return nil }
+        let names: [String] = artistRefs.map(\.name).isEmpty
+            ? subtitle.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+            : artistRefs.map(\.name)
+        return SpotifyTrack(
+            id: id,
+            name: title,
+            artists: names,
+            artistRefs: artistRefs,
+            albumArtworkURL: artworkURL,
+            durationMilliseconds: durationMillisecondsForPinning,
+            isExplicit: badgeText == "Explicit",
+            isPlayable: !isUnavailable,
+            linkedFromID: nil,
+            uri: playableURI
+        )
+    }
+
+    func pinnedTrackItem(originPlaylistID: String?) -> PinnedItem? {
+        guard let track = spotifyTrackForPinning(originPlaylistID: originPlaylistID) else { return nil }
+        return .track(track, originPlaylistID: originPlaylistID)
+    }
+}
+
+extension ArtistAlbumRowViewModel {
+    private var parsedTotalTrackCount: Int {
+        let digits = trackCountText.prefix { $0.isNumber }
+        return Int(digits) ?? 1
+    }
+
+    func spotifyArtistAlbum(group: SpotifyArtistAlbumGroup) -> SpotifyArtistAlbum {
+        SpotifyArtistAlbum(
+            id: id,
+            name: title,
+            imageURL: artworkURL,
+            releaseYear: yearText,
+            totalTracks: parsedTotalTrackCount,
+            group: group,
+            uri: uri
+        )
+    }
+
+    func pinnedAlbum(group: SpotifyArtistAlbumGroup) -> PinnedItem {
+        .album(spotifyArtistAlbum(group: group))
+    }
 }
 
 @MainActor
 final class PlaylistBrowserViewModel: ObservableObject {
     @Published private(set) var playlistState: BrowsingLoadState<[PlaylistRowViewModel]> = .loading
-    @Published private(set) var detailState: BrowsingLoadState<BrowsingDetailContent> = .empty("Select a playlist or open an artist from search.")
-    @Published var selectedPlaylistID: String?
+    @Published private(set) var detailState: BrowsingLoadState<BrowsingDetailContent> = .empty("Select an item in the sidebar or open an artist from search.")
+    @Published var sidebarSelection: SidebarSelection?
+
+    /// When the sidebar shows a Spotify playlist row; used by search / command palette.
+    var selectedPlaylistID: String? {
+        if case let .playlist(id) = sidebarSelection { return id }
+        return nil
+    }
+
+    /// True when the browser shows a loaded playlist or Liked Songs (not Home or artist detail).
+    var isCommandPaletteThisPlaylistSearchEligible: Bool {
+        guard let selection = sidebarSelection else { return false }
+        switch selection {
+        case .playlist, .likedSongs:
+            break
+        case .home, .pinnedItem:
+            return false
+        }
+        guard let content = detailState.currentValue else { return false }
+        if case .playlist = content { return true }
+        return false
+    }
+
+    /// Tracks in the current playlist detail, when loaded.
+    var loadedPlaylistTracksForPalette: [TrackRowViewModel]? {
+        guard let content = detailState.currentValue else { return nil }
+        if case let .playlist(vm) = content { return vm.tracks }
+        return nil
+    }
 
     private let api: SpotifyBrowsingAPI
     private let cache: SpotifyBrowsingCache
@@ -220,6 +368,8 @@ final class PlaylistBrowserViewModel: ObservableObject {
     private var playlistsByID: [String: SpotifyPlaylistSummary] = [:]
     private var hasLoaded = false
     private var detailSession = 0
+    /// Clears sidebar selection when opening an artist; SwiftUI then calls `selectSidebar(nil)`, which must not reset the detail pane or bump `detailSession`.
+    private var ignoreNextNilSidebarSelectionForDetail = false
 
     var visiblePlaylists: [PlaylistRowViewModel] {
         playlistState.currentValue ?? []
@@ -240,7 +390,7 @@ final class PlaylistBrowserViewModel: ObservableObject {
     }
 
     static func live(tokenProvider: SpotifyAccessTokenProviding) -> PlaylistBrowserViewModel {
-        let api = SpotifyAPIClient(tokenProvider: tokenProvider)
+        let api = SpotifyAPIClient(tokenProvider: tokenProvider, getResponseCache: .shared)
         let cache: SpotifyBrowsingCache = (try? SpotifyLocalCache()) ?? DisabledSpotifyBrowsingCache()
         return PlaylistBrowserViewModel(api: api, cache: cache)
     }
@@ -257,10 +407,10 @@ final class PlaylistBrowserViewModel: ObservableObject {
             if bundle.age >= playlistListAutoRefreshMinInterval {
                 await refreshPlaylists()
             } else {
-                if let selectedPlaylistID {
+                if let sidebarSelection {
                     detailSession += 1
                     let session = detailSession
-                    await loadTracks(for: selectedPlaylistID, refreshCachedData: true, session: session)
+                    await loadDetail(for: sidebarSelection, refreshCachedData: true, session: session)
                 }
             }
             return
@@ -281,16 +431,16 @@ final class PlaylistBrowserViewModel: ObservableObject {
             try? cache.savePlaylists(playlists, cachedAt: now())
             if playlists.isEmpty {
                 playlistsByID = [:]
-                selectedPlaylistID = nil
+                sidebarSelection = nil
                 playlistState = .empty("Your Spotify library has no playlists yet.")
                 detailState = .empty("Create or follow a playlist in Spotify, then refresh.")
                 return
             }
             apply(playlists: playlists, state: .loaded(playlists.map(PlaylistRowViewModel.init)), preserveSelection: true)
-            if let selectedPlaylistID {
+            if let sidebarSelection {
                 detailSession += 1
                 let session = detailSession
-                await loadTracks(for: selectedPlaylistID, refreshCachedData: true, session: session)
+                await loadDetail(for: sidebarSelection, refreshCachedData: true, session: session)
             }
         } catch {
             let displayError = Self.displayError(for: error)
@@ -302,19 +452,77 @@ final class PlaylistBrowserViewModel: ObservableObject {
         }
     }
 
-    func selectPlaylist(id: String?) async {
-        detailSession += 1
-        let session = detailSession
-        selectedPlaylistID = id
-        guard let id else {
-            detailState = .empty("Select a playlist or open an artist from search.")
+    func selectSidebar(_ selection: SidebarSelection?) async {
+        guard let selection else {
+            sidebarSelection = nil
+            if ignoreNextNilSidebarSelectionForDetail {
+                ignoreNextNilSidebarSelectionForDetail = false
+                return
+            }
+            detailSession += 1
+            detailState = .empty("Select an item in the sidebar or open an artist from search.")
             return
         }
-        await loadTracks(for: id, refreshCachedData: true, session: session)
+
+        // Pinned-item taps are dispatched in the view layer (it owns the
+        // `PinnedItemsStore` and the playback view-model needed for tracks).
+        // Just record the selection so list highlight stays in sync.
+        if case .pinnedItem = selection {
+            sidebarSelection = selection
+            return
+        }
+
+        ignoreNextNilSidebarSelectionForDetail = false
+        detailSession += 1
+        let session = detailSession
+        sidebarSelection = selection
+        await loadDetail(for: selection, refreshCachedData: true, session: session)
+    }
+
+    /// Loads an album by ID and renders it through the existing playlist
+    /// detail content. Album metadata (title / artist line / artwork) is
+    /// supplied by the caller (typically a pinned item snapshot) so the
+    /// header is populated even when offline.
+    func selectAlbum(id: String, displayTitle: String, displaySubtitle: String, artworkURL: URL?) async {
+        ignoreNextNilSidebarSelectionForDetail = false
+        detailSession += 1
+        let session = detailSession
+        detailState = .loading
+        do {
+            let profile = try? await api.currentUserProfile()
+            let market = profile?.country
+            let tracks = try await api.albumTracks(albumID: id, market: market, limit: 50)
+            guard session == detailSession else { return }
+            let header = PlaylistRowViewModel(
+                albumDisplayName: displayTitle,
+                artistsDisplay: displaySubtitle,
+                totalTrackCount: tracks.count,
+                artworkURL: artworkURL,
+                albumID: id
+            )
+            let trackRows = TrackRowViewModel.numberedTopTracks(tracks)
+            if trackRows.isEmpty {
+                detailState = .empty("This album has no tracks available.")
+            } else {
+                detailState = .loaded(.playlist(PlaylistDetailViewModel(playlist: header, tracks: trackRows)))
+            }
+        } catch {
+            guard session == detailSession else { return }
+            detailState = .error(Self.displayError(for: error))
+        }
+    }
+
+    func selectPlaylist(id: String?) async {
+        if let id {
+            await selectSidebar(.playlist(id))
+        } else {
+            await selectSidebar(nil)
+        }
     }
 
     func selectArtist(id: String) async {
-        selectedPlaylistID = nil
+        ignoreNextNilSidebarSelectionForDetail = true
+        sidebarSelection = nil
         detailSession += 1
         let session = detailSession
         detailState = .loading
@@ -322,7 +530,8 @@ final class PlaylistBrowserViewModel: ObservableObject {
             let profile = try await api.currentUserProfile()
             let market = profile.country
             async let detail = api.artist(id: id)
-            async let albums = api.artistAlbums(id: id, includeGroups: "album,single,compilation,appears_on", limit: 10)
+            // Omit `appears_on` here: it explodes pagination for major artists and triggers strict dev-mode rate limits.
+            async let albums = api.artistAlbums(id: id, includeGroups: "album,single,compilation", limit: 10)
             let (artistDetail, albumList) = try await (detail, albums)
             guard session == detailSession else { return }
             let resolved = await resolveArtistTracks(artistId: id, artist: artistDetail, albums: albumList, market: market)
@@ -416,11 +625,21 @@ final class PlaylistBrowserViewModel: ObservableObject {
     }
 
     func refreshSelectedPlaylist() async {
-        if let selectedPlaylistID {
+        if let sidebarSelection {
+            if case .pinnedItem = sidebarSelection {
+                return
+            }
             detailSession += 1
             let session = detailSession
-            try? cache.invalidateTracks(playlistID: selectedPlaylistID)
-            await loadTracks(for: selectedPlaylistID, refreshCachedData: false, session: session)
+            switch sidebarSelection {
+            case .playlist(let playlistID):
+                try? cache.invalidateTracks(playlistID: playlistID)
+            case .likedSongs:
+                try? cache.invalidateTracks(playlistID: SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID)
+            case .home, .pinnedItem:
+                break
+            }
+            await loadDetail(for: sidebarSelection, refreshCachedData: false, session: session)
         } else if let artistID = artistIDForRefreshingDetail {
             await selectArtist(id: artistID)
         }
@@ -448,10 +667,100 @@ final class PlaylistBrowserViewModel: ObservableObject {
     }
 
     func clearForSignOut() {
-        selectedPlaylistID = nil
+        sidebarSelection = nil
         playlistsByID = [:]
         playlistState = .empty("Connect Spotify to browse playlists.")
         detailState = .empty("Sign in to Spotify to browse playlists and artists.")
+    }
+
+    private func loadDetail(for selection: SidebarSelection, refreshCachedData: Bool, session: Int) async {
+        switch selection {
+        case .home:
+            guard session == detailSession else { return }
+            detailState = .empty("Home is not available yet.")
+        case .likedSongs:
+            await loadLikedSongsTracks(refreshCachedData: refreshCachedData, session: session)
+        case let .playlist(playlistID):
+            await loadTracks(for: playlistID, refreshCachedData: refreshCachedData, session: session)
+        case .pinnedItem:
+            guard session == detailSession else { return }
+            return
+        }
+    }
+
+    private func loadLikedSongsTracks(refreshCachedData: Bool, session: Int) async {
+        guard session == detailSession else { return }
+        let virtualID = SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID
+        let snapshotID = SpotiglassSidebarLibrary.likedSongsCacheSnapshotID
+
+        if refreshCachedData,
+           let cachedTracks = try? cache.loadTracks(playlistID: virtualID, snapshotID: snapshotID, now: now(), maxAge: maxCacheAge) {
+            if cachedTracks.isEmpty {
+                detailState = .empty("You have no liked songs yet.")
+            } else {
+                let profile = try? await api.currentUserProfile()
+                let trimmedName = profile?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                let owner = trimmedName.isEmpty ? "You" : trimmedName
+                let row = PlaylistRowViewModel(
+                    likedSongsOwnerDisplay: owner,
+                    totalTrackCount: cachedTracks.count,
+                    artworkURL: firstLikedSongsArtwork(from: cachedTracks)
+                )
+                detailState = .loaded(.playlist(PlaylistDetailViewModel(playlist: row, tracks: TrackRowViewModel.numberedPlaylistRows(cachedTracks))))
+            }
+            await revalidateLikedSongs(session: session)
+            return
+        }
+
+        let existingDetail = detailState.currentValue
+        detailState = .loading
+        guard session == detailSession else { return }
+        if let existingDetail {
+            detailState = .refreshing(existingDetail)
+        }
+        await revalidateLikedSongs(session: session)
+    }
+
+    private func firstLikedSongsArtwork(from tracks: [SpotifyPlaylistTrackItem]) -> URL? {
+        for item in tracks.prefix(4) {
+            if case let .track(t) = item.content { return t.albumArtworkURL }
+            if case let .episode(e) = item.content { return e.artworkURL }
+        }
+        return nil
+    }
+
+    private func revalidateLikedSongs(session: Int) async {
+        do {
+            let result = try await api.currentUserSavedTracks(limit: 50, maxPages: 20)
+            try? cache.saveTracks(
+                result.tracks,
+                playlistID: SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID,
+                snapshotID: SpotiglassSidebarLibrary.likedSongsCacheSnapshotID,
+                cachedAt: now()
+            )
+            guard session == detailSession else { return }
+            let profile = try? await api.currentUserProfile()
+            let trimmedName = profile?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let owner = trimmedName.isEmpty ? "You" : trimmedName
+            let row = PlaylistRowViewModel(
+                likedSongsOwnerDisplay: owner,
+                totalTrackCount: max(result.totalAvailable, result.tracks.count),
+                artworkURL: firstLikedSongsArtwork(from: result.tracks)
+            )
+            if result.tracks.isEmpty {
+                detailState = .empty("You have no liked songs yet.")
+            } else {
+                detailState = .loaded(.playlist(PlaylistDetailViewModel(playlist: row, tracks: TrackRowViewModel.numberedPlaylistRows(result.tracks))))
+            }
+        } catch {
+            guard session == detailSession else { return }
+            let displayError = Self.displayError(for: error)
+            if let existingDetail = detailState.currentValue {
+                detailState = .staleCache(existingDetail, displayError)
+            } else {
+                detailState = .error(displayError)
+            }
+        }
     }
 
     private func loadTracks(for playlistID: String, refreshCachedData: Bool, session: Int) async {
@@ -472,7 +781,7 @@ final class PlaylistBrowserViewModel: ObservableObject {
             if cachedTracks.isEmpty {
                 detailState = .empty("This playlist has no tracks.")
             } else {
-                detailState = .loaded(.playlist(PlaylistDetailViewModel(playlist: playlistRow, tracks: cachedTracks.map(TrackRowViewModel.init))))
+                detailState = .loaded(.playlist(PlaylistDetailViewModel(playlist: playlistRow, tracks: TrackRowViewModel.numberedPlaylistRows(cachedTracks))))
             }
             await revalidatePlaylistTracks(playlist: playlist, playlistRow: playlistRow, session: session)
             return
@@ -499,7 +808,7 @@ final class PlaylistBrowserViewModel: ObservableObject {
             if tracks.isEmpty {
                 detailState = .empty("This playlist has no tracks.")
             } else {
-                detailState = .loaded(.playlist(PlaylistDetailViewModel(playlist: playlistRow, tracks: tracks.map(TrackRowViewModel.init))))
+                detailState = .loaded(.playlist(PlaylistDetailViewModel(playlist: playlistRow, tracks: TrackRowViewModel.numberedPlaylistRows(tracks))))
             }
         } catch {
             guard session == detailSession else { return }
@@ -513,11 +822,11 @@ final class PlaylistBrowserViewModel: ObservableObject {
     }
 
     private func selectAdjacentPlaylist(offset: Int) async {
-        let playlists = visiblePlaylists
-        guard !playlists.isEmpty else { return }
-        let currentIndex = playlists.firstIndex { $0.id == selectedPlaylistID } ?? 0
-        let nextIndex = min(max(0, currentIndex + offset), playlists.count - 1)
-        await selectPlaylist(id: playlists[nextIndex].id)
+        let order: [SidebarSelection] = [.home, .likedSongs] + visiblePlaylists.map { .playlist($0.id) }
+        guard !order.isEmpty else { return }
+        let currentIndex = order.firstIndex(of: sidebarSelection ?? .home) ?? 0
+        let nextIndex = min(max(0, currentIndex + offset), order.count - 1)
+        await selectSidebar(order[nextIndex])
     }
 
     private func apply(
@@ -528,18 +837,25 @@ final class PlaylistBrowserViewModel: ObservableObject {
         playlistsByID = Dictionary(uniqueKeysWithValues: playlists.map { ($0.id, $0) })
         playlistState = state
 
-        if preserveSelection, let selectedPlaylistID, playlistsByID[selectedPlaylistID] != nil {
-            return
+        if preserveSelection, let selection = sidebarSelection {
+            switch selection {
+            case let .playlist(id) where playlistsByID[id] != nil:
+                return
+            case .likedSongs, .home, .pinnedItem:
+                return
+            case .playlist:
+                break
+            }
         }
 
-        if selectedPlaylistID != nil {
+        if case let .playlist(missingID) = sidebarSelection, playlistsByID[missingID] == nil {
             detailState = .error(BrowsingDisplayError(
                 title: "Playlist unavailable",
                 message: "The selected playlist was deleted or is no longer accessible.",
                 canRetry: true
             ))
         }
-        selectedPlaylistID = playlists.first?.id
+        sidebarSelection = playlists.first.map { .playlist($0.id) }
     }
 
     static func displayError(for error: Error) -> BrowsingDisplayError {
@@ -550,7 +866,7 @@ final class PlaylistBrowserViewModel: ObservableObject {
             case .insufficientScope:
                 return BrowsingDisplayError(
                     title: "Reconnect Spotify",
-                    message: "Your current Spotify session is missing playlist permissions. Disconnect and connect again to grant required scopes.",
+                    message: "Your current Spotify session is missing playlist or Liked Songs permissions. Disconnect and connect again to grant required scopes.",
                     canRetry: false,
                     diagnosticDetails: apiError.diagnosticDetails
                 )
@@ -562,8 +878,13 @@ final class PlaylistBrowserViewModel: ObservableObject {
                     diagnosticDetails: apiError.diagnosticDetails
                 )
             case let .rateLimited(retryAfter):
-                let retry = retryAfter.map { " Try again in \(Int($0)) seconds." } ?? ""
-                return BrowsingDisplayError(title: "Spotify is rate limiting requests", message: "Too many requests were sent to Spotify.\(retry)", canRetry: true)
+                let clause = SpotifyRateLimitDisplay.retryAfterClause(seconds: retryAfter)
+                return BrowsingDisplayError(
+                    title: "Spotify is rate limiting requests",
+                    message: "Too many requests were sent to Spotify. \(clause)",
+                    canRetry: true,
+                    diagnosticDetails: SpotifyRateLimitDisplay.rawRetryDiagnostic(seconds: retryAfter)
+                )
             case let .notFound(message):
                 return BrowsingDisplayError(title: "Not found", message: message ?? "This Spotify resource is no longer available.", canRetry: true)
             case let .network(message):

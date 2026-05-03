@@ -25,9 +25,15 @@ final class CommandPaletteManager: ObservableObject {
     var playURI: ((String) async -> Void)?
     var openPlaylist: ((String) async -> Void)?
     var openArtist: ((String) async -> Void)?
-    var spotifySearch: ((String) async throws -> CommandPaletteSearchResults)?
+    var spotifySearch: ((String, CommandPaletteSearchCategory) async throws -> CommandPaletteSearchResults)?
     var filterByArtist: ((String) -> Void)?
     var toggleQueue: (() -> Void)?
+    /// Invoked by `palette.pin` (default ⌘↩); the host wires this to the
+    /// pinned-items store so palette ⌘↩ pins the highlighted result without
+    /// dismissing the palette.
+    var pinSelectedPaletteItem: (@MainActor () -> Void)?
+    /// Invoked by `palette.unpin`; symmetrical with ``pinSelectedPaletteItem``.
+    var unpinSelectedPaletteItem: (@MainActor () -> Void)?
 
     private var cancellables: Set<AnyCancellable> = []
 
@@ -36,11 +42,11 @@ final class CommandPaletteManager: ObservableObject {
         viewModel.staticItemsProvider = { [weak self] in
             self?.baseItems() ?? []
         }
-        viewModel.searchProvider = { [weak self] query in
+        viewModel.searchProvider = { [weak self] query, category in
             guard let self, let spotifySearch = self.spotifySearch else {
                 return CommandPaletteSearchResults()
             }
-            return try await spotifySearch(query)
+            return try await spotifySearch(query, category)
         }
 
         // SwiftUI only observes the outermost ObservableObject. Forward
@@ -60,6 +66,13 @@ final class CommandPaletteManager: ObservableObject {
 
     func handleKeyEvent(_ event: NSEvent) -> Bool {
         if viewModel.isPresented {
+            // Tab / Shift+Tab cycle Spotify search category (footer segments) while the query field stays focused.
+            if event.keyCode == 48, CommandPaletteScope.parse(viewModel.query).scope != .commands {
+                let extras = event.modifierFlags.intersection([.control, .option, .command])
+                guard extras.isEmpty else { return false }
+                viewModel.cycleSearchCategory(forward: !event.modifierFlags.contains(.shift))
+                return true
+            }
             if event.keyCode == 53 { // esc
                 viewModel.hide()
                 return true
@@ -73,8 +86,14 @@ final class CommandPaletteManager: ObservableObject {
                 return true
             }
             if event.keyCode == 36 { // return
-                Task { await self.viewModel.executeSelection() }
-                return true
+                // Plain ↩ runs the highlighted item. Modifier-bearing returns
+                // (most importantly ⌘↩ for `palette.pin`) fall through to the
+                // keymap-matching path below so user-rebound shortcuts work.
+                let modifiers = event.modifierFlags.intersection([.command, .control, .option, .shift])
+                if modifiers.isEmpty {
+                    Task { await self.viewModel.executeSelection() }
+                    return true
+                }
             }
         }
 
@@ -135,6 +154,10 @@ final class CommandPaletteManager: ObservableObject {
             }
         case CommandPaletteCommandID.toggleQueue:
             toggleQueue?()
+        case CommandPaletteCommandID.pinSelected:
+            Task { await viewModel.executeSelectionPinning() }
+        case CommandPaletteCommandID.unpinSelected:
+            Task { await viewModel.executeSelectionUnpinning() }
         default:
             break
         }
