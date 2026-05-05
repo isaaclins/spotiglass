@@ -133,7 +133,13 @@ struct PlaylistBrowserView: View {
             } detail: {
                 detailWithQueueSplit
             }
-            PlaybackControlsView(viewModel: playbackViewModel, isLyricsPresented: isLyricsPresentedBinding)
+            PlaybackControlsView(
+                viewModel: playbackViewModel,
+                isLyricsPresented: isLyricsPresentedBinding,
+                openArtist: { target in
+                    openArtistFromTapTarget(target)
+                }
+            )
         }
         .animation(.easeOut(duration: 0.22), value: lyricsOverlay.isPresented)
         .onGeometryChange(for: CGFloat.self, of: \.size.width) { _, newWidth in
@@ -578,7 +584,13 @@ struct PlaylistBrowserView: View {
 
     @ViewBuilder
     private var queuePanelColumn: some View {
-        QueuePanelView(queueViewModel: queueViewModel, playbackViewModel: playbackViewModel)
+        QueuePanelView(
+            queueViewModel: queueViewModel,
+            playbackViewModel: playbackViewModel,
+            openArtist: { target in
+                openArtistFromTapTarget(target)
+            }
+        )
             .background(.background)
             .frame(
                 minWidth: resolvedQueueMinWidth,
@@ -721,6 +733,32 @@ struct PlaylistBrowserView: View {
         if pinnedStore.boundUserID != nil { return }
         let profile = try? await spotifySearchClient.currentUserProfile()
         pinnedStore.bind(userID: profile?.id)
+    }
+
+    private func openArtistFromTapTarget(_ target: ArtistTapTarget) {
+        Task {
+            if let id = target.id {
+                await viewModel.selectArtist(id: id)
+                return
+            }
+            guard let resolvedID = try? await resolveArtistID(forName: target.name) else { return }
+            await viewModel.selectArtist(id: resolvedID)
+        }
+    }
+
+    private func resolveArtistID(forName name: String) async throws -> String? {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let escaped = trimmed.replacingOccurrences(of: "\"", with: "")
+        let results = try await spotifySearchClient.search(query: "artist:\"\(escaped)\"", limit: 5)
+        guard !results.artists.isEmpty else { return nil }
+        let normalizedQuery = trimmed.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+        if let exact = results.artists.first(where: {
+            $0.name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current) == normalizedQuery
+        }) {
+            return exact.id
+        }
+        return results.artists.first?.id
     }
 
     private func bindCommandPalette(queueVisible: Binding<Bool>) {
@@ -903,12 +941,61 @@ extension PlaylistBrowserView {
             )
         }
 
+        func localLibraryPlaylistMatches() -> [CommandPaletteItem] {
+            guard let viewModel else { return [] }
+            var libraryRows: [(item: CommandPaletteItem, score: Int)] = []
+            for row in viewModel.visiblePlaylists {
+                let summary = SpotifyPlaylistSummary(
+                    id: row.id,
+                    name: row.title,
+                    description: nil,
+                    ownerName: row.owner,
+                    imageURL: row.artworkURL,
+                    trackCount: 0,
+                    isPublic: nil,
+                    isCollaborative: false,
+                    snapshotID: row.snapshotID
+                )
+                let pinPayload = PinnedItem.playlist(summary)
+                let pinPair = pinUnpinClosures(for: pinPayload)
+                let item = CommandPaletteItem(
+                    id: "playlist-\(row.id)",
+                    title: row.title,
+                    subtitle: "Your library • \(row.owner)",
+                    iconSystemName: "music.note.list",
+                    section: .myPlaylists,
+                    keywords: [row.owner, row.title, row.id],
+                    pinAction: pinPair.pin,
+                    unpinAction: pinPair.unpin,
+                    action: {
+                        commandPaletteManager.execute(
+                            commandID: "navigation.playlist.open",
+                            args: ["playlistID": .string(row.id)]
+                        )
+                    }
+                )
+                let score = item.score(for: trimmed)
+                guard score < 100 else { continue }
+                libraryRows.append((item, score))
+            }
+            libraryRows.sort { lhs, rhs in
+                if lhs.score != rhs.score { return lhs.score < rhs.score }
+                return lhs.item.title < rhs.item.title
+            }
+            return libraryRows.map(\.item)
+        }
+
         var mapped = CommandPaletteSearchResults()
 
         if category == .thisPlaylist {
             if let rows = viewModel?.loadedPlaylistTracksForPalette {
                 mapped.inPlaylistMatches = inPlaylistMatches(from: rows)
             }
+            return mapped
+        }
+
+        mapped.myPlaylists = localLibraryPlaylistMatches()
+        if category == .myPlaylists {
             return mapped
         }
 
@@ -953,47 +1040,6 @@ extension PlaylistBrowserView {
         }
 
         if let viewModel {
-            var libraryRows: [(item: CommandPaletteItem, score: Int)] = []
-            for row in viewModel.visiblePlaylists {
-                let summary = SpotifyPlaylistSummary(
-                    id: row.id,
-                    name: row.title,
-                    description: nil,
-                    ownerName: row.owner,
-                    imageURL: row.artworkURL,
-                    trackCount: 0,
-                    isPublic: nil,
-                    isCollaborative: false,
-                    snapshotID: row.snapshotID
-                )
-                let pinPayload = PinnedItem.playlist(summary)
-                let pinPair = pinUnpinClosures(for: pinPayload)
-                let item = CommandPaletteItem(
-                    id: "playlist-\(row.id)",
-                    title: row.title,
-                    subtitle: "Your library • \(row.owner)",
-                    iconSystemName: "music.note.list",
-                    section: .myPlaylists,
-                    keywords: [row.owner, row.title, row.id],
-                    pinAction: pinPair.pin,
-                    unpinAction: pinPair.unpin,
-                    action: {
-                        commandPaletteManager.execute(
-                            commandID: "navigation.playlist.open",
-                            args: ["playlistID": .string(row.id)]
-                        )
-                    }
-                )
-                let score = item.score(for: trimmed)
-                guard score < 100 else { continue }
-                libraryRows.append((item, score))
-            }
-            libraryRows.sort { lhs, rhs in
-                if lhs.score != rhs.score { return lhs.score < rhs.score }
-                return lhs.item.title < rhs.item.title
-            }
-            mapped.myPlaylists = libraryRows.map(\.item)
-
             if let rows = viewModel.loadedPlaylistTracksForPalette {
                 mapped.inPlaylistMatches = inPlaylistMatches(from: rows)
             }
@@ -1428,6 +1474,7 @@ private struct PreviewBrowsingCache: SpotifyBrowsingCache {
     func loadPlaylistsBundle(now: Date) throws -> (playlists: [SpotifyPlaylistSummary], age: TimeInterval)? { nil }
     func savePlaylists(_ playlists: [SpotifyPlaylistSummary], cachedAt: Date) throws {}
     func loadTracks(playlistID: String, snapshotID: String, now: Date, maxAge: TimeInterval) throws -> [SpotifyPlaylistTrackItem]? { nil }
+    func loadTracksIgnoringAge(playlistID: String, snapshotID: String) throws -> [SpotifyPlaylistTrackItem]? { nil }
     func saveTracks(_ tracks: [SpotifyPlaylistTrackItem], playlistID: String, snapshotID: String, cachedAt: Date) throws {}
     func invalidateTracks(playlistID: String) throws {}
 }

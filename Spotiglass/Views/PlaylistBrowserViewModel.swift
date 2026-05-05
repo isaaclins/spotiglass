@@ -36,6 +36,7 @@ protocol SpotifyBrowsingCache {
     func loadPlaylistsBundle(now: Date) throws -> (playlists: [SpotifyPlaylistSummary], age: TimeInterval)?
     func savePlaylists(_ playlists: [SpotifyPlaylistSummary], cachedAt: Date) throws
     func loadTracks(playlistID: String, snapshotID: String, now: Date, maxAge: TimeInterval) throws -> [SpotifyPlaylistTrackItem]?
+    func loadTracksIgnoringAge(playlistID: String, snapshotID: String) throws -> [SpotifyPlaylistTrackItem]?
     func saveTracks(_ tracks: [SpotifyPlaylistTrackItem], playlistID: String, snapshotID: String, cachedAt: Date) throws
     func invalidateTracks(playlistID: String) throws
 }
@@ -379,7 +380,7 @@ final class PlaylistBrowserViewModel: ObservableObject {
         api: SpotifyBrowsingAPI,
         cache: SpotifyBrowsingCache,
         now: @escaping () -> Date = Date.init,
-        maxCacheAge: TimeInterval = 300,
+        maxCacheAge: TimeInterval = 1800,
         playlistListAutoRefreshMinInterval: TimeInterval = 1800
     ) {
         self.api = api
@@ -695,18 +696,16 @@ final class PlaylistBrowserViewModel: ObservableObject {
 
         if refreshCachedData,
            let cachedTracks = try? cache.loadTracks(playlistID: virtualID, snapshotID: snapshotID, now: now(), maxAge: maxCacheAge) {
-            if cachedTracks.isEmpty {
-                detailState = .empty("You have no liked songs yet.")
-            } else {
-                let profile = try? await api.currentUserProfile()
-                let trimmedName = profile?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                let owner = trimmedName.isEmpty ? "You" : trimmedName
-                let row = PlaylistRowViewModel(
-                    likedSongsOwnerDisplay: owner,
-                    totalTrackCount: cachedTracks.count,
-                    artworkURL: firstLikedSongsArtwork(from: cachedTracks)
-                )
-                detailState = .loaded(.playlist(PlaylistDetailViewModel(playlist: row, tracks: TrackRowViewModel.numberedPlaylistRows(cachedTracks))))
+            await setLikedSongsDetailState(from: cachedTracks)
+            await revalidateLikedSongs(session: session)
+            return
+        }
+
+        if refreshCachedData,
+           let staleTracks = try? cache.loadTracksIgnoringAge(playlistID: virtualID, snapshotID: snapshotID) {
+            await setLikedSongsDetailState(from: staleTracks)
+            if let existingDetail = detailState.currentValue {
+                detailState = .refreshing(existingDetail)
             }
             await revalidateLikedSongs(session: session)
             return
@@ -719,6 +718,22 @@ final class PlaylistBrowserViewModel: ObservableObject {
             detailState = .refreshing(existingDetail)
         }
         await revalidateLikedSongs(session: session)
+    }
+
+    private func setLikedSongsDetailState(from tracks: [SpotifyPlaylistTrackItem]) async {
+        if tracks.isEmpty {
+            detailState = .empty("You have no liked songs yet.")
+            return
+        }
+        let profile = try? await api.currentUserProfile()
+        let trimmedName = profile?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let owner = trimmedName.isEmpty ? "You" : trimmedName
+        let row = PlaylistRowViewModel(
+            likedSongsOwnerDisplay: owner,
+            totalTrackCount: tracks.count,
+            artworkURL: firstLikedSongsArtwork(from: tracks)
+        )
+        detailState = .loaded(.playlist(PlaylistDetailViewModel(playlist: row, tracks: TrackRowViewModel.numberedPlaylistRows(tracks))))
     }
 
     private func firstLikedSongsArtwork(from tracks: [SpotifyPlaylistTrackItem]) -> URL? {
@@ -782,6 +797,20 @@ final class PlaylistBrowserViewModel: ObservableObject {
                 detailState = .empty("This playlist has no tracks.")
             } else {
                 detailState = .loaded(.playlist(PlaylistDetailViewModel(playlist: playlistRow, tracks: TrackRowViewModel.numberedPlaylistRows(cachedTracks))))
+            }
+            await revalidatePlaylistTracks(playlist: playlist, playlistRow: playlistRow, session: session)
+            return
+        }
+
+        if refreshCachedData,
+           let staleTracks = try? cache.loadTracksIgnoringAge(playlistID: playlist.id, snapshotID: playlist.snapshotID) {
+            if staleTracks.isEmpty {
+                detailState = .empty("This playlist has no tracks.")
+            } else {
+                detailState = .loaded(.playlist(PlaylistDetailViewModel(playlist: playlistRow, tracks: TrackRowViewModel.numberedPlaylistRows(staleTracks))))
+            }
+            if let existingDetail = detailState.currentValue {
+                detailState = .refreshing(existingDetail)
             }
             await revalidatePlaylistTracks(playlist: playlist, playlistRow: playlistRow, session: session)
             return
@@ -919,6 +948,7 @@ private struct DisabledSpotifyBrowsingCache: SpotifyBrowsingCache {
     func loadPlaylistsBundle(now: Date) throws -> (playlists: [SpotifyPlaylistSummary], age: TimeInterval)? { nil }
     func savePlaylists(_ playlists: [SpotifyPlaylistSummary], cachedAt: Date) throws {}
     func loadTracks(playlistID: String, snapshotID: String, now: Date, maxAge: TimeInterval) throws -> [SpotifyPlaylistTrackItem]? { nil }
+    func loadTracksIgnoringAge(playlistID: String, snapshotID: String) throws -> [SpotifyPlaylistTrackItem]? { nil }
     func saveTracks(_ tracks: [SpotifyPlaylistTrackItem], playlistID: String, snapshotID: String, cachedAt: Date) throws {}
     func invalidateTracks(playlistID: String) throws {}
 }

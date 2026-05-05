@@ -4,6 +4,7 @@ import SwiftUI
 struct QueuePanelView: View {
     @ObservedObject var queueViewModel: QueueViewModel
     @ObservedObject var playbackViewModel: PlaybackSessionViewModel
+    let openArtist: (ArtistTapTarget) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -45,7 +46,7 @@ struct QueuePanelView: View {
                 Image(systemName: "shuffle")
                     .foregroundStyle(playbackViewModel.shuffleEnabled ? SpotiglassDesign.controlAccent : Color.primary)
             }
-            .disabled(queueViewModel.isLoading || playbackViewModel.deviceID == nil)
+            .disabled(playbackViewModel.deviceID == nil)
             .accessibilityLabel(playbackViewModel.shuffleEnabled ? "Shuffle on" : "Shuffle off")
             .accessibilityHint("Toggles shuffle for Spotify playback on this device.")
             .help("Shuffle playback order")
@@ -55,7 +56,6 @@ struct QueuePanelView: View {
             } label: {
                 Image(systemName: "arrow.clockwise")
             }
-            .disabled(queueViewModel.isLoading)
             .accessibilityLabel("Refresh queue")
             .help("Reload queue from Spotify")
         }
@@ -63,13 +63,8 @@ struct QueuePanelView: View {
     }
 
     private var subtitleText: String {
-        let countLine: String
-        if queueViewModel.isLoading {
-            countLine = "Updating…"
-        } else {
-            let count = queueViewModel.upcomingItems.count
-            countLine = count == 1 ? "1 track up next" : "\(count) tracks up next"
-        }
+        let count = queueViewModel.upcomingItems.count
+        let countLine = count == 1 ? "1 track up next" : "\(count) tracks up next"
         let repeatSuffix: String = {
             switch playbackViewModel.repeatMode {
             case .off: return ""
@@ -122,6 +117,7 @@ struct QueuePanelView: View {
                         onSelect: {
                             Task { await queueViewModel.playItem(item) }
                         },
+                        openArtist: openArtist,
                         onCopyURI: { copyURI(item.uri) }
                     )
                     .id("now-playing-row:\(item.id)")
@@ -164,6 +160,7 @@ struct QueuePanelView: View {
                             onSelect: {
                                 Task { await queueViewModel.playItem(item) }
                             },
+                            openArtist: openArtist,
                             onCopyURI: { copyURI(item.uri) }
                         )
                         .transition(
@@ -191,40 +188,36 @@ private struct QueueRowView: View {
     let isCurrent: Bool
     let isPlaying: Bool
     let onSelect: () -> Void
+    let openArtist: (ArtistTapTarget) -> Void
     let onCopyURI: () -> Void
 
     var body: some View {
-        Button(action: onSelect) {
-            HStack(spacing: SpotiglassDesign.spacingS) {
-                if isCurrent {
-                    PlayingWaveformIcon(isPlaying: isPlaying)
-                        .frame(width: 28, alignment: .center)
-                }
-
-                ArtworkView(url: item.albumArtURL, size: 44)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(item.name)
-                        .font(.headline)
-                        .foregroundStyle(.primary)
-                        .lineLimit(2)
-                    Text(item.subtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-
-                Spacer(minLength: 8)
-
-                Text(item.durationLabel)
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
+        HStack(spacing: SpotiglassDesign.spacingS) {
+            if isCurrent {
+                PlayingWaveformIcon(isPlaying: isPlaying)
+                    .frame(width: 28, alignment: .center)
             }
-            .padding(SpotiglassDesign.spacingS)
-            .background(rowBackground, in: RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous))
-            .contentShape(Rectangle())
+
+            ArtworkView(url: item.albumArtURL, size: 44)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.name)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+                subtitleLine
+            }
+
+            Spacer(minLength: 8)
+
+            Text(item.durationLabel)
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
         }
-        .buttonStyle(.plain)
+        .padding(SpotiglassDesign.spacingS)
+        .background(rowBackground, in: RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous))
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onSelect)
         .contextMenu {
             Button("Play Now", action: onSelect)
             if item.uri != nil {
@@ -233,6 +226,38 @@ private struct QueueRowView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(item.name), \(item.subtitle)")
+    }
+
+    @ViewBuilder
+    private var subtitleLine: some View {
+        if item.artistTapTargets.isEmpty {
+            Text(item.subtitle)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        } else {
+            HStack(spacing: 0) {
+                ForEach(Array(item.artistTapTargets.enumerated()), id: \.element.stableID) { index, target in
+                    if index > 0 {
+                        Text(", ")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Button {
+                        openArtist(target)
+                    } label: {
+                        Text(target.name)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Open artist \(target.name)")
+                }
+                Spacer(minLength: 0)
+            }
+            .lineLimit(1)
+        }
     }
 
     private var rowBackground: Color {

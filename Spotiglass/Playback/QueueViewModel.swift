@@ -10,6 +10,17 @@ final class QueueViewModel: ObservableObject {
     private let playbackAPI: SpotifyPlaybackControlling
     private let playbackSession: PlaybackSessionViewModel
     private var lastFetchedQueue: SpotifyQueueResponse?
+    /// Immediate queue projection used while waiting for Spotify queue
+    /// reconciliation (e.g. optimistic shuffle UX).
+    private var optimisticUpcomingItems: [QueueItem]?
+    /// Snapshot captured when turning shuffle ON so turning it OFF can restore
+    /// the pre-shuffle order instantly.
+    private var preShuffleUpcomingSnapshot: [QueueItem]?
+    /// Target optimistic order awaiting Spotify queue reconciliation.
+    private var optimisticReconcileTargetIDs: [String]?
+    private var optimisticReconcileDeadline: ContinuousClock.Instant?
+    private let optimisticReconcileTimeout: Duration
+    private let clock = ContinuousClock()
     private var pollTask: Task<Void, Never>?
     private var isPanelVisible = false
 
@@ -19,11 +30,13 @@ final class QueueViewModel: ObservableObject {
     init(
         playbackAPI: SpotifyPlaybackControlling,
         playbackSession: PlaybackSessionViewModel,
-        pollIntervalNanoseconds: UInt64 = 4_000_000_000
+        pollIntervalNanoseconds: UInt64 = 4_000_000_000,
+        optimisticReconcileTimeout: Duration = .seconds(3)
     ) {
         self.playbackAPI = playbackAPI
         self.playbackSession = playbackSession
         self.pollIntervalNanoseconds = pollIntervalNanoseconds
+        self.optimisticReconcileTimeout = optimisticReconcileTimeout
     }
 
     var isPlaybackPlaying: Bool {
@@ -95,6 +108,7 @@ final class QueueViewModel: ObservableObject {
             }
         }
         await playbackSession.syncTransportFromSpotify()
+        clearOptimisticProjectionIfReconciled()
         publishMergedState()
     }
 
@@ -144,7 +158,32 @@ final class QueueViewModel: ObservableObject {
 
     /// Toggles Spotify shuffle for this device, then reloads the queue so **Up next** reorders with existing list animations.
     func toggleShuffle() async {
+        let previousUpcoming = upcomingItems
+        let previousSnapshot = preShuffleUpcomingSnapshot
+        let previousShuffle = playbackSession.shuffleEnabled
+        let targetShuffle = !previousShuffle
+
+        if targetShuffle {
+            preShuffleUpcomingSnapshot = previousUpcoming
+            optimisticUpcomingItems = Self.shuffledDeterministically(previousUpcoming)
+            optimisticReconcileTargetIDs = optimisticUpcomingItems?.map(\.id)
+            optimisticReconcileDeadline = clock.now.advanced(by: optimisticReconcileTimeout)
+        } else if let snapshot = preShuffleUpcomingSnapshot {
+            optimisticUpcomingItems = snapshot
+            preShuffleUpcomingSnapshot = nil
+            optimisticReconcileTargetIDs = snapshot.map(\.id)
+            optimisticReconcileDeadline = clock.now.advanced(by: optimisticReconcileTimeout)
+        }
+        publishMergedState()
+
         await playbackSession.toggleShuffle()
+        if playbackSession.shuffleEnabled != targetShuffle {
+            optimisticUpcomingItems = previousUpcoming
+            preShuffleUpcomingSnapshot = previousSnapshot
+            optimisticReconcileTargetIDs = nil
+            optimisticReconcileDeadline = nil
+            publishMergedState()
+        }
         await refreshQueue()
     }
 
@@ -180,6 +219,7 @@ final class QueueViewModel: ObservableObject {
             }
         }
         await playbackSession.syncTransportFromSpotify()
+        clearOptimisticProjectionIfReconciled()
         publishMergedState()
     }
 
@@ -194,12 +234,62 @@ final class QueueViewModel: ObservableObject {
 
     private func publishMergedState() {
         nowPlayingItem = Self.nowPlayingQueueItem(from: playbackSession.connectionState)
+        let nowPlayingURI = nowPlayingItem?.uri
         let sdkNext = playbackSession.sdkNextTracks
-        if let api = lastFetchedQueue {
-            upcomingItems = Self.mergedUpcoming(apiResponse: api, sdkNext: sdkNext, limit: maxUpcomingItems)
-        } else {
-            upcomingItems = Array(sdkNext.map { QueueItem.from(playback: $0, source: .sdk) }.prefix(maxUpcomingItems))
+        if let optimisticUpcomingItems {
+            upcomingItems = Self.removingDuplicateNowPlaying(from: optimisticUpcomingItems, nowPlayingURI: nowPlayingURI)
+            return
         }
+        if let api = lastFetchedQueue {
+            let merged = Self.mergedUpcoming(apiResponse: api, sdkNext: sdkNext, limit: maxUpcomingItems)
+            let deduped = Self.removingDuplicateNowPlaying(from: merged, nowPlayingURI: nowPlayingURI)
+            if Self.shouldPreferSDKProjection(apiUpcoming: deduped, sdkNext: sdkNext, nowPlayingURI: nowPlayingURI) {
+                upcomingItems = Self.sdkUpcomingItems(from: sdkNext, limit: maxUpcomingItems)
+            } else {
+                upcomingItems = deduped
+            }
+        } else {
+            upcomingItems = Self.sdkUpcomingItems(from: sdkNext, limit: maxUpcomingItems)
+        }
+    }
+
+    /// Keeps optimistic queue visible until Spotify queue confirms the target
+    /// order, or until a small timeout elapses.
+    private func clearOptimisticProjectionIfReconciled() {
+        guard optimisticUpcomingItems != nil else { return }
+        guard let targetIDs = optimisticReconcileTargetIDs else {
+            optimisticUpcomingItems = nil
+            return
+        }
+        let nowPlayingURI = nowPlayingItem?.uri
+        let sdkNext = playbackSession.sdkNextTracks
+        let candidate: [QueueItem]
+        if let api = lastFetchedQueue {
+            let merged = Self.mergedUpcoming(apiResponse: api, sdkNext: sdkNext, limit: maxUpcomingItems)
+            let deduped = Self.removingDuplicateNowPlaying(from: merged, nowPlayingURI: nowPlayingURI)
+            if Self.shouldPreferSDKProjection(apiUpcoming: deduped, sdkNext: sdkNext, nowPlayingURI: nowPlayingURI) {
+                candidate = Self.sdkUpcomingItems(from: sdkNext, limit: maxUpcomingItems)
+            } else {
+                candidate = deduped
+            }
+        } else {
+            candidate = Self.sdkUpcomingItems(from: sdkNext, limit: maxUpcomingItems)
+        }
+        if candidate.map(\.id) == targetIDs {
+            optimisticUpcomingItems = nil
+            optimisticReconcileTargetIDs = nil
+            optimisticReconcileDeadline = nil
+            return
+        }
+        if let deadline = optimisticReconcileDeadline, clock.now >= deadline {
+            optimisticUpcomingItems = nil
+            optimisticReconcileTargetIDs = nil
+            optimisticReconcileDeadline = nil
+        }
+    }
+
+    private static func sdkUpcomingItems(from sdkNext: [PlaybackNowPlaying], limit: Int) -> [QueueItem] {
+        Array(sdkNext.map { QueueItem.from(playback: $0, source: .sdk) }.prefix(limit))
     }
 
     private static func nowPlayingQueueItem(from state: PlaybackConnectionState) -> QueueItem? {
@@ -242,6 +332,53 @@ final class QueueViewModel: ObservableObject {
         case let .track(t): t.uri
         case let .episode(e): e.uri
         }
+    }
+
+    /// During skip/track-advance transitions, API queue snapshots can lag
+    /// behind SDK `next_tracks`; prefer SDK ordering when the heads diverge or
+    /// when API still includes now-playing as "up next".
+    private static func shouldPreferSDKProjection(
+        apiUpcoming: [QueueItem],
+        sdkNext: [PlaybackNowPlaying],
+        nowPlayingURI: String?
+    ) -> Bool {
+        guard !sdkNext.isEmpty else { return false }
+        if apiUpcoming.isEmpty { return true }
+        let apiFirst = apiUpcoming.first?.uri
+        let sdkFirst = sdkNext.first?.uri
+        if apiFirst != sdkFirst {
+            return true
+        }
+        if let nowPlayingURI, apiUpcoming.contains(where: { $0.uri == nowPlayingURI }) {
+            return true
+        }
+        return false
+    }
+
+    private static func removingDuplicateNowPlaying(from items: [QueueItem], nowPlayingURI: String?) -> [QueueItem] {
+        guard let nowPlayingURI else { return items }
+        return items.filter { $0.uri != nowPlayingURI }
+    }
+
+    private static func shuffledDeterministically(_ items: [QueueItem]) -> [QueueItem] {
+        guard items.count > 1 else { return items }
+        var output = items
+        let seedBasis = items.map(\.id).joined(separator: "|")
+        var seed = UInt64(bitPattern: Int64(seedBasis.hashValue))
+        for idx in stride(from: output.count - 1, through: 1, by: -1) {
+            seed = 6364136223846793005 &* seed &+ 1442695040888963407
+            let swapIndex = Int(seed % UInt64(idx + 1))
+            if idx != swapIndex {
+                output.swapAt(idx, swapIndex)
+            }
+        }
+        if output.map(\.id) == items.map(\.id) {
+            var rotated = output
+            let first = rotated.removeFirst()
+            rotated.append(first)
+            return rotated
+        }
+        return output
     }
 
     /// Maps an underlying error to a user-visible banner, or returns nil for

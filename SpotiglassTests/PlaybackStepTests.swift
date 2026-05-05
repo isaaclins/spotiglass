@@ -3,6 +3,23 @@ import XCTest
 
 @MainActor
 final class PlaybackStepTests: XCTestCase {
+    func testNowPlayingArtistTapTargetsNormalizeNames() {
+        let nowPlaying = PlaybackNowPlaying(
+            name: "Song",
+            artists: ["  Artist One  ", "artist one", "Artist Two"],
+            albumName: nil,
+            albumArtURL: nil,
+            durationMilliseconds: 120_000,
+            positionMilliseconds: 0,
+            uri: "spotify:track:test"
+        )
+
+        XCTAssertEqual(nowPlaying.artistTapTargets.count, 2)
+        XCTAssertEqual(nowPlaying.artistTapTargets[0].name, "Artist One")
+        XCTAssertEqual(nowPlaying.artistTapTargets[1].name, "Artist Two")
+        XCTAssertNil(nowPlaying.artistTapTargets[0].id)
+    }
+
     func testBridgeParsesReadyStateAndErrors() throws {
         XCTAssertEqual(
             try SpotifyPlaybackBridgeParser.parse(["name": "ready", "payload": ["deviceID": "device-1"]]),
@@ -184,7 +201,11 @@ final class PlaybackStepTests: XCTestCase {
 
     func testCycleRepeatAdvancesRepeatMode() async {
         let api = MockPlaybackAPI()
-        let viewModel = PlaybackSessionViewModel(playbackAPI: api, webCommander: MockWebPlaybackCommander())
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: api,
+            webCommander: MockWebPlaybackCommander(),
+            postRepeatSyncDelay: .milliseconds(20)
+        )
         viewModel.handle(.ready(deviceID: "device-1"))
         XCTAssertEqual(viewModel.repeatMode, .off)
 
@@ -192,7 +213,7 @@ final class PlaybackStepTests: XCTestCase {
 
         XCTAssertEqual(viewModel.repeatMode, .context)
         XCTAssertTrue(api.actions.contains("setRepeat:device-1:context"))
-        try? await Task.sleep(nanoseconds: 100_000_000)
+        try? await Task.sleep(nanoseconds: 120_000_000)
         XCTAssertTrue(api.actions.contains("fetchPlayerTransport"), "Background transport sync should run after repeat toggle.")
     }
 
@@ -211,9 +232,82 @@ final class PlaybackStepTests: XCTestCase {
         }
     }
 
+    func testRepeatSyncIgnoresStaleTransportWhilePending() async {
+        let api = MockPlaybackAPI()
+        api.transportResponses = [
+            SpotifyPlayerTransport(shuffle: false, repeatMode: .off)
+        ]
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: api,
+            webCommander: MockWebPlaybackCommander(),
+            pendingRepeatTimeout: .seconds(5),
+            postRepeatSyncDelay: .seconds(10)
+        )
+        viewModel.handle(.ready(deviceID: "device-1"))
+
+        await viewModel.cycleRepeat()
+        XCTAssertEqual(viewModel.repeatMode, .context)
+
+        await viewModel.syncTransportFromSpotify()
+        XCTAssertEqual(viewModel.repeatMode, .context, "Stale transport read should not overwrite optimistic repeat while pending.")
+    }
+
+    func testRepeatPendingClearsWhenTransportMatchesExpectedMode() async {
+        let api = MockPlaybackAPI()
+        api.transportResponses = [
+            SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+            SpotifyPlayerTransport(shuffle: false, repeatMode: .context),
+            SpotifyPlayerTransport(shuffle: false, repeatMode: .off)
+        ]
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: api,
+            webCommander: MockWebPlaybackCommander(),
+            pendingRepeatTimeout: .seconds(5),
+            postRepeatSyncDelay: .seconds(10)
+        )
+        viewModel.handle(.ready(deviceID: "device-1"))
+
+        await viewModel.cycleRepeat()
+        XCTAssertEqual(viewModel.repeatMode, .context)
+
+        await viewModel.syncTransportFromSpotify()
+        XCTAssertEqual(viewModel.repeatMode, .context, "First stale read should be suppressed.")
+
+        await viewModel.syncTransportFromSpotify()
+        XCTAssertEqual(viewModel.repeatMode, .context, "Matching transport should keep mode and clear pending suppression.")
+
+        await viewModel.syncTransportFromSpotify()
+        XCTAssertEqual(viewModel.repeatMode, .off, "After pending clears, transport reads apply normally.")
+    }
+
+    func testRepeatPendingTimeoutEventuallyAcceptsTransportValue() async {
+        let api = MockPlaybackAPI()
+        api.transportResponses = [
+            SpotifyPlayerTransport(shuffle: false, repeatMode: .off)
+        ]
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: api,
+            webCommander: MockWebPlaybackCommander(),
+            pendingRepeatTimeout: .milliseconds(50),
+            postRepeatSyncDelay: .seconds(10)
+        )
+        viewModel.handle(.ready(deviceID: "device-1"))
+
+        await viewModel.cycleRepeat()
+        XCTAssertEqual(viewModel.repeatMode, .context)
+
+        try? await Task.sleep(nanoseconds: 90_000_000)
+        await viewModel.syncTransportFromSpotify()
+        XCTAssertEqual(viewModel.repeatMode, .off, "After timeout, transport value should be accepted to avoid long-lived drift.")
+    }
+
     func testToggleShuffleFlipsShuffleEnabled() async {
         let api = MockPlaybackAPI()
-        let viewModel = PlaybackSessionViewModel(playbackAPI: api, webCommander: MockWebPlaybackCommander())
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: api,
+            webCommander: MockWebPlaybackCommander(),
+            postShuffleSyncDelay: .milliseconds(20)
+        )
         viewModel.handle(.ready(deviceID: "device-1"))
         XCTAssertFalse(viewModel.shuffleEnabled)
 
@@ -221,7 +315,7 @@ final class PlaybackStepTests: XCTestCase {
 
         XCTAssertTrue(viewModel.shuffleEnabled)
         XCTAssertTrue(api.actions.contains("setShuffle:device-1:true"))
-        try? await Task.sleep(nanoseconds: 100_000_000)
+        try? await Task.sleep(nanoseconds: 120_000_000)
         XCTAssertTrue(api.actions.contains("fetchPlayerTransport"))
     }
 
@@ -237,6 +331,71 @@ final class PlaybackStepTests: XCTestCase {
         guard case .error = viewModel.connectionState else {
             return XCTFail("Expected error state after failed setShuffle")
         }
+    }
+
+    func testShuffleSyncIgnoresStaleTransportWhilePending() async {
+        let api = MockPlaybackAPI()
+        api.transportResponses = [SpotifyPlayerTransport(shuffle: false, repeatMode: .off)]
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: api,
+            webCommander: MockWebPlaybackCommander(),
+            pendingShuffleTimeout: .seconds(5),
+            postShuffleSyncDelay: .seconds(10)
+        )
+        viewModel.handle(.ready(deviceID: "device-1"))
+
+        await viewModel.toggleShuffle()
+        XCTAssertTrue(viewModel.shuffleEnabled)
+
+        await viewModel.syncTransportFromSpotify()
+        XCTAssertTrue(viewModel.shuffleEnabled, "Stale shuffle transport read should not overwrite optimistic local state while pending.")
+    }
+
+    func testShufflePendingClearsWhenTransportMatchesExpectedState() async {
+        let api = MockPlaybackAPI()
+        api.transportResponses = [
+            SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+            SpotifyPlayerTransport(shuffle: true, repeatMode: .off),
+            SpotifyPlayerTransport(shuffle: false, repeatMode: .off)
+        ]
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: api,
+            webCommander: MockWebPlaybackCommander(),
+            pendingShuffleTimeout: .seconds(5),
+            postShuffleSyncDelay: .seconds(10)
+        )
+        viewModel.handle(.ready(deviceID: "device-1"))
+
+        await viewModel.toggleShuffle()
+        XCTAssertTrue(viewModel.shuffleEnabled)
+
+        await viewModel.syncTransportFromSpotify()
+        XCTAssertTrue(viewModel.shuffleEnabled, "First stale read should be suppressed while pending.")
+
+        await viewModel.syncTransportFromSpotify()
+        XCTAssertTrue(viewModel.shuffleEnabled, "Matching read should clear pending without changing state.")
+
+        await viewModel.syncTransportFromSpotify()
+        XCTAssertFalse(viewModel.shuffleEnabled, "After pending clears, transport reads apply normally.")
+    }
+
+    func testShufflePendingTimeoutEventuallyAcceptsTransportValue() async {
+        let api = MockPlaybackAPI()
+        api.transportResponses = [SpotifyPlayerTransport(shuffle: false, repeatMode: .off)]
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: api,
+            webCommander: MockWebPlaybackCommander(),
+            pendingShuffleTimeout: .milliseconds(50),
+            postShuffleSyncDelay: .seconds(10)
+        )
+        viewModel.handle(.ready(deviceID: "device-1"))
+
+        await viewModel.toggleShuffle()
+        XCTAssertTrue(viewModel.shuffleEnabled)
+
+        try? await Task.sleep(nanoseconds: 90_000_000)
+        await viewModel.syncTransportFromSpotify()
+        XCTAssertFalse(viewModel.shuffleEnabled, "After timeout, transport shuffle should be accepted to avoid drift.")
     }
 
     func testRetryPlaybackTransferCallsTransferAPIWhenDeviceKnown() async {
@@ -581,6 +740,8 @@ private final class MockPlaybackAPI: SpotifyPlaybackControlling {
     private(set) var actions: [String] = []
     /// Returned by `fetchPlayerTransport`; updated when mock `setShuffle` / `setRepeat` succeed so background sync matches optimistic UI.
     private var reportedTransport = SpotifyPlayerTransport(shuffle: false, repeatMode: .off)
+    /// Optional transport snapshots returned before `reportedTransport`; useful for simulating stale reads.
+    var transportResponses: [SpotifyPlayerTransport?] = []
     var setShuffleError: Error?
     var setRepeatError: Error?
 
@@ -633,6 +794,9 @@ private final class MockPlaybackAPI: SpotifyPlaybackControlling {
 
     func fetchPlayerTransport() async throws -> SpotifyPlayerTransport? {
         actions.append("fetchPlayerTransport")
+        if !transportResponses.isEmpty {
+            return transportResponses.removeFirst()
+        }
         return reportedTransport
     }
 

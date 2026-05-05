@@ -108,6 +108,19 @@ struct SpotifyLocalCache {
         return cached.tracks
     }
 
+    /// Loads cached tracks without enforcing TTL; still validates `snapshotID`
+    /// to avoid showing tracks from an old playlist revision.
+    func loadTracksIgnoringAge(
+        playlistID: String,
+        snapshotID: String
+    ) throws -> [SpotifyPlaylistTrackItem]? {
+        guard let cached: CachedPlaylistTracks = try read(from: tracksURL(playlistID: playlistID)),
+              cached.snapshotID == snapshotID else {
+            return nil
+        }
+        return cached.tracks
+    }
+
     func invalidateTracks(playlistID: String) throws {
         try removeIfPresent(tracksURL(playlistID: playlistID))
     }

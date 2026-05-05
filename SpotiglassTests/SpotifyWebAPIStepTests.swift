@@ -2,6 +2,28 @@ import XCTest
 @testable import Spotiglass
 
 final class SpotifyWebAPIStepTests: XCTestCase {
+    func testSearchClampsRequestedLimitToSpotifyMaximum() async throws {
+        let httpClient = QueueHTTPClient([
+            .json("""
+            {
+              "tracks": { "items": [] },
+              "artists": { "items": [] },
+              "albums": { "items": [] },
+              "playlists": { "items": [] }
+            }
+            """)
+        ])
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+
+        _ = try await client.search(query: "kanye", limit: 999)
+
+        XCTAssertEqual(httpClient.requests.count, 1)
+        XCTAssertEqual(
+            httpClient.requests[0].url?.absoluteString,
+            "https://api.spotify.com/v1/search?q=kanye&type=track,artist,album,playlist&limit=50"
+        )
+    }
+
     func testRequestConstructionAddsAuthorizationAndQuery() throws {
         let client = SpotifyAPIClient(
             baseURL: URL(string: "https://api.spotify.com")!,

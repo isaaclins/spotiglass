@@ -191,12 +191,13 @@ struct SpotifyAPIClient {
         guard !trimmed.isEmpty else {
             return SpotifySearchResults(tracks: [], artists: [], albums: [], playlists: [])
         }
+        let cappedLimit = min(max(1, limit), 50)
         let dto: SpotifySearchResponseDTO = try await send(
             path: "/v1/search",
             queryItems: [
                 URLQueryItem(name: "q", value: trimmed),
                 URLQueryItem(name: "type", value: "track,artist,album,playlist"),
-                URLQueryItem(name: "limit", value: String(limit))
+                URLQueryItem(name: "limit", value: String(cappedLimit))
             ]
         )
         return dto.domainModel()

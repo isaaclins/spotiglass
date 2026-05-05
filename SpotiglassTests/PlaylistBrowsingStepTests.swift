@@ -140,6 +140,67 @@ final class PlaylistBrowsingStepTests: XCTestCase {
         XCTAssertEqual(error?.title, "Access denied")
     }
 
+    func testDetailUsesCachedTracksThenSurfacesInvalidLimitError() async {
+        let playlist = Self.playlist(id: "one", name: "One", snapshotID: "snapshot")
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([playlist])],
+            trackResults: ["one": [.failure(SpotifyAPIError.badRequest(message: "Invalid limit", details: nil))]]
+        )
+        let cache = MockBrowsingCache(cachedTracks: ["one": [Self.track(id: "cached")]])
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: cache)
+
+        await viewModel.load()
+
+        guard case let .staleCache(.playlist(detail), error) = viewModel.detailState else {
+            return XCTFail("Expected stale cached detail")
+        }
+        XCTAssertEqual(detail.tracks.map(\.title), ["Track cached"])
+        XCTAssertEqual(error?.title, "Spotify rejected the request")
+        XCTAssertEqual(error?.message, "Invalid limit")
+    }
+
+    func testExpiredPlaylistCacheStillRendersImmediatelyThenRefreshes() async {
+        let playlist = Self.playlist(id: "one", name: "One", snapshotID: "snapshot")
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([playlist])],
+            trackResults: ["one": [.success([Self.track(id: "fresh-track")])]]
+        )
+        let cache = MockBrowsingCache(
+            cachedTracks: ["one": [Self.track(id: "stale-track")]],
+            expiredTrackIDs: ["one"]
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: cache)
+
+        await viewModel.load()
+
+        XCTAssertEqual(Self.playlistTracks(viewModel.detailState).map(\.title), ["Track fresh-track"])
+        XCTAssertEqual(cache.savedTracks["one"]?.map(\.id), ["fresh-track"])
+    }
+
+    func testExpiredLikedSongsCacheStillRendersImmediatelyThenRefreshes() async {
+        let likedStale = Self.track(id: "liked-stale")
+        let likedFresh = Self.track(id: "liked-fresh")
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([Self.playlist(id: "one", name: "One")])],
+            trackResults: ["one": [.success([Self.track(id: "track-one")])]],
+            savedTracksResult: .success(SpotifySavedTracksResult(tracks: [likedFresh], totalAvailable: 1))
+        )
+        let cache = MockBrowsingCache(
+            cachedTracks: [SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID: [likedStale]],
+            expiredTrackIDs: [SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID]
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: cache)
+
+        await viewModel.load()
+        await viewModel.selectSidebar(.likedSongs)
+
+        XCTAssertEqual(Self.playlistTracks(viewModel.detailState).map(\.title), ["Track liked-fresh"])
+        XCTAssertEqual(
+            cache.savedTracks[SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID]?.map(\.id),
+            ["liked-fresh"]
+        )
+    }
+
     func testInsufficientScopeMapsToReconnectGuidance() async {
         let playlist = Self.playlist(id: "one", name: "One", snapshotID: "snapshot")
         let api = MockBrowsingAPI(
@@ -593,17 +654,22 @@ private final class MockBrowsingCache: SpotifyBrowsingCache {
     var cachedTracks: [String: [SpotifyPlaylistTrackItem]]
     /// Simulated age of the playlist list on disk; large values force `load()` to call `refreshPlaylists()` so tests exercise network refresh.
     var playlistListCacheAge: TimeInterval
+    /// Track caches treated as TTL-expired by `loadTracks(...)` but still
+    /// available to `loadTracksIgnoringAge(...)`.
+    var expiredTrackIDs: Set<String>
     private(set) var savedPlaylists: [SpotifyPlaylistSummary]?
     private(set) var savedTracks: [String: [SpotifyPlaylistTrackItem]] = [:]
 
     init(
         cachedPlaylists: [SpotifyPlaylistSummary]? = nil,
         cachedTracks: [String: [SpotifyPlaylistTrackItem]] = [:],
-        playlistListCacheAge: TimeInterval = 10_000
+        playlistListCacheAge: TimeInterval = 10_000,
+        expiredTrackIDs: Set<String> = []
     ) {
         self.cachedPlaylists = cachedPlaylists
         self.cachedTracks = cachedTracks
         self.playlistListCacheAge = playlistListCacheAge
+        self.expiredTrackIDs = expiredTrackIDs
     }
 
     func loadPlaylists(now: Date, maxAge: TimeInterval) throws -> [SpotifyPlaylistSummary]? {
@@ -621,7 +687,14 @@ private final class MockBrowsingCache: SpotifyBrowsingCache {
     }
 
     func loadTracks(playlistID: String, snapshotID: String, now: Date, maxAge: TimeInterval) throws -> [SpotifyPlaylistTrackItem]? {
-        cachedTracks[playlistID]
+        if expiredTrackIDs.contains(playlistID) {
+            return nil
+        }
+        return cachedTracks[playlistID]
+    }
+
+    func loadTracksIgnoringAge(playlistID: String, snapshotID: String) throws -> [SpotifyPlaylistTrackItem]? {
+        return cachedTracks[playlistID]
     }
 
     func saveTracks(_ tracks: [SpotifyPlaylistTrackItem], playlistID: String, snapshotID: String, cachedAt: Date) throws {

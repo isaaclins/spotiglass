@@ -27,9 +27,24 @@ final class PlaybackSessionViewModel: ObservableObject {
     private let webCommander: WebPlaybackCommanding
     private let progressTickInterval: TimeInterval
     private let clock = ContinuousClock()
+    private let pendingShuffleTimeout: Duration
+    private let pendingRepeatTimeout: Duration
+    private let postShuffleSyncDelay: Duration
+    private let postRepeatSyncDelay: Duration
     private var progressTickerTask: Task<Void, Never>?
+    private var shuffleSyncTask: Task<Void, Never>?
+    private var repeatSyncTask: Task<Void, Never>?
     private var lastProgressTickInstant: ContinuousClock.Instant?
     private var hasTransferredPlaybackToCurrentDevice = false
+    /// Expected repeat mode after an optimistic local toggle. While pending,
+    /// stale transport reads from Spotify are ignored for a short window so the
+    /// button does not snap back.
+    private var pendingRepeatMode: SpotifyRepeatMode?
+    private var pendingRepeatDeadline: ContinuousClock.Instant?
+    /// Expected shuffle state after an optimistic local toggle. Stale transport
+    /// reads are ignored while this short-lived expectation is pending.
+    private var pendingShuffleEnabled: Bool?
+    private var pendingShuffleDeadline: ContinuousClock.Instant?
 
     /// URI the user most recently asked to play. While set, any incoming
     /// Web Playback SDK `state_changed` event whose track URI does not match
@@ -51,11 +66,19 @@ final class PlaybackSessionViewModel: ObservableObject {
     init(
         playbackAPI: SpotifyPlaybackControlling,
         webCommander: WebPlaybackCommanding,
-        progressTickInterval: TimeInterval = 0.25
+        progressTickInterval: TimeInterval = 0.25,
+        pendingShuffleTimeout: Duration = .seconds(2),
+        pendingRepeatTimeout: Duration = .seconds(2),
+        postShuffleSyncDelay: Duration = .milliseconds(350),
+        postRepeatSyncDelay: Duration = .milliseconds(350)
     ) {
         self.playbackAPI = playbackAPI
         self.webCommander = webCommander
         self.progressTickInterval = progressTickInterval
+        self.pendingShuffleTimeout = pendingShuffleTimeout
+        self.pendingRepeatTimeout = pendingRepeatTimeout
+        self.postShuffleSyncDelay = postShuffleSyncDelay
+        self.postRepeatSyncDelay = postRepeatSyncDelay
         self.playbackVolume = Self.loadStoredPlaybackVolume()
     }
 
@@ -87,6 +110,8 @@ final class PlaybackSessionViewModel: ObservableObject {
 
     deinit {
         progressTickerTask?.cancel()
+        shuffleSyncTask?.cancel()
+        repeatSyncTask?.cancel()
     }
 
     func start() {
@@ -256,8 +281,8 @@ final class PlaybackSessionViewModel: ObservableObject {
     func syncTransportFromSpotify() async {
         do {
             if let transport = try await playbackAPI.fetchPlayerTransport() {
-                shuffleEnabled = transport.shuffle
-                repeatMode = transport.repeatMode
+                applyTransportShuffleEnabled(transport.shuffle)
+                applyTransportRepeatMode(transport.repeatMode)
             }
         } catch {
             // Queue poll should not surface transport read failures as playback errors.
@@ -272,11 +297,13 @@ final class PlaybackSessionViewModel: ObservableObject {
         let previousShuffle = shuffleEnabled
         let target = !shuffleEnabled
         shuffleEnabled = target
+        setPendingShuffle(enabled: target)
 
         do {
             try await playbackAPI.setShuffle(enabled: target, deviceID: deviceID)
-            Task { await syncTransportFromSpotify() }
+            scheduleTransportSyncAfterShuffleToggle()
         } catch {
+            clearPendingShuffle()
             if shuffleEnabled == target {
                 shuffleEnabled = previousShuffle
             }
@@ -292,11 +319,13 @@ final class PlaybackSessionViewModel: ObservableObject {
         let previousMode = repeatMode
         let nextMode = repeatMode.next
         repeatMode = nextMode
+        setPendingRepeat(mode: nextMode)
 
         do {
             try await playbackAPI.setRepeat(mode: nextMode, deviceID: deviceID)
-            Task { await syncTransportFromSpotify() }
+            scheduleTransportSyncAfterRepeatToggle()
         } catch {
+            clearPendingRepeat()
             if repeatMode == nextMode {
                 repeatMode = previousMode
             }
@@ -322,6 +351,8 @@ final class PlaybackSessionViewModel: ObservableObject {
         sdkNextTracks = []
         shuffleEnabled = false
         repeatMode = .off
+        clearPendingShuffle()
+        clearPendingRepeat()
         clearPendingPlay()
         setConnectionState(.disconnected)
     }
@@ -429,6 +460,84 @@ final class PlaybackSessionViewModel: ObservableObject {
             return nowPlaying.uri == uri ? nowPlaying : nil
         case .paused(.none), .disconnected, .connecting, .ready, .transferring, .unavailable, .error:
             return nil
+        }
+    }
+
+    private func setPendingRepeat(mode: SpotifyRepeatMode) {
+        pendingRepeatMode = mode
+        pendingRepeatDeadline = clock.now.advanced(by: pendingRepeatTimeout)
+    }
+
+    private func setPendingShuffle(enabled: Bool) {
+        pendingShuffleEnabled = enabled
+        pendingShuffleDeadline = clock.now.advanced(by: pendingShuffleTimeout)
+    }
+
+    private func clearPendingShuffle() {
+        pendingShuffleEnabled = nil
+        pendingShuffleDeadline = nil
+    }
+
+    private func clearPendingRepeat() {
+        pendingRepeatMode = nil
+        pendingRepeatDeadline = nil
+    }
+
+    /// Applies shuffle from Spotify transport while suppressing stale reads
+    /// during a short optimistic-shuffle window.
+    private func applyTransportShuffleEnabled(_ transportShuffle: Bool) {
+        guard let expected = pendingShuffleEnabled else {
+            shuffleEnabled = transportShuffle
+            return
+        }
+        if transportShuffle == expected {
+            shuffleEnabled = transportShuffle
+            clearPendingShuffle()
+            return
+        }
+        if let deadline = pendingShuffleDeadline, clock.now < deadline {
+            return
+        }
+        shuffleEnabled = transportShuffle
+        clearPendingShuffle()
+    }
+
+    /// Applies repeat from Spotify transport while suppressing stale reads
+    /// during a short optimistic-repeat window.
+    private func applyTransportRepeatMode(_ transportMode: SpotifyRepeatMode) {
+        guard let expected = pendingRepeatMode else {
+            repeatMode = transportMode
+            return
+        }
+        if transportMode == expected {
+            repeatMode = transportMode
+            clearPendingRepeat()
+            return
+        }
+        if let deadline = pendingRepeatDeadline, clock.now < deadline {
+            return
+        }
+        repeatMode = transportMode
+        clearPendingRepeat()
+    }
+
+    private func scheduleTransportSyncAfterRepeatToggle() {
+        repeatSyncTask?.cancel()
+        repeatSyncTask = Task { [weak self] in
+            guard let delay = self?.postRepeatSyncDelay else { return }
+            try? await Task.sleep(for: delay)
+            guard let self else { return }
+            await self.syncTransportFromSpotify()
+        }
+    }
+
+    private func scheduleTransportSyncAfterShuffleToggle() {
+        shuffleSyncTask?.cancel()
+        shuffleSyncTask = Task { [weak self] in
+            guard let delay = self?.postShuffleSyncDelay else { return }
+            try? await Task.sleep(for: delay)
+            guard let self else { return }
+            await self.syncTransportFromSpotify()
         }
     }
 

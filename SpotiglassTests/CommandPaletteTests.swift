@@ -3,6 +3,17 @@ import XCTest
 
 @MainActor
 final class CommandPaletteTests: XCTestCase {
+    func testFooterOrderPrioritizesHereTracksArtists() {
+        XCTAssertEqual(
+            CommandPaletteSearchCategory.footerOrder(includeThisPlaylist: true),
+            [.thisPlaylist, .tracks, .artists, .all, .myPlaylists]
+        )
+        XCTAssertEqual(
+            CommandPaletteSearchCategory.footerOrder(includeThisPlaylist: false),
+            [.tracks, .artists, .all, .myPlaylists]
+        )
+    }
+
     func testShortcutParsingSupportsModifiers() throws {
         let shortcut = try CommandShortcut(keystroke: "shift-cmd-k")
         XCTAssertEqual(shortcut.key, "k")
@@ -219,7 +230,6 @@ final class CommandPaletteTests: XCTestCase {
 
     func testAllCategoryEmitsPlaylistsThisPlaylistTracksArtistsAlbumsInOrder() async {
         let viewModel = CommandPaletteViewModel()
-        viewModel.searchCategoryFilter = .all
         viewModel.searchProvider = { _, _ in
             CommandPaletteSearchResults(
                 tracks: [
@@ -276,6 +286,7 @@ final class CommandPaletteTests: XCTestCase {
         }
 
         viewModel.show()
+        viewModel.searchCategoryFilter = .all
         viewModel.query = "any"
         viewModel.refresh()
         try? await Task.sleep(for: .milliseconds(400))
@@ -412,7 +423,6 @@ final class CommandPaletteTests: XCTestCase {
 
     func testAllCategoryMergesCatalogPlaylistsThenLibraryNotAlreadyInCatalog() async {
         let viewModel = CommandPaletteViewModel()
-        viewModel.searchCategoryFilter = .all
         viewModel.searchProvider = { _, _ in
             CommandPaletteSearchResults(
                 catalogPlaylists: [
@@ -447,6 +457,7 @@ final class CommandPaletteTests: XCTestCase {
         }
 
         viewModel.show()
+        viewModel.searchCategoryFilter = .all
         viewModel.query = "any"
         viewModel.refresh()
         try? await Task.sleep(for: .milliseconds(400))
@@ -548,7 +559,7 @@ final class CommandPaletteTests: XCTestCase {
         viewModel.setAvailableSearchCategories(CommandPaletteSearchCategory.footerOrder(includeThisPlaylist: true), refreshIfFilterInvalidated: false)
         viewModel.searchCategoryFilter = .thisPlaylist
         viewModel.setAvailableSearchCategories(CommandPaletteSearchCategory.footerOrder(includeThisPlaylist: false), refreshIfFilterInvalidated: false)
-        XCTAssertEqual(viewModel.searchCategoryFilter, .all)
+        XCTAssertEqual(viewModel.searchCategoryFilter, .tracks)
     }
 
     func testAugmentationShouldFetchWhenQueryMatchesArtistName() {

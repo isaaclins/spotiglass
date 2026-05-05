@@ -25,6 +25,10 @@ struct PlaybackNowPlaying: Equatable {
         artists.isEmpty ? "Unknown artist" : artists.joined(separator: ", ")
     }
 
+    var artistTapTargets: [ArtistTapTarget] {
+        Self.artistTapTargets(fromNames: artists)
+    }
+
     var progressText: String {
         "\(Self.durationText(milliseconds: positionMilliseconds)) / \(Self.durationText(milliseconds: durationMilliseconds))"
     }
@@ -50,6 +54,19 @@ struct PlaybackNowPlaying: Equatable {
             positionMilliseconds: positionMilliseconds,
             uri: uri
         )
+    }
+
+    static func artistTapTargets(fromNames names: [String]) -> [ArtistTapTarget] {
+        var seen = Set<String>()
+        var targets: [ArtistTapTarget] = []
+        for rawName in names {
+            let trimmed = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            let key = trimmed.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            guard seen.insert(key).inserted else { continue }
+            targets.append(ArtistTapTarget(id: nil, name: trimmed))
+        }
+        return targets
     }
 }
 
@@ -79,6 +96,17 @@ enum QueueItemSource: Equatable {
     case upcoming
 }
 
+struct ArtistTapTarget: Equatable, Identifiable {
+    let id: String?
+    let name: String
+
+    var stableID: String {
+        if let id { return "artist-id:\(id)" }
+        let normalized = name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+        return "artist-name:\(normalized)"
+    }
+}
+
 struct QueueItem: Identifiable, Equatable {
     let id: String
     let name: String
@@ -87,6 +115,7 @@ struct QueueItem: Identifiable, Equatable {
     let durationMilliseconds: Int
     let uri: String?
     let source: QueueItemSource
+    let artistTapTargets: [ArtistTapTarget]
 
     init(
         id: String? = nil,
@@ -95,7 +124,8 @@ struct QueueItem: Identifiable, Equatable {
         albumArtURL: URL?,
         durationMilliseconds: Int,
         uri: String?,
-        source: QueueItemSource
+        source: QueueItemSource,
+        artistTapTargets: [ArtistTapTarget] = []
     ) {
         self.id = id ?? uri ?? UUID().uuidString
         self.name = name
@@ -104,6 +134,7 @@ struct QueueItem: Identifiable, Equatable {
         self.durationMilliseconds = durationMilliseconds
         self.uri = uri
         self.source = source
+        self.artistTapTargets = artistTapTargets
     }
 }
 
@@ -115,7 +146,8 @@ extension QueueItem {
             albumArtURL: track.albumArtworkURL,
             durationMilliseconds: track.durationMilliseconds,
             uri: track.uri,
-            source: source
+            source: source,
+            artistTapTargets: artistTapTargets(artistRefs: track.artistRefs, fallbackSubtitle: track.artists.joined(separator: ", "))
         )
     }
 
@@ -146,8 +178,20 @@ extension QueueItem {
             albumArtURL: playback.albumArtURL,
             durationMilliseconds: playback.durationMilliseconds,
             uri: playback.uri,
-            source: source
+            source: source,
+            artistTapTargets: playback.artistTapTargets
         )
+    }
+
+    static func artistTapTargets(artistRefs: [SpotifyArtistRef], fallbackSubtitle: String) -> [ArtistTapTarget] {
+        if !artistRefs.isEmpty {
+            return artistRefs.map { ArtistTapTarget(id: $0.id, name: $0.name) }
+        }
+        let fallbackNames = fallbackSubtitle
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return PlaybackNowPlaying.artistTapTargets(fromNames: fallbackNames)
     }
 
     /// Builds a minimal ``PlaybackNowPlaying`` for LRCLIB prefetch (album title is unknown from queue rows).

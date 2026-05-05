@@ -3,6 +3,7 @@ import SwiftUI
 struct PlaybackControlsView: View {
     @ObservedObject var viewModel: PlaybackSessionViewModel
     @Binding var isLyricsPresented: Bool
+    let openArtist: (ArtistTapTarget) -> Void
     @State private var dragFraction: Double?
 
     var body: some View {
@@ -59,12 +60,16 @@ struct PlaybackControlsView: View {
                 }
                 .animation(.smooth(duration: 0.22), value: shouldShowPausedIndicator)
 
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .contentTransition(.opacity)
-                    .animation(.smooth(duration: 0.28), value: subtitle)
+                if artistTapTargets.isEmpty {
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .contentTransition(.opacity)
+                        .animation(.smooth(duration: 0.28), value: subtitle)
+                } else {
+                    artistLine
+                }
             }
         }
         .accessibilityElement(children: .combine)
@@ -74,10 +79,23 @@ struct PlaybackControlsView: View {
     private var leadingNowPlayingVisual: some View {
         ZStack {
             if let item = nowPlaying {
-                ArtworkView(url: item.albumArtURL, size: 44)
+                if showsLyricsButton {
+                    Button {
+                        isLyricsPresented = true
+                    } label: {
+                        ArtworkView(url: item.albumArtURL, size: 44)
+                    }
+                    .buttonStyle(.plain)
                     .id("artwork:\(item.uri ?? item.name)")
                     .transition(.opacity.combined(with: .scale(scale: 0.94)))
-                    .accessibilityHidden(true)
+                    .accessibilityLabel("Open lyrics")
+                    .accessibilityHint("Opens synchronized lyrics for the current track.")
+                } else {
+                    ArtworkView(url: item.albumArtURL, size: 44)
+                        .id("artwork:\(item.uri ?? item.name)")
+                        .transition(.opacity.combined(with: .scale(scale: 0.94)))
+                        .accessibilityHidden(true)
+                }
             } else {
                 Image(systemName: stateIcon)
                     .font(.title3)
@@ -89,6 +107,32 @@ struct PlaybackControlsView: View {
             }
         }
         .animation(.smooth(duration: 0.32), value: nowPlaying?.uri ?? "no-uri:\(stateIcon)")
+    }
+
+    private var artistLine: some View {
+        HStack(spacing: 0) {
+            ForEach(Array(artistTapTargets.enumerated()), id: \.element.stableID) { index, target in
+                if index > 0 {
+                    Text(", ")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Button {
+                    openArtist(target)
+                } label: {
+                    Text(target.name)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Open artist \(target.name)")
+            }
+            Spacer(minLength: 0)
+        }
+        .lineLimit(1)
+        .contentTransition(.opacity)
+        .animation(.smooth(duration: 0.28), value: subtitle)
     }
 
     private var centerScrubberGroup: some View {
@@ -312,6 +356,11 @@ struct PlaybackControlsView: View {
         case let .error(error):
             error.message
         }
+    }
+
+    private var artistTapTargets: [ArtistTapTarget] {
+        guard let nowPlaying else { return [] }
+        return nowPlaying.artistTapTargets
     }
 
     private var playPauseIcon: String {

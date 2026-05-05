@@ -18,6 +18,14 @@ After changing the icon, do a **clean build** and remove the old app from the **
 
 `scripts/make_square_icon.swift` is only a helper if you need to build a **raster** app icon set from a flat PNG; the shipped app uses **Icon Composer → Xcode**, not a hand-maintained `AppIcon.appiconset`.
 
+To regenerate the logo used by the root `README.md` from the current app icon pipeline:
+
+```sh
+scripts/generate_readme_logo.sh
+```
+
+Add `--rebuild` to force a fresh unsigned Release build before exporting the PNG.
+
 ## List schemes
 
 ```sh

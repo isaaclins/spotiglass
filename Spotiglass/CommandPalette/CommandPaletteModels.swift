@@ -82,9 +82,9 @@ enum CommandPaletteSearchCategory: String, Identifiable, Hashable {
 
     /// Footer segment order; `thisPlaylist` is omitted when no playlist is open in the browser.
     static func footerOrder(includeThisPlaylist: Bool) -> [CommandPaletteSearchCategory] {
-        var order: [CommandPaletteSearchCategory] = [.all, .tracks, .artists]
+        var order: [CommandPaletteSearchCategory] = [.tracks, .artists, .all]
         if includeThisPlaylist {
-            order.append(.thisPlaylist)
+            order.insert(.thisPlaylist, at: 0)
         }
         order.append(.myPlaylists)
         return order

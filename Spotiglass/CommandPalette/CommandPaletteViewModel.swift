@@ -54,7 +54,7 @@ final class CommandPaletteViewModel: ObservableObject {
     func setAvailableSearchCategories(_ categories: [CommandPaletteSearchCategory], refreshIfFilterInvalidated: Bool = true) {
         availableSearchCategories = categories
         if !categories.contains(searchCategoryFilter) {
-            searchCategoryFilter = .all
+            searchCategoryFilter = categories.first ?? .all
             if refreshIfFilterInvalidated, isPresented {
                 refresh()
             }
@@ -64,7 +64,7 @@ final class CommandPaletteViewModel: ObservableObject {
     func show() {
         isPresented = true
         query = ""
-        searchCategoryFilter = .all
+        searchCategoryFilter = availableSearchCategories.first ?? .all
         selectedIndex = 0
         sections = []
         errorText = nil
