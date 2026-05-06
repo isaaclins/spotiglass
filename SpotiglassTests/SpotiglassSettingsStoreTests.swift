@@ -13,6 +13,7 @@ final class SpotiglassSettingsStoreTests: XCTestCase {
         XCTAssertEqual(store.settings.version, SpotiglassSettingsFile.currentVersion)
         XCTAssertFalse(store.settings.equalizer.enabled)
         XCTAssertEqual(store.settings.equalizer.bands.count, EqualizerSettings.bandCount)
+        XCTAssertTrue(store.settings.commandPalette.backdropBlur)
         XCTAssertFalse(store.settings.keybinds.isEmpty)
     }
 

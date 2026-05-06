@@ -132,6 +132,14 @@ final class CommandPaletteTests: XCTestCase {
         XCTAssertEqual(receivedID, "abc123")
     }
 
+    func testToggleLyricsCommandInvokesHandler() {
+        let manager = CommandPaletteManager()
+        var toggled = false
+        manager.toggleLyrics = { toggled = true }
+        manager.execute(commandID: CommandPaletteCommandID.toggleLyrics)
+        XCTAssertTrue(toggled)
+    }
+
     // MARK: - Scope parser
 
     func testScopeParseEmptyDefaultsToSongs() {

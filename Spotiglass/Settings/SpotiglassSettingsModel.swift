@@ -1,5 +1,15 @@
 import Foundation
 
+/// Command palette appearance preferences persisted in ``SpotiglassSettingsFile``.
+struct CommandPaletteSettings: Codable, Equatable {
+    /// When true, the full-window scrim behind the palette uses a material blur.
+    var backdropBlur: Bool
+
+    init(backdropBlur: Bool = true) {
+        self.backdropBlur = backdropBlur
+    }
+}
+
 /// Top-level shape of `~/.config/spotiglass/settings.json`.
 ///
 /// Keeps every user-editable Spotiglass setting in one file so the user has a single
@@ -10,15 +20,18 @@ struct SpotiglassSettingsFile: Codable, Equatable {
     var version: Int
     var keybinds: [CommandPaletteKeyBinding]
     var equalizer: EqualizerSettings
+    var commandPalette: CommandPaletteSettings
 
     init(
         version: Int = SpotiglassSettingsFile.currentVersion,
         keybinds: [CommandPaletteKeyBinding],
-        equalizer: EqualizerSettings
+        equalizer: EqualizerSettings,
+        commandPalette: CommandPaletteSettings = CommandPaletteSettings()
     ) {
         self.version = version
         self.keybinds = keybinds
         self.equalizer = equalizer
+        self.commandPalette = commandPalette
     }
 
     init(from decoder: Decoder) throws {
@@ -26,12 +39,15 @@ struct SpotiglassSettingsFile: Codable, Equatable {
         version = try container.decodeIfPresent(Int.self, forKey: .version) ?? SpotiglassSettingsFile.currentVersion
         keybinds = try container.decodeIfPresent([CommandPaletteKeyBinding].self, forKey: .keybinds) ?? []
         equalizer = try container.decodeIfPresent(EqualizerSettings.self, forKey: .equalizer) ?? EqualizerSettings()
+        commandPalette = try container.decodeIfPresent(CommandPaletteSettings.self, forKey: .commandPalette)
+            ?? CommandPaletteSettings()
     }
 
     private enum CodingKeys: String, CodingKey {
         case version
         case keybinds
         case equalizer
+        case commandPalette
     }
 }
 

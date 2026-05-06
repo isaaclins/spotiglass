@@ -12,6 +12,13 @@ private enum UnifiedRefreshFocus: Hashable {
     case queuePanel
 }
 
+/// Identifies which side panel a user just opened so the narrow-window mutual-exclusion rule
+/// can keep the most-recently-opened side and close the other.
+private enum SidebarKind {
+    case playlist
+    case queue
+}
+
 struct PlaylistBrowserView: View {
     @StateObject private var viewModel: PlaylistBrowserViewModel
     @StateObject private var playbackViewModel: PlaybackSessionViewModel
@@ -26,7 +33,9 @@ struct PlaylistBrowserView: View {
     @State private var pendingPlaylistListScrollRestoreID: String?
     /// Drives only the **playlist** sidebar (leading column). Queue visibility is separate — see `detailWithQueueSplit` below.
     @State private var playlistColumnVisibility: NavigationSplitViewVisibility = .doubleColumn
-    /// Used to shrink column minimums when playlist sidebar + queue + detail would exceed the window width.
+    /// Drives the narrow-window mutual-exclusion rule: when this drops below
+    /// ``SpotiglassDesign/dualSidebarComfortableMinWidth`` the playlist sidebar and queue panel can no
+    /// longer coexist (opening one closes the other; resizing wide→narrow auto-closes the LRU one).
     @State private var browserContentWidth: CGFloat = 2000
     @State private var browserWidthSampler = BrowserWidthSampler()
     @State private var lastBrowserWidthCommitTime: CFAbsoluteTime = 0
@@ -34,6 +43,11 @@ struct PlaylistBrowserView: View {
     /// list highlight to whatever was selected before the click.
     @State private var lastNonPinnedSelection: SidebarSelection?
     @State private var unifiedRefreshFocus: UnifiedRefreshFocus = .mainContent
+    /// Which side the user most recently OPENED (closed → open transition). Used to pick the loser
+    /// when the window shrinks below ``SpotiglassDesign/dualSidebarComfortableMinWidth`` with both
+    /// sides still visible. Defaults to `.playlist` so the first narrow-resize tiebreaker closes the
+    /// queue panel (the explicitly opt-in overlay) and keeps the primary nav sidebar.
+    @State private var lastOpenedSidebar: SidebarKind = .playlist
     private let commander: WebPlaybackViewCommander
     private let playbackCoordinator: SpotifyPlaybackWebViewCoordinator
     @ObservedObject private var commandPaletteManager: CommandPaletteManager
@@ -132,8 +146,8 @@ struct PlaylistBrowserView: View {
                     .background(.background)
                     .toolbar(removing: lyricsOverlay.isPresented ? .sidebarToggle : nil)
                     .navigationSplitViewColumnWidth(
-                        min: resolvedPlaylistSidebarMinWidth,
-                        ideal: resolvedPlaylistSidebarIdealWidth
+                        min: SpotiglassDesign.playlistSidebarMinWidth,
+                        ideal: SpotiglassDesign.sidebarWidth
                     )
             } detail: {
                 detailWithQueueSplit
@@ -237,7 +251,7 @@ struct PlaylistBrowserView: View {
                     openAlbumFromTapTarget(album, artistSubtitle: artistSubtitle, artworkURL: artworkURL)
                 }
             )
-            bindCommandPalette(queueVisible: $isQueueVisible)
+            bindCommandPalette(queueVisible: $isQueueVisible, lyricsPresented: isLyricsPresentedBinding)
             commandPaletteManager.dismissLyricsOverlayIfPresented = { [lyricsOverlay] in
                 guard lyricsOverlay.isPresented else { return false }
                 lyricsOverlay.dismiss()
@@ -251,13 +265,13 @@ struct PlaylistBrowserView: View {
             lyricsOverlay.detach()
         }
         .onChange(of: viewModel.sidebarSelection) { _, _ in
-            bindCommandPalette(queueVisible: $isQueueVisible)
+            bindCommandPalette(queueVisible: $isQueueVisible, lyricsPresented: isLyricsPresentedBinding)
         }
         .onChange(of: viewModel.detailState) { _, _ in
-            bindCommandPalette(queueVisible: $isQueueVisible)
+            bindCommandPalette(queueVisible: $isQueueVisible, lyricsPresented: isLyricsPresentedBinding)
         }
         .onChange(of: pinnedStore.items) { _, _ in
-            bindCommandPalette(queueVisible: $isQueueVisible)
+            bindCommandPalette(queueVisible: $isQueueVisible, lyricsPresented: isLyricsPresentedBinding)
         }
         .onChange(of: isQueueVisible) { _, visible in
             queueViewModel.setPanelVisible(visible)
@@ -267,6 +281,21 @@ struct PlaylistBrowserView: View {
                 unifiedRefreshFocus = .mainContent
             }
             syncUnifiedRefreshRoutingToViewModel()
+
+            if visible {
+                lastOpenedSidebar = .queue
+                if isMutualExclusionWidth, playlistColumnVisibility != .detailOnly {
+                    playlistColumnVisibility = .detailOnly
+                }
+            }
+        }
+        .onChange(of: playlistColumnVisibility) { _, newValue in
+            if newValue != .detailOnly {
+                lastOpenedSidebar = .playlist
+                if isMutualExclusionWidth, isQueueVisible {
+                    isQueueVisible = false
+                }
+            }
         }
         .onChange(of: unifiedRefreshFocus) { _, _ in
             syncUnifiedRefreshRoutingToViewModel()
@@ -347,24 +376,24 @@ struct PlaylistBrowserView: View {
         await viewModel.performUnifiedRefresh { await queueViewModel.refreshQueue() }
     }
 
-    /// Playlist sidebar + main detail + queue strip; `.detailOnly` means the playlist sidebar is hidden so only two regions compete for width.
-    private var isTripleColumnTight: Bool {
-        tripleColumnLayoutIsTight(for: browserContentWidth)
+    /// True when the window is narrow enough that the playlist sidebar and queue panel must be
+    /// mutually exclusive (opening one closes the other) so neither side ever clips off-screen.
+    private var isMutualExclusionWidth: Bool {
+        Self.mutualExclusionWidth(for: browserContentWidth)
     }
 
-    private func tripleColumnLayoutIsTight(for width: CGFloat) -> Bool {
-        guard isQueueVisible else { return false }
-        guard playlistColumnVisibility != .detailOnly else { return false }
-        return width < SpotiglassDesign.tripleColumnCompactBreakpoint
+    private static func mutualExclusionWidth(for width: CGFloat) -> Bool {
+        width < SpotiglassDesign.dualSidebarComfortableMinWidth
     }
 
     /// Coalesces high-frequency geometry callbacks during window resize so `NavigationSplitView` column constraints are not rewritten every frame.
+    /// When the threshold is crossed wide→narrow with both sides open, also auto-closes the LRU side.
     private func commitBrowserContentWidthIfNeeded(_ newWidth: CGFloat) {
         browserWidthSampler.latestWidth = newWidth
         let now = CFAbsoluteTimeGetCurrent()
-        let tightNew = tripleColumnLayoutIsTight(for: newWidth)
-        let tightCommitted = tripleColumnLayoutIsTight(for: browserContentWidth)
-        let crossedMeaningfulBreakpoint = tightNew != tightCommitted
+        let narrowNew = Self.mutualExclusionWidth(for: newWidth)
+        let narrowCommitted = Self.mutualExclusionWidth(for: browserContentWidth)
+        let crossedMeaningfulBreakpoint = narrowNew != narrowCommitted
         let throttleElapsed = now - lastBrowserWidthCommitTime >= 0.06
         let largeDrift = abs(newWidth - browserContentWidth) > 120
         guard crossedMeaningfulBreakpoint || throttleElapsed || largeDrift else {
@@ -372,30 +401,15 @@ struct PlaylistBrowserView: View {
         }
         lastBrowserWidthCommitTime = now
         browserContentWidth = newWidth
-    }
 
-    private var resolvedPlaylistSidebarMinWidth: CGFloat {
-        isTripleColumnTight ? SpotiglassDesign.playlistSidebarMinWidthCompact : SpotiglassDesign.playlistSidebarMinWidth
-    }
-
-    private var resolvedPlaylistSidebarIdealWidth: CGFloat {
-        if isTripleColumnTight {
-            min(SpotiglassDesign.sidebarWidth, SpotiglassDesign.playlistSidebarMinWidth + 80)
-        } else {
-            SpotiglassDesign.sidebarWidth
+        if narrowNew, !narrowCommitted,
+           isQueueVisible, playlistColumnVisibility != .detailOnly {
+            if lastOpenedSidebar == .queue {
+                playlistColumnVisibility = .detailOnly
+            } else {
+                isQueueVisible = false
+            }
         }
-    }
-
-    private var resolvedDetailMinWidth: CGFloat {
-        isTripleColumnTight ? SpotiglassDesign.detailColumnMinWidthCompact : SpotiglassDesign.detailColumnMinWidth
-    }
-
-    private var resolvedQueueMinWidth: CGFloat {
-        isTripleColumnTight ? SpotiglassDesign.queuePanelMinWidthCompact : SpotiglassDesign.queuePanelMinWidth
-    }
-
-    private var resolvedQueueMaxWidth: CGFloat {
-        isTripleColumnTight ? SpotiglassDesign.queuePanelMaxWidthCompact : SpotiglassDesign.queuePanelMaxWidth
     }
 
     /// Playback identity without scrubber position ticks (avoids re-running queue hooks every progress frame).
@@ -665,7 +679,7 @@ struct PlaylistBrowserView: View {
         HStack(spacing: 0) {
             playlistDetail
                 .background(.background)
-                .frame(minWidth: resolvedDetailMinWidth)
+                .frame(minWidth: SpotiglassDesign.detailColumnMinWidth)
                 .layoutPriority(1)
                 .onHover { hovering in
                     if hovering { unifiedRefreshFocus = .mainContent }
@@ -698,9 +712,9 @@ struct PlaylistBrowserView: View {
         )
             .background(.background)
             .frame(
-                minWidth: resolvedQueueMinWidth,
-                idealWidth: isTripleColumnTight ? resolvedQueueMinWidth : SpotiglassDesign.sidebarWidth,
-                maxWidth: resolvedQueueMaxWidth
+                minWidth: SpotiglassDesign.queuePanelMinWidth,
+                idealWidth: SpotiglassDesign.sidebarWidth,
+                maxWidth: SpotiglassDesign.queuePanelMaxWidth
             )
     }
 
@@ -904,7 +918,7 @@ struct PlaylistBrowserView: View {
         return results.artists.first?.id
     }
 
-    private func bindCommandPalette(queueVisible: Binding<Bool>) {
+    private func bindCommandPalette(queueVisible: Binding<Bool>, lyricsPresented: Binding<Bool>) {
         syncUnifiedRefreshRoutingToViewModel()
         let includeThisPlaylist = viewModel.isCommandPaletteContextSearchEligible
         commandPaletteManager.viewModel.setAvailableSearchCategories(
@@ -955,17 +969,21 @@ struct PlaylistBrowserView: View {
         commandPaletteManager.toggleQueue = {
             queueVisible.wrappedValue.toggle()
         }
+        commandPaletteManager.toggleLyrics = {
+            lyricsPresented.wrappedValue.toggle()
+        }
         commandPaletteManager.filterByArtist = { [weak commandPaletteManager] name in
             // Re-query in songs scope using the artist name as the search term.
             commandPaletteManager?.viewModel.applyExternalQuery(name)
         }
-        commandPaletteManager.spotifySearch = { [self, spotifySearchClient, commandPaletteManager, weak viewModel] query, category in
+        commandPaletteManager.spotifySearch = { [self, spotifySearchClient, commandPaletteManager, weak viewModel, weak queueVM] query, category in
             try await self.spotifyPaletteSearch(
                 query: query,
                 category: category,
                 spotifySearchClient: spotifySearchClient,
                 commandPaletteManager: commandPaletteManager,
-                viewModel: viewModel
+                viewModel: viewModel,
+                queueViewModel: queueVM
             )
         }
         commandPaletteManager.viewModel.refresh()
@@ -979,7 +997,8 @@ extension PlaylistBrowserView {
         category: CommandPaletteSearchCategory,
         spotifySearchClient: SpotifyAPIClient,
         commandPaletteManager: CommandPaletteManager,
-        viewModel: PlaylistBrowserViewModel?
+        viewModel: PlaylistBrowserViewModel?,
+        queueViewModel: QueueViewModel?
     ) async throws -> CommandPaletteSearchResults {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -1038,6 +1057,9 @@ extension PlaylistBrowserView {
                     pinAction = nil
                     unpinAction = nil
                 }
+                let queueAction: (@MainActor () async -> Void)? = { [weak queueViewModel] in
+                    await queueViewModel?.addToQueue(uri: uri)
+                }
                 let item = CommandPaletteItem(
                     id: "track-\(row.id)",
                     title: row.title,
@@ -1048,6 +1070,7 @@ extension PlaylistBrowserView {
                     keywords: keywords,
                     pinAction: pinAction,
                     unpinAction: unpinAction,
+                    queueAction: queueAction,
                     action: {
                         commandPaletteManager.execute(
                             commandID: "playback.playURI",
@@ -1068,6 +1091,10 @@ extension PlaylistBrowserView {
             let originPID = paletteOriginPlaylistID()
             let pinPayload = PinnedItem.track(track, originPlaylistID: originPID)
             let pinPair = pinUnpinClosures(for: pinPayload)
+            let trackURI = track.uri
+            let queueAction: (@MainActor () async -> Void)? = { [weak queueViewModel] in
+                await queueViewModel?.addToQueue(uri: trackURI)
+            }
             return CommandPaletteItem(
                 id: "track-\(track.id)",
                 title: track.name,
@@ -1078,6 +1105,7 @@ extension PlaylistBrowserView {
                 keywords: track.artists + [track.uri],
                 pinAction: pinPair.pin,
                 unpinAction: pinPair.unpin,
+                queueAction: queueAction,
                 action: {
                     commandPaletteManager.execute(
                         commandID: "playback.playURI",

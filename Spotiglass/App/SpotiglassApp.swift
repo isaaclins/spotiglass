@@ -31,6 +31,7 @@ struct SpotiglassApp: App {
         WindowGroup {
             RootView(commandPaletteManager: commandPaletteManager)
                 .environmentObject(authViewModel)
+                .environmentObject(settingsStore)
                 .environmentObject(pinnedStore)
                 .environmentObject(lyricsOverlayController)
                 .frame(minWidth: 520, minHeight: 360)

@@ -151,12 +151,31 @@ final class CommandPaletteViewModel: ObservableObject {
         unpinAction()
     }
 
+    /// Runs the highlighted palette item's ``queueAction`` (if any) without
+    /// dismissing the palette. No-op when the row is not a track, so spamming
+    /// ⌥↩ on commands / artists / playlists / albums stays inert.
+    func executeSelectionEnqueue() async {
+        let items = visibleItems
+        guard items.indices.contains(selectedIndex) else { return }
+        let item = items[selectedIndex]
+        guard let queueAction = item.queueAction else { return }
+        await queueAction()
+    }
+
     /// True when the currently-highlighted item exposes a `pinAction`. Used
     /// by `CommandPaletteView` to surface the `⌘↩ pin` footer hint.
     var canPinSelectedItem: Bool {
         let items = visibleItems
         guard items.indices.contains(selectedIndex) else { return false }
         return items[selectedIndex].pinAction != nil
+    }
+
+    /// True when the currently-highlighted item exposes a `queueAction`. Drives
+    /// the conditional `⌥↩ queue` footer hint in `CommandPaletteView`.
+    var canEnqueueSelectedItem: Bool {
+        let items = visibleItems
+        guard items.indices.contains(selectedIndex) else { return false }
+        return items[selectedIndex].queueAction != nil
     }
 
     private func performSearch() async {

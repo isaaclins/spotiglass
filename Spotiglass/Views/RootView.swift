@@ -200,7 +200,11 @@ private struct LyricsOverlayLayer: View {
 }
 
 #Preview {
-    RootView(commandPaletteManager: CommandPaletteManager())
+    let settingsURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("SpotiglassRootPreview-\(UUID().uuidString)", isDirectory: true)
+        .appendingPathComponent("settings.json", isDirectory: false)
+    return RootView(commandPaletteManager: CommandPaletteManager())
+        .environmentObject(SpotiglassSettingsStore(fileURL: settingsURL))
         .environmentObject(AuthViewModel.preview())
         .environmentObject(PinnedItemsStore(cache: InMemoryPinnedItemsCache()))
         .environmentObject(LyricsOverlayController())

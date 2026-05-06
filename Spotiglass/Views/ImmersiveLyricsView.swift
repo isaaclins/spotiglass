@@ -1,6 +1,13 @@
 import AppKit
 import SwiftUI
 
+private enum ImmersiveLyricsLayout {
+    /// Full-window overlays often report `safeAreaInsets.top == 0`; still clear title bar + unified toolbar.
+    static let minimumTopClearance: CGFloat = 52
+    static let lyricsInnerTopPadding: CGFloat = 8
+    static let lyricsInnerBottomPadding: CGFloat = 36
+}
+
 struct ImmersiveLyricsView: View {
     @ObservedObject var playbackViewModel: PlaybackSessionViewModel
     @ObservedObject var queueViewModel: QueueViewModel
@@ -11,6 +18,11 @@ struct ImmersiveLyricsView: View {
 
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// Soft fade at scroll top/bottom; off when legibility or calm motion is preferred.
+    private var usesLyricsScrollEdgeFade: Bool {
+        !reduceTransparency && !reduceMotion
+    }
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -42,10 +54,9 @@ struct ImmersiveLyricsView: View {
     @ViewBuilder
     private var mainContent: some View {
         GeometryReader { geo in
+            let topClearance = max(geo.safeAreaInsets.top, ImmersiveLyricsLayout.minimumTopClearance)
             let bottomPadding = max(SpotiglassDesign.spacingM, geo.safeAreaInsets.bottom)
-            // Main layout relies on the host `VStack` safe area (below title bar). Do not add
-            // `.padding(.top, safeAreaInsets.top)` here — it duplicates that inset and creates a large gap.
-            let usableHeight = max(0, geo.size.height - bottomPadding)
+            let usableHeight = max(0, geo.size.height - topClearance - bottomPadding)
             let leadingGutter = max(SpotiglassDesign.spacingL, geo.safeAreaInsets.leading)
             let trailingGutter = max(SpotiglassDesign.spacingL, geo.safeAreaInsets.trailing)
             let wide = geo.size.width > 720
@@ -64,6 +75,7 @@ struct ImmersiveLyricsView: View {
                     }
                 }
             }
+            .padding(.top, topClearance)
             .padding(.leading, leadingGutter)
             .padding(.trailing, trailingGutter)
             .padding(.bottom, bottomPadding)
@@ -332,16 +344,21 @@ struct ImmersiveLyricsView: View {
 
     private func timedLyricsList(lines: [SyncedLyricLine], maxHeight: CGFloat) -> some View {
         let activeIndex = LrcLineParser.activeTimedLineIndex(positionMs: positionMs, lines: lines)
-        return ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 14) {
-                    ForEach(lines) { line in
-                        lyricLineText(line.words, isActive: line.id == activeIndex)
-                            .id(line.id)
-                    }
+        let syncedScroll = lyricsScrollCore {
+            LazyVStack(alignment: .leading, spacing: 14) {
+                ForEach(lines) { line in
+                    lyricLineText(line.words, isActive: line.id == activeIndex)
+                        .id(line.id)
                 }
-                .padding(.top, 8)
-                .padding(.bottom, 24)
+            }
+        }
+        return ScrollViewReader { proxy in
+            Group {
+                if usesLyricsScrollEdgeFade {
+                    syncedScroll.mask { lyricsScrollEdgeFadeGradient }
+                } else {
+                    syncedScroll
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: maxHeight, alignment: .leading)
             .onChange(of: activeIndex) { _, newValue in
@@ -368,16 +385,21 @@ struct ImmersiveLyricsView: View {
             durationMs: duration,
             lineCount: lines.count
         )
-        return ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 12) {
-                    ForEach(Array(lines.enumerated()), id: \.offset) { index, text in
-                        lyricLineText(text, isActive: index == active)
-                            .id(index)
-                    }
+        let plainScroll = lyricsScrollCore {
+            LazyVStack(alignment: .leading, spacing: 12) {
+                ForEach(Array(lines.enumerated()), id: \.offset) { index, text in
+                    lyricLineText(text, isActive: index == active)
+                        .id(index)
                 }
-                .padding(.top, 8)
-                .padding(.bottom, 24)
+            }
+        }
+        return ScrollViewReader { proxy in
+            Group {
+                if usesLyricsScrollEdgeFade {
+                    plainScroll.mask { lyricsScrollEdgeFadeGradient }
+                } else {
+                    plainScroll
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: maxHeight, alignment: .leading)
             .onChange(of: active) { _, newValue in
@@ -400,6 +422,27 @@ struct ImmersiveLyricsView: View {
                 }
             }
         }
+    }
+
+    private func lyricsScrollCore<Content: View>(@ViewBuilder rows: () -> Content) -> some View {
+        ScrollView {
+            rows()
+                .padding(.top, ImmersiveLyricsLayout.lyricsInnerTopPadding)
+                .padding(.bottom, ImmersiveLyricsLayout.lyricsInnerBottomPadding)
+        }
+    }
+
+    private var lyricsScrollEdgeFadeGradient: LinearGradient {
+        LinearGradient(
+            stops: [
+                .init(color: .clear, location: 0),
+                .init(color: .black, location: 0.07),
+                .init(color: .black, location: 0.93),
+                .init(color: .clear, location: 1)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
     }
 
     private func lyricLineText(_ text: String, isActive: Bool) -> some View {
@@ -490,8 +533,12 @@ private struct ImmersiveBlurredArtwork: View {
 
     var body: some View {
         GeometryReader { geo in
-            Group {
+            let size = geo.size
+            ZStack {
                 if let image {
+                    // Blur is computed on a fixed tile, then scaled up to **aspect-fill** the window.
+                    // Without this, a ~1024pt tile centered in an ultrawide/tall window leaves black gutters;
+                    // scaling mirrors “stretching” the artwork into the sides instead of empty black.
                     Image(nsImage: image)
                         .resizable()
                         .interpolation(.medium)
@@ -499,11 +546,17 @@ private struct ImmersiveBlurredArtwork: View {
                         .frame(width: blurredTileSize, height: blurredTileSize)
                         .compositingGroup()
                         .blur(radius: blurRadius)
-                        .position(x: geo.size.width / 2, y: geo.size.height / 2)
+                        .scaleEffect(Self.coverScaleForBlurredBackdrop(
+                            tile: blurredTileSize,
+                            blurRadius: blurRadius,
+                            target: size
+                        ))
                 } else {
                     Color.black
                 }
             }
+            .frame(width: size.width, height: size.height)
+            .clipped()
         }
         .task(id: url.absoluteString) {
             guard let full = await ArtworkImageStore.shared.image(for: url) else {
@@ -512,6 +565,16 @@ private struct ImmersiveBlurredArtwork: View {
             }
             image = Self.downscaledForBlur(full, maxEdge: downscaleMaxEdge)
         }
+    }
+
+    /// Minimum uniform scale so the blurred tile (plus fringe from `blurRadius`) covers `target` without letterboxing.
+    private static func coverScaleForBlurredBackdrop(tile: CGFloat, blurRadius: CGFloat, target: CGSize) -> CGFloat {
+        let fringe = blurRadius * 2.5
+        let eff = tile + fringe
+        guard eff > 0, target.width > 0, target.height > 0 else { return 1 }
+        let sx = target.width / eff
+        let sy = target.height / eff
+        return max(sx, sy, 1)
     }
 
     private static func downscaledForBlur(_ image: NSImage, maxEdge: CGFloat) -> NSImage {

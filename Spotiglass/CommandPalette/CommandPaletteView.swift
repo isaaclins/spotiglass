@@ -3,6 +3,7 @@ import SwiftUI
 
 struct CommandPaletteView: View {
     @ObservedObject var viewModel: CommandPaletteViewModel
+    @EnvironmentObject private var settingsStore: SpotiglassSettingsStore
 
     private enum SearchFocusField {
         case query
@@ -12,76 +13,44 @@ struct CommandPaletteView: View {
     @State private var previousResponder: NSResponder?
     @State private var previousWindow: NSWindow?
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+    @Namespace private var paletteGlass
+
+    @ViewBuilder
+    private var paletteBackdrop: some View {
+        Group {
+            if settingsStore.settings.commandPalette.backdropBlur {
+                Rectangle()
+                    .fill(.ultraThinMaterial)
+            } else {
+                Color.clear
+            }
+        }
+        .contentShape(Rectangle())
+        .ignoresSafeArea()
+        .onTapGesture { viewModel.hide() }
+        .accessibilityHidden(true)
+    }
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.18)
-                .ignoresSafeArea()
-                .onTapGesture {
-                    viewModel.hide()
-                }
+            paletteBackdrop
 
-            VStack(spacing: 0) {
-                HStack(spacing: SpotiglassDesign.spacingS) {
-                    Image(systemName: scopeIconName)
-                        .foregroundStyle(scopeIconColor)
-                    TextField(searchPlaceholder, text: $viewModel.query)
-                        .textFieldStyle(.plain)
-                        .focused($focusedField, equals: .query)
-                        .onChange(of: viewModel.query) { _, _ in
-                            viewModel.refresh()
-                        }
-                        .onSubmit {
-                            Task { await viewModel.executeSelection() }
-                        }
-                }
-                .padding(SpotiglassDesign.spacingM)
-
-                Divider()
-
-                if viewModel.isLoading {
-                    ProgressView("Searching Spotify...")
-                        .padding(SpotiglassDesign.spacingM)
-                }
-
-                if let errorText = viewModel.errorText {
-                    Text(errorText)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, SpotiglassDesign.spacingM)
-                        .padding(.top, SpotiglassDesign.spacingS)
-                }
-
-                resultsBody
-
-                Divider()
-                HStack(alignment: .center, spacing: SpotiglassDesign.spacingM) {
-                    HStack(spacing: SpotiglassDesign.spacingS) {
-                        Text("↑↓ navigate")
-                        Text("↩ run")
-                        Text("esc close")
-                        if viewModel.currentScope != .commands {
-                            Text("Tab filter")
-                        }
-                        if viewModel.canPinSelectedItem {
-                            Text("⌘↩ pin")
-                        }
+            GlassEffectContainer(spacing: SpotiglassDesign.spacingS) {
+                VStack(spacing: SpotiglassDesign.spacingS) {
+                    searchCard
+                    if shouldShowResultsCard {
+                        resultsCard
                     }
-                    Spacer(minLength: 8)
-                    footerTrailing
+                    footerRow
                 }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(SpotiglassDesign.spacingS)
+                .frame(maxWidth: 760)
+                .frame(maxWidth: .infinity)
+                .padding(SpotiglassDesign.spacingXL)
+                .animation(
+                    accessibilityReduceMotion ? nil : .smooth(duration: 0.30),
+                    value: shouldShowResultsCard
+                )
             }
-            .frame(maxWidth: 760)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: SpotiglassDesign.cornerL, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: SpotiglassDesign.cornerL, style: .continuous)
-                    .strokeBorder(.white.opacity(0.12), lineWidth: 1)
-            }
-            .shadow(color: .black.opacity(0.2), radius: 24, y: 14)
-            .padding(SpotiglassDesign.spacingXL)
         }
         .onAppear {
             previousWindow = NSApp.keyWindow
@@ -110,27 +79,139 @@ struct CommandPaletteView: View {
         }
     }
 
-    @ViewBuilder
-    private var footerTrailing: some View {
-        if viewModel.currentScope == .commands {
-            Text("Remove \(Text(">").foregroundStyle(.tertiary)) prefix to search Spotify")
-                .multilineTextAlignment(.trailing)
-        } else {
-            Picker("Result category", selection: Binding(
-                get: { viewModel.searchCategoryFilter },
-                set: { newValue in
-                    viewModel.searchCategoryFilter = newValue
+    /// Hides the results panel while the palette is "idle" (empty query or only a scope prefix) so the footer chips
+    /// sit directly under the search field. Loading and error states still surface so user feedback is never dropped.
+    private var shouldShowResultsCard: Bool {
+        let trimmed = viewModel.query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let onlyPrefix = trimmed == ">" || trimmed == "@"
+        if trimmed.isEmpty || onlyPrefix {
+            return viewModel.isLoading || viewModel.errorText != nil
+        }
+        return true
+    }
+
+    private var searchCard: some View {
+        HStack(spacing: SpotiglassDesign.spacingS) {
+            Image(systemName: scopeIconName)
+                .foregroundStyle(scopeIconColor)
+            TextField(searchPlaceholder, text: $viewModel.query)
+                .textFieldStyle(.plain)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .focused($focusedField, equals: .query)
+                .onChange(of: viewModel.query) { _, _ in
                     viewModel.refresh()
                 }
-            )) {
-                ForEach(viewModel.availableSearchCategories, id: \.self) { category in
-                    Text(category.segmentLabel).tag(category)
+                .onSubmit {
+                    Task { await viewModel.executeSelection() }
                 }
-            }
-            .pickerStyle(.segmented)
-            .frame(maxWidth: 560)
-            .accessibilityLabel("Search result category")
         }
+        .padding(SpotiglassDesign.spacingM)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: SpotiglassDesign.cornerM, style: .continuous))
+        .glassEffectID("palette.search", in: paletteGlass)
+    }
+
+    private var resultsCard: some View {
+        VStack(spacing: 0) {
+            if viewModel.isLoading {
+                ProgressView("Searching Spotify...")
+                    .padding(SpotiglassDesign.spacingM)
+            }
+
+            if let errorText = viewModel.errorText {
+                Text(errorText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, SpotiglassDesign.spacingM)
+                    .padding(.top, SpotiglassDesign.spacingS)
+            }
+
+            resultsBody
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: SpotiglassDesign.cornerM, style: .continuous))
+        .glassEffectID("palette.results", in: paletteGlass)
+    }
+
+    private var footerRow: some View {
+        HStack(alignment: .center, spacing: SpotiglassDesign.spacingS) {
+            hintsChip
+            Spacer(minLength: 8)
+            if viewModel.currentScope == .commands {
+                commandsHintChip
+            } else {
+                categoryPillsRow
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var hintsChip: some View {
+        HStack(spacing: SpotiglassDesign.spacingS) {
+            Text("↑↓ navigate")
+            Text("↩ run")
+            Text("esc close")
+            if viewModel.canEnqueueSelectedItem {
+                Text("⌥↩ queue")
+            }
+            if viewModel.canPinSelectedItem {
+                Text("⌘↩ pin")
+            }
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, SpotiglassDesign.spacingM)
+        .padding(.vertical, SpotiglassDesign.spacingS)
+        .glassEffect(.regular, in: Capsule(style: .continuous))
+        .glassEffectID("palette.hints", in: paletteGlass)
+    }
+
+    private var commandsHintChip: some View {
+        Text("Remove \(Text(">").foregroundStyle(.tertiary)) prefix to search Spotify")
+            .multilineTextAlignment(.trailing)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, SpotiglassDesign.spacingM)
+            .padding(.vertical, SpotiglassDesign.spacingS)
+            .glassEffect(.regular, in: Capsule(style: .continuous))
+            .glassEffectID("palette.footerTrailing", in: paletteGlass)
+    }
+
+    private var categoryPillsRow: some View {
+        HStack(spacing: SpotiglassDesign.spacingXS) {
+            ForEach(viewModel.availableSearchCategories, id: \.self) { category in
+                categoryPill(category: category)
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Search result category")
+    }
+
+    @ViewBuilder
+    private func categoryPill(category: CommandPaletteSearchCategory) -> some View {
+        let isSelected = viewModel.searchCategoryFilter == category
+        Button {
+            viewModel.searchCategoryFilter = category
+            viewModel.refresh()
+        } label: {
+            Text(category.segmentLabel)
+                .font(.caption.weight(isSelected ? .semibold : .regular))
+                .foregroundStyle(isSelected ? Color.white : Color.secondary)
+                .padding(.horizontal, SpotiglassDesign.spacingM)
+                .padding(.vertical, SpotiglassDesign.spacingS)
+                .contentShape(Capsule(style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .background {
+            if isSelected {
+                Capsule(style: .continuous)
+                    .fill(SpotiglassDesign.controlAccent)
+            }
+        }
+        .glassEffect(.regular, in: Capsule(style: .continuous))
+        .glassEffectID("palette.category.\(category.rawValue)", in: paletteGlass)
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+        .accessibilityLabel(category.segmentLabel)
     }
 
     @ViewBuilder
@@ -151,9 +232,12 @@ struct CommandPaletteView: View {
                         .frame(maxWidth: .infinity)
                     Spacer()
                 }
+                .frame(maxWidth: .infinity)
                 .frame(height: 360)
             } else {
-                Spacer().frame(height: 360)
+                Spacer()
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 360)
             }
         } else {
             sectionedList(sections: sections)
@@ -211,6 +295,8 @@ struct CommandPaletteView: View {
                 }
             }
             .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .frame(maxWidth: .infinity)
             .frame(height: 360)
             // Arrow keys are handled by `CommandPaletteEventMonitor`; keep keyboard focus on the query field for typing.
             .focusable(false)
@@ -224,6 +310,7 @@ struct CommandPaletteView: View {
                 scrollPaletteSelectionToIndex(proxy: proxy, index: viewModel.selectedIndex)
             }
         }
+        .frame(maxWidth: .infinity)
     }
 
     private func scrollPaletteSelectionToIndex(proxy: ScrollViewProxy, index: Int) {
@@ -303,7 +390,7 @@ struct CommandPaletteView: View {
             switch viewModel.searchCategoryFilter {
             case .all: .secondary
             case .tracks: .secondary
-            case .artists: .green
+            case .artists: .secondary
             case .thisPlaylist: .secondary
             case .myPlaylists: .secondary
             }

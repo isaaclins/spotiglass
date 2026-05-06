@@ -28,6 +28,7 @@ final class CommandPaletteManager: ObservableObject {
     var spotifySearch: ((String, CommandPaletteSearchCategory) async throws -> CommandPaletteSearchResults)?
     var filterByArtist: ((String) -> Void)?
     var toggleQueue: (() -> Void)?
+    var toggleLyrics: (() -> Void)?
     /// Invoked by `palette.pin` (default ⌘↩); the host wires this to the
     /// pinned-items store so palette ⌘↩ pins the highlighted result without
     /// dismissing the palette.
@@ -68,10 +69,13 @@ final class CommandPaletteManager: ObservableObject {
 
     func handleKeyEvent(_ event: NSEvent) -> Bool {
         if viewModel.isPresented {
-            // Tab / Shift+Tab cycle Spotify search category (footer segments) while the query field stays focused.
-            if event.keyCode == 48, CommandPaletteScope.parse(viewModel.query).scope != .commands {
-                let extras = event.modifierFlags.intersection([.control, .option, .command])
-                guard extras.isEmpty else { return false }
+            // Bare Tab / Shift+Tab cycle the Spotify search category (footer segments)
+            // while the query field stays focused. Modifier-bearing Tab events
+            // (e.g. custom bindings) fall through to the keymap
+            // dispatch path below so user-rebound shortcuts still fire.
+            if event.keyCode == 48,
+               CommandPaletteScope.parse(viewModel.query).scope != .commands,
+               event.modifierFlags.intersection([.control, .option, .command]).isEmpty {
                 viewModel.cycleSearchCategory(forward: !event.modifierFlags.contains(.shift))
                 return true
             }
@@ -158,10 +162,14 @@ final class CommandPaletteManager: ObservableObject {
             }
         case CommandPaletteCommandID.toggleQueue:
             toggleQueue?()
+        case CommandPaletteCommandID.toggleLyrics:
+            toggleLyrics?()
         case CommandPaletteCommandID.pinSelected:
             Task { await viewModel.executeSelectionPinning() }
         case CommandPaletteCommandID.unpinSelected:
             Task { await viewModel.executeSelectionUnpinning() }
+        case CommandPaletteCommandID.enqueueSelected:
+            Task { await viewModel.executeSelectionEnqueue() }
         default:
             break
         }
@@ -201,6 +209,8 @@ final class CommandPaletteManager: ObservableObject {
             ["previous", "back"]
         case CommandPaletteCommandID.toggleQueue:
             ["queue", "up next", "sidebar"]
+        case CommandPaletteCommandID.toggleLyrics:
+            ["lyrics", "immersive", "karaoke", "overlay"]
         case CommandPaletteCommandID.signOut:
             ["disconnect", "logout", "sign out"]
         default:

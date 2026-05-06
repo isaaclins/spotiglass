@@ -86,6 +86,14 @@ enum CommandPaletteCommandCatalog {
             defaultKeystroke: "alt-cmd-q"
         ),
         CommandPaletteCommandSpec(
+            commandID: CommandPaletteCommandID.toggleLyrics,
+            title: "Toggle Lyrics",
+            subtitle: "Show or hide immersive synchronized lyrics",
+            iconSystemName: "music.note.list",
+            defaultWhen: .signedIn,
+            defaultKeystroke: nil
+        ),
+        CommandPaletteCommandSpec(
             commandID: CommandPaletteCommandID.signOut,
             title: "Disconnect Spotify",
             subtitle: "Sign out and clear local session",
@@ -109,6 +117,14 @@ enum CommandPaletteCommandCatalog {
             defaultWhen: .paletteOpen,
             defaultKeystroke: nil
         ),
+        CommandPaletteCommandSpec(
+            commandID: CommandPaletteCommandID.enqueueSelected,
+            title: "Add Selected Palette Item to Queue",
+            subtitle: "Queues the highlighted track without dismissing the palette",
+            iconSystemName: "text.line.last.and.arrowtriangle.forward",
+            defaultWhen: .paletteOpen,
+            defaultKeystroke: "alt-return"
+        ),
     ]
 
     /// Stable on-disk order for default `keymap.json` (matches historical Spotiglass defaults).
@@ -122,6 +138,7 @@ enum CommandPaletteCommandCatalog {
         CommandPaletteCommandID.toggleQueue,
         CommandPaletteCommandID.openSettings,
         CommandPaletteCommandID.pinSelected,
+        CommandPaletteCommandID.enqueueSelected,
     ]
 
     /// Canonical default keymap JSON (matches `CommandPaletteKeymapStore` bootstrap).

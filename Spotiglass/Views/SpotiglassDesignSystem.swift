@@ -21,19 +21,16 @@ enum SpotiglassDesign {
 
     // MARK: - Narrow window (playlist sidebar + queue + detail)
 
-    /// When the window is narrower than this and the queue + playlist sidebar are both visible, min column widths shrink so nothing clips.
-    static let tripleColumnCompactBreakpoint: CGFloat = 1080
-
     static let playlistSidebarMinWidth: CGFloat = 280
-    static let playlistSidebarMinWidthCompact: CGFloat = 232
-
     static let detailColumnMinWidth: CGFloat = 360
-    static let detailColumnMinWidthCompact: CGFloat = 272
-
     static let queuePanelMinWidth: CGFloat = 280
-    static let queuePanelMinWidthCompact: CGFloat = 232
     static let queuePanelMaxWidth: CGFloat = 420
-    static let queuePanelMaxWidthCompact: CGFloat = 360
+
+    /// Below this width the playlist sidebar and queue panel are mutually exclusive (opening one closes the other),
+    /// so neither side ever clips off-screen. Computed from the natural mins above plus ~80pt of slack for dividers
+    /// and rounding, so future tuning of the column mins propagates automatically.
+    static let dualSidebarComfortableMinWidth: CGFloat =
+        playlistSidebarMinWidth + detailColumnMinWidth + queuePanelMinWidth + 80
 }
 
 struct GlassPanel<Content: View>: View {
