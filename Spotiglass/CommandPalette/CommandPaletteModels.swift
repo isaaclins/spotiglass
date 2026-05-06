@@ -22,7 +22,7 @@ enum CommandPaletteCommandID {
     static let pinSelected = "palette.pin"
     /// Unpin the currently-selected palette result. No default keystroke.
     static let unpinSelected = "palette.unpin"
-    /// Add the currently-selected palette result to the playback queue. Default ⌥↩ in `.paletteOpen`.
+    /// Add the currently-selected palette result to the playback queue. Default ⇧↩ in `.paletteOpen`.
     static let enqueueSelected = "palette.enqueue"
 }
 
@@ -135,8 +135,8 @@ struct CommandPaletteItem: Identifiable {
     /// When non-`nil`, marks the row as already pinned and provides the unpin
     /// closure (used by the future "Unpin from Sidebar" command).
     let unpinAction: (@MainActor () -> Void)?
-    /// When non-`nil`, ⌥↩ on this item enqueues it (typically a track URI add)
-    /// without dismissing the palette. `nil` for non-track rows so ⌥↩ silently
+    /// When non-`nil`, ⇧↩ on this item enqueues it (typically a track URI add)
+    /// without dismissing the palette. `nil` for non-track rows so ⇧↩ silently
     /// no-ops on commands, artists, albums, and playlists.
     let queueAction: (@MainActor () async -> Void)?
 

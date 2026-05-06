@@ -55,33 +55,7 @@ final class MacDefaultAudioOutputNameProvider: MacDefaultAudioOutputProviding {
     }
 
     private static func copyDefaultOutputDeviceName() -> String? {
-        var deviceID = AudioDeviceID()
-        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
-        var address = AudioObjectPropertyAddress(
-            mSelector: kAudioHardwarePropertyDefaultOutputDevice,
-            mScope: kAudioObjectPropertyScopeGlobal,
-            mElement: kAudioObjectPropertyElementMain
-        )
-        let systemObject = AudioObjectID(kAudioObjectSystemObject)
-        let status = AudioObjectGetPropertyData(systemObject, &address, 0, nil, &size, &deviceID)
-        guard status == noErr else { return nil }
-        return copyDeviceName(deviceID: deviceID)
-    }
-
-    private static func copyDeviceName(deviceID: AudioDeviceID) -> String? {
-        var address = AudioObjectPropertyAddress(
-            mSelector: kAudioDevicePropertyDeviceNameCFString,
-            mScope: kAudioObjectPropertyScopeGlobal,
-            mElement: kAudioObjectPropertyElementMain
-        )
-        var dataSize: UInt32 = 0
-        var status = AudioObjectGetPropertyDataSize(deviceID, &address, 0, nil, &dataSize)
-        guard status == noErr else { return nil }
-
-        let rawName = UnsafeMutablePointer<CFString>.allocate(capacity: 1)
-        defer { rawName.deallocate() }
-        status = AudioObjectGetPropertyData(deviceID, &address, 0, nil, &dataSize, rawName)
-        guard status == noErr else { return nil }
-        return rawName.pointee as String
+        guard let id = MacAudioOutputHardware.defaultOutputDeviceID() else { return nil }
+        return MacAudioOutputHardware.copyDeviceDisplayName(deviceID: id)
     }
 }

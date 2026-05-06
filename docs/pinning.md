@@ -15,7 +15,7 @@ Already-pinned source rows show a small `pin.fill` glyph on their artwork so you
 ## Command palette
 
 - With a search result highlighted, **⌘↩** runs **Pin** when that row exposes a pin action (tracks, playlists, artists, albums, and “This playlist” matches). Rows that are already pinned expose **Unpin** for the separate `palette.unpin` command (no default shortcut).
-- With a **track** result highlighted, **⌥↩** adds it to the playback queue (**Add Selected Palette Item to Queue** / `palette.enqueue`; default shortcut, rebindable in **Keyboard**) without closing the palette.
+- With a **track** result highlighted, **⇧↩** adds it to the playback queue (**Add Selected Palette Item to Queue** / `palette.enqueue`; default shortcut, rebindable in **Keyboard**) without closing the palette.
 - Pinning from the palette does **not** close the palette.
 
 ## Sign out

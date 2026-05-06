@@ -1,4 +1,5 @@
 import AppKit
+import CoreAudio
 import Foundation
 import WebKit
 
@@ -25,6 +26,10 @@ final class PlaybackSessionViewModel: ObservableObject {
     @Published private(set) var repeatMode: SpotifyRepeatMode = .off
     /// Spotify Connect devices from `GET /v1/me/player/devices`.
     @Published private(set) var connectDevices: [SpotifyConnectDevice] = []
+    /// Core Audio output-capable devices (system default output picker).
+    @Published private(set) var macAudioOutputDevices: [MacAudioOutputDevice] = []
+    /// Current HAL default output device id (for menu checkmarks).
+    @Published private(set) var systemDefaultOutputDeviceID: AudioDeviceID?
     /// Resolved SF Symbol for the playback-bar device button (hybrid: macOS output when this Web Playback device is active).
     @Published private(set) var trayOutputSymbolName = "headphones"
     @Published private(set) var isRefreshingConnectDevices = false
@@ -32,6 +37,8 @@ final class PlaybackSessionViewModel: ObservableObject {
     private let playbackAPI: SpotifyPlaybackControlling
     private let webCommander: WebPlaybackCommanding
     private let macAudioOutput: MacDefaultAudioOutputProviding
+    /// Core Audio listener; accessed from `deinit` for removal — must be `nonisolated(unsafe)`.
+    nonisolated(unsafe) private var hardwareDevicesListener: AudioObjectPropertyListenerBlock?
     private var latestPlayerSnapshot: SpotifyPlayerSnapshot?
     private var becameActiveObserver: NSObjectProtocol?
     private let progressTickInterval: TimeInterval
@@ -45,6 +52,10 @@ final class PlaybackSessionViewModel: ObservableObject {
     private var repeatSyncTask: Task<Void, Never>?
     private var lastProgressTickInstant: ContinuousClock.Instant?
     private var hasTransferredPlaybackToCurrentDevice = false
+    /// Set by `start()` and cleared by the next `.ready` event. While set, the next ready event runs
+    /// the stale-Spotiglass-device auto-resume check; without it, direct `.handle(.ready)` test paths
+    /// (which never go through `start()`) keep their previous behavior and don't fetch Connect devices.
+    private var autoResumeOnNextReady = false
     /// Expected repeat mode after an optimistic local toggle. While pending,
     /// stale transport reads from Spotify are ignored for a short window so the
     /// button does not snap back.
@@ -95,6 +106,7 @@ final class PlaybackSessionViewModel: ObservableObject {
         macAudioOutput.startListening { [weak self] in
             Task { @MainActor in
                 self?.refreshTrayOutputSymbol()
+                self?.refreshMacAudioOutputDevices()
             }
         }
         becameActiveObserver = NotificationCenter.default.addObserver(
@@ -106,8 +118,11 @@ final class PlaybackSessionViewModel: ObservableObject {
             Task { @MainActor in
                 await self.syncTransportFromSpotify()
                 await self.refreshConnectDevices()
+                self.refreshMacAudioOutputDevices()
             }
         }
+        installAudioHardwareDevicesListener()
+        refreshMacAudioOutputDevices()
     }
 
     private static func loadStoredPlaybackVolume() -> Double {
@@ -141,6 +156,7 @@ final class PlaybackSessionViewModel: ObservableObject {
         shuffleSyncTask?.cancel()
         repeatSyncTask?.cancel()
         macAudioOutput.stopListening()
+        removeAudioHardwareDevicesListenerForTeardown()
         if let becameActiveObserver {
             NotificationCenter.default.removeObserver(becameActiveObserver)
         }
@@ -154,6 +170,7 @@ final class PlaybackSessionViewModel: ObservableObject {
             return
         }
         hasTransferredPlaybackToCurrentDevice = false
+        autoResumeOnNextReady = true
         setConnectionState(.connecting)
         deviceID = nil
         webCommander.loadHost()
@@ -174,8 +191,13 @@ final class PlaybackSessionViewModel: ObservableObject {
             // Playback SDK is ready. Rebuild the equalizer tap so Core Audio includes them.
             NotificationCenter.default.post(name: .spotiglassPlaybackDeviceReady, object: nil)
             refreshTrayOutputSymbol()
+            let shouldAutoResume = autoResumeOnNextReady
+            autoResumeOnNextReady = false
             Task {
                 await syncPlaybackVolumeToWebPlayer()
+                if shouldAutoResume {
+                    await autoResumeFromStaleSpotiglassDeviceIfNeeded(targetDeviceID: deviceID)
+                }
             }
         case let .notReady(deviceID):
             if self.deviceID == deviceID {
@@ -336,6 +358,47 @@ final class PlaybackSessionViewModel: ObservableObject {
         } catch {
             connectDevices = []
         }
+    }
+
+    func refreshMacAudioOutputDevices() {
+        macAudioOutputDevices = MacAudioOutputHardware.enumerateOutputDevices()
+        systemDefaultOutputDeviceID = MacAudioOutputHardware.defaultOutputDeviceID()
+    }
+
+    func setSystemDefaultOutputDevice(_ audioDeviceID: AudioDeviceID) {
+        let status = MacAudioOutputHardware.setDefaultOutputDevice(audioDeviceID)
+        guard status == noErr else { return }
+        refreshMacAudioOutputDevices()
+        refreshTrayOutputSymbol()
+    }
+
+    private func installAudioHardwareDevicesListener() {
+        removeAudioHardwareDevicesListenerForTeardown()
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDevices,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+            Task { @MainActor in
+                self?.refreshMacAudioOutputDevices()
+            }
+        }
+        hardwareDevicesListener = listener
+        let systemObject = AudioObjectID(kAudioObjectSystemObject)
+        AudioObjectAddPropertyListenerBlock(systemObject, &address, DispatchQueue.main, listener)
+    }
+
+    nonisolated private func removeAudioHardwareDevicesListenerForTeardown() {
+        guard let block = hardwareDevicesListener else { return }
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDevices,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        let systemObject = AudioObjectID(kAudioObjectSystemObject)
+        AudioObjectRemovePropertyListenerBlock(systemObject, &address, DispatchQueue.main, block)
+        hardwareDevicesListener = nil
     }
 
     func transferPlayback(toConnectDevice selectedDeviceID: String) async {
@@ -526,6 +589,33 @@ final class PlaybackSessionViewModel: ObservableObject {
         hasTransferredPlaybackToCurrentDevice = true
     }
 
+    /// On window reopen the previous session's `WKWebView` often lingers as the active Spotify
+    /// Connect "Spotiglass" device for a few seconds. When that happens, hand playback to the
+    /// freshly created device so the user keeps hearing music through the window they just
+    /// reopened. Restricted to devices named ``SpotifyPlaybackHost/deviceName`` so a clean first
+    /// launch never steals playback from the user's other Connect targets (phone, desktop, …).
+    private func autoResumeFromStaleSpotiglassDeviceIfNeeded(targetDeviceID: String) async {
+        guard !hasTransferredPlaybackToCurrentDevice else { return }
+        let devices = (try? await playbackAPI.fetchAvailableDevices()) ?? []
+        guard let staleSpotiglass = devices.first(where: { device in
+            device.isActive
+                && device.name == SpotifyPlaybackHost.deviceName
+                && device.deviceID != targetDeviceID
+        }) else {
+            return
+        }
+        do {
+            setConnectionState(.transferring(deviceID: targetDeviceID))
+            try await playbackAPI.transferPlayback(to: targetDeviceID, play: true)
+            hasTransferredPlaybackToCurrentDevice = true
+            // Subsequent SDK `state_changed` will move the connection state to .playing/.paused.
+            latestLog = "Auto-resumed playback from stale Spotiglass device \(staleSpotiglass.deviceID) to \(targetDeviceID)."
+        } catch {
+            latestLog = "Auto-resume transfer to new Spotiglass device failed: \(error.localizedDescription)"
+            setConnectionState(.ready(deviceID: targetDeviceID))
+        }
+    }
+
     private func beginPendingPlay(uri: String) {
         pendingPlayURI = uri
         pendingPlayURIDeadline = clock.now.advanced(by: pendingPlayURITimeout)
@@ -714,10 +804,27 @@ final class PlaybackSessionViewModel: ObservableObject {
 }
 
 final class WebPlaybackViewCommander: WebPlaybackCommanding {
-    weak var webView: WKWebView?
+    private weak var webView: WKWebView?
+    /// Set when ``loadHost()`` runs before the `WKWebView` has been installed by
+    /// `HiddenPlaybackWebView.makeNSView` (a real race on window reopen). The
+    /// load is replayed in ``attach(webView:)`` once the WebView is available so
+    /// the SDK host page is guaranteed to load.
+    private var hostLoadPending = false
+
+    func attach(webView: WKWebView?) {
+        self.webView = webView
+        if hostLoadPending, let webView {
+            hostLoadPending = false
+            webView.loadHTMLString(SpotifyPlaybackHost.html, baseURL: URL(string: "https://spotiglass.local"))
+        }
+    }
 
     func loadHost() {
-        webView?.loadHTMLString(SpotifyPlaybackHost.html, baseURL: URL(string: "https://spotiglass.local"))
+        guard let webView else {
+            hostLoadPending = true
+            return
+        }
+        webView.loadHTMLString(SpotifyPlaybackHost.html, baseURL: URL(string: "https://spotiglass.local"))
     }
 
     @MainActor

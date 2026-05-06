@@ -24,12 +24,12 @@ struct HiddenPlaybackWebView: NSViewRepresentable {
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.setValue(false, forKey: "drawsBackground")
-        commander.webView = webView
+        commander.attach(webView: webView)
         return webView
     }
 
     func updateNSView(_ nsView: WKWebView, context: Context) {
-        commander.webView = nsView
+        commander.attach(webView: nsView)
     }
 
     static func dismantleNSView(_ nsView: WKWebView, coordinator: ()) {

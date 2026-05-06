@@ -151,7 +151,7 @@ struct CommandPaletteView: View {
             Text("↩ run")
             Text("esc close")
             if viewModel.canEnqueueSelectedItem {
-                Text("⌥↩ queue")
+                Text("⇧↩ queue")
             }
             if viewModel.canPinSelectedItem {
                 Text("⌘↩ pin")

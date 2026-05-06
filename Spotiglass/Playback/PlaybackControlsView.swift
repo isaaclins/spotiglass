@@ -264,9 +264,33 @@ struct PlaybackControlsView: View {
                         }
                         .disabled(device.isRestricted)
                     }
+
+                    Divider()
+
+                    ForEach(viewModel.macAudioOutputDevices) { device in
+                        Button {
+                            viewModel.setSystemDefaultOutputDevice(device.id)
+                        } label: {
+                            HStack(spacing: 8) {
+                                if viewModel.systemDefaultOutputDeviceID == device.id {
+                                    Image(systemName: "checkmark")
+                                        .foregroundStyle(.secondary)
+                                        .frame(width: 12)
+                                } else {
+                                    Color.clear.frame(width: 12)
+                                }
+                                Image(systemName: macAudioOutputRowSymbol(for: device))
+                                Text(device.name)
+                                    .lineLimit(1)
+                            }
+                        }
+                    }
                 }
                 .onAppear {
-                    Task { await viewModel.refreshConnectDevices() }
+                    Task { @MainActor in
+                        await viewModel.refreshConnectDevices()
+                        viewModel.refreshMacAudioOutputDevices()
+                    }
                 }
             } label: {
                 ZStack {
@@ -282,12 +306,16 @@ struct PlaybackControlsView: View {
             .disabled(!hasReadyDevice)
             .opacity(hasReadyDevice ? 1 : 0.45)
             .accessibilityLabel("Playback device")
-            .accessibilityHint("Opens a menu of Spotify Connect devices.")
+            .accessibilityHint("Spotify Connect targets and Mac audio output. Choosing a Mac output sets the system default device.")
         }
     }
 
     private func connectDeviceRowSymbol(for device: SpotifyConnectDevice) -> String {
         PlaybackOutputSFResolver.symbolName(deviceName: device.name, spotifyDeviceType: device.type)
+    }
+
+    private func macAudioOutputRowSymbol(for device: MacAudioOutputDevice) -> String {
+        PlaybackOutputSFResolver.symbolName(deviceName: device.name, spotifyDeviceType: nil)
     }
 
     private var volumeGroup: some View {

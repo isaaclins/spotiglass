@@ -161,7 +161,7 @@ final class CommandPaletteViewModel: ObservableObject {
 
     /// Runs the highlighted palette item's ``queueAction`` (if any) without
     /// dismissing the palette. No-op when the row is not a track, so spamming
-    /// ⌥↩ on commands / artists / playlists / albums stays inert.
+    /// ⇧↩ on commands / artists / playlists / albums stays inert.
     func executeSelectionEnqueue() async {
         let items = visibleItems
         guard items.indices.contains(selectedIndex) else { return }
@@ -179,7 +179,7 @@ final class CommandPaletteViewModel: ObservableObject {
     }
 
     /// True when the currently-highlighted item exposes a `queueAction`. Drives
-    /// the conditional `⌥↩ queue` footer hint in `CommandPaletteView`.
+    /// the conditional `⇧↩ queue` footer hint in `CommandPaletteView`.
     var canEnqueueSelectedItem: Bool {
         let items = visibleItems
         guard items.indices.contains(selectedIndex) else { return false }

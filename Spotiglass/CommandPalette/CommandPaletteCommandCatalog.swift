@@ -123,7 +123,7 @@ enum CommandPaletteCommandCatalog {
             subtitle: "Queues the highlighted track without dismissing the palette",
             iconSystemName: "text.line.last.and.arrowtriangle.forward",
             defaultWhen: .paletteOpen,
-            defaultKeystroke: "alt-return"
+            defaultKeystroke: "shift-return"
         ),
     ]
 

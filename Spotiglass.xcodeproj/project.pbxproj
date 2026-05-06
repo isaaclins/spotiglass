@@ -55,6 +55,7 @@
 		E50000000000000000000024 /* LrcLibClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000025 /* LrcLibClientTests.swift */; };
 		E50000000000000000000040 /* PlaybackOutputSFResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000041 /* PlaybackOutputSFResolver.swift */; };
 		E50000000000000000000042 /* MacDefaultAudioOutputNameProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000043 /* MacDefaultAudioOutputNameProvider.swift */; };
+		E50000000000000000000048 /* MacAudioOutputHardware.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000049 /* MacAudioOutputHardware.swift */; };
 		E50000000000000000000046 /* PlaybackOutputSFResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000047 /* PlaybackOutputSFResolverTests.swift */; };
 		R50000000000000000000001 /* ImmersiveLyricsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = R50000000000000000000011 /* ImmersiveLyricsViewModelTests.swift */; };
 		F60000000000000000000001 /* SpotiglassDesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60000000000000000000011 /* SpotiglassDesignSystem.swift */; };
@@ -162,6 +163,7 @@
 		E50000000000000000000025 /* LrcLibClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LrcLibClientTests.swift; sourceTree = "<group>"; };
 		E50000000000000000000041 /* PlaybackOutputSFResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackOutputSFResolver.swift; sourceTree = "<group>"; };
 		E50000000000000000000043 /* MacDefaultAudioOutputNameProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacDefaultAudioOutputNameProvider.swift; sourceTree = "<group>"; };
+		E50000000000000000000049 /* MacAudioOutputHardware.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacAudioOutputHardware.swift; sourceTree = "<group>"; };
 		E50000000000000000000047 /* PlaybackOutputSFResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackOutputSFResolverTests.swift; sourceTree = "<group>"; };
 		R50000000000000000000011 /* ImmersiveLyricsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImmersiveLyricsViewModelTests.swift; sourceTree = "<group>"; };
 		P10000000000000000000011 /* PinnedDropOutHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinnedDropOutHandler.swift; sourceTree = "<group>"; };
@@ -317,6 +319,7 @@
 				E50000000000000000000012 /* SpotifyPlaybackBridge.swift */,
 				E50000000000000000000041 /* PlaybackOutputSFResolver.swift */,
 				E50000000000000000000043 /* MacDefaultAudioOutputNameProvider.swift */,
+				E50000000000000000000049 /* MacAudioOutputHardware.swift */,
 				E50000000000000000000011 /* SpotifyPlaybackModels.swift */,
 				K10000000000000000000015 /* AudioEqualizerEngine.swift */,
 				K10000000000000000000018 /* ProcessAudioTapResolver.swift */,
@@ -585,6 +588,7 @@
 				E50000000000000000000006 /* PlaybackControlsView.swift in Sources */,
 				E50000000000000000000040 /* PlaybackOutputSFResolver.swift in Sources */,
 				E50000000000000000000042 /* MacDefaultAudioOutputNameProvider.swift in Sources */,
+				E50000000000000000000048 /* MacAudioOutputHardware.swift in Sources */,
 				F60000000000000000000001 /* SpotiglassDesignSystem.swift in Sources */,
 				FA00000000000000000000001 /* ArtworkView.swift in Sources */,
 				G70000000000000000000001 /* CommandPaletteModels.swift in Sources */,
