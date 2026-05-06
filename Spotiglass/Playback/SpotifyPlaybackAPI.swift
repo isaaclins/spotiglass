@@ -31,20 +31,61 @@ private enum SpotifyQueueUnionDTO: Decodable {
     }
 }
 
-private struct SpotifyPlayerTransportDTO: Decodable {
+private struct SpotifyConnectDeviceDTO: Decodable {
+    let id: String
+    let isActive: Bool
+    let isRestricted: Bool
+    let name: String
+    let type: String
+    let volumePercent: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case isActive = "is_active"
+        case isRestricted = "is_restricted"
+        case name, type
+        case volumePercent = "volume_percent"
+    }
+
+    func domainModel() -> SpotifyConnectDevice {
+        SpotifyConnectDevice(
+            deviceID: id,
+            isActive: isActive,
+            isRestricted: isRestricted,
+            name: name,
+            type: type,
+            volumePercent: volumePercent
+        )
+    }
+}
+
+private struct SpotifyPlayerSnapshotDTO: Decodable {
     let shuffleState: Bool
     let repeatState: String
+    let device: SpotifyConnectDeviceDTO?
 
     enum CodingKeys: String, CodingKey {
         case shuffleState = "shuffle_state"
         case repeatState = "repeat_state"
+        case device
     }
 
-    func domainModel() -> SpotifyPlayerTransport {
-        SpotifyPlayerTransport(
-            shuffle: shuffleState,
-            repeatMode: SpotifyRepeatMode(rawValue: repeatState) ?? .off
+    func domainModel() -> SpotifyPlayerSnapshot {
+        SpotifyPlayerSnapshot(
+            transport: SpotifyPlayerTransport(
+                shuffle: shuffleState,
+                repeatMode: SpotifyRepeatMode(rawValue: repeatState) ?? .off
+            ),
+            activeDevice: device?.domainModel()
         )
+    }
+}
+
+private struct SpotifyDevicesListDTO: Decodable {
+    let devices: [SpotifyConnectDeviceDTO]
+
+    func domainModels() -> [SpotifyConnectDevice] {
+        devices.map { $0.domainModel() }
     }
 }
 
@@ -98,6 +139,9 @@ protocol SpotifyPlaybackControlling {
     func addToQueue(uri: String, deviceID: String) async throws
     /// `nil` when Spotify returns **204** (no active player).
     func fetchPlayerTransport() async throws -> SpotifyPlayerTransport?
+    /// `nil` when Spotify returns **204** (no active player).
+    func fetchPlayerSnapshot() async throws -> SpotifyPlayerSnapshot?
+    func fetchAvailableDevices() async throws -> [SpotifyConnectDevice]
     func setShuffle(enabled: Bool, deviceID: String) async throws
     func setRepeat(mode: SpotifyRepeatMode, deviceID: String) async throws
 }
@@ -190,6 +234,10 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
     }
 
     func fetchPlayerTransport() async throws -> SpotifyPlayerTransport? {
+        try await fetchPlayerSnapshot().map(\.transport)
+    }
+
+    func fetchPlayerSnapshot() async throws -> SpotifyPlayerSnapshot? {
         let accessToken = try await tokenProvider.playbackAccessToken()
         let components = URLComponents(url: baseURL.appendingPathComponent("/v1/me/player".trimmingCharacters(in: CharacterSet(charactersIn: "/"))), resolvingAgainstBaseURL: false)!
         var request = URLRequest(url: components.url!)
@@ -203,8 +251,14 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
         guard (200..<300).contains(response.statusCode) else {
             throw mapPlaybackError(statusCode: response.statusCode, data: data)
         }
-        let dto = try decoder.decode(SpotifyPlayerTransportDTO.self, from: data)
+        let dto = try decoder.decode(SpotifyPlayerSnapshotDTO.self, from: data)
         return dto.domainModel()
+    }
+
+    func fetchAvailableDevices() async throws -> [SpotifyConnectDevice] {
+        let data = try await get(path: "/v1/me/player/devices", queryItems: [])
+        let dto = try decoder.decode(SpotifyDevicesListDTO.self, from: data)
+        return dto.domainModels()
     }
 
     func setShuffle(enabled: Bool, deviceID: String) async throws {

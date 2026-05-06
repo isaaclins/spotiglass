@@ -13,8 +13,8 @@ final class CommandPaletteManager: ObservableObject {
     var isSignedIn = false
     var signOut: (() -> Void)?
     var openSettings: (() -> Void)?
-    var refreshPlaylists: (() async -> Void)?
-    var refreshTracks: (() async -> Void)?
+    /// Reloads the focused surface (library, playlist or artist detail, or queue when the queue column has focus).
+    var unifiedRefresh: (() async -> Void)?
     var selectNextPlaylist: (() async -> Void)?
     var selectPreviousPlaylist: (() async -> Void)?
     var connectPlayback: (() -> Void)?
@@ -34,6 +34,8 @@ final class CommandPaletteManager: ObservableObject {
     var pinSelectedPaletteItem: (@MainActor () -> Void)?
     /// Invoked by `palette.unpin`; symmetrical with ``pinSelectedPaletteItem``.
     var unpinSelectedPaletteItem: (@MainActor () -> Void)?
+    /// When immersive lyrics are visible, return true after calling dismiss so Escape is consumed before keymaps/WebKit.
+    var dismissLyricsOverlayIfPresented: (() -> Bool)?
 
     private var cancellables: Set<AnyCancellable> = []
 
@@ -97,6 +99,10 @@ final class CommandPaletteManager: ObservableObject {
             }
         }
 
+        if event.keyCode == 53, dismissLyricsOverlayIfPresented?() == true {
+            return true
+        }
+
         if isRecordingHotkey {
             return false
         }
@@ -114,10 +120,8 @@ final class CommandPaletteManager: ObservableObject {
         switch commandID {
         case CommandPaletteCommandID.openPalette:
             viewModel.show()
-        case CommandPaletteCommandID.refreshPlaylists:
-            Task { await refreshPlaylists?() }
-        case CommandPaletteCommandID.refreshTracks:
-            Task { await refreshTracks?() }
+        case CommandPaletteCommandID.refreshPlaylists, CommandPaletteCommandID.refreshTracks:
+            Task { await unifiedRefresh?() }
         case CommandPaletteCommandID.selectNextPlaylist:
             Task { await selectNextPlaylist?() }
         case CommandPaletteCommandID.selectPreviousPlaylist:
@@ -186,9 +190,7 @@ final class CommandPaletteManager: ObservableObject {
         case CommandPaletteCommandID.openPalette:
             ["palette", "command", "search"]
         case CommandPaletteCommandID.refreshPlaylists:
-            ["reload", "sync", "playlist"]
-        case CommandPaletteCommandID.refreshTracks:
-            ["track", "playlist", "reload"]
+            ["reload", "sync", "playlist", "tracks", "artist", "queue", "refresh"]
         case CommandPaletteCommandID.connectPlayback:
             ["playback", "device", "connect"]
         case CommandPaletteCommandID.togglePlayback:

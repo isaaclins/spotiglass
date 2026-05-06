@@ -76,6 +76,27 @@ final class ImmersiveLyricsViewModelTests: XCTestCase {
         XCTAssertEqual(fetchCount, 1)
     }
 
+    func testLoadUsesDiskCacheWithoutCallingFetch() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("SpotiglassLyricsDiskTests-\(UUID().uuidString)")
+        let disk = try LyricsDiskCache(directory: dir)
+        try disk.save(spotifyTrackID: "diskHit", lyrics: .instrumental)
+
+        var fetchCount = 0
+        let vm = ImmersiveLyricsViewModel(fetchLyrics: { _ in
+            fetchCount += 1
+            return .unsyncedPlain(["unexpected"])
+        }, diskCache: disk)
+
+        await vm.load(track: sampleTrack(spotifyID: "diskHit"))
+
+        XCTAssertEqual(fetchCount, 0)
+        guard case let .ready(lyrics) = vm.phase else {
+            return XCTFail("expected .ready, got \(vm.phase)")
+        }
+        XCTAssertEqual(lyrics, .instrumental)
+        try? FileManager.default.removeItem(at: dir)
+    }
+
     func testPreloadDoesNotSetPhaseToLoading() async {
         let vm = ImmersiveLyricsViewModel { _ in
             try await Task.sleep(nanoseconds: 60_000_000)

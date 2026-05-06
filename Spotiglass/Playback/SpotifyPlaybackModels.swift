@@ -240,6 +240,25 @@ struct SpotifyPlayerTransport: Equatable {
     let repeatMode: SpotifyRepeatMode
 }
 
+/// A Spotify Connect endpoint from `GET /v1/me/player/devices` or the nested `device` on `GET /v1/me/player`.
+struct SpotifyConnectDevice: Equatable, Identifiable {
+    let deviceID: String
+    let isActive: Bool
+    let isRestricted: Bool
+    let name: String
+    /// Spotify device type string (e.g. `computer`, `smartphone`, `speaker`).
+    let type: String
+    let volumePercent: Int?
+
+    var id: String { deviceID }
+}
+
+/// Shuffle/repeat plus optional active Connect device from `GET /v1/me/player`.
+struct SpotifyPlayerSnapshot: Equatable {
+    let transport: SpotifyPlayerTransport
+    let activeDevice: SpotifyConnectDevice?
+}
+
 /// Unified track-or-episode slot from the queue endpoint.
 enum SpotifyQueueTrackItem: Equatable {
     case track(SpotifyTrack)

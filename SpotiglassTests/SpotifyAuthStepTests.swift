@@ -250,11 +250,118 @@ final class SpotifyAuthStepTests: XCTestCase {
         )
     }
 
+    @MainActor
+    func testCancelSignInReturnsToSignedOutWithoutFailedBanner() async {
+        let flow = HangUntilCancelledAuthorizationFlow()
+        let viewModel = AuthViewModel(
+            settings: makeSettings(clientID: "client-id"),
+            authorizationFlow: flow,
+            tokenClient: SpotifyTokenClient(),
+            refreshTokenStore: InMemoryRefreshTokenStore(),
+            signOutDataCleaner: {}
+        )
+
+        async let signInFinishes: Void = viewModel.signIn()
+        await waitUntil { if case .signingIn = viewModel.state { return true }; return false }
+        XCTAssertEqual(viewModel.state, .signingIn)
+
+        viewModel.cancelSignIn()
+        await signInFinishes
+
+        XCTAssertEqual(viewModel.state, .signedOut)
+    }
+
+    @MainActor
+    func testCancelSignInThenSecondConnectCanSucceed() async throws {
+        let redirect = URL(string: "http://127.0.0.1:43824/callback")!
+        let codeVerifier = try PKCE.makeCodeVerifier()
+        let flow = TwoStepAuthorizationFlow {
+            SpotifyAuthorizationCode(code: "auth-code", codeVerifier: codeVerifier, redirectURI: redirect)
+        }
+        let now = Date(timeIntervalSince1970: 1_000)
+        let httpClient = MockHTTPClient(
+            data: """
+            {
+              "access_token": "access-token",
+              "token_type": "Bearer",
+              "expires_in": 3600,
+              "refresh_token": "refresh-token",
+              "scope": "playlist-read-private playlist-read-collaborative user-library-read streaming"
+            }
+            """.data(using: .utf8)!,
+            statusCode: 200
+        )
+        let tokenClient = SpotifyTokenClient(httpClient: httpClient, now: { now })
+        let viewModel = AuthViewModel(
+            settings: makeSettings(clientID: "client-id"),
+            authorizationFlow: flow,
+            tokenClient: tokenClient,
+            refreshTokenStore: InMemoryRefreshTokenStore(),
+            signOutDataCleaner: {}
+        )
+
+        async let firstAttempt: Void = viewModel.signIn()
+        await waitUntil { if case .signingIn = viewModel.state { return true }; return false }
+        viewModel.cancelSignIn()
+        await firstAttempt
+        XCTAssertEqual(viewModel.state, .signedOut)
+
+        flow.advance()
+        await viewModel.signIn()
+        guard case let .signedIn(session) = viewModel.state else {
+            return XCTFail("Expected signed-in state after second connect, got \(viewModel.state)")
+        }
+        XCTAssertEqual(session.accessToken, "access-token")
+    }
+
     private func makeSettings(clientID: String) -> SpotifyAuthSettings {
         let suite = "SpotiglassTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defaults.set(clientID, forKey: "spotify.clientID")
         return SpotifyAuthSettings(defaults: defaults)
+    }
+}
+
+private func waitUntil(timeoutNanoseconds: UInt64 = 2_000_000_000, _ predicate: @escaping () -> Bool) async {
+    let deadline = DispatchTime.now().uptimeNanoseconds + timeoutNanoseconds
+    while DispatchTime.now().uptimeNanoseconds < deadline {
+        if predicate() { return }
+        try? await Task.sleep(nanoseconds: 5_000_000)
+    }
+    XCTFail("waitUntil timed out")
+}
+
+private struct HangUntilCancelledAuthorizationFlow: SpotifyAuthorizationFlowing {
+    func requestAuthorizationCode(clientID: String, timeout: TimeInterval) async throws -> SpotifyAuthorizationCode {
+        try await Task.sleep(for: .seconds(3_600))
+        fatalError("unreachable")
+    }
+}
+
+private final class TwoStepAuthorizationFlow: SpotifyAuthorizationFlowing, @unchecked Sendable {
+    private let lock = NSLock()
+    private var useSecondStep = false
+    private let successCode: () throws -> SpotifyAuthorizationCode
+
+    init(successCode: @escaping () throws -> SpotifyAuthorizationCode) {
+        self.successCode = successCode
+    }
+
+    func advance() {
+        lock.lock()
+        useSecondStep = true
+        lock.unlock()
+    }
+
+    func requestAuthorizationCode(clientID: String, timeout: TimeInterval) async throws -> SpotifyAuthorizationCode {
+        lock.lock()
+        let secondStep = useSecondStep
+        lock.unlock()
+        if secondStep {
+            return try successCode()
+        }
+        try await Task.sleep(for: .seconds(3_600))
+        fatalError("First authorization step should end by cancellation or timeout")
     }
 }
 

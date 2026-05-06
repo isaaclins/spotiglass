@@ -28,17 +28,20 @@ final class ImmersiveLyricsViewModel: ObservableObject {
     @Published private(set) var phase: Phase = .idle
 
     private let fetch: (PlaybackNowPlaying) async throws -> FetchedLyrics
+    private let diskCache: LyricsDiskCache?
 
     /// In-memory only; class is `@MainActor` so no lock is required.
     private static var cache: [String: FetchedLyrics] = [:]
     private static var inFlight: [String: Task<FetchedLyrics, Error>] = [:]
 
-    init(client: LrcLibClient = LrcLibClient()) {
-        self.fetch = { try await client.fetchLyrics(for: $0) }
+    init(fetchLyrics: @escaping (PlaybackNowPlaying) async throws -> FetchedLyrics, diskCache: LyricsDiskCache? = nil) {
+        self.fetch = fetchLyrics
+        self.diskCache = diskCache
     }
 
-    init(fetchLyrics: @escaping (PlaybackNowPlaying) async throws -> FetchedLyrics) {
-        self.fetch = fetchLyrics
+    convenience init(client: LrcLibClient = LrcLibClient()) {
+        let disk = try? LyricsDiskCache()
+        self.init(fetchLyrics: { try await client.fetchLyrics(for: $0) }, diskCache: disk)
     }
 
     /// Fetches lyrics in the background without changing `phase` (for prefetch while the overlay is closed).
@@ -62,6 +65,11 @@ final class ImmersiveLyricsViewModel: ObservableObject {
             phase = .ready(cached)
             return
         }
+        if let disk = diskCache?.load(spotifyTrackID: tid) {
+            Self.cache[tid] = disk
+            phase = .ready(disk)
+            return
+        }
 
         phase = .loading
         do {
@@ -78,6 +86,10 @@ final class ImmersiveLyricsViewModel: ObservableObject {
         if let cached = Self.cache[trackId] {
             return cached
         }
+        if let disk = diskCache?.load(spotifyTrackID: trackId) {
+            Self.cache[trackId] = disk
+            return disk
+        }
         if let existing = Self.inFlight[trackId] {
             return try await existing.value
         }
@@ -89,6 +101,7 @@ final class ImmersiveLyricsViewModel: ObservableObject {
             let value = try await newTask.value
             Self.cache[trackId] = value
             Self.inFlight[trackId] = nil
+            try? diskCache?.save(spotifyTrackID: trackId, lyrics: value)
             return value
         } catch {
             Self.inFlight[trackId] = nil

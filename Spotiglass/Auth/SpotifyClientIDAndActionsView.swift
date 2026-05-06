@@ -37,15 +37,27 @@ struct SpotifyClientIDAndActionsView: View {
                 .disabled(!canSignIn)
                 .accessibilityHint("Starts Spotify sign-in using the configured client ID.")
 
-                Button {
-                    viewModel.signOut()
-                } label: {
-                    Label("Disconnect", systemImage: "rectangle.portrait.and.arrow.right")
-                        .symbolRenderingMode(.hierarchical)
+                if viewModel.state == .signingIn {
+                    Button {
+                        viewModel.cancelSignIn()
+                    } label: {
+                        Label("Cancel", systemImage: "xmark.circle")
+                            .symbolRenderingMode(.hierarchical)
+                    }
+                    .buttonStyle(.bordered)
+                    .keyboardShortcut(.cancelAction)
+                    .accessibilityHint("Stops waiting for the browser sign-in and returns to the welcome screen.")
+                } else {
+                    Button {
+                        viewModel.signOut()
+                    } label: {
+                        Label("Disconnect", systemImage: "rectangle.portrait.and.arrow.right")
+                            .symbolRenderingMode(.hierarchical)
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!viewModel.state.isConnectedOrRefreshing)
+                    .accessibilityHint("Clears the current Spotify sign-in state.")
                 }
-                .buttonStyle(.bordered)
-                .disabled(!viewModel.state.isConnectedOrRefreshing)
-                .accessibilityHint("Clears the current Spotify sign-in state.")
             }
         }
     }

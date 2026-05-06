@@ -1,7 +1,7 @@
 import Foundation
 
 /// One timed line from LRC / LRCLIB `syncedLyrics` text.
-struct SyncedLyricLine: Equatable, Identifiable {
+struct SyncedLyricLine: Equatable, Identifiable, Codable {
     let id: Int
     let startTimeMs: Int
     let words: String

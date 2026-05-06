@@ -59,10 +59,22 @@ final class SpotiglassSettingsStore: ObservableObject {
         do {
             let content = try Data(contentsOf: fileURL)
             let parsed = try JSONDecoder().decode(SpotiglassSettingsFile.self, from: content)
-            settings = parsed
+            try applyLoadedSettings(parsed)
             lastError = nil
         } catch {
             lastError = error.localizedDescription
+        }
+    }
+
+    /// Drops legacy `playlists.refreshTracks` rows (formerly default ⌘T) so refresh is only `playlists.refresh` / ⌘R.
+    private func applyLoadedSettings(_ parsed: SpotiglassSettingsFile) throws {
+        let sanitized = parsed.keybinds.filter { $0.command != CommandPaletteCommandID.refreshTracks }
+        if sanitized.count != parsed.keybinds.count {
+            var next = parsed
+            next.keybinds = sanitized
+            try persist(next)
+        } else {
+            settings = parsed
         }
     }
 
@@ -96,7 +108,7 @@ final class SpotiglassSettingsStore: ObservableObject {
             }
             let data = try Data(contentsOf: fileURL)
             let parsed = try JSONDecoder().decode(SpotiglassSettingsFile.self, from: data)
-            settings = parsed
+            try applyLoadedSettings(parsed)
             lastError = nil
         } catch {
             do {

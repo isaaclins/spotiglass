@@ -23,7 +23,7 @@ extension PlaybackNowPlaying {
     }
 }
 
-enum FetchedLyrics: Equatable {
+enum FetchedLyrics: Equatable, Codable {
     case instrumental
     case synced([SyncedLyricLine])
     case unsyncedPlain([String])
@@ -45,17 +45,40 @@ struct LrcLibClient: Sendable {
         self.baseURL = baseURL
     }
 
-    /// Fetches from `/api/get-cached`, then `/api/get` if the cached miss has no usable lyrics.
+    /// Fetches from `/api/get-cached` and `/api/get` concurrently, preferring a usable mapping from `get-cached` then `get` (same outcome as sequential, lower latency when both endpoints are needed).
     func fetchLyrics(for track: PlaybackNowPlaying) async throws -> FetchedLyrics {
-        if let cached = try await get(endpoint: "get-cached", track: track),
-           let lyrics = mapResponse(cached) {
-            return lyrics
+        async let cachedResult = getResult(endpoint: "get-cached", track: track)
+        async let fullResult = getResult(endpoint: "get", track: track)
+        let cachedRes = await cachedResult
+        let fullRes = await fullResult
+
+        switch cachedRes {
+        case let .failure(error):
+            throw error
+        case let .success(dto):
+            if let dto, let lyrics = mapResponse(dto) {
+                return lyrics
+            }
         }
-        if let full = try await get(endpoint: "get", track: track),
-           let lyrics = mapResponse(full) {
-            return lyrics
+
+        switch fullRes {
+        case let .failure(error):
+            throw error
+        case let .success(dto):
+            if let dto, let lyrics = mapResponse(dto) {
+                return lyrics
+            }
         }
+
         throw Failure.noLyrics
+    }
+
+    private func getResult(endpoint: String, track: PlaybackNowPlaying) async -> Result<LrcLibResponseDTO?, Error> {
+        do {
+            return .success(try await get(endpoint: endpoint, track: track))
+        } catch {
+            return .failure(error)
+        }
     }
 
     private struct LrcLibResponseDTO: Decodable {
