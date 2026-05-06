@@ -163,9 +163,17 @@ struct RootView: View {
 private struct LyricsOverlayLayer: View {
     @EnvironmentObject private var lyricsOverlay: LyricsOverlayController
 
+    /// Avoid blocking the window when `isPresented` is true before browse VC has called `attach` (nil models).
+    private var immersiveLyricsReady: Bool {
+        lyricsOverlay.isPresented
+            && lyricsOverlay.playbackViewModel != nil
+            && lyricsOverlay.queueViewModel != nil
+            && lyricsOverlay.lyricsModel != nil
+    }
+
     var body: some View {
         ZStack {
-            if lyricsOverlay.isPresented,
+            if immersiveLyricsReady,
                let playback = lyricsOverlay.playbackViewModel,
                let queue = lyricsOverlay.queueViewModel,
                let lyrics = lyricsOverlay.lyricsModel {
@@ -182,7 +190,7 @@ private struct LyricsOverlayLayer: View {
         .animation(.easeOut(duration: 0.22), value: lyricsOverlay.isPresented)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea(edges: .all)
-        .allowsHitTesting(lyricsOverlay.isPresented)
+        .allowsHitTesting(immersiveLyricsReady)
     }
 }
 

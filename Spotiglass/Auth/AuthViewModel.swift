@@ -11,14 +11,17 @@ final class AuthViewModel: ObservableObject {
 
     private var currentSession: AuthenticatedSession?
     private var settings: SpotifyAuthSettings
-    private let authorizationFlow: SpotifyAuthorizationFlow
+    private let authorizationFlow: any SpotifyAuthorizationFlowing
+    private var signInTask: Task<Void, Never>?
+    /// Tracks which `signIn()` invocation owns `signInTask` so overlapping attempts do not clear a newer task.
+    private var activeSignInID: UUID?
     private let tokenClient: SpotifyTokenClient
     private let refreshTokenStore: RefreshTokenStore
     private let signOutDataCleaner: () -> Void
 
     init(
         settings: SpotifyAuthSettings = SpotifyAuthSettings(),
-        authorizationFlow: SpotifyAuthorizationFlow = SpotifyAuthorizationFlow(),
+        authorizationFlow: any SpotifyAuthorizationFlowing = SpotifyAuthorizationFlow(),
         tokenClient: SpotifyTokenClient = SpotifyTokenClient(),
         refreshTokenStore: RefreshTokenStore = KeychainRefreshTokenStore(),
         signOutDataCleaner: @escaping () -> Void = AuthViewModel.defaultSignOutDataCleaner,
@@ -57,6 +60,30 @@ final class AuthViewModel: ObservableObject {
     }
 
     func signIn() async {
+        signInTask?.cancel()
+        let signInID = UUID()
+        activeSignInID = signInID
+        let task = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.performSignIn()
+        }
+        signInTask = task
+        await task.value
+        if activeSignInID == signInID {
+            signInTask = nil
+            activeSignInID = nil
+        }
+    }
+
+    /// Stops an in-progress browser sign-in and closes the loopback listener. Safe to call when not signing in.
+    func cancelSignIn() {
+        signInTask?.cancel()
+        if case .signingIn = state {
+            state = .signedOut
+        }
+    }
+
+    private func performSignIn() async {
         do {
             state = .signingIn
             let authorizationCode = try await authorizationFlow.requestAuthorizationCode(clientID: clientID)
@@ -76,7 +103,15 @@ final class AuthViewModel: ObservableObject {
             settings.grantedScope = session.scope
             currentSession = session
             state = .signedIn(session)
+        } catch is CancellationError {
+            if case .signingIn = state {
+                state = .signedOut
+            }
         } catch {
+            if Task.isCancelled {
+                state = .signedOut
+                return
+            }
             state = .failed(AuthDisplayError(message: displayMessage(for: error)))
         }
     }

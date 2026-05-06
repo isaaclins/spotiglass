@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import WebKit
 
@@ -22,9 +23,17 @@ final class PlaybackSessionViewModel: ObservableObject {
     /// From `GET /v1/me/player` for the active Spotify player (may be this device or another).
     @Published private(set) var shuffleEnabled = false
     @Published private(set) var repeatMode: SpotifyRepeatMode = .off
+    /// Spotify Connect devices from `GET /v1/me/player/devices`.
+    @Published private(set) var connectDevices: [SpotifyConnectDevice] = []
+    /// Resolved SF Symbol for the playback-bar device button (hybrid: macOS output when this Web Playback device is active).
+    @Published private(set) var trayOutputSymbolName = "headphones"
+    @Published private(set) var isRefreshingConnectDevices = false
 
     private let playbackAPI: SpotifyPlaybackControlling
     private let webCommander: WebPlaybackCommanding
+    private let macAudioOutput: MacDefaultAudioOutputProviding
+    private var latestPlayerSnapshot: SpotifyPlayerSnapshot?
+    private var becameActiveObserver: NSObjectProtocol?
     private let progressTickInterval: TimeInterval
     private let clock = ContinuousClock()
     private let pendingShuffleTimeout: Duration
@@ -66,6 +75,7 @@ final class PlaybackSessionViewModel: ObservableObject {
     init(
         playbackAPI: SpotifyPlaybackControlling,
         webCommander: WebPlaybackCommanding,
+        macAudioOutput: MacDefaultAudioOutputProviding = MacDefaultAudioOutputNameProvider(),
         progressTickInterval: TimeInterval = 0.25,
         pendingShuffleTimeout: Duration = .seconds(2),
         pendingRepeatTimeout: Duration = .seconds(2),
@@ -74,12 +84,30 @@ final class PlaybackSessionViewModel: ObservableObject {
     ) {
         self.playbackAPI = playbackAPI
         self.webCommander = webCommander
+        self.macAudioOutput = macAudioOutput
         self.progressTickInterval = progressTickInterval
         self.pendingShuffleTimeout = pendingShuffleTimeout
         self.pendingRepeatTimeout = pendingRepeatTimeout
         self.postShuffleSyncDelay = postShuffleSyncDelay
         self.postRepeatSyncDelay = postRepeatSyncDelay
         self.playbackVolume = Self.loadStoredPlaybackVolume()
+
+        macAudioOutput.startListening { [weak self] in
+            Task { @MainActor in
+                self?.refreshTrayOutputSymbol()
+            }
+        }
+        becameActiveObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor in
+                await self.syncTransportFromSpotify()
+                await self.refreshConnectDevices()
+            }
+        }
     }
 
     private static func loadStoredPlaybackVolume() -> Double {
@@ -112,6 +140,10 @@ final class PlaybackSessionViewModel: ObservableObject {
         progressTickerTask?.cancel()
         shuffleSyncTask?.cancel()
         repeatSyncTask?.cancel()
+        macAudioOutput.stopListening()
+        if let becameActiveObserver {
+            NotificationCenter.default.removeObserver(becameActiveObserver)
+        }
     }
 
     func start() {
@@ -141,6 +173,7 @@ final class PlaybackSessionViewModel: ObservableObject {
             // WebKit helper PIDs (WebContent, GPU, …) may spawn only after the Web
             // Playback SDK is ready. Rebuild the equalizer tap so Core Audio includes them.
             NotificationCenter.default.post(name: .spotiglassPlaybackDeviceReady, object: nil)
+            refreshTrayOutputSymbol()
             Task {
                 await syncPlaybackVolumeToWebPlayer()
             }
@@ -280,13 +313,82 @@ final class PlaybackSessionViewModel: ObservableObject {
     /// Refreshes shuffle/repeat from Spotify (`GET /v1/me/player`). Safe to call when the queue panel polls; ignores failures without changing connection state.
     func syncTransportFromSpotify() async {
         do {
-            if let transport = try await playbackAPI.fetchPlayerTransport() {
-                applyTransportShuffleEnabled(transport.shuffle)
-                applyTransportRepeatMode(transport.repeatMode)
+            if let snapshot = try await playbackAPI.fetchPlayerSnapshot() {
+                latestPlayerSnapshot = snapshot
+                applyTransportShuffleEnabled(snapshot.transport.shuffle)
+                applyTransportRepeatMode(snapshot.transport.repeatMode)
+                refreshTrayOutputSymbol()
+            } else {
+                latestPlayerSnapshot = nil
+                refreshTrayOutputSymbol()
             }
         } catch {
             // Queue poll should not surface transport read failures as playback errors.
         }
+    }
+
+    func refreshConnectDevices() async {
+        isRefreshingConnectDevices = true
+        defer { isRefreshingConnectDevices = false }
+        do {
+            connectDevices = try await playbackAPI.fetchAvailableDevices()
+            refreshTrayOutputSymbol()
+        } catch {
+            connectDevices = []
+        }
+    }
+
+    func transferPlayback(toConnectDevice selectedDeviceID: String) async {
+        let shouldPlay: Bool
+        switch connectionState {
+        case .playing:
+            shouldPlay = true
+        default:
+            shouldPlay = false
+        }
+        do {
+            try await playbackAPI.transferPlayback(to: selectedDeviceID, play: shouldPlay)
+            if selectedDeviceID == deviceID {
+                hasTransferredPlaybackToCurrentDevice = true
+            } else {
+                hasTransferredPlaybackToCurrentDevice = false
+            }
+            await syncTransportFromSpotify()
+            await refreshConnectDevices()
+        } catch {
+            setConnectionState(.error(Self.displayError(for: error)))
+        }
+    }
+
+    private func refreshTrayOutputSymbol() {
+        let localID = deviceID
+        let active = latestPlayerSnapshot?.activeDevice
+
+        if let localID, let active, active.deviceID == localID {
+            trayOutputSymbolName = PlaybackOutputSFResolver.symbolName(
+                deviceName: macAudioOutput.currentOutputDisplayName,
+                spotifyDeviceType: "computer"
+            )
+            return
+        }
+
+        if let active {
+            trayOutputSymbolName = PlaybackOutputSFResolver.symbolName(
+                deviceName: active.name,
+                spotifyDeviceType: active.type
+            )
+            return
+        }
+
+        if localID != nil {
+            trayOutputSymbolName = PlaybackOutputSFResolver.symbolName(
+                deviceName: macAudioOutput.currentOutputDisplayName,
+                spotifyDeviceType: "computer"
+            )
+            return
+        }
+
+        trayOutputSymbolName = "headphones"
     }
 
     func toggleShuffle() async {
@@ -351,6 +453,9 @@ final class PlaybackSessionViewModel: ObservableObject {
         sdkNextTracks = []
         shuffleEnabled = false
         repeatMode = .off
+        latestPlayerSnapshot = nil
+        connectDevices = []
+        trayOutputSymbolName = "headphones"
         clearPendingShuffle()
         clearPendingRepeat()
         clearPendingPlay()

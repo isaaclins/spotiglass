@@ -19,14 +19,11 @@ struct ImmersiveLyricsView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                headerBar
                 mainContent
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .padding(.top, 8)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .ignoresSafeArea(edges: .all)
         .task(id: currentTrack?.uri) {
             guard let track = currentTrack else {
                 onDismiss()
@@ -38,24 +35,6 @@ struct ImmersiveLyricsView: View {
             await queuePrefetch
         }
         .onExitCommand(perform: onDismiss)
-        .keyboardShortcut(.escape, modifiers: [])
-    }
-
-    private var headerBar: some View {
-        HStack {
-            Button(action: onDismiss) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.title2)
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(.secondary, .primary.opacity(0.35))
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Close lyrics")
-
-            Spacer()
-        }
-        .padding(.horizontal, SpotiglassDesign.spacingM)
-        .padding(.bottom, 4)
     }
 
     @ViewBuilder

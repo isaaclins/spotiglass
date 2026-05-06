@@ -161,6 +161,48 @@ final class SpotifyPlaybackAPIStepTests: XCTestCase {
         XCTAssertEqual(transport?.shuffle, true)
         XCTAssertEqual(transport?.repeatMode, .context)
     }
+
+    func testFetchPlayerSnapshotDecodesNestedDevice() async throws {
+        let tokenProvider = StaticPlaybackAccessTokenProvider(token: "token")
+        let body = """
+        {"shuffle_state":false,"repeat_state":"off","device":{"id":"dev1","is_active":true,"is_restricted":false,"name":"Kitchen","type":"speaker","volume_percent":50}}
+        """.data(using: .utf8)!
+        let httpClient = SeqPlaybackHTTPClient(responses: [(body, 200)])
+        let api = SpotifyPlaybackAPI(
+            baseURL: URL(string: "https://api.spotify.com")!,
+            tokenProvider: tokenProvider,
+            httpClient: httpClient
+        )
+
+        let snapshot = try await api.fetchPlayerSnapshot()
+        XCTAssertEqual(snapshot?.transport.shuffle, false)
+        XCTAssertEqual(snapshot?.transport.repeatMode, .off)
+        XCTAssertEqual(snapshot?.activeDevice?.deviceID, "dev1")
+        XCTAssertEqual(snapshot?.activeDevice?.name, "Kitchen")
+        XCTAssertEqual(snapshot?.activeDevice?.volumePercent, 50)
+        let request = try XCTUnwrap(httpClient.requests.first)
+        XCTAssertEqual(request.url?.absoluteString, "https://api.spotify.com/v1/me/player")
+    }
+
+    func testFetchAvailableDevicesDecodesResponse() async throws {
+        let tokenProvider = StaticPlaybackAccessTokenProvider(token: "token")
+        let body = """
+        {"devices":[{"id":"a","is_active":false,"is_restricted":false,"name":"Mac","type":"computer","volume_percent":null}]}
+        """.data(using: .utf8)!
+        let httpClient = SeqPlaybackHTTPClient(responses: [(body, 200)])
+        let api = SpotifyPlaybackAPI(
+            baseURL: URL(string: "https://api.spotify.com")!,
+            tokenProvider: tokenProvider,
+            httpClient: httpClient
+        )
+
+        let devices = try await api.fetchAvailableDevices()
+        XCTAssertEqual(devices.count, 1)
+        XCTAssertEqual(devices.first?.deviceID, "a")
+        XCTAssertEqual(devices.first?.volumePercent, nil)
+        let request = try XCTUnwrap(httpClient.requests.first)
+        XCTAssertEqual(request.url?.absoluteString, "https://api.spotify.com/v1/me/player/devices")
+    }
 }
 
 @MainActor

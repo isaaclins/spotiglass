@@ -214,7 +214,7 @@ final class PlaybackStepTests: XCTestCase {
         XCTAssertEqual(viewModel.repeatMode, .context)
         XCTAssertTrue(api.actions.contains("setRepeat:device-1:context"))
         try? await Task.sleep(nanoseconds: 120_000_000)
-        XCTAssertTrue(api.actions.contains("fetchPlayerTransport"), "Background transport sync should run after repeat toggle.")
+        XCTAssertTrue(api.actions.contains("fetchPlayerSnapshot"), "Background transport sync should run after repeat toggle.")
     }
 
     func testCycleRepeatRevertsWhenSetRepeatFails() async {
@@ -316,7 +316,7 @@ final class PlaybackStepTests: XCTestCase {
         XCTAssertTrue(viewModel.shuffleEnabled)
         XCTAssertTrue(api.actions.contains("setShuffle:device-1:true"))
         try? await Task.sleep(nanoseconds: 120_000_000)
-        XCTAssertTrue(api.actions.contains("fetchPlayerTransport"))
+        XCTAssertTrue(api.actions.contains("fetchPlayerSnapshot"))
     }
 
     func testToggleShuffleRevertsWhenSetShuffleFails() async {
@@ -738,10 +738,14 @@ private final class MockWebPlaybackCommander: WebPlaybackCommanding {
 
 private final class MockPlaybackAPI: SpotifyPlaybackControlling {
     private(set) var actions: [String] = []
-    /// Returned by `fetchPlayerTransport`; updated when mock `setShuffle` / `setRepeat` succeed so background sync matches optimistic UI.
+    /// Returned by `fetchPlayerSnapshot`; updated when mock `setShuffle` / `setRepeat` succeed so background sync matches optimistic UI.
     private var reportedTransport = SpotifyPlayerTransport(shuffle: false, repeatMode: .off)
     /// Optional transport snapshots returned before `reportedTransport`; useful for simulating stale reads.
     var transportResponses: [SpotifyPlayerTransport?] = []
+    /// Optional full player snapshots (supersedes `reportedTransport` / `activeConnectDevice` when non-empty).
+    var snapshotResponses: [SpotifyPlayerSnapshot?] = []
+    var activeConnectDevice: SpotifyConnectDevice?
+    var availableDevices: [SpotifyConnectDevice] = []
     var setShuffleError: Error?
     var setRepeatError: Error?
 
@@ -798,6 +802,24 @@ private final class MockPlaybackAPI: SpotifyPlaybackControlling {
             return transportResponses.removeFirst()
         }
         return reportedTransport
+    }
+
+    func fetchPlayerSnapshot() async throws -> SpotifyPlayerSnapshot? {
+        actions.append("fetchPlayerSnapshot")
+        if !snapshotResponses.isEmpty {
+            return snapshotResponses.removeFirst()
+        }
+        if !transportResponses.isEmpty {
+            let transport = transportResponses.removeFirst()
+            guard let transport else { return nil }
+            return SpotifyPlayerSnapshot(transport: transport, activeDevice: activeConnectDevice)
+        }
+        return SpotifyPlayerSnapshot(transport: reportedTransport, activeDevice: activeConnectDevice)
+    }
+
+    func fetchAvailableDevices() async throws -> [SpotifyConnectDevice] {
+        actions.append("fetchAvailableDevices")
+        return availableDevices
     }
 
     func setShuffle(enabled: Bool, deviceID: String) async throws {

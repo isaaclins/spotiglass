@@ -333,6 +333,15 @@ final class PlaylistBrowserViewModel: ObservableObject {
     @Published private(set) var detailState: BrowsingLoadState<BrowsingDetailContent> = .empty("Select an item in the sidebar or open an artist from search.")
     @Published var sidebarSelection: SidebarSelection?
 
+    /// Immersive lyrics cover the window; unified refresh targets the underlying browser surface.
+    var refreshRoutingLyricsPresented = false
+    /// Playback queue panel visibility; synced from the browser view.
+    var refreshRoutingQueuePanelVisible = false
+    /// Whether the queue column owns refresh focus (⌘R / toolbar); synced from the browser view.
+    var refreshRoutingQueuePanelFocused = false
+    /// True only during a user-initiated queue refresh from the unified control (not background polling).
+    @Published private(set) var isUnifiedQueueRefreshActive = false
+
     /// When the sidebar shows a Spotify playlist row; used by search / command palette.
     var selectedPlaylistID: String? {
         if case let .playlist(id) = sidebarSelection { return id }
@@ -644,6 +653,35 @@ final class PlaylistBrowserViewModel: ObservableObject {
         } else if let artistID = artistIDForRefreshingDetail {
             await selectArtist(id: artistID)
         }
+    }
+
+    /// Reloads the playlist library list (sidebar) or the current detail surface (tracks / artist).
+    func unifiedRefreshMainSurface() async {
+        guard let selection = sidebarSelection else {
+            await refreshSelectedPlaylist()
+            return
+        }
+        switch selection {
+        case .home:
+            await refreshPlaylists()
+        case .likedSongs, .playlist, .pinnedItem:
+            await refreshSelectedPlaylist()
+        }
+    }
+
+    /// Single refresh entry for toolbar, ⌘R, and legacy palette bindings.
+    func performUnifiedRefresh(queueRefresh: () async -> Void) async {
+        if refreshRoutingLyricsPresented {
+            await unifiedRefreshMainSurface()
+            return
+        }
+        if refreshRoutingQueuePanelVisible, refreshRoutingQueuePanelFocused {
+            isUnifiedQueueRefreshActive = true
+            defer { isUnifiedQueueRefreshActive = false }
+            await queueRefresh()
+            return
+        }
+        await unifiedRefreshMainSurface()
     }
 
     /// When viewing an artist page (no playlist selection), refresh reloads that artist.

@@ -378,6 +378,16 @@ private final class QueueTestPlaybackAPI: SpotifyPlaybackControlling {
         return reportedTransport
     }
 
+    func fetchPlayerSnapshot() async throws -> SpotifyPlayerSnapshot? {
+        actions.append("fetchPlayerSnapshot")
+        return SpotifyPlayerSnapshot(transport: reportedTransport, activeDevice: nil)
+    }
+
+    func fetchAvailableDevices() async throws -> [SpotifyConnectDevice] {
+        actions.append("fetchAvailableDevices")
+        return []
+    }
+
     func setShuffle(enabled: Bool, deviceID: String) async throws {
         if let setShuffleError { throw setShuffleError }
         actions.append("setShuffle:\(deviceID):\(enabled)")

@@ -39,19 +39,11 @@ enum CommandPaletteCommandCatalog {
         ),
         CommandPaletteCommandSpec(
             commandID: CommandPaletteCommandID.refreshPlaylists,
-            title: "Refresh Playlists",
-            subtitle: "Reload your Spotify playlists",
+            title: "Refresh",
+            subtitle: "Reload the focused library, playlist, artist, or queue",
             iconSystemName: "arrow.clockwise",
             defaultWhen: .signedIn,
             defaultKeystroke: "cmd-r"
-        ),
-        CommandPaletteCommandSpec(
-            commandID: CommandPaletteCommandID.refreshTracks,
-            title: "Refresh Tracks",
-            subtitle: "Reload tracks for selected playlist",
-            iconSystemName: "text.badge.plus",
-            defaultWhen: .signedIn,
-            defaultKeystroke: "cmd-t"
         ),
         CommandPaletteCommandSpec(
             commandID: CommandPaletteCommandID.connectPlayback,
@@ -123,7 +115,6 @@ enum CommandPaletteCommandCatalog {
     private static let defaultKeymapFileOrder: [String] = [
         CommandPaletteCommandID.openPalette,
         CommandPaletteCommandID.refreshPlaylists,
-        CommandPaletteCommandID.refreshTracks,
         CommandPaletteCommandID.connectPlayback,
         CommandPaletteCommandID.togglePlayback,
         CommandPaletteCommandID.nextTrack,

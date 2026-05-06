@@ -1,6 +1,11 @@
 import AppKit
 import Foundation
 
+/// Abstraction for PKCE loopback authorization so sign-in can be tested and cancelled cooperatively.
+protocol SpotifyAuthorizationFlowing {
+    func requestAuthorizationCode(clientID: String, timeout: TimeInterval) async throws -> SpotifyAuthorizationCode
+}
+
 protocol AuthorizationURLPresenter {
     func open(_ url: URL) async throws
 }
@@ -25,7 +30,7 @@ enum SpotifyAuthorizationFlowError: LocalizedError, Equatable {
     }
 }
 
-struct SpotifyAuthorizationFlow {
+struct SpotifyAuthorizationFlow: SpotifyAuthorizationFlowing {
     private let listenerFactory: LoopbackOAuthListenerFactory
     private let presenter: AuthorizationURLPresenter
 
@@ -46,7 +51,11 @@ struct SpotifyAuthorizationFlow {
         let authorizationURL = try configuration.authorizationURL(state: state, codeChallenge: codeChallenge)
 
         try await presenter.open(authorizationURL)
-        let callback = try await listener.waitForCallback()
+        let callback = try await withTaskCancellationHandler {
+            try await listener.waitForCallback()
+        } onCancel: {
+            listener.close()
+        }
 
         return SpotifyAuthorizationCode(
             code: callback.code,
@@ -60,4 +69,10 @@ struct SpotifyAuthorizationCode: Equatable {
     let code: String
     let codeVerifier: String
     let redirectURI: URL
+}
+
+extension SpotifyAuthorizationFlowing {
+    func requestAuthorizationCode(clientID: String) async throws -> SpotifyAuthorizationCode {
+        try await requestAuthorizationCode(clientID: clientID, timeout: 120)
+    }
 }

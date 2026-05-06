@@ -2,7 +2,6 @@ import SwiftUI
 
 struct ArtistDetailContent: View {
     let detail: ArtistDetailViewModel
-    let refresh: () -> Void
     /// Starts playback of one track; caller supplies playlist-style queue of URIs.
     let playTrack: (String) -> Void
     let playAlbumContext: (String) -> Void
@@ -77,11 +76,6 @@ struct ArtistDetailContent: View {
             }
 
             Spacer()
-
-            Button(action: refresh) {
-                Label("Refresh", systemImage: "arrow.clockwise")
-            }
-            .accessibilityHint("Reloads artist details from Spotify.")
         }
         .padding(.horizontal, SpotiglassDesign.spacingL)
         .draggable(

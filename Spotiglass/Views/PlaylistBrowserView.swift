@@ -6,6 +6,12 @@ private final class BrowserWidthSampler {
     var latestWidth: CGFloat = 2000
 }
 
+/// Which column owns ⌘R / toolbar refresh when the queue panel is visible.
+private enum UnifiedRefreshFocus: Hashable {
+    case mainContent
+    case queuePanel
+}
+
 struct PlaylistBrowserView: View {
     @StateObject private var viewModel: PlaylistBrowserViewModel
     @StateObject private var playbackViewModel: PlaybackSessionViewModel
@@ -27,6 +33,7 @@ struct PlaylistBrowserView: View {
     /// Cached previous selection so pinned-track activations can revert the
     /// list highlight to whatever was selected before the click.
     @State private var lastNonPinnedSelection: SidebarSelection?
+    @State private var unifiedRefreshFocus: UnifiedRefreshFocus = .mainContent
     private let commander: WebPlaybackViewCommander
     private let playbackCoordinator: SpotifyPlaybackWebViewCoordinator
     @ObservedObject private var commandPaletteManager: CommandPaletteManager
@@ -97,14 +104,12 @@ struct PlaylistBrowserView: View {
         return detailLastVisibleTrackID
     }
 
-    /// Now playing track used to prefetch LRCLIB lyrics before the lyrics overlay opens.
+    /// Now playing track used to prefetch LRCLIB lyrics before the lyrics overlay opens (only while transport is playing).
     private var lyricsPrefetchTrack: PlaybackNowPlaying? {
         switch playbackViewModel.connectionState {
         case let .playing(np):
             return np
-        case let .paused(opt):
-            return opt
-        default:
+        case .paused, .disconnected, .connecting, .ready, .transferring, .unavailable, .error:
             return nil
         }
     }
@@ -147,7 +152,9 @@ struct PlaylistBrowserView: View {
         }
         .task(id: lyricsPrefetchTrack?.uri) {
             guard let track = lyricsPrefetchTrack, track.spotifyTrackIDForLyrics != nil else { return }
-            await lyricsViewModel.preload(track: track)
+            await Task(priority: .userInitiated) {
+                await lyricsViewModel.preload(track: track)
+            }.value
         }
         .task(id: lyricsHalfwayNextPreloadTaskKey) {
             guard lyricsHalfwayNextPreloadTaskKey != nil,
@@ -156,12 +163,14 @@ struct PlaylistBrowserView: View {
                   current.spotifyTrackIDForLyrics != nil,
                   current.positionMilliseconds * 2 >= current.durationMilliseconds
             else { return }
-            await queueViewModel.prefetchQueueForLyricsOverlay()
-            guard let nextPlayback = queueViewModel.upcomingItems.first?.playbackNowPlayingForLyricsPrefetch(),
-                  let nextID = nextPlayback.spotifyTrackIDForLyrics
-            else { return }
-            guard nextID != current.spotifyTrackIDForLyrics else { return }
-            await lyricsViewModel.preload(track: nextPlayback)
+            await Task(priority: .userInitiated) {
+                await queueViewModel.prefetchQueueForLyricsOverlay()
+                guard let nextPlayback = queueViewModel.upcomingItems.first?.playbackNowPlayingForLyricsPrefetch(),
+                      let nextID = nextPlayback.spotifyTrackIDForLyrics
+                else { return }
+                guard nextID != current.spotifyTrackIDForLyrics else { return }
+                await lyricsViewModel.preload(track: nextPlayback)
+            }.value
         }
         .background(.background)
         .background {
@@ -171,16 +180,12 @@ struct PlaylistBrowserView: View {
         }
         .toolbar {
             if lyricsOverlay.isPresented {
-                ToolbarItemGroup {
-                    Button {
-                        Task { await viewModel.refreshPlaylists() }
-                    } label: {
-                        Label("Refresh Playlists", systemImage: "arrow.clockwise")
-                    }
-                    .accessibilityHint("Reloads playlists from Spotify and updates cached data.")
+                ToolbarItemGroup(placement: .primaryAction) {
+                    lyricsOverlayCloseToolbarButton
+                    unifiedRefreshToolbarButton
                 }
             } else {
-                ToolbarItemGroup {
+                ToolbarItemGroup(placement: .automatic) {
                     Button {
                         isQueueVisible.toggle()
                     } label: {
@@ -189,18 +194,14 @@ struct PlaylistBrowserView: View {
                     .accessibilityHint("Shows or hides the playback queue.")
 
                     Button {
-                        Task { await viewModel.refreshPlaylists() }
-                    } label: {
-                        Label("Refresh Playlists", systemImage: "arrow.clockwise")
-                    }
-                    .accessibilityHint("Reloads playlists from Spotify and updates cached data.")
-
-                    Button {
                         signOut()
                     } label: {
                         Label("Disconnect", systemImage: "xmark.circle")
                     }
                     .accessibilityHint("Disconnects Spotify and returns to the sign-in screen.")
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    unifiedRefreshToolbarButton
                 }
             }
         }
@@ -214,12 +215,20 @@ struct PlaylistBrowserView: View {
             await bindPinnedStoreToCurrentUser()
         }
         .onAppear {
+            unifiedRefreshFocus = .mainContent
+            syncUnifiedRefreshRoutingToViewModel()
             lyricsOverlay.attach(playback: playbackViewModel, queue: queueViewModel, lyrics: lyricsViewModel)
             bindCommandPalette(queueVisible: $isQueueVisible)
+            commandPaletteManager.dismissLyricsOverlayIfPresented = { [lyricsOverlay] in
+                guard lyricsOverlay.isPresented else { return false }
+                lyricsOverlay.dismiss()
+                return true
+            }
             queueViewModel.setPanelVisible(isQueueVisible)
             NotificationCenter.default.post(name: .spotiglassPlaybackSurfaceAppeared, object: nil)
         }
         .onDisappear {
+            commandPaletteManager.dismissLyricsOverlayIfPresented = nil
             lyricsOverlay.detach()
         }
         .onChange(of: viewModel.sidebarSelection) { _, _ in
@@ -235,6 +244,16 @@ struct PlaylistBrowserView: View {
             queueViewModel.setPanelVisible(visible)
             browserContentWidth = browserWidthSampler.latestWidth
             lastBrowserWidthCommitTime = CFAbsoluteTimeGetCurrent()
+            if !visible {
+                unifiedRefreshFocus = .mainContent
+            }
+            syncUnifiedRefreshRoutingToViewModel()
+        }
+        .onChange(of: unifiedRefreshFocus) { _, _ in
+            syncUnifiedRefreshRoutingToViewModel()
+        }
+        .onChange(of: lyricsOverlay.isPresented) { _, _ in
+            syncUnifiedRefreshRoutingToViewModel()
         }
         .onChange(of: playbackViewModel.sdkNextTracks) { _, _ in
             queueViewModel.handleSdkQueueSnapshotChanged()
@@ -242,6 +261,101 @@ struct PlaylistBrowserView: View {
         .onChange(of: queueRelevantPlaybackKey) { _, _ in
             queueViewModel.handlePlaybackStateChange()
         }
+    }
+
+    /// Full-window lyrics sits on a dark backdrop; toolbar controls use the same padded capsule chrome as other glass chips.
+    private var lyricsOverlayCloseToolbarButton: some View {
+        Button {
+            lyricsOverlay.dismiss()
+        } label: {
+            Image(systemName: "xmark")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.primary)
+                .frame(minWidth: 18, minHeight: 18)
+                .padding(.horizontal, SpotiglassDesign.spacingM)
+                .padding(.vertical, SpotiglassDesign.spacingS)
+                .background(.regularMaterial, in: Capsule(style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Close lyrics")
+        .accessibilityHint("Closes the immersive lyrics overlay.")
+    }
+
+    @ViewBuilder
+    private var unifiedRefreshToolbarButton: some View {
+        if lyricsOverlay.isPresented {
+            Button {
+                Task { await performUnifiedToolbarRefresh() }
+            } label: {
+                refreshToolbarLabelWithPillChrome
+            }
+            .buttonStyle(.plain)
+            .disabled(isUnifiedRefreshBusy)
+            .accessibilityHint(
+                "Reloads the sidebar library, the open playlist or artist, or the queue when the queue panel is focused. Shortcut: ⌘R."
+            )
+        } else {
+            Button {
+                Task { await performUnifiedToolbarRefresh() }
+            } label: {
+                refreshToolbarLabelIconAndText
+            }
+            .buttonStyle(.borderless)
+            .disabled(isUnifiedRefreshBusy)
+            .accessibilityHint(
+                "Reloads the sidebar library, the open playlist or artist, or the queue when the queue panel is focused. Shortcut: ⌘R."
+            )
+        }
+    }
+
+    private var refreshToolbarLabelIconAndText: some View {
+        HStack(spacing: SpotiglassDesign.spacingXS) {
+            Group {
+                if isUnifiedRefreshBusy {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.body.weight(.medium))
+                }
+            }
+            .frame(width: 16, height: 16)
+            Text("Refresh")
+        }
+    }
+
+    private var refreshToolbarLabelWithPillChrome: some View {
+        refreshToolbarLabelIconAndText
+            .padding(.horizontal, SpotiglassDesign.spacingM)
+            .padding(.vertical, SpotiglassDesign.spacingS)
+            .background(.regularMaterial, in: Capsule(style: .continuous))
+    }
+
+    private var isUnifiedRefreshBusy: Bool {
+        if lyricsOverlay.isPresented {
+            return isPlaylistOrDetailRefreshing
+        }
+        if isQueueVisible, unifiedRefreshFocus == .queuePanel {
+            return viewModel.isUnifiedQueueRefreshActive
+        }
+        return isPlaylistOrDetailRefreshing
+    }
+
+    private var isPlaylistOrDetailRefreshing: Bool {
+        if case .refreshing = viewModel.playlistState { return true }
+        if case .refreshing = viewModel.detailState { return true }
+        return false
+    }
+
+    private func syncUnifiedRefreshRoutingToViewModel() {
+        viewModel.refreshRoutingLyricsPresented = lyricsOverlay.isPresented
+        viewModel.refreshRoutingQueuePanelVisible = isQueueVisible
+        viewModel.refreshRoutingQueuePanelFocused = unifiedRefreshFocus == .queuePanel
+    }
+
+    private func performUnifiedToolbarRefresh() async {
+        syncUnifiedRefreshRoutingToViewModel()
+        await viewModel.performUnifiedRefresh { await queueViewModel.refreshQueue() }
     }
 
     /// Playlist sidebar + main detail + queue strip; `.detailOnly` means the playlist sidebar is hidden so only two regions compete for width.
@@ -496,13 +610,9 @@ struct PlaylistBrowserView: View {
                 playlistSidebarRow(playlist: playlist)
             }
         case let .empty(message):
-            EmptyStateView(title: "No playlists", message: message) {
-                Task { await viewModel.refreshPlaylists() }
-            }
+            EmptyStateView(title: "No playlists", message: message)
         case let .error(error):
-            ErrorStateView(error: error) {
-                Task { await viewModel.refreshPlaylists() }
-            }
+            ErrorStateView(error: error)
         }
     }
 
@@ -568,6 +678,9 @@ struct PlaylistBrowserView: View {
                 .background(.background)
                 .frame(minWidth: resolvedDetailMinWidth)
                 .layoutPriority(1)
+                .onHover { hovering in
+                    if hovering { unifiedRefreshFocus = .mainContent }
+                }
             if isQueueVisible {
                 queuePanelColumn
                     .transition(
@@ -576,6 +689,9 @@ struct PlaylistBrowserView: View {
                             removal: .offset(x: SpotiglassDesign.sidebarWidth).combined(with: .opacity)
                         )
                     )
+                    .onHover { hovering in
+                        if hovering { unifiedRefreshFocus = .queuePanel }
+                    }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -620,9 +736,6 @@ struct PlaylistBrowserView: View {
                                 detail: detail,
                                 pendingScrollRestoreTrackID: $pendingPlaylistListScrollRestoreID,
                                 onTrackEnteredViewportApproximation: { detailLastVisibleTrackID = $0 },
-                                refresh: {
-                                    Task { await viewModel.refreshSelectedPlaylist() }
-                                },
                                 playURI: { uri in
                                     let playableURIs = detail.tracks.compactMap(\.playableURI)
                                     let playlistID = detail.playlist.id
@@ -650,9 +763,6 @@ struct PlaylistBrowserView: View {
                         case let .artist(detail):
                             ArtistDetailContent(
                                 detail: detail,
-                                refresh: {
-                                    Task { await viewModel.refreshSelectedPlaylist() }
-                                },
                                 playTrack: { uri in
                                     let playableURIs = detail.tracks.compactMap(\.playableURI)
                                     Task {
@@ -694,13 +804,9 @@ struct PlaylistBrowserView: View {
                     }
                 }
             case let .empty(message):
-                EmptyStateView(title: "No tracks", message: message) {
-                    Task { await viewModel.refreshSelectedPlaylist() }
-                }
+                EmptyStateView(title: "No tracks", message: message)
             case let .error(error):
-                ErrorStateView(error: error) {
-                    Task { await viewModel.refreshSelectedPlaylist() }
-                }
+                ErrorStateView(error: error)
             }
         }
         .acceptsPinnedDropOut(store: pinnedStore)
@@ -762,6 +868,7 @@ struct PlaylistBrowserView: View {
     }
 
     private func bindCommandPalette(queueVisible: Binding<Bool>) {
+        syncUnifiedRefreshRoutingToViewModel()
         let includeThisPlaylist = viewModel.isCommandPaletteThisPlaylistSearchEligible
         commandPaletteManager.viewModel.setAvailableSearchCategories(
             CommandPaletteSearchCategory.footerOrder(includeThisPlaylist: includeThisPlaylist),
@@ -770,11 +877,13 @@ struct PlaylistBrowserView: View {
 
         commandPaletteManager.isSignedIn = true
         commandPaletteManager.signOut = signOut
-        commandPaletteManager.refreshPlaylists = { [weak viewModel] in
-            await viewModel?.refreshPlaylists()
-        }
-        commandPaletteManager.refreshTracks = { [weak viewModel] in
-            await viewModel?.refreshSelectedPlaylist()
+        let browserVM = viewModel
+        let queueVM = queueViewModel
+        commandPaletteManager.unifiedRefresh = {
+            Task { @MainActor in
+                syncUnifiedRefreshRoutingToViewModel()
+                await browserVM.performUnifiedRefresh { await queueVM.refreshQueue() }
+            }
         }
         commandPaletteManager.selectNextPlaylist = { [weak viewModel] in
             await viewModel?.selectNextPlaylist()
@@ -1172,7 +1281,6 @@ private struct PlaylistDetailContent: View {
     let detail: PlaylistDetailViewModel
     @Binding var pendingScrollRestoreTrackID: String?
     let onTrackEnteredViewportApproximation: (String) -> Void
-    let refresh: () -> Void
     let playURI: (String) -> Void
     let currentPlaybackURI: String?
     let isPlaying: Bool
@@ -1220,7 +1328,7 @@ private struct PlaylistDetailContent: View {
             Divider()
 
             if detail.tracks.isEmpty {
-                EmptyStateView(title: "No tracks", message: "This playlist is empty.", retry: refresh)
+                EmptyStateView(title: "No tracks", message: "This playlist is empty.")
             } else {
                 VirtualizedTrackList(
                     tracks: detail.tracks,
@@ -1299,11 +1407,6 @@ private struct PlaylistDetailContent: View {
             }
 
             Spacer()
-
-            Button(action: refresh) {
-                Label("Refresh Tracks", systemImage: "arrow.clockwise")
-            }
-            .accessibilityHint("Reloads tracks for the selected playlist.")
         }
         .padding(SpotiglassDesign.spacingL)
         .draggable(
@@ -1328,7 +1431,6 @@ private struct PlaylistDetailContent: View {
 private struct EmptyStateView: View {
     let title: String
     let message: String
-    let retry: () -> Void
 
     var body: some View {
         VStack(spacing: SpotiglassDesign.spacingM) {
@@ -1339,13 +1441,6 @@ private struct EmptyStateView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 320)
-
-            // Retry is intentionally not bound to a keyboard shortcut here:
-            // both the sidebar and detail panes can be in their own empty/error
-            // state at the same time, and binding ⌘R to multiple Retry buttons
-            // makes the shortcut ambiguous. The toolbar's Refresh Playlists
-            // (⌘R) and Refresh Tracks (⌘T) buttons remain authoritative.
-            Button("Retry", action: retry)
         }
         .padding(SpotiglassDesign.spacingL)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -1355,7 +1450,6 @@ private struct EmptyStateView: View {
 
 private struct ErrorStateView: View {
     let error: BrowsingDisplayError
-    let retry: () -> Void
     @State private var isShowingDiagnosticAlert = false
 
     var body: some View {
@@ -1372,10 +1466,6 @@ private struct ErrorStateView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 360)
-
-            if error.canRetry {
-                Button("Retry", action: retry)
-            }
         }
         .padding(SpotiglassDesign.spacingL)
         .frame(maxWidth: .infinity, maxHeight: .infinity)

@@ -14,6 +14,7 @@ Spotiglass keeps minimal state on disk. Refresh tokens never leave the Keychain 
 | Sidebar pins (per Spotify user)   | `~/Library/Application Support/Spotiglass/SpotifyCache/pinned/<userID>.json` — one JSON array per account (`userID` is the Spotify user id) | **Disconnect** removes the whole `SpotifyCache` tree (pins included). In-memory pins are cleared on disconnect before the next session. |
 | Cached Web API GET bodies        | `~/Library/Application Support/Spotiglass/SpotifyCache/get_responses/` (SHA256-named JSON; search, artist, profile, album-track pages — short TTL) | Same as playlist cache; cleared with **Disconnect** |
 | Artwork image blobs               | `~/Library/Caches/Spotiglass/Artwork/` (SHA256-named files); HTTP layer also uses `~/Library/Caches/Spotiglass/ArtworkURLCache/`       | Disconnect (cleared with Spotify cache); eviction trims disk blobs when the artwork folder exceeds ~50 MB                           |
+| LRCLIB lyrics (per track id)        | `~/Library/Application Support/Spotiglass/LyricsCache/<trackId>.json` (resolved ``FetchedLyrics`` from LRCLIB)                        | Delete files in that folder, or remove the whole `LyricsCache` directory, to drop on-disk lyrics only (does not affect playlist cache) |
 | Web Playback SDK web data         | Non-persistent `WKWebView` data store (in-memory for that session)                                                                      | Quitting Spotiglass                                                                                 |
 
 ### `settings.json` shape
@@ -44,8 +45,8 @@ Spotiglass keeps minimal state on disk. Refresh tokens never leave the Keychain 
 
 - Keyed by playlist and Spotify snapshot ID for saved tracks.
 - Short TTL (five minutes by default) for treating cached tracks as still valid for instant display.
-- **Stale-while-revalidate**: opening a playlist shows cached tracks immediately when the snapshot and TTL match; the app still refreshes from the Spotify Web API in the background and updates the UI when new data arrives. **Refresh Tracks** or changing the playlist snapshot invalidates or bypasses the soft cache as before.
-- **Playlist list**: on launch, if the on-disk playlist list is newer than about **30 minutes**, Spotiglass skips an automatic `GET /v1/me/playlists` round-trip and only loads tracks for the current selection (still subject to track-cache rules above). Older lists still trigger a refresh. Use the in-app refresh control when you need the latest sidebar immediately.
+- **Stale-while-revalidate**: opening a playlist shows cached tracks immediately when the snapshot and TTL match; the app still refreshes from the Spotify Web API in the background and updates the UI when new data arrives. A manual **Refresh** from the toolbar or ⌘R (for the active playlist or detail surface), or changing the playlist snapshot, invalidates or bypasses the soft cache as before.
+- **Playlist list**: on launch, if the on-disk playlist list is newer than about **30 minutes**, Spotiglass skips an automatic `GET /v1/me/playlists` round-trip and only loads tracks for the current selection (still subject to track-cache rules above). Older lists still trigger a refresh. Use **Refresh** (⌘R) from Home or the toolbar when you need the latest sidebar immediately.
 - Does not contain tokens or credentials.
 
 ### Web API GET response cache (`get_responses/`)

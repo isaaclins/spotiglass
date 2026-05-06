@@ -26,6 +26,7 @@
 		C30000000000000000000003 /* SpotifyAPIError.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000013 /* SpotifyAPIError.swift */; };
 		C30000000000000000000004 /* SpotifyAPIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000014 /* SpotifyAPIModels.swift */; };
 		C30000000000000000000005 /* SpotifyLocalCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000015 /* SpotifyLocalCache.swift */; };
+		E50000000000000000000022 /* LyricsDiskCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000023 /* LyricsDiskCache.swift */; };
 		C30000000000000000000006 /* SpotifyWebAPIStepTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000016 /* SpotifyWebAPIStepTests.swift */; };
 		C30000000000000000000007 /* SpotifyGETResponseCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000017 /* SpotifyGETResponseCache.swift */; };
 		C30000000000000000000008 /* SpotifyRateLimitDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000018 /* SpotifyRateLimitDisplay.swift */; };
@@ -51,6 +52,10 @@
 		E5000000000000000000000F /* ImmersiveLyricsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5000000000000000000001D /* ImmersiveLyricsViewModel.swift */; };
 		E50000000000000000000020 /* LyricsOverlayController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5000000000000000000001F /* LyricsOverlayController.swift */; };
 		E50000000000000000000010 /* LrcParsingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5000000000000000000001E /* LrcParsingTests.swift */; };
+		E50000000000000000000024 /* LrcLibClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000025 /* LrcLibClientTests.swift */; };
+		E50000000000000000000040 /* PlaybackOutputSFResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000041 /* PlaybackOutputSFResolver.swift */; };
+		E50000000000000000000042 /* MacDefaultAudioOutputNameProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000043 /* MacDefaultAudioOutputNameProvider.swift */; };
+		E50000000000000000000046 /* PlaybackOutputSFResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000047 /* PlaybackOutputSFResolverTests.swift */; };
 		R50000000000000000000001 /* ImmersiveLyricsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = R50000000000000000000011 /* ImmersiveLyricsViewModelTests.swift */; };
 		F60000000000000000000001 /* SpotiglassDesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60000000000000000000011 /* SpotiglassDesignSystem.swift */; };
 		FA00000000000000000000001 /* ArtworkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000011 /* ArtworkView.swift */; };
@@ -127,6 +132,7 @@
 		C30000000000000000000013 /* SpotifyAPIError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyAPIError.swift; sourceTree = "<group>"; };
 		C30000000000000000000014 /* SpotifyAPIModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyAPIModels.swift; sourceTree = "<group>"; };
 		C30000000000000000000015 /* SpotifyLocalCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyLocalCache.swift; sourceTree = "<group>"; };
+		E50000000000000000000023 /* LyricsDiskCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LyricsDiskCache.swift; sourceTree = "<group>"; };
 		C30000000000000000000016 /* SpotifyWebAPIStepTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyWebAPIStepTests.swift; sourceTree = "<group>"; };
 		C30000000000000000000017 /* SpotifyGETResponseCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyGETResponseCache.swift; sourceTree = "<group>"; };
 		C30000000000000000000018 /* SpotifyRateLimitDisplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyRateLimitDisplay.swift; sourceTree = "<group>"; };
@@ -152,6 +158,10 @@
 		E5000000000000000000001D /* ImmersiveLyricsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImmersiveLyricsViewModel.swift; sourceTree = "<group>"; };
 		E5000000000000000000001F /* LyricsOverlayController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LyricsOverlayController.swift; sourceTree = "<group>"; };
 		E5000000000000000000001E /* LrcParsingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LrcParsingTests.swift; sourceTree = "<group>"; };
+		E50000000000000000000025 /* LrcLibClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LrcLibClientTests.swift; sourceTree = "<group>"; };
+		E50000000000000000000041 /* PlaybackOutputSFResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackOutputSFResolver.swift; sourceTree = "<group>"; };
+		E50000000000000000000043 /* MacDefaultAudioOutputNameProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacDefaultAudioOutputNameProvider.swift; sourceTree = "<group>"; };
+		E50000000000000000000047 /* PlaybackOutputSFResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackOutputSFResolverTests.swift; sourceTree = "<group>"; };
 		R50000000000000000000011 /* ImmersiveLyricsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImmersiveLyricsViewModelTests.swift; sourceTree = "<group>"; };
 		P10000000000000000000011 /* PinnedDropOutHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinnedDropOutHandler.swift; sourceTree = "<group>"; };
 		P10000000000000000000012 /* PinnedItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinnedItem.swift; sourceTree = "<group>"; };
@@ -303,6 +313,8 @@
 				H80000000000000000000012 /* ScrubberView.swift */,
 				E50000000000000000000013 /* SpotifyPlaybackAPI.swift */,
 				E50000000000000000000012 /* SpotifyPlaybackBridge.swift */,
+				E50000000000000000000041 /* PlaybackOutputSFResolver.swift */,
+				E50000000000000000000043 /* MacDefaultAudioOutputNameProvider.swift */,
 				E50000000000000000000011 /* SpotifyPlaybackModels.swift */,
 				K10000000000000000000015 /* AudioEqualizerEngine.swift */,
 				K10000000000000000000018 /* ProcessAudioTapResolver.swift */,
@@ -344,6 +356,7 @@
 				A10000000000000000000015 /* SpotiglassFoundationTests.swift */,
 				D40000000000000000000013 /* PlaylistBrowsingStepTests.swift */,
 				E50000000000000000000017 /* PlaybackStepTests.swift */,
+				E50000000000000000000047 /* PlaybackOutputSFResolverTests.swift */,
 				E50000000000000000000019 /* QueuePanelTests.swift */,
 				B20000000000000000000018 /* SpotifyAuthStepTests.swift */,
 				C30000000000000000000016 /* SpotifyWebAPIStepTests.swift */,
@@ -352,6 +365,7 @@
 				K10000000000000000000017 /* EqualizerPresetsTests.swift */,
 				K10000000000000000000019 /* ProcessAudioTapResolverTests.swift */,
 				E5000000000000000000001E /* LrcParsingTests.swift */,
+				E50000000000000000000025 /* LrcLibClientTests.swift */,
 				R50000000000000000000011 /* ImmersiveLyricsViewModelTests.swift */,
 				P1000000000000000000001C /* PinnedItemsStoreTests.swift */,
 			);
@@ -372,6 +386,7 @@
 			children = (
 				B20000000000000000000016 /* AuthPersistence.swift */,
 				C30000000000000000000015 /* SpotifyLocalCache.swift */,
+				E50000000000000000000023 /* LyricsDiskCache.swift */,
 			);
 			path = Persistence;
 			sourceTree = "<group>";
@@ -538,6 +553,7 @@
 				C30000000000000000000003 /* SpotifyAPIError.swift in Sources */,
 				C30000000000000000000004 /* SpotifyAPIModels.swift in Sources */,
 				C30000000000000000000005 /* SpotifyLocalCache.swift in Sources */,
+				E50000000000000000000022 /* LyricsDiskCache.swift in Sources */,
 				P10000000000000000000001 /* PinnedDropOutHandler.swift in Sources */,
 				P10000000000000000000002 /* PinnedItem.swift in Sources */,
 				P10000000000000000000003 /* PinnedItemTransfer.swift in Sources */,
@@ -564,6 +580,8 @@
 				E50000000000000000000005 /* HiddenPlaybackWebView.swift in Sources */,
 				E50000000000000000000008 /* QueueViewModel.swift in Sources */,
 				E50000000000000000000006 /* PlaybackControlsView.swift in Sources */,
+				E50000000000000000000040 /* PlaybackOutputSFResolver.swift in Sources */,
+				E50000000000000000000042 /* MacDefaultAudioOutputNameProvider.swift in Sources */,
 				F60000000000000000000001 /* SpotiglassDesignSystem.swift in Sources */,
 				FA00000000000000000000001 /* ArtworkView.swift in Sources */,
 				G70000000000000000000001 /* CommandPaletteModels.swift in Sources */,
@@ -599,6 +617,7 @@
 				A10000000000000000000005 /* SpotiglassFoundationTests.swift in Sources */,
 				D40000000000000000000003 /* PlaylistBrowsingStepTests.swift in Sources */,
 				E50000000000000000000007 /* PlaybackStepTests.swift in Sources */,
+				E50000000000000000000046 /* PlaybackOutputSFResolverTests.swift in Sources */,
 				E50000000000000000000009 /* QueuePanelTests.swift in Sources */,
 				B20000000000000000000008 /* SpotifyAuthStepTests.swift in Sources */,
 				C30000000000000000000006 /* SpotifyWebAPIStepTests.swift in Sources */,
@@ -607,6 +626,7 @@
 				K10000000000000000000007 /* EqualizerPresetsTests.swift in Sources */,
 				K10000000000000000000009 /* ProcessAudioTapResolverTests.swift in Sources */,
 				E50000000000000000000010 /* LrcParsingTests.swift in Sources */,
+				E50000000000000000000024 /* LrcLibClientTests.swift in Sources */,
 				R50000000000000000000001 /* ImmersiveLyricsViewModelTests.swift in Sources */,
 				P1000000000000000000000C /* PinnedItemsStoreTests.swift in Sources */,
 			);

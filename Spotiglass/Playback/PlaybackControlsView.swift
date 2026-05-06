@@ -17,6 +17,7 @@ struct PlaybackControlsView: View {
 
                 HStack(spacing: SpotiglassDesign.spacingM) {
                     controlsCluster
+                    connectDeviceMenuGroup
                     volumeGroup
                 }
             }
@@ -237,6 +238,56 @@ struct PlaybackControlsView: View {
         case .track:
             "Repeat one"
         }
+    }
+
+    @ViewBuilder
+    private var connectDeviceMenuGroup: some View {
+        if viewModel.deviceID != nil {
+            Menu {
+                Group {
+                    ForEach(viewModel.connectDevices) { device in
+                        Button {
+                            Task { await viewModel.transferPlayback(toConnectDevice: device.deviceID) }
+                        } label: {
+                            HStack(spacing: 8) {
+                                if device.isActive {
+                                    Image(systemName: "checkmark")
+                                        .foregroundStyle(.secondary)
+                                        .frame(width: 12)
+                                } else {
+                                    Color.clear.frame(width: 12)
+                                }
+                                Image(systemName: connectDeviceRowSymbol(for: device))
+                                Text(device.name)
+                                    .lineLimit(1)
+                            }
+                        }
+                        .disabled(device.isRestricted)
+                    }
+                }
+                .onAppear {
+                    Task { await viewModel.refreshConnectDevices() }
+                }
+            } label: {
+                ZStack {
+                    Circle()
+                        .fill(Color.primary.opacity(0.08))
+                    Image(systemName: viewModel.trayOutputSymbolName)
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(.primary)
+                }
+                .frame(width: 28, height: 28)
+            }
+            .menuIndicator(.hidden)
+            .disabled(!hasReadyDevice)
+            .opacity(hasReadyDevice ? 1 : 0.45)
+            .accessibilityLabel("Playback device")
+            .accessibilityHint("Opens a menu of Spotify Connect devices.")
+        }
+    }
+
+    private func connectDeviceRowSymbol(for device: SpotifyConnectDevice) -> String {
+        PlaybackOutputSFResolver.symbolName(deviceName: device.name, spotifyDeviceType: device.type)
     }
 
     private var volumeGroup: some View {

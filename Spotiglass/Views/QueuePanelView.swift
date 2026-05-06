@@ -50,14 +50,6 @@ struct QueuePanelView: View {
             .accessibilityLabel(playbackViewModel.shuffleEnabled ? "Shuffle on" : "Shuffle off")
             .accessibilityHint("Toggles shuffle for Spotify playback on this device.")
             .help("Shuffle playback order")
-
-            Button {
-                Task { await queueViewModel.refreshQueue() }
-            } label: {
-                Image(systemName: "arrow.clockwise")
-            }
-            .accessibilityLabel("Refresh queue")
-            .help("Reload queue from Spotify")
         }
         .padding(SpotiglassDesign.spacingM)
     }
@@ -83,13 +75,6 @@ struct QueuePanelView: View {
             Text(error.message)
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            if error.canRetry {
-                Button("Retry") {
-                    Task { await queueViewModel.refreshQueue() }
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-            }
             Button("Dismiss") {
                 queueViewModel.clearError()
             }
