@@ -12,18 +12,11 @@ struct SpotifyClientIDAndActionsView: View {
     @ObservedObject var viewModel: AuthViewModel
     var layout: Layout = .welcome
 
+    @FocusState private var isClientIDFocused: Bool
+
     var body: some View {
         VStack(spacing: SpotiglassDesign.spacingM) {
-            TextField("Spotify client ID", text: $viewModel.clientID)
-                .textFieldStyle(.roundedBorder)
-                .frame(maxWidth: layout == .welcome ? 420 : .infinity)
-                .disabled(viewModel.state == .signingIn)
-                .accessibilityLabel("Spotify client ID")
-                .accessibilityHint("Paste the client ID from your Spotify Developer Dashboard app.")
-                .onSubmit {
-                    guard canSignIn else { return }
-                    Task { await viewModel.signIn() }
-                }
+            clientIDField
 
             HStack(spacing: SpotiglassDesign.spacingS) {
                 Button {
@@ -62,7 +55,36 @@ struct SpotifyClientIDAndActionsView: View {
         }
     }
 
+    /// Plain `TextField` while empty or while editing; `SecureField` (dots) when there is a saved value and the field is not focused.
+    private var clientIDField: some View {
+        Group {
+            if showsPlaintextClientID {
+                TextField("Spotify client ID", text: $viewModel.clientID)
+            } else {
+                SecureField("Spotify client ID", text: $viewModel.clientID)
+            }
+        }
+        .textFieldStyle(.roundedBorder)
+        .frame(maxWidth: layout == .welcome ? 420 : .infinity)
+        .disabled(viewModel.state == .signingIn)
+        .focused($isClientIDFocused)
+        .accessibilityLabel("Spotify client ID")
+        .accessibilityHint("Paste the client ID from your Spotify Developer Dashboard app. Value is hidden until you click or tab into this field.")
+        .onSubmit {
+            guard canSignIn else { return }
+            Task { await viewModel.signIn() }
+        }
+    }
+
+    private var showsPlaintextClientID: Bool {
+        isClientIDFocused || clientIDTrimmed.isEmpty
+    }
+
+    private var clientIDTrimmed: String {
+        viewModel.clientID.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     private var canSignIn: Bool {
-        !viewModel.clientID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && viewModel.state != .signingIn
+        !clientIDTrimmed.isEmpty && viewModel.state != .signingIn
     }
 }

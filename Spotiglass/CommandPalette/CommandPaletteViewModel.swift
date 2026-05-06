@@ -92,6 +92,14 @@ final class CommandPaletteViewModel: ObservableObject {
 
     func refresh() {
         normalizeLegacyArtistPrefix()
+        let parsed = CommandPaletteScope.parse(query)
+        let trimmed = parsed.query.trimmingCharacters(in: .whitespacesAndNewlines)
+        if parsed.scope == .songs,
+           !trimmed.isEmpty,
+           searchCategoryFilter != .thisPlaylist {
+            isLoading = true
+            errorText = nil
+        }
         searchTask?.cancel()
         searchTask = Task { [weak self] in
             guard let self else { return }

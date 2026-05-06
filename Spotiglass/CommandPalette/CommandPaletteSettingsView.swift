@@ -40,17 +40,6 @@ struct CommandPaletteSettingsView: View {
                         .font(.title2.weight(.semibold))
                 }
 
-                VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
-                    Text("Appearance")
-                        .font(presentation == .settingsTabs ? .headline : .title3.weight(.semibold))
-                    Toggle("Blur window behind palette", isOn: backdropBlurBinding)
-                        .toggleStyle(.switch)
-                    Text("When on, the rest of the window is slightly blurred while the palette is open.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
                 Text("Shortcuts")
                     .font(presentation == .settingsTabs ? .headline : .title3.weight(.semibold))
 
@@ -91,15 +80,6 @@ struct CommandPaletteSettingsView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-    }
-
-    private var backdropBlurBinding: Binding<Bool> {
-        Binding(
-            get: { keymapStore.settingsStore.settings.commandPalette.backdropBlur },
-            set: { newValue in
-                try? keymapStore.settingsStore.mutate { $0.commandPalette.backdropBlur = newValue }
-            }
-        )
     }
 
     private func keybindingRow(spec: CommandPaletteCommandSpec) -> some View {

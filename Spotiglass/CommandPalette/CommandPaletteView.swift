@@ -15,12 +15,16 @@ struct CommandPaletteView: View {
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Namespace private var paletteGlass
 
+    /// Full-strength `Material` reads heavy; partial opacity keeps the frosted hint while leaving more detail visible behind the palette.
+    private static let backdropMaterialOpacity: CGFloat = 0.55
+
     @ViewBuilder
     private var paletteBackdrop: some View {
         Group {
             if settingsStore.settings.commandPalette.backdropBlur {
                 Rectangle()
                     .fill(.ultraThinMaterial)
+                    .opacity(Self.backdropMaterialOpacity)
             } else {
                 Color.clear
             }
@@ -113,11 +117,6 @@ struct CommandPaletteView: View {
 
     private var resultsCard: some View {
         VStack(spacing: 0) {
-            if viewModel.isLoading {
-                ProgressView("Searching Spotify...")
-                    .padding(SpotiglassDesign.spacingM)
-            }
-
             if let errorText = viewModel.errorText {
                 Text(errorText)
                     .font(.caption)
@@ -214,6 +213,31 @@ struct CommandPaletteView: View {
         .accessibilityLabel(category.segmentLabel)
     }
 
+    private var searchingPlaceholder: some View {
+        VStack {
+            Spacer()
+            Group {
+                if accessibilityReduceMotion {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 32, weight: .regular))
+                        .foregroundStyle(.secondary)
+                        .symbolRenderingMode(.hierarchical)
+                        .accessibilityLabel("Searching Spotify")
+                } else {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 32, weight: .regular))
+                        .foregroundStyle(.secondary)
+                        .symbolRenderingMode(.hierarchical)
+                        .symbolEffect(.variableColor.iterative.reversing, options: .repeating)
+                        .accessibilityLabel("Searching Spotify")
+                }
+            }
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 360)
+    }
+
     @ViewBuilder
     private var resultsBody: some View {
         let sections = viewModel.sections
@@ -222,7 +246,9 @@ struct CommandPaletteView: View {
         let hasUserQuery = !viewModel.query.isEmpty
         let onlyPrefix = (viewModel.query == ">" || viewModel.query == "@")
 
-        if sections.isEmpty || allEmpty {
+        if viewModel.isLoading && allEmpty {
+            searchingPlaceholder
+        } else if sections.isEmpty || allEmpty {
             if hasUserQuery, !onlyPrefix, !trimmed.isEmpty, !viewModel.isLoading {
                 VStack {
                     Spacer()
