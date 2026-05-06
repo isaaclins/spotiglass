@@ -38,7 +38,7 @@ enum CommandPaletteSection: String {
         case .artists: "ARTISTS"
         case .commands: "COMMANDS"
         case .playlists: "PLAYLISTS"
-        case .thisPlaylist: "THIS PLAYLIST"
+        case .thisPlaylist: "HERE"
         case .myPlaylists: "MY PLAYLISTS"
         case .albums: "ALBUMS"
         }

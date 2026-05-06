@@ -259,6 +259,47 @@ final class PlaylistBrowsingStepTests: XCTestCase {
         XCTAssertEqual(detail.tracks.first?.title, "Hit")
     }
 
+    func testCommandPaletteContextEligibleWhenArtistDetailLoaded() async {
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([Self.playlist(id: "one", name: "One")])],
+            trackResults: ["one": [.success([Self.track(id: "track-one")])]]
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+
+        await viewModel.load()
+        await viewModel.selectArtist(id: "artist-xyz")
+
+        XCTAssertTrue(viewModel.isCommandPaletteContextSearchEligible)
+        XCTAssertEqual(viewModel.loadedContextTracksForPalette?.map(\.title), ["Hit"])
+    }
+
+    func testCommandPaletteContextEligibleWhenPlaylistDetailLoaded() async {
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([Self.playlist(id: "one", name: "One")])],
+            trackResults: ["one": [.success([Self.track(id: "track-one")])]]
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+
+        await viewModel.load()
+
+        XCTAssertTrue(viewModel.isCommandPaletteContextSearchEligible)
+        XCTAssertEqual(viewModel.loadedContextTracksForPalette?.map(\.title), ["Track track-one"])
+    }
+
+    func testCommandPaletteContextNotEligibleWhenSidebarHome() async {
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([Self.playlist(id: "one", name: "One")])],
+            trackResults: ["one": [.success([Self.track(id: "track-one")])]]
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+
+        await viewModel.load()
+        await viewModel.selectSidebar(.home)
+
+        XCTAssertFalse(viewModel.isCommandPaletteContextSearchEligible)
+        XCTAssertNil(viewModel.loadedContextTracksForPalette)
+    }
+
     /// Mirrors `List` + `.onChange(of: sidebarSelection)` calling `selectPlaylist(nil)` after `selectArtist` clears sidebar selection.
     func testSelectArtistSurvivesSubsequentSelectPlaylistNilFromSidebarOnChange() async {
         let api = MockBrowsingAPI(

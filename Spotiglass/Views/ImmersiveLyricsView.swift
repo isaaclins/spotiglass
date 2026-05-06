@@ -5,6 +5,8 @@ struct ImmersiveLyricsView: View {
     @ObservedObject var playbackViewModel: PlaybackSessionViewModel
     @ObservedObject var queueViewModel: QueueViewModel
     @ObservedObject var lyricsModel: ImmersiveLyricsViewModel
+    let navigateToArtist: (ArtistTapTarget) -> Void
+    let navigateToAlbum: (AlbumTapTarget, String, URL?) -> Void
     let onDismiss: () -> Void
 
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -40,24 +42,31 @@ struct ImmersiveLyricsView: View {
     @ViewBuilder
     private var mainContent: some View {
         GeometryReader { geo in
+            let bottomPadding = max(SpotiglassDesign.spacingM, geo.safeAreaInsets.bottom)
+            // Main layout relies on the host `VStack` safe area (below title bar). Do not add
+            // `.padding(.top, safeAreaInsets.top)` here — it duplicates that inset and creates a large gap.
+            let usableHeight = max(0, geo.size.height - bottomPadding)
+            let leadingGutter = max(SpotiglassDesign.spacingL, geo.safeAreaInsets.leading)
+            let trailingGutter = max(SpotiglassDesign.spacingL, geo.safeAreaInsets.trailing)
             let wide = geo.size.width > 720
             Group {
                 if wide {
                     HStack(alignment: .top, spacing: SpotiglassDesign.spacingL) {
                         leftColumn
                             .frame(width: min(320, geo.size.width * 0.36), alignment: .leading)
-                        lyricsScrollColumn(maxHeight: geo.size.height)
+                        lyricsScrollColumn(maxHeight: usableHeight)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 } else {
                     VStack(alignment: .leading, spacing: SpotiglassDesign.spacingM) {
                         leftColumn
-                        lyricsScrollColumn(maxHeight: max(200, geo.size.height * 0.5))
+                        lyricsScrollColumn(maxHeight: max(200, usableHeight * 0.5))
                     }
                 }
             }
-            .padding(.horizontal, SpotiglassDesign.spacingL)
-            .padding(.bottom, SpotiglassDesign.spacingM)
+            .padding(.leading, leadingGutter)
+            .padding(.trailing, trailingGutter)
+            .padding(.bottom, bottomPadding)
         }
     }
 
@@ -88,19 +97,125 @@ struct ImmersiveLyricsView: View {
                     .accessibilityHint("Cycles repeat: off, repeat playlist, repeat one track.")
                 }
 
-                Text(track.artistText)
-                    .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.72))
-                    .lineLimit(2)
+                lyricsArtistLine(track: track)
 
                 if let album = track.albumName, !album.isEmpty {
-                    Text(album)
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.5))
-                        .lineLimit(2)
+                    Button {
+                        navigateToAlbum(
+                            AlbumTapTarget(id: track.albumID, name: album),
+                            track.artistText,
+                            track.albumArtURL
+                        )
+                    } label: {
+                        Text(album)
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.5))
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Open album \(album)")
                 }
 
                 nextInQueueSection
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func lyricsArtistLine(track: PlaybackNowPlaying) -> some View {
+        if track.artistTapTargets.isEmpty {
+            Text(track.artistText)
+                .font(.subheadline)
+                .foregroundStyle(.white.opacity(0.72))
+                .lineLimit(2)
+        } else {
+            HStack(spacing: 0) {
+                ForEach(Array(track.artistTapTargets.enumerated()), id: \.element.stableID) { index, target in
+                    if index > 0 {
+                        Text(", ")
+                            .font(.subheadline)
+                            .foregroundStyle(.white.opacity(0.72))
+                    }
+                    Button {
+                        navigateToArtist(target)
+                    } label: {
+                        Text(target.name)
+                            .font(.subheadline)
+                            .foregroundStyle(.white.opacity(0.72))
+                            .lineLimit(2)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Open artist \(target.name)")
+                }
+                Spacer(minLength: 0)
+            }
+        }
+    }
+
+    private func queueUpcomingRow(item: QueueItem) -> some View {
+        HStack(alignment: .center, spacing: SpotiglassDesign.spacingS) {
+            ArtworkView(url: item.albumArtURL, size: 36)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.name)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.white.opacity(0.92))
+                    .lineLimit(2)
+                queueUpcomingSubtitle(item: item)
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    @ViewBuilder
+    private func queueUpcomingSubtitle(item: QueueItem) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if item.artistTapTargets.isEmpty {
+                Text(item.subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.5))
+                    .lineLimit(2)
+            } else {
+                HStack(spacing: 0) {
+                    ForEach(Array(item.artistTapTargets.enumerated()), id: \.element.stableID) { index, target in
+                        if index > 0 {
+                            Text(", ")
+                                .font(.caption)
+                                .foregroundStyle(.white.opacity(0.5))
+                        }
+                        Button {
+                            navigateToArtist(target)
+                        } label: {
+                            Text(target.name)
+                                .font(.caption)
+                                .foregroundStyle(.white.opacity(0.5))
+                                .lineLimit(2)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Open artist \(target.name)")
+                    }
+                    Spacer(minLength: 0)
+                }
+            }
+
+            if let albumName = item.albumName, !albumName.isEmpty {
+                Button {
+                    navigateToAlbum(
+                        AlbumTapTarget(id: item.albumID, name: albumName),
+                        item.subtitle,
+                        item.albumArtURL
+                    )
+                } label: {
+                    Text(albumName)
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.38))
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Open album \(albumName)")
             }
         }
     }
@@ -115,38 +230,32 @@ struct ImmersiveLyricsView: View {
                 .padding(.top, SpotiglassDesign.spacingS)
 
             if upcoming.isEmpty {
-                Text("No upcoming tracks.")
+                Text(nextInQueueEmptyMessage)
                     .font(.caption)
                     .foregroundStyle(.white.opacity(0.4))
             } else {
                 VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
                     ForEach(upcoming) { item in
-                        HStack(alignment: .center, spacing: SpotiglassDesign.spacingS) {
-                            ArtworkView(url: item.albumArtURL, size: 36)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(item.name)
-                                    .font(.subheadline.weight(.medium))
-                                    .foregroundStyle(.white.opacity(0.92))
-                                    .lineLimit(2)
-                                Text(item.subtitle)
-                                    .font(.caption)
-                                    .foregroundStyle(.white.opacity(0.5))
-                                    .lineLimit(1)
-                            }
-                            Spacer(minLength: 0)
-                        }
+                        queueUpcomingRow(item: item)
                     }
                 }
             }
         }
     }
 
+    private var nextInQueueEmptyMessage: String {
+        if playbackViewModel.repeatMode == .track {
+            return "This song repeats. Turn repeat off to see what plays next."
+        }
+        return "No upcoming tracks."
+    }
+
     private var lyricsRepeatButtonIcon: String {
         switch playbackViewModel.repeatMode {
         case .off, .context:
-            "repeat"
+            "infinity.circle"
         case .track:
-            "repeat.1"
+            "infinity.circle.fill"
         }
     }
 
@@ -231,7 +340,8 @@ struct ImmersiveLyricsView: View {
                             .id(line.id)
                     }
                 }
-                .padding(.vertical, 24)
+                .padding(.top, 8)
+                .padding(.bottom, 24)
             }
             .frame(maxWidth: .infinity, maxHeight: maxHeight, alignment: .leading)
             .onChange(of: activeIndex) { _, newValue in
@@ -266,7 +376,8 @@ struct ImmersiveLyricsView: View {
                             .id(index)
                     }
                 }
-                .padding(.vertical, 24)
+                .padding(.top, 8)
+                .padding(.bottom, 24)
             }
             .frame(maxWidth: .infinity, maxHeight: maxHeight, alignment: .leading)
             .onChange(of: active) { _, newValue in
@@ -428,3 +539,5 @@ private struct ImmersiveBlurredArtwork: View {
         return out
     }
 }
+
+

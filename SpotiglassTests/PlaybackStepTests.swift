@@ -8,6 +8,7 @@ final class PlaybackStepTests: XCTestCase {
             name: "Song",
             artists: ["  Artist One  ", "artist one", "Artist Two"],
             albumName: nil,
+            albumID: nil,
             albumArtURL: nil,
             durationMilliseconds: 120_000,
             positionMilliseconds: 0,
@@ -42,6 +43,7 @@ final class PlaybackStepTests: XCTestCase {
                 "track": [
                     "name": "Track",
                     "artists": ["Artist"],
+                    "albumURI": "spotify:album:album42",
                     "albumArtURL": "https://example.com/art.png",
                     "durationMilliseconds": 180_000,
                     "positionMilliseconds": 42_000,
@@ -56,7 +58,14 @@ final class PlaybackStepTests: XCTestCase {
         XCTAssertFalse(isPaused)
         XCTAssertEqual(nextTracks.count, 0)
         XCTAssertEqual(nowPlaying?.name, "Track")
+        XCTAssertEqual(nowPlaying?.albumID, "album42")
         XCTAssertEqual(nowPlaying?.progressText, "0:42 / 3:00")
+    }
+
+    func testBridgeParsesSpotifyAlbumIDFromURI() {
+        XCTAssertEqual(SpotifyPlaybackBridgeParser.spotifyAlbumID(fromAlbumURI: nil), nil)
+        XCTAssertEqual(SpotifyPlaybackBridgeParser.spotifyAlbumID(fromAlbumURI: "spotify:album:abc"), "abc")
+        XCTAssertNil(SpotifyPlaybackBridgeParser.spotifyAlbumID(fromAlbumURI: "spotify:track:wrong"))
     }
 
     func testTokenBridgeOnlyReturnsAccessToken() async throws {
@@ -81,6 +90,7 @@ final class PlaybackStepTests: XCTestCase {
             name: "Track",
             artists: ["Artist"],
             albumName: nil,
+            albumID: nil,
             albumArtURL: nil,
             durationMilliseconds: 100_000,
             positionMilliseconds: 5_000,
@@ -492,6 +502,7 @@ final class PlaybackStepTests: XCTestCase {
             name: "Track",
             artists: ["Artist"],
             albumName: nil,
+            albumID: nil,
             albumArtURL: nil,
             durationMilliseconds: 180_000,
             positionMilliseconds: 5_000,
@@ -515,6 +526,7 @@ final class PlaybackStepTests: XCTestCase {
             name: "Track",
             artists: ["Artist"],
             albumName: nil,
+            albumID: nil,
             albumArtURL: nil,
             durationMilliseconds: 180_000,
             positionMilliseconds: 32_000,
@@ -627,6 +639,7 @@ final class PlaybackStepTests: XCTestCase {
             name: "Old",
             artists: ["A"],
             albumName: nil,
+            albumID: nil,
             albumArtURL: nil,
             durationMilliseconds: 200_000,
             positionMilliseconds: 50_000,
@@ -665,6 +678,7 @@ final class PlaybackStepTests: XCTestCase {
             name: "New",
             artists: ["B"],
             albumName: nil,
+            albumID: nil,
             albumArtURL: nil,
             durationMilliseconds: 180_000,
             positionMilliseconds: 0,

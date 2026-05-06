@@ -87,10 +87,12 @@ enum SpotifyPlaybackHost {
 
           function mapNextTrack(t) {
             const albumName = t.album && t.album.name ? String(t.album.name) : null;
+            const albumURI = t.album && t.album.uri ? String(t.album.uri) : null;
             return {
               name: t.name || '',
               artists: (t.artists || []).map(artist => artist.name).filter(Boolean),
               albumName: albumName && albumName.length ? albumName : null,
+              albumURI: albumURI && albumURI.length ? albumURI : null,
               albumArtURL: t.album && t.album.images && t.album.images[0] ? t.album.images[0].url : null,
               durationMilliseconds: Number(t.duration_ms || 0),
               positionMilliseconds: 0,
@@ -108,6 +110,7 @@ enum SpotifyPlaybackHost {
             }
             const track = state.track_window.current_track;
             const albumName = track.album && track.album.name ? String(track.album.name) : null;
+            const albumURI = track.album && track.album.uri ? String(track.album.uri) : null;
             return {
               paused: Boolean(state.paused),
               nextTracks,
@@ -115,6 +118,7 @@ enum SpotifyPlaybackHost {
                 name: track.name || '',
                 artists: (track.artists || []).map(artist => artist.name).filter(Boolean),
                 albumName: albumName && albumName.length ? albumName : null,
+                albumURI: albumURI && albumURI.length ? albumURI : null,
                 albumArtURL: track.album && track.album.images && track.album.images[0] ? track.album.images[0].url : null,
                 durationMilliseconds: Number(state.duration || 0),
                 positionMilliseconds: Number(state.position || 0),
@@ -180,6 +184,14 @@ enum SpotifyPlaybackHost {
 }
 
 enum SpotifyPlaybackBridgeParser {
+    /// Parses `spotify:album:{id}` from the Web Playback SDK bridge payload.
+    static func spotifyAlbumID(fromAlbumURI uri: String?) -> String? {
+        guard let uri, uri.hasPrefix("spotify:album:") else { return nil }
+        let id = uri.dropFirst("spotify:album:".count)
+        let trimmed = String(id).trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
     static func parse(_ body: Any) throws -> PlaybackBridgeEvent {
         guard let dictionary = body as? [String: Any],
               let name = dictionary["name"] as? String else {
@@ -226,10 +238,12 @@ enum SpotifyPlaybackBridgeParser {
         }
         let rawAlbum = track["albumName"] as? String
         let albumName = rawAlbum.flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.flatMap { $0.isEmpty ? nil : $0 }
+        let albumURI = track["albumURI"] as? String
         return PlaybackNowPlaying(
             name: track["name"] as? String ?? "Unknown track",
             artists: track["artists"] as? [String] ?? [],
             albumName: albumName,
+            albumID: Self.spotifyAlbumID(fromAlbumURI: albumURI),
             albumArtURL: (track["albumArtURL"] as? String).flatMap(URL.init(string:)),
             durationMilliseconds: track["durationMilliseconds"] as? Int ?? 0,
             positionMilliseconds: track["positionMilliseconds"] as? Int ?? 0,

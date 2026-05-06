@@ -14,6 +14,10 @@ final class CommandPaletteTests: XCTestCase {
         )
     }
 
+    func testThisPlaylistSectionUsesHereDisplayLabel() {
+        XCTAssertEqual(CommandPaletteSection.thisPlaylist.displayLabel, "HERE")
+    }
+
     func testShortcutParsingSupportsModifiers() throws {
         let shortcut = try CommandShortcut(keystroke: "shift-cmd-k")
         XCTAssertEqual(shortcut.key, "k")

@@ -64,11 +64,11 @@ final class QueuePanelTests: XCTestCase {
 
         playback.handle(.ready(deviceID: "device-1"))
         let sdkNext = [
-            PlaybackNowPlaying(name: "A", artists: ["a"], albumName: nil, albumArtURL: nil, durationMilliseconds: 100_000, positionMilliseconds: 0, uri: "spotify:track:a"),
-            PlaybackNowPlaying(name: "B", artists: ["b"], albumName: nil, albumArtURL: nil, durationMilliseconds: 100_000, positionMilliseconds: 0, uri: "spotify:track:b")
+            PlaybackNowPlaying(name: "A", artists: ["a"], albumName: nil, albumID: nil, albumArtURL: nil, durationMilliseconds: 100_000, positionMilliseconds: 0, uri: "spotify:track:a"),
+            PlaybackNowPlaying(name: "B", artists: ["b"], albumName: nil, albumID: nil, albumArtURL: nil, durationMilliseconds: 100_000, positionMilliseconds: 0, uri: "spotify:track:b")
         ]
         playback.handle(.stateChanged(
-            PlaybackNowPlaying(name: "Cur", artists: ["c"], albumName: nil, albumArtURL: nil, durationMilliseconds: 120_000, positionMilliseconds: 0, uri: "spotify:track:cur"),
+            PlaybackNowPlaying(name: "Cur", artists: ["c"], albumName: nil, albumID: nil, albumArtURL: nil, durationMilliseconds: 120_000, positionMilliseconds: 0, uri: "spotify:track:cur"),
             isPaused: false,
             nextTracks: sdkNext
         ))
@@ -91,12 +91,74 @@ final class QueuePanelTests: XCTestCase {
         XCTAssertEqual(queue.upcomingItems[2].source, .userQueued)
     }
 
+    func testQueueViewModelClearsUpNextWhenRepeatOneDespiteSDKAndAPILists() async throws {
+        let api = QueueTestPlaybackAPI()
+        let commander = StubWebPlaybackCommander()
+        let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: commander)
+        let queue = QueueViewModel(playbackAPI: api, playbackSession: playback, pollIntervalNanoseconds: 60_000_000_000)
+
+        playback.handle(.ready(deviceID: "device-1"))
+        let sdkNext = [
+            PlaybackNowPlaying(name: "A", artists: ["a"], albumName: nil, albumID: nil, albumArtURL: nil, durationMilliseconds: 100_000, positionMilliseconds: 0, uri: "spotify:track:a"),
+            PlaybackNowPlaying(name: "B", artists: ["b"], albumName: nil, albumID: nil, albumArtURL: nil, durationMilliseconds: 100_000, positionMilliseconds: 0, uri: "spotify:track:b")
+        ]
+        playback.handle(.stateChanged(
+            PlaybackNowPlaying(name: "Cur", artists: ["c"], albumName: nil, albumID: nil, albumArtURL: nil, durationMilliseconds: 120_000, positionMilliseconds: 0, uri: "spotify:track:cur"),
+            isPaused: false,
+            nextTracks: sdkNext
+        ))
+
+        try await api.setRepeat(mode: .track, deviceID: "device-1")
+        await playback.syncTransportFromSpotify()
+        XCTAssertEqual(playback.repeatMode, .track)
+
+        let trackA = SpotifyTrack(id: "a", name: "A", artists: ["a"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:a")
+        let trackB = SpotifyTrack(id: "b", name: "B", artists: ["b"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:b")
+        let trackC = SpotifyTrack(id: "c", name: "C", artists: ["c"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:c")
+
+        api.queueResponse = SpotifyQueueResponse(
+            currentlyPlaying: nil,
+            queue: [.track(trackA), .track(trackB), .track(trackC)]
+        )
+
+        queue.setPanelVisible(true)
+        await queue.refreshQueue()
+
+        XCTAssertTrue(
+            queue.upcomingItems.isEmpty,
+            "Repeat-one must hide contextual Up next even when Spotify queue and SDK still list following tracks."
+        )
+    }
+
+    func testQueueViewModelSyncFromPlaybackSessionAppliesRepeatOneWithoutQueueFetch() async throws {
+        let api = QueueTestPlaybackAPI()
+        let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: StubWebPlaybackCommander())
+        let queue = QueueViewModel(playbackAPI: api, playbackSession: playback, pollIntervalNanoseconds: 60_000_000_000)
+
+        playback.handle(.ready(deviceID: "device-1"))
+        playback.handle(.stateChanged(
+            PlaybackNowPlaying(name: "Cur", artists: ["c"], albumName: nil, albumID: nil, albumArtURL: nil, durationMilliseconds: 120_000, positionMilliseconds: 0, uri: "spotify:track:cur"),
+            isPaused: false,
+            nextTracks: [
+                PlaybackNowPlaying(name: "A", artists: ["a"], albumName: nil, albumID: nil, albumArtURL: nil, durationMilliseconds: 100_000, positionMilliseconds: 0, uri: "spotify:track:a")
+            ]
+        ))
+
+        try await api.setRepeat(mode: .track, deviceID: "device-1")
+        await playback.syncTransportFromSpotify()
+
+        queue.syncFromPlaybackSession()
+
+        XCTAssertTrue(queue.upcomingItems.isEmpty)
+        XCTAssertFalse(api.actions.contains("fetchQueue"))
+    }
+
     func testQueueViewModelSkipsFetchWhenPanelHidden() async {
         let api = QueueTestPlaybackAPI()
         let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: StubWebPlaybackCommander())
         playback.handle(.ready(deviceID: "device-1"))
         playback.handle(.stateChanged(
-            PlaybackNowPlaying(name: "T", artists: [], albumName: nil, albumArtURL: nil, durationMilliseconds: 60_000, positionMilliseconds: 0, uri: "spotify:track:t"),
+            PlaybackNowPlaying(name: "T", artists: [], albumName: nil, albumID: nil, albumArtURL: nil, durationMilliseconds: 60_000, positionMilliseconds: 0, uri: "spotify:track:t"),
             isPaused: false,
             nextTracks: []
         ))
@@ -149,13 +211,14 @@ final class QueuePanelTests: XCTestCase {
             name: "Old",
             artists: ["A"],
             albumName: nil,
+            albumID: nil,
             albumArtURL: nil,
             durationMilliseconds: 100_000,
             positionMilliseconds: 0,
             uri: "spotify:track:old"
         )
         playback.handle(.stateChanged(oldNow, isPaused: false, nextTracks: [
-            PlaybackNowPlaying(name: "Next", artists: ["B"], albumName: nil, albumArtURL: nil, durationMilliseconds: 100_000, positionMilliseconds: 0, uri: "spotify:track:next")
+            PlaybackNowPlaying(name: "Next", artists: ["B"], albumName: nil, albumID: nil, albumArtURL: nil, durationMilliseconds: 100_000, positionMilliseconds: 0, uri: "spotify:track:next")
         ]))
 
         let oldTrack = SpotifyTrack(id: "old", name: "Old", artists: ["A"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:old")
@@ -170,13 +233,14 @@ final class QueuePanelTests: XCTestCase {
             name: "Next",
             artists: ["B"],
             albumName: nil,
+            albumID: nil,
             albumArtURL: nil,
             durationMilliseconds: 100_000,
             positionMilliseconds: 0,
             uri: "spotify:track:next"
         )
         playback.handle(.stateChanged(newNow, isPaused: false, nextTracks: [
-            PlaybackNowPlaying(name: "Third", artists: ["C"], albumName: nil, albumArtURL: nil, durationMilliseconds: 100_000, positionMilliseconds: 0, uri: "spotify:track:third")
+            PlaybackNowPlaying(name: "Third", artists: ["C"], albumName: nil, albumID: nil, albumArtURL: nil, durationMilliseconds: 100_000, positionMilliseconds: 0, uri: "spotify:track:third")
         ]))
 
         queue.handlePlaybackStateChange()

@@ -10,15 +10,21 @@ final class LyricsOverlayController: ObservableObject {
     private(set) var playbackViewModel: PlaybackSessionViewModel?
     private(set) var queueViewModel: QueueViewModel?
     private(set) var lyricsModel: ImmersiveLyricsViewModel?
+    private(set) var navigateToArtist: ((ArtistTapTarget) -> Void)?
+    private(set) var navigateToAlbum: ((AlbumTapTarget, String, URL?) -> Void)?
 
     func attach(
         playback: PlaybackSessionViewModel,
         queue: QueueViewModel,
-        lyrics: ImmersiveLyricsViewModel
+        lyrics: ImmersiveLyricsViewModel,
+        navigateToArtist: @escaping (ArtistTapTarget) -> Void,
+        navigateToAlbum: @escaping (AlbumTapTarget, String, URL?) -> Void
     ) {
         playbackViewModel = playback
         queueViewModel = queue
         lyricsModel = lyrics
+        self.navigateToArtist = navigateToArtist
+        self.navigateToAlbum = navigateToAlbum
     }
 
     func detach() {
@@ -26,6 +32,8 @@ final class LyricsOverlayController: ObservableObject {
         playbackViewModel = nil
         queueViewModel = nil
         lyricsModel = nil
+        navigateToArtist = nil
+        navigateToAlbum = nil
     }
 
     func dismiss() {

@@ -348,25 +348,28 @@ final class PlaylistBrowserViewModel: ObservableObject {
         return nil
     }
 
-    /// True when the browser shows a loaded playlist or Liked Songs (not Home or artist detail).
-    var isCommandPaletteThisPlaylistSearchEligible: Bool {
-        guard let selection = sidebarSelection else { return false }
-        switch selection {
-        case .playlist, .likedSongs:
-            break
-        case .home, .pinnedItem:
-            return false
-        }
+    /// True when the command palette can scope “Here” to the current main view: a loaded **artist** (sidebar is nil), or a **playlist / Liked Songs** row with loaded playlist detail.
+    var isCommandPaletteContextSearchEligible: Bool {
         guard let content = detailState.currentValue else { return false }
-        if case .playlist = content { return true }
-        return false
+        switch content {
+        case .artist:
+            return true
+        case .playlist:
+            guard let selection = sidebarSelection else { return false }
+            switch selection {
+            case .playlist, .likedSongs: return true
+            case .home, .pinnedItem: return false
+            }
+        }
     }
 
-    /// Tracks in the current playlist detail, when loaded.
-    var loadedPlaylistTracksForPalette: [TrackRowViewModel]? {
+    /// Top/loaded tracks for the current **playlist** or **artist** detail, for palette “Here” / merged-in-page search.
+    var loadedContextTracksForPalette: [TrackRowViewModel]? {
         guard let content = detailState.currentValue else { return nil }
-        if case let .playlist(vm) = content { return vm.tracks }
-        return nil
+        switch content {
+        case let .playlist(vm): return vm.tracks
+        case let .artist(vm): return vm.tracks
+        }
     }
 
     private let api: SpotifyBrowsingAPI
@@ -599,6 +602,8 @@ final class PlaylistBrowserViewModel: ObservableObject {
                             artists: track.artists,
                             artistRefs: track.artistRefs,
                             albumArtworkURL: url,
+                            albumName: track.albumName,
+                            albumID: track.albumID,
                             durationMilliseconds: track.durationMilliseconds,
                             isExplicit: track.isExplicit,
                             isPlayable: track.isPlayable,

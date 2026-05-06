@@ -514,7 +514,7 @@ final class PlaybackSessionViewModel: ObservableObject {
     }
 
     private func fallbackNowPlaying() -> PlaybackNowPlaying {
-        PlaybackNowPlaying(name: "Spotify playback", artists: [], albumName: nil, albumArtURL: nil, durationMilliseconds: 0, positionMilliseconds: 0, uri: nil)
+        PlaybackNowPlaying(name: "Spotify playback", artists: [], albumName: nil, albumID: nil, albumArtURL: nil, durationMilliseconds: 0, positionMilliseconds: 0, uri: nil)
     }
 
     private func ensurePlaybackTransferredIfNeeded(deviceID: String) async throws {

@@ -55,17 +55,17 @@ struct QueuePanelView: View {
     }
 
     private var subtitleText: String {
-        let count = queueViewModel.upcomingItems.count
-        let countLine = count == 1 ? "1 track up next" : "\(count) tracks up next"
-        let repeatSuffix: String = {
-            switch playbackViewModel.repeatMode {
-            case .off: return ""
-            case .context: return "Repeat playlist"
-            case .track: return "Repeat one"
-            }
-        }()
-        if repeatSuffix.isEmpty { return countLine }
-        return "\(countLine) · \(repeatSuffix)"
+        switch playbackViewModel.repeatMode {
+        case .track:
+            return "Repeat one — upcoming tracks resume when repeat is off"
+        case .off:
+            let count = queueViewModel.upcomingItems.count
+            return count == 1 ? "1 track up next" : "\(count) tracks up next"
+        case .context:
+            let count = queueViewModel.upcomingItems.count
+            let countLine = count == 1 ? "1 track up next" : "\(count) tracks up next"
+            return "\(countLine) · Repeat playlist"
+        }
     }
 
     private func errorBanner(_ error: BrowsingDisplayError) -> some View {
@@ -128,7 +128,7 @@ struct QueuePanelView: View {
                 .font(.headline)
 
             if queueViewModel.upcomingItems.isEmpty {
-                Text("No upcoming tracks. Start a playlist or add tracks to the queue.")
+                Text(upNextEmptyMessage)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -159,6 +159,13 @@ struct QueuePanelView: View {
             }
         }
         .animation(.spring(response: 0.36, dampingFraction: 0.86), value: queueViewModel.upcomingItems.map(\.id))
+    }
+
+    private var upNextEmptyMessage: String {
+        if playbackViewModel.repeatMode == .track {
+            return "This song repeats until you turn repeat off. The full queue returns in Up next afterward."
+        }
+        return "No upcoming tracks. Start a playlist or add tracks to the queue."
     }
 
     private func copyURI(_ uri: String?) {

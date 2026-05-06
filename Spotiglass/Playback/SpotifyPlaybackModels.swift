@@ -16,6 +16,8 @@ struct PlaybackNowPlaying: Equatable {
     let artists: [String]
     /// Album title from Web Playback SDK when available (used for third-party lyrics matching).
     let albumName: String?
+    /// Spotify album ID when `album.uri` / Web API album id is available.
+    let albumID: String?
     let albumArtURL: URL?
     let durationMilliseconds: Int
     let positionMilliseconds: Int
@@ -49,6 +51,7 @@ struct PlaybackNowPlaying: Equatable {
             name: name,
             artists: artists,
             albumName: albumName,
+            albumID: albumID,
             albumArtURL: albumArtURL,
             durationMilliseconds: durationMilliseconds,
             positionMilliseconds: positionMilliseconds,
@@ -107,11 +110,19 @@ struct ArtistTapTarget: Equatable, Identifiable {
     }
 }
 
+struct AlbumTapTarget: Equatable {
+    let id: String?
+    let name: String
+}
+
 struct QueueItem: Identifiable, Equatable {
     let id: String
     let name: String
     let subtitle: String
     let albumArtURL: URL?
+    /// Album title when known (tracks from Web API or merged SDK projection).
+    let albumName: String?
+    let albumID: String?
     let durationMilliseconds: Int
     let uri: String?
     let source: QueueItemSource
@@ -122,6 +133,8 @@ struct QueueItem: Identifiable, Equatable {
         name: String,
         subtitle: String,
         albumArtURL: URL?,
+        albumName: String? = nil,
+        albumID: String? = nil,
         durationMilliseconds: Int,
         uri: String?,
         source: QueueItemSource,
@@ -131,6 +144,8 @@ struct QueueItem: Identifiable, Equatable {
         self.name = name
         self.subtitle = subtitle
         self.albumArtURL = albumArtURL
+        self.albumName = albumName
+        self.albumID = albumID
         self.durationMilliseconds = durationMilliseconds
         self.uri = uri
         self.source = source
@@ -144,6 +159,8 @@ extension QueueItem {
             name: track.name,
             subtitle: track.artists.joined(separator: ", "),
             albumArtURL: track.albumArtworkURL,
+            albumName: track.albumName,
+            albumID: track.albumID,
             durationMilliseconds: track.durationMilliseconds,
             uri: track.uri,
             source: source,
@@ -176,6 +193,8 @@ extension QueueItem {
             name: playback.name,
             subtitle: playback.artistText,
             albumArtURL: playback.albumArtURL,
+            albumName: playback.albumName,
+            albumID: playback.albumID,
             durationMilliseconds: playback.durationMilliseconds,
             uri: playback.uri,
             source: source,
@@ -203,7 +222,8 @@ extension QueueItem {
         return PlaybackNowPlaying(
             name: name,
             artists: artists,
-            albumName: nil,
+            albumName: albumName,
+            albumID: albumID,
             albumArtURL: albumArtURL,
             durationMilliseconds: max(1, durationMilliseconds),
             positionMilliseconds: 0,

@@ -191,7 +191,8 @@ struct SpotifyAPIClient {
         guard !trimmed.isEmpty else {
             return SpotifySearchResults(tracks: [], artists: [], albums: [], playlists: [])
         }
-        let cappedLimit = min(max(1, limit), 50)
+        /// `GET /v1/search` documents `limit` range **0–10** per returned item type (not 50).
+        let cappedLimit = min(max(1, limit), 10)
         let dto: SpotifySearchResponseDTO = try await send(
             path: "/v1/search",
             queryItems: [
@@ -203,11 +204,11 @@ struct SpotifyAPIClient {
         return dto.domainModel()
     }
 
-    /// Track-only search (`GET /v1/search` with `type=track`). `limit` is capped at 50 per Spotify.
+    /// Track-only search (`GET /v1/search` with `type=track`). `limit` is capped at **10** per Spotify’s search endpoint.
     func searchTracks(query: String, limit: Int = 50) async throws -> [SpotifyTrack] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }
-        let capped = min(max(1, limit), 50)
+        let capped = min(max(1, limit), 10)
         let dto: SpotifySearchResponseDTO = try await send(
             path: "/v1/search",
             queryItems: [

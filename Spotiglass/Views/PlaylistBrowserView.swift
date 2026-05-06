@@ -180,8 +180,15 @@ struct PlaylistBrowserView: View {
         }
         .toolbar {
             if lyricsOverlay.isPresented {
-                ToolbarItemGroup(placement: .primaryAction) {
-                    lyricsOverlayCloseToolbarButton
+                ToolbarItemGroup(placement: .automatic) {
+                    Button {
+                        lyricsOverlay.dismiss()
+                    } label: {
+                        Label("Close lyrics", systemImage: "xmark.circle")
+                    }
+                    .accessibilityHint("Closes the immersive lyrics overlay.")
+                }
+                ToolbarItem(placement: .primaryAction) {
                     unifiedRefreshToolbarButton
                 }
             } else {
@@ -217,7 +224,19 @@ struct PlaylistBrowserView: View {
         .onAppear {
             unifiedRefreshFocus = .mainContent
             syncUnifiedRefreshRoutingToViewModel()
-            lyricsOverlay.attach(playback: playbackViewModel, queue: queueViewModel, lyrics: lyricsViewModel)
+            lyricsOverlay.attach(
+                playback: playbackViewModel,
+                queue: queueViewModel,
+                lyrics: lyricsViewModel,
+                navigateToArtist: { target in
+                    lyricsOverlay.dismiss()
+                    openArtistFromTapTarget(target)
+                },
+                navigateToAlbum: { album, artistSubtitle, artworkURL in
+                    lyricsOverlay.dismiss()
+                    openAlbumFromTapTarget(album, artistSubtitle: artistSubtitle, artworkURL: artworkURL)
+                }
+            )
             bindCommandPalette(queueVisible: $isQueueVisible)
             commandPaletteManager.dismissLyricsOverlayIfPresented = { [lyricsOverlay] in
                 guard lyricsOverlay.isPresented else { return false }
@@ -258,57 +277,34 @@ struct PlaylistBrowserView: View {
         .onChange(of: playbackViewModel.sdkNextTracks) { _, _ in
             queueViewModel.handleSdkQueueSnapshotChanged()
         }
+        .onChange(of: playbackViewModel.repeatMode) { _, _ in
+            queueViewModel.syncFromPlaybackSession()
+        }
         .onChange(of: queueRelevantPlaybackKey) { _, _ in
             queueViewModel.handlePlaybackStateChange()
         }
     }
 
-    /// Full-window lyrics sits on a dark backdrop; toolbar controls use the same padded capsule chrome as other glass chips.
-    private var lyricsOverlayCloseToolbarButton: some View {
-        Button {
-            lyricsOverlay.dismiss()
-        } label: {
-            Image(systemName: "xmark")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.primary)
-                .frame(minWidth: 18, minHeight: 18)
-                .padding(.horizontal, SpotiglassDesign.spacingM)
-                .padding(.vertical, SpotiglassDesign.spacingS)
-                .background(.regularMaterial, in: Capsule(style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Close lyrics")
-        .accessibilityHint("Closes the immersive lyrics overlay.")
-    }
-
-    @ViewBuilder
     private var unifiedRefreshToolbarButton: some View {
-        if lyricsOverlay.isPresented {
-            Button {
-                Task { await performUnifiedToolbarRefresh() }
-            } label: {
-                refreshToolbarLabelWithPillChrome
-            }
-            .buttonStyle(.plain)
-            .disabled(isUnifiedRefreshBusy)
-            .accessibilityHint(
-                "Reloads the sidebar library, the open playlist or artist, or the queue when the queue panel is focused. Shortcut: ⌘R."
-            )
-        } else {
-            Button {
-                Task { await performUnifiedToolbarRefresh() }
-            } label: {
-                refreshToolbarLabelIconAndText
-            }
-            .buttonStyle(.borderless)
-            .disabled(isUnifiedRefreshBusy)
-            .accessibilityHint(
-                "Reloads the sidebar library, the open playlist or artist, or the queue when the queue panel is focused. Shortcut: ⌘R."
-            )
+        Button {
+            Task { await performUnifiedToolbarRefresh() }
+        } label: {
+            refreshToolbarLabelIconAndText
         }
+        .buttonStyle(.borderless)
+        .disabled(isUnifiedRefreshBusy)
+        .accessibilityHint(
+            "Reloads the sidebar library, the open playlist or artist, or the queue when the queue panel is focused. Shortcut: ⌘R."
+        )
     }
 
+    /// Icon + “Refresh” label; horizontal padding keeps the borderless primary-action item clear of the toolbar edge.
     private var refreshToolbarLabelIconAndText: some View {
+        refreshToolbarLabelCore
+            .padding(.horizontal, SpotiglassDesign.spacingM)
+    }
+
+    private var refreshToolbarLabelCore: some View {
         HStack(spacing: SpotiglassDesign.spacingXS) {
             Group {
                 if isUnifiedRefreshBusy {
@@ -322,13 +318,6 @@ struct PlaylistBrowserView: View {
             .frame(width: 16, height: 16)
             Text("Refresh")
         }
-    }
-
-    private var refreshToolbarLabelWithPillChrome: some View {
-        refreshToolbarLabelIconAndText
-            .padding(.horizontal, SpotiglassDesign.spacingM)
-            .padding(.vertical, SpotiglassDesign.spacingS)
-            .background(.regularMaterial, in: Capsule(style: .continuous))
     }
 
     private var isUnifiedRefreshBusy: Bool {
@@ -852,6 +841,54 @@ struct PlaylistBrowserView: View {
         }
     }
 
+    private func openAlbumFromTapTarget(_ album: AlbumTapTarget, artistSubtitle: String, artworkURL: URL?) {
+        Task {
+            if let id = album.id {
+                await viewModel.selectAlbum(
+                    id: id,
+                    displayTitle: album.name,
+                    displaySubtitle: artistSubtitle,
+                    artworkURL: artworkURL
+                )
+                return
+            }
+            do {
+                guard let resolvedID = try await resolveAlbumID(name: album.name, artistHint: artistSubtitle) else { return }
+                await viewModel.selectAlbum(
+                    id: resolvedID,
+                    displayTitle: album.name,
+                    displaySubtitle: artistSubtitle,
+                    artworkURL: artworkURL
+                )
+            } catch {
+                return
+            }
+        }
+    }
+
+    private func resolveAlbumID(name: String, artistHint: String) async throws -> String? {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let escaped = trimmed.replacingOccurrences(of: "\"", with: "")
+        let firstArtist = artistHint.split(separator: ",").first.map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) } ?? ""
+        let query: String
+        if firstArtist.isEmpty {
+            query = "album:\"\(escaped)\""
+        } else {
+            let artistEsc = firstArtist.replacingOccurrences(of: "\"", with: "")
+            query = "album:\"\(escaped)\" artist:\"\(artistEsc)\""
+        }
+        let results = try await spotifySearchClient.search(query: query, limit: 10)
+        guard !results.albums.isEmpty else { return nil }
+        let normalizedQuery = trimmed.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+        if let exact = results.albums.first(where: {
+            $0.name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current) == normalizedQuery
+        }) {
+            return exact.id
+        }
+        return results.albums.first?.id
+    }
+
     private func resolveArtistID(forName name: String) async throws -> String? {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
@@ -869,7 +906,7 @@ struct PlaylistBrowserView: View {
 
     private func bindCommandPalette(queueVisible: Binding<Bool>) {
         syncUnifiedRefreshRoutingToViewModel()
-        let includeThisPlaylist = viewModel.isCommandPaletteThisPlaylistSearchEligible
+        let includeThisPlaylist = viewModel.isCommandPaletteContextSearchEligible
         commandPaletteManager.viewModel.setAvailableSearchCategories(
             CommandPaletteSearchCategory.footerOrder(includeThisPlaylist: includeThisPlaylist),
             refreshIfFilterInvalidated: false
@@ -1097,7 +1134,7 @@ extension PlaylistBrowserView {
         var mapped = CommandPaletteSearchResults()
 
         if category == .thisPlaylist {
-            if let rows = viewModel?.loadedPlaylistTracksForPalette {
+            if let rows = viewModel?.loadedContextTracksForPalette {
                 mapped.inPlaylistMatches = inPlaylistMatches(from: rows)
             }
             return mapped
@@ -1149,7 +1186,7 @@ extension PlaylistBrowserView {
         }
 
         if let viewModel {
-            if let rows = viewModel.loadedPlaylistTracksForPalette {
+            if let rows = viewModel.loadedContextTracksForPalette {
                 mapped.inPlaylistMatches = inPlaylistMatches(from: rows)
             }
         }

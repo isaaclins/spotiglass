@@ -236,45 +236,52 @@ final class QueueViewModel: ObservableObject {
         nowPlayingItem = Self.nowPlayingQueueItem(from: playbackSession.connectionState)
         let nowPlayingURI = nowPlayingItem?.uri
         let sdkNext = playbackSession.sdkNextTracks
+        let rawUpcoming: [QueueItem]
         if let optimisticUpcomingItems {
-            upcomingItems = Self.removingDuplicateNowPlaying(from: optimisticUpcomingItems, nowPlayingURI: nowPlayingURI)
-            return
-        }
-        if let api = lastFetchedQueue {
+            rawUpcoming = Self.removingDuplicateNowPlaying(from: optimisticUpcomingItems, nowPlayingURI: nowPlayingURI)
+        } else if let api = lastFetchedQueue {
             let merged = Self.mergedUpcoming(apiResponse: api, sdkNext: sdkNext, limit: maxUpcomingItems)
             let deduped = Self.removingDuplicateNowPlaying(from: merged, nowPlayingURI: nowPlayingURI)
             if Self.shouldPreferSDKProjection(apiUpcoming: deduped, sdkNext: sdkNext, nowPlayingURI: nowPlayingURI) {
-                upcomingItems = Self.sdkUpcomingItems(from: sdkNext, limit: maxUpcomingItems)
+                rawUpcoming = Self.sdkUpcomingItems(from: sdkNext, limit: maxUpcomingItems)
             } else {
-                upcomingItems = deduped
+                rawUpcoming = deduped
             }
         } else {
-            upcomingItems = Self.sdkUpcomingItems(from: sdkNext, limit: maxUpcomingItems)
+            rawUpcoming = Self.sdkUpcomingItems(from: sdkNext, limit: maxUpcomingItems)
         }
+        upcomingItems = Self.applyRepeatOneGate(rawUpcoming, repeatMode: playbackSession.repeatMode)
     }
 
     /// Keeps optimistic queue visible until Spotify queue confirms the target
     /// order, or until a small timeout elapses.
     private func clearOptimisticProjectionIfReconciled() {
         guard optimisticUpcomingItems != nil else { return }
+        if playbackSession.repeatMode == .track {
+            optimisticUpcomingItems = nil
+            optimisticReconcileTargetIDs = nil
+            optimisticReconcileDeadline = nil
+            return
+        }
         guard let targetIDs = optimisticReconcileTargetIDs else {
             optimisticUpcomingItems = nil
             return
         }
         let nowPlayingURI = nowPlayingItem?.uri
         let sdkNext = playbackSession.sdkNextTracks
-        let candidate: [QueueItem]
+        let candidateRaw: [QueueItem]
         if let api = lastFetchedQueue {
             let merged = Self.mergedUpcoming(apiResponse: api, sdkNext: sdkNext, limit: maxUpcomingItems)
             let deduped = Self.removingDuplicateNowPlaying(from: merged, nowPlayingURI: nowPlayingURI)
             if Self.shouldPreferSDKProjection(apiUpcoming: deduped, sdkNext: sdkNext, nowPlayingURI: nowPlayingURI) {
-                candidate = Self.sdkUpcomingItems(from: sdkNext, limit: maxUpcomingItems)
+                candidateRaw = Self.sdkUpcomingItems(from: sdkNext, limit: maxUpcomingItems)
             } else {
-                candidate = deduped
+                candidateRaw = deduped
             }
         } else {
-            candidate = Self.sdkUpcomingItems(from: sdkNext, limit: maxUpcomingItems)
+            candidateRaw = Self.sdkUpcomingItems(from: sdkNext, limit: maxUpcomingItems)
         }
+        let candidate = Self.applyRepeatOneGate(candidateRaw, repeatMode: playbackSession.repeatMode)
         if candidate.map(\.id) == targetIDs {
             optimisticUpcomingItems = nil
             optimisticReconcileTargetIDs = nil
@@ -286,6 +293,12 @@ final class QueueViewModel: ObservableObject {
             optimisticReconcileTargetIDs = nil
             optimisticReconcileDeadline = nil
         }
+    }
+
+    /// Spotify’s queue and Web Playback `next_tracks` still list contextual “next”
+    /// items while repeat-one is active; playback loops the current track instead.
+    private static func applyRepeatOneGate(_ items: [QueueItem], repeatMode: SpotifyRepeatMode) -> [QueueItem] {
+        repeatMode == .track ? [] : items
     }
 
     private static func sdkUpcomingItems(from sdkNext: [PlaybackNowPlaying], limit: Int) -> [QueueItem] {

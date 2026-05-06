@@ -169,6 +169,8 @@ private struct LyricsOverlayLayer: View {
             && lyricsOverlay.playbackViewModel != nil
             && lyricsOverlay.queueViewModel != nil
             && lyricsOverlay.lyricsModel != nil
+            && lyricsOverlay.navigateToArtist != nil
+            && lyricsOverlay.navigateToAlbum != nil
     }
 
     var body: some View {
@@ -176,11 +178,15 @@ private struct LyricsOverlayLayer: View {
             if immersiveLyricsReady,
                let playback = lyricsOverlay.playbackViewModel,
                let queue = lyricsOverlay.queueViewModel,
-               let lyrics = lyricsOverlay.lyricsModel {
+               let lyrics = lyricsOverlay.lyricsModel,
+               let navigateArtist = lyricsOverlay.navigateToArtist,
+               let navigateAlbum = lyricsOverlay.navigateToAlbum {
                 ImmersiveLyricsView(
                     playbackViewModel: playback,
                     queueViewModel: queue,
                     lyricsModel: lyrics,
+                    navigateToArtist: navigateArtist,
+                    navigateToAlbum: navigateAlbum,
                     onDismiss: { lyricsOverlay.dismiss() }
                 )
                 .transition(.opacity.combined(with: .scale(scale: 0.98)))
@@ -189,7 +195,6 @@ private struct LyricsOverlayLayer: View {
         }
         .animation(.easeOut(duration: 0.22), value: lyricsOverlay.isPresented)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .ignoresSafeArea(edges: .all)
         .allowsHitTesting(immersiveLyricsReady)
     }
 }

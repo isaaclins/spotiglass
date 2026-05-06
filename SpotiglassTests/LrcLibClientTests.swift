@@ -42,6 +42,7 @@ final class LrcLibClientTests: XCTestCase {
             name: "Song",
             artists: ["A"],
             albumName: "Album",
+            albumID: nil,
             albumArtURL: nil,
             durationMilliseconds: 180_000,
             positionMilliseconds: 0,

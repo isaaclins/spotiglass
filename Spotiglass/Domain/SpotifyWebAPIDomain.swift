@@ -60,6 +60,8 @@ struct SpotifyTrack: Equatable, Identifiable {
     /// Present when Spotify returned artist IDs (playlist/search tracks). Used for tappable artist links.
     let artistRefs: [SpotifyArtistRef]
     let albumArtworkURL: URL?
+    let albumName: String?
+    let albumID: String?
     let durationMilliseconds: Int
     let isExplicit: Bool
     let isPlayable: Bool?
@@ -72,6 +74,8 @@ struct SpotifyTrack: Equatable, Identifiable {
         artists: [String],
         artistRefs: [SpotifyArtistRef] = [],
         albumArtworkURL: URL?,
+        albumName: String? = nil,
+        albumID: String? = nil,
         durationMilliseconds: Int,
         isExplicit: Bool,
         isPlayable: Bool?,
@@ -83,6 +87,8 @@ struct SpotifyTrack: Equatable, Identifiable {
         self.artists = artists
         self.artistRefs = artistRefs
         self.albumArtworkURL = albumArtworkURL
+        self.albumName = albumName
+        self.albumID = albumID
         self.durationMilliseconds = durationMilliseconds
         self.isExplicit = isExplicit
         self.isPlayable = isPlayable
@@ -98,6 +104,8 @@ extension SpotifyTrack: Codable {
         case artists
         case artistRefs
         case albumArtworkURL
+        case albumName
+        case albumID
         case durationMilliseconds
         case isExplicit
         case isPlayable
@@ -112,6 +120,8 @@ extension SpotifyTrack: Codable {
         artists = try c.decode([String].self, forKey: .artists)
         artistRefs = try c.decodeIfPresent([SpotifyArtistRef].self, forKey: .artistRefs) ?? []
         albumArtworkURL = try c.decodeIfPresent(URL.self, forKey: .albumArtworkURL)
+        albumName = try c.decodeIfPresent(String.self, forKey: .albumName)
+        albumID = try c.decodeIfPresent(String.self, forKey: .albumID)
         durationMilliseconds = try c.decode(Int.self, forKey: .durationMilliseconds)
         isExplicit = try c.decode(Bool.self, forKey: .isExplicit)
         isPlayable = try c.decodeIfPresent(Bool.self, forKey: .isPlayable)
@@ -126,6 +136,8 @@ extension SpotifyTrack: Codable {
         try c.encode(artists, forKey: .artists)
         try c.encode(artistRefs, forKey: .artistRefs)
         try c.encodeIfPresent(albumArtworkURL, forKey: .albumArtworkURL)
+        try c.encodeIfPresent(albumName, forKey: .albumName)
+        try c.encodeIfPresent(albumID, forKey: .albumID)
         try c.encode(durationMilliseconds, forKey: .durationMilliseconds)
         try c.encode(isExplicit, forKey: .isExplicit)
         try c.encodeIfPresent(isPlayable, forKey: .isPlayable)

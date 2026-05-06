@@ -20,7 +20,7 @@ final class SpotifyWebAPIStepTests: XCTestCase {
         XCTAssertEqual(httpClient.requests.count, 1)
         XCTAssertEqual(
             httpClient.requests[0].url?.absoluteString,
-            "https://api.spotify.com/v1/search?q=kanye&type=track,artist,album,playlist&limit=50"
+            "https://api.spotify.com/v1/search?q=kanye&type=track,artist,album,playlist&limit=10"
         )
     }
 
@@ -642,7 +642,7 @@ final class SpotifyWebAPIStepTests: XCTestCase {
 
         XCTAssertEqual(
             httpClient.requests.first?.url?.absoluteString,
-            "https://api.spotify.com/v1/search?q=artist:%22Kanye%20West%22&type=track&limit=50"
+            "https://api.spotify.com/v1/search?q=artist:%22Kanye%20West%22&type=track&limit=10"
         )
     }
 

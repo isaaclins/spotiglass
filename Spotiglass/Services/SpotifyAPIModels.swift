@@ -327,6 +327,8 @@ struct SpotifyTrackDTO: Decodable {
             artists: artists.map(\.name),
             artistRefs: artistRefs,
             albumArtworkURL: album?.images.largestImageURL,
+            albumName: album?.name.flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty },
+            albumID: album?.id,
             durationMilliseconds: durationMilliseconds,
             isExplicit: isExplicit,
             isPlayable: isPlayable,
@@ -411,16 +413,19 @@ struct SpotifyArtistDTO: Decodable {
 }
 
 struct SpotifyAlbumDTO: Decodable {
+    let id: String?
     let name: String?
     let images: [SpotifyImageDTO]
 
     enum CodingKeys: String, CodingKey {
+        case id
         case name
         case images
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(String.self, forKey: .id)
         name = try container.decodeIfPresent(String.self, forKey: .name)
         images = try container.decodeIfPresent([SpotifyImageDTO].self, forKey: .images) ?? []
     }
