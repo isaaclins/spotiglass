@@ -86,6 +86,12 @@ Detailed guides live in [docs/README.md](docs/README.md):
 - [Equalizer](docs/equalizer.md)
 - [Limitations](docs/limitations.md)
 
+## Support my journey
+
+If Spotiglass has been useful to you and you want to support ongoing development, you can do so here:
+
+- [Buy Me a Coffee](https://buymeacoffee.com/isaaclins)
+
 ## Contributing
 
 Contributions are welcome. For now, open an issue describing the change you want to make before opening a PR so scope and direction are aligned.
