@@ -51,7 +51,6 @@ struct NavigationToolbarChrome: NSViewRepresentable {
 
         context.coordinator.backButton = back
         context.coordinator.breadcrumbHostingView = hosting
-        context.coordinator.stackView = stack
 
         return stack
     }
@@ -66,7 +65,6 @@ struct NavigationToolbarChrome: NSViewRepresentable {
         var viewModel: PlaylistBrowserViewModel
         weak var backButton: NSButton?
         weak var breadcrumbHostingView: NSHostingView<BreadcrumbToolbarView>?
-        weak var stackView: NSStackView?
 
         init(viewModel: PlaylistBrowserViewModel) {
             self.viewModel = viewModel
