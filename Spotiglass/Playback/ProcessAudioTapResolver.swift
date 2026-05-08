@@ -6,16 +6,16 @@ import Foundation
 /// `/usr/lib/libproc.tbd` and is always available on macOS. Renamed to avoid clashing
 /// with a same-named symbol visible from the Darwin overlay.
 @_silgen_name("proc_listchildpids")
-private func libprocListChildPIDs(_ ppid: pid_t, _ buffer: UnsafeMutableRawPointer?, _ buffersize: UInt32) -> Int32
+private func libprocListChildPIDs(_: pid_t, _: UnsafeMutableRawPointer?, _: UInt32) -> Int32
 
 @_silgen_name("proc_pidpath")
-private func libprocPIDPath(_ pid: pid_t, _ buffer: UnsafeMutablePointer<CChar>?, _ bufferSize: UInt32) -> Int32
+private func libprocPIDPath(_: pid_t, _: UnsafeMutablePointer<CChar>?, _: UInt32) -> Int32
 
 @_silgen_name("proc_listallpids")
-private func libprocListAllPIDs(_ buffer: UnsafeMutableRawPointer?, _ buffersize: Int32) -> Int32
+private func libprocListAllPIDs(_: UnsafeMutableRawPointer?, _: Int32) -> Int32
 
 @_silgen_name("proc_pidinfo")
-private func libprocPIDInfo(_ pid: Int32, _ flavor: Int32, _ arg: UInt64, _ buffer: UnsafeMutableRawPointer?, _ buffersize: Int32) -> Int32
+private func libprocPIDInfo(_: Int32, _: Int32, _: UInt64, _: UnsafeMutableRawPointer?, _: Int32) -> Int32
 
 private enum ProcListConstants {
     /// `PROC_PIDT_SHORTBSDINFO` from `<sys/proc_info.h>`.
