@@ -174,11 +174,6 @@ struct CommandShortcut: Hashable {
         key = fallback
     }
 
-    init(key: String, modifiers: NSEvent.ModifierFlags) {
-        self.modifiers = modifiers.intersection([.command, .control, .option, .shift])
-        self.key = Self.normalizedRecordingKey(from: key)
-    }
-
     /// Keystroke string as stored in `keymap.json` (e.g. `shift-cmd-k`, `cmd-,`).
     func canonicalToken() throws -> String {
         var parts: [String] = []
