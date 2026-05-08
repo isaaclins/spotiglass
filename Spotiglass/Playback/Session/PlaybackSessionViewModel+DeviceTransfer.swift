@@ -1,0 +1,175 @@
+import Foundation
+
+@MainActor
+extension PlaybackSessionViewModel {
+    func transferPlayback(toConnectDevice selectedDeviceID: String) async {
+        let shouldPlay: Bool
+        switch connectionState {
+        case .playing:
+            shouldPlay = true
+        default:
+            shouldPlay = false
+        }
+        do {
+            try await performPrioritizedControlCommand {
+                try await self.performTransfer(deviceID: selectedDeviceID, play: shouldPlay, origin: .userManualConnect)
+            }
+            if selectedDeviceID == deviceID {
+                hasTransferredPlaybackToCurrentDevice = true
+            } else {
+                hasTransferredPlaybackToCurrentDevice = false
+            }
+            noteLocalPlaybackMutation()
+            await syncTransportFromSpotify()
+            await refreshConnectDevices(force: true)
+        } catch {
+            setConnectionState(.error(Self.displayError(for: error)))
+        }
+    }
+
+    /// Runs a Spotify Web API control call while deferring `syncTransportFromSpotify()` reads so
+    /// `GET /v1/me/player` does not race overlapping `PUT`/`POST` playback commands.
+    func performPrioritizedControlCommand(_ operation: () async throws -> Void) async rethrows {
+        controlCommandsInFlight += 1
+        defer {
+            controlCommandsInFlight -= 1
+            if controlCommandsInFlight == 0, transportSyncDeferredWhileControlCommandInFlight {
+                transportSyncDeferredWhileControlCommandInFlight = false
+                deferredTransportSyncTask?.cancel()
+                deferredTransportSyncTask = Task { @MainActor [weak self] in
+                    await self?.syncTransportFromSpotify()
+                }
+            }
+        }
+        try await operation()
+    }
+
+    /// Single-flight, idempotent, budget-aware funnel for `PUT /v1/me/player`. Returns `true`
+    /// when a PUT was actually issued and `false` when the request was satisfied without one
+    /// (e.g. Spotify already shows the target as the active device, or a sibling caller's
+    /// in-flight transfer already covered the same intent).
+    @discardableResult
+    func performTransfer(deviceID: String, play: Bool, origin: TransferOrigin) async throws -> Bool {
+        if let inflight = inflightTransferTask {
+            // Wait for the in-flight transfer; if it satisfied this caller's intent, we're done.
+            _ = try? await inflight.value
+            if origin.isAutomatic, deviceID == self.deviceID, hasTransferredPlaybackToCurrentDevice {
+                return false
+            }
+        }
+        let serial = inflightTransferSerial
+        inflightTransferSerial &+= 1
+        let task = Task<Bool, Error> { [weak self] in
+            guard let self else { return false }
+            return try await self.runSingleTransfer(deviceID: deviceID, play: play, origin: origin)
+        }
+        inflightTransferTask = task
+        activeInflightTransferSerial = serial
+        defer {
+            if activeInflightTransferSerial == serial {
+                inflightTransferTask = nil
+                activeInflightTransferSerial = nil
+            }
+        }
+        return try await task.value
+    }
+
+    private func runSingleTransfer(deviceID: String, play: Bool, origin: TransferOrigin) async throws -> Bool {
+        let alreadyActive: Bool
+        switch origin {
+        case .userManualConnect:
+            // The Connect picker is populated from a recent `GET /v1/me/player/devices`; trust it.
+            alreadyActive = connectDevices.first(where: { $0.deviceID == deviceID })?.isActive == true
+        case .ensureBeforePlay, .autoResume:
+            alreadyActive = latestPlayerSnapshot?.activeDevice?.deviceID == deviceID
+        case .userRetry:
+            // Recovery is the user's explicit ask; never short-circuit it on cached state.
+            alreadyActive = false
+        }
+        if alreadyActive {
+            if (origin == .ensureBeforePlay || origin == .autoResume), deviceID == self.deviceID {
+                hasTransferredPlaybackToCurrentDevice = true
+            }
+            return false
+        }
+        if let until = transferRetryCooldownUntil, clock.now < until {
+            let remaining = max(Self.durationSeconds(until - clock.now), 0.5)
+            throw SpotifyAPIError.rateLimited(retryAfter: remaining)
+        }
+        if origin.isAutomatic {
+            pruneOldTransferAttempts()
+            if transferAttemptInstants.count >= autoTransferRollingWindowMax {
+                let windowSeconds = Self.durationSeconds(autoTransferRollingWindow)
+                throw SpotifyAPIError.rateLimited(retryAfter: windowSeconds)
+            }
+        }
+        transferAttemptInstants.append(clock.now)
+        do {
+            try await playbackAPI.transferPlayback(to: deviceID, play: play)
+        } catch let apiError as SpotifyAPIError {
+            if case let .rateLimited(retryAfter) = apiError {
+                let cooldown = retryAfter ?? Self.durationSeconds(transferDefaultCooldown)
+                transferRetryCooldownUntil = clock.now.advanced(by: .seconds(cooldown))
+            }
+            throw apiError
+        }
+        if (origin == .ensureBeforePlay || origin == .autoResume), deviceID == self.deviceID {
+            hasTransferredPlaybackToCurrentDevice = true
+        }
+        return true
+    }
+
+    private func pruneOldTransferAttempts() {
+        let cutoff = clock.now.advanced(by: .zero - autoTransferRollingWindow)
+        transferAttemptInstants.removeAll { $0 < cutoff }
+    }
+
+    /// Seconds remaining before another transfer attempt is allowed (`nil` when no cooldown applies).
+    /// Surfaced for diagnostics and tests; the UI reads the same intent indirectly through the
+    /// `.rateLimited` error that ``performTransfer(deviceID:play:origin:)`` rethrows.
+    func transferRetryCooldownSecondsRemaining() -> Int? {
+        guard let until = transferRetryCooldownUntil else { return nil }
+        let remaining = Self.durationSeconds(until - clock.now)
+        guard remaining > 0 else { return nil }
+        return max(1, Int(remaining.rounded(.up)))
+    }
+
+    static func durationSeconds(_ duration: Duration) -> Double {
+        Double(duration.components.seconds) + Double(duration.components.attoseconds) / 1_000_000_000_000_000_000.0
+    }
+
+    func ensurePlaybackTransferredIfNeeded(deviceID: String) async throws {
+        guard !hasTransferredPlaybackToCurrentDevice else {
+            return
+        }
+        setConnectionState(.transferring(deviceID: deviceID))
+        try await performTransfer(deviceID: deviceID, play: false, origin: .ensureBeforePlay)
+    }
+
+    /// On window reopen the previous session's `WKWebView` often lingers as the active Spotify
+    /// Connect "Spotiglass" device for a few seconds. When that happens, hand playback to the
+    /// freshly created device so the user keeps hearing music through the window they just
+    /// reopened. Restricted to devices named ``SpotifyPlaybackHost/deviceName`` so a clean first
+    /// launch never steals playback from the user's other Connect targets (phone, desktop, …).
+    func autoResumeFromStaleSpotiglassDeviceIfNeeded(targetDeviceID: String) async {
+        guard !hasTransferredPlaybackToCurrentDevice else { return }
+        await refreshConnectDevices(force: true)
+        let devices = connectDevices
+        guard let staleSpotiglass = devices.first(where: { device in
+            device.isActive
+                && device.name == SpotifyPlaybackHost.deviceName
+                && device.deviceID != targetDeviceID
+        }) else {
+            return
+        }
+        do {
+            setConnectionState(.transferring(deviceID: targetDeviceID))
+            try await performTransfer(deviceID: targetDeviceID, play: true, origin: .autoResume)
+            // Subsequent SDK `state_changed` will move the connection state to .playing/.paused.
+            latestLog = "Auto-resumed playback from stale Spotiglass device \(staleSpotiglass.deviceID) to \(targetDeviceID)."
+        } catch {
+            latestLog = "Auto-resume transfer to new Spotiglass device failed: \(error.localizedDescription)"
+            setConnectionState(.ready(deviceID: targetDeviceID))
+        }
+    }
+}
