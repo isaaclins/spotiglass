@@ -48,19 +48,6 @@ final class CommandPaletteKeymapStore: ObservableObject {
             .flatMap { try? CommandShortcut(keystroke: $0) }
     }
 
-    /// Returns another command id that already uses this shortcut in an overlapping runtime context.
-    func conflictingCommandID(for shortcut: CommandShortcut, proposedForCommand commandID: String) -> String? {
-        guard let spec = CommandPaletteCommandCatalog.editable.first(where: { $0.commandID == commandID }),
-              let list = try? decodedBindingsFromEditor()
-        else { return nil }
-        return Self.conflictingCommandID(
-            for: shortcut,
-            excludingCommand: commandID,
-            proposedWhen: spec.defaultWhen,
-            in: list
-        )
-    }
-
     func setBinding(commandID: String, shortcut: CommandShortcut, replaceConflicting: Bool) throws {
         guard let spec = CommandPaletteCommandCatalog.editable.first(where: { $0.commandID == commandID }) else {
             return
