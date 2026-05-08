@@ -13,13 +13,6 @@ enum SpotifyAPIError: Error, Equatable, LocalizedError {
     case network(String)
     case invalidRequest(String)
 
-    var isAuthFailure: Bool {
-        if case .unauthorized = self {
-            return true
-        }
-        return false
-    }
-
     var userMessage: String {
         switch self {
         case .unauthorized:
@@ -72,6 +65,5 @@ struct SpotifyAPIErrorResponse: Decodable {
 }
 
 struct SpotifyAPIErrorBody: Decodable {
-    let status: Int?
     let message: String?
 }
