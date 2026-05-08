@@ -3,3 +3,6 @@ node_modules/
 build/
 dist/
 public/
+
+# Xcode per-user state (UI layout, breakpoints, personal schemes)
+**/xcuserdata/
