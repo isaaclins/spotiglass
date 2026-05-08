@@ -79,7 +79,7 @@ enum ProcessAudioTapResolver {
         if let injected = listChildPIDs {
             listChild = injected
         } else {
-            let scan = fullProcessScan(rootPID: rootPID)
+            let scan = fullProcessScan()
             let childMap = scan.childMap
             webKitExtraPIDs = additionalWebKitAudioPIDs(
                 rootPID: rootPID,
@@ -190,11 +190,6 @@ enum ProcessAudioTapResolver {
             }
         }
         return result
-    }
-
-    /// Two-layer merge; kept for unit tests and call sites that only combine libproc + sysctl.
-    static func mergeChildPIDLists(libproc: [pid_t], sysctl: [pid_t]) -> [pid_t] {
-        mergeUniqueChildLists([libproc, sysctl])
     }
 
     struct BsdShortProcSummary: Equatable {
@@ -364,15 +359,7 @@ enum ProcessAudioTapResolver {
         return extras
     }
 
-    /// Builds ``ppid -> [child pid]`` by scanning every live PID from ``proc_listallpids`` and
-    /// reading each row’s parent via ``proc_pidinfo(PROC_PIDT_SHORTBSDINFO)``. This survives cases
-    /// where ``proc_listchildpids`` and ``sysctl(KERN_PROC_ALL)`` omit rows that still exist in
-    /// the global pid table (nested WebKit helpers under intermediate children).
-    static func childrenByParentUsingFullProcScan() -> [pid_t: [pid_t]] {
-        fullProcessScan(rootPID: ProcessInfo.processInfo.processIdentifier).childMap
-    }
-
-    private static func fullProcessScan(rootPID: pid_t) -> (
+    private static func fullProcessScan() -> (
         allPIDs: [pid_t],
         childMap: [pid_t: [pid_t]],
         summariesByPID: [pid_t: BsdShortProcSummary],
@@ -393,10 +380,6 @@ enum ProcessAudioTapResolver {
             }
         }
         return (allPIDs, childMap, summariesByPID, ppidByPid)
-    }
-
-    private static func ppidForPIDUsingProcInfo(pid: pid_t) -> pid_t? {
-        shortBSDSummary(forPID: pid)?.ppid
     }
 
     /// Uses ``kern.proc.all`` so children are visible when ``proc_listchildpids`` returns nothing
