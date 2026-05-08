@@ -18,7 +18,6 @@ struct LyricsDiskCache: Sendable {
         let failureClass: FailureClass
         let failureCount: Int
         let nextEligibleFetchAt: Date
-        let updatedAt: Date
     }
 
     private let directory: URL
@@ -38,7 +37,8 @@ struct LyricsDiskCache: Sendable {
         self.fileManager = fileManager
     }
 
-    /// Designated for tests: writes under the given directory without touching Application Support.
+    /// Designated for tests: writes under the given directory without touching Application Support (`SpotiglassTests` only).
+    // periphery:ignore
     init(directory: URL, fileManager: FileManager = .default) throws {
         try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
         self.directory = directory
