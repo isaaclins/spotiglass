@@ -2,7 +2,7 @@ import SwiftUI
 
 /// One pinned-item row, shaped to match `PlaylistListRow` so pinned items feel
 /// native to the existing sidebar. Owns the hover-only ✕ unpin badge and
-/// stale-state visuals; drag/reorder lives on the parent `SidebarPinnedRows`.
+/// stale-state visuals; drag/reorder lives on the Library sidebar host view.
 struct PinnedRowView: View {
     let item: PinnedItem
     /// Sidebar selection currently bound to this row (drives the same
