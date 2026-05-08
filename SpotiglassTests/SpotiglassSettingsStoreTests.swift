@@ -49,7 +49,7 @@ final class SpotiglassSettingsStoreTests: XCTestCase {
         equalizer.enabled = true
         equalizer.bands = [6, 5, 3, 1, 0, 0, 0, 0, 0, 0]
         equalizer.activePresetName = "Bass Boost"
-        try store.updateEqualizer(equalizer)
+        try store.mutate { $0.equalizer = equalizer }
 
         let onDisk = try JSONDecoder().decode(SpotiglassSettingsFile.self, from: try Data(contentsOf: url))
         XCTAssertTrue(onDisk.equalizer.enabled)
