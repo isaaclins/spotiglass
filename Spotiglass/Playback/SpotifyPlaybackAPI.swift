@@ -37,14 +37,12 @@ private struct SpotifyConnectDeviceDTO: Decodable {
     let isRestricted: Bool
     let name: String
     let type: String
-    let volumePercent: Int?
 
     enum CodingKeys: String, CodingKey {
         case id
         case isActive = "is_active"
         case isRestricted = "is_restricted"
         case name, type
-        case volumePercent = "volume_percent"
     }
 
     func domainModel() -> SpotifyConnectDevice {
@@ -53,8 +51,7 @@ private struct SpotifyConnectDeviceDTO: Decodable {
             isActive: isActive,
             isRestricted: isRestricted,
             name: name,
-            type: type,
-            volumePercent: volumePercent
+            type: type
         )
     }
 }
@@ -81,19 +78,6 @@ private struct SpotifyPlayerSnapshotDTO: Decodable {
             activeDevice: device?.domainModel(),
             isPlaying: isPlaying
         )
-    }
-}
-
-/// Serializes concurrent `PUT /v1/me/player/pause` calls so duplicate in-flight requests are dropped.
-private actor PlayerPauseEndpointGate {
-    private var busy = false
-
-    /// Runs `work` unless another pause request is already in progress (duplicate skipped silently).
-    func perform(_ work: () async throws -> Void) async throws {
-        guard !busy else { return }
-        busy = true
-        defer { busy = false }
-        try await work()
     }
 }
 
@@ -130,7 +114,7 @@ private struct SpotifyQueueResponseDTO: Decodable {
         } else {
             filteredQueue = queued
         }
-        return SpotifyQueueResponse(currentlyPlaying: currentItem, queue: filteredQueue)
+        return SpotifyQueueResponse(queue: filteredQueue)
     }
 
     private static func uri(for item: SpotifyQueueTrackItem) -> String {
@@ -146,15 +130,11 @@ protocol SpotifyPlaybackControlling {
     func play(uri: String, deviceID: String) async throws
     func play(contextURI: String, deviceID: String) async throws
     func play(uris: [String], deviceID: String) async throws
-    func pause(deviceID: String) async throws
-    func resume(deviceID: String) async throws
     func seek(to milliseconds: Int, deviceID: String) async throws
     func next(deviceID: String) async throws
     func previous(deviceID: String) async throws
     func fetchQueue() async throws -> SpotifyQueueResponse
     func addToQueue(uri: String, deviceID: String) async throws
-    /// `nil` when Spotify returns **204** (no active player).
-    func fetchPlayerTransport() async throws -> SpotifyPlayerTransport?
     /// `nil` when Spotify returns **204** (no active player).
     func fetchPlayerSnapshot() async throws -> SpotifyPlayerSnapshot?
     func fetchAvailableDevices() async throws -> [SpotifyConnectDevice]
@@ -170,7 +150,6 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
     private let httpClient: HTTPClient
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
-    private let pauseEndpointGate = PlayerPauseEndpointGate()
 
     init(
         baseURL: URL = URL(string: "https://api.spotify.com")!,
@@ -209,24 +188,6 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
         try await send(path: "/v1/me/player/play", method: "PUT", body: body, queryItems: [URLQueryItem(name: "device_id", value: deviceID)])
     }
 
-    func pause(deviceID: String) async throws {
-        try await pauseEndpointGate.perform {
-            guard let snapshot = try await self.fetchPlayerSnapshot() else {
-                return
-            }
-            if let active = snapshot.activeDevice,
-               active.deviceID == deviceID,
-               !snapshot.isPlaying {
-                return
-            }
-            try await self.send(path: "/v1/me/player/pause", method: "PUT", body: EmptyBody(), queryItems: [URLQueryItem(name: "device_id", value: deviceID)])
-        }
-    }
-
-    func resume(deviceID: String) async throws {
-        try await send(path: "/v1/me/player/play", method: "PUT", body: EmptyBody(), queryItems: [URLQueryItem(name: "device_id", value: deviceID)])
-    }
-
     func seek(to milliseconds: Int, deviceID: String) async throws {
         try await send(
             path: "/v1/me/player/seek",
@@ -259,10 +220,6 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
             URLQueryItem(name: "device_id", value: deviceID)
         ]
         try await send(path: "/v1/me/player/queue", method: "POST", body: EmptyBody(), queryItems: queryItems)
-    }
-
-    func fetchPlayerTransport() async throws -> SpotifyPlayerTransport? {
-        try await fetchPlayerSnapshot().map(\.transport)
     }
 
     func fetchPlayerSnapshot() async throws -> SpotifyPlayerSnapshot? {
@@ -450,6 +407,12 @@ private struct TransferPlaybackRequest: Encodable {
         case deviceIDs = "device_ids"
         case play
     }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(deviceIDs, forKey: .deviceIDs)
+        try c.encode(play, forKey: .play)
+    }
 }
 
 private struct PlayContextRequest: Encodable {
@@ -457,6 +420,11 @@ private struct PlayContextRequest: Encodable {
 
     enum CodingKeys: String, CodingKey {
         case contextURI = "context_uri"
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(contextURI, forKey: .contextURI)
     }
 }
 
@@ -467,6 +435,12 @@ private struct PlayURIRequest: Encodable {
     enum CodingKeys: String, CodingKey {
         case uris
         case positionMilliseconds = "position_ms"
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(uris, forKey: .uris)
+        try c.encode(positionMilliseconds, forKey: .positionMilliseconds)
     }
 }
 
