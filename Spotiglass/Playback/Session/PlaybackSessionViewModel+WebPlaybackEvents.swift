@@ -60,8 +60,8 @@ extension PlaybackSessionViewModel {
         case let .playbackError(message):
             clearTogglePlayPauseAckWait()
             setConnectionState(.error(PlaybackDisplayError(title: "Playback error", message: message, recoveryAction: .retryTransfer)))
-        case let .log(message):
-            latestLog = message
+        case .log:
+            break
         }
     }
 
