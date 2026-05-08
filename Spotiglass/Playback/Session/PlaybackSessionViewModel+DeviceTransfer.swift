@@ -124,16 +124,6 @@ extension PlaybackSessionViewModel {
         transferAttemptInstants.removeAll { $0 < cutoff }
     }
 
-    /// Seconds remaining before another transfer attempt is allowed (`nil` when no cooldown applies).
-    /// Surfaced for diagnostics and tests; the UI reads the same intent indirectly through the
-    /// `.rateLimited` error that ``performTransfer(deviceID:play:origin:)`` rethrows.
-    func transferRetryCooldownSecondsRemaining() -> Int? {
-        guard let until = transferRetryCooldownUntil else { return nil }
-        let remaining = Self.durationSeconds(until - clock.now)
-        guard remaining > 0 else { return nil }
-        return max(1, Int(remaining.rounded(.up)))
-    }
-
     static func durationSeconds(_ duration: Duration) -> Double {
         Double(duration.components.seconds) + Double(duration.components.attoseconds) / 1_000_000_000_000_000_000.0
     }
@@ -166,9 +156,7 @@ extension PlaybackSessionViewModel {
             setConnectionState(.transferring(deviceID: targetDeviceID))
             try await performTransfer(deviceID: targetDeviceID, play: true, origin: .autoResume)
             // Subsequent SDK `state_changed` will move the connection state to .playing/.paused.
-            latestLog = "Auto-resumed playback from stale Spotiglass device \(staleSpotiglass.deviceID) to \(targetDeviceID)."
         } catch {
-            latestLog = "Auto-resume transfer to new Spotiglass device failed: \(error.localizedDescription)"
             setConnectionState(.ready(deviceID: targetDeviceID))
         }
     }
