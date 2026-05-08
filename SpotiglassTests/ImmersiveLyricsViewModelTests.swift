@@ -221,8 +221,7 @@ final class ImmersiveLyricsViewModelTests: XCTestCase {
         let metadata = LyricsDiskCache.TrackBackoffMetadata(
             failureClass: .transient,
             failureCount: 3,
-            nextEligibleFetchAt: nextEligible,
-            updatedAt: Date()
+            nextEligibleFetchAt: nextEligible
         )
 
         XCTAssertNil(disk.loadTrackBackoffMetadata(spotifyTrackID: "track-backoff"))
