@@ -16,10 +16,6 @@ struct PlaylistDetailContent: View {
 
     private var tracksSurfaceKey: String { "pl:\(detail.playlist.id)" }
 
-    private var originPlaylistIDForTracks: String? {
-        detail.playlist.id == SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID ? nil : detail.playlist.id
-    }
-
     private var headerPinnedItem: PinnedItem {
         if detail.playlist.id == SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID {
             .likedSongs(ownerDisplay: detail.playlist.owner, artworkURL: detail.playlist.artworkURL)
@@ -67,8 +63,7 @@ struct PlaylistDetailContent: View {
                             hasPlaybackDevice: hasPlaybackDevice,
                             addToQueue: addToQueue,
                             openArtist: openArtist,
-                            tracksSurfaceID: tracksSurfaceKey,
-                            originPlaylistID: originPlaylistIDForTracks
+                            tracksSurfaceID: tracksSurfaceKey
                         )
                     },
                     pendingScrollRestoreTrackID: $pendingScrollRestoreTrackID,
