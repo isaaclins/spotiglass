@@ -59,7 +59,11 @@ final class PlaybackBridgeAndModelsTests: XCTestCase {
         XCTAssertEqual(nextTracks.count, 0)
         XCTAssertEqual(nowPlaying?.name, "Track")
         XCTAssertEqual(nowPlaying?.albumID, "album42")
-        XCTAssertEqual(nowPlaying?.progressText, "0:42 / 3:00")
+        let np = try XCTUnwrap(nowPlaying)
+        XCTAssertEqual(
+            "\(PlaybackNowPlaying.durationText(milliseconds: np.positionMilliseconds)) / \(PlaybackNowPlaying.durationText(milliseconds: np.durationMilliseconds))",
+            "0:42 / 3:00"
+        )
     }
 
     func testBridgeParsesPlayerCommandFinished() throws {
