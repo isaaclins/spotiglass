@@ -118,8 +118,8 @@ struct TrackRowViewModel: Equatable, Identifiable {
         )
     }
 
-    func pinnedTrackItem(originPlaylistID: String?) -> PinnedItem? {
+    func pinnedTrackItem() -> PinnedItem? {
         guard let track = spotifyTrackForPinning() else { return nil }
-        return .track(track, originPlaylistID: originPlaylistID)
+        return .track(track)
     }
 }
