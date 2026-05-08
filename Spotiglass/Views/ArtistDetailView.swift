@@ -152,8 +152,7 @@ struct ArtistDetailContent: View {
                     hasPlaybackDevice: hasPlaybackDevice,
                     addToQueue: addToQueue,
                     openArtist: openArtist,
-                    tracksSurfaceID: tracksSurfaceID,
-                    originPlaylistID: nil
+                    tracksSurfaceID: tracksSurfaceID
                 )
             }
         }
