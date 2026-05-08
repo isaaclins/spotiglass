@@ -97,10 +97,6 @@ final class SpotifyGETResponseCache: @unchecked Sendable {
         self.maxMemoryEntries = maxMemoryEntries
     }
 
-    func cachedBody(forCacheKey key: String) -> Data? {
-        cachedEntry(forCacheKey: key, allowExpired: false)?.data
-    }
-
     func cachedEntry(forCacheKey key: String, allowExpired: Bool) -> SpotifyGETCacheHit? {
         lock.lock()
         defer { lock.unlock() }
