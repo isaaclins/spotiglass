@@ -17,6 +17,8 @@ struct CommandPaletteSettings: Codable, Equatable {
 struct SpotiglassSettingsFile: Codable, Equatable {
     static let currentVersion = 1
 
+    /// Persisted schema marker; compared against ``currentVersion`` during migrations.
+    // periphery:ignore
     var version: Int
     var keybinds: [CommandPaletteKeyBinding]
     var equalizer: EqualizerSettings
