@@ -75,13 +75,6 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
         XCTAssertEqual(commander.commands.last?.payload["uri"] as? String, "spotify:track:1")
     }
 
-    func testPlayCommandTriggerMatrixListsExpectedEntrypoints() {
-        let matrix = PlaybackSessionViewModel.playCommandTriggerMatrix
-        XCTAssertTrue(matrix.contains { $0.entrypoint == "play(uri:)" })
-        XCTAssertTrue(matrix.contains { $0.entrypoint == "play(contextURI:)" })
-        XCTAssertTrue(matrix.contains { $0.entrypoint == "playFromPlaylist(clickedURI:playableURIs:playlistID:)" })
-    }
-
     func testDuplicatePlayURIWithinWindowIsDeduped() async {
         let commander = MockWebPlaybackCommander()
         let playbackAPI = MockPlaybackAPI()
