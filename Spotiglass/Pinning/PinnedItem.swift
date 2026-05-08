@@ -23,8 +23,6 @@ struct PinnedItem: Identifiable, Equatable, Codable, Hashable {
     /// `spotify:<kind>:<id>` for real Spotify entities; `nil` for virtual rows
     /// like Liked Songs which have no list-level URI.
     let spotifyURI: String?
-    /// For tracks: the playlist they were pinned from, when known.
-    let originPlaylistID: String?
     var isStale: Bool
 
     /// ID for the Liked Songs virtual row. Stable across processes / accounts;
@@ -46,7 +44,6 @@ extension PinnedItem {
             subtitle: playlist.ownerName,
             artworkURL: playlist.imageURL,
             spotifyURI: "spotify:playlist:\(playlist.id)",
-            originPlaylistID: nil,
             isStale: false
         )
     }
@@ -59,7 +56,6 @@ extension PinnedItem {
             subtitle: "Artist",
             artworkURL: artist.imageURL,
             spotifyURI: artist.uri,
-            originPlaylistID: nil,
             isStale: false
         )
     }
@@ -73,7 +69,6 @@ extension PinnedItem {
             subtitle: "Artist",
             artworkURL: artist.imageURL,
             spotifyURI: artist.uri,
-            originPlaylistID: nil,
             isStale: false
         )
     }
@@ -86,7 +81,6 @@ extension PinnedItem {
             subtitle: album.releaseYear ?? "Album",
             artworkURL: album.imageURL,
             spotifyURI: album.uri,
-            originPlaylistID: nil,
             isStale: false
         )
     }
@@ -99,12 +93,11 @@ extension PinnedItem {
             subtitle: album.artists.joined(separator: ", "),
             artworkURL: album.imageURL,
             spotifyURI: album.uri,
-            originPlaylistID: nil,
             isStale: false
         )
     }
 
-    static func track(_ track: SpotifyTrack, originPlaylistID: String? = nil) -> PinnedItem {
+    static func track(_ track: SpotifyTrack) -> PinnedItem {
         PinnedItem(
             id: id(forKind: .track, spotifyID: track.id),
             kind: .track,
@@ -112,7 +105,6 @@ extension PinnedItem {
             subtitle: track.artists.joined(separator: ", "),
             artworkURL: track.albumArtworkURL,
             spotifyURI: track.uri,
-            originPlaylistID: originPlaylistID,
             isStale: false
         )
     }
@@ -125,7 +117,6 @@ extension PinnedItem {
             subtitle: ownerDisplay,
             artworkURL: artworkURL,
             spotifyURI: nil,
-            originPlaylistID: nil,
             isStale: false
         )
     }
