@@ -4,7 +4,7 @@ All commands assume the repository root as the current directory.
 
 ## Makefile
 
-From the repo root, `make` / `make build` runs a Debug build into `build/DerivedData`. `make run` builds (if needed) and opens the Debug app. `make release` matches the unsigned Release layout below. `make test` runs unit tests. `make clean` removes `build/DerivedData` and deletes every **generic password** Keychain item whose **service** is exactly `com.isaaclins.spotiglass.spotify-auth` (the Spotify refresh token; see `KeychainRefreshTokenStore` in the app). That uses the `security` CLI against your default keychain list; you may be prompted for keychain access the same way the app would. For a full reset when testing auth, use `make clean && make build && make run`. Use `UNSIGNED=1` to pass `CODE_SIGNING_ALLOWED=NO` on Debug and test builds (same idea as the raw `xcodebuild` examples).
+From the repo root, `make` / `make build` runs a Debug build into `build/DerivedData`. `make run` builds (if needed) and opens the Debug app. `make release` matches the unsigned Release layout below. `make test` runs unit tests. `make scan` runs `periphery scan` for dead-code detection. `make clean` removes `build/DerivedData` and deletes every **generic password** Keychain item whose **service** is exactly `com.isaaclins.spotiglass.spotify-auth` (the Spotify refresh token; see `KeychainRefreshTokenStore` in the app). That uses the `security` CLI against your default keychain list; you may be prompted for keychain access the same way the app would. For a full reset when testing auth, use `make clean && make build && make run`. Use `UNSIGNED=1` to pass `CODE_SIGNING_ALLOWED=NO` on Debug and test builds (same idea as the raw `xcodebuild` examples).
 
 ## App icon (Dock / Finder) and in-app logo
 
@@ -49,6 +49,10 @@ xcodebuild -project Spotiglass.xcodeproj -scheme Spotiglass -destination 'platfo
 Because `SpotiglassTests` uses **`TEST_HOST`** (tests run inside `Spotiglass.app`), the app’s normal launch path would call `restoreSessionIfAvailable()` and touch the Spotify refresh token in the **login keychain**—which can trigger a password prompt. When Xcode sets **`XCTestConfigurationFilePath`** (always true for this scheme’s test action), the app uses an in-memory refresh-token store instead so **unit tests do not read or write that Keychain item**.
 
 If you add UI tests or another host that does not set that variable, expect Keychain behavior to match a normal app launch.
+
+Auth launch guardrails are covered by `SpotifyAuthStepTests`:
+- concurrent `signIn()` calls stay one-flight (extra triggers are ignored while one browser auth is active),
+- immediate retries after a sign-in failure are suppressed briefly before retries are allowed again.
 
 ## Unsigned Release bundle (matches CI packaging)
 

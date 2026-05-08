@@ -139,6 +139,9 @@ struct CommandPaletteItem: Identifiable {
     /// without dismissing the palette. `nil` for non-track rows so ⇧↩ silently
     /// no-ops on commands, artists, albums, and playlists.
     let queueAction: (@MainActor () async -> Void)?
+    /// When `true`, the palette renders an "Explicit" capsule next to the title,
+    /// mirroring the badge shown in `TrackListRow`. Only meaningful for track rows.
+    let isExplicit: Bool
 
     init(
         id: String,
@@ -153,6 +156,7 @@ struct CommandPaletteItem: Identifiable {
         pinAction: (@MainActor () -> Void)? = nil,
         unpinAction: (@MainActor () -> Void)? = nil,
         queueAction: (@MainActor () async -> Void)? = nil,
+        isExplicit: Bool = false,
         action: @escaping @MainActor () async -> Void
     ) {
         self.id = id
@@ -167,6 +171,7 @@ struct CommandPaletteItem: Identifiable {
         self.pinAction = pinAction
         self.unpinAction = unpinAction
         self.queueAction = queueAction
+        self.isExplicit = isExplicit
         self.action = action
     }
 

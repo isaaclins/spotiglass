@@ -184,6 +184,58 @@ final class QueuePanelTests: XCTestCase {
         XCTAssertTrue(api.actions.filter { $0 == "fetchQueue" }.count >= 1)
     }
 
+    func testQueueViewModelSuppressesDuplicateAddWhileInFlightForSameURI() async {
+        let api = QueueTestPlaybackAPI()
+        api.addToQueueDelayNanoseconds = 120_000_000
+        let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: StubWebPlaybackCommander())
+        playback.handle(.ready(deviceID: "device-1"))
+        let queue = QueueViewModel(playbackAPI: api, playbackSession: playback)
+        queue.setPanelVisible(true)
+
+        async let first: Void = queue.addToQueue(uri: "spotify:track:dup")
+        async let second: Void = queue.addToQueue(uri: "spotify:track:dup")
+        _ = await (first, second)
+
+        let enqueueCalls = api.actions.filter { $0 == "addToQueue:device-1:spotify:track:dup" }
+        XCTAssertEqual(enqueueCalls.count, 1)
+    }
+
+    func testQueueViewModelAllowsConcurrentAddsForDifferentURIs() async {
+        let api = QueueTestPlaybackAPI()
+        api.addToQueueDelayNanoseconds = 120_000_000
+        let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: StubWebPlaybackCommander())
+        playback.handle(.ready(deviceID: "device-1"))
+        let queue = QueueViewModel(playbackAPI: api, playbackSession: playback)
+        queue.setPanelVisible(true)
+
+        async let first: Void = queue.addToQueue(uri: "spotify:track:a")
+        async let second: Void = queue.addToQueue(uri: "spotify:track:b")
+        _ = await (first, second)
+
+        XCTAssertEqual(api.actions.filter { $0 == "addToQueue:device-1:spotify:track:a" }.count, 1)
+        XCTAssertEqual(api.actions.filter { $0 == "addToQueue:device-1:spotify:track:b" }.count, 1)
+    }
+
+    func testQueueViewModelAmbiguousFailureBlocksImmediateRetryToAvoidDuplicateSubmission() async {
+        let api = QueueTestPlaybackAPI()
+        api.addToQueueErrors = [URLError(.timedOut), nil]
+        let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: StubWebPlaybackCommander())
+        playback.handle(.ready(deviceID: "device-1"))
+        let queue = QueueViewModel(
+            playbackAPI: api,
+            playbackSession: playback,
+            enqueueUnknownOutcomeCooldown: .milliseconds(300)
+        )
+        queue.setPanelVisible(true)
+
+        await queue.addToQueue(uri: "spotify:track:ambiguous")
+        await queue.addToQueue(uri: "spotify:track:ambiguous")
+
+        let enqueueCalls = api.actions.filter { $0 == "addToQueue:device-1:spotify:track:ambiguous" }
+        XCTAssertEqual(enqueueCalls.count, 1)
+        XCTAssertEqual(queue.lastError?.title, "Queue status pending")
+    }
+
     func testQueueViewModelDoesNotShowErrorBannerForCancellation() async {
         let api = QueueTestPlaybackAPI()
         let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: StubWebPlaybackCommander())
@@ -375,6 +427,80 @@ final class QueuePanelTests: XCTestCase {
             "Confirmed reconciliation should remain off the original non-shuffled ordering."
         )
     }
+
+    func testQueueRefreshCoalescesConcurrentManualRequests() async {
+        let api = QueueTestPlaybackAPI()
+        api.fetchQueueDelayNanoseconds = 80_000_000
+        let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: StubWebPlaybackCommander())
+        playback.handle(.ready(deviceID: "device-1"))
+        playback.handle(.stateChanged(
+            PlaybackNowPlaying(name: "T", artists: ["A"], albumName: nil, albumID: nil, albumArtURL: nil, durationMilliseconds: 60_000, positionMilliseconds: 0, uri: "spotify:track:t"),
+            isPaused: false,
+            nextTracks: []
+        ))
+        let queue = QueueViewModel(playbackAPI: api, playbackSession: playback, pollIntervalNanoseconds: 60_000_000_000, pollJitterFraction: 0)
+        queue.setPanelVisible(true)
+
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { await queue.refreshQueue() }
+            group.addTask { await queue.refreshQueue() }
+        }
+
+        XCTAssertFalse(api.concurrentFetchDetected, "Queue refreshes should never overlap in-flight network requests.")
+        XCTAssertEqual(api.maxConcurrentFetches, 1)
+    }
+
+    func testQueueRefreshShortCircuitsDuringRateLimitCooldown() async {
+        let api = QueueTestPlaybackAPI()
+        let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: StubWebPlaybackCommander())
+        playback.handle(.ready(deviceID: "device-1"))
+        playback.handle(.stateChanged(
+            PlaybackNowPlaying(name: "T", artists: ["A"], albumName: nil, albumID: nil, albumArtURL: nil, durationMilliseconds: 60_000, positionMilliseconds: 0, uri: "spotify:track:t"),
+            isPaused: false,
+            nextTracks: []
+        ))
+        let queue = QueueViewModel(playbackAPI: api, playbackSession: playback, pollJitterFraction: 0, defaultRateLimitCooldownSeconds: 0.3)
+        queue.setPanelVisible(true)
+
+        api.errorToThrow = SpotifyAPIError.rateLimited(retryAfter: 0.3)
+        await queue.refreshQueue()
+        let fetchesAfterFirstFailure = api.actions.filter { $0 == "fetchQueue" }.count
+
+        await queue.refreshQueue()
+        let fetchesAfterSecondAttempt = api.actions.filter { $0 == "fetchQueue" }.count
+
+        XCTAssertEqual(fetchesAfterFirstFailure, 1)
+        XCTAssertEqual(fetchesAfterSecondAttempt, 1, "Manual refresh should yield to cooldown instead of calling Spotify again immediately.")
+        XCTAssertEqual(queue.lastError?.title, "Rate limited")
+    }
+
+    func testQueuePollingStopsWhenAppBecomesInactive() async {
+        let api = QueueTestPlaybackAPI()
+        let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: StubWebPlaybackCommander())
+        playback.handle(.ready(deviceID: "device-1"))
+        playback.handle(.stateChanged(
+            PlaybackNowPlaying(name: "T", artists: ["A"], albumName: nil, albumID: nil, albumArtURL: nil, durationMilliseconds: 60_000, positionMilliseconds: 0, uri: "spotify:track:t"),
+            isPaused: false,
+            nextTracks: []
+        ))
+        let queue = QueueViewModel(
+            playbackAPI: api,
+            playbackSession: playback,
+            pollIntervalNanoseconds: 30_000_000,
+            pausedPollIntervalNanoseconds: 30_000_000,
+            pollJitterFraction: 0
+        )
+        queue.setPanelVisible(true)
+        try? await Task.sleep(nanoseconds: 120_000_000)
+        let fetchesBeforeInactive = api.actions.filter { $0 == "fetchQueue" }.count
+
+        queue.setAppActive(false)
+        try? await Task.sleep(nanoseconds: 120_000_000)
+        let fetchesAfterInactive = api.actions.filter { $0 == "fetchQueue" }.count
+
+        XCTAssertGreaterThan(fetchesBeforeInactive, 0)
+        XCTAssertEqual(fetchesBeforeInactive, fetchesAfterInactive, "Polling should stop immediately when app resigns active state.")
+    }
 }
 
 private final class StubWebPlaybackCommander: WebPlaybackCommanding {
@@ -384,6 +510,7 @@ private final class StubWebPlaybackCommander: WebPlaybackCommanding {
 }
 
 private final class QueueTestPlaybackAPI: SpotifyPlaybackControlling {
+    private let lock = NSLock()
     private(set) var actions: [String] = []
     var queueResponse = SpotifyQueueResponse(currentlyPlaying: nil, queue: [])
     var errorToThrow: Error?
@@ -391,22 +518,27 @@ private final class QueueTestPlaybackAPI: SpotifyPlaybackControlling {
     var setRepeatError: Error?
     var fetchQueueDelayNanoseconds: UInt64 = 0
     var queueResponses: [SpotifyQueueResponse] = []
+    var addToQueueDelayNanoseconds: UInt64 = 0
+    var addToQueueErrors: [Error?] = []
+    private(set) var concurrentFetchDetected = false
+    private(set) var maxConcurrentFetches = 0
+    private var currentConcurrentFetches = 0
     private var reportedTransport = SpotifyPlayerTransport(shuffle: false, repeatMode: .off)
 
     func transferPlayback(to deviceID: String, play: Bool) async throws {
-        actions.append("transfer:\(deviceID):\(play)")
+        appendAction("transfer:\(deviceID):\(play)")
     }
 
     func play(uri: String, deviceID: String) async throws {
-        actions.append("play:\(deviceID):\(uri)")
+        appendAction("play:\(deviceID):\(uri)")
     }
 
     func play(contextURI: String, deviceID: String) async throws {
-        actions.append("play-context:\(deviceID):\(contextURI)")
+        appendAction("play-context:\(deviceID):\(contextURI)")
     }
 
     func play(uris: [String], deviceID: String) async throws {
-        actions.append("play-list:\(deviceID):\(uris.joined(separator: ","))")
+        appendAction("play-list:\(deviceID):\(uris.joined(separator: ","))")
     }
 
     func pause(deviceID: String) async throws {}
@@ -420,47 +552,110 @@ private final class QueueTestPlaybackAPI: SpotifyPlaybackControlling {
     func previous(deviceID: String) async throws {}
 
     func fetchQueue() async throws -> SpotifyQueueResponse {
-        actions.append("fetchQueue")
+        appendAction("fetchQueue")
+        beginFetch()
+        defer { endFetch() }
         if fetchQueueDelayNanoseconds > 0 {
             try? await Task.sleep(nanoseconds: fetchQueueDelayNanoseconds)
         }
         if let errorToThrow {
             throw errorToThrow
         }
-        if !queueResponses.isEmpty {
-            return queueResponses.removeFirst()
+        if let next = dequeueQueueResponse() {
+            return next
         }
-        return queueResponse
+        return readQueueResponse()
     }
 
     func addToQueue(uri: String, deviceID: String) async throws {
-        actions.append("addToQueue:\(deviceID):\(uri)")
+        // Track attempted submissions so ambiguous transport failures are visible in tests.
+        appendAction("addToQueue:\(deviceID):\(uri)")
+        if addToQueueDelayNanoseconds > 0 {
+            try? await Task.sleep(nanoseconds: addToQueueDelayNanoseconds)
+        }
+        if let error = dequeueAddToQueueError() {
+            throw error
+        }
     }
 
     func fetchPlayerTransport() async throws -> SpotifyPlayerTransport? {
-        actions.append("fetchPlayerTransport")
-        return reportedTransport
+        appendAction("fetchPlayerTransport")
+        return readReportedTransport()
     }
 
     func fetchPlayerSnapshot() async throws -> SpotifyPlayerSnapshot? {
-        actions.append("fetchPlayerSnapshot")
-        return SpotifyPlayerSnapshot(transport: reportedTransport, activeDevice: nil)
+        appendAction("fetchPlayerSnapshot")
+        return SpotifyPlayerSnapshot(transport: readReportedTransport(), activeDevice: nil, isPlaying: true)
     }
 
     func fetchAvailableDevices() async throws -> [SpotifyConnectDevice] {
-        actions.append("fetchAvailableDevices")
+        appendAction("fetchAvailableDevices")
         return []
     }
 
     func setShuffle(enabled: Bool, deviceID: String) async throws {
         if let setShuffleError { throw setShuffleError }
-        actions.append("setShuffle:\(deviceID):\(enabled)")
-        reportedTransport = SpotifyPlayerTransport(shuffle: enabled, repeatMode: reportedTransport.repeatMode)
+        appendAction("setShuffle:\(deviceID):\(enabled)")
+        writeReportedTransport(SpotifyPlayerTransport(shuffle: enabled, repeatMode: readReportedTransport().repeatMode))
     }
 
     func setRepeat(mode: SpotifyRepeatMode, deviceID: String) async throws {
         if let setRepeatError { throw setRepeatError }
-        actions.append("setRepeat:\(deviceID):\(mode.rawValue)")
-        reportedTransport = SpotifyPlayerTransport(shuffle: reportedTransport.shuffle, repeatMode: mode)
+        appendAction("setRepeat:\(deviceID):\(mode.rawValue)")
+        writeReportedTransport(SpotifyPlayerTransport(shuffle: readReportedTransport().shuffle, repeatMode: mode))
+    }
+
+    private func appendAction(_ action: String) {
+        lock.lock()
+        actions.append(action)
+        lock.unlock()
+    }
+
+    private func beginFetch() {
+        lock.lock()
+        currentConcurrentFetches += 1
+        maxConcurrentFetches = max(maxConcurrentFetches, currentConcurrentFetches)
+        if currentConcurrentFetches > 1 {
+            concurrentFetchDetected = true
+        }
+        lock.unlock()
+    }
+
+    private func endFetch() {
+        lock.lock()
+        currentConcurrentFetches -= 1
+        lock.unlock()
+    }
+
+    private func dequeueQueueResponse() -> SpotifyQueueResponse? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !queueResponses.isEmpty else { return nil }
+        return queueResponses.removeFirst()
+    }
+
+    private func readQueueResponse() -> SpotifyQueueResponse {
+        lock.lock()
+        defer { lock.unlock() }
+        return queueResponse
+    }
+
+    private func dequeueAddToQueueError() -> Error? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !addToQueueErrors.isEmpty else { return nil }
+        return addToQueueErrors.removeFirst()
+    }
+
+    private func readReportedTransport() -> SpotifyPlayerTransport {
+        lock.lock()
+        defer { lock.unlock() }
+        return reportedTransport
+    }
+
+    private func writeReportedTransport(_ value: SpotifyPlayerTransport) {
+        lock.lock()
+        reportedTransport = value
+        lock.unlock()
     }
 }

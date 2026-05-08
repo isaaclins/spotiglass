@@ -63,11 +63,13 @@ private struct SpotifyPlayerSnapshotDTO: Decodable {
     let shuffleState: Bool
     let repeatState: String
     let device: SpotifyConnectDeviceDTO?
+    let isPlaying: Bool
 
     enum CodingKeys: String, CodingKey {
         case shuffleState = "shuffle_state"
         case repeatState = "repeat_state"
         case device
+        case isPlaying = "is_playing"
     }
 
     func domainModel() -> SpotifyPlayerSnapshot {
@@ -76,8 +78,22 @@ private struct SpotifyPlayerSnapshotDTO: Decodable {
                 shuffle: shuffleState,
                 repeatMode: SpotifyRepeatMode(rawValue: repeatState) ?? .off
             ),
-            activeDevice: device?.domainModel()
+            activeDevice: device?.domainModel(),
+            isPlaying: isPlaying
         )
+    }
+}
+
+/// Serializes concurrent `PUT /v1/me/player/pause` calls so duplicate in-flight requests are dropped.
+private actor PlayerPauseEndpointGate {
+    private var busy = false
+
+    /// Runs `work` unless another pause request is already in progress (duplicate skipped silently).
+    func perform(_ work: () async throws -> Void) async throws {
+        guard !busy else { return }
+        busy = true
+        defer { busy = false }
+        try await work()
     }
 }
 
@@ -148,11 +164,13 @@ protocol SpotifyPlaybackControlling {
 
 struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
     private static let maxQueuedURIs = 100
+    private static let maxGETRetryAttempts = 3
     private let baseURL: URL
     private let tokenProvider: PlaybackAccessTokenProviding
     private let httpClient: HTTPClient
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
+    private let pauseEndpointGate = PlayerPauseEndpointGate()
 
     init(
         baseURL: URL = URL(string: "https://api.spotify.com")!,
@@ -192,7 +210,17 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
     }
 
     func pause(deviceID: String) async throws {
-        try await send(path: "/v1/me/player/pause", method: "PUT", body: EmptyBody(), queryItems: [URLQueryItem(name: "device_id", value: deviceID)])
+        try await pauseEndpointGate.perform {
+            guard let snapshot = try await self.fetchPlayerSnapshot() else {
+                return
+            }
+            if let active = snapshot.activeDevice,
+               active.deviceID == deviceID,
+               !snapshot.isPlaying {
+                return
+            }
+            try await self.send(path: "/v1/me/player/pause", method: "PUT", body: EmptyBody(), queryItems: [URLQueryItem(name: "device_id", value: deviceID)])
+        }
     }
 
     func resume(deviceID: String) async throws {
@@ -238,18 +266,12 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
     }
 
     func fetchPlayerSnapshot() async throws -> SpotifyPlayerSnapshot? {
-        let accessToken = try await tokenProvider.playbackAccessToken()
-        let components = URLComponents(url: baseURL.appendingPathComponent("/v1/me/player".trimmingCharacters(in: CharacterSet(charactersIn: "/"))), resolvingAgainstBaseURL: false)!
-        var request = URLRequest(url: components.url!)
-        request.httpMethod = "GET"
-        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-
-        let (data, response) = try await httpClient.data(for: request)
+        let (data, response) = try await performGET(path: "/v1/me/player", queryItems: [])
         if response.statusCode == 204 {
             return nil
         }
         guard (200..<300).contains(response.statusCode) else {
-            throw mapPlaybackError(statusCode: response.statusCode, data: data)
+            throw mapPlaybackError(statusCode: response.statusCode, data: data, response: response)
         }
         let dto = try decoder.decode(SpotifyPlayerSnapshotDTO.self, from: data)
         return dto.domainModel()
@@ -286,6 +308,14 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
     }
 
     private func get(path: String, queryItems: [URLQueryItem]) async throws -> Data {
+        let (data, response) = try await performGET(path: path, queryItems: queryItems)
+        guard (200..<300).contains(response.statusCode) else {
+            throw mapPlaybackError(statusCode: response.statusCode, data: data, response: response)
+        }
+        return data
+    }
+
+    private func performGET(path: String, queryItems: [URLQueryItem]) async throws -> (Data, HTTPURLResponse) {
         let accessToken = try await tokenProvider.playbackAccessToken()
         var components = URLComponents(url: baseURL.appendingPathComponent(path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))), resolvingAgainstBaseURL: false)!
         components.queryItems = queryItems.isEmpty ? nil : queryItems
@@ -293,11 +323,63 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
         request.httpMethod = "GET"
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
 
-        let (data, response) = try await httpClient.data(for: request)
-        guard (200..<300).contains(response.statusCode) else {
-            throw mapPlaybackError(statusCode: response.statusCode, data: data)
+        return try await performGETWithRetry(request: request, path: path)
+    }
+
+    private func performGETWithRetry(request: URLRequest, path: String) async throws -> (Data, HTTPURLResponse) {
+        var attempt = 0
+        while true {
+            attempt += 1
+            do {
+                let (data, response) = try await httpClient.data(for: request)
+                if shouldRetryGET(statusCode: response.statusCode, path: path, attempt: attempt) {
+                    let retryAfter = retryAfterSeconds(fromRawHeader: response.value(forHTTPHeaderField: "Retry-After"))
+                    let delay = retryDelaySeconds(retryAfter: retryAfter, attempt: attempt)
+                    try await Task.sleep(for: .seconds(delay))
+                    continue
+                }
+                return (data, response)
+            } catch {
+                guard shouldRetryGET(error: error, path: path, attempt: attempt) else {
+                    throw error
+                }
+                let delay = retryDelaySeconds(retryAfter: nil, attempt: attempt)
+                try await Task.sleep(for: .seconds(delay))
+            }
         }
-        return data
+    }
+
+    private func shouldRetryGET(statusCode: Int, path: String, attempt: Int) -> Bool {
+        guard attempt < Self.maxGETRetryAttempts else { return false }
+        guard shouldRetryGETPath(path) else { return false }
+        return statusCode == 429 || (500...599).contains(statusCode)
+    }
+
+    private func shouldRetryGET(error: Error, path: String, attempt: Int) -> Bool {
+        guard attempt < Self.maxGETRetryAttempts else { return false }
+        guard shouldRetryGETPath(path) else { return false }
+        guard let urlError = error as? URLError else { return false }
+        switch urlError.code {
+        case .timedOut, .networkConnectionLost, .notConnectedToInternet, .cannotConnectToHost, .cannotFindHost, .dnsLookupFailed:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func shouldRetryGETPath(_ path: String) -> Bool {
+        path == "/v1/me/player" || path == "/v1/me/player/devices"
+    }
+
+    private func retryDelaySeconds(retryAfter: TimeInterval?, attempt: Int) -> TimeInterval {
+        let baseDelay: TimeInterval
+        if let retryAfter, retryAfter > 0 {
+            baseDelay = min(retryAfter, 8)
+        } else {
+            baseDelay = min(pow(2, Double(attempt - 1)), 4)
+        }
+        let jitter = Double.random(in: 0...0.35)
+        return baseDelay + jitter
     }
 
     private func send<Body: Encodable>(
@@ -319,11 +401,11 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
 
         let (data, response) = try await httpClient.data(for: request)
         guard (200..<300).contains(response.statusCode) || response.statusCode == 204 else {
-            throw mapPlaybackError(statusCode: response.statusCode, data: data)
+            throw mapPlaybackError(statusCode: response.statusCode, data: data, response: response)
         }
     }
 
-    private func mapPlaybackError(statusCode: Int, data: Data) -> SpotifyAPIError {
+    private func mapPlaybackError(statusCode: Int, data: Data, response: HTTPURLResponse) -> SpotifyAPIError {
         let message = try? JSONDecoder().decode(SpotifyAPIErrorResponse.self, from: data).error.message
         switch statusCode {
         case 401:
@@ -333,10 +415,30 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
         case 404:
             return .notFound(message: message)
         case 429:
-            return .rateLimited(retryAfter: nil)
+            return .rateLimited(retryAfter: retryAfterSeconds(from: response))
         default:
             return .server(statusCode: statusCode, message: message, details: nil)
         }
+    }
+
+    private func retryAfterSeconds(from response: HTTPURLResponse) -> TimeInterval? {
+        retryAfterSeconds(fromRawHeader: response.value(forHTTPHeaderField: "Retry-After"))
+    }
+
+    private func retryAfterSeconds(fromRawHeader rawHeader: String?) -> TimeInterval? {
+        guard let rawHeader else { return nil }
+        let trimmed = rawHeader.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let seconds = TimeInterval(trimmed) {
+            return max(seconds, 0)
+        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
+        guard let date = formatter.date(from: trimmed) else {
+            return nil
+        }
+        return max(0, date.timeIntervalSinceNow)
     }
 }
 

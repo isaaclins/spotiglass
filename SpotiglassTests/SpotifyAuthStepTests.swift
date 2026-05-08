@@ -152,6 +152,49 @@ final class SpotifyAuthStepTests: XCTestCase {
         XCTAssertNil(httpClient.lastBody?["client_secret"])
     }
 
+    func testRefreshGrantRetriesTransientServerErrorsThenSucceeds() async throws {
+        let now = Date(timeIntervalSince1970: 2_000)
+        let httpClient = SequencedTokenHTTPClient([
+            .json(#"{"error":"temporarily_unavailable","error_description":"Try again"}"#, statusCode: 500),
+            .json(#"{"error":"temporarily_unavailable","error_description":"Still retrying"}"#, statusCode: 502),
+            .json("""
+            {
+              "access_token": "recovered-access-token",
+              "token_type": "Bearer",
+              "expires_in": 1800
+            }
+            """, statusCode: 200)
+        ])
+        let client = SpotifyTokenClient(httpClient: httpClient, now: { now }, random: { _ in 0 })
+
+        let grant = try await client.refreshAccessToken(clientID: "client-id", refreshToken: "refresh-token")
+
+        XCTAssertEqual(grant.accessToken, "recovered-access-token")
+        XCTAssertEqual(httpClient.requestCount, 3, "Refresh should retry transient token endpoint failures with a bounded budget.")
+    }
+
+    func testRefreshGrantDoesNotRetryInvalidGrant() async {
+        let httpClient = SequencedTokenHTTPClient([
+            .json(#"{"error":"invalid_grant","error_description":"Refresh token revoked"}"#, statusCode: 400)
+        ])
+        let client = SpotifyTokenClient(httpClient: httpClient, random: { _ in 0 })
+
+        do {
+            _ = try await client.refreshAccessToken(clientID: "client-id", refreshToken: "refresh-token")
+            XCTFail("Expected invalid_grant to fail without retry.")
+        } catch let error as SpotifyTokenClientError {
+            guard case let .httpError(status, description, oauthError, _) = error else {
+                return XCTFail("Expected HTTP token error, got \(error)")
+            }
+            XCTAssertEqual(status, 400)
+            XCTAssertEqual(description, "Refresh token revoked")
+            XCTAssertEqual(oauthError, "invalid_grant")
+            XCTAssertEqual(httpClient.requestCount, 1, "invalid_grant must fail immediately.")
+        } catch {
+            XCTFail("Unexpected error \(error)")
+        }
+    }
+
     func testInMemoryRefreshTokenStoreSignOutWipesToken() throws {
         let store = InMemoryRefreshTokenStore()
         try store.saveRefreshToken("refresh-token")
@@ -227,6 +270,66 @@ final class SpotifyAuthStepTests: XCTestCase {
         }
         XCTAssertEqual(try store.loadRefreshToken(), "good-refresh-token", "Transient network failures must not wipe the refresh token.")
         XCTAssertEqual(cleaner.callCount, 0, "Cache must survive a transient refresh failure.")
+    }
+
+    @MainActor
+    func testRefreshedPlaybackAccessTokenUsesSingleFlightForConcurrentWaiters() async throws {
+        let store = InMemoryRefreshTokenStore()
+        try store.saveRefreshToken("refresh-token")
+        let now = Date(timeIntervalSince1970: 2_000)
+        let httpClient = SequencedTokenHTTPClient([
+            .json("""
+            {
+              "access_token": "shared-access-token",
+              "token_type": "Bearer",
+              "expires_in": 1800,
+              "scope": "playlist-read-private playlist-read-collaborative user-library-read streaming"
+            }
+            """, statusCode: 200, delayNanoseconds: 150_000_000)
+        ])
+        let viewModel = AuthViewModel(
+            settings: makeSettings(clientID: "client-id"),
+            tokenClient: SpotifyTokenClient(httpClient: httpClient, now: { now }, random: { _ in 0 }),
+            refreshTokenStore: store,
+            signOutDataCleaner: {}
+        )
+
+        async let first = viewModel.refreshedPlaybackAccessToken()
+        async let second = viewModel.refreshedPlaybackAccessToken()
+        let (a, b) = try await (first, second)
+
+        XCTAssertEqual(a, "shared-access-token")
+        XCTAssertEqual(b, "shared-access-token")
+        XCTAssertEqual(httpClient.requestCount, 1, "Concurrent refresh consumers should share one in-flight token call.")
+    }
+
+    @MainActor
+    func testRefreshCooldownSuppressesImmediateRepeatAfterRetryExhaustion() async throws {
+        let store = InMemoryRefreshTokenStore()
+        try store.saveRefreshToken("refresh-token")
+        let httpClient = SequencedTokenHTTPClient([
+            .json(#"{"error":"temporarily_unavailable","error_description":"Try later"}"#, statusCode: 500),
+            .json(#"{"error":"temporarily_unavailable","error_description":"Try later"}"#, statusCode: 500),
+            .json(#"{"error":"temporarily_unavailable","error_description":"Try later"}"#, statusCode: 500)
+        ])
+        let viewModel = AuthViewModel(
+            settings: makeSettings(clientID: "client-id"),
+            tokenClient: SpotifyTokenClient(httpClient: httpClient, random: { _ in 0 }),
+            refreshTokenStore: store,
+            signOutDataCleaner: {}
+        )
+
+        do {
+            _ = try await viewModel.refreshedPlaybackAccessToken()
+            XCTFail("Expected first refresh to fail after bounded retries.")
+        } catch {}
+
+        do {
+            _ = try await viewModel.refreshedPlaybackAccessToken()
+            XCTFail("Expected cooldown to block immediate retry.")
+        } catch {}
+
+        XCTAssertEqual(httpClient.requestCount, 3, "Cooldown should fail fast without starting a second refresh attempt burst.")
     }
 
     func testKeychainRefreshTokenStoreErrorDescriptionsAreUserFacing() {
@@ -314,6 +417,51 @@ final class SpotifyAuthStepTests: XCTestCase {
         XCTAssertEqual(session.accessToken, "access-token")
     }
 
+    @MainActor
+    func testSignInSingleFlightSuppressesConcurrentAttempts() async {
+        let flow = CountingHangAuthorizationFlow()
+        let viewModel = AuthViewModel(
+            settings: makeSettings(clientID: "client-id"),
+            authorizationFlow: flow,
+            tokenClient: SpotifyTokenClient(),
+            refreshTokenStore: InMemoryRefreshTokenStore(),
+            signOutDataCleaner: {}
+        )
+
+        async let first: Void = viewModel.signIn()
+        await waitUntil { flow.recordedRequestCount() == 1 }
+        async let second: Void = viewModel.signIn()
+        async let third: Void = viewModel.signIn()
+        viewModel.cancelSignIn()
+        await first
+        await second
+        await third
+
+        XCTAssertEqual(flow.recordedRequestCount(), 1, "Concurrent sign-in attempts should reuse the active auth launch instead of restarting it.")
+    }
+
+    @MainActor
+    func testSignInFailureCooldownBlocksImmediateRetryThenAllowsLaterRetry() async {
+        let flow = FailingAuthorizationFlow(error: URLError(.timedOut))
+        let viewModel = AuthViewModel(
+            settings: makeSettings(clientID: "client-id"),
+            authorizationFlow: flow,
+            tokenClient: SpotifyTokenClient(),
+            refreshTokenStore: InMemoryRefreshTokenStore(),
+            signOutDataCleaner: {}
+        )
+
+        await viewModel.signIn()
+        XCTAssertEqual(flow.recordedRequestCount(), 1)
+
+        await viewModel.signIn()
+        XCTAssertEqual(flow.recordedRequestCount(), 1, "Immediate retries should be ignored during cooldown.")
+
+        try? await Task.sleep(nanoseconds: 2_200_000_000)
+        await viewModel.signIn()
+        XCTAssertEqual(flow.recordedRequestCount(), 2, "Retry should proceed after cooldown expires.")
+    }
+
     private func makeSettings(clientID: String) -> SpotifyAuthSettings {
         let suite = "SpotiglassTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
@@ -365,6 +513,48 @@ private final class TwoStepAuthorizationFlow: SpotifyAuthorizationFlowing, @unch
     }
 }
 
+private final class CountingHangAuthorizationFlow: SpotifyAuthorizationFlowing, @unchecked Sendable {
+    private let lock = NSLock()
+    private(set) var requestCount = 0
+
+    func recordedRequestCount() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return requestCount
+    }
+
+    func requestAuthorizationCode(clientID: String, timeout: TimeInterval) async throws -> SpotifyAuthorizationCode {
+        lock.lock()
+        requestCount += 1
+        lock.unlock()
+        try await Task.sleep(for: .seconds(3_600))
+        fatalError("unreachable")
+    }
+}
+
+private final class FailingAuthorizationFlow: SpotifyAuthorizationFlowing, @unchecked Sendable {
+    private let lock = NSLock()
+    private let error: Error
+    private(set) var requestCount = 0
+
+    func recordedRequestCount() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return requestCount
+    }
+
+    init(error: Error) {
+        self.error = error
+    }
+
+    func requestAuthorizationCode(clientID: String, timeout: TimeInterval) async throws -> SpotifyAuthorizationCode {
+        lock.lock()
+        requestCount += 1
+        lock.unlock()
+        throw error
+    }
+}
+
 private final class SignOutCacheCleanerSpy: @unchecked Sendable {
     private(set) var callCount = 0
 
@@ -412,6 +602,63 @@ private final class MockHTTPClient: HTTPClient {
                 statusCode: statusCode,
                 httpVersion: nil,
                 headerFields: nil
+            )!
+        )
+    }
+}
+
+private final class SequencedTokenHTTPClient: HTTPClient {
+    struct Response {
+        let data: Data
+        let statusCode: Int
+        let headers: [String: String]
+        let delayNanoseconds: UInt64
+
+        static func json(
+            _ json: String,
+            statusCode: Int = 200,
+            headers: [String: String] = [:],
+            delayNanoseconds: UInt64 = 0
+        ) -> Response {
+            Response(
+                data: Data(json.utf8),
+                statusCode: statusCode,
+                headers: headers,
+                delayNanoseconds: delayNanoseconds
+            )
+        }
+    }
+
+    private let lock = NSLock()
+    private var responses: [Response]
+    private(set) var requestCount = 0
+
+    init(_ responses: [Response]) {
+        self.responses = responses
+    }
+
+    func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        let response: Response
+        lock.lock()
+        requestCount += 1
+        guard !responses.isEmpty else {
+            lock.unlock()
+            throw URLError(.badServerResponse)
+        }
+        response = responses.removeFirst()
+        lock.unlock()
+
+        if response.delayNanoseconds > 0 {
+            try await Task.sleep(nanoseconds: response.delayNanoseconds)
+        }
+
+        return (
+            response.data,
+            HTTPURLResponse(
+                url: request.url!,
+                statusCode: response.statusCode,
+                httpVersion: nil,
+                headerFields: response.headers
             )!
         )
     }

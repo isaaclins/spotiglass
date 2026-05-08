@@ -6,6 +6,11 @@ extension LrcLibClient.Failure {
         switch self {
         case .noLyrics:
             return "No lyrics found for this track."
+        case let .rateLimited(retryAfter):
+            if let retryAfter {
+                return "Lyrics service is rate limited. Try again in \(Int(retryAfter.rounded()))s."
+            }
+            return "Lyrics service is rate limited. Please try again shortly."
         case let .http(code):
             return "Lyrics service error (HTTP \(code))."
         case .decoding:
@@ -18,6 +23,13 @@ extension LrcLibClient.Failure {
 
 @MainActor
 final class ImmersiveLyricsViewModel: ObservableObject {
+    private static let noLyricsCooldownDuration: TimeInterval = 10 * 60
+    private static let decodingCooldownDuration: TimeInterval = 5 * 60
+    private static let permanentCooldownDuration: TimeInterval = 15 * 60
+    private static let transientBaseCooldownDuration: TimeInterval = 30
+    private static let transientMaxCooldownDuration: TimeInterval = 10 * 60
+    private static let rateLimitedFallbackCooldownDuration: TimeInterval = 60
+
     enum Phase: Equatable {
         case idle
         case loading
@@ -33,6 +45,8 @@ final class ImmersiveLyricsViewModel: ObservableObject {
     /// In-memory only; class is `@MainActor` so no lock is required.
     private static var cache: [String: FetchedLyrics] = [:]
     private static var inFlight: [String: Task<FetchedLyrics, Error>] = [:]
+    private static var noLyricsCooldownUntil: [String: Date] = [:]
+    private static var backoffMetadata: [String: LyricsDiskCache.TrackBackoffMetadata] = [:]
 
     init(fetchLyrics: @escaping (PlaybackNowPlaying) async throws -> FetchedLyrics, diskCache: LyricsDiskCache? = nil) {
         self.fetch = fetchLyrics
@@ -48,6 +62,7 @@ final class ImmersiveLyricsViewModel: ObservableObject {
     func preload(track: PlaybackNowPlaying) async {
         guard let tid = track.spotifyTrackIDForLyrics else { return }
         guard Self.cache[tid] == nil else { return }
+        guard !isWithinBackoffCooldown(trackId: tid) else { return }
         do {
             _ = try await fetchWithDedup(trackId: tid, track: track)
         } catch {
@@ -70,14 +85,20 @@ final class ImmersiveLyricsViewModel: ObservableObject {
             phase = .ready(disk)
             return
         }
+        if isWithinBackoffCooldown(trackId: tid) {
+            phase = .failed(cooldownMessage(trackId: tid))
+            return
+        }
 
         phase = .loading
         do {
             let lyrics = try await fetchWithDedup(trackId: tid, track: track)
             phase = .ready(lyrics)
         } catch let failure as LrcLibClient.Failure {
+            registerFailureBackoff(trackId: tid, failure: failure)
             phase = .failed(failure.userFacingMessage)
         } catch {
+            registerFailureBackoff(trackId: tid, failure: nil)
             phase = .failed(error.localizedDescription)
         }
     }
@@ -100,8 +121,11 @@ final class ImmersiveLyricsViewModel: ObservableObject {
         do {
             let value = try await newTask.value
             Self.cache[trackId] = value
+            Self.noLyricsCooldownUntil[trackId] = nil
+            Self.backoffMetadata[trackId] = nil
             Self.inFlight[trackId] = nil
             try? diskCache?.save(spotifyTrackID: trackId, lyrics: value)
+            try? diskCache?.clearTrackBackoffMetadata(spotifyTrackID: trackId)
             return value
         } catch {
             Self.inFlight[trackId] = nil
@@ -113,5 +137,110 @@ final class ImmersiveLyricsViewModel: ObservableObject {
     internal static func resetSharedStateForTesting() {
         cache.removeAll()
         inFlight.removeAll()
+        noLyricsCooldownUntil.removeAll()
+        backoffMetadata.removeAll()
+    }
+
+    private func isWithinBackoffCooldown(trackId: String) -> Bool {
+        let now = Date()
+        if let metadata = Self.backoffMetadata[trackId], metadata.nextEligibleFetchAt > now {
+            return true
+        }
+        if let persistedMetadata = diskCache?.loadTrackBackoffMetadata(spotifyTrackID: trackId),
+           persistedMetadata.nextEligibleFetchAt > now {
+            Self.backoffMetadata[trackId] = persistedMetadata
+            return true
+        }
+        if let expiry = Self.noLyricsCooldownUntil[trackId], expiry > now {
+            return true
+        }
+        if let persisted = diskCache?.loadMissCooldownExpiry(spotifyTrackID: trackId), persisted > now {
+            Self.noLyricsCooldownUntil[trackId] = persisted
+            return true
+        }
+        return false
+    }
+
+    private func registerNoLyricsCooldown(trackId: String) {
+        let expiry = Date().addingTimeInterval(Self.noLyricsCooldownDuration)
+        Self.noLyricsCooldownUntil[trackId] = expiry
+        try? diskCache?.saveMissCooldownExpiry(spotifyTrackID: trackId, expiresAt: expiry)
+    }
+
+    private func cooldownMessage(trackId: String) -> String {
+        if let metadata = Self.backoffMetadata[trackId] {
+            switch metadata.failureClass {
+            case .noLyrics:
+                return LrcLibClient.Failure.noLyrics.userFacingMessage
+            case .decoding:
+                return LrcLibClient.Failure.decoding.userFacingMessage
+            case .rateLimited:
+                let retryAfter = max(0, metadata.nextEligibleFetchAt.timeIntervalSinceNow)
+                return LrcLibClient.Failure.rateLimited(retryAfter: retryAfter).userFacingMessage
+            case .transient, .permanent:
+                return "Lyrics are temporarily unavailable for this track. Please try again later."
+            }
+        }
+        return LrcLibClient.Failure.noLyrics.userFacingMessage
+    }
+
+    private func registerFailureBackoff(trackId: String, failure: LrcLibClient.Failure?) {
+        let now = Date()
+        let currentCount = Self.backoffMetadata[trackId]?.failureCount ?? 0
+        let nextCount = currentCount + 1
+        let metadata: LyricsDiskCache.TrackBackoffMetadata
+
+        switch failure {
+        case .noLyrics:
+            registerNoLyricsCooldown(trackId: trackId)
+            metadata = LyricsDiskCache.TrackBackoffMetadata(
+                failureClass: .noLyrics,
+                failureCount: nextCount,
+                nextEligibleFetchAt: now.addingTimeInterval(Self.noLyricsCooldownDuration),
+                updatedAt: now
+            )
+        case .decoding:
+            metadata = LyricsDiskCache.TrackBackoffMetadata(
+                failureClass: .decoding,
+                failureCount: nextCount,
+                nextEligibleFetchAt: now.addingTimeInterval(Self.decodingCooldownDuration),
+                updatedAt: now
+            )
+        case let .rateLimited(retryAfter):
+            let cooldown = max(Self.rateLimitedFallbackCooldownDuration, retryAfter ?? 0)
+            metadata = LyricsDiskCache.TrackBackoffMetadata(
+                failureClass: .rateLimited,
+                failureCount: nextCount,
+                nextEligibleFetchAt: now.addingTimeInterval(cooldown),
+                updatedAt: now
+            )
+        case let .http(code):
+            if code >= 500 {
+                let exp = min(Self.transientMaxCooldownDuration, Self.transientBaseCooldownDuration * pow(2, Double(min(nextCount, 5))))
+                metadata = LyricsDiskCache.TrackBackoffMetadata(
+                    failureClass: .transient,
+                    failureCount: nextCount,
+                    nextEligibleFetchAt: now.addingTimeInterval(exp),
+                    updatedAt: now
+                )
+            } else {
+                metadata = LyricsDiskCache.TrackBackoffMetadata(
+                    failureClass: .permanent,
+                    failureCount: nextCount,
+                    nextEligibleFetchAt: now.addingTimeInterval(Self.permanentCooldownDuration),
+                    updatedAt: now
+                )
+            }
+        case .invalidURL, .none:
+            metadata = LyricsDiskCache.TrackBackoffMetadata(
+                failureClass: .permanent,
+                failureCount: nextCount,
+                nextEligibleFetchAt: now.addingTimeInterval(Self.permanentCooldownDuration),
+                updatedAt: now
+            )
+        }
+
+        Self.backoffMetadata[trackId] = metadata
+        try? diskCache?.saveTrackBackoffMetadata(spotifyTrackID: trackId, metadata: metadata)
     }
 }

@@ -277,6 +277,8 @@ struct SpotifyConnectDevice: Equatable, Identifiable {
 struct SpotifyPlayerSnapshot: Equatable {
     let transport: SpotifyPlayerTransport
     let activeDevice: SpotifyConnectDevice?
+    /// Whether Spotify reports active playback (`is_playing` on the player object).
+    let isPlaying: Bool
 }
 
 /// Unified track-or-episode slot from the queue endpoint.
@@ -289,6 +291,8 @@ enum PlaybackBridgeEvent: Equatable {
     case ready(deviceID: String)
     case notReady(deviceID: String)
     case stateChanged(PlaybackNowPlaying?, isPaused: Bool, nextTracks: [PlaybackNowPlaying])
+    /// Web Playback SDK command promise resolved (`runPlayerCommand` name, e.g. `togglePlay`).
+    case playerCommandFinished(command: String)
     case initializationError(String)
     case authenticationError(String)
     case accountError(String)

@@ -137,22 +137,70 @@ private extension PinnedItemKind {
 /// or dragging a pinned row out to unpin. SF Symbol per kind + truncated title.
 struct PinnedItemDragPill: View {
     let item: PinnedItem
+    private let artworkSize: CGFloat = 24
 
     var body: some View {
         HStack(spacing: 6) {
+            previewArtwork
+
             Image(systemName: kindSymbolName)
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(SpotiglassDesign.controlAccent)
-            Text(item.title)
-                .font(.caption.weight(.medium))
-                .lineLimit(1)
-                .truncationMode(.tail)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(item.title)
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                if !item.subtitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Text(item.subtitle)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+            }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .frame(maxWidth: 220, alignment: .leading)
+        .frame(maxWidth: 260, alignment: .leading)
         .background(.regularMaterial, in: Capsule())
         .overlay(Capsule().strokeBorder(.white.opacity(0.12), lineWidth: 1))
+        .onAppear { PinnedDragPreviewState.shared.beginDrag(item: item) }
+    }
+
+    @ViewBuilder
+    private var previewArtwork: some View {
+        switch item.kind {
+        case .likedSongs:
+            RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
+                .fill(.secondary.opacity(0.16))
+                .frame(width: artworkSize, height: artworkSize)
+                .overlay {
+                    Image(systemName: "heart.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(SpotiglassDesign.controlAccent)
+                }
+                .overlay {
+                    RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
+                        .strokeBorder(.white.opacity(0.14), lineWidth: 1)
+                }
+        case .artist:
+            ZStack {
+                Circle().fill(.secondary.opacity(0.16))
+                if let url = item.artworkURL {
+                    CachedCircularArtwork(url: url, diameter: artworkSize)
+                } else {
+                    Image(systemName: "person.wave.2")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(width: artworkSize, height: artworkSize)
+            .clipShape(Circle())
+            .overlay { Circle().strokeBorder(.white.opacity(0.14), lineWidth: 1) }
+        case .playlist, .album, .track:
+            DragPreviewArtwork(url: item.artworkURL, size: artworkSize)
+        }
     }
 
     private var kindSymbolName: String {
@@ -162,6 +210,49 @@ struct PinnedItemDragPill: View {
         case .album: "opticaldisc"
         case .track: "music.note"
         case .likedSongs: "heart.fill"
+        }
+    }
+}
+
+private struct DragPreviewArtwork: View {
+    let url: URL?
+    let size: CGFloat
+    @State private var image: NSImage?
+
+    init(url: URL?, size: CGFloat) {
+        self.url = url
+        self.size = size
+        if let url {
+            _image = State(initialValue: ArtworkImageStore.cachedImageIfAvailable(for: url))
+        } else {
+            _image = State(initialValue: nil)
+        }
+    }
+
+    var body: some View {
+        Group {
+            if let image {
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
+                    .fill(.secondary.opacity(0.16))
+                    .overlay {
+                        Image(systemName: "music.note")
+                            .foregroundStyle(.secondary)
+                    }
+            }
+        }
+        .frame(width: size, height: size)
+        .clipShape(RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
+                .strokeBorder(.white.opacity(0.14), lineWidth: 1)
+        }
+        .task(id: url?.absoluteString ?? "") {
+            guard image == nil, let url else { return }
+            image = await ArtworkImageStore.shared.image(for: url)
         }
     }
 }

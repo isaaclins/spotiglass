@@ -13,11 +13,13 @@ final class AuthViewModel: ObservableObject {
     private var settings: SpotifyAuthSettings
     private let authorizationFlow: any SpotifyAuthorizationFlowing
     private var signInTask: Task<Void, Never>?
-    /// Tracks which `signIn()` invocation owns `signInTask` so overlapping attempts do not clear a newer task.
-    private var activeSignInID: UUID?
+    private var signInRetryCooldownUntil: Date?
     private let tokenClient: SpotifyTokenClient
     private let refreshTokenStore: RefreshTokenStore
     private let signOutDataCleaner: () -> Void
+    private var inFlightRefreshTask: Task<String, Error>?
+    private var refreshCooldownUntil: Date?
+    private var refreshCooldownError: Error?
 
     init(
         settings: SpotifyAuthSettings = SpotifyAuthSettings(),
@@ -53,26 +55,22 @@ final class AuthViewModel: ObservableObject {
                 state = .signedOut
                 return
             }
-            try await refreshAccessToken(refreshToken: refreshToken, previousSession: nil)
+            _ = try await refreshAccessTokenSingleFlight(refreshToken: refreshToken, previousSession: nil)
         } catch {
             handleRefreshFailure(error: error)
         }
     }
 
     func signIn() async {
-        signInTask?.cancel()
-        let signInID = UUID()
-        activeSignInID = signInID
+        guard signInTask == nil, !isSignInRetryCoolingDown else { return }
+        state = .signingIn
         let task = Task { @MainActor [weak self] in
             guard let self else { return }
             await self.performSignIn()
         }
         signInTask = task
         await task.value
-        if activeSignInID == signInID {
-            signInTask = nil
-            activeSignInID = nil
-        }
+        signInTask = nil
     }
 
     /// Stops an in-progress browser sign-in and closes the loopback listener. Safe to call when not signing in.
@@ -83,9 +81,13 @@ final class AuthViewModel: ObservableObject {
         }
     }
 
+    var isSignInRetryCoolingDown: Bool {
+        guard let signInRetryCooldownUntil else { return false }
+        return signInRetryCooldownUntil > Date()
+    }
+
     private func performSignIn() async {
         do {
-            state = .signingIn
             let authorizationCode = try await authorizationFlow.requestAuthorizationCode(clientID: clientID)
             let configuration = try SpotifyAuthConfiguration(clientID: clientID, redirectURI: authorizationCode.redirectURI)
             let grant = try await tokenClient.exchangeAuthorizationCode(
@@ -102,16 +104,20 @@ final class AuthViewModel: ObservableObject {
             try validateBrowsingScopes(in: session)
             settings.grantedScope = session.scope
             currentSession = session
+            signInRetryCooldownUntil = nil
             state = .signedIn(session)
         } catch is CancellationError {
+            signInRetryCooldownUntil = nil
             if case .signingIn = state {
                 state = .signedOut
             }
         } catch {
             if Task.isCancelled {
+                signInRetryCooldownUntil = nil
                 state = .signedOut
                 return
             }
+            signInRetryCooldownUntil = Date().addingTimeInterval(2)
             state = .failed(AuthDisplayError(message: displayMessage(for: error)))
         }
     }
@@ -123,7 +129,7 @@ final class AuthViewModel: ObservableObject {
                 state = .signedOut
                 return
             }
-            try await refreshAccessToken(refreshToken: refreshToken, previousSession: session)
+            _ = try await refreshAccessTokenSingleFlight(refreshToken: refreshToken, previousSession: session)
         } catch {
             handleRefreshFailure(error: error)
         }
@@ -159,6 +165,47 @@ final class AuthViewModel: ObservableObject {
         state = .signedIn(session)
     }
 
+    private func refreshAccessTokenSingleFlight(
+        refreshToken: String,
+        previousSession: AuthenticatedSession?
+    ) async throws -> String {
+        if let cooldownUntil = refreshCooldownUntil,
+           cooldownUntil > Date(),
+           let refreshCooldownError {
+            throw refreshCooldownError
+        }
+
+        if let inFlightRefreshTask {
+            return try await inFlightRefreshTask.value
+        }
+
+        let task = Task<String, Error> { @MainActor [weak self] in
+            guard let self else { throw SpotifyAPIError.unauthorized }
+            do {
+                try await self.refreshAccessToken(refreshToken: refreshToken, previousSession: previousSession)
+                self.refreshCooldownUntil = nil
+                self.refreshCooldownError = nil
+                guard let token = self.currentSession?.accessToken else {
+                    throw SpotifyAPIError.unauthorized
+                }
+                return token
+            } catch {
+                if self.isRefreshRetryExhaustedError(error) {
+                    self.refreshCooldownUntil = Date().addingTimeInterval(30)
+                    self.refreshCooldownError = error
+                } else {
+                    self.refreshCooldownUntil = nil
+                    self.refreshCooldownError = nil
+                }
+                throw error
+            }
+        }
+
+        inFlightRefreshTask = task
+        defer { inFlightRefreshTask = nil }
+        return try await task.value
+    }
+
     private func handleRefreshFailure(error: Error) {
         // If Spotify rejected the refresh with an OAuth-spec error (HTTP 4xx),
         // the stored refresh token is no longer usable. Wipe it from the
@@ -175,11 +222,19 @@ final class AuthViewModel: ObservableObject {
 
     private func isUnrecoverableRefreshError(_ error: Error) -> Bool {
         if let tokenError = error as? SpotifyTokenClientError,
-           case let .httpError(status, _) = tokenError,
+           case let .httpError(status, _, _, _) = tokenError,
            (400..<500).contains(status) {
             return true
         }
         return false
+    }
+
+    private func isRefreshRetryExhaustedError(_ error: Error) -> Bool {
+        guard let tokenError = error as? SpotifyTokenClientError,
+              case let .httpError(status, _, _, _) = tokenError else {
+            return (error as? URLError) != nil
+        }
+        return status == 429 || (500...599).contains(status)
     }
 
     private func sessionWithPersistedScopeIfNeeded(_ session: AuthenticatedSession) -> AuthenticatedSession {
@@ -261,7 +316,10 @@ extension AuthViewModel: PlaybackAccessTokenProviding {
         }
         let previousSession = currentSession
         do {
-            try await refreshAccessToken(refreshToken: refreshToken, previousSession: previousSession)
+            return try await refreshAccessTokenSingleFlight(
+                refreshToken: refreshToken,
+                previousSession: previousSession
+            )
         } catch {
             // Mirror the same Keychain wipe + state reset used by
             // restoreSessionIfAvailable / refreshAccessTokenIfNeeded so the
@@ -270,10 +328,6 @@ extension AuthViewModel: PlaybackAccessTokenProviding {
             handleRefreshFailure(error: error)
             throw SpotifyAPIError.unauthorized
         }
-        guard let currentSession else {
-            throw SpotifyAPIError.unauthorized
-        }
-        return currentSession.accessToken
     }
 }
 

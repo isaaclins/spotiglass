@@ -91,6 +91,13 @@ struct CommandPaletteView: View {
         if trimmed.isEmpty || onlyPrefix {
             return viewModel.isLoading || viewModel.errorText != nil
         }
+        let parsed = CommandPaletteScope.parse(viewModel.query)
+        let stripped = parsed.query.trimmingCharacters(in: .whitespacesAndNewlines)
+        if parsed.scope == .songs,
+           !stripped.isEmpty,
+           stripped.count < CommandPaletteViewModel.minimumPaletteSearchQueryCharacters {
+            return viewModel.isLoading || viewModel.errorText != nil
+        }
         return true
     }
 
@@ -103,7 +110,7 @@ struct CommandPaletteView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .focused($focusedField, equals: .query)
                 .onChange(of: viewModel.query) { _, _ in
-                    viewModel.refresh()
+                    viewModel.queryDidChangeFromTextField()
                 }
                 .onSubmit {
                     Task { await viewModel.executeSelection() }
@@ -360,8 +367,18 @@ struct CommandPaletteView: View {
         HStack(spacing: SpotiglassDesign.spacingS) {
             paletteRowLeading(item: item)
             VStack(alignment: .leading, spacing: 2) {
-                Text(item.title)
-                    .lineLimit(1)
+                HStack(spacing: SpotiglassDesign.spacingXS) {
+                    Text(item.title)
+                        .lineLimit(1)
+                    if item.isExplicit {
+                        Text("Explicit")
+                            .font(.caption2.weight(.medium))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(.secondary.opacity(0.15), in: Capsule())
+                            .fixedSize(horizontal: true, vertical: false)
+                    }
+                }
                 if let subtitle = item.subtitle {
                     Text(subtitle)
                         .font(.caption)

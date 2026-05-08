@@ -580,6 +580,57 @@ struct SpotifyTopTracksResponseDTO: Decodable {
     let tracks: [SpotifyTrackDTO]
 }
 
+/// `GET /v1/albums?ids=...` returns `{ "albums": [Album | null] }`. Unknown IDs surface as `null`
+/// inside the array; the optional element type lets us decode them as `nil` and drop them with `compactMap`.
+struct SpotifyBatchedAlbumsResponseDTO: Decodable {
+    let albums: [SpotifyBatchedAlbumDTO?]
+
+    enum CodingKeys: String, CodingKey {
+        case albums
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        albums = try container.decodeIfPresent([SpotifyBatchedAlbumDTO?].self, forKey: .albums) ?? []
+    }
+}
+
+struct SpotifyBatchedAlbumDTO: Decodable {
+    let id: String?
+    let name: String?
+    let images: [SpotifyImageDTO]?
+    /// Spotify embeds the first ~50 tracks of each album under `tracks.items`; absent for unknown
+    /// IDs (the surrounding array entry is `null` in that case) but always present for resolved albums.
+    let tracks: SpotifyPagingDTO<SpotifyTrackDTO>?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case images
+        case tracks
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(String.self, forKey: .id)
+        name = try container.decodeIfPresent(String.self, forKey: .name)
+        images = try container.decodeIfPresent([SpotifyImageDTO].self, forKey: .images)
+        tracks = try container.decodeIfPresent(SpotifyPagingDTO<SpotifyTrackDTO>.self, forKey: .tracks)
+    }
+
+    func domainModel() -> SpotifyBatchedAlbum? {
+        guard let id else { return nil }
+        let resolvedTracks = (tracks?.items ?? []).compactMap { $0.domainModel() }
+        return SpotifyBatchedAlbum(
+            id: id,
+            name: name,
+            imageURL: images?.largestImageURL,
+            tracks: resolvedTracks,
+            tracksAvailable: tracks != nil
+        )
+    }
+}
+
 struct SpotifyArtistAlbumDTO: Decodable {
     let id: String?
     let name: String?

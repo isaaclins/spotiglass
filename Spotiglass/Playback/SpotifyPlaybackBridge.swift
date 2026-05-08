@@ -144,10 +144,14 @@ enum SpotifyPlaybackHost {
             try {
               const result = action();
               if (result && typeof result.then === 'function') {
-                result.catch(error => {
-                  const message = error && error.message ? error.message : String(error);
-                  post('playback_error', { message: `Spotify ${name} failed: ${message}` });
-                });
+                result
+                  .then(() => post('player_command_finished', { command: name }))
+                  .catch(error => {
+                    const message = error && error.message ? error.message : String(error);
+                    post('playback_error', { message: `Spotify ${name} failed: ${message}` });
+                  });
+              } else {
+                post('player_command_finished', { command: name });
               }
             } catch (error) {
               const message = error && error.message ? error.message : String(error);
@@ -222,6 +226,11 @@ enum SpotifyPlaybackBridgeParser {
                 isPaused: isPaused,
                 nextTracks: parseNowPlayingArray(from: payload["nextTracks"])
             )
+        case "player_command_finished":
+            guard let command = payload["command"] as? String, !command.isEmpty else {
+                throw PlaybackBridgeMessageError.missingPayload("command")
+            }
+            return .playerCommandFinished(command: command)
         case "initialization_error":
             return .initializationError(message(from: payload))
         case "authentication_error":

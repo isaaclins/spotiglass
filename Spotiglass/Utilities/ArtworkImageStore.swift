@@ -63,6 +63,19 @@ actor ArtworkImageStore {
         return diskDirectory.appendingPathComponent(name)
     }
 
+    /// Best-effort synchronous read for views that must render immediately (for
+    /// example drag previews). Returns `nil` when artwork has not been cached yet.
+    nonisolated static func cachedImageIfAvailable(for url: URL) -> NSImage? {
+        let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        let diskDirectory = base
+            .appendingPathComponent(AppMetadata.displayName, isDirectory: true)
+            .appendingPathComponent("Artwork", isDirectory: true)
+        let fileURL = cacheFileURL(for: url, diskDirectory: diskDirectory)
+        guard let data = try? Data(contentsOf: fileURL) else { return nil }
+        return NSImage(data: data)
+    }
+
     private func loadThroughDiskAndNetwork(url: URL, key: String) async -> NSImage? {
         let fileURL = Self.cacheFileURL(for: url, diskDirectory: diskDirectory)
         if let data = try? Data(contentsOf: fileURL),

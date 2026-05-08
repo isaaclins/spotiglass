@@ -172,6 +172,18 @@ struct SpotifyArtistAlbum: Codable, Equatable, Identifiable {
     let uri: String
 }
 
+/// One entry in the `GET /v1/albums?ids=...` batched response.
+/// `tracksAvailable` distinguishes "Spotify returned a tracks paging object" (true)
+/// from "the album entry omitted tracks entirely" (false). Recovery to the per-album
+/// `/v1/albums/{id}/tracks` endpoint should only target the latter.
+struct SpotifyBatchedAlbum: Equatable, Identifiable {
+    let id: String
+    let name: String?
+    let imageURL: URL?
+    let tracks: [SpotifyTrack]
+    let tracksAvailable: Bool
+}
+
 struct SpotifyArtist: Codable, Equatable, Identifiable {
     let id: String
     let name: String

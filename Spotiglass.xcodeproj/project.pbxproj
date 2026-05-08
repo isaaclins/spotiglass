@@ -32,6 +32,8 @@
 		C30000000000000000000008 /* SpotifyRateLimitDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000018 /* SpotifyRateLimitDisplay.swift */; };
 		D40000000000000000000001 /* PlaylistBrowserViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000011 /* PlaylistBrowserViewModel.swift */; };
 		D40000000000000000000002 /* PlaylistBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000012 /* PlaylistBrowserView.swift */; };
+		D40000000000000000000008 /* BreadcrumbToolbarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000018 /* BreadcrumbToolbarView.swift */; };
+		D40000000000000000000009 /* NavigationToolbarChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000019 /* NavigationToolbarChrome.swift */; };
 		D40000000000000000000003 /* PlaylistBrowsingStepTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000013 /* PlaylistBrowsingStepTests.swift */; };
 		D40000000000000000000004 /* QueuePanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000014 /* QueuePanelView.swift */; };
 		D40000000000000000000005 /* TrackListRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000015 /* TrackListRow.swift */; };
@@ -98,6 +100,7 @@
 		P10000000000000000000005 /* PinnedItemsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = P10000000000000000000015 /* PinnedItemsStore.swift */; };
 		P10000000000000000000006 /* PinnedRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = P10000000000000000000016 /* PinnedRowView.swift */; };
 		P10000000000000000000007 /* SidebarPinnedRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = P10000000000000000000017 /* SidebarPinnedRows.swift */; };
+		P10000000000000000000008 /* PinnedDragPreviewState.swift in Sources */ = {isa = PBXBuildFile; fileRef = P10000000000000000000018 /* PinnedDragPreviewState.swift */; };
 		P1000000000000000000000C /* PinnedItemsStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = P1000000000000000000001C /* PinnedItemsStoreTests.swift */; };
 /* End PBXBuildFile section */
 
@@ -145,6 +148,8 @@
 		D40000000000000000000015 /* TrackListRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackListRow.swift; sourceTree = "<group>"; };
 		D40000000000000000000016 /* ArtistDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtistDetailView.swift; sourceTree = "<group>"; };
 		D40000000000000000000017 /* VirtualizedTrackList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VirtualizedTrackList.swift; sourceTree = "<group>"; };
+		D40000000000000000000018 /* BreadcrumbToolbarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BreadcrumbToolbarView.swift; sourceTree = "<group>"; };
+		D40000000000000000000019 /* NavigationToolbarChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationToolbarChrome.swift; sourceTree = "<group>"; };
 		E50000000000000000000011 /* SpotifyPlaybackModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyPlaybackModels.swift; sourceTree = "<group>"; };
 		E50000000000000000000012 /* SpotifyPlaybackBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyPlaybackBridge.swift; sourceTree = "<group>"; };
 		E50000000000000000000013 /* SpotifyPlaybackAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyPlaybackAPI.swift; sourceTree = "<group>"; };
@@ -173,6 +178,7 @@
 		P10000000000000000000015 /* PinnedItemsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinnedItemsStore.swift; sourceTree = "<group>"; };
 		P10000000000000000000016 /* PinnedRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinnedRowView.swift; sourceTree = "<group>"; };
 		P10000000000000000000017 /* SidebarPinnedRows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarPinnedRows.swift; sourceTree = "<group>"; };
+		P10000000000000000000018 /* PinnedDragPreviewState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinnedDragPreviewState.swift; sourceTree = "<group>"; };
 		P1000000000000000000001C /* PinnedItemsStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinnedItemsStoreTests.swift; sourceTree = "<group>"; };
 		F60000000000000000000011 /* SpotiglassDesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotiglassDesignSystem.swift; sourceTree = "<group>"; };
 		FA00000000000000000000011 /* ArtworkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkView.swift; sourceTree = "<group>"; };
@@ -265,9 +271,19 @@
 			path = App;
 			sourceTree = "<group>";
 		};
+		D40000000000000000000021 /* Breadcrumbs */ = {
+			isa = PBXGroup;
+			children = (
+				D40000000000000000000018 /* BreadcrumbToolbarView.swift */,
+				D40000000000000000000019 /* NavigationToolbarChrome.swift */,
+			);
+			path = Breadcrumbs;
+			sourceTree = "<group>";
+		};
 		A10000000000000000000063 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				D40000000000000000000021 /* Breadcrumbs */,
 				D40000000000000000000012 /* PlaylistBrowserView.swift */,
 				D40000000000000000000011 /* PlaylistBrowserViewModel.swift */,
 				D40000000000000000000014 /* QueuePanelView.swift */,
@@ -351,6 +367,7 @@
 				P10000000000000000000015 /* PinnedItemsStore.swift */,
 				P10000000000000000000016 /* PinnedRowView.swift */,
 				P10000000000000000000017 /* SidebarPinnedRows.swift */,
+				P10000000000000000000018 /* PinnedDragPreviewState.swift */,
 			);
 			path = Pinning;
 			sourceTree = "<group>";
@@ -567,11 +584,14 @@
 				P10000000000000000000005 /* PinnedItemsStore.swift in Sources */,
 				P10000000000000000000006 /* PinnedRowView.swift in Sources */,
 				P10000000000000000000007 /* SidebarPinnedRows.swift in Sources */,
+				P10000000000000000000008 /* PinnedDragPreviewState.swift in Sources */,
 				C30000000000000000000008 /* SpotifyRateLimitDisplay.swift in Sources */,
 				E5000000000000000000000C /* LrcLineParser.swift in Sources */,
 				E5000000000000000000000D /* LrcLibClient.swift in Sources */,
 				D40000000000000000000001 /* PlaylistBrowserViewModel.swift in Sources */,
 				D40000000000000000000002 /* PlaylistBrowserView.swift in Sources */,
+				D40000000000000000000008 /* BreadcrumbToolbarView.swift in Sources */,
+				D40000000000000000000009 /* NavigationToolbarChrome.swift in Sources */,
 				E5000000000000000000000E /* ImmersiveLyricsView.swift in Sources */,
 				E5000000000000000000000F /* ImmersiveLyricsViewModel.swift in Sources */,
 				E50000000000000000000020 /* LyricsOverlayController.swift in Sources */,

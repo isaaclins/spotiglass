@@ -179,7 +179,7 @@ struct PlaybackControlsView: View {
             } label: {
                 Image(systemName: "backward.fill")
             }
-            .disabled(!hasReadyDevice)
+            .disabled(!hasReadyDevice || viewModel.isSkipCommandPending)
             .accessibilityLabel("Previous track")
             .accessibilityHint("Skips to the previous Spotify track when playback is connected.")
 
@@ -199,7 +199,7 @@ struct PlaybackControlsView: View {
             } label: {
                 Image(systemName: "forward.fill")
             }
-            .disabled(!hasReadyDevice)
+            .disabled(!hasReadyDevice || viewModel.isSkipCommandPending || viewModel.isNextCommandLockedOut)
             .accessibilityLabel("Next track")
             .accessibilityHint("Skips to the next Spotify track when playback is connected.")
 

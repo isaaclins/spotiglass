@@ -33,15 +33,18 @@ struct SpotifyTokenGrant: Equatable {
 
 enum SpotifyTokenClientError: Error, Equatable, LocalizedError {
     case invalidResponse
-    case httpError(Int, String?)
+    case httpError(Int, String?, String?, TimeInterval?)
 
     var errorDescription: String? {
         switch self {
         case .invalidResponse:
             return "Spotify returned a response Spotiglass could not interpret."
-        case let .httpError(status, description):
+        case let .httpError(status, description, oauthError, _):
             if let description, !description.isEmpty {
                 return "Spotify rejected the token request (HTTP \(status)): \(description)"
+            }
+            if let oauthError, !oauthError.isEmpty {
+                return "Spotify rejected the token request (HTTP \(status)): \(oauthError)"
             }
             return "Spotify rejected the token request (HTTP \(status))."
         }
@@ -51,11 +54,17 @@ enum SpotifyTokenClientError: Error, Equatable, LocalizedError {
 struct SpotifyTokenClient {
     private let httpClient: HTTPClient
     private let now: () -> Date
+    private let random: (ClosedRange<Double>) -> Double
     private let tokenEndpoint = URL(string: "https://accounts.spotify.com/api/token")!
 
-    init(httpClient: HTTPClient = URLSession.shared, now: @escaping () -> Date = Date.init) {
+    init(
+        httpClient: HTTPClient = URLSession.shared,
+        now: @escaping () -> Date = Date.init,
+        random: @escaping (ClosedRange<Double>) -> Double = { Double.random(in: $0) }
+    ) {
         self.httpClient = httpClient
         self.now = now
+        self.random = random
     }
 
     func exchangeAuthorizationCode(
@@ -81,8 +90,7 @@ struct SpotifyTokenClient {
             URLQueryItem(name: "grant_type", value: "refresh_token"),
             URLQueryItem(name: "refresh_token", value: refreshToken)
         ]
-
-        return try await sendTokenRequest(body: body)
+        return try await sendRefreshTokenRequestWithRetry(body: body)
     }
 
     private func sendTokenRequest(body: [URLQueryItem]) async throws -> SpotifyTokenGrant {
@@ -94,7 +102,12 @@ struct SpotifyTokenClient {
         let (data, response) = try await httpClient.data(for: request)
         guard (200..<300).contains(response.statusCode) else {
             let error = try? JSONDecoder().decode(SpotifyTokenErrorResponse.self, from: data)
-            throw SpotifyTokenClientError.httpError(response.statusCode, error?.errorDescription ?? error?.error)
+            throw SpotifyTokenClientError.httpError(
+                response.statusCode,
+                error?.errorDescription ?? error?.error,
+                error?.error,
+                Self.retryAfter(from: response.allHeaderFields)
+            )
         }
 
         let decoded = try JSONDecoder().decode(SpotifyTokenResponse.self, from: data)
@@ -105,6 +118,80 @@ struct SpotifyTokenClient {
             refreshToken: decoded.refreshToken,
             scope: decoded.scope
         )
+    }
+
+    private func sendRefreshTokenRequestWithRetry(body: [URLQueryItem]) async throws -> SpotifyTokenGrant {
+        let maxAttempts = 3
+        var attempt = 0
+        while true {
+            attempt += 1
+            do {
+                return try await sendTokenRequest(body: body)
+            } catch {
+                guard attempt < maxAttempts, shouldRetryRefresh(error) else {
+                    throw error
+                }
+                let delay = retryDelay(forAttempt: attempt, error: error)
+                try await Task.sleep(for: .seconds(delay))
+            }
+        }
+    }
+
+    private func shouldRetryRefresh(_ error: Error) -> Bool {
+        if let tokenError = error as? SpotifyTokenClientError,
+           case let .httpError(status, _, oauthError, _) = tokenError {
+            if status == 429 || (500...599).contains(status) {
+                return true
+            }
+            if status == 400 || status == 401 {
+                let normalized = oauthError?.lowercased() ?? ""
+                if normalized == "invalid_grant"
+                    || normalized == "invalid_client"
+                    || normalized == "invalid_request"
+                    || normalized == "unauthorized_client" {
+                    return false
+                }
+            }
+            return false
+        }
+        return (error as? URLError) != nil
+    }
+
+    private func retryDelay(forAttempt attempt: Int, error: Error) -> TimeInterval {
+        let jitterUpperBound = min(pow(2.0, Double(attempt)), 5.0)
+        let jitterDelay = random(0...jitterUpperBound)
+        if let tokenError = error as? SpotifyTokenClientError,
+           case let .httpError(status, _, _, retryAfter) = tokenError,
+           status == 429,
+           let retryAfter {
+            return min(max(jitterDelay, retryAfter), 30)
+        }
+        return jitterDelay
+    }
+
+    private static func retryAfter(from headers: [AnyHashable: Any]) -> TimeInterval? {
+        guard let raw = headers.first(where: {
+            String(describing: $0.key).caseInsensitiveCompare("Retry-After") == .orderedSame
+        })?.value as? String else {
+            return nil
+        }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        if let seconds = TimeInterval(trimmed), seconds >= 0 {
+            return seconds
+        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
+        if let date = formatter.date(from: trimmed) {
+            return max(0, date.timeIntervalSinceNow)
+        }
+        formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss 'GMT'"
+        if let date = formatter.date(from: trimmed) {
+            return max(0, date.timeIntervalSinceNow)
+        }
+        return nil
     }
 }
 

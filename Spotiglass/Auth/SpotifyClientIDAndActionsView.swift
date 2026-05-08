@@ -13,6 +13,7 @@ struct SpotifyClientIDAndActionsView: View {
     var layout: Layout = .welcome
 
     @FocusState private var isClientIDFocused: Bool
+    @State private var lastSignInTriggerAt: Date?
 
     var body: some View {
         VStack(spacing: SpotiglassDesign.spacingM) {
@@ -20,7 +21,7 @@ struct SpotifyClientIDAndActionsView: View {
 
             HStack(spacing: SpotiglassDesign.spacingS) {
                 Button {
-                    Task { await viewModel.signIn() }
+                    triggerSignInIfAllowed()
                 } label: {
                     Label("Connect Spotify", systemImage: "arrow.right.circle.fill")
                         .symbolRenderingMode(.hierarchical)
@@ -71,8 +72,7 @@ struct SpotifyClientIDAndActionsView: View {
         .accessibilityLabel("Spotify client ID")
         .accessibilityHint("Paste the client ID from your Spotify Developer Dashboard app. Value is hidden until you click or tab into this field.")
         .onSubmit {
-            guard canSignIn else { return }
-            Task { await viewModel.signIn() }
+            triggerSignInIfAllowed()
         }
     }
 
@@ -85,6 +85,16 @@ struct SpotifyClientIDAndActionsView: View {
     }
 
     private var canSignIn: Bool {
-        !clientIDTrimmed.isEmpty && viewModel.state != .signingIn
+        !clientIDTrimmed.isEmpty && viewModel.state != .signingIn && !viewModel.isSignInRetryCoolingDown
+    }
+
+    private func triggerSignInIfAllowed() {
+        guard canSignIn else { return }
+        let now = Date()
+        if let lastSignInTriggerAt, now.timeIntervalSince(lastSignInTriggerAt) < 0.25 {
+            return
+        }
+        lastSignInTriggerAt = now
+        Task { await viewModel.signIn() }
     }
 }

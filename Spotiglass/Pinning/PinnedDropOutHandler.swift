@@ -13,6 +13,7 @@ struct PinnedDropOutHandler: ViewModifier {
                 return false
             }
             store.unpin(id: transfer.item.id)
+            PinnedDragPreviewState.shared.endDrag()
             return true
         }
     }

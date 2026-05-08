@@ -1,9 +1,41 @@
 import SwiftUI
 
+@MainActor
+final class AlbumCardTapRouter: ObservableObject {
+    private var pendingSingleTapTask: Task<Void, Never>?
+    private var pendingSingleTapID: String?
+    private let doubleClickDelayNanoseconds: UInt64
+
+    init(doubleClickDelayNanoseconds: UInt64 = 250_000_000) {
+        self.doubleClickDelayNanoseconds = doubleClickDelayNanoseconds
+    }
+
+    func handleSingleTap(albumID: String, onOpen: @escaping () -> Void) {
+        pendingSingleTapTask?.cancel()
+        pendingSingleTapID = albumID
+        pendingSingleTapTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: doubleClickDelayNanoseconds)
+            guard let self else { return }
+            guard !Task.isCancelled, self.pendingSingleTapID == albumID else { return }
+            onOpen()
+            self.pendingSingleTapID = nil
+            self.pendingSingleTapTask = nil
+        }
+    }
+
+    func handleDoubleTap(onOpenAndPlay: () -> Void) {
+        pendingSingleTapTask?.cancel()
+        pendingSingleTapTask = nil
+        pendingSingleTapID = nil
+        onOpenAndPlay()
+    }
+}
+
 struct ArtistDetailContent: View {
     let detail: ArtistDetailViewModel
     /// Starts playback of one track; caller supplies playlist-style queue of URIs.
     let playTrack: (String) -> Void
+    let openAlbum: (ArtistAlbumRowViewModel) -> Void
     let playAlbumContext: (String) -> Void
     let currentPlaybackURI: String?
     let isPlaying: Bool
@@ -11,8 +43,10 @@ struct ArtistDetailContent: View {
     let hasPlaybackDevice: Bool
     let addToQueue: (String) async -> Void
     let openArtist: (String) -> Void
+    let loadMoreAlbums: () -> Void
 
     @EnvironmentObject private var pinnedStore: PinnedItemsStore
+    @StateObject private var albumTapRouter = AlbumCardTapRouter()
 
     private var artistID: String { detail.artist.id }
     private var tracksSurfaceID: String { "ar:\(artistID)" }
@@ -35,6 +69,10 @@ struct ArtistDetailContent: View {
                 albumStrip(title: "Singles", albums: detail.singles, group: .single)
                 albumStrip(title: "Compilations", albums: detail.compilations, group: .compilation)
                 albumStrip(title: "Appears on", albums: detail.appearsOn, group: .appearsOn)
+                if detail.canLoadMoreAlbums || detail.isLoadingMoreAlbums {
+                    loadMoreButton
+                        .padding(.horizontal, SpotiglassDesign.spacingL)
+                }
             }
             .padding(.vertical, SpotiglassDesign.spacingM)
         }
@@ -78,14 +116,17 @@ struct ArtistDetailContent: View {
             Spacer()
         }
         .padding(.horizontal, SpotiglassDesign.spacingL)
-        .draggable(
-            PinnedItemTransfer(
-                item: .artist(detail.artist),
-                originScopeID: "artistHeader:\(artistID)"
-            )
-        ) {
-            PinnedItemDragPill(item: .artist(detail.artist))
-        }
+        .onDrag(
+            {
+                PinnedItemTransfer(
+                    item: .artist(detail.artist),
+                    originScopeID: "artistHeader:\(artistID)"
+                ).itemProvider()
+            },
+            preview: {
+                PinnedItemDragPill(item: .artist(detail.artist))
+            }
+        )
         .contextMenu {
             if isArtistPinned {
                 Button("Unpin from Sidebar") {
@@ -146,20 +187,30 @@ struct ArtistDetailContent: View {
     private func albumCardButton(_ album: ArtistAlbumRowViewModel, group: SpotifyArtistAlbumGroup) -> some View {
         let pinnedItem = album.pinnedAlbum(group: group)
         let pinned = pinnedStore.isPinned(id: pinnedItem.id)
-        return Button {
-            playAlbumContext(album.uri)
-        } label: {
-            albumCard(album, showPinGlyph: pinned)
+        return albumCard(album, showPinGlyph: pinned)
+        .contentShape(Rectangle())
+        .onTapGesture(count: 2) {
+            albumTapRouter.handleDoubleTap {
+                openAlbum(album)
+                playAlbumContext(album.uri)
+            }
         }
-        .buttonStyle(.plain)
-        .draggable(
-            PinnedItemTransfer(
-                item: pinnedItem,
-                originScopeID: "artistAlbums:\(artistID)"
-            )
-        ) {
-            PinnedItemDragPill(item: pinnedItem)
+        .onTapGesture {
+            albumTapRouter.handleSingleTap(albumID: album.id) {
+                openAlbum(album)
+            }
         }
+        .onDrag(
+            {
+                PinnedItemTransfer(
+                    item: pinnedItem,
+                    originScopeID: "artistAlbums:\(artistID)"
+                ).itemProvider()
+            },
+            preview: {
+                PinnedItemDragPill(item: pinnedItem)
+            }
+        )
         .contextMenu {
             if pinned {
                 Button("Unpin from Sidebar") { pinnedStore.unpin(id: pinnedItem.id) }
@@ -200,5 +251,20 @@ struct ArtistDetailContent: View {
                 .foregroundStyle(.secondary)
         }
         .frame(width: 132)
+    }
+
+    private var loadMoreButton: some View {
+        Button(action: loadMoreAlbums) {
+            HStack(spacing: SpotiglassDesign.spacingS) {
+                if detail.isLoadingMoreAlbums {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+                Text(detail.isLoadingMoreAlbums ? "Loading more releases..." : "Load more releases")
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.bordered)
+        .disabled(detail.isLoadingMoreAlbums)
     }
 }

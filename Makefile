@@ -4,7 +4,7 @@
 #        make release         — unsigned Release bundle (matches CI layout)
 #        make test            — unit tests on macOS
 
-.PHONY: all build run release test clean list help
+.PHONY: all build run release test scan clean list help
 
 PROJECT       := Spotiglass.xcodeproj
 SCHEME        := Spotiglass
@@ -66,6 +66,12 @@ test:
 		$(XCODE_EXTRA) \
 		test
 
+scan:
+	periphery scan \
+		--project $(PROJECT) \
+		--schemes $(SCHEME) \
+		--targets $(SCHEME)
+
 clean:
 	rm -rf "$(DERIVED_DATA)"
 	@echo "Removing Keychain generic-password items with service $(KEYCHAIN_SERVICE)…"
@@ -78,6 +84,7 @@ help:
 	@echo "  make run           — build and open Debug app"
 	@echo "  make release       — unsigned Release → $(RELEASE_APP)"
 	@echo "  make test          — unit tests"
+	@echo "  make scan          — run periphery scan"
 	@echo "  make list          — list schemes"
 	@echo "  make clean         — remove $(DERIVED_DATA) + Keychain items (service $(KEYCHAIN_SERVICE))"
 	@echo "Vars: UNSIGNED=1 (CODE_SIGNING_ALLOWED=NO); XCODE_EXTRA for extra settings"

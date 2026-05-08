@@ -1,5 +1,7 @@
 import AppKit
 import SwiftUI
+import CoreTransferable
+import UniformTypeIdentifiers
 
 /// Holds the latest measured browser width without `@State` updates so resize drags do not thrash SwiftUI.
 private final class BrowserWidthSampler {
@@ -17,6 +19,23 @@ private enum UnifiedRefreshFocus: Hashable {
 private enum SidebarKind {
     case playlist
     case queue
+}
+
+private enum LibrarySidebarRow: Equatable, Identifiable {
+    case home
+    case likedSongs
+    case pinned(PinnedItem)
+
+    var id: String {
+        switch self {
+        case .home:
+            return LibrarySidebarOrder.homeToken
+        case .likedSongs:
+            return LibrarySidebarOrder.likedSongsToken
+        case let .pinned(item):
+            return LibrarySidebarOrder.pinnedToken(for: item.id)
+        }
+    }
 }
 
 struct PlaylistBrowserView: View {
@@ -42,6 +61,13 @@ struct PlaylistBrowserView: View {
     /// Cached previous selection so pinned-track activations can revert the
     /// list highlight to whatever was selected before the click.
     @State private var lastNonPinnedSelection: SidebarSelection?
+    @State private var libraryRowOrder: [String] = [
+        LibrarySidebarOrder.homeToken,
+        LibrarySidebarOrder.likedSongsToken
+    ]
+    @State private var libraryDropInsertionIndex: Int?
+    @State private var libraryRowFramesByToken: [String: CGRect] = [:]
+    @ObservedObject private var dragPreviewState = PinnedDragPreviewState.shared
     @State private var unifiedRefreshFocus: UnifiedRefreshFocus = .mainContent
     /// Which side the user most recently OPENED (closed → open transition). Used to pick the loser
     /// when the window shrinks below ``SpotiglassDesign/dualSidebarComfortableMinWidth`` with both
@@ -161,6 +187,7 @@ struct PlaylistBrowserView: View {
             )
         }
         .animation(.easeOut(duration: 0.22), value: lyricsOverlay.isPresented)
+        .animation(.easeOut(duration: 0.2), value: viewModel.canNavigateBack)
         .onGeometryChange(for: CGFloat.self, of: \.size.width) { _, newWidth in
             commitBrowserContentWidthIfNeeded(newWidth)
         }
@@ -192,7 +219,11 @@ struct PlaylistBrowserView: View {
                 .frame(width: 1, height: 1)
                 .opacity(0.01)
         }
+        .navigationTitle("")
         .toolbar {
+            ToolbarItem(placement: .navigation) {
+                NavigationToolbarChrome(viewModel: viewModel)
+            }
             if lyricsOverlay.isPresented {
                 ToolbarItemGroup(placement: .automatic) {
                     Button {
@@ -230,7 +261,7 @@ struct PlaylistBrowserView: View {
             await viewModel.loadIfNeeded()
         }
         .task {
-            playbackViewModel.start()
+            playbackViewModel.start(recoveryCause: .startupTask)
         }
         .task {
             await bindPinnedStoreToCurrentUser()
@@ -244,11 +275,11 @@ struct PlaylistBrowserView: View {
                 lyrics: lyricsViewModel,
                 navigateToArtist: { target in
                     lyricsOverlay.dismiss()
-                    openArtistFromTapTarget(target)
+                    openArtistFromTapTarget(target, origin: .reset)
                 },
                 navigateToAlbum: { album, artistSubtitle, artworkURL in
                     lyricsOverlay.dismiss()
-                    openAlbumFromTapTarget(album, artistSubtitle: artistSubtitle, artworkURL: artworkURL)
+                    openAlbumFromTapTarget(album, artistSubtitle: artistSubtitle, artworkURL: artworkURL, origin: .reset)
                 }
             )
             bindCommandPalette(queueVisible: $isQueueVisible, lyricsPresented: isLyricsPresentedBinding)
@@ -257,6 +288,7 @@ struct PlaylistBrowserView: View {
                 lyricsOverlay.dismiss()
                 return true
             }
+            queueViewModel.setAppActive(NSApplication.shared.isActive)
             queueViewModel.setPanelVisible(isQueueVisible)
             NotificationCenter.default.post(name: .spotiglassPlaybackSurfaceAppeared, object: nil)
         }
@@ -271,6 +303,7 @@ struct PlaylistBrowserView: View {
             bindCommandPalette(queueVisible: $isQueueVisible, lyricsPresented: isLyricsPresentedBinding)
         }
         .onChange(of: pinnedStore.items) { _, _ in
+            syncLibraryRowOrder()
             bindCommandPalette(queueVisible: $isQueueVisible, lyricsPresented: isLyricsPresentedBinding)
         }
         .onChange(of: isQueueVisible) { _, visible in
@@ -311,6 +344,12 @@ struct PlaylistBrowserView: View {
         }
         .onChange(of: queueRelevantPlaybackKey) { _, _ in
             queueViewModel.handlePlaybackStateChange()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            queueViewModel.setAppActive(true)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
+            queueViewModel.setAppActive(false)
         }
     }
 
@@ -442,36 +481,44 @@ struct PlaylistBrowserView: View {
         PlaylistRowViewModel(likedSongsOwnerDisplay: "You", totalTrackCount: nil, artworkURL: nil)
     }
 
-    private var isLikedSongsPinned: Bool {
-        pinnedStore.isPinned(id: PinnedItem.likedSongsID)
+    private var visiblePinnedLibraryItems: [PinnedItem] {
+        pinnedStore.items.filter { $0.id != PinnedItem.likedSongsID }
+    }
+
+    private var libraryRows: [LibrarySidebarRow] {
+        let pinnedByToken = Dictionary(uniqueKeysWithValues: visiblePinnedLibraryItems.map {
+            (LibrarySidebarOrder.pinnedToken(for: $0.id), $0)
+        })
+        return libraryRowOrder.compactMap { token in
+            switch token {
+            case LibrarySidebarOrder.homeToken:
+                return .home
+            case LibrarySidebarOrder.likedSongsToken:
+                return .likedSongs
+            default:
+                guard let item = pinnedByToken[token] else { return nil }
+                return .pinned(item)
+            }
+        }
     }
 
     private var playlistSidebar: some View {
         ScrollViewReader { proxy in
             List(selection: $viewModel.sidebarSelection) {
                 Section {
-                    Label("Home", systemImage: "house")
-                        .tag(SidebarSelection.home)
-                    SidebarPinnedRows(
-                        store: pinnedStore,
-                        sidebarSelection: viewModel.sidebarSelection
-                    )
-                    if !pinnedStore.items.isEmpty {
-                        SidebarPinnedRowsTrailingDrop(store: pinnedStore)
-                            .listRowInsets(EdgeInsets())
+                    libraryLeadingDropSlot
+                    ForEach(Array(libraryRows.enumerated()), id: \.element.id) { index, row in
+                        libraryRowSlot(row, at: index)
                     }
+                    libraryTrailingDropSlot
                 } header: {
-                    Text("Home")
-                }
-                if !isLikedSongsPinned {
-                    Section {
-                        likedSongsSidebarRow
-                    } header: {
-                        Text("Favorites")
-                    }
+                    Text("Library")
                 }
                 Section {
-                    playlistsSectionContent
+                    Group {
+                        playlistsSectionContent
+                    }
+                    .acceptsPinnedDropOut(store: pinnedStore)
                 } header: {
                     playlistsSectionHeader
                 }
@@ -483,6 +530,10 @@ struct PlaylistBrowserView: View {
                 guard let newActiveID else { return }
                 proxy.scrollTo(newActiveID, anchor: .center)
             }
+            .onAppear {
+                syncLibraryRowOrder()
+            }
+            .onPreferenceChange(LibraryRowFramePreferenceKey.self) { libraryRowFramesByToken = $0 }
             .overlay(alignment: .bottom) {
                 if case let .staleCache(_, error) = viewModel.playlistState {
                     StaleCacheBanner(error: error)
@@ -496,44 +547,251 @@ struct PlaylistBrowserView: View {
             }
             .listStyle(.sidebar)
             .tint(SpotiglassDesign.controlAccent)
-            .acceptsPinnedDropOut(store: pinnedStore)
+            .coordinateSpace(name: "libraryDropArea")
         }
     }
 
-    /// Stand-alone Liked Songs row builder. Owns drag-to-pin and the
-    /// context-menu Pin/Unpin entries.
+    @ViewBuilder
+    private func libraryRowSlot(_ row: LibrarySidebarRow, at index: Int) -> some View {
+        let rowSelection = sidebarSelectionTag(for: row)
+        VStack(spacing: 0) {
+            if libraryDropInsertionIndex == index {
+                PinnedDropSkeletonRow(item: dragPreviewState.activeItem)
+            }
+            switch row {
+            case .home:
+                homeSidebarRow
+            case .likedSongs:
+                likedSongsSidebarRow
+            case let .pinned(item):
+                pinnedLibraryRow(item)
+            }
+        }
+        .tag(rowSelection)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            viewModel.sidebarSelection = rowSelection
+        }
+        .onDrop(
+            of: LibraryPinnedItemDropDelegate.acceptedTypeIdentifiers,
+            delegate: LibraryPinnedItemDropDelegate(
+                updateInsertionIndex: { location in
+                    libraryDropInsertionIndex = nearestLibraryInsertionIndex(forY: location.y)
+                },
+                clearInsertionIndex: {
+                    libraryDropInsertionIndex = nil
+                },
+                performPinnedDrop: { transfer, location in
+                    let targetIndex = nearestLibraryInsertionIndex(forY: location.y)
+                    return handlePinnedTransferDrop([transfer], at: targetIndex)
+                },
+                performLibraryRowDrop: { transfer, location in
+                    let targetIndex = nearestLibraryInsertionIndex(forY: location.y)
+                    return handleLibraryTransferDrop([transfer], at: targetIndex)
+                },
+                clearDragPreview: {
+                    dragPreviewState.endDrag()
+                }
+            )
+        )
+        .background {
+            GeometryReader { geo in
+                Color.clear.preference(
+                    key: LibraryRowFramePreferenceKey.self,
+                    value: [row.id: geo.frame(in: .named("libraryDropArea"))]
+                )
+            }
+        }
+    }
+
+    private func sidebarSelectionTag(for row: LibrarySidebarRow) -> SidebarSelection {
+        switch row {
+        case .home:
+            return .home
+        case .likedSongs:
+            return .likedSongs
+        case let .pinned(item):
+            return .pinnedItem(item.id)
+        }
+    }
+
+    private var libraryLeadingDropSlot: some View {
+        Color.clear
+            .frame(height: 8)
+            .contentShape(Rectangle())
+            .onDrop(
+                of: LibraryPinnedItemDropDelegate.acceptedTypeIdentifiers,
+                delegate: LibraryPinnedItemDropDelegate(
+                    updateInsertionIndex: { _ in
+                        libraryDropInsertionIndex = 0
+                    },
+                    clearInsertionIndex: {
+                        if libraryDropInsertionIndex == 0 {
+                            libraryDropInsertionIndex = nil
+                        }
+                    },
+                    performPinnedDrop: { transfer, _ in
+                        return handlePinnedTransferDrop([transfer], at: 0)
+                    },
+                    performLibraryRowDrop: { transfer, _ in
+                        return handleLibraryTransferDrop([transfer], at: 0)
+                    },
+                    clearDragPreview: {
+                        dragPreviewState.endDrag()
+                    }
+                )
+            )
+            .listRowInsets(EdgeInsets())
+    }
+
+    private var libraryTrailingDropSlot: some View {
+        VStack(spacing: 0) {
+            if libraryDropInsertionIndex == libraryRows.count {
+                PinnedDropSkeletonRow(item: dragPreviewState.activeItem)
+            }
+            Color.clear
+                .frame(height: 12)
+        }
+        .contentShape(Rectangle())
+        .onDrop(
+            of: LibraryPinnedItemDropDelegate.acceptedTypeIdentifiers,
+            delegate: LibraryPinnedItemDropDelegate(
+                updateInsertionIndex: { location in
+                    libraryDropInsertionIndex = nearestLibraryInsertionIndex(forY: location.y)
+                },
+                clearInsertionIndex: {
+                    libraryDropInsertionIndex = nil
+                },
+                performPinnedDrop: { transfer, location in
+                    let targetIndex = nearestLibraryInsertionIndex(forY: location.y)
+                    return handlePinnedTransferDrop([transfer], at: targetIndex)
+                },
+                performLibraryRowDrop: { transfer, location in
+                    let targetIndex = nearestLibraryInsertionIndex(forY: location.y)
+                    return handleLibraryTransferDrop([transfer], at: targetIndex)
+                },
+                clearDragPreview: {
+                    dragPreviewState.endDrag()
+                }
+            )
+        )
+        .listRowInsets(EdgeInsets())
+    }
+
+    private func nearestLibraryInsertionIndex(forY y: CGFloat) -> Int {
+        guard !libraryRows.isEmpty else { return 0 }
+        let framesInOrder = libraryRows.compactMap { libraryRowFramesByToken[$0.id] }
+        guard !framesInOrder.isEmpty else { return 0 }
+        for (index, frame) in framesInOrder.enumerated() {
+            if y < frame.midY {
+                return index
+            }
+        }
+        return framesInOrder.count
+    }
+
+    private var homeSidebarRow: some View {
+        Label("Home", systemImage: "house")
+            .onDrag({
+                LibrarySidebarRowTransfer(rowToken: LibrarySidebarOrder.homeToken).itemProvider()
+            })
+    }
+
     @ViewBuilder
     private var likedSongsSidebarRow: some View {
-        let likedItem = PinnedItem.likedSongs(
-            ownerDisplay: likedSongsStubRow.owner,
-            artworkURL: likedSongsStubRow.artworkURL
-        )
         PlaylistListRow(
             playlist: likedSongsStubRow,
             isActive: playbackViewModel.activePlaylistID == SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID,
             isPlaying: isCurrentlyPlaying,
             isListSelected: viewModel.sidebarSelection == .likedSongs,
-            isPinned: isLikedSongsPinned
+            isPinned: false
         )
-        .tag(SidebarSelection.likedSongs)
         .id(SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID)
-        .draggable(
-            PinnedItemTransfer(item: likedItem, originScopeID: "sidebarFavorites")
-        ) {
-            PinnedItemDragPill(item: likedItem)
-        }
-        .contextMenu {
-            if isLikedSongsPinned {
-                Button("Unpin") { pinnedStore.unpin(id: PinnedItem.likedSongsID) }
-            } else {
-                Button("Pin to Sidebar") {
-                    pinnedStore.pin(likedItem)
-                }
+        .onDrag({
+            LibrarySidebarRowTransfer(rowToken: LibrarySidebarOrder.likedSongsToken).itemProvider()
+        })
+    }
+
+    @ViewBuilder
+    private func pinnedLibraryRow(_ item: PinnedItem) -> some View {
+        PinnedRowView(
+            item: item,
+            isSelected: viewModel.sidebarSelection == .pinnedItem(item.id),
+            onUnpin: { pinnedStore.unpin(id: item.id) }
+        )
+        .onDrag(
+            {
+                PinnedItemTransfer(
+                    item: item,
+                    originScopeID: PinnedItemTransfer.pinnedSidebarScopeID
+                ).itemProvider()
+            },
+            preview: {
+                PinnedItemDragPill(item: item)
             }
+        )
+        .contextMenu {
+            Button("Unpin") { pinnedStore.unpin(id: item.id) }
         }
     }
 
+    private func syncLibraryRowOrder() {
+        if pinnedStore.isPinned(id: PinnedItem.likedSongsID) {
+            pinnedStore.unpin(id: PinnedItem.likedSongsID)
+        }
+        libraryRowOrder = LibrarySidebarOrder.normalizedOrder(
+            existing: libraryRowOrder,
+            pinnedItemIDs: visiblePinnedLibraryItems.map(\.id)
+        )
+    }
+
+    private func handleLibraryTransferDrop(_ transfers: [LibrarySidebarRowTransfer], at insertionIndex: Int) -> Bool {
+        defer {
+            libraryDropInsertionIndex = nil
+            dragPreviewState.endDrag()
+        }
+        guard let transfer = transfers.first else { return false }
+        let moved = LibrarySidebarOrder.moved(
+            order: libraryRowOrder,
+            movingToken: transfer.rowToken,
+            toInsertionIndex: insertionIndex
+        )
+        guard moved != libraryRowOrder else { return false }
+        libraryRowOrder = moved
+        return true
+    }
+
+    private func handlePinnedTransferDrop(_ transfers: [PinnedItemTransfer], at insertionIndex: Int) -> Bool {
+        defer {
+            libraryDropInsertionIndex = nil
+            dragPreviewState.endDrag()
+        }
+        guard let transfer = transfers.first else { return false }
+        let sourceToken = LibrarySidebarOrder.pinnedToken(for: transfer.item.id)
+        let targetPinnedIndex = LibrarySidebarOrder.pinnedInsertionIndex(
+            order: libraryRowOrder,
+            movingPinnedToken: transfer.isFromPinnedSidebar ? sourceToken : nil,
+            toInsertionIndex: insertionIndex
+        )
+
+        if transfer.isFromPinnedSidebar {
+            let movedRows = LibrarySidebarOrder.moved(
+                order: libraryRowOrder,
+                movingToken: sourceToken,
+                toInsertionIndex: insertionIndex
+            )
+            guard movedRows != libraryRowOrder else { return false }
+            pinnedStore.reorder(itemID: transfer.item.id, toInsertionIndex: targetPinnedIndex)
+            libraryRowOrder = movedRows
+        } else {
+            guard pinnedStore.pin(transfer.item, at: targetPinnedIndex) else { return false }
+            syncLibraryRowOrder()
+        }
+        return true
+    }
+
     private func handleSidebarSelectionChange(oldValue: SidebarSelection?, newValue: SidebarSelection?) {
+        guard oldValue != newValue else { return }
         if case let .pinnedItem(id) = newValue, let item = pinnedStore.items.first(where: { $0.id == id }) {
             Task { await activatePinnedItem(item, previousSelection: oldValue) }
             return
@@ -558,12 +816,15 @@ struct PlaylistBrowserView: View {
         switch item.kind {
         case .playlist:
             guard let spotifyID = item.spotifyID else { return }
+            if viewModel.sidebarSelection == .playlist(spotifyID) {
+                return
+            }
             // Defer to the playlist loader by switching the sidebar selection.
             // Wait one tick so the binding is stable before the new onChange fires.
             viewModel.sidebarSelection = .playlist(spotifyID)
         case .artist:
             guard let spotifyID = item.spotifyID else { return }
-            await viewModel.selectArtist(id: spotifyID)
+            await viewModel.selectArtist(id: spotifyID, origin: .reset, displayName: item.title)
             viewModel.sidebarSelection = .pinnedItem(item.id)
         case .album:
             guard let spotifyID = item.spotifyID else { return }
@@ -571,7 +832,8 @@ struct PlaylistBrowserView: View {
                 id: spotifyID,
                 displayTitle: item.title,
                 displaySubtitle: item.subtitle,
-                artworkURL: item.artworkURL
+                artworkURL: item.artworkURL,
+                origin: .reset
             )
             viewModel.sidebarSelection = .pinnedItem(item.id)
         case .likedSongs:
@@ -632,14 +894,17 @@ struct PlaylistBrowserView: View {
         )
         .tag(SidebarSelection.playlist(playlist.id))
         .id(playlist.id)
-        .draggable(
-            PinnedItemTransfer(
-                item: .playlist(summary),
-                originScopeID: "sidebarPlaylists"
-            )
-        ) {
-            PinnedItemDragPill(item: .playlist(summary))
-        }
+        .onDrag(
+            {
+                PinnedItemTransfer(
+                    item: .playlist(summary),
+                    originScopeID: "sidebarPlaylists"
+                ).itemProvider()
+            },
+            preview: {
+                PinnedItemDragPill(item: .playlist(summary))
+            }
+        )
         .contextMenu {
             if pinned {
                 Button("Unpin") {
@@ -699,6 +964,7 @@ struct PlaylistBrowserView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .animation(.spring(response: 0.38, dampingFraction: 0.84), value: isQueueVisible)
+        .acceptsPinnedDropOut(store: pinnedStore)
     }
 
     @ViewBuilder
@@ -760,7 +1026,7 @@ struct PlaylistBrowserView: View {
                                     await queueViewModel.addToQueue(uri: uri)
                                 },
                                 openArtist: { artistID in
-                                    Task { await viewModel.selectArtist(id: artistID) }
+                                    Task { await viewModel.selectArtist(id: artistID, origin: .extend, displayName: nil) }
                                 }
                             )
                         case let .artist(detail):
@@ -773,6 +1039,17 @@ struct PlaylistBrowserView: View {
                                             clickedURI: uri,
                                             playableURIs: playableURIs,
                                             playlistID: nil
+                                        )
+                                    }
+                                },
+                                openAlbum: { album in
+                                    Task {
+                                        await viewModel.selectAlbum(
+                                            id: album.id,
+                                            displayTitle: album.title,
+                                            displaySubtitle: detail.artist.name,
+                                            artworkURL: album.artworkURL,
+                                            origin: .extend
                                         )
                                     }
                                 },
@@ -789,7 +1066,10 @@ struct PlaylistBrowserView: View {
                                     await queueViewModel.addToQueue(uri: uri)
                                 },
                                 openArtist: { artistID in
-                                    Task { await viewModel.selectArtist(id: artistID) }
+                                    Task { await viewModel.selectArtist(id: artistID, origin: .extend, displayName: nil) }
+                                },
+                                loadMoreAlbums: {
+                                    Task { await viewModel.loadMoreArtistAlbums() }
                                 }
                             )
                         }
@@ -844,25 +1124,31 @@ struct PlaylistBrowserView: View {
         pinnedStore.bind(userID: profile?.id)
     }
 
-    private func openArtistFromTapTarget(_ target: ArtistTapTarget) {
+    private func openArtistFromTapTarget(_ target: ArtistTapTarget, origin: BrowserNavigationOrigin = .extend) {
         Task {
             if let id = target.id {
-                await viewModel.selectArtist(id: id)
+                await viewModel.selectArtist(id: id, origin: origin, displayName: target.name)
                 return
             }
             guard let resolvedID = try? await resolveArtistID(forName: target.name) else { return }
-            await viewModel.selectArtist(id: resolvedID)
+            await viewModel.selectArtist(id: resolvedID, origin: origin, displayName: target.name)
         }
     }
 
-    private func openAlbumFromTapTarget(_ album: AlbumTapTarget, artistSubtitle: String, artworkURL: URL?) {
+    private func openAlbumFromTapTarget(
+        _ album: AlbumTapTarget,
+        artistSubtitle: String,
+        artworkURL: URL?,
+        origin: BrowserNavigationOrigin = .extend
+    ) {
         Task {
             if let id = album.id {
                 await viewModel.selectAlbum(
                     id: id,
                     displayTitle: album.name,
                     displaySubtitle: artistSubtitle,
-                    artworkURL: artworkURL
+                    artworkURL: artworkURL,
+                    origin: origin
                 )
                 return
             }
@@ -872,7 +1158,8 @@ struct PlaylistBrowserView: View {
                     id: resolvedID,
                     displayTitle: album.name,
                     displaySubtitle: artistSubtitle,
-                    artworkURL: artworkURL
+                    artworkURL: artworkURL,
+                    origin: origin
                 )
             } catch {
                 return
@@ -923,7 +1210,7 @@ struct PlaylistBrowserView: View {
         let includeThisPlaylist = viewModel.isCommandPaletteContextSearchEligible
         commandPaletteManager.viewModel.setAvailableSearchCategories(
             CommandPaletteSearchCategory.footerOrder(includeThisPlaylist: includeThisPlaylist),
-            refreshIfFilterInvalidated: false
+            refreshIfFilterInvalidated: true
         )
 
         commandPaletteManager.isSignedIn = true
@@ -943,7 +1230,10 @@ struct PlaylistBrowserView: View {
             await viewModel?.selectPreviousPlaylist()
         }
         commandPaletteManager.connectPlayback = { [weak playbackViewModel] in
-            playbackViewModel?.start()
+            playbackViewModel?.start(recoveryCause: .manualReconnect)
+        }
+        commandPaletteManager.playbackTogglePrerequisite = { [weak playbackViewModel] in
+            playbackViewModel?.isPlaybackTransportReady ?? false
         }
         commandPaletteManager.togglePlayback = { [weak playbackViewModel] in
             await playbackViewModel?.togglePlayPause()
@@ -961,10 +1251,10 @@ struct PlaylistBrowserView: View {
             await playbackViewModel?.play(uri: uri)
         }
         commandPaletteManager.openPlaylist = { [weak viewModel] playlistID in
-            await viewModel?.selectPlaylist(id: playlistID)
+            await viewModel?.selectPlaylist(id: playlistID, origin: .reset)
         }
         commandPaletteManager.openArtist = { [weak viewModel] artistID in
-            await viewModel?.selectArtist(id: artistID)
+            await viewModel?.selectArtist(id: artistID, origin: .reset, displayName: nil)
         }
         commandPaletteManager.toggleQueue = {
             queueVisible.wrappedValue.toggle()
@@ -986,7 +1276,6 @@ struct PlaylistBrowserView: View {
                 queueViewModel: queueVM
             )
         }
-        commandPaletteManager.viewModel.refresh()
     }
 }
 
@@ -1071,6 +1360,7 @@ extension PlaylistBrowserView {
                     pinAction: pinAction,
                     unpinAction: unpinAction,
                     queueAction: queueAction,
+                    isExplicit: row.badgeText == "Explicit",
                     action: {
                         commandPaletteManager.execute(
                             commandID: "playback.playURI",
@@ -1106,6 +1396,7 @@ extension PlaylistBrowserView {
                 pinAction: pinPair.pin,
                 unpinAction: pinPair.unpin,
                 queueAction: queueAction,
+                isExplicit: track.isExplicit,
                 action: {
                     commandPaletteManager.execute(
                         commandID: "playback.playURI",
@@ -1181,7 +1472,8 @@ extension PlaylistBrowserView {
            let firstArtist = results.artists.first,
            SpotifyPaletteSearchAugmentation.shouldFetchArtistScopedTracks(
                trimmedUserQuery: trimmed,
-               topArtistName: firstArtist.name
+               topArtistName: firstArtist.name,
+               primaryTrackCount: results.tracks.count
            ) {
             let sanitized = firstArtist.name.replacingOccurrences(of: "\"", with: "")
             let scopedQuery = "artist:\"\(sanitized)\""
@@ -1386,6 +1678,10 @@ private struct PlaylistDetailContent: View {
         pinnedStore.isPinned(id: headerPinnedItem.id)
     }
 
+    private var supportsHeaderPinning: Bool {
+        detail.playlist.id != SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             headerBlock
@@ -1474,21 +1770,51 @@ private struct PlaylistDetailContent: View {
             Spacer()
         }
         .padding(SpotiglassDesign.spacingL)
-        .draggable(
-            PinnedItemTransfer(item: headerPinnedItem, originScopeID: tracksSurfaceKey)
-        ) {
-            PinnedItemDragPill(item: headerPinnedItem)
-        }
-        .contextMenu {
-            if isHeaderPinned {
-                Button("Unpin from Sidebar") {
-                    pinnedStore.unpin(id: headerPinnedItem.id)
+        .modifier(LibraryHeaderPinningModifier(
+            supportsHeaderPinning: supportsHeaderPinning,
+            headerPinnedItem: headerPinnedItem,
+            tracksSurfaceKey: tracksSurfaceKey,
+            isHeaderPinned: isHeaderPinned,
+            pinnedStore: pinnedStore
+        ))
+    }
+}
+
+private struct LibraryHeaderPinningModifier: ViewModifier {
+    let supportsHeaderPinning: Bool
+    let headerPinnedItem: PinnedItem
+    let tracksSurfaceKey: String
+    let isHeaderPinned: Bool
+    let pinnedStore: PinnedItemsStore
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if supportsHeaderPinning {
+            content
+                .onDrag(
+                    {
+                        PinnedItemTransfer(
+                            item: headerPinnedItem,
+                            originScopeID: tracksSurfaceKey
+                        ).itemProvider()
+                    },
+                    preview: {
+                        PinnedItemDragPill(item: headerPinnedItem)
+                    }
+                )
+                .contextMenu {
+                    if isHeaderPinned {
+                        Button("Unpin from Sidebar") {
+                            pinnedStore.unpin(id: headerPinnedItem.id)
+                        }
+                    } else {
+                        Button("Pin to Sidebar") {
+                            pinnedStore.pin(headerPinnedItem)
+                        }
+                    }
                 }
-            } else {
-                Button("Pin to Sidebar") {
-                    pinnedStore.pin(headerPinnedItem)
-                }
-            }
+        } else {
+            content
         }
     }
 }
@@ -1567,6 +1893,145 @@ private struct StaleCacheBanner: View {
     }
 }
 
+private struct LibraryPinnedItemDropDelegate: DropDelegate {
+    static let acceptedTypeIdentifiers: [String] = [
+        UTType.spotiglassPinnedItem.identifier,
+        UTType.spotiglassLibrarySidebarRow.identifier,
+        UTType.plainText.identifier,
+        "public.utf8-plain-text",
+        UTType.text.identifier
+    ]
+
+    let updateInsertionIndex: (CGPoint) -> Void
+    let clearInsertionIndex: () -> Void
+    let performPinnedDrop: (PinnedItemTransfer, CGPoint) -> Bool
+    let performLibraryRowDrop: (LibrarySidebarRowTransfer, CGPoint) -> Bool
+    let clearDragPreview: () -> Void
+
+    func validateDrop(info: DropInfo) -> Bool {
+        let hasPinned = !info.itemProviders(for: [UTType.spotiglassPinnedItem]).isEmpty
+        let hasLibraryRow = !info.itemProviders(for: [UTType.spotiglassLibrarySidebarRow]).isEmpty
+        let hasPlainText = !info.itemProviders(for: [UTType.plainText]).isEmpty
+        let hasText = !info.itemProviders(for: [UTType.text]).isEmpty
+        return hasPinned || hasLibraryRow || hasPlainText || hasText
+    }
+
+    func dropEntered(info: DropInfo) {
+        updateInsertionIndex(info.location)
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        updateInsertionIndex(info.location)
+        return DropProposal(operation: .copy)
+    }
+
+    func dropExited(info: DropInfo) {
+        clearInsertionIndex()
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        let location = info.location
+        clearInsertionIndex()
+        if let provider = info.itemProviders(for: [UTType.spotiglassPinnedItem]).first {
+            provider.loadDataRepresentation(forTypeIdentifier: UTType.spotiglassPinnedItem.identifier) { data, _ in
+                guard let data,
+                      let transfer = try? JSONDecoder().decode(PinnedItemTransfer.self, from: data)
+                else {
+                    Task { @MainActor in clearDragPreview() }
+                    return
+                }
+                Task { @MainActor in
+                    if !performPinnedDrop(transfer, location) {
+                        clearDragPreview()
+                    }
+                }
+            }
+            return true
+        }
+        if let provider = info.itemProviders(for: [UTType.spotiglassLibrarySidebarRow]).first {
+            provider.loadDataRepresentation(forTypeIdentifier: UTType.spotiglassLibrarySidebarRow.identifier) { data, _ in
+                guard let data,
+                      let transfer = try? JSONDecoder().decode(LibrarySidebarRowTransfer.self, from: data)
+                else {
+                    Task { @MainActor in clearDragPreview() }
+                    return
+                }
+                Task { @MainActor in
+                    if !performLibraryRowDrop(transfer, location) {
+                        clearDragPreview()
+                    }
+                }
+            }
+            return true
+        }
+        if let provider = info.itemProviders(for: [UTType.plainText]).first {
+            let candidates = [UTType.plainText.identifier, "public.utf8-plain-text", UTType.text.identifier]
+            for typeIdentifier in candidates {
+                if !provider.hasItemConformingToTypeIdentifier(typeIdentifier) { continue }
+                provider.loadDataRepresentation(forTypeIdentifier: typeIdentifier) { data, _ in
+                    guard let data else {
+                        Task { @MainActor in clearDragPreview() }
+                        return
+                    }
+                    if let transfer = try? JSONDecoder().decode(PinnedItemTransfer.self, from: data) {
+                        Task { @MainActor in
+                            if !performPinnedDrop(transfer, location) {
+                                clearDragPreview()
+                            }
+                        }
+                        return
+                    }
+                    if let transfer = try? JSONDecoder().decode(LibrarySidebarRowTransfer.self, from: data) {
+                        Task { @MainActor in
+                            if !performLibraryRowDrop(transfer, location) {
+                                clearDragPreview()
+                            }
+                        }
+                        return
+                    }
+                    Task { @MainActor in clearDragPreview() }
+                }
+                return true
+            }
+        }
+        clearDragPreview()
+        return false
+    }
+}
+
+private struct LibraryRowFramePreferenceKey: PreferenceKey {
+    static var defaultValue: [String: CGRect] = [:]
+
+    static func reduce(value: inout [String : CGRect], nextValue: () -> [String : CGRect]) {
+        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
+    }
+}
+
+private struct LibrarySidebarRowTransfer: Codable, Equatable, Hashable, Transferable {
+    let rowToken: String
+
+    static var transferRepresentation: some TransferRepresentation {
+        CodableRepresentation(contentType: .spotiglassLibrarySidebarRow)
+    }
+
+    /// macOS drag source provider used by `onDrop`/`DropDelegate` targets.
+    func itemProvider() -> NSItemProvider {
+        let provider = NSItemProvider()
+        let encoded = (try? JSONEncoder().encode(self)) ?? Data()
+        if let jsonString = String(data: encoded, encoding: .utf8) {
+            provider.registerObject(jsonString as NSString, visibility: .all)
+        }
+        provider.registerDataRepresentation(
+            forTypeIdentifier: UTType.spotiglassLibrarySidebarRow.identifier,
+            visibility: .all
+        ) { completion in
+            completion(encoded, nil)
+            return nil
+        }
+        return provider
+    }
+}
+
 #Preview {
     PlaylistBrowserView(
         viewModel: PlaylistBrowserViewModel(
@@ -1591,6 +2056,15 @@ private struct PreviewBrowsingAPI: SpotifyBrowsingAPI {
         throw SpotifyAPIError.invalidRequest("Preview does not load artists.")
     }
 
+    func artist(id: String, cacheMode: SpotifyRequestCacheMode) async throws -> SpotifyArtistDetail {
+        try await artist(id: id)
+    }
+
+    func artistCached(id: String, cacheMode: SpotifyRequestCacheMode) async throws -> SpotifyAPIClient.CachedResponse<SpotifyArtistDetail> {
+        let value = try await artist(id: id)
+        return SpotifyAPIClient.CachedResponse(value: value, isStale: false)
+    }
+
     func artistTopTracks(id: String, market: String?) async throws -> [SpotifyTrack] {
         []
     }
@@ -1603,8 +2077,33 @@ private struct PreviewBrowsingAPI: SpotifyBrowsingAPI {
         []
     }
 
-    func artistAlbums(id: String, includeGroups: String, limit: Int) async throws -> [SpotifyArtistAlbum] {
+    func albums(ids: [String], market: String?) async throws -> [SpotifyBatchedAlbum] {
         []
+    }
+
+    func artistAlbums(id: String, includeGroups: String, limit: Int, cacheMode: SpotifyRequestCacheMode) async throws -> [SpotifyArtistAlbum] {
+        []
+    }
+
+    func artistAlbumsCached(
+        id: String,
+        includeGroups: String,
+        limit: Int,
+        cacheMode: SpotifyRequestCacheMode
+    ) async throws -> SpotifyAPIClient.CachedResponse<[SpotifyArtistAlbum]> {
+        let albums = try await artistAlbums(id: id, includeGroups: includeGroups, limit: limit, cacheMode: cacheMode)
+        return SpotifyAPIClient.CachedResponse(value: albums, isStale: false)
+    }
+
+    func artistAlbumsPage(
+        id: String,
+        includeGroups: String,
+        limit: Int,
+        offset: Int,
+        nextURL: URL?,
+        cacheMode: SpotifyRequestCacheMode
+    ) async throws -> SpotifyAPIClient.SpotifyArtistAlbumsPage {
+        SpotifyAPIClient.SpotifyArtistAlbumsPage(items: [], next: nil)
     }
 
     func currentUserPlaylists(limit: Int) async throws -> [SpotifyPlaylistSummary] {
@@ -1613,7 +2112,7 @@ private struct PreviewBrowsingAPI: SpotifyBrowsingAPI {
         ]
     }
 
-    func playlistTracks(playlistID: String, limit: Int) async throws -> [SpotifyPlaylistTrackItem] {
+    func playlistTracks(playlistID: String, limit: Int, maxPages: Int) async throws -> [SpotifyPlaylistTrackItem] {
         [
             SpotifyPlaylistTrackItem(id: "track", addedAt: nil, content: .track(SpotifyTrack(id: "track", name: "Preview Track", artists: ["Artist"], albumArtworkURL: nil, durationMilliseconds: 181_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:track")))
         ]

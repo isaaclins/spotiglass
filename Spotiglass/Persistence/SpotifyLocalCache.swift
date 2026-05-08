@@ -36,6 +36,12 @@ enum SpotifyLocalCacheError: Error, Equatable {
 }
 
 struct SpotifyLocalCache {
+    struct CachedGETResponseRecord: Equatable {
+        let data: Data
+        let expiresAt: Date
+        let isExpired: Bool
+    }
+
     private let rootDirectory: URL
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
@@ -136,6 +142,17 @@ struct SpotifyLocalCache {
     }
 
     func loadGETResponse(digest: String, now: Date = Date()) throws -> (data: Data, expiresAt: Date)? {
+        guard let record = try loadGETResponseRecord(digest: digest, now: now, allowExpired: false) else {
+            return nil
+        }
+        return (record.data, record.expiresAt)
+    }
+
+    func loadGETResponseRecord(
+        digest: String,
+        now: Date = Date(),
+        allowExpired: Bool
+    ) throws -> CachedGETResponseRecord? {
         guard let cached: CachedGETResponsePayload = try read(from: getResponseURL(digest: digest)) else {
             return nil
         }
@@ -143,10 +160,11 @@ struct SpotifyLocalCache {
             return nil
         }
         let expiresAt = cached.cachedAt.addingTimeInterval(cached.ttlSeconds)
-        guard expiresAt > now else {
+        let isExpired = expiresAt <= now
+        guard allowExpired || !isExpired else {
             return nil
         }
-        return (data, expiresAt)
+        return CachedGETResponseRecord(data: data, expiresAt: expiresAt, isExpired: isExpired)
     }
 
     func saveSettings(_ settings: CachedSpotifySettings) throws {

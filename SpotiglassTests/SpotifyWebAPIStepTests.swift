@@ -146,6 +146,99 @@ final class SpotifyWebAPIStepTests: XCTestCase {
         XCTAssertEqual(httpClient.requests[1].url?.absoluteString, "https://api.spotify.com/v1/me/playlists?offset=1&limit=1")
     }
 
+    func testPlaylistPaginationStopsAtConfiguredPageCap() async throws {
+        // Each page must advertise a distinct `next` URL; `collectPaged` stops if Spotify repeats the same `next`
+        // link while pagination is still ongoing (defensive loop guard).
+        let responses: [QueueHTTPClient.Response] = (0 ..< 20).map { idx in
+            let nextJSON: String
+            if idx < 19 {
+                nextJSON = "\"https://api.spotify.com/v1/me/playlists?offset=\(idx + 1)&limit=1\""
+            } else {
+                nextJSON = "null"
+            }
+            return .json("""
+            {
+              "href": "page-\(idx)",
+              "limit": 1,
+              "next": \(nextJSON),
+              "offset": \(idx),
+              "previous": null,
+              "total": 100,
+              "items": [
+                {
+                  "id": "playlist-\(idx)",
+                  "name": "Page \(idx)",
+                  "owner": { "id": "owner-1" },
+                  "images": [],
+                  "items": { "total": 1 },
+                  "snapshot_id": "snapshot-\(idx)"
+                }
+              ]
+            }
+            """)
+        }
+        let httpClient = QueueHTTPClient(responses)
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+
+        let playlists = try await client.currentUserPlaylists(limit: 1)
+
+        XCTAssertEqual(playlists.count, 20)
+        XCTAssertEqual(playlists.map(\.id), (0 ..< 20).map { "playlist-\($0)" })
+        XCTAssertEqual(httpClient.requests.count, 20)
+    }
+
+    func testPlaylistPaginationBreaksWhenNextURLRepeats() async throws {
+        let repeated = "https://api.spotify.com/v1/me/playlists?offset=1&limit=1"
+        let httpClient = QueueHTTPClient([
+            .json("""
+            {
+              "href": "page-1",
+              "limit": 1,
+              "next": "\(repeated)",
+              "offset": 0,
+              "previous": null,
+              "total": 3,
+              "items": [
+                {
+                  "id": "playlist-1",
+                  "name": "One",
+                  "owner": { "id": "owner-1" },
+                  "images": [],
+                  "items": { "total": 1 },
+                  "snapshot_id": "snapshot-1"
+                }
+              ]
+            }
+            """),
+            .json("""
+            {
+              "href": "page-2",
+              "limit": 1,
+              "next": "\(repeated)",
+              "offset": 1,
+              "previous": null,
+              "total": 3,
+              "items": [
+                {
+                  "id": "playlist-2",
+                  "name": "Two",
+                  "owner": { "id": "owner-2" },
+                  "images": [],
+                  "items": { "total": 1 },
+                  "snapshot_id": "snapshot-2"
+                }
+              ]
+            }
+            """)
+        ])
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+
+        let playlists = try await client.currentUserPlaylists(limit: 1)
+
+        XCTAssertEqual(playlists.map(\.id), ["playlist-1", "playlist-2"])
+        XCTAssertEqual(httpClient.requests.count, 2)
+    }
+
     func testPlaylistDecodingFallsBackToLegacyTracksField() async throws {
         let httpClient = QueueHTTPClient([
             .json("""
@@ -325,6 +418,124 @@ final class SpotifyWebAPIStepTests: XCTestCase {
         XCTAssertEqual(httpClient.requests.first?.url?.absoluteString, "https://api.spotify.com/v1/playlists/playlist-1/items?limit=50&offset=0")
     }
 
+    func testPlaylistTracksStopsAfterMaxPagesWhenNextIsNonNil() async throws {
+        let itemJSON = """
+        {
+          "added_at": null,
+          "is_local": false,
+          "item": {
+            "type": "track",
+            "id": "page-track",
+            "name": "Page Track",
+            "artists": [{ "name": "A" }],
+            "album": { "name": "Alb", "images": [] },
+            "duration_ms": 1000,
+            "explicit": false,
+            "is_playable": true,
+            "uri": "spotify:track:page-track",
+            "is_local": false
+          }
+        }
+        """
+        func pageJSON(next: String?) -> String {
+            let nextField = next.map { "\"\($0)\"" } ?? "null"
+            return """
+            {
+              "href": "https://api.spotify.com/v1/playlists/p1/items",
+              "limit": 1,
+              "offset": 0,
+              "next": \(nextField),
+              "previous": null,
+              "total": 99,
+              "items": [\(itemJSON)]
+            }
+            """
+        }
+        let next1 = "https://api.spotify.com/v1/playlists/p1/items?offset=1&limit=1"
+        let next2 = "https://api.spotify.com/v1/playlists/p1/items?offset=2&limit=1"
+        let httpClient = QueueHTTPClient([
+            .json(pageJSON(next: next1)),
+            .json(pageJSON(next: next2))
+        ])
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+
+        let tracks = try await client.playlistTracks(playlistID: "p1", limit: 1, maxPages: 2)
+
+        XCTAssertEqual(httpClient.requests.count, 2)
+        XCTAssertEqual(tracks.count, 2)
+    }
+
+    func testPlaylistTracksCancellationSkipsSecondPageRequest() async throws {
+        let itemJSON = """
+        {
+          "added_at": null,
+          "is_local": false,
+          "item": {
+            "type": "track",
+            "id": "t-page-1",
+            "name": "One",
+            "artists": [{ "name": "A" }],
+            "album": { "name": "Alb", "images": [] },
+            "duration_ms": 1000,
+            "explicit": false,
+            "is_playable": true,
+            "uri": "spotify:track:t-page-1",
+            "is_local": false
+          }
+        }
+        """
+        let page1 = """
+        {
+          "href": "https://api.spotify.com/v1/playlists/p1/items",
+          "limit": 1,
+          "offset": 0,
+          "next": "https://api.spotify.com/v1/playlists/p1/items?offset=1&limit=1",
+          "previous": null,
+          "total": 2,
+          "items": [\(itemJSON)]
+        }
+        """
+        let page2 = """
+        {
+          "href": "https://api.spotify.com/v1/playlists/p1/items",
+          "limit": 1,
+          "offset": 1,
+          "next": null,
+          "previous": null,
+          "total": 2,
+          "items": [\(itemJSON)]
+        }
+        """
+        // Yield after the first page so this test task can cancel before `collectPaged` issues page 2
+        // (otherwise both requests can complete synchronously before we observe `requests.count == 1`).
+        let httpClient = YieldAfterFirstResponseHTTPClient([
+            .json(page1),
+            .json(page2)
+        ])
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+
+        let task = Task {
+            try await client.playlistTracks(playlistID: "p1", limit: 1, maxPages: 10)
+        }
+        for _ in 0..<500 {
+            if httpClient.requests.count >= 1 { break }
+            try await Task.sleep(nanoseconds: 100_000)
+        }
+        XCTAssertEqual(httpClient.requests.count, 1, "Expected exactly one request before cancellation")
+        task.cancel()
+
+        do {
+            _ = try await task.value
+            XCTFail("Expected cancellation")
+        } catch is CancellationError {
+            // Expected
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+
+        XCTAssertEqual(httpClient.requests.count, 1)
+    }
+
     func testCurrentUserSavedTracksDecodesMeTracksPage() async throws {
         let httpClient = QueueHTTPClient([
             .json("""
@@ -366,6 +577,45 @@ final class SpotifyWebAPIStepTests: XCTestCase {
         XCTAssertEqual(track.id, "saved-1")
         XCTAssertEqual(track.name, "Liked Name")
         XCTAssertEqual(httpClient.requests.first?.url?.absoluteString, "https://api.spotify.com/v1/me/tracks?limit=50&offset=0")
+    }
+
+    func testCurrentUserSavedTracksStopsWhenNextOffsetRepeats() async throws {
+        let loopingPage = """
+            {
+              "href": "https://api.spotify.com/v1/me/tracks?limit=50&offset=0",
+              "limit": 50,
+              "offset": 0,
+              "next": "https://api.spotify.com/v1/me/tracks?limit=50&offset=0",
+              "previous": null,
+              "total": 200,
+              "items": [
+                {
+                  "added_at": "2020-01-01T00:00:00Z",
+                  "track": {
+                    "type": "track",
+                    "id": "saved-loop",
+                    "name": "Loop",
+                    "artists": [{ "id": "artist-1", "name": "Artist" }],
+                    "album": { "name": "Album", "images": [] },
+                    "duration_ms": 180000,
+                    "explicit": false,
+                    "uri": "spotify:track:saved-loop",
+                    "is_local": false
+                  }
+                }
+              ]
+            }
+            """
+        let httpClient = QueueHTTPClient([
+            .json(loopingPage),
+            .json(loopingPage)
+        ])
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+
+        let result = try await client.currentUserSavedTracks(limit: 50, maxPages: 20)
+
+        XCTAssertEqual(result.tracks.count, 1)
+        XCTAssertEqual(httpClient.requests.count, 1, "A repeated next offset should break pagination before re-fetching page 1.")
     }
 
     func testPlaylistTrackDecodingPrefersItemAndFallsBackToLegacyTrackField() async throws {
@@ -683,6 +933,42 @@ final class SpotifyWebAPIStepTests: XCTestCase {
         XCTAssertEqual(second.tracks.map(\.id), ["track-1"])
     }
 
+    func testSearchCacheSharesKeyForCaseAndWhitespaceVariantsOfQ() async throws {
+        let searchJSON = """
+            {
+              "tracks": {
+                "items": [
+                  {
+                    "type": "track",
+                    "id": "track-1",
+                    "name": "Midnight City",
+                    "artists": [{ "name": "M83" }],
+                    "album": { "images": [] },
+                    "duration_ms": 240000,
+                    "explicit": false,
+                    "uri": "spotify:track:track-1"
+                  }
+                ]
+              },
+              "artists": { "items": [] },
+              "albums": { "items": [] },
+              "playlists": { "items": [] }
+            }
+            """
+        let cache = SpotifyGETResponseCache(diskCache: nil)
+        let httpClient = QueueHTTPClient([.json(searchJSON)])
+        let client = SpotifyAPIClient(
+            tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"),
+            httpClient: httpClient,
+            getResponseCache: cache
+        )
+
+        _ = try await client.search(query: "Midnight", limit: 4)
+        _ = try await client.search(query: "  MIDNIGHT  ", limit: 4)
+
+        XCTAssertEqual(httpClient.requests.count, 1, "Normalized cache keys should treat equivalent q parameters as one entry.")
+    }
+
     func testRateLimitDisplayUsesFriendlyPhrasesForLongBackoffs() {
         XCTAssertTrue(SpotifyRateLimitDisplay.retryAfterClause(seconds: 7500).lowercased().contains("several hours"))
         XCTAssertTrue(SpotifyRateLimitDisplay.retryAfterClause(seconds: 400).lowercased().contains("minute"))
@@ -698,6 +984,8 @@ final class SpotifyWebAPIStepTests: XCTestCase {
         let headerValue = formatter.string(from: future)
 
         let httpClient = QueueHTTPClient([
+            .json(#"{"error":{"status":429,"message":"Slow"}}"#, statusCode: 429, headers: ["Retry-After": headerValue]),
+            .json(#"{"error":{"status":429,"message":"Slow"}}"#, statusCode: 429, headers: ["Retry-After": headerValue]),
             .json(#"{"error":{"status":429,"message":"Slow"}}"#, statusCode: 429, headers: ["Retry-After": headerValue])
         ])
         let client = SpotifyAPIClient(tokenProvider: FailingRefreshTokenProvider(), httpClient: httpClient)
@@ -711,6 +999,28 @@ final class SpotifyWebAPIStepTests: XCTestCase {
             XCTAssertGreaterThan(s, 24 * 3600)
             XCTAssertLessThan(s, 72 * 3600)
         }
+    }
+
+    func testRateLimitRetryEventuallySucceedsForGETRequests() async throws {
+        let httpClient = QueueHTTPClient([
+            .json(#"{"error":{"status":429,"message":"Slow 1"}}"#, statusCode: 429, headers: ["Retry-After": "0.001"]),
+            .json(#"{"error":{"status":429,"message":"Slow 2"}}"#, statusCode: 429, headers: ["Retry-After": "0.001"]),
+            .json("""
+            {
+              "id": "user-1",
+              "display_name": "Recovered",
+              "images": [],
+              "country": "US",
+              "product": "premium"
+            }
+            """)
+        ])
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+
+        let profile = try await client.currentUserProfile()
+
+        XCTAssertEqual(profile.displayName, "Recovered")
+        XCTAssertEqual(httpClient.requests.count, 3, "Client should retry rate-limited GET requests up to the bounded retry budget.")
     }
 
     func testSearchDecodingSkipsNullEntriesInPagingItemsArrays() async throws {
@@ -825,6 +1135,450 @@ final class SpotifyWebAPIStepTests: XCTestCase {
         XCTAssertEqual(tracks.first?.name, "Song")
     }
 
+    func testAlbumTracksConcurrentRequestsCoalesceByAlbumKey() async throws {
+        let httpClient = DelayedCountingHTTPClient(
+            responseJSON: """
+            {
+              "href": "https://api.spotify.com/v1/albums/al1/tracks?offset=0&limit=50",
+              "limit": 50,
+              "next": null,
+              "offset": 0,
+              "previous": null,
+              "total": 1,
+              "items": [
+                {
+                  "id": "tr1",
+                  "name": "Song",
+                  "artists": [{ "id": "ar1", "name": "Artist" }],
+                  "album": { "images": [] },
+                  "duration_ms": 1000,
+                  "explicit": false,
+                  "uri": "spotify:track:tr1"
+                }
+              ]
+            }
+            """
+        )
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+
+        async let first = client.albumTracks(albumID: "al1", market: "US", limit: 50)
+        async let second = client.albumTracks(albumID: "al1", market: "US", limit: 50)
+        let (a, b) = try await (first, second)
+
+        XCTAssertEqual(a.map(\.id), ["tr1"])
+        XCTAssertEqual(b.map(\.id), ["tr1"])
+        let requestCount = await httpClient.requestCount
+        XCTAssertEqual(requestCount, 1, "Concurrent identical album tracks requests should share one in-flight network call.")
+    }
+
+    func testAlbumTracksRespectsMaxPagesCap() async throws {
+        let httpClient = QueueHTTPClient([
+            .json("""
+            {
+              "href": "https://api.spotify.com/v1/albums/al1/tracks?offset=0&limit=2",
+              "limit": 2,
+              "next": "https://api.spotify.com/v1/albums/al1/tracks?offset=2&limit=2",
+              "offset": 0,
+              "previous": null,
+              "total": 4,
+              "items": [
+                { "id": "tr1", "name": "S1", "artists": [], "album": {"images": []}, "duration_ms": 1, "explicit": false, "uri": "spotify:track:tr1" },
+                { "id": "tr2", "name": "S2", "artists": [], "album": {"images": []}, "duration_ms": 1, "explicit": false, "uri": "spotify:track:tr2" }
+              ]
+            }
+            """)
+        ])
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+
+        let result = try await client.albumTracksWithMetrics(albumID: "al1", market: "US", limit: 2, maxPages: 1)
+
+        XCTAssertEqual(result.pageRequests, 1, "maxPages cap should stop pagination after one HTTP call regardless of `next` URL.")
+        XCTAssertEqual(result.tracks.map(\.id), ["tr1", "tr2"])
+        XCTAssertEqual(httpClient.requests.count, 1)
+    }
+
+    func testAlbumsBatchedRequestEncodesIDsAndDecodes() async throws {
+        let httpClient = QueueHTTPClient([
+            .json("""
+            {
+              "albums": [
+                {
+                  "id": "al1",
+                  "name": "Album One",
+                  "images": [],
+                  "tracks": {
+                    "href": "x",
+                    "limit": 50,
+                    "next": null,
+                    "offset": 0,
+                    "previous": null,
+                    "total": 1,
+                    "items": [
+                      {
+                        "id": "tr1",
+                        "name": "Song A",
+                        "artists": [{ "id": "ar1", "name": "Artist" }],
+                        "album": { "images": [] },
+                        "duration_ms": 1000,
+                        "explicit": false,
+                        "uri": "spotify:track:tr1"
+                      }
+                    ]
+                  }
+                },
+                null,
+                {
+                  "id": "al3",
+                  "name": "Album Three",
+                  "images": [],
+                  "tracks": {
+                    "href": "x",
+                    "limit": 50,
+                    "next": null,
+                    "offset": 0,
+                    "previous": null,
+                    "total": 0,
+                    "items": []
+                  }
+                }
+              ]
+            }
+            """)
+        ])
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+
+        let albums = try await client.albums(ids: ["al1", "al2", "al3"], market: "US")
+
+        let url = try XCTUnwrap(httpClient.requests.first?.url?.absoluteString)
+        XCTAssertTrue(url.contains("/v1/albums?"))
+        XCTAssertTrue(url.contains("ids=al1,al2,al3") || url.contains("ids=al1%2Cal2%2Cal3"))
+        XCTAssertTrue(url.contains("market=US"))
+        XCTAssertEqual(albums.count, 2, "Null array entries (unknown IDs) must be dropped.")
+        XCTAssertEqual(albums[0].id, "al1")
+        XCTAssertEqual(albums[0].tracks.map(\.id), ["tr1"])
+        XCTAssertTrue(albums[0].tracksAvailable)
+        XCTAssertEqual(albums[1].id, "al3")
+        XCTAssertTrue(albums[1].tracks.isEmpty)
+        XCTAssertTrue(albums[1].tracksAvailable, "Empty `items` is still a present `tracks` paging object.")
+    }
+
+    func testAlbumsBatchedRejectsMoreThan20IDs() async {
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: QueueHTTPClient([]))
+        let ids = (0..<21).map { "id-\($0)" }
+        do {
+            _ = try await client.albums(ids: ids, market: nil)
+            XCTFail("Expected invalidRequest error")
+        } catch let error as SpotifyAPIError {
+            guard case .invalidRequest = error else {
+                return XCTFail("Expected invalidRequest error, got \(error)")
+            }
+        } catch {
+            XCTFail("Expected SpotifyAPIError, got \(error)")
+        }
+    }
+
+    func testAlbumsBatchedNormalizesAndDeduplicatesIDsBeforeRequest() async throws {
+        let httpClient = QueueHTTPClient([
+            .json(#"{"albums":[]}"#)
+        ])
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+
+        _ = try await client.albums(ids: [" al1 ", "al1", "", "al2", "al2", "al3 "], market: nil)
+
+        let url = try XCTUnwrap(httpClient.requests.first?.url?.absoluteString)
+        XCTAssertTrue(url.contains("ids=al1,al2,al3") || url.contains("ids=al1%2Cal2%2Cal3"))
+    }
+
+    func testAlbumsBatchedConcurrentIdenticalNormalizedRequestsCoalesce() async throws {
+        let httpClient = DelayedCountingHTTPClient(
+            responseJSON: """
+            {
+              "albums": [
+                {
+                  "id": "al1",
+                  "name": "Album One",
+                  "images": [],
+                  "tracks": {
+                    "href": "x",
+                    "limit": 50,
+                    "next": null,
+                    "offset": 0,
+                    "previous": null,
+                    "total": 0,
+                    "items": []
+                  }
+                }
+              ]
+            }
+            """
+        )
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+
+        async let first = client.albums(ids: [" al1 ", "al1"], market: "US")
+        async let second = client.albums(ids: ["al1"], market: "US")
+        let (a, b) = try await (first, second)
+
+        XCTAssertEqual(a.map(\.id), ["al1"])
+        XCTAssertEqual(b.map(\.id), ["al1"])
+        let requestCount = await httpClient.requestCount
+        XCTAssertEqual(requestCount, 1, "Concurrent normalized-equivalent batched album requests should share one in-flight HTTP call.")
+    }
+
+    func testAlbumsBatchedCacheKeySharesAcrossEquivalentIDOrdering() async throws {
+        let cache = SpotifyGETResponseCache(diskCache: nil)
+        let httpClient = QueueHTTPClient([
+            .json("""
+            {
+              "albums": [
+                {
+                  "id": "al1",
+                  "name": "Album One",
+                  "images": [],
+                  "tracks": {
+                    "href": "x",
+                    "limit": 50,
+                    "next": null,
+                    "offset": 0,
+                    "previous": null,
+                    "total": 0,
+                    "items": []
+                  }
+                },
+                {
+                  "id": "al2",
+                  "name": "Album Two",
+                  "images": [],
+                  "tracks": {
+                    "href": "x",
+                    "limit": 50,
+                    "next": null,
+                    "offset": 0,
+                    "previous": null,
+                    "total": 0,
+                    "items": []
+                  }
+                }
+              ]
+            }
+            """)
+        ])
+        let client = SpotifyAPIClient(
+            tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"),
+            httpClient: httpClient,
+            getResponseCache: cache
+        )
+
+        _ = try await client.albums(ids: ["al1", "al2"], market: "US")
+        _ = try await client.albums(ids: ["al2", "al1"], market: "US")
+
+        XCTAssertEqual(httpClient.requests.count, 1, "Equivalent /v1/albums ids sets should share one GET cache key regardless of ordering.")
+    }
+
+    func testAlbumsBatchedSkipsInlineRetryWhenRetryAfterExceedsCap() async throws {
+        // Spotify rate-limited with a long Retry-After must surface immediately so the per-artist
+        // cooldown takes over instead of issuing 2–3 inline retries against the active back-off window.
+        let httpClient = QueueHTTPClient([
+            .json(
+                #"{"error":{"status":429,"message":"Slow"}}"#,
+                statusCode: 429,
+                headers: ["Retry-After": "30"]
+            )
+        ])
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+
+        do {
+            _ = try await client.albums(ids: ["al1"], market: "US")
+            XCTFail("Expected rateLimited error to propagate without inline retries.")
+        } catch let error as SpotifyAPIError {
+            guard case let .rateLimited(retryAfter) = error else {
+                return XCTFail("Expected SpotifyAPIError.rateLimited, got \(error)")
+            }
+            XCTAssertEqual(retryAfter, 30, "Original Retry-After value must reach the caller's cooldown layer.")
+        }
+        XCTAssertEqual(httpClient.requests.count, 1, "Long Retry-After must short-circuit inline retries to a single outbound /v1/albums call.")
+    }
+
+    func testAlbumsBatchedRetriesShortRetryAfterUpToCap() async throws {
+        // Short Retry-After values (≤ inlineRateLimitRetryCeiling) still allow the existing inline
+        // retry path so transient 429s do not surface as user-visible errors. Sub-second value keeps
+        // the test fast; the boundary is exercised in `testAlbumsBatchedSkipsInlineRetryWhenRetryAfterExceedsCap`.
+        let httpClient = QueueHTTPClient([
+            .json(
+                #"{"error":{"status":429,"message":"Slow"}}"#,
+                statusCode: 429,
+                headers: ["Retry-After": "0.001"]
+            ),
+            .json("""
+            {
+              "albums": [
+                {
+                  "id": "al1",
+                  "name": "Recovered",
+                  "images": [],
+                  "tracks": {
+                    "href": "x",
+                    "limit": 50,
+                    "next": null,
+                    "offset": 0,
+                    "previous": null,
+                    "total": 0,
+                    "items": []
+                  }
+                }
+              ]
+            }
+            """)
+        ])
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+
+        let albums = try await client.albums(ids: ["al1"], market: "US")
+
+        XCTAssertEqual(albums.map(\.id), ["al1"])
+        XCTAssertEqual(httpClient.requests.count, 2, "Short Retry-After (≤ inlineRateLimitRetryCeiling) should retry exactly once and succeed.")
+    }
+
+    func testAlbumsBatchedServesStaleCacheOnRateLimitWithinStaleWindow() async throws {
+        // Pre-populate a 100-second-expired cache entry under the canonical cache key so that when
+        // the live call 429s, the stale-on-rate-limit fallback can resurface the prior body without
+        // issuing additional outbound requests.
+        let cache = SpotifyGETResponseCache(diskCache: nil)
+        let staleBody = """
+        {
+          "albums": [
+            {
+              "id": "al1",
+              "name": "Stale One",
+              "images": [],
+              "tracks": {
+                "href": "x",
+                "limit": 50,
+                "next": null,
+                "offset": 0,
+                "previous": null,
+                "total": 1,
+                "items": [
+                  {
+                    "id": "stale-tr1",
+                    "name": "Stale Track",
+                    "artists": [{ "id": "ar1", "name": "Artist" }],
+                    "album": { "images": [] },
+                    "duration_ms": 1000,
+                    "explicit": false,
+                    "uri": "spotify:track:stale-tr1"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+        """
+        let probeURL = URL(string: "https://api.spotify.com/v1/albums?ids=al1&market=US")!
+        var probeRequest = URLRequest(url: probeURL)
+        probeRequest.httpMethod = "GET"
+        let cacheKey = try XCTUnwrap(SpotifyGETResponseCachePolicy.normalizedCacheKey(for: probeRequest))
+        cache.store(body: Data(staleBody.utf8), cacheKey: cacheKey, ttl: -100)
+
+        let httpClient = QueueHTTPClient([
+            .json(
+                #"{"error":{"status":429,"message":"Slow"}}"#,
+                statusCode: 429,
+                headers: ["Retry-After": "30"]
+            )
+        ])
+        let client = SpotifyAPIClient(
+            tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"),
+            httpClient: httpClient,
+            getResponseCache: cache
+        )
+
+        let albums = try await client.albums(ids: ["al1"], market: "US")
+
+        XCTAssertEqual(httpClient.requests.count, 1, "Stale-on-rate-limit fallback must not re-attempt the live call.")
+        XCTAssertEqual(albums.map(\.id), ["al1"])
+        XCTAssertEqual(albums.first?.name, "Stale One", "Stale body should be decoded and returned.")
+        XCTAssertEqual(albums.first?.tracks.map(\.id), ["stale-tr1"])
+    }
+
+    func testAlbumsBatchedRethrows429WhenNoStaleEntryWithinWindow() async throws {
+        // No prior cache entry means stale-on-rate-limit cannot recover; the original 429 must
+        // surface so caller-side cooldowns activate.
+        let cache = SpotifyGETResponseCache(diskCache: nil)
+        let httpClient = QueueHTTPClient([
+            .json(
+                #"{"error":{"status":429,"message":"Slow"}}"#,
+                statusCode: 429,
+                headers: ["Retry-After": "30"]
+            )
+        ])
+        let client = SpotifyAPIClient(
+            tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"),
+            httpClient: httpClient,
+            getResponseCache: cache
+        )
+
+        do {
+            _ = try await client.albums(ids: ["al1"], market: "US")
+            XCTFail("Expected rateLimited error when no stale cache entry exists.")
+        } catch let error as SpotifyAPIError {
+            guard case let .rateLimited(retryAfter) = error else {
+                return XCTFail("Expected SpotifyAPIError.rateLimited, got \(error)")
+            }
+            XCTAssertEqual(retryAfter, 30)
+        }
+        XCTAssertEqual(httpClient.requests.count, 1)
+    }
+
+    func testAlbumsBatchedRethrows429WhenStaleEntryExceedsMaxAge() async throws {
+        // Stale entries older than `batchedAlbumsStaleOnRateLimitMaxAge` (3600 s) must not be
+        // resurrected; the 429 propagates so the caller can fall back to its empty-state path.
+        let cache = SpotifyGETResponseCache(diskCache: nil)
+        let probeURL = URL(string: "https://api.spotify.com/v1/albums?ids=al1&market=US")!
+        var probeRequest = URLRequest(url: probeURL)
+        probeRequest.httpMethod = "GET"
+        let cacheKey = try XCTUnwrap(SpotifyGETResponseCachePolicy.normalizedCacheKey(for: probeRequest))
+        cache.store(body: Data(#"{"albums":[]}"#.utf8), cacheKey: cacheKey, ttl: -(SpotifyAPIClient.batchedAlbumsStaleOnRateLimitMaxAge + 60))
+
+        let httpClient = QueueHTTPClient([
+            .json(
+                #"{"error":{"status":429,"message":"Slow"}}"#,
+                statusCode: 429,
+                headers: ["Retry-After": "30"]
+            )
+        ])
+        let client = SpotifyAPIClient(
+            tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"),
+            httpClient: httpClient,
+            getResponseCache: cache
+        )
+
+        do {
+            _ = try await client.albums(ids: ["al1"], market: "US")
+            XCTFail("Expected rateLimited error when stale entry exceeds the bounded window.")
+        } catch let error as SpotifyAPIError {
+            guard case .rateLimited = error else {
+                return XCTFail("Expected SpotifyAPIError.rateLimited, got \(error)")
+            }
+        }
+        XCTAssertEqual(httpClient.requests.count, 1)
+    }
+
+    func testAlbumsBatchedNormalizedURLAlwaysEmitsMarket() async throws {
+        // `nil`/empty market collapses onto the `from_token` cache + coalescer key; the outbound URL
+        // must match so equivalent calls share one cache entry.
+        let httpClient = QueueHTTPClient([
+            .json(#"{"albums":[]}"#)
+        ])
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+
+        _ = try await client.albums(ids: ["al1"], market: nil)
+
+        let url = try XCTUnwrap(httpClient.requests.first?.url?.absoluteString)
+        XCTAssertTrue(
+            url.contains("market=from_token"),
+            "Outbound /v1/albums URL must always include the normalized market value (from_token when caller passes nil)."
+        )
+    }
+
     func testArtistAlbumsRequestsLimitTenAndPaginates() async throws {
         let httpClient = QueueHTTPClient([
             .json("""
@@ -882,7 +1636,7 @@ final class SpotifyWebAPIStepTests: XCTestCase {
         XCTAssertEqual(albums.map(\.id), ["alb1", "alb2"])
     }
 
-    func testArtistAlbumsPaginationStopsAtMaxPagesWhenNextNeverEnds() async throws {
+    func testArtistAlbumsPaginationStopsWhenNextURLRepeats() async throws {
         let loopingPage = """
             {
               "href": "https://api.spotify.com/v1/artists/ar1/albums?offset=0&limit=10",
@@ -904,13 +1658,52 @@ final class SpotifyWebAPIStepTests: XCTestCase {
               ]
             }
             """
-        let responses = (0..<25).map { _ in QueueHTTPClient.Response.json(loopingPage) }
+        let responses = (0..<5).map { _ in QueueHTTPClient.Response.json(loopingPage) }
         let httpClient = QueueHTTPClient(responses)
         let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
 
         let albums = try await client.artistAlbums(id: "ar1", includeGroups: "album", limit: 10)
 
-        XCTAssertEqual(httpClient.requests.count, 20, "Should cap at 20 album pages even when Spotify keeps returning next.")
+        XCTAssertEqual(httpClient.requests.count, 2, "A repeated next URL should break pagination before duplicate page storms.")
+        XCTAssertEqual(albums.count, 2)
+    }
+
+    func testArtistAlbumsPaginationStillCapsAtTwentyPagesForUniqueNextURLs() async throws {
+        let responses: [QueueHTTPClient.Response] = (0..<25).map { index in
+            let next: String
+            if index < 24 {
+                next = "\"https://api.spotify.com/v1/artists/ar1/albums?include_groups=album&limit=10&offset=\((index + 1) * 10)\""
+            } else {
+                next = "null"
+            }
+            return .json("""
+            {
+              "href": "https://api.spotify.com/v1/artists/ar1/albums?offset=\(index * 10)&limit=10",
+              "limit": 10,
+              "next": \(next),
+              "offset": \(index * 10),
+              "previous": null,
+              "total": 999,
+              "items": [
+                {
+                  "id": "alb-\(index)",
+                  "name": "Album \(index)",
+                  "images": [],
+                  "release_date": "2020-01-01",
+                  "total_tracks": 1,
+                  "uri": "spotify:album:alb-\(index)",
+                  "album_group": "album"
+                }
+              ]
+            }
+            """)
+        }
+        let httpClient = QueueHTTPClient(responses)
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+
+        let albums = try await client.artistAlbums(id: "ar1", includeGroups: "album", limit: 10)
+
+        XCTAssertEqual(httpClient.requests.count, 20, "Pagination should stop at the max page cap when next URLs are unique.")
         XCTAssertEqual(albums.count, 20)
     }
 
@@ -948,6 +1741,12 @@ final class SpotifyWebAPIStepTests: XCTestCase {
 
     func testErrorMappingCoversRateLimitForbiddenAuthDecodeAndNetwork() async throws {
         let rateLimited = QueueHTTPClient([
+            .json("""
+            { "error": { "status": 429, "message": "Slow down" } }
+            """, statusCode: 429, headers: ["Retry-After": "7"]),
+            .json("""
+            { "error": { "status": 429, "message": "Slow down" } }
+            """, statusCode: 429, headers: ["Retry-After": "7"]),
             .json("""
             { "error": { "status": 429, "message": "Slow down" } }
             """, statusCode: 429, headers: ["Retry-After": "7"])
@@ -1076,6 +1875,23 @@ final class SpotifyWebAPIStepTests: XCTestCase {
             "Bearer fresh-token"
         ])
         XCTAssertEqual(tokenProvider.refreshCount, 1)
+    }
+
+    func testConcurrentUnauthorizedRequestsShareSingleRefresh() async throws {
+        let httpClient = TokenAwareUnauthorizedHTTPClient()
+        let tokenProvider = SingleFlightRefreshingTokenProvider()
+        let client = SpotifyAPIClient(tokenProvider: tokenProvider, httpClient: httpClient)
+
+        async let first = client.currentUserProfile()
+        async let second = client.currentUserProfile()
+        let (a, b) = try await (first, second)
+        let refreshCount = await tokenProvider.refreshCount
+
+        XCTAssertEqual(a.displayName, "AfterRefresh")
+        XCTAssertEqual(b.displayName, "AfterRefresh")
+        XCTAssertEqual(refreshCount, 1, "Concurrent unauthorized requests should reuse one refresh flight.")
+        XCTAssertEqual(httpClient.unauthorizedRequestCount, 2)
+        XCTAssertEqual(httpClient.refreshedRequestCount, 2)
     }
 
     func testCachePersistsAndInvalidatesByAgeAndSnapshot() throws {
@@ -1207,6 +2023,42 @@ private final class ThrowingHTTPClient: HTTPClient {
     }
 }
 
+/// `QueueHTTPClient` variant that awaits a `Task.yield()` (and a tiny sleep) after the first response
+/// is dispatched. Lets a test observe the post-first-page state and cancel before subsequent pages
+/// run, so we can verify pagination respects cancellation rather than racing all pages to completion.
+private final class YieldAfterFirstResponseHTTPClient: HTTPClient {
+    private var responses: [QueueHTTPClient.Response]
+    private(set) var requests: [URLRequest] = []
+    private var hasYielded = false
+
+    init(_ responses: [QueueHTTPClient.Response]) {
+        self.responses = responses
+    }
+
+    func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        if hasYielded {
+            try await Task.sleep(nanoseconds: 50_000_000)
+            try Task.checkCancellation()
+        }
+        requests.append(request)
+        guard !responses.isEmpty else {
+            throw URLError(.badServerResponse)
+        }
+        let response = responses.removeFirst()
+        let httpResponse = HTTPURLResponse(
+            url: request.url!,
+            statusCode: response.statusCode,
+            httpVersion: nil,
+            headerFields: response.headers
+        )!
+        if !hasYielded {
+            hasYielded = true
+            await Task.yield()
+        }
+        return (response.data, httpResponse)
+    }
+}
+
 private final class RefreshingTokenProvider: SpotifyAccessTokenProviding {
     private(set) var refreshCount = 0
 
@@ -1220,6 +2072,29 @@ private final class RefreshingTokenProvider: SpotifyAccessTokenProviding {
     }
 }
 
+private actor SingleFlightRefreshingTokenProvider: SpotifyAccessTokenProviding {
+    private var inFlightRefresh: Task<String, Error>?
+    private(set) var refreshCount = 0
+
+    func accessToken() async throws -> String {
+        "stale-token"
+    }
+
+    func refreshAccessTokenAfterUnauthorized() async throws -> String {
+        if let inFlightRefresh {
+            return try await inFlightRefresh.value
+        }
+        let task = Task<String, Error> {
+            try await Task.sleep(nanoseconds: 100_000_000)
+            return "fresh-token"
+        }
+        inFlightRefresh = task
+        refreshCount += 1
+        defer { inFlightRefresh = nil }
+        return try await task.value
+    }
+}
+
 private struct FailingRefreshTokenProvider: SpotifyAccessTokenProviding {
     func accessToken() async throws -> String {
         "token"
@@ -1227,5 +2102,55 @@ private struct FailingRefreshTokenProvider: SpotifyAccessTokenProviding {
 
     func refreshAccessTokenAfterUnauthorized() async throws -> String {
         throw SpotifyAPIError.unauthorized
+    }
+}
+
+private actor DelayedCountingHTTPClient: HTTPClient {
+    private let responseData: Data
+    private(set) var requestCount: Int = 0
+
+    init(responseJSON: String) {
+        self.responseData = Data(responseJSON.utf8)
+    }
+
+    func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        requestCount += 1
+        try await Task.sleep(nanoseconds: 40_000_000)
+        let response = HTTPURLResponse(
+            url: request.url!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: [:]
+        )!
+        return (responseData, response)
+    }
+}
+
+private final class TokenAwareUnauthorizedHTTPClient: HTTPClient {
+    private let lock = NSLock()
+    private(set) var unauthorizedRequestCount = 0
+    private(set) var refreshedRequestCount = 0
+
+    func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        let auth = request.value(forHTTPHeaderField: "Authorization") ?? ""
+        let statusCode: Int
+        let payload: String
+
+        lock.lock()
+        if auth == "Bearer stale-token" {
+            unauthorizedRequestCount += 1
+            statusCode = 401
+            payload = #"{"error":{"status":401,"message":"Expired"}}"#
+        } else {
+            refreshedRequestCount += 1
+            statusCode = 200
+            payload = #"{"id":"user-1","display_name":"AfterRefresh","images":[],"country":null,"product":"premium"}"#
+        }
+        lock.unlock()
+
+        return (
+            Data(payload.utf8),
+            HTTPURLResponse(url: request.url!, statusCode: statusCode, httpVersion: nil, headerFields: nil)!
+        )
     }
 }

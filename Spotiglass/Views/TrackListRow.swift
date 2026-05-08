@@ -196,12 +196,12 @@ private struct TrackListPinningModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         if let sid = tracksSurfaceID, let pinned = track.pinnedTrackItem(originPlaylistID: originPlaylistID) {
+            let transfer = PinnedItemTransfer(item: pinned, originScopeID: sid)
             content
-                .draggable(
-                    PinnedItemTransfer(item: pinned, originScopeID: sid)
-                ) {
-                    PinnedItemDragPill(item: pinned)
-                }
+                .onDrag(
+                    { transfer.itemProvider() },
+                    preview: { PinnedItemDragPill(item: pinned) }
+                )
         } else {
             content
         }

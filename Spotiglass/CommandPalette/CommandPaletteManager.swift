@@ -37,6 +37,8 @@ final class CommandPaletteManager: ObservableObject {
     var unpinSelectedPaletteItem: (@MainActor () -> Void)?
     /// When immersive lyrics are visible, return true after calling dismiss so Escape is consumed before keymaps/WebKit.
     var dismissLyricsOverlayIfPresented: (() -> Bool)?
+    /// When set, Toggle Play/Pause only runs if this returns true (e.g. Web Playback transport ready).
+    var playbackTogglePrerequisite: (() -> Bool)?
 
     private var cancellables: Set<AnyCancellable> = []
 
@@ -111,10 +113,27 @@ final class CommandPaletteManager: ObservableObject {
             return false
         }
 
+        // macOS keyDown auto-repeat would otherwise fire the matched command at ~10-20 Hz while
+        // a chord is held. None of the catalog commands (playback transport, refresh, settings,
+        // pin, …) are rate-safe under auto-repeat, and the palette navigation that does need
+        // repeat (Up/Down/Tab) is consumed in the palette block above before reaching this seam.
+        if event.isARepeat {
+            return false
+        }
+
         let context: CommandPaletteContext = viewModel.isPresented ? .paletteOpen : (isSignedIn ? .signedIn : .signedOut)
         let matched = keymapStore.commandBindings(for: event, context: context)
         guard !matched.isEmpty else { return false }
-        for binding in matched {
+        let filtered = matched.filter { binding in
+            if binding.command == CommandPaletteCommandID.togglePlayback {
+                return playbackTogglePrerequisite?() ?? true
+            }
+            return true
+        }
+        guard !filtered.isEmpty else { return false }
+        var executed = Set<String>()
+        for binding in filtered {
+            guard executed.insert(binding.command).inserted else { continue }
             execute(commandID: binding.command, args: binding.args)
         }
         return true
@@ -137,6 +156,7 @@ final class CommandPaletteManager: ObservableObject {
         case CommandPaletteCommandID.connectPlayback:
             connectPlayback?()
         case CommandPaletteCommandID.togglePlayback:
+            guard playbackTogglePrerequisite?() ?? true else { return }
             Task { await togglePlayback?() }
         case CommandPaletteCommandID.nextTrack:
             Task { await nextTrack?() }

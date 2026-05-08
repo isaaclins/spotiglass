@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 @testable import Spotiglass
 
@@ -576,13 +577,16 @@ final class CommandPaletteTests: XCTestCase {
 
     func testAugmentationShouldFetchWhenQueryMatchesArtistName() {
         XCTAssertTrue(
-            SpotifyPaletteSearchAugmentation.shouldFetchArtistScopedTracks(trimmedUserQuery: "kanye", topArtistName: "Kanye West")
+            SpotifyPaletteSearchAugmentation.shouldFetchArtistScopedTracks(trimmedUserQuery: "kanye", topArtistName: "Kanye West", primaryTrackCount: 0)
         )
         XCTAssertTrue(
-            SpotifyPaletteSearchAugmentation.shouldFetchArtistScopedTracks(trimmedUserQuery: "kanye west", topArtistName: "Kanye West")
+            SpotifyPaletteSearchAugmentation.shouldFetchArtistScopedTracks(trimmedUserQuery: "kanye west", topArtistName: "Kanye West", primaryTrackCount: 0)
         )
         XCTAssertFalse(
-            SpotifyPaletteSearchAugmentation.shouldFetchArtistScopedTracks(trimmedUserQuery: "love", topArtistName: "The Beatles")
+            SpotifyPaletteSearchAugmentation.shouldFetchArtistScopedTracks(trimmedUserQuery: "love", topArtistName: "The Beatles", primaryTrackCount: 0)
+        )
+        XCTAssertFalse(
+            SpotifyPaletteSearchAugmentation.shouldFetchArtistScopedTracks(trimmedUserQuery: "kanye", topArtistName: "Kanye West", primaryTrackCount: 6)
         )
     }
 
@@ -658,5 +662,223 @@ final class CommandPaletteTests: XCTestCase {
         vm.testingReplaceSections([(.commands, [item])])
         vm.selectedIndex = 0
         XCTAssertFalse(vm.canPinSelectedItem)
+    }
+
+    func testSingleCharacterQueryDoesNotInvokeSearchProvider() async {
+        let viewModel = CommandPaletteViewModel()
+        var callCount = 0
+        viewModel.searchProvider = { _, _ in
+            callCount += 1
+            return CommandPaletteSearchResults()
+        }
+        viewModel.show()
+        viewModel.query = "a"
+        viewModel.refresh()
+        try? await Task.sleep(for: .milliseconds(450))
+        XCTAssertEqual(callCount, 0)
+    }
+
+    func testDuplicateRefreshSkipsSearchProviderWhenKeyUnchanged() async {
+        let viewModel = CommandPaletteViewModel()
+        var callCount = 0
+        viewModel.searchProvider = { _, _ in
+            callCount += 1
+            return CommandPaletteSearchResults(
+                tracks: [
+                    CommandPaletteItem(
+                        id: "track-1",
+                        title: "Song",
+                        subtitle: "Artist",
+                        iconSystemName: "music.note",
+                        section: .tracks,
+                        keywords: []
+                    ) {}
+                ]
+            )
+        }
+        viewModel.show()
+        viewModel.query = "ab"
+        viewModel.refresh()
+        try? await Task.sleep(for: .milliseconds(450))
+        XCTAssertEqual(callCount, 1)
+        viewModel.refresh()
+        try? await Task.sleep(for: .milliseconds(80))
+        XCTAssertEqual(callCount, 1)
+    }
+
+    func testShorteningQueryBelowMinCharThenRestoringRefetches() async {
+        let viewModel = CommandPaletteViewModel()
+        var callCount = 0
+        viewModel.searchProvider = { _, _ in
+            callCount += 1
+            return CommandPaletteSearchResults(
+                tracks: [
+                    CommandPaletteItem(
+                        id: "track-1",
+                        title: "Song",
+                        subtitle: "Artist",
+                        iconSystemName: "music.note",
+                        section: .tracks,
+                        keywords: []
+                    ) {}
+                ]
+            )
+        }
+        viewModel.show()
+        viewModel.query = "ab"
+        viewModel.refresh()
+        try? await Task.sleep(for: .milliseconds(450))
+        XCTAssertEqual(callCount, 1)
+        viewModel.query = "a"
+        viewModel.refresh()
+        try? await Task.sleep(for: .milliseconds(120))
+        viewModel.query = "ab"
+        viewModel.refresh()
+        try? await Task.sleep(for: .milliseconds(450))
+        XCTAssertEqual(callCount, 2)
+    }
+
+    func testRapidCategoryCyclesCoalesceToSingleSearchProviderCall() async {
+        let viewModel = CommandPaletteViewModel()
+        var callCount = 0
+        viewModel.searchProvider = { _, _ in
+            callCount += 1
+            return CommandPaletteSearchResults()
+        }
+        viewModel.show()
+        viewModel.setAvailableSearchCategories(CommandPaletteSearchCategory.footerOrder(includeThisPlaylist: false), refreshIfFilterInvalidated: false)
+        viewModel.query = "abc"
+        for _ in 0 ..< 5 {
+            viewModel.cycleSearchCategory(forward: true)
+        }
+        try? await Task.sleep(for: .milliseconds(450))
+        XCTAssertEqual(callCount, 1)
+    }
+
+    func testRateLimitedSearchSetsCooldownAndSkipsFollowUpProviderCalls() async {
+        let viewModel = CommandPaletteViewModel()
+        var callCount = 0
+        viewModel.searchProvider = { _, _ in
+            callCount += 1
+            throw SpotifyAPIError.rateLimited(retryAfter: 3)
+        }
+        viewModel.show()
+        viewModel.query = "ab"
+        viewModel.refresh()
+        try? await Task.sleep(for: .milliseconds(450))
+        XCTAssertEqual(callCount, 1)
+        viewModel.searchProvider = { _, _ in
+            callCount += 1
+            return CommandPaletteSearchResults()
+        }
+        viewModel.refresh()
+        try? await Task.sleep(for: .milliseconds(80))
+        XCTAssertEqual(callCount, 1, "Palette should honor cooldown and not dispatch another search immediately")
+    }
+
+    func testLegacyAtPrefixSongSearchCallsProviderOnceForNormalizedQuery() async {
+        let viewModel = CommandPaletteViewModel()
+        var invocations: [String] = []
+        viewModel.searchProvider = { query, _ in
+            invocations.append(query)
+            return CommandPaletteSearchResults()
+        }
+        viewModel.show()
+        viewModel.query = "@m83"
+        viewModel.refresh()
+        try? await Task.sleep(for: .milliseconds(450))
+        XCTAssertEqual(invocations, ["m83"])
+    }
+
+    func testHandleKeyEventDropsAutoRepeatedHotkey() async {
+        let manager = CommandPaletteManager()
+        manager.isSignedIn = true
+        var invocations = 0
+        manager.previousTrack = { invocations += 1 }
+
+        // shift-cmd-left default binding from CommandPaletteCommandCatalog. The
+        // keymap parser normalizes "left" to NSLeftArrowFunctionKey, so the
+        // synthetic event must carry that character or `CommandShortcut(event:)`
+        // returns nil and the keymap dispatch is skipped.
+        let modifiers: NSEvent.ModifierFlags = [.shift, .command]
+        let leftArrowCharacter = String(Character(UnicodeScalar(NSLeftArrowFunctionKey)!))
+        guard let firstPress = NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: modifiers,
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            characters: leftArrowCharacter,
+            charactersIgnoringModifiers: leftArrowCharacter,
+            isARepeat: false,
+            keyCode: 123
+        ),
+        let repeatedPress = NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: modifiers,
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            characters: leftArrowCharacter,
+            charactersIgnoringModifiers: leftArrowCharacter,
+            isARepeat: true,
+            keyCode: 123
+        ) else {
+            return XCTFail("Could not synthesize NSEvent for shift-cmd-left.")
+        }
+
+        XCTAssertTrue(manager.handleKeyEvent(firstPress), "First press must be consumed by the keymap.")
+        for _ in 0..<8 {
+            XCTAssertFalse(
+                manager.handleKeyEvent(repeatedPress),
+                "Auto-repeat events for a transport hotkey must not be consumed; they must fall through to AppKit."
+            )
+        }
+
+        try? await Task.sleep(nanoseconds: 80_000_000)
+
+        XCTAssertEqual(
+            invocations,
+            1,
+            "Only the initial (non-repeat) shift-cmd-left should reach previousTrack; auto-repeats must be dropped."
+        )
+    }
+
+    func testHandleKeyEventRunsDuplicateMatchedCommandOnlyOnce() {
+        let url = makeTempSettingsURL()
+        let settingsStore = SpotiglassSettingsStore(fileURL: url)
+        let keymapStore = CommandPaletteKeymapStore(settingsStore: settingsStore)
+        keymapStore.editorText = """
+        {
+          "bindings": [
+            { "keystrokes": ["cmd-k"], "command": "\(CommandPaletteCommandID.openPalette)", "when": "always" },
+            { "keystrokes": ["cmd-k"], "command": "\(CommandPaletteCommandID.openPalette)", "when": "always" }
+          ]
+        }
+        """
+        keymapStore.applyEditorText()
+
+        let manager = CommandPaletteManager(keymapStore: keymapStore)
+        manager.viewModel.hide()
+
+        guard let event = NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: [.command],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            characters: "k",
+            charactersIgnoringModifiers: "k",
+            isARepeat: false,
+            keyCode: 40
+        ) else {
+            return XCTFail("Could not synthesize NSEvent for cmd-k.")
+        }
+
+        XCTAssertTrue(manager.handleKeyEvent(event))
+        XCTAssertTrue(manager.viewModel.isPresented)
     }
 }

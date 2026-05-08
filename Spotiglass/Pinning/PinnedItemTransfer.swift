@@ -1,12 +1,16 @@
 import Foundation
 import CoreTransferable
 import UniformTypeIdentifiers
+import AppKit
 
 extension UTType {
     /// In-app drag payload type for pinned-item transfers. Not registered in
     /// `Info.plist`: only Spotiglass advertises and accepts it, so cross-app
     /// drops never see this type.
     static let spotiglassPinnedItem = UTType(exportedAs: "com.spotiglass.pinned-item")
+    /// In-app drag payload type for reorder-only library chrome rows
+    /// (Home / Liked Songs).
+    static let spotiglassLibrarySidebarRow = UTType(exportedAs: "com.spotiglass.library-sidebar-row")
 }
 
 /// Drag payload for pinned-item interactions.
@@ -33,5 +37,24 @@ struct PinnedItemTransfer: Codable, Equatable, Hashable, Transferable {
 
     var isFromPinnedSidebar: Bool {
         originScopeID == Self.pinnedSidebarScopeID
+    }
+}
+
+extension PinnedItemTransfer {
+    /// macOS drag source provider used by `onDrop`/`DropDelegate` targets.
+    func itemProvider() -> NSItemProvider {
+        let provider = NSItemProvider()
+        let encoded = (try? JSONEncoder().encode(self)) ?? Data()
+        if let jsonString = String(data: encoded, encoding: .utf8) {
+            provider.registerObject(jsonString as NSString, visibility: .all)
+        }
+        provider.registerDataRepresentation(
+            forTypeIdentifier: UTType.spotiglassPinnedItem.identifier,
+            visibility: .all
+        ) { completion in
+            completion(encoded, nil)
+            return nil
+        }
+        return provider
     }
 }

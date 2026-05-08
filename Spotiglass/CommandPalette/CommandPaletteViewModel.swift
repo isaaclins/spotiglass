@@ -2,6 +2,9 @@ import Foundation
 
 @MainActor
 final class CommandPaletteViewModel: ObservableObject {
+    /// Spotify palette search does not call the network until the stripped query has at least this many characters (reduces `/v1/search` traffic).
+    static let minimumPaletteSearchQueryCharacters = 2
+
     @Published var isPresented = false
     @Published var query = ""
     /// Filters Spotify search sections when not in command (`>`) scope.
@@ -23,6 +26,12 @@ final class CommandPaletteViewModel: ObservableObject {
     var restoreFocus: (() -> Void)?
 
     private var searchTask: Task<Void, Never>?
+    /// Skips the next `queryDidChangeFromTextField` refresh after legacy `@` prefix normalization mutates `query` programmatically.
+    private var suppressLegacyPrefixQueryRefresh = false
+    /// Last songs-scope search that completed successfully; used to skip redundant identical `(query, category)` provider calls.
+    private var lastSuccessfulSongSearchKey: (query: String, category: CommandPaletteSearchCategory)?
+    /// After Spotify returns HTTP 429, blocks new palette searches until this instant (in addition to client-side GET retries inside `SpotifyAPIClient`).
+    private var rateLimitCooldownUntil: Date = .distantPast
 
     /// Flat list of items across all visible sections, in display order.
     /// Used for arrow-key navigation and Enter execution.
@@ -69,6 +78,9 @@ final class CommandPaletteViewModel: ObservableObject {
         sections = []
         errorText = nil
         isLoading = false
+        lastSuccessfulSongSearchKey = nil
+        suppressLegacyPrefixQueryRefresh = false
+        rateLimitCooldownUntil = .distantPast
     }
 
     func hide() {
@@ -78,6 +90,9 @@ final class CommandPaletteViewModel: ObservableObject {
         selectedIndex = 0
         errorText = nil
         isLoading = false
+        lastSuccessfulSongSearchKey = nil
+        suppressLegacyPrefixQueryRefresh = false
+        rateLimitCooldownUntil = .distantPast
         searchTask?.cancel()
         searchTask = nil
         restoreFocus?()
@@ -90,12 +105,22 @@ final class CommandPaletteViewModel: ObservableObject {
         refresh()
     }
 
+    /// Call from the search field’s `.onChange` so legacy `@` stripping does not schedule a duplicate refresh.
+    func queryDidChangeFromTextField() {
+        if suppressLegacyPrefixQueryRefresh {
+            suppressLegacyPrefixQueryRefresh = false
+            return
+        }
+        refresh()
+    }
+
     func refresh() {
         normalizeLegacyArtistPrefix()
         let parsed = CommandPaletteScope.parse(query)
         let trimmed = parsed.query.trimmingCharacters(in: .whitespacesAndNewlines)
         if parsed.scope == .songs,
            !trimmed.isEmpty,
+           trimmed.count >= Self.minimumPaletteSearchQueryCharacters,
            searchCategoryFilter != .thisPlaylist {
             isLoading = true
             errorText = nil
@@ -111,6 +136,7 @@ final class CommandPaletteViewModel: ObservableObject {
     private func normalizeLegacyArtistPrefix() {
         guard !query.hasPrefix(">"), query.hasPrefix("@") else { return }
         searchCategoryFilter = .artists
+        suppressLegacyPrefixQueryRefresh = true
         query = String(query.dropFirst())
     }
 
@@ -193,6 +219,7 @@ final class CommandPaletteViewModel: ObservableObject {
 
         switch scope {
         case .commands:
+            lastSuccessfulSongSearchKey = nil
             // `>` alone lists every static command. Any query filters by score.
             let staticItems = staticItemsProvider()
             let filtered: [CommandPaletteItem]
@@ -215,6 +242,15 @@ final class CommandPaletteViewModel: ObservableObject {
 
         case .songs:
             guard !trimmed.isEmpty else {
+                lastSuccessfulSongSearchKey = nil
+                sections = []
+                errorText = nil
+                isLoading = false
+                selectedIndex = 0
+                return
+            }
+            guard trimmed.count >= Self.minimumPaletteSearchQueryCharacters else {
+                lastSuccessfulSongSearchKey = nil
                 sections = []
                 errorText = nil
                 isLoading = false
@@ -227,6 +263,17 @@ final class CommandPaletteViewModel: ObservableObject {
 
     /// Spotify search with optional section filter from the footer control.
     private func runSongScopeSearch(query: String, category: CommandPaletteSearchCategory) async {
+        if Date() < rateLimitCooldownUntil {
+            isLoading = false
+            return
+        }
+
+        let dedupeQuery = query.lowercased()
+        if let last = lastSuccessfulSongSearchKey, last.query == dedupeQuery, last.category == category {
+            isLoading = false
+            return
+        }
+
         isLoading = true
         errorText = nil
         do {
@@ -237,10 +284,27 @@ final class CommandPaletteViewModel: ObservableObject {
             let searchResults = try await searchProvider(query, category)
             try Task.checkCancellation()
             sections = Self.sections(from: searchResults, category: category)
+            lastSuccessfulSongSearchKey = (dedupeQuery, category)
             isLoading = false
             selectedIndex = 0
         } catch is CancellationError {
             isLoading = false
+        } catch let error as SpotifyAPIError {
+            switch error {
+            case let .rateLimited(retryAfter):
+                let seconds = retryAfter ?? 5
+                rateLimitCooldownUntil = Date().addingTimeInterval(seconds)
+                lastSuccessfulSongSearchKey = nil
+                sections = []
+                isLoading = false
+                errorText = error.userMessage
+                selectedIndex = 0
+            default:
+                sections = []
+                isLoading = false
+                errorText = error.userMessage
+                selectedIndex = 0
+            }
         } catch {
             sections = []
             isLoading = false
