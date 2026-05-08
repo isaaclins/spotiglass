@@ -1,31 +1,25 @@
 import Foundation
 
 struct SpotifyPagingDTO<Item: Decodable>: Decodable {
-    let href: String?
     let limit: Int
     let next: URL?
     let offset: Int
-    let previous: URL?
     let total: Int
     let items: [Item]
 
     enum CodingKeys: String, CodingKey {
-        case href
         case limit
         case next
         case offset
-        case previous
         case total
         case items
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        href = try container.decodeIfPresent(String.self, forKey: .href)
         limit = try container.decodeIfPresent(Int.self, forKey: .limit) ?? 0
         next = try container.decodeIfPresent(URL.self, forKey: .next)
         offset = try container.decodeIfPresent(Int.self, forKey: .offset) ?? 0
-        previous = try container.decodeIfPresent(URL.self, forKey: .previous)
         total = try container.decodeIfPresent(Int.self, forKey: .total) ?? 0
         // Spotify sometimes embeds `null` entries in paging `items` (e.g. search playlists).
         // Decoding `[Item]` fails at those indices; optional elements decode as nil and are dropped.
@@ -40,34 +34,26 @@ struct SpotifyPagingDTO<Item: Decodable>: Decodable {
 struct SpotifyUserProfileDTO: Decodable {
     let id: String
     let displayName: String?
-    let images: [SpotifyImageDTO]?
     let country: String?
-    let product: String?
 
     enum CodingKeys: String, CodingKey {
         case id
         case displayName = "display_name"
-        case images
         case country
-        case product
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decodeIfPresent(String.self, forKey: .id) ?? "unknown-user"
         displayName = try container.decodeIfPresent(String.self, forKey: .displayName)
-        images = try container.decodeIfPresent([SpotifyImageDTO].self, forKey: .images) ?? []
         country = try container.decodeIfPresent(String.self, forKey: .country)
-        product = try container.decodeIfPresent(String.self, forKey: .product)
     }
 
     func domainModel() -> SpotifyUserProfile {
         SpotifyUserProfile(
             id: id,
             displayName: displayName,
-            imageURL: images?.largestImageURL,
-            country: country,
-            product: SpotifyProductTier(rawValue: product ?? "") ?? .unknown
+            country: country
         )
     }
 }
@@ -75,24 +61,18 @@ struct SpotifyUserProfileDTO: Decodable {
 struct SpotifyPlaylistDTO: Decodable {
     let id: String
     let name: String
-    let description: String?
     let owner: SpotifyOwnerDTO
     let images: [SpotifyImageDTO]
     let items: SpotifyPlaylistTracksReferenceDTO
-    let isPublic: Bool?
-    let isCollaborative: Bool
     let snapshotID: String
 
     enum CodingKeys: String, CodingKey {
         case id
         case name
-        case description
         case owner
         case images
         case items
         case tracks
-        case isPublic = "public"
-        case isCollaborative = "collaborative"
         case snapshotID = "snapshot_id"
     }
 
@@ -100,7 +80,6 @@ struct SpotifyPlaylistDTO: Decodable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decodeIfPresent(String.self, forKey: .id) ?? "unknown-playlist"
         name = try container.decodeIfPresent(String.self, forKey: .name) ?? "Untitled playlist"
-        description = try container.decodeIfPresent(String.self, forKey: .description)
         owner = try container.decodeIfPresent(SpotifyOwnerDTO.self, forKey: .owner) ?? SpotifyOwnerDTO(id: "unknown-owner", displayName: nil)
         images = try container.decodeIfPresent([SpotifyImageDTO].self, forKey: .images) ?? []
         // The February 2026 Web API rename moved playlist track summary from `tracks`
@@ -109,8 +88,6 @@ struct SpotifyPlaylistDTO: Decodable {
         let itemsReference = try container.decodeIfPresent(SpotifyPlaylistTracksReferenceDTO.self, forKey: .items)
         let tracksReference = try container.decodeIfPresent(SpotifyPlaylistTracksReferenceDTO.self, forKey: .tracks)
         items = itemsReference ?? tracksReference ?? SpotifyPlaylistTracksReferenceDTO(total: 0)
-        isPublic = try container.decodeIfPresent(Bool.self, forKey: .isPublic)
-        isCollaborative = try container.decodeIfPresent(Bool.self, forKey: .isCollaborative) ?? false
         snapshotID = try container.decodeIfPresent(String.self, forKey: .snapshotID) ?? id
     }
 
@@ -118,12 +95,9 @@ struct SpotifyPlaylistDTO: Decodable {
         SpotifyPlaylistSummary(
             id: id,
             name: name,
-            description: description?.nilIfEmpty,
             ownerName: owner.displayName ?? owner.id,
             imageURL: images.largestImageURL,
             trackCount: items.total,
-            isPublic: isPublic,
-            isCollaborative: isCollaborative,
             snapshotID: snapshotID
         )
     }
@@ -187,12 +161,10 @@ struct SpotifyImageDTO: Decodable {
 }
 
 struct SpotifyPlaylistTrackItemDTO: Decodable {
-    let addedAt: Date?
     let isLocal: Bool?
     let item: SpotifyPlaylistPlayableDTO?
 
     enum CodingKeys: String, CodingKey {
-        case addedAt = "added_at"
         case isLocal = "is_local"
         case item
         case track
@@ -200,7 +172,6 @@ struct SpotifyPlaylistTrackItemDTO: Decodable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        addedAt = try container.decodeIfPresent(Date.self, forKey: .addedAt)
         isLocal = try container.decodeIfPresent(Bool.self, forKey: .isLocal)
         // The February 2026 Web API rename moved each playlist entry's playable from
         // `track` to `item`. The deprecated `track` field is still emitted for
@@ -233,7 +204,6 @@ struct SpotifyPlaylistTrackItemDTO: Decodable {
 
         return SpotifyPlaylistTrackItem(
             id: itemID(position: position, content: content),
-            addedAt: addedAt,
             content: content
         )
     }
@@ -341,7 +311,6 @@ struct SpotifyTrackDTO: Decodable {
         SpotifyLocalTrack(
             name: name,
             artists: artists.map(\.name),
-            albumName: album?.name,
             durationMilliseconds: durationMilliseconds,
             uri: uri
         )
@@ -354,7 +323,6 @@ struct SpotifyEpisodeDTO: Decodable {
     let show: SpotifyShowDTO?
     let images: [SpotifyImageDTO]?
     let durationMilliseconds: Int
-    let isExplicit: Bool
     let isPlayable: Bool?
     let uri: String
 
@@ -364,7 +332,6 @@ struct SpotifyEpisodeDTO: Decodable {
         case show
         case images
         case durationMilliseconds = "duration_ms"
-        case isExplicit = "explicit"
         case isPlayable = "is_playable"
         case uri
     }
@@ -376,7 +343,6 @@ struct SpotifyEpisodeDTO: Decodable {
         show = try container.decodeIfPresent(SpotifyShowDTO.self, forKey: .show)
         images = try container.decodeIfPresent([SpotifyImageDTO].self, forKey: .images) ?? []
         durationMilliseconds = try container.decodeIfPresent(Int.self, forKey: .durationMilliseconds) ?? 0
-        isExplicit = try container.decodeIfPresent(Bool.self, forKey: .isExplicit) ?? false
         isPlayable = try container.decodeIfPresent(Bool.self, forKey: .isPlayable)
         uri = try container.decodeIfPresent(String.self, forKey: .uri) ?? id.map { "spotify:episode:\($0)" } ?? "spotify:episode:unavailable"
     }
@@ -389,7 +355,6 @@ struct SpotifyEpisodeDTO: Decodable {
             showName: show?.name,
             artworkURL: images?.largestImageURL,
             durationMilliseconds: durationMilliseconds,
-            isExplicit: isExplicit,
             isPlayable: isPlayable,
             uri: uri
         )
@@ -597,24 +562,18 @@ struct SpotifyBatchedAlbumsResponseDTO: Decodable {
 
 struct SpotifyBatchedAlbumDTO: Decodable {
     let id: String?
-    let name: String?
-    let images: [SpotifyImageDTO]?
     /// Spotify embeds the first ~50 tracks of each album under `tracks.items`; absent for unknown
     /// IDs (the surrounding array entry is `null` in that case) but always present for resolved albums.
     let tracks: SpotifyPagingDTO<SpotifyTrackDTO>?
 
     enum CodingKeys: String, CodingKey {
         case id
-        case name
-        case images
         case tracks
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decodeIfPresent(String.self, forKey: .id)
-        name = try container.decodeIfPresent(String.self, forKey: .name)
-        images = try container.decodeIfPresent([SpotifyImageDTO].self, forKey: .images)
         tracks = try container.decodeIfPresent(SpotifyPagingDTO<SpotifyTrackDTO>.self, forKey: .tracks)
     }
 
@@ -623,8 +582,6 @@ struct SpotifyBatchedAlbumDTO: Decodable {
         let resolvedTracks = (tracks?.items ?? []).compactMap { $0.domainModel() }
         return SpotifyBatchedAlbum(
             id: id,
-            name: name,
-            imageURL: images?.largestImageURL,
             tracks: resolvedTracks,
             tracksAvailable: tracks != nil
         )
