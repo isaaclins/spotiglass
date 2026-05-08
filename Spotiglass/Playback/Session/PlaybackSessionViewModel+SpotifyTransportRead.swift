@@ -1,0 +1,113 @@
+import Foundation
+
+@MainActor
+extension PlaybackSessionViewModel {
+    /// Refreshes shuffle/repeat from Spotify (`GET /v1/me/player`). Safe to call from UI and poll paths.
+    /// Concurrent calls are coalesced so only one in-flight request runs at a time.
+    func syncTransportFromSpotify(minimumShuffleMutationVersion: UInt64? = nil) async {
+        guard controlCommandsInFlight == 0 else {
+            transportSyncDeferredWhileControlCommandInFlight = true
+            return
+        }
+        if transportSyncInFlight {
+            transportSyncQueued = true
+            return
+        }
+
+        repeat {
+            transportSyncQueued = false
+            transportSyncInFlight = true
+            defer { transportSyncInFlight = false }
+
+            do {
+                if let snapshot = try await playbackAPI.fetchPlayerSnapshot() {
+                    latestPlayerSnapshot = snapshot
+                    applyTransportShuffleEnabled(
+                        snapshot.transport.shuffle,
+                        minimumMutationVersion: minimumShuffleMutationVersion
+                    )
+                    applyTransportRepeatMode(snapshot.transport.repeatMode)
+                } else {
+                    latestPlayerSnapshot = nil
+                }
+                transportTransientErrorCount = 0
+                transportRateLimitedUntil = nil
+                if localMutationSettleTicksRemaining > 0 {
+                    localMutationSettleTicksRemaining -= 1
+                }
+                refreshTrayOutputSymbol()
+            } catch {
+                applyTransportPollingBackoff(for: error)
+                // Polling should not surface transport read failures as playback errors.
+            }
+        } while transportSyncQueued
+
+        restartTransportPollingIfNeeded()
+    }
+
+    private func applyTransportPollingBackoff(for error: Error) {
+        guard let apiError = error as? SpotifyAPIError else {
+            transportTransientErrorCount = 0
+            return
+        }
+        switch apiError {
+        case let .rateLimited(retryAfter):
+            let retryDelay = max(1, retryAfter ?? 15)
+            transportRateLimitedUntil = clock.now.advanced(by: .seconds(retryDelay))
+            transportTransientErrorCount = 0
+        case let .server(statusCode, _, _) where statusCode >= 500:
+            transportTransientErrorCount = min(transportTransientErrorCount + 1, 4)
+        case .network:
+            transportTransientErrorCount = min(transportTransientErrorCount + 1, 4)
+        default:
+            transportTransientErrorCount = 0
+        }
+    }
+
+    func refreshConnectDevices(force: Bool = false) async {
+        if !force,
+           let lastConnectDevicesRefreshAt,
+           clock.now < lastConnectDevicesRefreshAt.advanced(by: connectDevicesFreshnessWindow) {
+            return
+        }
+
+        if let inFlight = connectDevicesRefreshTask {
+            isRefreshingConnectDevices = true
+            defer { isRefreshingConnectDevices = false }
+            do {
+                connectDevices = try await inFlight.value
+                lastConnectDevicesRefreshAt = clock.now
+                refreshTrayOutputSymbol()
+            } catch {
+                connectDevices = []
+            }
+            return
+        }
+
+        let refreshTask = Task {
+            try await playbackAPI.fetchAvailableDevices()
+        }
+        connectDevicesRefreshTask = refreshTask
+        isRefreshingConnectDevices = true
+        defer {
+            isRefreshingConnectDevices = false
+            connectDevicesRefreshTask = nil
+        }
+        do {
+            connectDevices = try await refreshTask.value
+            lastConnectDevicesRefreshAt = clock.now
+            refreshTrayOutputSymbol()
+        } catch {
+            connectDevices = []
+        }
+    }
+
+    func noteLocalPlaybackMutation(shouldSyncTransportImmediately: Bool = true) {
+        localMutationSettleTicksRemaining = max(localMutationSettleTicksRemaining, 2)
+        transportRateLimitedUntil = nil
+        guard shouldSyncTransportImmediately else { return }
+        Task { @MainActor [weak self] in
+            await self?.syncTransportFromSpotify()
+        }
+    }
+}
