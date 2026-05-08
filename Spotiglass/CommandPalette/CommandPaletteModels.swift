@@ -218,8 +218,4 @@ struct CommandPaletteSearchResults {
         guard id.hasPrefix("playlist-") else { return nil }
         return String(id.dropFirst("playlist-".count))
     }
-
-    var allItems: [CommandPaletteItem] {
-        mergedPlaylistsForAllCategory() + inPlaylistMatches + tracks + artists + albums
-    }
 }
