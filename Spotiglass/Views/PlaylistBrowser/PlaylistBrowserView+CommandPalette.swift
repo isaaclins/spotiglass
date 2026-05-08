@@ -97,21 +97,8 @@ extension PlaylistBrowserView {
             }
         }
 
-        func paletteOriginPlaylistID() -> String? {
-            guard let sel = viewModel?.sidebarSelection else { return nil }
-            switch sel {
-            case let .playlist(id):
-                return id
-            case .likedSongs:
-                return nil
-            case .home, .pinnedItem:
-                return nil
-            }
-        }
-
         func inPlaylistMatches(from rows: [TrackRowViewModel]) -> [CommandPaletteItem] {
             guard !trimmed.isEmpty else { return [] }
-            let originPID = paletteOriginPlaylistID()
             var scored: [(CommandPaletteItem, Int)] = []
             for row in rows {
                 guard let uri = row.playableURI else { continue }
@@ -127,7 +114,7 @@ extension PlaylistBrowserView {
                 )
                 let score = probe.score(for: trimmed)
                 guard score < 100 else { continue }
-                let pinPayload = row.pinnedTrackItem(originPlaylistID: originPID)
+                let pinPayload = row.pinnedTrackItem()
                 let pinAction: (@MainActor () -> Void)?
                 let unpinAction: (@MainActor () -> Void)?
                 if let pinPayload {
@@ -174,8 +161,7 @@ extension PlaylistBrowserView {
         }
 
         func trackPaletteItem(_ track: SpotifyTrack) -> CommandPaletteItem {
-            let originPID = paletteOriginPlaylistID()
-            let pinPayload = PinnedItem.track(track, originPlaylistID: originPID)
+            let pinPayload = PinnedItem.track(track)
             let pinPair = pinUnpinClosures(for: pinPayload)
             let trackURI = track.uri
             let queueAction: (@MainActor () async -> Void)? = { [weak queueViewModel] in
