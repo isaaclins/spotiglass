@@ -49,6 +49,7 @@ jobs:
             -scheme "$SCHEME" \
             -destination 'platform=macOS' \
             -derivedDataPath "$DERIVED_DATA" \
+            -parallel-testing-enabled NO \
             CODE_SIGNING_ALLOWED=NO \
             test
 
