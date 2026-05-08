@@ -31,7 +31,7 @@ extension PlaybackSessionViewModel {
         do {
             try await webCommander.send(.disconnect, payload: [:])
         } catch {
-            latestLog = error.localizedDescription
+            // Disconnect best-effort; errors are non-fatal.
         }
         deviceID = nil
         hasTransferredPlaybackToCurrentDevice = false
@@ -41,7 +41,6 @@ extension PlaybackSessionViewModel {
         lastConfirmedShuffleEnabled = nil
         inFlightShuffleTarget = nil
         queuedShuffleTarget = nil
-        pendingShuffleMutationVersion = nil
         shuffleMutationVersion = 0
         repeatMode = .off
         confirmedRepeatMode = .off
@@ -124,13 +123,11 @@ extension PlaybackSessionViewModel {
            now < last.advanced(by: playbackHostHardReloadCooldown) {
             playbackHostReloadSuppressedCooldownCount += 1
             bumpCounter(&playbackHostReloadSuppressedCooldownByCause, key: cause.rawValue)
-            latestLog = "Playback host hard reload suppressed by cooldown (\(cause.rawValue))."
             return false
         }
         if playbackHostHardReloadInstants.count >= playbackHostHardReloadWindowMax {
             playbackHostReloadSuppressedBudgetCount += 1
             bumpCounter(&playbackHostReloadSuppressedBudgetByCause, key: cause.rawValue)
-            latestLog = "Playback host hard reload suppressed by budget (\(cause.rawValue))."
             return false
         }
         playbackHostHardReloadInstants.append(now)
