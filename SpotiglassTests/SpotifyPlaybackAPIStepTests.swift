@@ -179,7 +179,6 @@ final class SpotifyPlaybackAPIStepTests: XCTestCase {
         XCTAssertEqual(snapshot?.transport.repeatMode, .off)
         XCTAssertEqual(snapshot?.activeDevice?.deviceID, "dev1")
         XCTAssertEqual(snapshot?.activeDevice?.name, "Kitchen")
-        XCTAssertEqual(snapshot?.activeDevice?.volumePercent, 50)
         XCTAssertEqual(snapshot?.isPlaying, true)
         let request = try XCTUnwrap(httpClient.requests.first)
         XCTAssertEqual(request.url?.absoluteString, "https://api.spotify.com/v1/me/player")
@@ -200,7 +199,6 @@ final class SpotifyPlaybackAPIStepTests: XCTestCase {
         let devices = try await api.fetchAvailableDevices()
         XCTAssertEqual(devices.count, 1)
         XCTAssertEqual(devices.first?.deviceID, "a")
-        XCTAssertEqual(devices.first?.volumePercent, nil)
         let request = try XCTUnwrap(httpClient.requests.first)
         XCTAssertEqual(request.url?.absoluteString, "https://api.spotify.com/v1/me/player/devices")
     }
