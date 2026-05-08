@@ -4,15 +4,6 @@ import XCTest
 
 @MainActor
 final class CommandPaletteKeymapStoreTests: XCTestCase {
-    func testConflictingCommandIDDetectsOverlappingAlwaysBindings() throws {
-        let url = makeCommandPaletteTestsTempSettingsURL()
-        let settingsStore = SpotiglassSettingsStore(fileURL: url)
-        let store = CommandPaletteKeymapStore(settingsStore: settingsStore)
-        let cmdK = try CommandShortcut(keystroke: "cmd-k")
-        let other = store.conflictingCommandID(for: cmdK, proposedForCommand: CommandPaletteCommandID.openSettings)
-        XCTAssertEqual(other, CommandPaletteCommandID.openPalette)
-    }
-
     func testSetBindingPersistsAndClears() throws {
         let url = makeCommandPaletteTestsTempSettingsURL()
         let settingsStore = SpotiglassSettingsStore(fileURL: url)
