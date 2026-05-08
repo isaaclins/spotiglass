@@ -29,12 +29,6 @@ final class CommandPaletteManager: ObservableObject {
     var filterByArtist: ((String) -> Void)?
     var toggleQueue: (() -> Void)?
     var toggleLyrics: (() -> Void)?
-    /// Invoked by `palette.pin` (default ⌘↩); the host wires this to the
-    /// pinned-items store so palette ⌘↩ pins the highlighted result without
-    /// dismissing the palette.
-    var pinSelectedPaletteItem: (@MainActor () -> Void)?
-    /// Invoked by `palette.unpin`; symmetrical with ``pinSelectedPaletteItem``.
-    var unpinSelectedPaletteItem: (@MainActor () -> Void)?
     /// When immersive lyrics are visible, return true after calling dismiss so Escape is consumed before keymaps/WebKit.
     var dismissLyricsOverlayIfPresented: (() -> Bool)?
     /// When set, Toggle Play/Pause only runs if this returns true (e.g. Web Playback transport ready).
