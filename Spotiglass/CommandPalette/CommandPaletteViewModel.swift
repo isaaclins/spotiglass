@@ -39,7 +39,8 @@ final class CommandPaletteViewModel: ObservableObject {
         sections.flatMap(\.items)
     }
 
-    /// Test hook for `@testable import`; replaces visible search rows without running a query.
+    /// Test hook for `@testable import`; replaces visible search rows without running a query (tests only; not indexed by Periphery scan).
+    // periphery:ignore
     internal func testingReplaceSections(_ newSections: [(section: CommandPaletteSection, items: [CommandPaletteItem])]) {
         sections = newSections
         if visibleItems.isEmpty {
