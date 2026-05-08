@@ -45,7 +45,7 @@ private struct PreviewBrowsingAPI: SpotifyBrowsingAPI {
         []
     }
 
-    func artistAlbums(id: String, includeGroups: String, limit: Int, cacheMode: SpotifyRequestCacheMode) async throws -> [SpotifyArtistAlbum] {
+    func artistAlbums(id _: String, includeGroups _: String, limit _: Int, cacheMode _: SpotifyRequestCacheMode) async throws -> [SpotifyArtistAlbum] {
         []
     }
 
