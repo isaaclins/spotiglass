@@ -50,8 +50,8 @@ final class ProcessAudioTapResolverTests: XCTestCase {
         XCTAssertEqual(pids.filter { $0 == 4 }.count, 1)
     }
 
-    func testMergeChildPIDListsPrefersLibprocOrderThenSortedSysctlExtras() {
-        let merged = ProcessAudioTapResolver.mergeChildPIDLists(libproc: [30, 10], sysctl: [50, 10, 30])
+    func testMergeUniqueChildListsPrefersFirstLayerOrderThenSortedExtrasFromSecondLayer() {
+        let merged = ProcessAudioTapResolver.mergeUniqueChildLists([[30, 10], [50, 10, 30]])
         XCTAssertEqual(merged, [30, 10, 50])
     }
 
