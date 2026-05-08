@@ -50,18 +50,6 @@ final class PinnedItemsStore: ObservableObject {
         persist()
     }
 
-    /// Reorder within the pinned list. The destination index follows the
-    /// SwiftUI `move(fromOffsets:toOffset:)` convention: it is the position
-    /// **before** removal, so dropping after element 2 uses `to: 3`.
-    func move(from source: Int, to destination: Int) {
-        guard items.indices.contains(source) else { return }
-        let item = items.remove(at: source)
-        let adjustedDest = destination > source ? destination - 1 : destination
-        let clamped = max(0, min(adjustedDest, items.count))
-        items.insert(item, at: clamped)
-        persist()
-    }
-
     /// Direct-index move used by drop targets that compute insertion indices
     /// against the current (post-removal) array layout. Avoids the +/-1
     /// bookkeeping callers would otherwise have to do themselves.
