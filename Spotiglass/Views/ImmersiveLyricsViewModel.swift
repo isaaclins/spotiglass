@@ -133,7 +133,8 @@ final class ImmersiveLyricsViewModel: ObservableObject {
         }
     }
 
-    /// Clears shared in-memory state (unit tests only).
+    /// Clears shared in-memory state (`SpotiglassTests` only).
+    // periphery:ignore
     internal static func resetSharedStateForTesting() {
         cache.removeAll()
         inFlight.removeAll()
@@ -196,23 +197,20 @@ final class ImmersiveLyricsViewModel: ObservableObject {
             metadata = LyricsDiskCache.TrackBackoffMetadata(
                 failureClass: .noLyrics,
                 failureCount: nextCount,
-                nextEligibleFetchAt: now.addingTimeInterval(Self.noLyricsCooldownDuration),
-                updatedAt: now
+                nextEligibleFetchAt: now.addingTimeInterval(Self.noLyricsCooldownDuration)
             )
         case .decoding:
             metadata = LyricsDiskCache.TrackBackoffMetadata(
                 failureClass: .decoding,
                 failureCount: nextCount,
-                nextEligibleFetchAt: now.addingTimeInterval(Self.decodingCooldownDuration),
-                updatedAt: now
+                nextEligibleFetchAt: now.addingTimeInterval(Self.decodingCooldownDuration)
             )
         case let .rateLimited(retryAfter):
             let cooldown = max(Self.rateLimitedFallbackCooldownDuration, retryAfter ?? 0)
             metadata = LyricsDiskCache.TrackBackoffMetadata(
                 failureClass: .rateLimited,
                 failureCount: nextCount,
-                nextEligibleFetchAt: now.addingTimeInterval(cooldown),
-                updatedAt: now
+                nextEligibleFetchAt: now.addingTimeInterval(cooldown)
             )
         case let .http(code):
             if code >= 500 {
@@ -220,23 +218,20 @@ final class ImmersiveLyricsViewModel: ObservableObject {
                 metadata = LyricsDiskCache.TrackBackoffMetadata(
                     failureClass: .transient,
                     failureCount: nextCount,
-                    nextEligibleFetchAt: now.addingTimeInterval(exp),
-                    updatedAt: now
+                    nextEligibleFetchAt: now.addingTimeInterval(exp)
                 )
             } else {
                 metadata = LyricsDiskCache.TrackBackoffMetadata(
                     failureClass: .permanent,
                     failureCount: nextCount,
-                    nextEligibleFetchAt: now.addingTimeInterval(Self.permanentCooldownDuration),
-                    updatedAt: now
+                    nextEligibleFetchAt: now.addingTimeInterval(Self.permanentCooldownDuration)
                 )
             }
         case .invalidURL, .none:
             metadata = LyricsDiskCache.TrackBackoffMetadata(
                 failureClass: .permanent,
                 failureCount: nextCount,
-                nextEligibleFetchAt: now.addingTimeInterval(Self.permanentCooldownDuration),
-                updatedAt: now
+                nextEligibleFetchAt: now.addingTimeInterval(Self.permanentCooldownDuration)
             )
         }
 
