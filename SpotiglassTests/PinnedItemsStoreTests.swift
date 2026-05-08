@@ -1,4 +1,5 @@
 import XCTest
+import UniformTypeIdentifiers
 @testable import Spotiglass
 
 private final class RecordingPinnedCache: PinnedItemsCache {
@@ -23,12 +24,9 @@ final class PinnedItemsStoreTests: XCTestCase {
             SpotifyPlaylistSummary(
                 id: "p1",
                 name: "A",
-                description: nil,
                 ownerName: "o",
                 imageURL: nil,
                 trackCount: 0,
-                isPublic: nil,
-                isCollaborative: false,
                 snapshotID: "s"
             )
         )
@@ -42,10 +40,10 @@ final class PinnedItemsStoreTests: XCTestCase {
         let store = PinnedItemsStore(cache: cache)
         store.bind(userID: "u1")
         let a = PinnedItem.playlist(
-            SpotifyPlaylistSummary(id: "a", name: "A", description: nil, ownerName: "o", imageURL: nil, trackCount: 0, isPublic: nil, isCollaborative: false, snapshotID: "1")
+            SpotifyPlaylistSummary(id: "a", name: "A", ownerName: "o", imageURL: nil, trackCount: 0, snapshotID: "1")
         )
         let b = PinnedItem.playlist(
-            SpotifyPlaylistSummary(id: "b", name: "B", description: nil, ownerName: "o", imageURL: nil, trackCount: 0, isPublic: nil, isCollaborative: false, snapshotID: "2")
+            SpotifyPlaylistSummary(id: "b", name: "B", ownerName: "o", imageURL: nil, trackCount: 0, snapshotID: "2")
         )
         store.pin(a)
         store.pin(b)
@@ -58,13 +56,13 @@ final class PinnedItemsStoreTests: XCTestCase {
         let store = PinnedItemsStore(cache: cache)
         store.bind(userID: "u1")
         let a = PinnedItem.playlist(
-            SpotifyPlaylistSummary(id: "a", name: "A", description: nil, ownerName: "o", imageURL: nil, trackCount: 0, isPublic: nil, isCollaborative: false, snapshotID: "1")
+            SpotifyPlaylistSummary(id: "a", name: "A", ownerName: "o", imageURL: nil, trackCount: 0, snapshotID: "1")
         )
         let b = PinnedItem.playlist(
-            SpotifyPlaylistSummary(id: "b", name: "B", description: nil, ownerName: "o", imageURL: nil, trackCount: 0, isPublic: nil, isCollaborative: false, snapshotID: "2")
+            SpotifyPlaylistSummary(id: "b", name: "B", ownerName: "o", imageURL: nil, trackCount: 0, snapshotID: "2")
         )
         let c = PinnedItem.playlist(
-            SpotifyPlaylistSummary(id: "c", name: "C", description: nil, ownerName: "o", imageURL: nil, trackCount: 0, isPublic: nil, isCollaborative: false, snapshotID: "3")
+            SpotifyPlaylistSummary(id: "c", name: "C", ownerName: "o", imageURL: nil, trackCount: 0, snapshotID: "3")
         )
 
         XCTAssertTrue(store.pin(a, at: 0))
@@ -78,10 +76,10 @@ final class PinnedItemsStoreTests: XCTestCase {
         let store = PinnedItemsStore(cache: cache)
         store.bind(userID: "u1")
         let a = PinnedItem.playlist(
-            SpotifyPlaylistSummary(id: "a", name: "A", description: nil, ownerName: "o", imageURL: nil, trackCount: 0, isPublic: nil, isCollaborative: false, snapshotID: "1")
+            SpotifyPlaylistSummary(id: "a", name: "A", ownerName: "o", imageURL: nil, trackCount: 0, snapshotID: "1")
         )
         let b = PinnedItem.playlist(
-            SpotifyPlaylistSummary(id: "b", name: "B", description: nil, ownerName: "o", imageURL: nil, trackCount: 0, isPublic: nil, isCollaborative: false, snapshotID: "2")
+            SpotifyPlaylistSummary(id: "b", name: "B", ownerName: "o", imageURL: nil, trackCount: 0, snapshotID: "2")
         )
         store.pin(a)
         store.pin(b)
@@ -125,11 +123,50 @@ final class PinnedItemsStoreTests: XCTestCase {
         let store = PinnedItemsStore(cache: cache)
         store.bind(userID: "u")
         let p = PinnedItem.playlist(
-            SpotifyPlaylistSummary(id: "x", name: "X", description: nil, ownerName: "o", imageURL: nil, trackCount: 0, isPublic: nil, isCollaborative: false, snapshotID: "s")
+            SpotifyPlaylistSummary(id: "x", name: "X", ownerName: "o", imageURL: nil, trackCount: 0, snapshotID: "s")
         )
         store.pin(p)
         store.markStale(id: p.id, true)
         XCTAssertTrue(store.items.first?.isStale == true)
+    }
+
+    func testMarkStaleIgnoresUnknownIDAndCanClearStaleFlag() {
+        let cache = RecordingPinnedCache()
+        let store = PinnedItemsStore(cache: cache)
+        store.bind(userID: "u")
+        let p = PinnedItem.playlist(
+            SpotifyPlaylistSummary(id: "x", name: "X", ownerName: "o", imageURL: nil, trackCount: 0, snapshotID: "s")
+        )
+        store.pin(p)
+        store.markStale(id: "missing", true)
+        XCTAssertEqual(store.items.first?.isStale, false)
+        store.markStale(id: p.id, true)
+        XCTAssertEqual(store.items.first?.isStale, true)
+        store.markStale(id: p.id, false)
+        XCTAssertEqual(store.items.first?.isStale, false)
+    }
+
+    func testBindSwitchesAccountsWithoutLeakingPins() {
+        let cache = RecordingPinnedCache()
+        let store = PinnedItemsStore(cache: cache)
+        let alicePlaylist = PinnedItem.playlist(
+            SpotifyPlaylistSummary(id: "alice-playlist", name: "Alice", ownerName: "Alice", imageURL: nil, trackCount: 0, snapshotID: "a")
+        )
+        let bobArtist = PinnedItem.artist(
+            SpotifyArtist(id: "bob-artist", name: "Bob", imageURL: nil, uri: "spotify:artist:bob-artist")
+        )
+
+        store.bind(userID: "alice")
+        store.pin(alicePlaylist)
+        XCTAssertEqual(store.items.map(\.id), [alicePlaylist.id])
+
+        store.bind(userID: "bob")
+        XCTAssertTrue(store.items.isEmpty)
+        store.pin(bobArtist)
+        XCTAssertEqual(store.items.map(\.id), [bobArtist.id])
+
+        store.bind(userID: "alice")
+        XCTAssertEqual(store.items.map(\.id), [alicePlaylist.id])
     }
 
     func testLibrarySidebarOrderNormalizesMissingSpecialRowsAndDropsUnknownPins() {
@@ -147,14 +184,13 @@ final class PinnedItemsStoreTests: XCTestCase {
             [
                 LibrarySidebarOrder.pinnedToken(for: "p2"),
                 LibrarySidebarOrder.homeToken,
-                LibrarySidebarOrder.likedSongsToken,
                 LibrarySidebarOrder.pinnedToken(for: "p1")
             ]
         )
     }
 
     func testLibrarySidebarOrderDefaultsPinnedFirstOnInitialMigrationOrder() {
-        let existing = [LibrarySidebarOrder.homeToken, LibrarySidebarOrder.likedSongsToken]
+        let existing = [LibrarySidebarOrder.homeToken, "library.likedSongs"]
         let normalized = LibrarySidebarOrder.normalizedOrder(
             existing: existing,
             pinnedItemIDs: ["p1", "p2"]
@@ -164,8 +200,7 @@ final class PinnedItemsStoreTests: XCTestCase {
             [
                 LibrarySidebarOrder.pinnedToken(for: "p1"),
                 LibrarySidebarOrder.pinnedToken(for: "p2"),
-                LibrarySidebarOrder.homeToken,
-                LibrarySidebarOrder.likedSongsToken
+                LibrarySidebarOrder.homeToken
             ]
         )
     }
@@ -174,13 +209,12 @@ final class PinnedItemsStoreTests: XCTestCase {
         let order = [
             LibrarySidebarOrder.homeToken,
             LibrarySidebarOrder.pinnedToken(for: "a"),
-            LibrarySidebarOrder.likedSongsToken,
             LibrarySidebarOrder.pinnedToken(for: "b")
         ]
         let insertion = LibrarySidebarOrder.pinnedInsertionIndex(
             order: order,
             movingPinnedToken: nil,
-            toInsertionIndex: 3
+            toInsertionIndex: 2
         )
         XCTAssertEqual(insertion, 1, "Only pinned rows before insertion should count.")
     }
@@ -189,7 +223,6 @@ final class PinnedItemsStoreTests: XCTestCase {
         let order = [
             LibrarySidebarOrder.homeToken,
             LibrarySidebarOrder.pinnedToken(for: "a"),
-            LibrarySidebarOrder.likedSongsToken,
             LibrarySidebarOrder.pinnedToken(for: "b")
         ]
         let insertion = LibrarySidebarOrder.pinnedInsertionIndex(
@@ -202,8 +235,7 @@ final class PinnedItemsStoreTests: XCTestCase {
 
     func testLibrarySidebarOrderMovedReturnsOriginalWhenTokenMissing() {
         let order = [
-            LibrarySidebarOrder.homeToken,
-            LibrarySidebarOrder.likedSongsToken
+            LibrarySidebarOrder.homeToken
         ]
         let moved = LibrarySidebarOrder.moved(
             order: order,
@@ -222,5 +254,69 @@ final class PinnedItemsStoreTests: XCTestCase {
         XCTAssertEqual(state.activeItem?.id, item.id)
         state.endDrag()
         XCTAssertNil(state.activeItem)
+    }
+
+    /// Locks the `UTType.spotiglassPinnedItem` JSON wire format that ``LibraryPinnedItemDropDelegate`` loads
+    /// via `NSItemProvider.loadDataRepresentation` (still used for pin/reorder in the Library section).
+    func testPinnedSidebarTransferItemProviderRoundTripDecodesAndUnpins() {
+        let cache = RecordingPinnedCache()
+        let store = PinnedItemsStore(cache: cache)
+        store.bind(userID: "u1")
+        let playlist = PinnedItem.playlist(
+            SpotifyPlaylistSummary(
+                id: "p1",
+                name: "A",
+                ownerName: "o",
+                imageURL: nil,
+                trackCount: 0,
+                snapshotID: "s"
+            )
+        )
+        store.pin(playlist)
+        let transfer = PinnedItemTransfer(
+            item: playlist,
+            originScopeID: PinnedItemTransfer.pinnedSidebarScopeID
+        )
+        let exp = expectation(description: "loadDataRepresentation")
+        transfer.itemProvider().loadDataRepresentation(forTypeIdentifier: UTType.spotiglassPinnedItem.identifier) { data, _ in
+            guard let data, let decoded = try? JSONDecoder().decode(PinnedItemTransfer.self, from: data) else {
+                XCTFail("Expected JSON payload decodable as PinnedItemTransfer")
+                exp.fulfill()
+                return
+            }
+            XCTAssertTrue(decoded.isFromPinnedSidebar)
+            XCTAssertEqual(decoded.item.id, playlist.id)
+            DispatchQueue.main.async {
+                store.unpin(id: decoded.item.id)
+                XCTAssertTrue(store.items.isEmpty)
+                exp.fulfill()
+            }
+        }
+        wait(for: [exp], timeout: 2)
+    }
+
+    /// Same `transfer.item.id` used by `onDragSessionUpdated` when ending with `.ended(.delete)` for a sidebar pin.
+    func testUnpinRemovesPinnedSidebarTransferItem() {
+        let cache = RecordingPinnedCache()
+        let store = PinnedItemsStore(cache: cache)
+        store.bind(userID: "u1")
+        let playlist = PinnedItem.playlist(
+            SpotifyPlaylistSummary(
+                id: "p-unpin",
+                name: "B",
+                ownerName: "o",
+                imageURL: nil,
+                trackCount: 0,
+                snapshotID: "s2"
+            )
+        )
+        store.pin(playlist)
+        let transfer = PinnedItemTransfer(
+            item: playlist,
+            originScopeID: PinnedItemTransfer.pinnedSidebarScopeID
+        )
+        XCTAssertTrue(transfer.isFromPinnedSidebar)
+        store.unpin(id: transfer.item.id)
+        XCTAssertTrue(store.items.isEmpty)
     }
 }
