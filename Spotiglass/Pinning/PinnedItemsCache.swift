@@ -31,3 +31,5 @@ final class InMemoryPinnedItemsCache: PinnedItemsCache {
         byUserID[userID] = items
     }
 }
+
+extension SpotifyLocalCache: PinnedItemsCache {}
