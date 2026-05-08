@@ -3,10 +3,6 @@ import Foundation
 struct CachedPlaylists: Codable, Equatable {
     let playlists: [SpotifyPlaylistSummary]
     let cachedAt: Date
-
-    func isFresh(now: Date = Date(), maxAge: TimeInterval = 300) -> Bool {
-        now.timeIntervalSince(cachedAt) <= maxAge
-    }
 }
 
 struct CachedPlaylistTracks: Codable, Equatable {
@@ -15,14 +11,9 @@ struct CachedPlaylistTracks: Codable, Equatable {
     let tracks: [SpotifyPlaylistTrackItem]
     let cachedAt: Date
 
-    func isValid(for snapshotID: String, now: Date = Date(), maxAge: TimeInterval = 300) -> Bool {
-        self.snapshotID == snapshotID && now.timeIntervalSince(cachedAt) <= maxAge
+    func isValid(forPlaylist playlistID: String, snapshotID: String, now: Date = Date(), maxAge: TimeInterval = 300) -> Bool {
+        self.playlistID == playlistID && self.snapshotID == snapshotID && now.timeIntervalSince(cachedAt) <= maxAge
     }
-}
-
-struct CachedSpotifySettings: Codable, Equatable {
-    var lastSelectedPlaylistID: String?
-    var lastUserID: String?
 }
 
 private struct CachedGETResponsePayload: Codable, Equatable {
@@ -74,13 +65,6 @@ struct SpotifyLocalCache {
         try write(CachedPlaylists(playlists: playlists, cachedAt: cachedAt), to: playlistsURL)
     }
 
-    func loadPlaylists(now: Date = Date(), maxAge: TimeInterval = 300) throws -> [SpotifyPlaylistSummary]? {
-        guard let cached: CachedPlaylists = try read(from: playlistsURL), cached.isFresh(now: now, maxAge: maxAge) else {
-            return nil
-        }
-        return cached.playlists
-    }
-
     /// Read saved playlists without a TTL filter; used to decide whether to skip a redundant `me/playlists` fetch on launch.
     func loadPlaylistsBundle(now: Date = Date()) throws -> (playlists: [SpotifyPlaylistSummary], age: TimeInterval)? {
         guard let cached: CachedPlaylists = try read(from: playlistsURL) else {
@@ -108,7 +92,7 @@ struct SpotifyLocalCache {
         maxAge: TimeInterval = 300
     ) throws -> [SpotifyPlaylistTrackItem]? {
         guard let cached: CachedPlaylistTracks = try read(from: tracksURL(playlistID: playlistID)),
-              cached.isValid(for: snapshotID, now: now, maxAge: maxAge) else {
+              cached.isValid(forPlaylist: playlistID, snapshotID: snapshotID, now: now, maxAge: maxAge) else {
             return nil
         }
         return cached.tracks
@@ -141,13 +125,6 @@ struct SpotifyLocalCache {
         try write(payload, to: getResponseURL(digest: digest))
     }
 
-    func loadGETResponse(digest: String, now: Date = Date()) throws -> (data: Data, expiresAt: Date)? {
-        guard let record = try loadGETResponseRecord(digest: digest, now: now, allowExpired: false) else {
-            return nil
-        }
-        return (record.data, record.expiresAt)
-    }
-
     func loadGETResponseRecord(
         digest: String,
         now: Date = Date(),
@@ -165,14 +142,6 @@ struct SpotifyLocalCache {
             return nil
         }
         return CachedGETResponseRecord(data: data, expiresAt: expiresAt, isExpired: isExpired)
-    }
-
-    func saveSettings(_ settings: CachedSpotifySettings) throws {
-        try write(settings, to: settingsURL)
-    }
-
-    func loadSettings() throws -> CachedSpotifySettings {
-        try read(from: settingsURL) ?? CachedSpotifySettings()
     }
 
     /// Persist the per-account pinned-items list. The file lives under
