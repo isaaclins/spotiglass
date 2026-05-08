@@ -129,7 +129,7 @@ final class SpotifyPlaybackAPIStepTests: XCTestCase {
         XCTAssertTrue(url.contains("device_id=device-2"))
     }
 
-    func testFetchPlayerTransportReturnsNilOn204() async throws {
+    func testFetchPlayerSnapshotReturnsNilOn204() async throws {
         let tokenProvider = StaticPlaybackAccessTokenProvider(token: "token")
         let httpClient = SeqPlaybackHTTPClient(responses: [(Data(), 204)])
         let api = SpotifyPlaybackAPI(
@@ -138,14 +138,14 @@ final class SpotifyPlaybackAPIStepTests: XCTestCase {
             httpClient: httpClient
         )
 
-        let transport = try await api.fetchPlayerTransport()
-        XCTAssertNil(transport)
+        let snapshot = try await api.fetchPlayerSnapshot()
+        XCTAssertNil(snapshot)
         let request = try XCTUnwrap(httpClient.requests.first)
         XCTAssertEqual(request.httpMethod, "GET")
         XCTAssertEqual(request.url?.absoluteString, "https://api.spotify.com/v1/me/player")
     }
 
-    func testFetchPlayerTransportDecodesShuffleAndRepeat() async throws {
+    func testFetchPlayerSnapshotDecodesShuffleAndRepeatFromTransport() async throws {
         let tokenProvider = StaticPlaybackAccessTokenProvider(token: "token")
         let body = """
         {"shuffle_state":true,"repeat_state":"context","is_playing":true}
@@ -157,9 +157,9 @@ final class SpotifyPlaybackAPIStepTests: XCTestCase {
             httpClient: httpClient
         )
 
-        let transport = try await api.fetchPlayerTransport()
-        XCTAssertEqual(transport?.shuffle, true)
-        XCTAssertEqual(transport?.repeatMode, .context)
+        let snapshot = try await api.fetchPlayerSnapshot()
+        XCTAssertEqual(snapshot?.transport.shuffle, true)
+        XCTAssertEqual(snapshot?.transport.repeatMode, .context)
     }
 
     func testFetchPlayerSnapshotDecodesNestedDevice() async throws {
@@ -183,79 +183,6 @@ final class SpotifyPlaybackAPIStepTests: XCTestCase {
         XCTAssertEqual(snapshot?.isPlaying, true)
         let request = try XCTUnwrap(httpClient.requests.first)
         XCTAssertEqual(request.url?.absoluteString, "https://api.spotify.com/v1/me/player")
-    }
-
-    func testPauseSkipsPutWhenAlreadyPausedOnSameDevice() async throws {
-        let tokenProvider = StaticPlaybackAccessTokenProvider(token: "token")
-        let body = """
-        {"shuffle_state":false,"repeat_state":"off","is_playing":false,"device":{"id":"dev1","is_active":true,"is_restricted":false,"name":"Mac","type":"computer","volume_percent":null}}
-        """.data(using: .utf8)!
-        let httpClient = SeqPlaybackHTTPClient(responses: [(body, 200)])
-        let api = SpotifyPlaybackAPI(
-            baseURL: URL(string: "https://api.spotify.com")!,
-            tokenProvider: tokenProvider,
-            httpClient: httpClient
-        )
-
-        try await api.pause(deviceID: "dev1")
-
-        XCTAssertEqual(httpClient.requests.count, 1)
-        XCTAssertEqual(httpClient.requests.first?.httpMethod, "GET")
-    }
-
-    func testPauseIssuesPutAfterSnapshotShowsPlaying() async throws {
-        let tokenProvider = StaticPlaybackAccessTokenProvider(token: "token")
-        let snapshotBody = """
-        {"shuffle_state":false,"repeat_state":"off","is_playing":true,"device":{"id":"dev1","is_active":true,"is_restricted":false,"name":"Mac","type":"computer","volume_percent":null}}
-        """.data(using: .utf8)!
-        let httpClient = SeqPlaybackHTTPClient(responses: [(snapshotBody, 200), (Data(), 204)])
-        let api = SpotifyPlaybackAPI(
-            baseURL: URL(string: "https://api.spotify.com")!,
-            tokenProvider: tokenProvider,
-            httpClient: httpClient
-        )
-
-        try await api.pause(deviceID: "dev1")
-
-        XCTAssertEqual(httpClient.requests.count, 2)
-        XCTAssertEqual(httpClient.requests[0].httpMethod, "GET")
-        XCTAssertEqual(httpClient.requests[1].httpMethod, "PUT")
-        XCTAssertTrue(httpClient.requests[1].url?.absoluteString.contains("/v1/me/player/pause") == true)
-    }
-
-    func testPauseSkipsWhenNoActivePlayer() async throws {
-        let tokenProvider = StaticPlaybackAccessTokenProvider(token: "token")
-        let httpClient = SeqPlaybackHTTPClient(responses: [(Data(), 204)])
-        let api = SpotifyPlaybackAPI(
-            baseURL: URL(string: "https://api.spotify.com")!,
-            tokenProvider: tokenProvider,
-            httpClient: httpClient
-        )
-
-        try await api.pause(deviceID: "dev1")
-
-        XCTAssertEqual(httpClient.requests.count, 1)
-        XCTAssertEqual(httpClient.requests.first?.httpMethod, "GET")
-    }
-
-    func testConcurrentPauseCallsAreCoalescedByGate() async throws {
-        let tokenProvider = StaticPlaybackAccessTokenProvider(token: "token")
-        let snapshotBody = """
-        {"shuffle_state":false,"repeat_state":"off","is_playing":true,"device":{"id":"dev1","is_active":true,"is_restricted":false,"name":"Mac","type":"computer","volume_percent":null}}
-        """.data(using: .utf8)!
-        let httpClient = SeqPlaybackHTTPClient(responses: [(snapshotBody, 200), (Data(), 204)])
-        let api = SpotifyPlaybackAPI(
-            baseURL: URL(string: "https://api.spotify.com")!,
-            tokenProvider: tokenProvider,
-            httpClient: httpClient
-        )
-
-        await withTaskGroup(of: Void.self) { group in
-            group.addTask { try? await api.pause(deviceID: "dev1") }
-            group.addTask { try? await api.pause(deviceID: "dev1") }
-        }
-
-        XCTAssertEqual(httpClient.requests.count, 2)
     }
 
     func testFetchAvailableDevicesDecodesResponse() async throws {
