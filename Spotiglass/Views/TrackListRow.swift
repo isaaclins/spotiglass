@@ -18,8 +18,6 @@ struct TrackListRow: View {
     let openArtist: (String) -> Void
     /// When set, the row participates in drag-to-pin for this surface (e.g. `pl:<playlistId>` or `ar:<artistID>`).
     var tracksSurfaceID: String? = nil
-    /// Spotify playlist id when this list is a library playlist; `nil` for Liked Songs and artist top tracks.
-    var originPlaylistID: String? = nil
 
     @EnvironmentObject private var pinnedStore: PinnedItemsStore
     @State private var isHovering: Bool = false
@@ -82,8 +80,7 @@ struct TrackListRow: View {
         }
         .modifier(TrackListPinningModifier(
             track: track,
-            tracksSurfaceID: tracksSurfaceID,
-            originPlaylistID: originPlaylistID
+            tracksSurfaceID: tracksSurfaceID
         ))
         .onTapGesture {
             if isCurrent {
@@ -107,7 +104,7 @@ struct TrackListRow: View {
                 Task { await addToQueue(uri) }
             }
             .disabled(!hasPlaybackDevice || track.playableURI == nil)
-            if let pinned = track.pinnedTrackItem(originPlaylistID: originPlaylistID) {
+            if let pinned = track.pinnedTrackItem() {
                 if isTrackPinned {
                     Button("Unpin from Sidebar") {
                         pinnedStore.unpin(id: pinned.id)
@@ -192,10 +189,9 @@ struct TrackListRow: View {
 private struct TrackListPinningModifier: ViewModifier {
     let track: TrackRowViewModel
     let tracksSurfaceID: String?
-    let originPlaylistID: String?
 
     func body(content: Content) -> some View {
-        if let sid = tracksSurfaceID, let pinned = track.pinnedTrackItem(originPlaylistID: originPlaylistID) {
+        if let sid = tracksSurfaceID, let pinned = track.pinnedTrackItem() {
             let transfer = PinnedItemTransfer(item: pinned, originScopeID: sid)
             content
                 .onDrag(
