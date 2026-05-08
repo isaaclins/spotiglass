@@ -112,10 +112,6 @@ struct AuthenticatedSession: Equatable {
     let scope: String?
     let expiresAt: Date
 
-    var authorizationHeaderValue: String {
-        "\(tokenType) \(accessToken)"
-    }
-
     var grantedScopes: Set<String> {
         Set((scope ?? "").split(separator: " ").map(String.init))
     }
