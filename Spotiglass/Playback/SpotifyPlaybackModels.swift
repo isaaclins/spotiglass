@@ -31,10 +31,6 @@ struct PlaybackNowPlaying: Equatable {
         Self.artistTapTargets(fromNames: artists)
     }
 
-    var progressText: String {
-        "\(Self.durationText(milliseconds: positionMilliseconds)) / \(Self.durationText(milliseconds: durationMilliseconds))"
-    }
-
     static func durationText(milliseconds: Int) -> String {
         let totalSeconds = max(0, milliseconds / 1_000)
         return "\(totalSeconds / 60):\(String(format: "%02d", totalSeconds % 60))"
@@ -90,15 +86,6 @@ enum PlaybackRecoveryAction: Equatable {
     case retryTransfer
 }
 
-enum QueueItemSource: Equatable {
-    /// From Web Playback SDK `track_window.next_tracks` (immediate).
-    case sdk
-    /// User explicitly queued (heuristic: appears after SDK prefix in Web API queue).
-    case userQueued
-    /// From Spotify Web API queue or general upcoming context.
-    case upcoming
-}
-
 struct ArtistTapTarget: Equatable, Identifiable {
     let id: String?
     let name: String
@@ -125,7 +112,6 @@ struct QueueItem: Identifiable, Equatable {
     let albumID: String?
     let durationMilliseconds: Int
     let uri: String?
-    let source: QueueItemSource
     let artistTapTargets: [ArtistTapTarget]
 
     init(
@@ -137,7 +123,6 @@ struct QueueItem: Identifiable, Equatable {
         albumID: String? = nil,
         durationMilliseconds: Int,
         uri: String?,
-        source: QueueItemSource,
         artistTapTargets: [ArtistTapTarget] = []
     ) {
         self.id = id ?? uri ?? UUID().uuidString
@@ -148,13 +133,12 @@ struct QueueItem: Identifiable, Equatable {
         self.albumID = albumID
         self.durationMilliseconds = durationMilliseconds
         self.uri = uri
-        self.source = source
         self.artistTapTargets = artistTapTargets
     }
 }
 
 extension QueueItem {
-    static func from(track: SpotifyTrack, source: QueueItemSource) -> QueueItem {
+    static func from(track: SpotifyTrack) -> QueueItem {
         QueueItem(
             name: track.name,
             subtitle: track.artists.joined(separator: ", "),
@@ -163,32 +147,30 @@ extension QueueItem {
             albumID: track.albumID,
             durationMilliseconds: track.durationMilliseconds,
             uri: track.uri,
-            source: source,
             artistTapTargets: artistTapTargets(artistRefs: track.artistRefs, fallbackSubtitle: track.artists.joined(separator: ", "))
         )
     }
 
-    static func from(episode: SpotifyEpisode, source: QueueItemSource) -> QueueItem {
+    static func from(episode: SpotifyEpisode) -> QueueItem {
         QueueItem(
             name: episode.name,
             subtitle: episode.showName ?? "Podcast",
             albumArtURL: episode.artworkURL,
             durationMilliseconds: episode.durationMilliseconds,
-            uri: episode.uri,
-            source: source
+            uri: episode.uri
         )
     }
 
-    static func from(queueItem: SpotifyQueueTrackItem, source: QueueItemSource) -> QueueItem {
+    static func from(queueItem: SpotifyQueueTrackItem) -> QueueItem {
         switch queueItem {
         case let .track(track):
-            .from(track: track, source: source)
+            .from(track: track)
         case let .episode(episode):
-            .from(episode: episode, source: source)
+            .from(episode: episode)
         }
     }
 
-    static func from(playback: PlaybackNowPlaying, source: QueueItemSource) -> QueueItem {
+    static func from(playback: PlaybackNowPlaying) -> QueueItem {
         QueueItem(
             name: playback.name,
             subtitle: playback.artistText,
@@ -197,7 +179,6 @@ extension QueueItem {
             albumID: playback.albumID,
             durationMilliseconds: playback.durationMilliseconds,
             uri: playback.uri,
-            source: source,
             artistTapTargets: playback.artistTapTargets
         )
     }
@@ -234,7 +215,6 @@ extension QueueItem {
 
 /// Response from `GET /v1/me/player/queue`.
 struct SpotifyQueueResponse: Equatable {
-    let currentlyPlaying: SpotifyQueueTrackItem?
     let queue: [SpotifyQueueTrackItem]
 }
 
@@ -268,7 +248,6 @@ struct SpotifyConnectDevice: Equatable, Identifiable {
     let name: String
     /// Spotify device type string (e.g. `computer`, `smartphone`, `speaker`).
     let type: String
-    let volumePercent: Int?
 
     var id: String { deviceID }
 }
