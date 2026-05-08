@@ -17,7 +17,7 @@ final class QueuePanelTests: XCTestCase {
             uri: "spotify:track:track-1"
         )
 
-        let item = QueueItem.from(track: track, source: .upcoming)
+        let item = QueueItem.from(track: track)
         XCTAssertEqual(item.artistTapTargets, [ArtistTapTarget(id: "artist-1", name: "Resolved Artist")])
     }
 
