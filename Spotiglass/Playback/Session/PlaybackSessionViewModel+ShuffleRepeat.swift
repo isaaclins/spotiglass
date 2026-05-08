@@ -10,7 +10,7 @@ extension PlaybackSessionViewModel {
         let target = !shuffleEnabled
         shuffleEnabled = target
         let mutationVersion = nextShuffleMutationVersion()
-        setPendingShuffle(enabled: target, mutationVersion: mutationVersion)
+        setPendingShuffle(enabled: target)
 
         // Avoid writes when the target is already confirmed from Spotify transport.
         if lastConfirmedShuffleEnabled == target {
@@ -63,7 +63,7 @@ extension PlaybackSessionViewModel {
             }
             nextTarget = queuedTarget
             nextMutationVersion = nextShuffleMutationVersion()
-            setPendingShuffle(enabled: queuedTarget, mutationVersion: nextMutationVersion)
+            setPendingShuffle(enabled: queuedTarget)
             shuffleEnabled = queuedTarget
         }
     }
@@ -85,16 +85,14 @@ extension PlaybackSessionViewModel {
         pendingRepeatDeadline = clock.now.advanced(by: pendingRepeatTimeout)
     }
 
-    func setPendingShuffle(enabled: Bool, mutationVersion: UInt64) {
+    func setPendingShuffle(enabled: Bool) {
         pendingShuffleEnabled = enabled
         pendingShuffleDeadline = clock.now.advanced(by: pendingShuffleTimeout)
-        pendingShuffleMutationVersion = mutationVersion
     }
 
     func clearPendingShuffle() {
         pendingShuffleEnabled = nil
         pendingShuffleDeadline = nil
-        pendingShuffleMutationVersion = nil
     }
 
     func clearPendingRepeat() {
