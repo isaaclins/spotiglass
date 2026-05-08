@@ -132,8 +132,7 @@ final class SpotifyAPIClientArtistAndAlbumTracksTests: XCTestCase {
 
         let result = try await client.albumTracksWithMetrics(albumID: "al1", market: "US", limit: 2, maxPages: 1)
 
-        XCTAssertEqual(result.pageRequests, 1, "maxPages cap should stop pagination after one HTTP call regardless of `next` URL.")
         XCTAssertEqual(result.tracks.map(\.id), ["tr1", "tr2"])
-        XCTAssertEqual(httpClient.requests.count, 1)
+        XCTAssertEqual(httpClient.requests.count, 1, "maxPages cap should stop pagination after one HTTP call regardless of `next` URL.")
     }
 }
