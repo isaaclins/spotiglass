@@ -77,29 +77,3 @@ struct ShellBackground: View {
     }
 }
 
-/// In-app mark matches the running app’s icon (Icon Composer is not a normal `imageset` name). Use the bundle icon from Launch Services, not `Image("AppIcon")` (that looks up the asset catalog and logs “No image named 'AppIcon'…” when the only source is the `.icon` document).
-struct SpotiglassBrandLogo: View {
-    var length: CGFloat = 72
-
-    var body: some View {
-        Image(nsImage: NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath))
-            .resizable()
-            .interpolation(.high)
-            .scaledToFit()
-            .frame(width: length, height: length)
-            .accessibilityLabel("\(AppMetadata.displayName) logo")
-    }
-}
-
-struct StatusPill: View {
-    let text: String
-    let systemImage: String
-
-    var body: some View {
-        Label(text, systemImage: systemImage)
-            .font(.caption.weight(.medium))
-            .padding(.horizontal, SpotiglassDesign.spacingS)
-            .padding(.vertical, SpotiglassDesign.spacingXS)
-            .background(.secondary.opacity(0.14), in: Capsule())
-    }
-}
