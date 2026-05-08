@@ -6,7 +6,6 @@ import Foundation
 final class PlaybackSessionViewModel: ObservableObject {
     @Published var connectionState: PlaybackConnectionState = .disconnected
     @Published var deviceID: String?
-    @Published var latestLog: String?
     /// The Spotify playlist ID that the current playback originated from, or
     /// `nil` if playback was started from a single track URI or external context.
     /// Used by the sidebar to highlight which playlist row is "now playing".
@@ -122,7 +121,6 @@ final class PlaybackSessionViewModel: ObservableObject {
     var coalescedSeekPositionMilliseconds: Int?
     var pendingSeekDisplayPositionMilliseconds: Int?
     var pendingSeekDeadline: ContinuousClock.Instant?
-    var pendingShuffleMutationVersion: UInt64?
     var shuffleMutationVersion: UInt64 = 0
     var inFlightShuffleTarget: Bool?
     var queuedShuffleTarget: Bool?
@@ -186,13 +184,6 @@ final class PlaybackSessionViewModel: ObservableObject {
         }
     }
 
-    struct PlayCommandTriggerRoute: Equatable {
-        let trigger: String
-        let viewPath: String
-        let entrypoint: String
-        let endpointPath: String
-    }
-
     enum PlaybackHostRecoveryCause: String {
         case startupTask = "view_startup"
         case manualReconnect = "manual_reconnect"
@@ -200,34 +191,6 @@ final class PlaybackSessionViewModel: ObservableObject {
         case notReady = "not_ready"
         case missingDeviceRetryTransfer = "missing_device_retry_transfer"
     }
-
-    /// Canonical map of UI/state triggers that can dispatch `PUT /v1/me/player/play`.
-    static let playCommandTriggerMatrix: [PlayCommandTriggerRoute] = [
-        .init(
-            trigger: "Track row tap / command palette play URI / pinned track activation",
-            viewPath: "Spotiglass/Views/PlaylistBrowserView.swift",
-            entrypoint: "play(uri:)",
-            endpointPath: "/v1/me/player/play"
-        ),
-        .init(
-            trigger: "Playlist/artist clicked-track playback",
-            viewPath: "Spotiglass/Views/PlaylistBrowserView.swift",
-            entrypoint: "playFromPlaylist(clickedURI:playableURIs:playlistID:)",
-            endpointPath: "/v1/me/player/play"
-        ),
-        .init(
-            trigger: "Artist album context playback",
-            viewPath: "Spotiglass/Views/ArtistDetailView.swift",
-            entrypoint: "play(contextURI:)",
-            endpointPath: "/v1/me/player/play"
-        ),
-        .init(
-            trigger: "Queue panel play-now action",
-            viewPath: "Spotiglass/Views/QueuePanelView.swift",
-            entrypoint: "play(uri:)",
-            endpointPath: "/v1/me/player/play"
-        )
-    ]
 
     /// True while a toggle command is in flight until the bridge ACK or timeout (avoids overlapping SDK toggles).
     var togglePlayPauseAwaitingBridgeAck = false
