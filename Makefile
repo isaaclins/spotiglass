@@ -62,6 +62,7 @@ test:
 		-scheme $(SCHEME) \
 		-destination '$(DESTINATION)' \
 		-derivedDataPath $(DERIVED_DATA) \
+		-parallel-testing-enabled NO \
 		$(CODE_SIGN_FLAGS) \
 		$(XCODE_EXTRA) \
 		test
@@ -70,8 +71,12 @@ scan:
 	periphery scan \
 		--project $(PROJECT) \
 		--schemes $(SCHEME) \
-		--targets $(SCHEME)
-
+		--targets $(SCHEME); \
+		periphery_exit=$$?; \
+		tokei .; \
+		tokei_exit=$$?; \
+		if [ $$periphery_exit -ne 0 ]; then exit $$periphery_exit; fi; \
+		exit $$tokei_exit
 clean:
 	rm -rf "$(DERIVED_DATA)"
 	@echo "Removing Keychain generic-password items with service $(KEYCHAIN_SERVICE)…"
@@ -84,7 +89,7 @@ help:
 	@echo "  make run           — build and open Debug app"
 	@echo "  make release       — unsigned Release → $(RELEASE_APP)"
 	@echo "  make test          — unit tests"
-	@echo "  make scan          — run periphery scan"
+	@echo "  make scan          — periphery (dead code) + tokei (LOC); both run even if one fails"
 	@echo "  make list          — list schemes"
 	@echo "  make clean         — remove $(DERIVED_DATA) + Keychain items (service $(KEYCHAIN_SERVICE))"
 	@echo "Vars: UNSIGNED=1 (CODE_SIGNING_ALLOWED=NO); XCODE_EXTRA for extra settings"
