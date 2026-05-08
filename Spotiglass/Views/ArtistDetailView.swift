@@ -76,7 +76,6 @@ struct ArtistDetailContent: View {
             }
             .padding(.vertical, SpotiglassDesign.spacingM)
         }
-        .acceptsPinnedDropOut(store: pinnedStore)
     }
 
     private var header: some View {
