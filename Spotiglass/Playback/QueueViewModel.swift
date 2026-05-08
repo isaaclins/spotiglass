@@ -509,7 +509,7 @@ final class QueueViewModel: ObservableObject {
     }
 
     private static func sdkUpcomingItems(from sdkNext: [PlaybackNowPlaying], limit: Int) -> [QueueItem] {
-        Array(sdkNext.map { QueueItem.from(playback: $0, source: .sdk) }.prefix(limit))
+        Array(sdkNext.map { QueueItem.from(playback: $0) }.prefix(limit))
     }
 
     private static func nowPlayingQueueItem(from state: PlaybackConnectionState) -> QueueItem? {
@@ -523,35 +523,19 @@ final class QueueViewModel: ObservableObject {
             np = nil
         }
         guard let np else { return nil }
-        return QueueItem.from(playback: np, source: .upcoming)
+        return QueueItem.from(playback: np)
     }
 
     private static func mergedUpcoming(apiResponse: SpotifyQueueResponse, sdkNext: [PlaybackNowPlaying], limit: Int) -> [QueueItem] {
         let apiQueue = apiResponse.queue
         guard !apiQueue.isEmpty else {
-            return Array(sdkNext.map { QueueItem.from(playback: $0, source: .sdk) }.prefix(limit))
+            return Array(sdkNext.map { QueueItem.from(playback: $0) }.prefix(limit))
         }
         var result: [QueueItem] = []
-        for (index, item) in apiQueue.enumerated() where result.count < limit {
-            let source = sourceForMerge(index: index, item: item, sdkNext: sdkNext)
-            result.append(QueueItem.from(queueItem: item, source: source))
+        for item in apiQueue where result.count < limit {
+            result.append(QueueItem.from(queueItem: item))
         }
         return result
-    }
-
-    private static func sourceForMerge(index: Int, item: SpotifyQueueTrackItem, sdkNext: [PlaybackNowPlaying]) -> QueueItemSource {
-        if index < sdkNext.count, let sdkURI = sdkNext[index].uri {
-            let itemURI = uriString(for: item)
-            return itemURI == sdkURI ? .sdk : .upcoming
-        }
-        return index >= sdkNext.count ? .userQueued : .upcoming
-    }
-
-    private static func uriString(for item: SpotifyQueueTrackItem) -> String {
-        switch item {
-        case let .track(t): t.uri
-        case let .episode(e): e.uri
-        }
     }
 
     /// During skip/track-advance transitions, API queue snapshots can lag
