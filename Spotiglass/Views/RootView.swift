@@ -4,7 +4,6 @@ import SwiftUI
 struct RootView: View {
     @EnvironmentObject private var viewModel: AuthViewModel
     @EnvironmentObject private var pinnedStore: PinnedItemsStore
-    @EnvironmentObject private var lyricsOverlay: LyricsOverlayController
     @StateObject private var commandPaletteManager: CommandPaletteManager
     @Environment(\.openSettings) private var openSettingsAction
 
@@ -60,6 +59,7 @@ struct RootView: View {
                     commandPaletteManager.isSignedIn = true
                 case .signedOut, .signingIn, .failed, .refreshing(.none):
                     commandPaletteManager.isSignedIn = false
+                    pinnedStore.clearForSignOut()
                 }
             }
     }
