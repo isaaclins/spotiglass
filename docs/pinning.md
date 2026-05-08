@@ -5,8 +5,8 @@ Spotiglass can pin playlists, artists, albums, and individual tracks to the **Li
 ## Gestures
 
 - **Drag-to-pin.** Drag any pinnable row onto the **Library** section to add a new pin. Sources are: sidebar playlist rows, the playlist-detail header, the artist-detail header, the album cards on an artist page, and the track rows inside playlists and artist top-tracks. The drag preview is a compact pill with a kind icon (playlist, artist, album, or track) and the title.
-- **Drag-to-reorder.** Drag **Home**, **Liked Songs**, or any pinned row up/down inside the Library section to change order. A dotted-outline skeleton row at the drop slot previews where the item will land.
-- **Drag-to-unpin.** Drop a pinned row outside the sidebar (for example onto the detail pane) to remove it.
+- **Drag-to-reorder.** Drag **Home** or any pinned row up/down inside the Library section to change order. A dotted-outline skeleton row at the drop slot previews where the item will land.
+- **Drag-to-unpin.** Drag a pinned row out of the Library sidebar area to remove it.
 - **Hover ✕.** Hovering a pinned row reveals an ✕ badge in the top-left of its artwork; clicking it unpins.
 - **Right-click.** Every pinnable surface offers **Pin to Sidebar** / **Unpin from Sidebar** in its context menu (the pinned rows themselves use the shorter **Unpin**).
 
