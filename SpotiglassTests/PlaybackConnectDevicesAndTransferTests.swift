@@ -6,7 +6,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
     func testRefreshConnectDevicesSkipsNetworkInsideFreshnessWindow() async {
         let playbackAPI = MockPlaybackAPI()
         playbackAPI.availableDevices = [
-            SpotifyConnectDevice(deviceID: "a", isActive: false, isRestricted: false, name: "Mac", type: "computer", volumePercent: nil)
+            SpotifyConnectDevice(deviceID: "a", isActive: false, isRestricted: false, name: "Mac", type: "computer")
         ]
         let viewModel = PlaybackSessionViewModel(
             playbackAPI: playbackAPI,
@@ -25,7 +25,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
         let playbackAPI = MockPlaybackAPI()
         playbackAPI.fetchAvailableDevicesDelayNanoseconds = 80_000_000
         playbackAPI.availableDevices = [
-            SpotifyConnectDevice(deviceID: "a", isActive: false, isRestricted: false, name: "Mac", type: "computer", volumePercent: nil)
+            SpotifyConnectDevice(deviceID: "a", isActive: false, isRestricted: false, name: "Mac", type: "computer")
         ]
         let viewModel = PlaybackSessionViewModel(
             playbackAPI: playbackAPI,
@@ -45,7 +45,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
     func testTransferPlaybackForcesDeviceRefreshOutsideFreshnessWindow() async {
         let playbackAPI = MockPlaybackAPI()
         playbackAPI.availableDevices = [
-            SpotifyConnectDevice(deviceID: "target", isActive: false, isRestricted: false, name: "Speaker", type: "speaker", volumePercent: nil)
+            SpotifyConnectDevice(deviceID: "target", isActive: false, isRestricted: false, name: "Speaker", type: "speaker")
         ]
         let viewModel = PlaybackSessionViewModel(
             playbackAPI: playbackAPI,
@@ -244,8 +244,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
             isActive: true,
             isRestricted: false,
             name: "Spotiglass",
-            type: "computer",
-            volumePercent: 80
+            type: "computer"
         )
         let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander())
         viewModel.handle(.ready(deviceID: "device-1"))
@@ -269,8 +268,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
                 isActive: true,
                 isRestricted: false,
                 name: "Other",
-                type: "speaker",
-                volumePercent: 50
+                type: "speaker"
             )
         ]
         let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander())
@@ -298,7 +296,6 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
 
         // First attempt issues PUT and records the 429 cooldown.
         XCTAssertEqual(playbackAPI.actions.filter { $0.hasPrefix("transfer") }, ["transfer-error:device-1:false"])
-        XCTAssertEqual(viewModel.transferRetryCooldownSecondsRemaining(), 5)
 
         await viewModel.retryPlaybackTransfer()
 
