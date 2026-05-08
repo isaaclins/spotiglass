@@ -122,19 +122,6 @@ final class AuthViewModel: ObservableObject {
         }
     }
 
-    func refreshAccessTokenIfNeeded() async {
-        guard let session = currentSession, session.expires(within: 60) else { return }
-        do {
-            guard let refreshToken = try refreshTokenStore.loadRefreshToken() else {
-                state = .signedOut
-                return
-            }
-            _ = try await refreshAccessTokenSingleFlight(refreshToken: refreshToken, previousSession: session)
-        } catch {
-            handleRefreshFailure(error: error)
-        }
-    }
-
     func signOut() {
         do {
             try refreshTokenStore.deleteRefreshToken()
