@@ -1,4 +1,38 @@
 import Foundation
+import SwiftUI
+
+/// App-wide light/dark appearance override persisted in ``SpotiglassSettingsFile``.
+enum AppearanceColorScheme: String, Codable, CaseIterable, Equatable {
+    case system
+    case light
+    case dark
+
+    var displayName: String {
+        switch self {
+        case .system: "System"
+        case .light: "Light"
+        case .dark: "Dark"
+        }
+    }
+
+    /// `nil` follows macOS; otherwise forces the chosen scheme for Spotiglass windows.
+    var preferredColorScheme: ColorScheme? {
+        switch self {
+        case .system: nil
+        case .light: .light
+        case .dark: .dark
+        }
+    }
+}
+
+/// Shell appearance preferences persisted in ``SpotiglassSettingsFile``.
+struct AppearanceSettings: Codable, Equatable {
+    var colorScheme: AppearanceColorScheme
+
+    init(colorScheme: AppearanceColorScheme = .system) {
+        self.colorScheme = colorScheme
+    }
+}
 
 /// Command palette appearance preferences persisted in ``SpotiglassSettingsFile``.
 struct CommandPaletteSettings: Codable, Equatable {
@@ -22,17 +56,20 @@ struct SpotiglassSettingsFile: Codable, Equatable {
     var version: Int
     var keybinds: [CommandPaletteKeyBinding]
     var equalizer: EqualizerSettings
+    var appearance: AppearanceSettings
     var commandPalette: CommandPaletteSettings
 
     init(
         version: Int = SpotiglassSettingsFile.currentVersion,
         keybinds: [CommandPaletteKeyBinding],
         equalizer: EqualizerSettings,
+        appearance: AppearanceSettings = AppearanceSettings(),
         commandPalette: CommandPaletteSettings = CommandPaletteSettings()
     ) {
         self.version = version
         self.keybinds = keybinds
         self.equalizer = equalizer
+        self.appearance = appearance
         self.commandPalette = commandPalette
     }
 
@@ -41,6 +78,7 @@ struct SpotiglassSettingsFile: Codable, Equatable {
         version = try container.decodeIfPresent(Int.self, forKey: .version) ?? SpotiglassSettingsFile.currentVersion
         keybinds = try container.decodeIfPresent([CommandPaletteKeyBinding].self, forKey: .keybinds) ?? []
         equalizer = try container.decodeIfPresent(EqualizerSettings.self, forKey: .equalizer) ?? EqualizerSettings()
+        appearance = try container.decodeIfPresent(AppearanceSettings.self, forKey: .appearance) ?? AppearanceSettings()
         commandPalette = try container.decodeIfPresent(CommandPaletteSettings.self, forKey: .commandPalette)
             ?? CommandPaletteSettings()
     }
@@ -49,6 +87,7 @@ struct SpotiglassSettingsFile: Codable, Equatable {
         case version
         case keybinds
         case equalizer
+        case appearance
         case commandPalette
     }
 }

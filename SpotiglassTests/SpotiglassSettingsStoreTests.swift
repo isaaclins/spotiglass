@@ -14,6 +14,7 @@ final class SpotiglassSettingsStoreTests: XCTestCase {
         XCTAssertFalse(store.settings.equalizer.enabled)
         XCTAssertEqual(store.settings.equalizer.bands.count, EqualizerSettings.bandCount)
         XCTAssertTrue(store.settings.commandPalette.backdropBlur)
+        XCTAssertEqual(store.settings.appearance.colorScheme, .system)
         XCTAssertFalse(store.settings.keybinds.isEmpty)
     }
 
@@ -39,6 +40,17 @@ final class SpotiglassSettingsStoreTests: XCTestCase {
 
         let store = SpotiglassSettingsStore(fileURL: url)
         XCTAssertEqual(store.settings, original)
+    }
+
+    func testUpdateAppearanceColorSchemePersistsAtomically() throws {
+        let url = makeTempFileURL()
+        let store = SpotiglassSettingsStore(fileURL: url)
+
+        try store.mutate { $0.appearance.colorScheme = .dark }
+
+        XCTAssertEqual(store.settings.appearance.colorScheme, .dark)
+        let onDisk = try JSONDecoder().decode(SpotiglassSettingsFile.self, from: try Data(contentsOf: url))
+        XCTAssertEqual(onDisk.appearance.colorScheme, .dark)
     }
 
     func testUpdateEqualizerPersistsAtomically() throws {

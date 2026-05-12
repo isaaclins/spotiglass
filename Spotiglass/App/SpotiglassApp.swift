@@ -27,6 +27,10 @@ struct SpotiglassApp: App {
         _authViewModel = StateObject(wrappedValue: authVM)
     }
 
+    private var preferredColorScheme: ColorScheme? {
+        settingsStore.settings.appearance.colorScheme.preferredColorScheme
+    }
+
     var body: some Scene {
         WindowGroup {
             RootView(commandPaletteManager: commandPaletteManager)
@@ -34,6 +38,7 @@ struct SpotiglassApp: App {
                 .environmentObject(settingsStore)
                 .environmentObject(pinnedStore)
                 .environmentObject(lyricsOverlayController)
+                .preferredColorScheme(preferredColorScheme)
                 .frame(minWidth: 520, minHeight: 360)
                 .onAppear {
                     syncEqualizer(to: settingsStore.settings.equalizer)
@@ -74,6 +79,7 @@ struct SpotiglassApp: App {
                 equalizerEngine: equalizerEngine
             )
             .environmentObject(authViewModel)
+            .preferredColorScheme(preferredColorScheme)
         }
     }
 

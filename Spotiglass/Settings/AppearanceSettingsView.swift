@@ -8,6 +8,7 @@ struct AppearanceSettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: SpotiglassDesign.spacingL) {
                 header
+                colorSchemeSection
                 commandPaletteSection
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -25,6 +26,24 @@ struct AppearanceSettingsView: View {
         }
     }
 
+    private var colorSchemeSection: some View {
+        VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
+            Text("Color scheme")
+                .font(.headline)
+            Picker("Color scheme", selection: colorSchemeBinding) {
+                ForEach(AppearanceColorScheme.allCases, id: \.self) { scheme in
+                    Text(scheme.displayName).tag(scheme)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            Text("System follows macOS. Light and Dark apply only to Spotiglass.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
     private var commandPaletteSection: some View {
         VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
             Text("Command palette")
@@ -36,6 +55,15 @@ struct AppearanceSettingsView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    private var colorSchemeBinding: Binding<AppearanceColorScheme> {
+        Binding(
+            get: { settingsStore.settings.appearance.colorScheme },
+            set: { newValue in
+                try? settingsStore.mutate { $0.appearance.colorScheme = newValue }
+            }
+        )
     }
 
     private var backdropBlurBinding: Binding<Bool> {

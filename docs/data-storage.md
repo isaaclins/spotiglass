@@ -9,7 +9,7 @@ Spotiglass keeps minimal state on disk. Refresh tokens never leave the Keychain 
 | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
 | Spotify refresh token             | macOS Keychain (service `com.isaaclins.spotiglass.spotify-auth`, accessible after first unlock, this device only)                       | **Disconnect** in the app; refresh failures that return HTTP 4xx (e.g. revoked / `invalid_grant`)   |
 | Client ID and granted OAuth scope | `UserDefaults` for `com.isaaclins.spotiglass`                                                                                           | Granted scope cleared on Disconnect; client ID kept so the next sign-in does not require re-pasting |
-| User settings (keybinds + EQ + palette) | `~/.config/spotiglass/settings.json` — single dotfile holding keybinds, equalizer state, command palette appearance, and saved EQ presets | Delete the file (Spotiglass rewrites defaults on next launch)                                       |
+| User settings (keybinds + EQ + appearance) | `~/.config/spotiglass/settings.json` — single dotfile holding keybinds, equalizer state, app appearance (color scheme), command palette backdrop, and saved EQ presets | Delete the file (Spotiglass rewrites defaults on next launch)                                       |
 | Cached playlists / tracks         | `~/Library/Application Support/Spotiglass/SpotifyCache/` (sandbox is disabled, so this is the user-visible Application Support folder)  | Disconnect; same auth failures as above                                                             |
 | Sidebar pins (per Spotify user)   | `~/Library/Application Support/Spotiglass/SpotifyCache/pinned/<userID>.json` — one JSON array per account (`userID` is the Spotify user id) | **Disconnect** removes the whole `SpotifyCache` tree (pins included). In-memory pins are cleared on disconnect before the next session. |
 | Cached Web API GET bodies        | `~/Library/Application Support/Spotiglass/SpotifyCache/get_responses/` (SHA256-named JSON; search, artist, profile, album-track pages — short TTL) | Same as playlist cache; cleared with **Disconnect** |
@@ -32,6 +32,9 @@ Spotiglass keeps minimal state on disk. Refresh tokens never leave the Keychain 
     "bands": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     "activePresetName": "Flat",
     "userPresets": []
+  },
+  "appearance": {
+    "colorScheme": "system"
   },
   "commandPalette": {
     "backdropBlur": true
