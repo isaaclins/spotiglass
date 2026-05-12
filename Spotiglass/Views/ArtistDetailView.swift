@@ -46,6 +46,7 @@ struct ArtistDetailContent: View {
     let loadMoreAlbums: () -> Void
 
     @EnvironmentObject private var pinnedStore: PinnedItemsStore
+    @Environment(\.colorScheme) private var colorScheme
     @StateObject private var albumTapRouter = AlbumCardTapRouter()
 
     private var artistID: String { detail.artist.id }
@@ -86,9 +87,11 @@ struct ArtistDetailContent: View {
                     if isArtistPinned {
                         Image(systemName: "pin.fill")
                             .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(SpotiglassDesign.mediaBadgeForegroundColor(colorScheme: colorScheme))
                             .padding(4)
-                            .background(Circle().fill(Color.black.opacity(0.55)))
+                            .background(
+                                Circle().fill(SpotiglassDesign.mediaBadgeBackgroundColor(colorScheme: colorScheme))
+                            )
                             .padding(4)
                             .accessibilityLabel("Pinned to sidebar")
                     }
@@ -226,9 +229,11 @@ struct ArtistDetailContent: View {
                     if showPinGlyph {
                         Image(systemName: "pin.fill")
                             .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(SpotiglassDesign.mediaBadgeForegroundColor(colorScheme: colorScheme))
                             .padding(4)
-                            .background(Circle().fill(Color.black.opacity(0.55)))
+                            .background(
+                                Circle().fill(SpotiglassDesign.mediaBadgeBackgroundColor(colorScheme: colorScheme))
+                            )
                             .padding(4)
                     }
                 }

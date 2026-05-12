@@ -4,6 +4,7 @@ import SwiftUI
 struct ArtworkView: View {
     let url: URL?
     let size: CGFloat
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Group {
@@ -17,7 +18,7 @@ struct ArtworkView: View {
         .clipShape(RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
-                .strokeBorder(.white.opacity(0.14), lineWidth: 1)
+                .strokeBorder(SpotiglassDesign.artworkBorderColor(colorScheme: colorScheme), lineWidth: 1)
         }
     }
 }

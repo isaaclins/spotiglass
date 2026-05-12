@@ -6,6 +6,7 @@ struct CommandPaletteArtistAvatar: View {
     let fallbackSystemName: String
     private let diameter: CGFloat = 28
 
+    @Environment(\.colorScheme) private var colorScheme
     @State private var loadedImage: NSImage?
 
     var body: some View {
@@ -26,7 +27,7 @@ struct CommandPaletteArtistAvatar: View {
         .clipShape(Circle())
         .overlay {
             Circle()
-                .strokeBorder(.white.opacity(0.12), lineWidth: 1)
+                .strokeBorder(SpotiglassDesign.artworkBorderColor(colorScheme: colorScheme), lineWidth: 1)
         }
         .task(id: imageURL?.absoluteString ?? "") {
             guard let imageURL else {
@@ -46,6 +47,7 @@ struct CommandPaletteTrackArtwork: View {
     let fallbackSystemName: String
     private let side: CGFloat = 28
 
+    @Environment(\.colorScheme) private var colorScheme
     @State private var loadedImage: NSImage?
 
     var body: some View {
@@ -66,7 +68,7 @@ struct CommandPaletteTrackArtwork: View {
         .clipShape(RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
-                .strokeBorder(.white.opacity(0.12), lineWidth: 1)
+                .strokeBorder(SpotiglassDesign.artworkBorderColor(colorScheme: colorScheme), lineWidth: 1)
         }
         .task(id: imageURL.absoluteString) {
             loadedImage = await ArtworkImageStore.shared.image(for: imageURL)

@@ -487,7 +487,8 @@ final class QueuePanelTests: XCTestCase {
             pollJitterFraction: 0
         )
         queue.setPanelVisible(true)
-        try? await Task.sleep(nanoseconds: 120_000_000)
+        await queue.refreshQueue()
+        try? await Task.sleep(nanoseconds: 80_000_000)
         let fetchesBeforeInactive = api.actions.filter { $0 == "fetchQueue" }.count
 
         queue.setAppActive(false)

@@ -14,6 +14,7 @@ struct PlaylistListRow: View {
     }
 
     private let artworkSize: CGFloat = 46
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         HStack(spacing: SpotiglassDesign.spacingS) {
@@ -30,7 +31,7 @@ struct PlaylistListRow: View {
                         }
                         .overlay {
                             RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
-                                .strokeBorder(.white.opacity(0.14), lineWidth: 1)
+                                .strokeBorder(SpotiglassDesign.artworkBorderColor(colorScheme: colorScheme), lineWidth: 1)
                         }
                 } else {
                     ArtworkView(url: playlist.artworkURL, size: artworkSize)
@@ -43,7 +44,7 @@ struct PlaylistListRow: View {
                         .padding(.vertical, 3)
                         .background(
                             RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                .fill(Color.black.opacity(0.55))
+                                .fill(SpotiglassDesign.mediaBadgeBackgroundColor(colorScheme: colorScheme))
                         )
                         .padding(3)
                 }
@@ -52,9 +53,11 @@ struct PlaylistListRow: View {
                 if isPinned {
                     Image(systemName: "pin.fill")
                         .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(SpotiglassDesign.mediaBadgeForegroundColor(colorScheme: colorScheme))
                         .padding(3)
-                        .background(Circle().fill(Color.black.opacity(0.55)))
+                        .background(
+                            Circle().fill(SpotiglassDesign.mediaBadgeBackgroundColor(colorScheme: colorScheme))
+                        )
                         .padding(2)
                         .accessibilityLabel("Pinned to sidebar")
                 }

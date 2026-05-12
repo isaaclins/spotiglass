@@ -20,6 +20,7 @@ struct TrackListRow: View {
     var tracksSurfaceID: String? = nil
 
     @EnvironmentObject private var pinnedStore: PinnedItemsStore
+    @Environment(\.colorScheme) private var colorScheme
     @State private var isHovering: Bool = false
 
     private var isTrackPinned: Bool {
@@ -36,9 +37,11 @@ struct TrackListRow: View {
                     if tracksSurfaceID != nil, isTrackPinned {
                         Image(systemName: "pin.fill")
                             .font(.system(size: 9, weight: .semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(SpotiglassDesign.mediaBadgeForegroundColor(colorScheme: colorScheme))
                             .padding(3)
-                            .background(Circle().fill(Color.black.opacity(0.55)))
+                            .background(
+                                Circle().fill(SpotiglassDesign.mediaBadgeBackgroundColor(colorScheme: colorScheme))
+                            )
                             .padding(2)
                             .accessibilityLabel("Pinned to sidebar")
                     }
@@ -153,14 +156,14 @@ struct TrackListRow: View {
     private var leadingColumn: some View {
         if isCurrent && isHovering {
             Image(systemName: "pause.fill")
-                .foregroundStyle(.white)
+                .foregroundStyle(SpotiglassDesign.controlAccent)
                 .frame(maxWidth: .infinity, alignment: .center)
         } else if isCurrent {
             PlayingWaveformIcon(isPlaying: isPlaying)
                 .frame(maxWidth: .infinity, alignment: .center)
         } else if isHovering {
             Image(systemName: "play.fill")
-                .foregroundStyle(.white)
+                .foregroundStyle(SpotiglassDesign.controlAccent)
                 .frame(maxWidth: .infinity, alignment: .center)
         } else {
             Text("\(trackNumber)")

@@ -13,6 +13,7 @@ struct PlaylistDetailContent: View {
     let openArtist: (String) -> Void
 
     @EnvironmentObject private var pinnedStore: PinnedItemsStore
+    @Environment(\.colorScheme) private var colorScheme
 
     private var tracksSurfaceKey: String { "pl:\(detail.playlist.id)" }
 
@@ -88,15 +89,17 @@ struct PlaylistDetailContent: View {
                         }
                         .overlay {
                             RoundedRectangle(cornerRadius: SpotiglassDesign.cornerM, style: .continuous)
-                                .strokeBorder(.white.opacity(0.14), lineWidth: 1)
+                                .strokeBorder(SpotiglassDesign.artworkBorderColor(colorScheme: colorScheme), lineWidth: 1)
                         }
                         .overlay(alignment: .topTrailing) {
                             if isHeaderPinned {
                                 Image(systemName: "pin.fill")
                                     .font(.system(size: 11, weight: .semibold))
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(SpotiglassDesign.mediaBadgeForegroundColor(colorScheme: colorScheme))
                                     .padding(5)
-                                    .background(Circle().fill(Color.black.opacity(0.55)))
+                                    .background(
+                                        Circle().fill(SpotiglassDesign.mediaBadgeBackgroundColor(colorScheme: colorScheme))
+                                    )
                                     .padding(4)
                             }
                         }
@@ -106,9 +109,11 @@ struct PlaylistDetailContent: View {
                             if isHeaderPinned {
                                 Image(systemName: "pin.fill")
                                     .font(.system(size: 11, weight: .semibold))
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(SpotiglassDesign.mediaBadgeForegroundColor(colorScheme: colorScheme))
                                     .padding(5)
-                                    .background(Circle().fill(Color.black.opacity(0.55)))
+                                    .background(
+                                        Circle().fill(SpotiglassDesign.mediaBadgeBackgroundColor(colorScheme: colorScheme))
+                                    )
                                     .padding(4)
                             }
                         }

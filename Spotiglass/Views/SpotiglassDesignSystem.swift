@@ -31,11 +31,76 @@ enum SpotiglassDesign {
     /// and rounding, so future tuning of the column mins propagates automatically.
     static let dualSidebarComfortableMinWidth: CGFloat =
         playlistSidebarMinWidth + detailColumnMinWidth + queuePanelMinWidth + 80
+
+    static func glassPanelBorderColor(
+        contrast: ColorSchemeContrast,
+        colorScheme: ColorScheme
+    ) -> Color {
+        if contrast == .increased {
+            return .primary.opacity(0.35)
+        }
+        switch colorScheme {
+        case .dark:
+            return .white.opacity(0.18)
+        default:
+            return .black.opacity(0.10)
+        }
+    }
+
+    static func artworkBorderColor(colorScheme: ColorScheme) -> Color {
+        switch colorScheme {
+        case .dark:
+            return .white.opacity(0.14)
+        default:
+            return .black.opacity(0.10)
+        }
+    }
+
+    static func chromeCapsuleBorderColor(colorScheme: ColorScheme) -> Color {
+        switch colorScheme {
+        case .dark:
+            return .white.opacity(0.12)
+        default:
+            return .black.opacity(0.08)
+        }
+    }
+
+    static func mediaBadgeForegroundColor(colorScheme: ColorScheme) -> Color {
+        .white
+    }
+
+    static func mediaBadgeBackgroundColor(colorScheme: ColorScheme) -> Color {
+        switch colorScheme {
+        case .dark:
+            return .black.opacity(0.55)
+        default:
+            return .black.opacity(0.48)
+        }
+    }
+
+    static func scrubberThumbFillColor(colorScheme: ColorScheme) -> Color {
+        switch colorScheme {
+        case .dark:
+            return .white
+        default:
+            return Color(nsColor: .controlBackgroundColor)
+        }
+    }
+
+    static func scrubberThumbBorderColor(colorScheme: ColorScheme) -> Color {
+        switch colorScheme {
+        case .dark:
+            return .black.opacity(0.18)
+        default:
+            return .black.opacity(0.14)
+        }
+    }
 }
 
 struct GlassPanel<Content: View>: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.colorScheme) private var colorScheme
 
     let content: Content
 
@@ -64,7 +129,7 @@ struct GlassPanel<Content: View>: View {
     }
 
     private var borderStyle: Color {
-        contrast == .increased ? .primary.opacity(0.35) : .white.opacity(0.18)
+        SpotiglassDesign.glassPanelBorderColor(contrast: contrast, colorScheme: colorScheme)
     }
 }
 

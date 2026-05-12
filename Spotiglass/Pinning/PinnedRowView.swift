@@ -11,6 +11,7 @@ struct PinnedRowView: View {
     let onUnpin: () -> Void
 
     @State private var isHovering: Bool = false
+    @Environment(\.colorScheme) private var colorScheme
     private let artworkSize: CGFloat = 46
 
     var body: some View {
@@ -76,7 +77,7 @@ struct PinnedRowView: View {
                 }
                 .overlay {
                     RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
-                        .strokeBorder(.white.opacity(0.14), lineWidth: 1)
+                        .strokeBorder(SpotiglassDesign.artworkBorderColor(colorScheme: colorScheme), lineWidth: 1)
                 }
         case .artist:
             ZStack {
@@ -91,7 +92,7 @@ struct PinnedRowView: View {
             }
             .frame(width: artworkSize, height: artworkSize)
             .clipShape(Circle())
-            .overlay { Circle().strokeBorder(.white.opacity(0.14), lineWidth: 1) }
+            .overlay { Circle().strokeBorder(SpotiglassDesign.artworkBorderColor(colorScheme: colorScheme), lineWidth: 1) }
         case .playlist, .album, .track:
             ArtworkView(url: item.artworkURL, size: artworkSize)
         }
@@ -138,6 +139,7 @@ private extension PinnedItemKind {
 struct PinnedItemDragPill: View {
     let item: PinnedItem
     private let artworkSize: CGFloat = 24
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         HStack(spacing: 6) {
@@ -164,7 +166,7 @@ struct PinnedItemDragPill: View {
         .padding(.vertical, 6)
         .frame(maxWidth: 260, alignment: .leading)
         .background(.regularMaterial, in: Capsule())
-        .overlay(Capsule().strokeBorder(.white.opacity(0.12), lineWidth: 1))
+        .overlay(Capsule().strokeBorder(SpotiglassDesign.chromeCapsuleBorderColor(colorScheme: colorScheme), lineWidth: 1))
         .onAppear { PinnedDragPreviewState.shared.beginDrag(item: item) }
     }
 
@@ -182,7 +184,7 @@ struct PinnedItemDragPill: View {
                 }
                 .overlay {
                     RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
-                        .strokeBorder(.white.opacity(0.14), lineWidth: 1)
+                        .strokeBorder(SpotiglassDesign.artworkBorderColor(colorScheme: colorScheme), lineWidth: 1)
                 }
         case .artist:
             ZStack {
@@ -197,7 +199,7 @@ struct PinnedItemDragPill: View {
             }
             .frame(width: artworkSize, height: artworkSize)
             .clipShape(Circle())
-            .overlay { Circle().strokeBorder(.white.opacity(0.14), lineWidth: 1) }
+            .overlay { Circle().strokeBorder(SpotiglassDesign.artworkBorderColor(colorScheme: colorScheme), lineWidth: 1) }
         case .playlist, .album, .track:
             DragPreviewArtwork(url: item.artworkURL, size: artworkSize)
         }
@@ -217,6 +219,7 @@ struct PinnedItemDragPill: View {
 private struct DragPreviewArtwork: View {
     let url: URL?
     let size: CGFloat
+    @Environment(\.colorScheme) private var colorScheme
     @State private var image: NSImage?
 
     init(url: URL?, size: CGFloat) {
@@ -248,7 +251,7 @@ private struct DragPreviewArtwork: View {
         .clipShape(RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
-                .strokeBorder(.white.opacity(0.14), lineWidth: 1)
+                .strokeBorder(SpotiglassDesign.artworkBorderColor(colorScheme: colorScheme), lineWidth: 1)
         }
         .task(id: url?.absoluteString ?? "") {
             guard image == nil, let url else { return }

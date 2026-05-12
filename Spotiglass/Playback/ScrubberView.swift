@@ -19,6 +19,8 @@ struct ScrubberView: View {
     /// Argument is the in-progress fraction in 0...1, or nil when not dragging.
     var onDragUpdate: (Double?) -> Void
 
+    @Environment(\.colorScheme) private var colorScheme
+
     private let restingHeight: CGFloat = 4
     private let hoverHeight: CGFloat = 6
     private let thumbDiameter: CGFloat = 12
@@ -49,10 +51,13 @@ struct ScrubberView: View {
 
                 // Always-visible circular thumb at the current position.
                 Circle()
-                    .fill(Color.white)
+                    .fill(SpotiglassDesign.scrubberThumbFillColor(colorScheme: colorScheme))
                     .frame(width: thumbDiameter, height: thumbDiameter)
                     .overlay {
-                        Circle().strokeBorder(Color.black.opacity(0.18), lineWidth: 0.5)
+                        Circle().strokeBorder(
+                            SpotiglassDesign.scrubberThumbBorderColor(colorScheme: colorScheme),
+                            lineWidth: 0.5
+                        )
                     }
                     .shadow(color: Color.black.opacity(0.25), radius: 1.5, y: 0.5)
                     .offset(x: max(0, filledWidth - thumbDiameter / 2))
