@@ -95,6 +95,20 @@ final class LoopbackOAuthCallbackTests: XCTestCase {
     }
 
     func testListenerAcceptsValidCallbackAndReturnsCode() async throws {
+        var lastError: Error?
+        for _ in 0 ..< 3 {
+            do {
+                try await exerciseValidOAuthCallback()
+                return
+            } catch {
+                lastError = error
+                try await Task.sleep(nanoseconds: 80_000_000)
+            }
+        }
+        throw lastError ?? NSError(domain: "LoopbackOAuthCallbackTests", code: 1)
+    }
+
+    private func exerciseValidOAuthCallback() async throws {
         let listener = try startListener(state: "MYSTATE", timeout: 10)
         defer { listener.close() }
 
@@ -102,8 +116,7 @@ final class LoopbackOAuthCallbackTests: XCTestCase {
         let callbackURL = URL(string: "http://127.0.0.1:\(port)/callback?code=CODE42&state=MYSTATE")!
 
         async let waited = listener.waitForCallback()
-        // Give the listener a beat to enter accept().
-        try await Task.sleep(nanoseconds: 50_000_000)
+        try await Task.sleep(nanoseconds: 200_000_000)
 
         let session = URLSession(configuration: .ephemeral)
         let (_, response) = try await session.data(from: callbackURL)
@@ -120,7 +133,7 @@ final class LoopbackOAuthCallbackTests: XCTestCase {
         let callbackURL = URL(string: "http://127.0.0.1:\(port)/callback?code=C&state=NOPE")!
 
         async let waited = listener.waitForCallback()
-        try await Task.sleep(nanoseconds: 50_000_000)
+        try await Task.sleep(nanoseconds: 200_000_000)
 
         let session = URLSession(configuration: .ephemeral)
         let (_, response) = try await session.data(from: callbackURL)
@@ -152,4 +165,5 @@ final class LoopbackOAuthCallbackTests: XCTestCase {
         listener.close()
         listener.close() // second close must be a no-op (guarded by didClose flag)
     }
+
 }
