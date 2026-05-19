@@ -188,6 +188,7 @@
 		TST00000000000000000014 /* PlaylistBrowserNavigationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000064 /* PlaylistBrowserNavigationTests.swift */; };
 		TST00000000000000000015 /* PlaylistBrowserArtistFallbackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000065 /* PlaylistBrowserArtistFallbackTests.swift */; };
 		TST000000000000000000C2 /* PlaylistBrowserPrefetchAllTracksTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */; };
+		TST00000000000000000000E5 /* CommandPaletteViewsBatchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100E5 /* CommandPaletteViewsBatchTests.swift */; };
 		TST00000000000000000000E4 /* SpotiglassComponentsViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100E4 /* SpotiglassComponentsViewTests.swift */; };
 		TST00000000000000000000E3 /* PlaylistListRowViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100E3 /* PlaylistListRowViewTests.swift */; };
 		TST00000000000000000000E2 /* CommandPaletteViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100E2 /* CommandPaletteViewTests.swift */; };
@@ -414,6 +415,7 @@
 		TST00000000000000000064 /* PlaylistBrowserNavigationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserNavigationTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000065 /* PlaylistBrowserArtistFallbackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserArtistFallbackTests.swift; sourceTree = "<group>"; };
 		TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserPrefetchAllTracksTests.swift; sourceTree = "<group>"; };
+		TST00000000000000000100E5 /* CommandPaletteViewsBatchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteViewsBatchTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000100E4 /* SpotiglassComponentsViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotiglassComponentsViewTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000100E3 /* PlaylistListRowViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistListRowViewTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000100E2 /* CommandPaletteViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteViewTests.swift; sourceTree = "<group>"; };
@@ -752,6 +754,7 @@
 				TST00000000000000000064 /* PlaylistBrowserNavigationTests.swift */,
 				TST00000000000000000065 /* PlaylistBrowserArtistFallbackTests.swift */,
 				TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */,
+				TST00000000000000000100E5 /* CommandPaletteViewsBatchTests.swift */,
 				TST00000000000000000100E4 /* SpotiglassComponentsViewTests.swift */,
 				TST00000000000000000100E3 /* PlaylistListRowViewTests.swift */,
 				TST00000000000000000100E2 /* CommandPaletteViewTests.swift */,
@@ -1153,6 +1156,7 @@
 				TST00000000000000000014 /* PlaylistBrowserNavigationTests.swift in Sources */,
 				TST00000000000000000015 /* PlaylistBrowserArtistFallbackTests.swift in Sources */,
 				TST000000000000000000C2 /* PlaylistBrowserPrefetchAllTracksTests.swift in Sources */,
+				TST00000000000000000000E5 /* CommandPaletteViewsBatchTests.swift in Sources */,
 				TST00000000000000000000E4 /* SpotiglassComponentsViewTests.swift in Sources */,
 				TST00000000000000000000E3 /* PlaylistListRowViewTests.swift in Sources */,
 				TST00000000000000000000E2 /* CommandPaletteViewTests.swift in Sources */,
