@@ -1,87 +1,116 @@
 import XCTest
 @testable import Spotiglass
 
+@MainActor
 final class PlaylistBrowserPlaybackHelpersTests: XCTestCase {
-    private func sampleNowPlaying(uri: String = "spotify:track:abc") -> PlaybackNowPlaying {
-        PlaybackNowPlaying(
-            name: "Song",
-            artists: ["Artist"],
-            albumName: "Album",
-            albumID: "al1",
-            albumArtURL: nil,
-            durationMilliseconds: 180_000,
-            positionMilliseconds: 0,
-            uri: uri
+    func testAnchorTrackIDForPlaylistListScrollRestore() {
+        let items = [PlaylistBrowsingTestFixtures.track(id: "t1")]
+        let rows = TrackRowViewModel.numberedPlaylistRows(items)
+        guard let row = rows.first else {
+            return XCTFail("expected a track row")
+        }
+        let playlist = PlaylistRowViewModel(PlaylistBrowsingTestFixtures.playlist(id: "p1", name: "P"))
+        let detail = PlaylistDetailViewModel(playlist: playlist, tracks: rows)
+        let content: BrowsingDetailContent = .playlist(detail)
+
+        XCTAssertEqual(
+            PlaylistBrowserPlaybackHelpers.anchorTrackIDForPlaylistListScrollRestore(
+                detailContent: content,
+                currentPlaybackURI: row.playableURI,
+                detailLastVisibleTrackID: "fallback"
+            ),
+            row.id
+        )
+        XCTAssertEqual(
+            PlaylistBrowserPlaybackHelpers.anchorTrackIDForPlaylistListScrollRestore(
+                detailContent: content,
+                currentPlaybackURI: "spotify:track:other",
+                detailLastVisibleTrackID: "fallback"
+            ),
+            "fallback"
+        )
+        XCTAssertEqual(
+            PlaylistBrowserPlaybackHelpers.anchorTrackIDForPlaylistListScrollRestore(
+                detailContent: nil,
+                currentPlaybackURI: nil,
+                detailLastVisibleTrackID: "fallback"
+            ),
+            "fallback"
         )
     }
 
-    func testAnchorPrefersMatchingPlayableURI() {
-        let track = TrackRowViewModel(
-            topTrack: SpotifyTrack(
-                id: "t1",
-                name: "A",
-                artists: ["X"],
-                albumArtworkURL: nil,
-                durationMilliseconds: 1000,
-                isExplicit: false,
-                isPlayable: true,
-                linkedFromID: nil,
-                uri: "spotify:track:abc"
-            ),
-            listPosition: 1
+    func testLyricsPrefetchTrackOnlyWhenPlaying() {
+        let np = PlaybackNowPlaying(
+            name: "N", artists: ["A"], albumName: nil, albumID: nil, albumArtURL: nil,
+            durationMilliseconds: 60_000, positionMilliseconds: 0, uri: "spotify:track:1"
         )
-        let detail = PlaylistDetailViewModel(
-            playlist: PlaylistRowViewModel(
-                SpotifyPlaylistSummary(
-                    id: "p", name: "P", ownerName: "O",
-                    imageURL: nil, trackCount: 1, snapshotID: "s"
-                )
-            ),
-            tracks: [track]
+        XCTAssertEqual(
+            PlaylistBrowserPlaybackHelpers.lyricsPrefetchTrack(connectionState: .playing(np)),
+            np
         )
-        let anchor = PlaylistBrowserPlaybackHelpers.anchorTrackIDForPlaylistListScrollRestore(
-            detailContent: .playlist(detail),
-            currentPlaybackURI: "spotify:track:abc",
-            detailLastVisibleTrackID: "fallback"
+        XCTAssertNil(
+            PlaylistBrowserPlaybackHelpers.lyricsPrefetchTrack(connectionState: .paused(np))
         )
-        XCTAssertEqual(anchor, track.id)
+        XCTAssertNil(
+            PlaylistBrowserPlaybackHelpers.lyricsPrefetchTrack(connectionState: .disconnected)
+        )
     }
 
-    func testLyricsHalfwayTaskIDRequiresTrackID() {
-        let np = sampleNowPlaying()
-        XCTAssertNotNil(
+    func testLyricsHalfwayNextPreloadTaskID() {
+        let np = PlaybackNowPlaying(
+            name: "N", artists: ["A"], albumName: nil, albumID: nil, albumArtURL: nil,
+            durationMilliseconds: 120_000, positionMilliseconds: 0, uri: "spotify:track:abc"
+        )
+        XCTAssertEqual(
             PlaylistBrowserPlaybackHelpers.lyricsHalfwayNextPreloadTaskID(
                 prefetchTrack: np,
                 nextQueueURI: "spotify:track:next"
-            )
+            ),
+            "spotify:track:abc|120000|spotify:track:next"
+        )
+        XCTAssertEqual(
+            PlaylistBrowserPlaybackHelpers.lyricsHalfwayNextPreloadTaskID(
+                prefetchTrack: np,
+                nextQueueURI: nil
+            ),
+            "spotify:track:abc|120000|"
         )
         XCTAssertNil(
             PlaylistBrowserPlaybackHelpers.lyricsHalfwayNextPreloadTaskID(
                 prefetchTrack: PlaybackNowPlaying(
-                    name: np.name,
-                    artists: np.artists,
-                    albumName: np.albumName,
-                    albumID: np.albumID,
-                    albumArtURL: np.albumArtURL,
-                    durationMilliseconds: np.durationMilliseconds,
-                    positionMilliseconds: np.positionMilliseconds,
-                    uri: "spotify:episode:1"
+                    name: "N", artists: [], albumName: nil, albumID: nil, albumArtURL: nil,
+                    durationMilliseconds: 0, positionMilliseconds: 0, uri: nil
                 ),
-                nextQueueURI: nil
+                nextQueueURI: "x"
             )
         )
     }
 
-    func testQueueRelevantPlaybackKey() {
-        XCTAssertEqual(
-            PlaylistBrowserPlaybackHelpers.queueRelevantPlaybackKey(
-                connectionState: .playing(sampleNowPlaying())
-            ),
-            "playing:spotify:track:abc"
+    func testQueueRelevantPlaybackKeyAndCurrentURI() {
+        let np = PlaybackNowPlaying(
+            name: "N", artists: ["A"], albumName: nil, albumID: nil, albumArtURL: nil,
+            durationMilliseconds: 1, positionMilliseconds: 0, uri: "spotify:track:u"
         )
         XCTAssertEqual(
-            PlaylistBrowserPlaybackHelpers.queueRelevantPlaybackKey(connectionState: .disconnected),
-            "disconnected"
+            PlaylistBrowserPlaybackHelpers.queueRelevantPlaybackKey(connectionState: .playing(np)),
+            "playing:spotify:track:u"
+        )
+        XCTAssertEqual(
+            PlaylistBrowserPlaybackHelpers.currentPlaybackURI(connectionState: .playing(np)),
+            "spotify:track:u"
+        )
+        XCTAssertEqual(
+            PlaylistBrowserPlaybackHelpers.currentPlaybackURI(connectionState: .paused(np)),
+            "spotify:track:u"
+        )
+        XCTAssertNil(
+            PlaylistBrowserPlaybackHelpers.currentPlaybackURI(connectionState: .disconnected)
+        )
+        XCTAssertTrue(
+            PlaylistBrowserPlaybackHelpers.isCurrentlyPlaying(connectionState: .playing(np))
+        )
+        XCTAssertFalse(
+            PlaylistBrowserPlaybackHelpers.isCurrentlyPlaying(connectionState: .paused(np))
         )
     }
 }

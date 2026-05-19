@@ -112,6 +112,36 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
         XCTAssertNoThrow(try view.inspect().find(text: "This track is instrumental."))
     }
 
+    func testImmersiveLyricsViewHostsWhenPlaying() async throws {
+        let settings = try ViewTestHost.makeSettingsStore()
+        let api = MockPlaybackAPI()
+        let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: MockWebPlaybackCommander())
+        let queue = QueueViewModel(
+            playbackAPI: api,
+            playbackSession: playback,
+            pollIntervalNanoseconds: 60_000_000_000
+        )
+        let track = sampleTrack()
+        playback.handle(.ready(deviceID: "device-1"))
+        playback.handle(.stateChanged(track, isPaused: false, nextTracks: []))
+        let lyrics = ImmersiveLyricsViewModel { _ in .instrumental }
+        await lyrics.load(track: track)
+
+        let view = ImmersiveLyricsView(
+            playbackViewModel: playback,
+            queueViewModel: queue,
+            lyricsModel: lyrics,
+            navigateToArtist: { _ in },
+            navigateToAlbum: { _, _, _ in },
+            onDismiss: {}
+        )
+        .environmentObject(settings)
+        .frame(width: 800, height: 600)
+
+        ViewTestHost.host(view, size: CGSize(width: 800, height: 600))
+        XCTAssertNoThrow(try view.inspect().find(text: "Title"))
+    }
+
     func testBackgroundLayerInspectable() throws {
         let view = ImmersiveLyricsBackgroundLayer(
             reduceTransparency: true,
@@ -120,6 +150,43 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
         .frame(width: 320, height: 240)
 
         ViewTestHost.host(view, size: CGSize(width: 320, height: 240))
+        XCTAssertNoThrow(try view.inspect())
+    }
+
+    func testBackgroundLayerWithAlbumArtURL() throws {
+        let url = URL(string: "https://example.com/cover.png")!
+        let view = ImmersiveLyricsBackgroundLayer(
+            reduceTransparency: false,
+            albumArtURL: url
+        )
+        .frame(width: 400, height: 300)
+
+        ViewTestHost.host(view, size: CGSize(width: 400, height: 300))
+        XCTAssertNoThrow(try view.inspect())
+    }
+
+    func testBlurredArtworkHostsAndLoadsFromDiskCache() async throws {
+        let dir = spotiglassTestsTemporaryDirectory()
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let url = URL(string: "https://example.com/blur-art.png")!
+        let file = ArtworkImageStore.cacheFileURL(for: url, diskDirectory: dir)
+        let png: [UInt8] = [
+            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+            0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+            0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+            0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4,
+            0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44, 0x41,
+            0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
+            0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00,
+            0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE,
+            0x42, 0x60, 0x82,
+        ]
+        try Data(png).write(to: file)
+
+        let view = ImmersiveBlurredArtwork(url: url)
+            .frame(width: 360, height: 280)
+        ViewTestHost.host(view, size: CGSize(width: 360, height: 280))
+        try await Task.sleep(nanoseconds: 100_000_000)
         XCTAssertNoThrow(try view.inspect())
     }
 

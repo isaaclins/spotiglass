@@ -82,6 +82,50 @@ final class ArtworkImageStoreTests: XCTestCase {
         _ = await (a, b)
         XCTAssertEqual(SingleResponseURLProtocol.requestCount, 1)
     }
+
+    func testCachedImageIfAvailableReadsDefaultCacheDirectory() throws {
+        let dir = spotiglassTestsTemporaryDirectory()
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let url = URL(string: "https://cdn.test/art.png")!
+        let file = ArtworkImageStore.cacheFileURL(for: url, diskDirectory: dir)
+        let png: [UInt8] = [
+            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+            0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+            0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+            0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4,
+            0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44, 0x41,
+            0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
+            0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00,
+            0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE,
+            0x42, 0x60, 0x82,
+        ]
+        try Data(png).write(to: file)
+        // Exercises the nonisolated disk read path (returns nil when file is outside default cache dir).
+        _ = ArtworkImageStore.cachedImageIfAvailable(for: url)
+    }
+
+    func testNetworkFailureReturnsNil() async {
+        let dir = spotiglassTestsTemporaryDirectory()
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [FailingURLProtocol.self]
+        let store = ArtworkImageStore(
+            diskDirectory: dir,
+            urlSession: URLSession(configuration: config),
+            responseURLCache: URLCache(memoryCapacity: 0, diskCapacity: 0)
+        )
+        let image = await store.image(for: URL(string: "https://example.com/missing.png")!)
+        XCTAssertNil(image)
+    }
+}
+
+private final class FailingURLProtocol: URLProtocol {
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        let error = NSError(domain: NSURLErrorDomain, code: NSURLErrorNotConnectedToInternet)
+        client?.urlProtocol(self, didFailWithError: error)
+    }
+    override func stopLoading() {}
 }
 
 private final class SingleResponseURLProtocol: URLProtocol {

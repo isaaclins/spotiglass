@@ -164,4 +164,102 @@ final class LrcLibClientTests: XCTestCase {
         }
         XCTAssertEqual(LRCLIBStubURLProtocol.requestedEndpoints, ["get-cached"])
     }
+
+    func testParallelFetchModeUsesBothEndpoints() async throws {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [LRCLIBStubURLProtocol.self] + (config.protocolClasses ?? [])
+        let session = URLSession(configuration: config)
+        let base = URL(string: "http://127.0.0.1:1")!
+        let client = LrcLibClient(session: session, baseURL: base, fetchMode: .parallel)
+        let track = sampleTrack()
+
+        let lyrics = try await client.fetchLyrics(for: track)
+        guard case let .synced(lines) = lyrics else {
+            return XCTFail("expected synced lyrics, got \(lyrics)")
+        }
+        XCTAssertFalse(lines.isEmpty)
+        XCTAssertEqual(Set(LRCLIBStubURLProtocol.requestedEndpoints), Set(["get-cached", "get"]))
+    }
+
+    func testFetchLyricsInstrumentalAndPlain() async throws {
+        LRCLIBStubURLProtocol.responseByEndpoint["get-cached"] = (
+            statusCode: 200,
+            body: #"{"instrumental":true,"syncedLyrics":null,"plainLyrics":null}"#
+        )
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [LRCLIBStubURLProtocol.self] + (config.protocolClasses ?? [])
+        let client = LrcLibClient(session: session(configuration: config), baseURL: URL(string: "http://127.0.0.1:1")!)
+        let instrumental = try await client.fetchLyrics(for: sampleTrack())
+        XCTAssertEqual(instrumental, .instrumental)
+
+        LRCLIBStubURLProtocol.responseByEndpoint = [
+            "get-cached": (statusCode: 404, body: ""),
+            "get": (statusCode: 200, body: #"{"instrumental":false,"syncedLyrics":null,"plainLyrics":"Line A\nLine B"}"#),
+        ]
+        let plain = try await client.fetchLyrics(for: sampleTrack())
+        guard case let .unsyncedPlain(lines) = plain else {
+            return XCTFail("expected plain lyrics")
+        }
+        XCTAssertEqual(lines, ["Line A", "Line B"])
+    }
+
+    func testFetchLyricsServerErrorOnCachedFallsBackToFull() async throws {
+        LRCLIBStubURLProtocol.responseByEndpoint["get-cached"] = (statusCode: 503, body: "")
+        LRCLIBStubURLProtocol.responseByEndpoint["get"] = (
+            statusCode: 200,
+            body: #"{"instrumental":false,"syncedLyrics":"[00:01.00]After503","plainLyrics":null}"#
+        )
+        let client = makeClient()
+        let lyrics = try await client.fetchLyrics(for: sampleTrack())
+        guard case let .synced(lines) = lyrics else {
+            return XCTFail("expected synced fallback")
+        }
+        XCTAssertEqual(lines.first?.words, "After503")
+    }
+
+    func testNowPlayingLrcLibQueries() {
+        let np = PlaybackNowPlaying(
+            name: "Song",
+            artists: ["A", "B"],
+            albumName: "  Album  ",
+            albumID: nil,
+            albumArtURL: nil,
+            durationMilliseconds: 500,
+            positionMilliseconds: 0,
+            uri: "spotify:track:track-id"
+        )
+        XCTAssertEqual(np.lrcLibArtistQuery, "A, B")
+        XCTAssertEqual(np.lrcLibAlbumQuery, "Album")
+        XCTAssertEqual(np.lrcLibDurationSeconds, 1)
+        XCTAssertEqual(np.spotifyTrackIDForLyrics, "track-id")
+        XCTAssertNil(
+            PlaybackNowPlaying(
+                name: "X", artists: [], albumName: nil, albumID: nil, albumArtURL: nil,
+                durationMilliseconds: 1, positionMilliseconds: 0, uri: "not-spotify"
+            ).spotifyTrackIDForLyrics
+        )
+    }
+
+    private func sampleTrack() -> PlaybackNowPlaying {
+        PlaybackNowPlaying(
+            name: "Song",
+            artists: ["A"],
+            albumName: "Album",
+            albumID: nil,
+            albumArtURL: nil,
+            durationMilliseconds: 180_000,
+            positionMilliseconds: 0,
+            uri: "spotify:track:abc123def456"
+        )
+    }
+
+    private func makeClient() -> LrcLibClient {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [LRCLIBStubURLProtocol.self] + (config.protocolClasses ?? [])
+        return LrcLibClient(session: URLSession(configuration: config), baseURL: URL(string: "http://127.0.0.1:1")!)
+    }
+
+    private func session(configuration: URLSessionConfiguration) -> URLSession {
+        URLSession(configuration: configuration)
+    }
 }

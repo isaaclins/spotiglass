@@ -86,6 +86,47 @@ final class SpotiglassSettingsStoreTests: XCTestCase {
 
     // MARK: - Helpers
 
+    func testReloadFromDiskPicksUpExternalEdit() throws {
+        let url = makeTempFileURL()
+        let store = SpotiglassSettingsStore(fileURL: url)
+        try store.mutate { $0.appearance.colorScheme = .light }
+        XCTAssertEqual(store.settings.appearance.colorScheme, .light)
+
+        var onDisk = try JSONDecoder().decode(SpotiglassSettingsFile.self, from: Data(contentsOf: url))
+        onDisk.appearance.colorScheme = .dark
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .prettyPrinted]
+        try encoder.encode(onDisk).write(to: url, options: .atomic)
+
+        store.reloadFromDisk()
+        XCTAssertEqual(store.settings.appearance.colorScheme, .dark)
+        XCTAssertNil(store.lastError)
+    }
+
+    func testApplyLoadedSettingsStripsLegacyRefreshTracksBinding() throws {
+        let url = makeTempFileURL()
+        let legacy = CommandPaletteKeyBinding(
+            keystrokes: ["cmd-t"],
+            command: CommandPaletteCommandID.refreshTracks,
+            when: .always,
+            args: nil
+        )
+        let file = SpotiglassSettingsFile(
+            keybinds: SpotiglassSettingsStore.defaultKeybinds() + [legacy],
+            appearance: AppearanceSettings(colorScheme: .system),
+            commandPalette: CommandPaletteSettings(backdropBlur: true)
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .prettyPrinted]
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try encoder.encode(file).write(to: url)
+
+        let store = SpotiglassSettingsStore(fileURL: url)
+        XCTAssertFalse(store.settings.keybinds.contains { $0.command == CommandPaletteCommandID.refreshTracks })
+        let onDisk = try JSONDecoder().decode(SpotiglassSettingsFile.self, from: Data(contentsOf: url))
+        XCTAssertFalse(onDisk.keybinds.contains { $0.command == CommandPaletteCommandID.refreshTracks })
+    }
+
     private func makeTempFileURL() -> URL {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("SpotiglassSettingsStoreTests-\(UUID().uuidString)", isDirectory: true)

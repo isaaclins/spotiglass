@@ -1,3 +1,4 @@
+import Darwin
 import XCTest
 @testable import Spotiglass
 
@@ -113,10 +114,10 @@ final class LoopbackOAuthCallbackTests: XCTestCase {
         defer { listener.close() }
 
         let port = listener.redirectURI.port!
+        try await waitUntilPortAcceptsConnections(port)
         let callbackURL = URL(string: "http://127.0.0.1:\(port)/callback?code=CODE42&state=MYSTATE")!
 
         async let waited = listener.waitForCallback()
-        try await Task.sleep(nanoseconds: 200_000_000)
 
         let session = URLSession(configuration: .ephemeral)
         let (_, response) = try await session.data(from: callbackURL)
@@ -126,14 +127,46 @@ final class LoopbackOAuthCallbackTests: XCTestCase {
         XCTAssertEqual(callback.code, "CODE42")
     }
 
+    private func waitUntilPortAcceptsConnections(_ port: Int, timeout: TimeInterval = 3) async throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if Self.canConnect(toPort: port) { return }
+            try await Task.sleep(nanoseconds: 25_000_000)
+        }
+        throw NSError(
+            domain: "LoopbackOAuthCallbackTests",
+            code: 2,
+            userInfo: [NSLocalizedDescriptionKey: "Timed out waiting for loopback listener on port \(port)"]
+        )
+    }
+
+    private static func canConnect(toPort port: Int) -> Bool {
+        let fd = socket(AF_INET, SOCK_STREAM, 0)
+        guard fd >= 0 else { return false }
+        defer { close(fd) }
+
+        var addr = sockaddr_in()
+        addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+        addr.sin_family = sa_family_t(AF_INET)
+        addr.sin_port = in_port_t(UInt16(port).bigEndian)
+        addr.sin_addr.s_addr = inet_addr("127.0.0.1")
+
+        let connected = withUnsafePointer(to: &addr) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                connect(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+            }
+        }
+        return connected == 0
+    }
+
     func testListenerRejectsStateMismatch() async throws {
         let listener = try startListener(state: "EXPECTED", timeout: 10)
         defer { listener.close() }
         let port = listener.redirectURI.port!
         let callbackURL = URL(string: "http://127.0.0.1:\(port)/callback?code=C&state=NOPE")!
 
+        try await waitUntilPortAcceptsConnections(port)
         async let waited = listener.waitForCallback()
-        try await Task.sleep(nanoseconds: 200_000_000)
 
         let session = URLSession(configuration: .ephemeral)
         let (_, response) = try await session.data(from: callbackURL)

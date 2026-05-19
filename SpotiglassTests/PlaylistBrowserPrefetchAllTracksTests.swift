@@ -103,6 +103,22 @@ final class PlaylistBrowserPrefetchAllTracksTests: XCTestCase {
         XCTAssertEqual(progress.failed, 0)
     }
 
+    func testToggleBulkPrefetchCancelsInFlightRun() async throws {
+        let playlists = (1...4).map { PlaylistBrowsingTestFixtures.playlist(id: "p\($0)", name: "P\($0)") }
+        let cache = MockBrowsingCache(cachedPlaylists: playlists, cachedTracks: [:], playlistListCacheAge: 5)
+        let api = ConcurrencyTrackingBrowsingAPI(playlists: playlists, counter: ConcurrencyCounter())
+        let vm = PlaylistBrowserViewModel(api: api, cache: cache)
+        seed(vm, with: playlists)
+
+        let run = Task { await vm.toggleBulkPlaylistTrackPrefetch() }
+        try await Task.sleep(nanoseconds: 30_000_000)
+        await vm.toggleBulkPlaylistTrackPrefetch()
+        await run.value
+
+        let progress = try XCTUnwrap(vm.prefetchAllPlaylistsProgress)
+        XCTAssertEqual(progress.phase, .cancelled)
+    }
+
     func testCoalescesWithRecentRevalidation() async throws {
         let p1 = PlaylistBrowsingTestFixtures.playlist(id: "p1", name: "Recently Revalidated", snapshotID: "snap-1")
         let cache = MockBrowsingCache(cachedPlaylists: [p1], cachedTracks: [:], playlistListCacheAge: 5)

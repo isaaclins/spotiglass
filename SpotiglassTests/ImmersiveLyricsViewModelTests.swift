@@ -100,16 +100,19 @@ final class ImmersiveLyricsViewModelTests: XCTestCase {
     }
 
     func testPreloadDoesNotSetPhaseToLoading() async {
+        let gate = LyricsFetchTestGate()
         let vm = ImmersiveLyricsViewModel { _ in
-            try await Task.sleep(nanoseconds: 60_000_000)
+            await gate.markFetchStarted()
+            await gate.waitUntilRelease()
             return .instrumental
         }
         let track = sampleTrack(spotifyID: "phaseIdleDuringPreload")
         let preloadTask = Task { await vm.preload(track: track) }
-        try? await Task.sleep(nanoseconds: 5_000_000)
+        await gate.waitUntilFetchStarted()
         if case .loading = vm.phase {
-            XCTFail("preload must not set phase to .loading")
+            XCTFail("preload must not set phase to .loading while fetch is in flight")
         }
+        await gate.releaseFetch()
         await preloadTask.value
     }
 
@@ -233,5 +236,33 @@ final class ImmersiveLyricsViewModelTests: XCTestCase {
         try disk.clearTrackBackoffMetadata(spotifyTrackID: "track-backoff")
         XCTAssertNil(disk.loadTrackBackoffMetadata(spotifyTrackID: "track-backoff"))
         try? FileManager.default.removeItem(at: dir)
+    }
+}
+
+/// Synchronizes lyrics fetch tests so assertions can run while a fetch is in flight.
+private actor LyricsFetchTestGate {
+    private var fetchStarted = false
+    private var startWaiters: [CheckedContinuation<Void, Never>] = []
+    private var releaseWaiter: CheckedContinuation<Void, Never>?
+
+    func markFetchStarted() {
+        fetchStarted = true
+        let waiters = startWaiters
+        startWaiters.removeAll()
+        waiters.forEach { $0.resume() }
+    }
+
+    func waitUntilFetchStarted() async {
+        if fetchStarted { return }
+        await withCheckedContinuation { startWaiters.append($0) }
+    }
+
+    func waitUntilRelease() async {
+        await withCheckedContinuation { releaseWaiter = $0 }
+    }
+
+    func releaseFetch() {
+        releaseWaiter?.resume()
+        releaseWaiter = nil
     }
 }

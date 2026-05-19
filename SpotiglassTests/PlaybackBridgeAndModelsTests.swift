@@ -155,6 +155,48 @@ final class PlaybackBridgeAndModelsTests: XCTestCase {
         XCTAssertTrue(nextTracks.isEmpty)
     }
 
+    func testBridgeParsesNextTracksAndPlaybackErrors() throws {
+        let event = try SpotifyPlaybackBridgeParser.parse([
+            "name": "state_changed",
+            "payload": [
+                "paused": false,
+                "track": NSNull(),
+                "nextTracks": [[
+                    "name": "Up Next",
+                    "artists": ["A"],
+                    "durationMilliseconds": 60_000,
+                    "positionMilliseconds": 0,
+                    "uri": "spotify:track:2"
+                ]]
+            ]
+        ])
+        guard case let .stateChanged(_, _, nextTracks) = event else {
+            return XCTFail("expected state changed")
+        }
+        XCTAssertEqual(nextTracks.count, 1)
+        XCTAssertEqual(nextTracks[0].name, "Up Next")
+
+        XCTAssertEqual(
+            try SpotifyPlaybackBridgeParser.parse([
+                "name": "playback_error",
+                "payload": ["message": "Device busy"]
+            ]),
+            .playbackError("Device busy")
+        )
+        XCTAssertEqual(
+            try SpotifyPlaybackBridgeParser.parse([
+                "name": "authentication_error",
+                "payload": ["message": "Token expired"]
+            ]),
+            .authenticationError("Token expired")
+        )
+    }
+
+    func testSpotifyPlaybackHostHTMLFallbackIsNonEmpty() {
+        XCTAssertFalse(SpotifyPlaybackHost.html.isEmpty)
+        XCTAssertEqual(SpotifyPlaybackHost.deviceName, "Spotiglass")
+    }
+
     func testTokenBridgeOnlyReturnsAccessToken() async throws {
         let provider = MockPlaybackTokenProvider(accessToken: "access", refreshedAccessToken: "refreshed")
         let bridge = PlaybackTokenBridge(provider: provider)

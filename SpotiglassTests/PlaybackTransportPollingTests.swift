@@ -117,6 +117,30 @@ final class PlaybackTransportPollingTests: XCTestCase {
         )
     }
 
+    func testResolvedTransportTrackURIFallsBackToStableURI() {
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: MockPlaybackAPI(),
+            webCommander: MockWebPlaybackCommander()
+        )
+        viewModel.stableTransportTrackURI = "spotify:track:stable"
+        XCTAssertEqual(viewModel.resolvedTransportTrackURI("spotify:track:live"), "spotify:track:live")
+        XCTAssertEqual(viewModel.resolvedTransportTrackURI(nil), "spotify:track:stable")
+        XCTAssertEqual(viewModel.resolvedTransportTrackURI(""), "spotify:track:stable")
+    }
+
+    func testShouldRunTransportPollingRequiresDeviceAndActiveApp() {
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: MockPlaybackAPI(),
+            webCommander: MockWebPlaybackCommander()
+        )
+        viewModel.isAppActive = true
+        XCTAssertFalse(viewModel.shouldRunTransportPolling(for: .ready(deviceID: "d")))
+        viewModel.handle(.ready(deviceID: "device-1"))
+        XCTAssertTrue(viewModel.shouldRunTransportPolling())
+        viewModel.isAppActive = false
+        XCTAssertFalse(viewModel.shouldRunTransportPolling())
+    }
+
     func testTransportPollingKeyIgnoresPosition() {
         let viewModel = PlaybackSessionViewModel(
             playbackAPI: MockPlaybackAPI(),
