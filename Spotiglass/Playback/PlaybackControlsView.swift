@@ -137,36 +137,15 @@ struct PlaybackControlsView: View {
     }
 
     private var centerScrubberGroup: some View {
-        HStack(spacing: SpotiglassDesign.spacingS) {
-            Text(elapsedText)
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.secondary)
-                .frame(minWidth: 36, alignment: .trailing)
-                .contentTransition(.numericText())
-                .animation(.smooth(duration: 0.18), value: elapsedText)
-
-            ScrubberView(
-                positionFraction: positionFraction ?? 0,
-                durationMilliseconds: nowPlaying?.durationMilliseconds ?? 0,
-                onSeek: { milliseconds in
-                    Task { await viewModel.seek(to: milliseconds) }
-                },
-                onDragUpdate: { fraction in
-                    dragFraction = fraction
-                }
-            )
-            .frame(maxWidth: .infinity)
-            .opacity(nowPlaying != nil ? 1 : 0.4)
-            .disabled(nowPlaying == nil)
-            .animation(.smooth(duration: 0.24), value: nowPlaying != nil)
-
-            Text(remainingText)
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.secondary)
-                .frame(minWidth: 40, alignment: .leading)
-                .contentTransition(.numericText())
-                .animation(.smooth(duration: 0.18), value: remainingText)
-        }
+        PlaybackProgressScrubberGroup(
+            progressAnchor: viewModel.progressAnchor,
+            durationMilliseconds: nowPlaying?.durationMilliseconds ?? 0,
+            isEnabled: nowPlaying != nil,
+            onSeek: { milliseconds in
+                Task { await viewModel.seek(to: milliseconds) }
+            },
+            dragFraction: $dragFraction
+        )
     }
 
     private var controlsCluster: some View {
@@ -515,35 +494,6 @@ struct PlaybackControlsView: View {
         default:
             .secondary
         }
-    }
-
-    private var positionFraction: Double? {
-        if let dragFraction { return dragFraction }
-        guard let item = nowPlaying, item.durationMilliseconds > 0 else { return nil }
-        return min(max(Double(item.positionMilliseconds) / Double(item.durationMilliseconds), 0), 1)
-    }
-
-    private var elapsedText: String {
-        guard let item = nowPlaying else { return "0:00" }
-        let positionMs: Int
-        if let dragFraction {
-            positionMs = Int((dragFraction * Double(item.durationMilliseconds)).rounded())
-        } else {
-            positionMs = item.positionMilliseconds
-        }
-        return PlaybackNowPlaying.mmss(milliseconds: positionMs)
-    }
-
-    private var remainingText: String {
-        guard let item = nowPlaying else { return "−0:00" }
-        let positionMs: Int
-        if let dragFraction {
-            positionMs = Int((dragFraction * Double(item.durationMilliseconds)).rounded())
-        } else {
-            positionMs = item.positionMilliseconds
-        }
-        let remainingMs = max(0, item.durationMilliseconds - positionMs)
-        return "−" + PlaybackNowPlaying.mmss(milliseconds: remainingMs)
     }
 
     private var nowPlaying: PlaybackNowPlaying? {

@@ -78,6 +78,7 @@
 		E50000000000000000000004 /* PlaybackSessionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000014 /* PlaybackSessionViewModel.swift */; };
 		E50000000000000000000052 /* WebPlaybackViewCommander.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000051 /* WebPlaybackViewCommander.swift */; };
 		E50000000000000000000054 /* PlaybackSessionViewModel+Timers.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000053 /* PlaybackSessionViewModel+Timers.swift */; };
+		E500000000000000000000C0 /* PlaybackSessionViewModel+ProgressAnchor.swift in Sources */ = {isa = PBXBuildFile; fileRef = E500000000000000000000BF /* PlaybackSessionViewModel+ProgressAnchor.swift */; };
 		E50000000000000000000056 /* PlaybackSessionViewModel+MacAudioOutput.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000055 /* PlaybackSessionViewModel+MacAudioOutput.swift */; };
 		E50000000000000000000070 /* PlaybackSessionViewModel+SessionLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000057 /* PlaybackSessionViewModel+SessionLifecycle.swift */; };
 		E50000000000000000000071 /* PlaybackSessionViewModel+WebPlaybackEvents.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000058 /* PlaybackSessionViewModel+WebPlaybackEvents.swift */; };
@@ -192,6 +193,7 @@
 		TST00000000000000000017 /* PlaylistBrowserTracksFetchingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000067 /* PlaylistBrowserTracksFetchingTests.swift */; };
 		TST00000000000000000018 /* PlaylistBrowserBreadcrumbTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000068 /* PlaylistBrowserBreadcrumbTests.swift */; };
 		TST00000000000000000019 /* PlaybackBridgeAndModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000069 /* PlaybackBridgeAndModelsTests.swift */; };
+		TST000000000000000000C1 /* PlaybackProgressAnchorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000000C0 /* PlaybackProgressAnchorTests.swift */; };
 		TST00000000000000000020 /* PlaybackSessionPlayAndDedupeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000070 /* PlaybackSessionPlayAndDedupeTests.swift */; };
 		TST00000000000000000021 /* PlaybackTransportSeekRepeatShuffleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000071 /* PlaybackTransportSeekRepeatShuffleTests.swift */; };
 		TST00000000000000000022 /* PlaybackRecoveryAndPlaylistContextTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000072 /* PlaybackRecoveryAndPlaylistContextTests.swift */; };
@@ -292,6 +294,7 @@
 		E50000000000000000000014 /* PlaybackSessionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackSessionViewModel.swift; sourceTree = "<group>"; };
 		E50000000000000000000051 /* WebPlaybackViewCommander.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebPlaybackViewCommander.swift; sourceTree = "<group>"; };
 		E50000000000000000000053 /* PlaybackSessionViewModel+Timers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlaybackSessionViewModel+Timers.swift"; sourceTree = "<group>"; };
+		E500000000000000000000BF /* PlaybackSessionViewModel+ProgressAnchor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlaybackSessionViewModel+ProgressAnchor.swift"; sourceTree = "<group>"; };
 		E50000000000000000000055 /* PlaybackSessionViewModel+MacAudioOutput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlaybackSessionViewModel+MacAudioOutput.swift"; sourceTree = "<group>"; };
 		E50000000000000000000057 /* PlaybackSessionViewModel+SessionLifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlaybackSessionViewModel+SessionLifecycle.swift"; sourceTree = "<group>"; };
 		E50000000000000000000058 /* PlaybackSessionViewModel+WebPlaybackEvents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlaybackSessionViewModel+WebPlaybackEvents.swift"; sourceTree = "<group>"; };
@@ -397,6 +400,7 @@
 		TST00000000000000000067 /* PlaylistBrowserTracksFetchingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserTracksFetchingTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000068 /* PlaylistBrowserBreadcrumbTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserBreadcrumbTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000069 /* PlaybackBridgeAndModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackBridgeAndModelsTests.swift; sourceTree = "<group>"; };
+		TST000000000000000000C0 /* PlaybackProgressAnchorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackProgressAnchorTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000070 /* PlaybackSessionPlayAndDedupeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackSessionPlayAndDedupeTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000071 /* PlaybackTransportSeekRepeatShuffleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackTransportSeekRepeatShuffleTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000072 /* PlaybackRecoveryAndPlaylistContextTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackRecoveryAndPlaylistContextTests.swift; sourceTree = "<group>"; };
@@ -617,6 +621,7 @@
 				E5000000000000000000005D /* PlaybackSessionViewModel+SkipAndPlayPause.swift */,
 				E5000000000000000000005E /* PlaybackSessionViewModel+DeviceTransfer.swift */,
 				E50000000000000000000053 /* PlaybackSessionViewModel+Timers.swift */,
+				E500000000000000000000BF /* PlaybackSessionViewModel+ProgressAnchor.swift */,
 				E50000000000000000000055 /* PlaybackSessionViewModel+MacAudioOutput.swift */,
 				E50000000000000000000014 /* PlaybackSessionViewModel.swift */,
 			);
@@ -710,6 +715,7 @@
 				TST00000000000000000067 /* PlaylistBrowserTracksFetchingTests.swift */,
 				TST00000000000000000068 /* PlaylistBrowserBreadcrumbTests.swift */,
 				TST00000000000000000069 /* PlaybackBridgeAndModelsTests.swift */,
+				TST000000000000000000C0 /* PlaybackProgressAnchorTests.swift */,
 				TST00000000000000000070 /* PlaybackSessionPlayAndDedupeTests.swift */,
 				TST00000000000000000071 /* PlaybackTransportSeekRepeatShuffleTests.swift */,
 				TST00000000000000000072 /* PlaybackRecoveryAndPlaylistContextTests.swift */,
@@ -1005,6 +1011,7 @@
 				E50000000000000000000004 /* PlaybackSessionViewModel.swift in Sources */,
 				E50000000000000000000052 /* WebPlaybackViewCommander.swift in Sources */,
 				E50000000000000000000054 /* PlaybackSessionViewModel+Timers.swift in Sources */,
+				E500000000000000000000C0 /* PlaybackSessionViewModel+ProgressAnchor.swift in Sources */,
 				E50000000000000000000056 /* PlaybackSessionViewModel+MacAudioOutput.swift in Sources */,
 				E50000000000000000000070 /* PlaybackSessionViewModel+SessionLifecycle.swift in Sources */,
 				E50000000000000000000071 /* PlaybackSessionViewModel+WebPlaybackEvents.swift in Sources */,
@@ -1085,6 +1092,7 @@
 				TST00000000000000000017 /* PlaylistBrowserTracksFetchingTests.swift in Sources */,
 				TST00000000000000000018 /* PlaylistBrowserBreadcrumbTests.swift in Sources */,
 				TST00000000000000000019 /* PlaybackBridgeAndModelsTests.swift in Sources */,
+				TST000000000000000000C1 /* PlaybackProgressAnchorTests.swift in Sources */,
 				TST00000000000000000020 /* PlaybackSessionPlayAndDedupeTests.swift in Sources */,
 				TST00000000000000000021 /* PlaybackTransportSeekRepeatShuffleTests.swift in Sources */,
 				TST00000000000000000022 /* PlaybackRecoveryAndPlaylistContextTests.swift in Sources */,

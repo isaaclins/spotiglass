@@ -69,6 +69,31 @@ struct PlaybackNowPlaying: Equatable {
     }
 }
 
+/// Wall-clock anchor for smooth scrubber interpolation without mutating `connectionState` on a timer.
+struct PlaybackProgressAnchor: Equatable {
+    var positionMilliseconds: Int
+    var anchorDate: Date
+    var durationMilliseconds: Int
+    var isAdvancing: Bool
+
+    func interpolatedPositionMs(at now: Date) -> Int {
+        Self.interpolatedPositionMs(anchor: self, now: now)
+    }
+
+    func fraction(at now: Date) -> Double {
+        guard durationMilliseconds > 0 else { return 0 }
+        return Double(interpolatedPositionMs(at: now)) / Double(durationMilliseconds)
+    }
+
+    static func interpolatedPositionMs(anchor: PlaybackProgressAnchor, now: Date) -> Int {
+        let duration = max(0, anchor.durationMilliseconds)
+        let base = min(max(0, anchor.positionMilliseconds), duration)
+        guard anchor.isAdvancing, duration > 0 else { return base }
+        let elapsedMs = max(0, Int(now.timeIntervalSince(anchor.anchorDate) * 1_000))
+        return min(base + elapsedMs, duration)
+    }
+}
+
 struct PlaybackDisplayError: Error, Equatable, Identifiable {
     let id = UUID()
     let title: String

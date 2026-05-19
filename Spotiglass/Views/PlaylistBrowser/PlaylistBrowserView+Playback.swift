@@ -41,15 +41,14 @@ extension PlaylistBrowserView {
         }
     }
 
-    /// Stable while the current item is under halfway; becomes non-nil once past 50% so a `.task(id:)` can preload the next track’s lyrics once.
-    var lyricsHalfwayNextPreloadTaskKey: String? {
+    /// Stable per playing track; used to schedule halfway next-track lyrics prefetch.
+    var lyricsHalfwayNextPreloadTaskID: String? {
         guard let np = lyricsPrefetchTrack,
               np.durationMilliseconds > 0,
               np.spotifyTrackIDForLyrics != nil
         else { return nil }
-        guard np.positionMilliseconds * 2 >= np.durationMilliseconds else { return nil }
         let nextURI = queueViewModel.upcomingItems.first?.uri ?? ""
-        return "\(np.uri ?? "")|\(nextURI)"
+        return "\(np.uri ?? "")|\(np.durationMilliseconds)|\(nextURI)"
     }
 
     /// Playback identity without scrubber position ticks (avoids re-running queue hooks every progress frame).

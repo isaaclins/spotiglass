@@ -28,18 +28,8 @@ struct ImmersiveLyricsView: View {
             .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                ImmersiveLyricsMainLayout(
-                    playbackViewModel: playbackViewModel,
-                    queueViewModel: queueViewModel,
-                    lyricsModel: lyricsModel,
-                    navigateToArtist: navigateToArtist,
-                    navigateToAlbum: navigateToAlbum,
-                    currentTrack: currentTrack,
-                    positionMs: positionMs,
-                    reduceMotion: reduceMotion,
-                    usesLyricsScrollEdgeFade: usesLyricsScrollEdgeFade
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                lyricsMainLayout
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -67,7 +57,36 @@ struct ImmersiveLyricsView: View {
         }
     }
 
-    private var positionMs: Int {
+    @ViewBuilder
+    private var lyricsMainLayout: some View {
+        if let anchor = playbackViewModel.progressAnchor, anchor.isAdvancing {
+            TimelineView(.animation) { context in
+                immersiveMainLayout(positionMs: anchor.interpolatedPositionMs(at: context.date))
+            }
+        } else {
+            immersiveMainLayout(positionMs: staticPositionMs)
+        }
+    }
+
+    private func immersiveMainLayout(positionMs: Int) -> some View {
+        ImmersiveLyricsMainLayout(
+            playbackViewModel: playbackViewModel,
+            queueViewModel: queueViewModel,
+            lyricsModel: lyricsModel,
+            navigateToArtist: navigateToArtist,
+            navigateToAlbum: navigateToAlbum,
+            currentTrack: currentTrack,
+            positionMs: positionMs,
+            reduceMotion: reduceMotion,
+            usesLyricsScrollEdgeFade: usesLyricsScrollEdgeFade
+        )
+    }
+
+    /// Frozen position when paused or between anchors; playback uses `progressAnchor` + `TimelineView` instead.
+    private var staticPositionMs: Int {
+        if let anchor = playbackViewModel.progressAnchor {
+            return anchor.positionMilliseconds
+        }
         switch playbackViewModel.connectionState {
         case let .playing(np):
             return np.positionMilliseconds

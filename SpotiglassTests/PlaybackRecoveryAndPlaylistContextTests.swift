@@ -122,31 +122,6 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
         XCTAssertNil(viewModel.deviceID)
     }
 
-    func testPlayingStateProgressAdvancesBetweenBridgeStateUpdates() async {
-        let viewModel = PlaybackSessionViewModel(
-            playbackAPI: MockPlaybackAPI(),
-            webCommander: MockWebPlaybackCommander(),
-            progressTickInterval: 0.02
-        )
-        viewModel.handle(.stateChanged(PlaybackNowPlaying(
-            name: "Track",
-            artists: ["Artist"],
-            albumName: nil,
-            albumID: nil,
-            albumArtURL: nil,
-            durationMilliseconds: 180_000,
-            positionMilliseconds: 5_000,
-            uri: "spotify:track:1"
-        ), isPaused: false, nextTracks: []))
-
-        try? await Task.sleep(nanoseconds: 120_000_000)
-
-        guard case let .playing(nowPlaying) = viewModel.connectionState else {
-            return XCTFail("Expected playing state")
-        }
-        XCTAssertGreaterThan(nowPlaying.positionMilliseconds, 5_000)
-    }
-
     func testPlayURIOptimisticallyResetsPositionForKnownCurrentTrack() async {
         let commander = MockWebPlaybackCommander()
         let playbackAPI = MockPlaybackAPI()

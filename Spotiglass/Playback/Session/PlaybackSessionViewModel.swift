@@ -5,6 +5,8 @@ import Foundation
 @MainActor
 final class PlaybackSessionViewModel: ObservableObject {
     @Published var connectionState: PlaybackConnectionState = .disconnected
+    /// Display-only playback position anchor for smooth scrubber interpolation.
+    @Published var progressAnchor: PlaybackProgressAnchor?
     @Published var deviceID: String?
     /// The Spotify playlist ID that the current playback originated from, or
     /// `nil` if playback was started from a single track URI or external context.
@@ -56,7 +58,6 @@ final class PlaybackSessionViewModel: ObservableObject {
     var latestPlayerSnapshot: SpotifyPlayerSnapshot?
     private var becameActiveObserver: NSObjectProtocol?
     private var resignedActiveObserver: NSObjectProtocol?
-    let progressTickInterval: TimeInterval
     let clock = ContinuousClock()
     let pendingShuffleTimeout: Duration
     let pendingRepeatTimeout: Duration
@@ -73,7 +74,6 @@ final class PlaybackSessionViewModel: ObservableObject {
     let autoTransferRollingWindowMax: Int
     /// Cooldown applied after a 429 with no `Retry-After`, so the next attempt is paced even when Spotify omits the hint.
     let transferDefaultCooldown: Duration
-    var progressTickerTask: Task<Void, Never>?
     var transportPollTask: Task<Void, Never>?
     var shuffleSyncTask: Task<Void, Never>?
     var repeatSyncTask: Task<Void, Never>?
@@ -84,7 +84,6 @@ final class PlaybackSessionViewModel: ObservableObject {
     var localMutationSettleTicksRemaining = 0
     var isAppActive = NSApp.isActive
     var seekDispatchTask: Task<Void, Never>?
-    var lastProgressTickInstant: ContinuousClock.Instant?
     var lastSeekSentInstant: ContinuousClock.Instant?
     var lastSentSeekPositionMilliseconds: Int?
     var hasTransferredPlaybackToCurrentDevice = false
@@ -232,7 +231,6 @@ final class PlaybackSessionViewModel: ObservableObject {
         playbackAPI: SpotifyPlaybackControlling,
         webCommander: WebPlaybackCommanding,
         macAudioOutput: MacDefaultAudioOutputProviding = MacDefaultAudioOutputNameProvider(),
-        progressTickInterval: TimeInterval = 0.25,
         pendingShuffleTimeout: Duration = .seconds(2),
         pendingRepeatTimeout: Duration = .seconds(2),
         pendingSeekTimeout: Duration = .seconds(2),
@@ -258,7 +256,6 @@ final class PlaybackSessionViewModel: ObservableObject {
         self.playbackAPI = playbackAPI
         self.webCommander = webCommander
         self.macAudioOutput = macAudioOutput
-        self.progressTickInterval = progressTickInterval
         self.pendingShuffleTimeout = pendingShuffleTimeout
         self.pendingRepeatTimeout = pendingRepeatTimeout
         self.pendingSeekTimeout = pendingSeekTimeout
@@ -342,7 +339,6 @@ final class PlaybackSessionViewModel: ObservableObject {
 
     deinit {
         togglePlayPauseAckTimeoutTask?.cancel()
-        progressTickerTask?.cancel()
         transportPollTask?.cancel()
         shuffleSyncTask?.cancel()
         repeatSyncTask?.cancel()
@@ -412,13 +408,7 @@ final class PlaybackSessionViewModel: ObservableObject {
 
     func setConnectionState(_ state: PlaybackConnectionState) {
         connectionState = state
-
-        switch state {
-        case .playing:
-            startProgressTickerIfNeeded()
-        case .disconnected, .connecting, .ready, .transferring, .paused, .unavailable, .error:
-            stopProgressTicker()
-        }
+        syncProgressAnchorWithConnectionState()
         restartTransportPollingIfNeeded()
     }
 }

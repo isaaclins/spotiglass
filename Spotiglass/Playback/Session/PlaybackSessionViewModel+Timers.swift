@@ -18,61 +18,6 @@ extension PlaybackSessionViewModel {
         }
     }
 
-    func startProgressTickerIfNeeded() {
-        guard progressTickerTask == nil else {
-            return
-        }
-
-        lastProgressTickInstant = clock.now
-        let intervalNanoseconds = UInt64(max(progressTickInterval, 0.01) * 1_000_000_000)
-        progressTickerTask = Task { @MainActor [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: intervalNanoseconds)
-                self?.tickPlaybackProgress()
-            }
-        }
-    }
-
-    func stopProgressTicker() {
-        progressTickerTask?.cancel()
-        progressTickerTask = nil
-        lastProgressTickInstant = nil
-    }
-
-    private func tickPlaybackProgress() {
-        guard case let .playing(nowPlaying) = connectionState else {
-            return
-        }
-        guard nowPlaying.durationMilliseconds > 0 else {
-            return
-        }
-
-        let currentInstant = clock.now
-        let previousInstant = lastProgressTickInstant ?? currentInstant
-        lastProgressTickInstant = currentInstant
-        let deltaComponents = currentInstant - previousInstant
-        let deltaSeconds = Double(deltaComponents.components.seconds)
-            + (Double(deltaComponents.components.attoseconds) / 1_000_000_000_000_000_000.0)
-        guard deltaSeconds > 0 else {
-            return
-        }
-
-        let deltaMilliseconds = Int((deltaSeconds * 1_000).rounded())
-        guard deltaMilliseconds > 0 else {
-            return
-        }
-
-        let newPosition = min(
-            max(0, nowPlaying.positionMilliseconds + deltaMilliseconds),
-            nowPlaying.durationMilliseconds
-        )
-        guard newPosition != nowPlaying.positionMilliseconds else {
-            return
-        }
-
-        connectionState = .playing(nowPlaying.with(positionMilliseconds: newPosition))
-    }
-
     private var shouldRunTransportPolling: Bool {
         guard isAppActive else { return false }
         if localMutationSettleTicksRemaining > 0 { return true }

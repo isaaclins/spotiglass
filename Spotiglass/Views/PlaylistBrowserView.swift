@@ -143,13 +143,17 @@ struct PlaylistBrowserView: View {
                 await lyricsViewModel.preload(track: track)
             }.value
         }
-        .task(id: lyricsHalfwayNextPreloadTaskKey) {
-            guard lyricsHalfwayNextPreloadTaskKey != nil,
-                  let current = lyricsPrefetchTrack,
+        .task(id: lyricsHalfwayNextPreloadTaskID) {
+            guard let current = lyricsPrefetchTrack,
                   current.durationMilliseconds > 0,
-                  current.spotifyTrackIDForLyrics != nil,
-                  current.positionMilliseconds * 2 >= current.durationMilliseconds
+                  current.spotifyTrackIDForLyrics != nil
             else { return }
+            let halfMs = current.durationMilliseconds / 2
+            let waitMs = max(0, halfMs - current.positionMilliseconds)
+            if waitMs > 0 {
+                try? await Task.sleep(nanoseconds: UInt64(waitMs) * 1_000_000)
+            }
+            guard !Task.isCancelled else { return }
             await Task(priority: .userInitiated) {
                 await queueViewModel.prefetchQueueForLyricsOverlay()
                 guard let nextPlayback = queueViewModel.upcomingItems.first?.playbackNowPlayingForLyricsPrefetch(),
