@@ -33,4 +33,60 @@ final class PinnedRowViewTests: XCTestCase {
         ViewTestHost.host(view)
         XCTAssertNoThrow(try view.inspect().find(text: "Unavailable"))
     }
+
+    func testLikedSongsAndArtistRows() throws {
+        let liked = PinnedRowView(
+            item: .likedSongs(ownerDisplay: "You", artworkURL: nil),
+            isSelected: true,
+            onUnpin: {}
+        )
+        ViewTestHost.host(liked)
+        XCTAssertNoThrow(try liked.inspect().find(text: "Liked Songs"))
+
+        let artist = PinnedRowView(
+            item: .artist(SpotifyArtist(id: "a1", name: "M83", imageURL: nil, uri: "spotify:artist:a1")),
+            onUnpin: {}
+        )
+        ViewTestHost.host(artist)
+        XCTAssertNoThrow(try artist.inspect().find(text: "M83"))
+    }
+
+    func testAlbumAndTrackPins() throws {
+        let album = PinnedRowView(
+            item: .album(SpotifyAlbum(
+                id: "al1", name: "Hurry Up", artists: ["M83"], imageURL: nil, uri: "spotify:album:al1"
+            )),
+            onUnpin: {}
+        )
+        ViewTestHost.host(album)
+        XCTAssertNoThrow(try album.inspect().find(text: "Hurry Up"))
+
+        let track = PinnedRowView(
+            item: .track(SpotifyTrack(
+                id: "t1",
+                name: "Midnight",
+                artists: ["M83"],
+                albumArtworkURL: URL(string: "https://example.com/a.jpg"),
+                durationMilliseconds: 240_000,
+                isExplicit: false,
+                isPlayable: true,
+                linkedFromID: nil,
+                uri: "spotify:track:t1"
+            )),
+            onUnpin: {}
+        )
+        ViewTestHost.host(track)
+        XCTAssertNoThrow(try track.inspect().find(text: "Midnight"))
+    }
+
+    func testDragPillKinds() throws {
+        let playlist = PinnedItem.playlist(
+            SpotifyPlaylistSummary(
+                id: "p3", name: "Mix", ownerName: "Me",
+                imageURL: nil, trackCount: 1, snapshotID: "s"
+            )
+        )
+        ViewTestHost.host(PinnedItemDragPill(item: playlist))
+        ViewTestHost.host(PinnedItemDragPill(item: .likedSongs(ownerDisplay: "You", artworkURL: nil)))
+    }
 }

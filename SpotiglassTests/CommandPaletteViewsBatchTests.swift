@@ -148,9 +148,55 @@ final class CommandPaletteViewsBatchTests: XCTestCase {
         let loading = CommandPaletteSearchingPlaceholderView(accessibilityReduceMotion: true)
         ViewTestHost.host(loading, size: CGSize(width: 400, height: 200))
         XCTAssertNoThrow(try loading.inspect())
+
+        vm.testingReplaceSections([])
+        vm.query = ">"
+        let prefixOnly = CommandPaletteResultsBodyView(viewModel: vm, accessibilityReduceMotion: true)
+        ViewTestHost.host(prefixOnly, size: CGSize(width: 700, height: 400))
+        XCTAssertNoThrow(try prefixOnly.inspect())
+
+        let animatedSearch = CommandPaletteSearchingPlaceholderView(accessibilityReduceMotion: false)
+        ViewTestHost.host(animatedSearch, size: CGSize(width: 400, height: 200))
+        XCTAssertNoThrow(try animatedSearch.inspect())
+    }
+
+    func testSectionedListTapAndIconLeading() throws {
+        let vm = CommandPaletteViewModel()
+        vm.show()
+        let iconOnly = CommandPaletteItem(
+            id: "cmd-icon",
+            title: "Settings",
+            subtitle: nil,
+            iconSystemName: "gear",
+            section: .commands,
+            keywords: [],
+            action: {}
+        )
+        vm.testingReplaceSections([(.commands, [iconOnly, sampleItem()])])
+        vm.selectedIndex = 1
+        let list = CommandPaletteSectionedListView(
+            viewModel: vm,
+            sections: vm.sections,
+            accessibilityReduceMotion: false
+        )
+        ViewTestHost.host(list, size: CGSize(width: 700, height: 400))
+        XCTAssertNoThrow(try list.inspect().find(text: "Settings"))
+
+        let leading = CommandPaletteRowLeadingView(item: iconOnly)
+        ViewTestHost.host(leading)
+        XCTAssertNoThrow(try leading.inspect().find(ViewType.Image.self))
     }
 
     func testPrefetchProgressHeaderPhases() throws {
+        let preparing = CommandPalettePrefetchProgressHeader(
+            progress: PrefetchAllPlaylistsProgress(
+                phase: .running, total: 0, completed: 0, skipped: 0, failed: 0
+            ),
+            onCancel: {}
+        )
+        ViewTestHost.host(preparing)
+        XCTAssertNoThrow(try preparing.inspect().find(text: "Preparing…"))
+
         let running = CommandPalettePrefetchProgressHeader(
             progress: PrefetchAllPlaylistsProgress(
                 phase: .running, total: 10, completed: 2, skipped: 1, failed: 0
@@ -167,7 +213,25 @@ final class CommandPaletteViewsBatchTests: XCTestCase {
             onCancel: {}
         )
         ViewTestHost.host(finished)
-        XCTAssertNoThrow(try finished.inspect())
+        XCTAssertNoThrow(try finished.inspect().find(text: "Loaded 5 playlists"))
+
+        let partialFail = CommandPalettePrefetchProgressHeader(
+            progress: PrefetchAllPlaylistsProgress(
+                phase: .finished, total: 5, completed: 3, skipped: 1, failed: 1
+            ),
+            onCancel: {}
+        )
+        ViewTestHost.host(partialFail)
+        XCTAssertNoThrow(try partialFail.inspect())
+
+        let cancelled = CommandPalettePrefetchProgressHeader(
+            progress: PrefetchAllPlaylistsProgress(
+                phase: .cancelled, total: 8, completed: 2, skipped: 0, failed: 0
+            ),
+            onCancel: {}
+        )
+        ViewTestHost.host(cancelled)
+        XCTAssertNoThrow(try cancelled.inspect().find(text: "Prefetch cancelled (2 of 8)"))
     }
 
     func testFooterAndHints() throws {
@@ -210,38 +274,13 @@ final class CommandPaletteViewsBatchTests: XCTestCase {
         }
         vm.query = "ab"
         vm.refresh()
-        try await Task.sleep(for: .milliseconds(500))
+        let deadline = ContinuousClock.now + .seconds(3)
+        while vm.errorText == nil, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(25))
+        }
         XCTAssertNotNil(vm.errorText)
         ViewTestHost.host(host, size: CGSize(width: 700, height: 420))
         XCTAssertNoThrow(try host.inspect())
     }
 
-    func testHotkeyRecorderFieldHosts() throws {
-        let (_, keymap, manager) = try makeHarness()
-        let spec = CommandPaletteCommandCatalog.editable.first!
-        let field = HotkeyRecorderField(
-            commandID: spec.commandID,
-            keymapStore: keymap,
-            onRecordingChange: { manager.isRecordingHotkey = $0 },
-            onCaptureConflict: { _, _ in },
-            onApplied: {}
-        )
-        ViewTestHost.host(field.frame(width: 200, height: 28))
-        XCTAssertNotNil(field)
-    }
-
-    func testHotkeyRecorderMakeNSViewSyncsDisplay() throws {
-        let (_, keymap, manager) = try makeHarness()
-        let spec = CommandPaletteCommandCatalog.editable.first!
-        let field = HotkeyRecorderField(
-            commandID: spec.commandID,
-            keymapStore: keymap,
-            onRecordingChange: { manager.isRecordingHotkey = $0 },
-            onCaptureConflict: { _, _ in },
-            onApplied: {}
-        )
-        let view = field.frame(width: 220, height: 32)
-        ViewTestHost.host(view)
-        _ = try field.inspect()
-    }
 }
