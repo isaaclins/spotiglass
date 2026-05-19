@@ -3,7 +3,6 @@ import SwiftUI
 enum SpotiglassSettingsSection: String, CaseIterable, Identifiable {
     case playback
     case appearance
-    case equalizer
     case account
     case keyboard
 
@@ -13,7 +12,6 @@ enum SpotiglassSettingsSection: String, CaseIterable, Identifiable {
         switch self {
         case .playback: "Playback"
         case .appearance: "Appearance"
-        case .equalizer: "Equalizer"
         case .account: "Account"
         case .keyboard: "Keyboard"
         }
@@ -23,7 +21,6 @@ enum SpotiglassSettingsSection: String, CaseIterable, Identifiable {
         switch self {
         case .playback: "play.circle"
         case .appearance: "paintpalette"
-        case .equalizer: "slider.horizontal.3"
         case .account: "person.crop.circle"
         case .keyboard: "keyboard"
         }
@@ -34,7 +31,6 @@ struct SpotiglassSettingsView: View {
     @EnvironmentObject private var authViewModel: AuthViewModel
     @ObservedObject var commandPaletteManager: CommandPaletteManager
     @ObservedObject var settingsStore: SpotiglassSettingsStore
-    @ObservedObject var equalizerEngine: AudioEqualizerEngine
 
     @State private var section: SpotiglassSettingsSection = .playback
 
@@ -63,11 +59,6 @@ struct SpotiglassSettingsView: View {
                     PlaybackSettingsView()
                 case .appearance:
                     AppearanceSettingsView(settingsStore: settingsStore)
-                case .equalizer:
-                    EqualizerSettingsView(
-                        settingsStore: settingsStore,
-                        engine: equalizerEngine
-                    )
                 case .account:
                     AccountSettingsView(viewModel: authViewModel)
                 case .keyboard:
@@ -103,13 +94,17 @@ private struct SettingsTabButton: View {
             .padding(.horizontal, SpotiglassDesign.spacingS)
             .padding(.vertical, SpotiglassDesign.spacingXS)
             .foregroundStyle(isSelected ? SpotiglassDesign.controlAccent : .secondary)
-            .background {
-                RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
-                    .strokeBorder(isSelected ? SpotiglassDesign.controlAccent : Color.secondary.opacity(0.35), lineWidth: isSelected ? 2 : 1)
-            }
+            .spotiglassSurface(
+                corner: .s,
+                fill: Color.clear,
+                stroke: isSelected ? SpotiglassDesign.controlAccent : Color.secondary.opacity(0.35),
+                strokeWidth: isSelected ? 2 : 1
+            )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .hoverPressable()
+        .animation(SpotiglassMotion.controlSpring, value: isSelected)
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
         .accessibilityLabel(title)
     }

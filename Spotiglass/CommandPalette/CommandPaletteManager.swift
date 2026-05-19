@@ -29,6 +29,9 @@ final class CommandPaletteManager: ObservableObject {
     var filterByArtist: ((String) -> Void)?
     var toggleQueue: (() -> Void)?
     var toggleLyrics: (() -> Void)?
+    /// Bulk-warms the on-disk track cache for every library playlist + Liked
+    /// Songs. Invoking the command while a run is in flight cancels it.
+    var prefetchAllPlaylists: (() -> Void)?
     /// When immersive lyrics are visible, return true after calling dismiss so Escape is consumed before keymaps/WebKit.
     var dismissLyricsOverlayIfPresented: (() -> Bool)?
     /// When set, Toggle Play/Pause only runs if this returns true (e.g. Web Playback transport ready).
@@ -46,6 +49,9 @@ final class CommandPaletteManager: ObservableObject {
                 return CommandPaletteSearchResults()
             }
             return try await spotifySearch(query, category)
+        }
+        viewModel.cancelPrefetchAllPlaylists = { [weak self] in
+            self?.prefetchAllPlaylists?()
         }
 
         // SwiftUI only observes the outermost ObservableObject. Forward
@@ -184,6 +190,8 @@ final class CommandPaletteManager: ObservableObject {
             Task { await viewModel.executeSelectionUnpinning() }
         case CommandPaletteCommandID.enqueueSelected:
             Task { await viewModel.executeSelectionEnqueue() }
+        case CommandPaletteCommandID.prefetchAllPlaylists:
+            prefetchAllPlaylists?()
         default:
             break
         }
@@ -227,6 +235,8 @@ final class CommandPaletteManager: ObservableObject {
             ["lyrics", "immersive", "karaoke", "overlay"]
         case CommandPaletteCommandID.signOut:
             ["disconnect", "logout", "sign out"]
+        case CommandPaletteCommandID.prefetchAllPlaylists:
+            ["prefetch", "preload", "cache", "warm", "prefire", "all songs", "library", "load", "everything"]
         default:
             []
         }

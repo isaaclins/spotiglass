@@ -92,6 +92,13 @@ final class PlaylistBrowserViewModel: ObservableObject {
     /// Collapses concurrent liked-songs refresh triggers into one network run.
     var likedSongsRevalidationTask: Task<SpotifySavedTracksResult, Error>?
     var lastLikedSongsRevalidationAt: Date?
+    /// In-flight bulk "Load all your songs into Spotiglass" prefetch run. Holding the
+    /// task lets the same command toggle cancellation on re-invocation.
+    var prefetchAllPlaylistsTask: Task<Void, Never>?
+    /// Published progress for the bulk prefetch run. Mirrored onto the command
+    /// palette view-model by the view-side binding so the palette header can
+    /// render "Loading N of M playlists…".
+    @Published internal(set) var prefetchAllPlaylistsProgress: PrefetchAllPlaylistsProgress?
     var artistDetailLoadTasks: [String: Task<ArtistDetailSnapshot, Error>] = [:]
     internal(set) var cachedArtistSnapshots: [String: CachedArtistSnapshot] = [:]
     var currentArtistAlbumsPaging: ArtistAlbumsPagingState?
@@ -172,6 +179,9 @@ final class PlaylistBrowserViewModel: ObservableObject {
         pendingAdjacentPlaylistOffset = 0
         detailLoadTask?.cancel()
         detailLoadTask = nil
+        prefetchAllPlaylistsTask?.cancel()
+        prefetchAllPlaylistsTask = nil
+        prefetchAllPlaylistsProgress = nil
         sidebarSelection = nil
         playlistsByID = [:]
         lastTracksRevalidationByID = [:]

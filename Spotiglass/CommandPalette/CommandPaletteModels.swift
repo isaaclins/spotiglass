@@ -24,6 +24,32 @@ enum CommandPaletteCommandID {
     static let unpinSelected = "palette.unpin"
     /// Add the currently-selected palette result to the playback queue. Default ⇧↩ in `.paletteOpen`.
     static let enqueueSelected = "palette.enqueue"
+    /// Bulk-warm the on-disk track cache for every library playlist + Liked Songs so subsequent opens are instant.
+    static let prefetchAllPlaylists = "playlists.prefetchAll"
+}
+
+/// Progress reported by the bulk "Load all your songs into Spotiglass" run.
+/// Mirrored from `PlaylistBrowserViewModel` onto `CommandPaletteViewModel` so the
+/// palette can render an inline header without owning the work itself.
+struct PrefetchAllPlaylistsProgress: Equatable {
+    enum Phase: Equatable {
+        case running
+        /// Run reached the end of the work list (any per-item failures are
+        /// captured in `failed`).
+        case finished
+        /// User toggled the command again or signed out; partial counts kept.
+        case cancelled
+    }
+
+    var phase: Phase
+    var total: Int
+    var completed: Int
+    var skipped: Int
+    var failed: Int
+
+    var isTerminal: Bool {
+        phase != .running
+    }
 }
 
 enum CommandPaletteSection: String {

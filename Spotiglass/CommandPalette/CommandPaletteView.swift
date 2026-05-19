@@ -81,6 +81,7 @@ struct CommandPaletteView: View {
     /// Hides the results panel while the palette is "idle" (empty query or only a scope prefix) so the footer chips
     /// sit directly under the search field. Loading and error states still surface so user feedback is never dropped.
     private var shouldShowResultsCard: Bool {
+        if viewModel.prefetchProgress != nil { return true }
         let trimmed = viewModel.query.trimmingCharacters(in: .whitespacesAndNewlines)
         let onlyPrefix = trimmed == ">" || trimmed == "@"
         if trimmed.isEmpty || onlyPrefix {

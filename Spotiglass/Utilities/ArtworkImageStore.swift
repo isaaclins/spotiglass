@@ -21,10 +21,9 @@ actor ArtworkImageStore {
     private init() {
         let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory
-        diskDirectory = base
+        let disk = base
             .appendingPathComponent(AppMetadata.displayName, isDirectory: true)
             .appendingPathComponent("Artwork", isDirectory: true)
-
         let config = URLSessionConfiguration.default
         let urlCacheDir = base.appendingPathComponent(AppMetadata.displayName, isDirectory: true)
             .appendingPathComponent("ArtworkURLCache", isDirectory: true)
@@ -34,10 +33,14 @@ actor ArtworkImageStore {
             diskCapacity: 96 * 1024 * 1024,
             diskPath: urlCacheDir.path
         )
-        responseURLCache = urlCache
         config.urlCache = urlCache
-        urlSession = URLSession(configuration: config)
+        self.init(diskDirectory: disk, urlSession: URLSession(configuration: config), responseURLCache: urlCache)
+    }
 
+    init(diskDirectory: URL, urlSession: URLSession, responseURLCache: URLCache) {
+        self.diskDirectory = diskDirectory
+        self.urlSession = urlSession
+        self.responseURLCache = responseURLCache
         try? FileManager.default.createDirectory(at: diskDirectory, withIntermediateDirectories: true)
     }
 

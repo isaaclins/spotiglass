@@ -8,12 +8,17 @@ struct ImmersiveLyricsView: View {
     let navigateToAlbum: (AlbumTapTarget, String, URL?) -> Void
     let onDismiss: () -> Void
 
+    @EnvironmentObject private var settingsStore: SpotiglassSettingsStore
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Soft fade at scroll top/bottom; off when legibility or calm motion is preferred.
     private var usesLyricsScrollEdgeFade: Bool {
         !reduceTransparency && !reduceMotion
+    }
+
+    private var lyricsTextSize: LyricsTextSize {
+        settingsStore.settings.appearance.lyricsTextSize
     }
 
     var body: some View {
@@ -78,7 +83,8 @@ struct ImmersiveLyricsView: View {
             currentTrack: currentTrack,
             positionMs: positionMs,
             reduceMotion: reduceMotion,
-            usesLyricsScrollEdgeFade: usesLyricsScrollEdgeFade
+            usesLyricsScrollEdgeFade: usesLyricsScrollEdgeFade,
+            lyricsTextSize: lyricsTextSize
         )
     }
 

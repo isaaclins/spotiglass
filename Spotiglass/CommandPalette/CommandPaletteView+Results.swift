@@ -9,6 +9,11 @@ struct CommandPaletteResultsCardView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if let progress = viewModel.prefetchProgress {
+                CommandPalettePrefetchProgressHeader(progress: progress) { [weak viewModel] in
+                    viewModel?.cancelPrefetchAllPlaylists?()
+                }
+            }
             if let errorText = viewModel.errorText {
                 Text(errorText)
                     .font(.caption)
@@ -25,6 +30,60 @@ struct CommandPaletteResultsCardView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .glassEffect(.regular, in: RoundedRectangle(cornerRadius: SpotiglassDesign.cornerM, style: .continuous))
         .glassEffectID("palette.results", in: paletteGlass)
+    }
+}
+
+/// Slim header row shown above palette results while a "Load all your songs into
+/// Spotiglass" prefetch is in flight (or briefly after it finishes).
+struct CommandPalettePrefetchProgressHeader: View {
+    let progress: PrefetchAllPlaylistsProgress
+    /// Invoked when the user clicks the cancel chip. The host wires this to
+    /// the same `playlists.prefetchAll` toggle so the second invocation cancels.
+    let onCancel: () -> Void
+
+    var body: some View {
+        HStack(spacing: SpotiglassDesign.spacingS) {
+            Image(systemName: progress.phase == .running ? "square.and.arrow.down.on.square" : "checkmark.circle.fill")
+                .foregroundStyle(.secondary)
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            if progress.phase == .running, progress.total > 0 {
+                ProgressView(value: Double(progress.completed + progress.skipped + progress.failed),
+                             total: Double(progress.total))
+                    .progressViewStyle(.linear)
+                    .frame(maxWidth: 140)
+            }
+            Spacer(minLength: 0)
+            if progress.phase == .running {
+                Button(action: onCancel) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Cancel prefetch")
+                .accessibilityLabel("Cancel loading all playlist songs")
+            }
+        }
+        .padding(.horizontal, SpotiglassDesign.spacingM)
+        .padding(.vertical, SpotiglassDesign.spacingS)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var label: String {
+        let processed = progress.completed + progress.skipped + progress.failed
+        switch progress.phase {
+        case .running:
+            if progress.total == 0 { return "Preparing…" }
+            return "Loading \(processed) of \(progress.total) playlists…"
+        case .finished:
+            if progress.failed == 0 {
+                return "Loaded \(progress.completed + progress.skipped) playlists"
+            }
+            return "Loaded \(progress.completed + progress.skipped) of \(progress.total) playlists (\(progress.failed) failed)"
+        case .cancelled:
+            return "Prefetch cancelled (\(processed) of \(progress.total))"
+        }
     }
 }
 

@@ -79,6 +79,9 @@ final class PlaybackSessionViewModel: ObservableObject {
     var repeatSyncTask: Task<Void, Never>?
     var transportSyncInFlight = false
     var transportSyncQueued = false
+    var transportSyncSchedulerTask: Task<Void, Never>?
+    /// Last non-empty track URI from SDK state; stabilizes poll keys when `uri` flickers nil.
+    var stableTransportTrackURI: String?
     var transportTransientErrorCount = 0
     var transportRateLimitedUntil: ContinuousClock.Instant?
     var localMutationSettleTicksRemaining = 0
@@ -344,6 +347,7 @@ final class PlaybackSessionViewModel: ObservableObject {
         repeatSyncTask?.cancel()
         seekDispatchTask?.cancel()
         deferredTransportSyncTask?.cancel()
+        transportSyncSchedulerTask?.cancel()
         macAudioOutput.stopListening()
         removeAudioHardwareDevicesListenerForTeardown()
         if let becameActiveObserver {
@@ -407,8 +411,26 @@ final class PlaybackSessionViewModel: ObservableObject {
     }
 
     func setConnectionState(_ state: PlaybackConnectionState) {
+        updateStableTransportTrackURI(from: state)
+        let wasPolling = shouldRunTransportPolling(for: connectionState)
         connectionState = state
         syncProgressAnchorWithConnectionState()
-        restartTransportPollingIfNeeded()
+        if shouldRunTransportPolling(for: nil) != wasPolling {
+            restartTransportPollingIfNeeded()
+        }
+    }
+
+    func updateStableTransportTrackURI(from state: PlaybackConnectionState) {
+        let uri: String? = switch state {
+        case let .playing(nowPlaying):
+            nowPlaying.uri
+        case let .paused(nowPlaying):
+            nowPlaying?.uri
+        default:
+            nil
+        }
+        if let uri, !uri.isEmpty {
+            stableTransportTrackURI = uri
+        }
     }
 }

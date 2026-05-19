@@ -8,7 +8,10 @@ extension PlaylistBrowserView {
     }
 
     static func mutualExclusionWidth(for width: CGFloat) -> Bool {
-        width < SpotiglassDesign.dualSidebarComfortableMinWidth
+        BrowserWidthCommitPolicy.mutualExclusionWidth(
+            for: width,
+            comfortableMinWidth: SpotiglassDesign.dualSidebarComfortableMinWidth
+        )
     }
 
     /// Coalesces high-frequency geometry callbacks during window resize so `NavigationSplitView` column constraints are not rewritten every frame.
@@ -16,23 +19,34 @@ extension PlaylistBrowserView {
     func commitBrowserContentWidthIfNeeded(_ newWidth: CGFloat) {
         browserWidthSampler.latestWidth = newWidth
         let now = CFAbsoluteTimeGetCurrent()
-        let narrowNew = Self.mutualExclusionWidth(for: newWidth)
-        let narrowCommitted = Self.mutualExclusionWidth(for: browserContentWidth)
-        let crossedMeaningfulBreakpoint = narrowNew != narrowCommitted
-        let throttleElapsed = now - lastBrowserWidthCommitTime >= 0.06
-        let largeDrift = abs(newWidth - browserContentWidth) > 120
-        guard crossedMeaningfulBreakpoint || throttleElapsed || largeDrift else {
-            return
-        }
-        lastBrowserWidthCommitTime = now
-        browserContentWidth = newWidth
+        let result = BrowserWidthCommitPolicy.evaluate(
+            BrowserWidthCommitPolicy.CommitInput(
+                newWidth: newWidth,
+                committedWidth: browserContentWidth,
+                lastCommitTime: lastBrowserWidthCommitTime,
+                now: now,
+                comfortableMinWidth: SpotiglassDesign.dualSidebarComfortableMinWidth
+            )
+        )
+        guard result.shouldCommit else { return }
+        lastBrowserWidthCommitTime = result.lastCommitTime
+        browserContentWidth = result.committedWidth
 
-        if narrowNew, !narrowCommitted,
+        if result.crossedIntoNarrow,
            isQueueVisible, playlistColumnVisibility != .detailOnly {
-            if lastOpenedSidebar == .queue {
+            let lastOpened: BrowserWidthCommitPolicy.SidebarToCloseOnNarrow =
+                lastOpenedSidebar == .queue ? .queue : .playlistColumn
+            switch BrowserWidthCommitPolicy.sidebarToCloseOnNarrow(
+                lastOpenedSidebar: lastOpened,
+                isQueueVisible: isQueueVisible,
+                playlistColumnIsDetailOnly: playlistColumnVisibility == .detailOnly
+            ) {
+            case .playlistColumn:
                 playlistColumnVisibility = .detailOnly
-            } else {
+            case .queue:
                 isQueueVisible = false
+            case .none:
+                break
             }
         }
     }

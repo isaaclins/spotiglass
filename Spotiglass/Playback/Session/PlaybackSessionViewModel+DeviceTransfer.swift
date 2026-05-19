@@ -36,9 +36,8 @@ extension PlaybackSessionViewModel {
             if controlCommandsInFlight == 0, transportSyncDeferredWhileControlCommandInFlight {
                 transportSyncDeferredWhileControlCommandInFlight = false
                 deferredTransportSyncTask?.cancel()
-                deferredTransportSyncTask = Task { @MainActor [weak self] in
-                    await self?.syncTransportFromSpotify()
-                }
+                deferredTransportSyncTask = nil
+                scheduleTransportSync()
             }
         }
         try await operation()

@@ -125,6 +125,14 @@ enum CommandPaletteCommandCatalog {
             defaultWhen: .paletteOpen,
             defaultKeystroke: "shift-return"
         ),
+        CommandPaletteCommandSpec(
+            commandID: CommandPaletteCommandID.prefetchAllPlaylists,
+            title: "Load all your songs into Spotiglass",
+            subtitle: "Cache every playlist's tracks for instant opens",
+            iconSystemName: "square.and.arrow.down.on.square",
+            defaultWhen: .signedIn,
+            defaultKeystroke: nil
+        ),
     ]
 
     /// Stable on-disk order for default `keymap.json` (matches historical Spotiglass defaults).

@@ -37,12 +37,32 @@ extension PlaybackSessionViewModel {
                 }
                 refreshTrayOutputSymbol()
             } catch {
+                if Self.isBenignTransportSyncCancellation(error) {
+                    break
+                }
                 applyTransportPollingBackoff(for: error)
                 // Polling should not surface transport read failures as playback errors.
             }
         } while transportSyncQueued
 
-        restartTransportPollingIfNeeded()
+        if transportSyncQueued {
+            scheduleTransportSync(minimumShuffleMutationVersion: minimumShuffleMutationVersion)
+        }
+    }
+
+    /// Schedules a single coalesced `syncTransportFromSpotify()` on the main actor.
+    func scheduleTransportSync(minimumShuffleMutationVersion: UInt64? = nil) {
+        if transportSyncSchedulerTask != nil { return }
+        transportSyncSchedulerTask = Task { @MainActor [weak self] in
+            defer { self?.transportSyncSchedulerTask = nil }
+            await self?.syncTransportFromSpotify(minimumShuffleMutationVersion: minimumShuffleMutationVersion)
+        }
+    }
+
+    private static func isBenignTransportSyncCancellation(_ error: Error) -> Bool {
+        if error is CancellationError { return true }
+        if let urlError = error as? URLError, urlError.code == .cancelled { return true }
+        return false
     }
 
     private func applyTransportPollingBackoff(for error: Error) {
@@ -106,8 +126,6 @@ extension PlaybackSessionViewModel {
         localMutationSettleTicksRemaining = max(localMutationSettleTicksRemaining, 2)
         transportRateLimitedUntil = nil
         guard shouldSyncTransportImmediately else { return }
-        Task { @MainActor [weak self] in
-            await self?.syncTransportFromSpotify()
-        }
+        scheduleTransportSync()
     }
 }

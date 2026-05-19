@@ -62,6 +62,11 @@ extension PlaylistBrowserView {
             // Re-query in songs scope using the artist name as the search term.
             commandPaletteManager?.viewModel.applyExternalQuery(name)
         }
+        commandPaletteManager.prefetchAllPlaylists = { [weak viewModel] in
+            Task { @MainActor in
+                await viewModel?.toggleBulkPlaylistTrackPrefetch()
+            }
+        }
         commandPaletteManager.spotifySearch = { [self, spotifySearchClient, commandPaletteManager, weak viewModel, weak queueVM] query, category in
             try await self.spotifyPaletteSearch(
                 query: query,

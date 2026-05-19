@@ -4,7 +4,7 @@ import Foundation
 
 /// Single source of truth for `~/.config/spotiglass/settings.json`.
 ///
-/// Both the keymap UI and the equalizer UI read and write through this store so that
+/// The keymap UI and other settings panes read and write through this store so that
 /// every user-editable setting lives in a single dotfile. The store performs atomic
 /// writes, watches the file for external edits via `DispatchSourceFileSystemObject`,
 /// and bootstraps a default file on first launch.
@@ -178,8 +178,7 @@ final class SpotiglassSettingsStore: ObservableObject {
     static func bootstrapDefaults() -> SpotiglassSettingsFile {
         SpotiglassSettingsFile(
             version: SpotiglassSettingsFile.currentVersion,
-            keybinds: defaultKeybinds(),
-            equalizer: EqualizerSettings()
+            keybinds: defaultKeybinds()
         )
     }
 

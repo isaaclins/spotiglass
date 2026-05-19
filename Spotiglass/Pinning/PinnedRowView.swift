@@ -162,11 +162,12 @@ struct PinnedItemDragPill: View {
                 }
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
         .frame(maxWidth: 260, alignment: .leading)
-        .background(.regularMaterial, in: Capsule())
-        .overlay(Capsule().strokeBorder(SpotiglassDesign.chromeCapsuleBorderColor(colorScheme: colorScheme), lineWidth: 1))
+        .spotiglassPillBackground(
+            variant: .material(.regularMaterial),
+            horizontalPadding: 10,
+            verticalPadding: 6
+        )
         .onAppear { PinnedDragPreviewState.shared.beginDrag(item: item) }
     }
 

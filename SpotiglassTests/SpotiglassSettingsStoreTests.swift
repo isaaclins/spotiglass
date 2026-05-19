@@ -11,26 +11,17 @@ final class SpotiglassSettingsStoreTests: XCTestCase {
 
         XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
         XCTAssertEqual(store.settings.version, SpotiglassSettingsFile.currentVersion)
-        XCTAssertFalse(store.settings.equalizer.enabled)
-        XCTAssertEqual(store.settings.equalizer.bands.count, EqualizerSettings.bandCount)
         XCTAssertTrue(store.settings.commandPalette.backdropBlur)
         XCTAssertEqual(store.settings.appearance.colorScheme, .system)
         XCTAssertFalse(store.settings.keybinds.isEmpty)
     }
 
-    func testRoundTripPreservesKeybindsEqualizerAndPresets() throws {
+    func testRoundTripPreservesKeybindsAndAppearance() throws {
         let url = makeTempFileURL()
         let original = SpotiglassSettingsFile(
             keybinds: SpotiglassSettingsStore.defaultKeybinds(),
-            equalizer: EqualizerSettings(
-                enabled: true,
-                preamp: -3,
-                bands: [4, 3, 2, 1, 0, -1, -2, -3, -4, -5],
-                activePresetName: "Custom 1",
-                userPresets: [
-                    EqualizerPreset(name: "Custom 1", preamp: -3, bands: [4, 3, 2, 1, 0, -1, -2, -3, -4, -5]),
-                ]
-            )
+            appearance: AppearanceSettings(colorScheme: .dark),
+            commandPalette: CommandPaletteSettings(backdropBlur: false)
         )
 
         let encoder = JSONEncoder()
@@ -53,26 +44,10 @@ final class SpotiglassSettingsStoreTests: XCTestCase {
         XCTAssertEqual(onDisk.appearance.colorScheme, .dark)
     }
 
-    func testUpdateEqualizerPersistsAtomically() throws {
-        let url = makeTempFileURL()
-        let store = SpotiglassSettingsStore(fileURL: url)
-
-        var equalizer = store.settings.equalizer
-        equalizer.enabled = true
-        equalizer.bands = [6, 5, 3, 1, 0, 0, 0, 0, 0, 0]
-        equalizer.activePresetName = "Bass Boost"
-        try store.mutate { $0.equalizer = equalizer }
-
-        let onDisk = try JSONDecoder().decode(SpotiglassSettingsFile.self, from: try Data(contentsOf: url))
-        XCTAssertTrue(onDisk.equalizer.enabled)
-        XCTAssertEqual(onDisk.equalizer.bands, [6, 5, 3, 1, 0, 0, 0, 0, 0, 0])
-        XCTAssertEqual(onDisk.equalizer.activePresetName, "Bass Boost")
-    }
-
     func testUpdateKeybindsReplacesSliceOnly() throws {
         let url = makeTempFileURL()
         let store = SpotiglassSettingsStore(fileURL: url)
-        let originalEqualizer = store.settings.equalizer
+        let originalAppearance = store.settings.appearance
 
         let newKeybinds: [CommandPaletteKeyBinding] = [
             CommandPaletteKeyBinding(
@@ -85,7 +60,7 @@ final class SpotiglassSettingsStoreTests: XCTestCase {
         try store.updateKeybinds(newKeybinds)
 
         XCTAssertEqual(store.settings.keybinds, newKeybinds)
-        XCTAssertEqual(store.settings.equalizer, originalEqualizer)
+        XCTAssertEqual(store.settings.appearance, originalAppearance)
     }
 
     func testInvalidFileFallsBackToDefaultsAndRecordsError() throws {
@@ -100,27 +75,6 @@ final class SpotiglassSettingsStoreTests: XCTestCase {
         // The store should have rewritten the file with valid defaults.
         let recovered = try JSONDecoder().decode(SpotiglassSettingsFile.self, from: try Data(contentsOf: url))
         XCTAssertEqual(recovered.version, SpotiglassSettingsFile.currentVersion)
-    }
-
-    func testUserPresetsSurviveSave() throws {
-        let url = makeTempFileURL()
-        let store = SpotiglassSettingsStore(fileURL: url)
-
-        let preset = EqualizerPreset(
-            name: "Late Night",
-            preamp: -2,
-            bands: [-3, -2, -1, 0, 1, 1, 0, -1, -2, -3]
-        )
-        try store.mutate { file in
-            file.equalizer.userPresets = [preset]
-            file.equalizer.activePresetName = preset.name
-            file.equalizer.bands = preset.bands
-            file.equalizer.preamp = preset.preamp
-        }
-
-        let onDisk = try JSONDecoder().decode(SpotiglassSettingsFile.self, from: try Data(contentsOf: url))
-        XCTAssertEqual(onDisk.equalizer.userPresets, [preset])
-        XCTAssertEqual(onDisk.equalizer.activePresetName, "Late Night")
     }
 
     func testDefaultFileURLIsConfigSpotiglassSettingsJSON() {

@@ -4,8 +4,8 @@ import Foundation
 
 /// Editable view of the keybinds slice of `~/.config/spotiglass/settings.json`.
 ///
-/// Storage is delegated to ``SpotiglassSettingsStore`` so that keybinds and the
-/// equalizer share one on-disk file. The public API (``bindings``, ``setBinding``,
+/// Storage is delegated to ``SpotiglassSettingsStore`` so that keybinds and other
+/// settings share one on-disk file. The public API (``bindings``, ``setBinding``,
 /// ``clearBinding``, ``editorText``, ``applyEditorText``, …) is unchanged from the
 /// pre-merge keymap store so existing settings UI and event handling keep working.
 @MainActor

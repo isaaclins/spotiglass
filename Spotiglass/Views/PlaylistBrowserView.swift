@@ -241,7 +241,6 @@ struct PlaylistBrowserView: View {
             }
             queueViewModel.setAppActive(NSApplication.shared.isActive)
             queueViewModel.setPanelVisible(isQueueVisible)
-            NotificationCenter.default.post(name: .spotiglassPlaybackSurfaceAppeared, object: nil)
         }
         .onDisappear {
             commandPaletteManager.dismissLyricsOverlayIfPresented = nil
@@ -252,6 +251,9 @@ struct PlaylistBrowserView: View {
         }
         .onChange(of: viewModel.detailState) { _, _ in
             bindCommandPalette(queueVisible: $isQueueVisible, lyricsPresented: isLyricsPresentedBinding)
+        }
+        .onChange(of: viewModel.prefetchAllPlaylistsProgress) { _, newValue in
+            commandPaletteManager.viewModel.prefetchProgress = newValue
         }
         .onChange(of: pinnedStore.items) { _, _ in
             syncLibraryRowOrder()

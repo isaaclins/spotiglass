@@ -176,6 +176,13 @@ final class QueuePanelTests: XCTestCase {
 
         await queue.addToQueue(uri: "spotify:track:add-me")
 
+        // `setPanelVisible(true)` schedules a detached refresh Task in addition to
+        // the refresh `addToQueue` triggers; yield a few times so any pending
+        // MainActor task observably appends its `fetchQueue` action before we read.
+        for _ in 0..<10 where api.actions.filter({ $0 == "fetchQueue" }).isEmpty {
+            await Task.yield()
+        }
+
         XCTAssertTrue(api.actions.contains("addToQueue:device-42:spotify:track:add-me"))
         XCTAssertTrue(api.actions.filter { $0 == "fetchQueue" }.count >= 1)
     }
@@ -497,6 +504,37 @@ final class QueuePanelTests: XCTestCase {
 
         XCTAssertGreaterThan(fetchesBeforeInactive, 0)
         XCTAssertEqual(fetchesBeforeInactive, fetchesAfterInactive, "Polling should stop immediately when app resigns active state.")
+    }
+
+    func testCancelledQueuePollDoesNotRefreshImmediately() async {
+        let api = QueueTestPlaybackAPI()
+        let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: StubWebPlaybackCommander())
+        playback.handle(.ready(deviceID: "device-1"))
+        playback.handle(.stateChanged(
+            PlaybackNowPlaying(name: "T", artists: ["A"], albumName: nil, albumID: nil, albumArtURL: nil, durationMilliseconds: 60_000, positionMilliseconds: 0, uri: "spotify:track:t"),
+            isPaused: false,
+            nextTracks: []
+        ))
+        let queue = QueueViewModel(
+            playbackAPI: api,
+            playbackSession: playback,
+            pollIntervalNanoseconds: 60_000_000_000,
+            pollJitterFraction: 0
+        )
+        queue.setPanelVisible(true)
+        await queue.refreshQueue()
+        try? await Task.sleep(nanoseconds: 20_000_000)
+        let baselineFetchCount = api.actions.filter { $0 == "fetchQueue" }.count
+
+        queue.setPanelVisible(false)
+        try? await Task.sleep(nanoseconds: 50_000_000)
+
+        let fetchCountAfterCancel = api.actions.filter { $0 == "fetchQueue" }.count
+        XCTAssertEqual(
+            fetchCountAfterCancel,
+            baselineFetchCount,
+            "Cancelling the queue poll task during sleep must not trigger an immediate GET /v1/me/player/queue."
+        )
     }
 }
 

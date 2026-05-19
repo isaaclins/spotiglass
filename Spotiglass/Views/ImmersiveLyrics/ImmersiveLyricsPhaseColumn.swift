@@ -6,6 +6,7 @@ struct ImmersiveLyricsLyricsPhaseColumn: View {
     let positionMs: Int
     let reduceMotion: Bool
     let usesLyricsScrollEdgeFade: Bool
+    let lyricsTextSize: LyricsTextSize
     let maxHeight: CGFloat
 
     var body: some View {
@@ -40,7 +41,8 @@ struct ImmersiveLyricsLyricsPhaseColumn: View {
                     positionMs: positionMs,
                     trackDurationMs: currentTrack?.durationMilliseconds,
                     reduceMotion: reduceMotion,
-                    usesLyricsScrollEdgeFade: usesLyricsScrollEdgeFade
+                    usesLyricsScrollEdgeFade: usesLyricsScrollEdgeFade,
+                    lyricsTextSize: lyricsTextSize
                 )
             }
         }
@@ -54,6 +56,7 @@ struct ImmersiveLyricsReadyContentView: View {
     let trackDurationMs: Int?
     let reduceMotion: Bool
     let usesLyricsScrollEdgeFade: Bool
+    let lyricsTextSize: LyricsTextSize
 
     var body: some View {
         switch lyrics {
@@ -68,7 +71,8 @@ struct ImmersiveLyricsReadyContentView: View {
                 maxHeight: maxHeight,
                 positionMs: positionMs,
                 reduceMotion: reduceMotion,
-                usesLyricsScrollEdgeFade: usesLyricsScrollEdgeFade
+                usesLyricsScrollEdgeFade: usesLyricsScrollEdgeFade,
+                lyricsTextSize: lyricsTextSize
             )
         case let .unsyncedPlain(lines):
             ImmersiveLyricsPlainLyricsScrollView(
@@ -77,7 +81,8 @@ struct ImmersiveLyricsReadyContentView: View {
                 positionMs: positionMs,
                 trackDurationMs: trackDurationMs,
                 reduceMotion: reduceMotion,
-                usesLyricsScrollEdgeFade: usesLyricsScrollEdgeFade
+                usesLyricsScrollEdgeFade: usesLyricsScrollEdgeFade,
+                lyricsTextSize: lyricsTextSize
             )
         }
     }

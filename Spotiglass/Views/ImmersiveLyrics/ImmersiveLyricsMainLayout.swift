@@ -10,6 +10,7 @@ struct ImmersiveLyricsMainLayout: View {
     let positionMs: Int
     let reduceMotion: Bool
     let usesLyricsScrollEdgeFade: Bool
+    let lyricsTextSize: LyricsTextSize
 
     var body: some View {
         GeometryReader { geo in
@@ -36,6 +37,7 @@ struct ImmersiveLyricsMainLayout: View {
                             positionMs: positionMs,
                             reduceMotion: reduceMotion,
                             usesLyricsScrollEdgeFade: usesLyricsScrollEdgeFade,
+                            lyricsTextSize: lyricsTextSize,
                             maxHeight: usableHeight
                         )
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -55,6 +57,7 @@ struct ImmersiveLyricsMainLayout: View {
                             positionMs: positionMs,
                             reduceMotion: reduceMotion,
                             usesLyricsScrollEdgeFade: usesLyricsScrollEdgeFade,
+                            lyricsTextSize: lyricsTextSize,
                             maxHeight: max(200, usableHeight * 0.5)
                         )
                     }

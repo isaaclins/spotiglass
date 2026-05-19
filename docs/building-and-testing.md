@@ -50,6 +50,24 @@ Because `SpotiglassTests` uses **`TEST_HOST`** (tests run inside `Spotiglass.app
 
 If you add UI tests or another host that does not set that variable, expect Keychain behavior to match a normal app launch.
 
+## Code coverage
+
+Run the full test suite with coverage and print a per-target summary:
+
+```sh
+./scripts/coverage.sh
+```
+
+Enforce per-file thresholds (default **80%** region coverage on every `Spotiglass/**/*.swift` file). During ramp-up, files listed in [`scripts/coverage-allowlist.json`](../scripts/coverage-allowlist.json) are excluded from the gate; remove paths from that list as each file reaches 80%.
+
+```sh
+make coverage-check
+# or, after a coverage run:
+./scripts/check-coverage-per-file.sh
+```
+
+The check prints `FILES_AT_THRESHOLD` (count of gated files at or above the threshold). View-heavy code uses [ViewInspector](https://github.com/nalexn/ViewInspector) on the test target; logic is tested directly or via extracted helpers (`BrowserWidthCommitPolicy`, `PlaylistBrowserPlaybackHelpers`, etc.).
+
 Auth launch guardrails are covered by `SpotifyAuthStepTests`:
 - concurrent `signIn()` calls stay one-flight (extra triggers are ignored while one browser auth is active),
 - immediate retries after a sign-in failure are suppressed briefly before retries are allowed again.

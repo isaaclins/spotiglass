@@ -41,7 +41,7 @@ jobs:
           xcrun --show-sdk-path --sdk macosx
           xcrun --show-sdk-version --sdk macosx
 
-      - name: Run unit tests
+      - name: Run unit tests with coverage
         run: |
           set -euo pipefail
           xcodebuild \
@@ -50,8 +50,16 @@ jobs:
             -destination 'platform=macOS' \
             -derivedDataPath "$DERIVED_DATA" \
             -parallel-testing-enabled NO \
+            -enableCodeCoverage YES \
+            -resultBundlePath "$GITHUB_WORKSPACE/build/ci-cov.xcresult" \
             CODE_SIGNING_ALLOWED=NO \
             test
+
+      - name: Per-file coverage gate (allowlisted ramp-up)
+        run: |
+          set -euo pipefail
+          COVERAGE_ALLOWLIST=scripts/coverage-allowlist.json \
+            ./scripts/check-coverage-per-file.sh "$GITHUB_WORKSPACE/build/ci-cov.xcresult"
 
       - name: Build unsigned Release Spotiglass.app
         run: |

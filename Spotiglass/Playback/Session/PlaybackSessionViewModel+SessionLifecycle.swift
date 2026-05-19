@@ -62,6 +62,8 @@ extension PlaybackSessionViewModel {
         transportSyncDeferredWhileControlCommandInFlight = false
         deferredTransportSyncTask?.cancel()
         deferredTransportSyncTask = nil
+        transportSyncSchedulerTask?.cancel()
+        transportSyncSchedulerTask = nil
         clearPendingSkipCommand()
         clearPendingSeek()
         seekDispatchTask?.cancel()

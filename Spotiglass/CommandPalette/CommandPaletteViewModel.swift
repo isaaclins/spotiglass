@@ -17,6 +17,14 @@ final class CommandPaletteViewModel: ObservableObject {
     @Published private(set) var isLoading = false
     @Published private(set) var errorText: String?
     @Published var selectedIndex = 0
+    /// Bulk playlist-track prefetch progress, mirrored from the host browser
+    /// view-model. Non-`nil` while a run is in flight (or briefly after it
+    /// finishes so the palette can render a "Loaded N playlists" header).
+    @Published var prefetchProgress: PrefetchAllPlaylistsProgress?
+    /// Wired by `CommandPaletteManager`; invokes the same toggle the keymap uses,
+    /// so the in-palette "cancel" chip cancels the run without coupling the view
+    /// to the host browser view-model.
+    var cancelPrefetchAllPlaylists: (() -> Void)?
 
     var staticItemsProvider: () -> [CommandPaletteItem] = { [] }
     var searchProvider: (String, CommandPaletteSearchCategory) async throws -> CommandPaletteSearchResults = { _, _ in

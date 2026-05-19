@@ -4,7 +4,7 @@
 #        make release         — unsigned Release bundle (matches CI layout)
 #        make test            — unit tests on macOS
 
-.PHONY: all build run release test scan clean list help
+.PHONY: all build run release test coverage coverage-check scan clean list help
 
 PROJECT       := Spotiglass.xcodeproj
 SCHEME        := Spotiglass
@@ -67,6 +67,12 @@ test:
 		$(XCODE_EXTRA) \
 		test
 
+coverage:
+	./scripts/coverage.sh
+
+coverage-check: coverage
+	./scripts/check-coverage-per-file.sh
+
 scan:
 	periphery scan \
 		--project $(PROJECT) \
@@ -89,6 +95,8 @@ help:
 	@echo "  make run           — build and open Debug app"
 	@echo "  make release       — unsigned Release → $(RELEASE_APP)"
 	@echo "  make test          — unit tests"
+	@echo "  make coverage      — unit tests with code coverage report"
+	@echo "  make coverage-check — coverage + per-file gate (see scripts/coverage-allowlist.json)"
 	@echo "  make scan          — periphery (dead code) + tokei (LOC); both run even if one fails"
 	@echo "  make list          — list schemes"
 	@echo "  make clean         — remove $(DERIVED_DATA) + Keychain items (service $(KEYCHAIN_SERVICE))"

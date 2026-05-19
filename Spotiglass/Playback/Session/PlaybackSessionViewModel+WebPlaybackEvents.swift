@@ -10,9 +10,6 @@ extension PlaybackSessionViewModel {
             }
             self.deviceID = deviceID
             setConnectionState(.ready(deviceID: deviceID))
-            // WebKit helper PIDs (WebContent, GPU, …) may spawn only after the Web
-            // Playback SDK is ready. Rebuild the equalizer tap so Core Audio includes them.
-            NotificationCenter.default.post(name: .spotiglassPlaybackDeviceReady, object: nil)
             refreshTrayOutputSymbol()
             let shouldAutoResume = autoResumeOnNextReady
             autoResumeOnNextReady = false

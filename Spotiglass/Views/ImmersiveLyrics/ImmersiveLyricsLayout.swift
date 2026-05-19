@@ -6,6 +6,14 @@ enum ImmersiveLyricsLayout {
     static let lyricsInnerTopPadding: CGFloat = 8
     static let lyricsInnerBottomPadding: CGFloat = 36
 
+    /// Idle window after the user stops scrolling before auto-centering re-engages.
+    static let autoCenterResumeDelay: Duration = .seconds(2)
+
+    static let resumePillBottomInset: CGFloat = 18
+    static let resumePillCornerRadius: CGFloat = 999
+    static let resumePillHorizontalPadding: CGFloat = 14
+    static let resumePillVerticalPadding: CGFloat = 8
+
     static let scrollEdgeFadeGradient = LinearGradient(
         stops: [
             .init(color: .clear, location: 0),

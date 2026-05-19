@@ -5,24 +5,30 @@ extension PlaybackSessionViewModel {
     func restartTransportPollingIfNeeded() {
         transportPollTask?.cancel()
         transportPollTask = nil
-        guard shouldRunTransportPolling else { return }
+        guard shouldRunTransportPolling(for: nil) else { return }
         transportPollTask = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self else { break }
                 let delay = await MainActor.run { self.currentTransportPollDelay() }
-                try? await Task.sleep(for: delay)
-                let shouldPoll = await MainActor.run { self.shouldRunTransportPolling }
+                do {
+                    try await Task.sleep(for: delay)
+                } catch {
+                    break
+                }
+                guard !Task.isCancelled else { break }
+                let shouldPoll = await MainActor.run { self.shouldRunTransportPolling(for: nil) }
                 guard shouldPoll else { break }
                 await self.syncTransportFromSpotify()
             }
         }
     }
 
-    private var shouldRunTransportPolling: Bool {
+    func shouldRunTransportPolling(for state: PlaybackConnectionState? = nil) -> Bool {
+        let state = state ?? connectionState
         guard isAppActive else { return false }
         if localMutationSettleTicksRemaining > 0 { return true }
         guard deviceID != nil else { return false }
-        switch connectionState {
+        switch state {
         case .playing, .paused, .ready, .transferring:
             return true
         case .disconnected, .connecting, .unavailable, .error:
@@ -37,6 +43,34 @@ extension PlaybackSessionViewModel {
         default:
             return latestPlayerSnapshot?.isPlaying == true
         }
+    }
+
+    /// Stable key for transport poll scheduling tests and diagnostics.
+    /// Ignores scrubber position and play/pause so SDK ticks do not restart polling.
+    func transportPollingKey(for state: PlaybackConnectionState) -> String {
+        switch state {
+        case .disconnected:
+            "disconnected"
+        case .connecting:
+            "connecting"
+        case let .ready(deviceID):
+            "ready:\(deviceID)"
+        case let .transferring(deviceID):
+            "transferring:\(deviceID)"
+        case let .playing(nowPlaying), let .paused(.some(nowPlaying)):
+            "track:\(resolvedTransportTrackURI(nowPlaying.uri))"
+        case .paused(.none):
+            "paused-empty"
+        case let .unavailable(message):
+            "unavailable:\(message)"
+        case let .error(error):
+            "error:\(error.title)"
+        }
+    }
+
+    func resolvedTransportTrackURI(_ uri: String?) -> String {
+        if let uri, !uri.isEmpty { return uri }
+        return stableTransportTrackURI ?? ""
     }
 
     private func currentTransportPollDelay() -> Duration {

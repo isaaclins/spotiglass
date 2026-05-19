@@ -142,6 +142,23 @@ protocol SpotifyPlaybackControlling {
     func setRepeat(mode: SpotifyRepeatMode, deviceID: String) async throws
 }
 
+/// Coalesces concurrent `GET /v1/me/player` calls into one in-flight URLSession task.
+private actor PlayerSnapshotFetchCoalescer {
+    private var inFlight: Task<SpotifyPlayerSnapshot?, Error>?
+
+    func fetch(
+        _ operation: @Sendable @escaping () async throws -> SpotifyPlayerSnapshot?
+    ) async throws -> SpotifyPlayerSnapshot? {
+        if let inFlight {
+            return try await inFlight.value
+        }
+        let task = Task { try await operation() }
+        inFlight = task
+        defer { inFlight = nil }
+        return try await task.value
+    }
+}
+
 struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
     private static let maxQueuedURIs = 100
     private static let maxGETRetryAttempts = 3
@@ -150,6 +167,7 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
     private let httpClient: HTTPClient
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
+    private let playerSnapshotFetchCoalescer = PlayerSnapshotFetchCoalescer()
 
     init(
         baseURL: URL = URL(string: "https://api.spotify.com")!,
@@ -223,6 +241,12 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
     }
 
     func fetchPlayerSnapshot() async throws -> SpotifyPlayerSnapshot? {
+        try await playerSnapshotFetchCoalescer.fetch { [self] in
+            try await fetchPlayerSnapshotUncoalesced()
+        }
+    }
+
+    private func fetchPlayerSnapshotUncoalesced() async throws -> SpotifyPlayerSnapshot? {
         let (data, response) = try await performGET(path: "/v1/me/player", queryItems: [])
         if response.statusCode == 204 {
             return nil

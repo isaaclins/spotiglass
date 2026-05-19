@@ -48,6 +48,7 @@ final class QueueViewModel: ObservableObject {
     private var pendingRefreshAllowsHiddenPanel = false
     private var unchangedPollTickCount = 0
     private var queueCooldownUntil: Date?
+    private var lastQueuePollingKey: String?
 
     private enum RefreshTrigger {
         case manual
@@ -144,13 +145,18 @@ final class QueueViewModel: ObservableObject {
 
     func handlePlaybackStateChange() {
         publishMergedState()
+        let pollingKey = queuePollingKey(for: playbackSession.connectionState)
+        let pollingKeyChanged = pollingKey != lastQueuePollingKey
+        lastQueuePollingKey = pollingKey
         switch playbackSession.connectionState {
         case .playing, .paused:
             if isPanelVisible {
                 Task { @MainActor [weak self] in
                     await self?.requestQueueRefresh(trigger: .event, allowsHiddenPanel: false)
                 }
-                restartPollingIfNeeded()
+                if pollingKeyChanged {
+                    restartPollingIfNeeded()
+                }
             }
         default:
             pollTask?.cancel()
@@ -384,10 +390,38 @@ final class QueueViewModel: ObservableObject {
         pollTask = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self else { break }
-                try? await Task.sleep(nanoseconds: self.nextPollIntervalNanoseconds())
+                do {
+                    try await Task.sleep(nanoseconds: self.nextPollIntervalNanoseconds())
+                } catch {
+                    break
+                }
+                guard !Task.isCancelled else { break }
                 guard self.isPanelVisible, self.isAppActive, self.shouldPoll else { break }
                 await self.requestQueueRefresh(trigger: .poll, allowsHiddenPanel: false)
             }
+        }
+    }
+
+    private func queuePollingKey(for state: PlaybackConnectionState) -> String {
+        switch state {
+        case .disconnected:
+            "disconnected"
+        case .connecting:
+            "connecting"
+        case let .ready(deviceID):
+            "ready:\(deviceID)"
+        case let .transferring(deviceID):
+            "transferring:\(deviceID)"
+        case let .playing(item):
+            "playing:\(item.uri ?? "")"
+        case let .paused(.some(item)):
+            "paused:\(item.uri ?? "")"
+        case .paused(.none):
+            "paused-empty"
+        case let .unavailable(message):
+            "unavailable:\(message)"
+        case let .error(error):
+            "error:\(error.title)"
         }
     }
 
