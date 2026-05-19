@@ -150,6 +150,7 @@
 		H80000000000000000000002 /* ScrubberView.swift in Sources */ = {isa = PBXBuildFile; fileRef = H80000000000000000000012 /* ScrubberView.swift */; };
 		J90000000000000000000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = J90000000000000000000010 /* Assets.xcassets */; };
 		J90000000000000000000002 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = J90000000000000000000012 /* AppIcon.icon */; };
+		LOCL0000000000000000000001 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = PRO00000000000000000000F3 /* Localizable.xcstrings */; };
 		PRO00000000000000000000E1 /* SpotiglassLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = PRO00000000000000000000F1 /* SpotiglassLog.swift */; };
 		PRO00000000000000000000EA /* PlaybackSessionDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = PRO00000000000000000000F9 /* PlaybackSessionDiagnostics.swift */; };
 		PRO00000000000000000000EB /* QueueViewModel+Fetch.swift in Sources */ = {isa = PBXBuildFile; fileRef = PRO00000000000000000000FA /* QueueViewModel+Fetch.swift */; };
@@ -1158,6 +1159,7 @@
 			files = (
 				J90000000000000000000001 /* Assets.xcassets in Resources */,
 				J90000000000000000000002 /* AppIcon.icon in Resources */,
+				LOCL0000000000000000000001 /* Localizable.xcstrings in Resources */,
 				PRO00000000000000000000E2 /* SpotifyPlaybackHost.html in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

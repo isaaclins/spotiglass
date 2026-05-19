@@ -16,9 +16,7 @@ final class AccountSettingsViewTests: XCTestCase {
         )
         let view = AccountSettingsView(viewModel: viewModel)
         ViewTestHost.host(view)
-
-        let inspected = try view.inspect()
-        XCTAssertNoThrow(try inspected.find(text: "Connection"))
-        XCTAssertNoThrow(try inspected.find(text: "Spotify developer app"))
+        ViewTestHost.assertFindLocalizedText("settings.account.connection", in: view)
+        ViewTestHost.assertFindText("Spotify developer app", in: view)
     }
 }

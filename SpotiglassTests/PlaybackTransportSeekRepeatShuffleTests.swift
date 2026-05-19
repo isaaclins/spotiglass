@@ -44,8 +44,12 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         await viewModel.seek(to: 10_000)
         await viewModel.seek(to: 20_000)
         await viewModel.seek(to: 30_000)
-        try? await Task.sleep(nanoseconds: 260_000_000)
-
+        let seekDeadline = Date().addingTimeInterval(1.5)
+        while Date() < seekDeadline {
+            let seeks = api.actions.filter { $0.hasPrefix("seek:") }
+            if seeks == ["seek:device-1:10000", "seek:device-1:30000"] { return }
+            try? await Task.sleep(nanoseconds: 25_000_000)
+        }
         let seeks = api.actions.filter { $0.hasPrefix("seek:") }
         XCTAssertEqual(seeks, ["seek:device-1:10000", "seek:device-1:30000"])
     }
@@ -62,7 +66,10 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
 
         await viewModel.seek(to: 8_000)
         await viewModel.seek(to: 32_000)
-        try? await Task.sleep(nanoseconds: 260_000_000)
+        let seekDeadline = Date().addingTimeInterval(1.5)
+        while Date() < seekDeadline, api.seekCallTimestamps.count < 2 {
+            try? await Task.sleep(nanoseconds: 25_000_000)
+        }
 
         XCTAssertEqual(api.seekCallTimestamps.count, 2)
         let spacing = api.seekCallTimestamps[1].timeIntervalSince(api.seekCallTimestamps[0])
@@ -112,7 +119,7 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         let viewModel = PlaybackSessionViewModel(
             playbackAPI: api,
             webCommander: MockWebPlaybackCommander(),
-            postRepeatSyncDelay: .milliseconds(20)
+            postRepeatSyncDelay: .milliseconds(50)
         )
         viewModel.handle(.ready(deviceID: "device-1"))
         XCTAssertEqual(viewModel.repeatMode, .off)
@@ -121,7 +128,10 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
 
         XCTAssertEqual(viewModel.repeatMode, .context)
         XCTAssertTrue(api.actions.contains("setRepeat:device-1:context"))
-        try? await Task.sleep(nanoseconds: 120_000_000)
+        let syncDeadline = Date().addingTimeInterval(1.0)
+        while Date() < syncDeadline, !api.actions.contains("fetchPlayerSnapshot") {
+            try? await Task.sleep(nanoseconds: 25_000_000)
+        }
         XCTAssertTrue(api.actions.contains("fetchPlayerSnapshot"), "Background transport sync should run after repeat toggle.")
     }
 

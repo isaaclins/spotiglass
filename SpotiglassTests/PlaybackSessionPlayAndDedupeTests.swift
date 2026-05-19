@@ -37,7 +37,11 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
         let commander = MockWebPlaybackCommander()
         let viewModel = PlaybackSessionViewModel(playbackAPI: MockPlaybackAPI(), webCommander: commander)
         viewModel.handle(.ready(deviceID: "device-1"))
-        try? await Task.sleep(nanoseconds: 100_000_000)
+        let volumeDeadline = Date().addingTimeInterval(1.0)
+        while Date() < volumeDeadline,
+              commander.commands.filter({ $0.command == .setVolume }).isEmpty {
+            try? await Task.sleep(nanoseconds: 20_000_000)
+        }
         let volumeCommands = commander.commands.filter { $0.command == .setVolume }
         XCTAssertEqual(volumeCommands.count, 1)
         let sent = volumeCommands[0].payload["volume"] as? Double
@@ -80,9 +84,11 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
         let playbackAPI = MockPlaybackAPI()
         let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: commander)
         viewModel.handle(.ready(deviceID: "device-1"))
+        playbackAPI.playDelayNanoseconds = 150_000_000
 
+        async let firstPlay: Void = viewModel.play(uri: "spotify:track:1")
         await viewModel.play(uri: "spotify:track:1")
-        await viewModel.play(uri: "spotify:track:1")
+        await firstPlay
 
         XCTAssertEqual(playbackAPI.actions, [
             "transfer:device-1:false",
@@ -96,14 +102,15 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
     func testDifferentPlayCommandsIncrementSupersededCounterWhenOverlapping() async {
         let commander = MockWebPlaybackCommander()
         let playbackAPI = MockPlaybackAPI()
-        playbackAPI.playDelayNanoseconds = 150_000_000
+        playbackAPI.playDelayNanoseconds = 200_000_000
         let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: commander)
         viewModel.handle(.ready(deviceID: "device-1"))
 
         async let first: Void = viewModel.play(uri: "spotify:track:1")
-        try? await Task.sleep(nanoseconds: 20_000_000)
+        try? await Task.sleep(nanoseconds: 40_000_000)
         async let second: Void = viewModel.play(uri: "spotify:track:2")
         _ = await (first, second)
+        try? await Task.sleep(nanoseconds: 50_000_000)
 
         XCTAssertEqual(viewModel.playCommandSentCount, 2)
         XCTAssertGreaterThanOrEqual(viewModel.playCommandSupersededCount, 1)

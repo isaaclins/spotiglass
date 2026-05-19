@@ -58,7 +58,11 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
         )
 
         viewModel.handle(.initializationError("SDK init failed"))
-        try? await Task.sleep(nanoseconds: 100_000_000)
+        let deadline = Date().addingTimeInterval(1.5)
+        while Date() < deadline,
+              viewModel.playbackHostReuseConnectAttemptCount < 1 || commander.loadHostCallCount < 1 {
+            try? await Task.sleep(nanoseconds: 25_000_000)
+        }
 
         XCTAssertGreaterThanOrEqual(viewModel.playbackHostReuseConnectAttemptCount, 1)
         XCTAssertGreaterThanOrEqual(viewModel.playbackHostReuseSoftResetAttemptCount, 1)

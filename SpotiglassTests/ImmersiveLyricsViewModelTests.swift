@@ -4,9 +4,19 @@ import XCTest
 
 @MainActor
 final class ImmersiveLyricsViewModelTests: XCTestCase {
+    private static let suiteLock = NSLock()
+
+    override func setUp() {
+        Self.suiteLock.lock()
+        ImmersiveLyricsViewModel.resetSharedStateForTesting()
+        super.setUp()
+        AppKitTestSupport.pumpRunLoop(for: 0.1)
+    }
+
     override func tearDown() {
         ImmersiveLyricsViewModel.resetSharedStateForTesting()
         super.tearDown()
+        Self.suiteLock.unlock()
     }
 
     private func sampleTrack(spotifyID: String = "lyricsTestId") -> PlaybackNowPlaying {
@@ -49,7 +59,6 @@ final class ImmersiveLyricsViewModelTests: XCTestCase {
         var fetchCount = 0
         let vm = ImmersiveLyricsViewModel { _ in
             fetchCount += 1
-            try await Task.sleep(nanoseconds: 25_000_000)
             return .instrumental
         }
         let track = sampleTrack(spotifyID: "singleFetch")
@@ -67,7 +76,6 @@ final class ImmersiveLyricsViewModelTests: XCTestCase {
         var fetchCount = 0
         let vm = ImmersiveLyricsViewModel { _ in
             fetchCount += 1
-            try await Task.sleep(nanoseconds: 35_000_000)
             return .unsyncedPlain(["One"])
         }
         let track = sampleTrack(spotifyID: "dedupeConcurrent")
@@ -79,9 +87,10 @@ final class ImmersiveLyricsViewModelTests: XCTestCase {
     }
 
     func testLoadUsesDiskCacheWithoutCallingFetch() async throws {
+        let trackID = "diskHit-\(UUID().uuidString)"
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("SpotiglassLyricsDiskTests-\(UUID().uuidString)")
         let disk = try LyricsDiskCache(directory: dir)
-        try disk.save(spotifyTrackID: "diskHit", lyrics: .instrumental)
+        try disk.save(spotifyTrackID: trackID, lyrics: .instrumental)
 
         var fetchCount = 0
         let vm = ImmersiveLyricsViewModel(fetchLyrics: { _ in
@@ -89,7 +98,7 @@ final class ImmersiveLyricsViewModelTests: XCTestCase {
             return .unsyncedPlain(["unexpected"])
         }, diskCache: disk)
 
-        await vm.load(track: sampleTrack(spotifyID: "diskHit"))
+        await vm.load(track: sampleTrack(spotifyID: trackID))
 
         XCTAssertEqual(fetchCount, 0)
         guard case let .ready(lyrics) = vm.phase else {

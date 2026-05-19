@@ -1,0 +1,3306 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "settings.section.appearance": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Appearance"
+          }
+        }
+      }
+    },
+    "settings.section.appearance.subtitle": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Visual options for Spotiglass windows and overlays."
+          }
+        }
+      }
+    },
+    "settings.section.playback": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playback"
+          }
+        }
+      }
+    },
+    "settings.section.account": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Account"
+          }
+        }
+      }
+    },
+    "settings.section.keyboard": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keyboard"
+          }
+        }
+      }
+    },
+    "settings.appearance.colorScheme": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Color scheme"
+          }
+        }
+      }
+    },
+    "settings.appearance.colorScheme.hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System follows macOS. Light and Dark apply only to Spotiglass."
+          }
+        }
+      }
+    },
+    "settings.appearance.commandPalette": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Command palette"
+          }
+        }
+      }
+    },
+    "settings.appearance.backdropBlur": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blur window behind palette"
+          }
+        }
+      }
+    },
+    "settings.appearance.backdropBlur.hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When on, the rest of the window is slightly blurred while the palette is open."
+          }
+        }
+      }
+    },
+    "settings.playback.premium.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Premium and Web Playback"
+          }
+        }
+      }
+    },
+    "settings.account.connection": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connection"
+          }
+        }
+      }
+    },
+    "settings.account.status": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Status"
+          }
+        }
+      }
+    },
+    "queue.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Queue"
+          }
+        }
+      }
+    },
+    "queue.shuffle.on": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shuffle on"
+          }
+        }
+      }
+    },
+    "queue.shuffle.off": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shuffle off"
+          }
+        }
+      }
+    },
+    "playback.nowPlaying": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Now playing"
+          }
+        }
+      }
+    },
+    "playback.paused": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playback paused"
+          }
+        }
+      }
+    },
+    "app.connection.signedOut.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify is not connected"
+          }
+        }
+      }
+    },
+    "app.connection.signedOut.message": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter your Spotify client ID, then connect your Spotify account."
+          }
+        }
+      }
+    },
+    "app.connection.signingIn.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opening Spotify sign-in"
+          }
+        }
+      }
+    },
+    "app.connection.signingIn.message": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Complete authorization in the browser window. Spotiglass is listening on 127.0.0.1 for the callback."
+          }
+        }
+      }
+    },
+    "app.connection.signedIn.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify is connected"
+          }
+        }
+      }
+    },
+    "app.connection.signedIn.message": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Access token is valid until %@."
+          }
+        }
+      }
+    },
+    "app.connection.refreshing.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refreshing Spotify session"
+          }
+        }
+      }
+    },
+    "app.connection.refreshing.message": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass is refreshing the stored Spotify session."
+          }
+        }
+      }
+    },
+    "app.connection.failed.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify sign-in needs attention"
+          }
+        }
+      }
+    },
+    "auth.connect.button": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect Spotify"
+          }
+        }
+      }
+    },
+    "auth.connect.hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Starts Spotify sign-in using the configured client ID."
+          }
+        }
+      }
+    },
+    "auth.cancel.button": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
+        }
+      }
+    },
+    "auth.cancel.hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stops waiting for the browser sign-in and returns to the welcome screen."
+          }
+        }
+      }
+    },
+    "auth.disconnect.button": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disconnect"
+          }
+        }
+      }
+    },
+    "auth.disconnect.hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clears the current Spotify sign-in state."
+          }
+        }
+      }
+    },
+    "auth.clientID.label": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify client ID"
+          }
+        }
+      }
+    },
+    "auth.clientID.hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paste the client ID from your Spotify Developer Dashboard app. Value is hidden until you click or tab into this field."
+          }
+        }
+      }
+    },
+    "auth.insufficientScope.message": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your current Spotify session is missing playlist or Liked Songs permissions. Disconnect and connect again to grant required scopes."
+          }
+        }
+      }
+    },
+    "settings.account.validUntil": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Valid until %@"
+          }
+        }
+      }
+    },
+    "settings.account.developerApp": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify developer app"
+          }
+        }
+      }
+    },
+    "settings.account.developerApp.hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use the Client ID from your app in the Spotify Developer Dashboard. OAuth uses a fixed loopback redirect on 127.0.0.1."
+          }
+        }
+      }
+    },
+    "settings.appearance.lyricsTextSize": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lyrics text size"
+          }
+        }
+      }
+    },
+    "settings.appearance.lyricsTextSize.hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Controls font size and line spacing in the immersive lyrics view."
+          }
+        }
+      }
+    },
+    "settings.appearance.lyricsPreview.label": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lyrics preview, %@ size"
+          }
+        }
+      }
+    },
+    "settings.playback.whenDrops.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When something drops"
+          }
+        }
+      }
+    },
+    "settings.playback.whenDrops.item": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use Reconnect in the playback bar or run “Connect Playback” from the Command Palette if playback stops or shows an error."
+          }
+        }
+      }
+    },
+    "settings.playback.sessions.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sessions"
+          }
+        }
+      }
+    },
+    "settings.playback.sessions.item": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only one Spotify account is signed in at a time. Disconnect in Account settings to switch accounts or clear the stored session."
+          }
+        }
+      }
+    },
+    "settings.playback.premium.item1": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playback uses Spotify’s Web Playback SDK in a hidden web view. Spotify reports an account error for non-Premium accounts; playlist browsing may still work."
+          }
+        }
+      }
+    },
+    "settings.playback.premium.item2": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "After you sign in, Spotiglass registers this Mac as a Spotify Connect device automatically."
+          }
+        }
+      }
+    },
+    "queue.nowPlaying": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Now playing"
+          }
+        }
+      }
+    },
+    "queue.nothingPlaying": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing playing"
+          }
+        }
+      }
+    },
+    "queue.upNext": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Up next"
+          }
+        }
+      }
+    },
+    "queue.dismiss": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dismiss"
+          }
+        }
+      }
+    },
+    "queue.playNow": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Play Now"
+          }
+        }
+      }
+    },
+    "queue.copyURI": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy Spotify URI"
+          }
+        }
+      }
+    },
+    "queue.shuffle.hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toggles shuffle for Spotify playback on this device."
+          }
+        }
+      }
+    },
+    "queue.openArtist": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open artist %@"
+          }
+        }
+      }
+    },
+    "queue.item.accessibility": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@, %@"
+          }
+        }
+      }
+    },
+    "playback.paused.label": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paused"
+          }
+        }
+      }
+    },
+    "playback.controls.lyrics": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lyrics"
+          }
+        }
+      }
+    },
+    "playback.controls.lyrics.hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opens synchronized lyrics for the current track."
+          }
+        }
+      }
+    },
+    "playback.controls.openLyrics": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open lyrics"
+          }
+        }
+      }
+    },
+    "playback.controls.previous": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Previous track"
+          }
+        }
+      }
+    },
+    "playback.controls.previous.hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skips to the previous Spotify track when playback is connected."
+          }
+        }
+      }
+    },
+    "playback.controls.playPause.hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toggles Spotify playback in Spotiglass."
+          }
+        }
+      }
+    },
+    "playback.controls.next": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next track"
+          }
+        }
+      }
+    },
+    "playback.controls.next.hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skips to the next Spotify track when playback is connected."
+          }
+        }
+      }
+    },
+    "playback.controls.repeat.hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cycles repeat: off, repeat playlist, repeat one track."
+          }
+        }
+      }
+    },
+    "playback.controls.device": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playback device"
+          }
+        }
+      }
+    },
+    "playback.controls.device.hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify Connect targets and Mac audio output. Choosing a Mac output sets the system default device."
+          }
+        }
+      }
+    },
+    "playback.controls.volume": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playback volume"
+          }
+        }
+      }
+    },
+    "playback.controls.volume.hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adjusts Spotify Web Playback output in Spotiglass. This is not the Mac system volume."
+          }
+        }
+      }
+    },
+    "playback.controls.reconnect": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reconnect"
+          }
+        }
+      }
+    },
+    "playback.controls.reconnect.label": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reconnect playback"
+          }
+        }
+      }
+    },
+    "playback.controls.reconnect.hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Registers the Spotiglass Web Playback device with Spotify. Spotify Premium is required."
+          }
+        }
+      }
+    },
+    "playback.controls.connecting": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connecting playback"
+          }
+        }
+      }
+    },
+    "playback.controls.reconnect.sdk.hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restarts the hidden Spotify Web Playback SDK device."
+          }
+        }
+      }
+    },
+    "playback.controls.retry": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retry"
+          }
+        }
+      }
+    },
+    "playback.controls.retry.label": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retry playback transfer"
+          }
+        }
+      }
+    },
+    "playback.controls.retry.hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Attempts to move Spotify playback to Spotiglass again."
+          }
+        }
+      }
+    },
+    "playback.controls.openArtist": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open artist %@"
+          }
+        }
+      }
+    },
+    "playback.scrubber.remaining": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "−%@"
+          }
+        }
+      }
+    },
+    "playback.scrubber.progress": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playback progress"
+          }
+        }
+      }
+    },
+    "browser.library": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Library"
+          }
+        }
+      }
+    },
+    "browser.playlists": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playlists"
+          }
+        }
+      }
+    },
+    "browser.cachedData": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Showing cached data"
+          }
+        }
+      }
+    },
+    "browser.refreshing": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refreshing"
+          }
+        }
+      }
+    },
+    "browser.refresh": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refresh"
+          }
+        }
+      }
+    },
+    "browser.home": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Home"
+          }
+        }
+      }
+    },
+    "browser.noPlaylists.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No playlists"
+          }
+        }
+      }
+    },
+    "browser.noTracks.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No tracks"
+          }
+        }
+      }
+    },
+    "browser.noTracks.emptyPlaylist": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This playlist is empty."
+          }
+        }
+      }
+    },
+    "browser.tracks": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tracks"
+          }
+        }
+      }
+    },
+    "browser.albums": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Albums"
+          }
+        }
+      }
+    },
+    "browser.singles": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Singles"
+          }
+        }
+      }
+    },
+    "browser.compilations": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compilations"
+          }
+        }
+      }
+    },
+    "browser.appearsOn": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Appears on"
+          }
+        }
+      }
+    },
+    "browser.closeLyrics": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close lyrics"
+          }
+        }
+      }
+    },
+    "browser.closeLyrics.hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Closes the immersive lyrics overlay."
+          }
+        }
+      }
+    },
+    "browser.queue": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Queue"
+          }
+        }
+      }
+    },
+    "browser.queue.hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shows or hides the playback queue."
+          }
+        }
+      }
+    },
+    "browser.disconnect": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disconnect"
+          }
+        }
+      }
+    },
+    "browser.disconnect.hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disconnects Spotify and returns to the sign-in screen."
+          }
+        }
+      }
+    },
+    "browser.copyError": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy Error"
+          }
+        }
+      }
+    },
+    "browser.ok": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        }
+      }
+    },
+    "browser.pinned": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pinned to sidebar"
+          }
+        }
+      }
+    },
+    "browser.addToQueue": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add to Queue"
+          }
+        }
+      }
+    },
+    "browser.unpin": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unpin from Sidebar"
+          }
+        }
+      }
+    },
+    "browser.pin": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pin to Sidebar"
+          }
+        }
+      }
+    },
+    "browser.unpin.short": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unpin"
+          }
+        }
+      }
+    },
+    "browser.playlistRow.accessibility": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@, by %@, %@%@%@"
+          }
+        }
+      }
+    },
+    "browser.playlistRow.nowPlaying": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ", now playing"
+          }
+        }
+      }
+    },
+    "browser.playlistRow.pinned": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ", pinned"
+          }
+        }
+      }
+    },
+    "browser.trackRow.accessibility": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@. %@, %@, %@%@"
+          }
+        }
+      }
+    },
+    "browser.trackRow.nowPlaying": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ", currently playing"
+          }
+        }
+      }
+    },
+    "browser.palette.subtitle.playlist": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playlist • %@"
+          }
+        }
+      }
+    },
+    "browser.palette.subtitle.artist": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Artist"
+          }
+        }
+      }
+    },
+    "browser.palette.subtitle.library": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your library • %@"
+          }
+        }
+      }
+    },
+    "pin.unavailable": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unavailable"
+          }
+        }
+      }
+    },
+    "pin.unpin": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unpin %@"
+          }
+        }
+      }
+    },
+    "pin.row.accessibility": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pinned %@: %@, %@%@"
+          }
+        }
+      }
+    },
+    "pin.row.unavailable": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ", unavailable"
+          }
+        }
+      }
+    },
+    "pin.likedSongs": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Liked Songs"
+          }
+        }
+      }
+    },
+    "lyrics.instrumental": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This track is instrumental."
+          }
+        }
+      }
+    },
+    "lyrics.tryAgain": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try again"
+          }
+        }
+      }
+    },
+    "lyrics.nextInQueue": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NEXT IN QUEUE:"
+          }
+        }
+      }
+    },
+    "lyrics.returnToLine": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Return to current line"
+          }
+        }
+      }
+    },
+    "lyrics.openArtist": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open artist %@"
+          }
+        }
+      }
+    },
+    "lyrics.openAlbum": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open album %@"
+          }
+        }
+      }
+    },
+    "palette.command.app.openSettings.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Settings"
+          }
+        }
+      }
+    },
+    "palette.command.app.openSettings.subtitle": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass preferences and shortcuts"
+          }
+        }
+      }
+    },
+    "palette.command.palette.open.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Command Palette"
+          }
+        }
+      }
+    },
+    "palette.command.palette.open.subtitle": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search tracks, playlists, and commands"
+          }
+        }
+      }
+    },
+    "palette.command.playlists.refresh.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refresh"
+          }
+        }
+      }
+    },
+    "palette.command.playlists.refresh.subtitle": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reload the focused library, playlist, artist, or queue"
+          }
+        }
+      }
+    },
+    "palette.command.playback.connect.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect Playback"
+          }
+        }
+      }
+    },
+    "palette.command.playback.connect.subtitle": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect Spotiglass playback device"
+          }
+        }
+      }
+    },
+    "palette.command.playback.toggle.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toggle Play/Pause"
+          }
+        }
+      }
+    },
+    "palette.command.playback.toggle.subtitle": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pause or resume Spotify playback"
+          }
+        }
+      }
+    },
+    "palette.command.playback.next.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next Track"
+          }
+        }
+      }
+    },
+    "palette.command.playback.next.subtitle": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skip to the next track"
+          }
+        }
+      }
+    },
+    "palette.command.playback.previous.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Previous Track"
+          }
+        }
+      }
+    },
+    "palette.command.playback.previous.subtitle": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Return to the previous track"
+          }
+        }
+      }
+    },
+    "palette.command.queue.toggle.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toggle Queue"
+          }
+        }
+      }
+    },
+    "palette.command.queue.toggle.subtitle": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show or hide the playback queue panel"
+          }
+        }
+      }
+    },
+    "palette.command.lyrics.toggle.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toggle Lyrics"
+          }
+        }
+      }
+    },
+    "palette.command.lyrics.toggle.subtitle": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show or hide immersive synchronized lyrics"
+          }
+        }
+      }
+    },
+    "palette.command.app.signOut.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disconnect Spotify"
+          }
+        }
+      }
+    },
+    "palette.command.app.signOut.subtitle": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign out and clear local session"
+          }
+        }
+      }
+    },
+    "palette.command.palette.pin.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pin Selected Palette Item"
+          }
+        }
+      }
+    },
+    "palette.command.palette.pin.subtitle": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pin the highlighted result to the sidebar"
+          }
+        }
+      }
+    },
+    "palette.command.palette.unpin.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unpin Selected Palette Item"
+          }
+        }
+      }
+    },
+    "palette.command.palette.unpin.subtitle": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove the highlighted result from the sidebar"
+          }
+        }
+      }
+    },
+    "palette.command.palette.enqueue.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add Selected Palette Item to Queue"
+          }
+        }
+      }
+    },
+    "palette.command.palette.enqueue.subtitle": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Queues the highlighted track without dismissing the palette"
+          }
+        }
+      }
+    },
+    "palette.command.playlists.prefetchAll.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Load all your songs into Spotiglass"
+          }
+        }
+      }
+    },
+    "palette.command.playlists.prefetchAll.subtitle": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cache every playlist's tracks for instant opens"
+          }
+        }
+      }
+    },
+    "palette.footer.navigate": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "↑↓ navigate"
+          }
+        }
+      }
+    },
+    "palette.footer.run": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "↩ run"
+          }
+        }
+      }
+    },
+    "palette.footer.close": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "esc close"
+          }
+        }
+      }
+    },
+    "palette.footer.queue": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⇧↩ queue"
+          }
+        }
+      }
+    },
+    "palette.footer.pin": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⌘↩ pin"
+          }
+        }
+      }
+    },
+    "palette.footer.searchHint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove %@ prefix to search Spotify"
+          }
+        }
+      }
+    },
+    "palette.footer.searchPrefix": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ">"
+          }
+        }
+      }
+    },
+    "palette.noResults": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No results for \"%@\""
+          }
+        }
+      }
+    },
+    "palette.explicit": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Explicit"
+          }
+        }
+      }
+    },
+    "palette.searching": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Searching Spotify"
+          }
+        }
+      }
+    },
+    "palette.cancelPrefetch": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel loading all playlist songs"
+          }
+        }
+      }
+    },
+    "palette.category.accessibility": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search result category"
+          }
+        }
+      }
+    },
+    "palette.settings.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Command Palette Keymap"
+          }
+        }
+      }
+    },
+    "palette.settings.shortcuts": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shortcuts"
+          }
+        }
+      }
+    },
+    "palette.settings.hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Click a field and press a shortcut. Esc cancels; Delete clears. Conflicts can replace the other binding."
+          }
+        }
+      }
+    },
+    "palette.settings.reset": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reset to Defaults"
+          }
+        }
+      }
+    },
+    "palette.settings.conflict": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Already assigned to %@ — use Replace to move it here."
+          }
+        }
+      }
+    },
+    "palette.settings.file": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "File: %@"
+          }
+        }
+      }
+    },
+    "palette.settings.apply": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apply"
+          }
+        }
+      }
+    },
+    "palette.settings.revert": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revert"
+          }
+        }
+      }
+    },
+    "palette.settings.resetDefaults": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reset Defaults"
+          }
+        }
+      }
+    },
+    "palette.settings.openJSON": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open settings.json"
+          }
+        }
+      }
+    },
+    "palette.settings.replace": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Replace"
+          }
+        }
+      }
+    },
+    "app.menu.openPalette": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Command Palette"
+          }
+        }
+      }
+    },
+    "error.rateLimit.tryShortly": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try again shortly."
+          }
+        }
+      }
+    },
+    "error.rateLimit.longWait": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify asked for a long wait (about %lld day(s)); try again later."
+          }
+        }
+      }
+    },
+    "error.rateLimit.hours": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try again in several hours."
+          }
+        }
+      }
+    },
+    "error.rateLimit.aboutHours": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try again in about %lld hour(s)."
+          }
+        }
+      }
+    },
+    "error.rateLimit.aboutMinutes": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try again in about %lld minute(s)."
+          }
+        }
+      }
+    },
+    "error.rateLimit.seconds": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try again in %lld seconds."
+          }
+        }
+      }
+    },
+    "error.rateLimit.diagnostic": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retry-After (seconds, as reported): %lld"
+          }
+        }
+      }
+    },
+    "error.browsing.signInAgain.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign in again"
+          }
+        }
+      }
+    },
+    "error.browsing.signInAgain.message": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your Spotify sign-in expired. Disconnect and connect Spotify again."
+          }
+        }
+      }
+    },
+    "error.browsing.reconnect.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reconnect Spotify"
+          }
+        }
+      }
+    },
+    "error.browsing.reconnect.message": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your current Spotify session is missing playlist or Liked Songs permissions. Disconnect and connect again to grant required scopes."
+          }
+        }
+      }
+    },
+    "error.browsing.accessDenied.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Access denied"
+          }
+        }
+      }
+    },
+    "error.browsing.accessDenied.message": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify denied access to this resource."
+          }
+        }
+      }
+    },
+    "error.browsing.accessDenied.messageWithDetail": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@"
+          }
+        }
+      }
+    },
+    "error.browsing.rateLimited.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify is rate limiting requests"
+          }
+        }
+      }
+    },
+    "error.browsing.rateLimited.message": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Too many requests were sent to Spotify. %@"
+          }
+        }
+      }
+    },
+    "error.browsing.notFound.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not found"
+          }
+        }
+      }
+    },
+    "error.browsing.notFound.message": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This Spotify resource is no longer available."
+          }
+        }
+      }
+    },
+    "error.browsing.notFound.messageWithDetail": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@"
+          }
+        }
+      }
+    },
+    "error.browsing.network.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Network unavailable"
+          }
+        }
+      }
+    },
+    "error.browsing.decoding.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not read Spotify response"
+          }
+        }
+      }
+    },
+    "error.browsing.badRequest.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify rejected the request"
+          }
+        }
+      }
+    },
+    "error.browsing.badRequest.message": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify rejected this request."
+          }
+        }
+      }
+    },
+    "error.browsing.badRequest.messageWithDetail": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@"
+          }
+        }
+      }
+    },
+    "error.browsing.server.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify service issue"
+          }
+        }
+      }
+    },
+    "error.browsing.server.message": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify returned a server error."
+          }
+        }
+      }
+    },
+    "error.browsing.server.messageWithDetail": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@"
+          }
+        }
+      }
+    },
+    "error.browsing.invalidRequest.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Invalid request"
+          }
+        }
+      }
+    },
+    "error.browsing.generic.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Something went wrong"
+          }
+        }
+      }
+    },
+    "error.browsing.playlistUnavailable.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playlist unavailable"
+          }
+        }
+      }
+    },
+    "error.browsing.playlistUnavailable.gone": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This playlist disappeared or is no longer accessible."
+          }
+        }
+      }
+    },
+    "error.browsing.playlistUnavailable.deleted": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The selected playlist was deleted or is no longer accessible."
+          }
+        }
+      }
+    },
+    "error.queue.signInAgain.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign in again"
+          }
+        }
+      }
+    },
+    "error.queue.signInAgain.message": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify rejected the access token."
+          }
+        }
+      }
+    },
+    "error.queue.loadFailed.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not load queue"
+          }
+        }
+      }
+    },
+    "error.queue.loadFailed.message": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify denied access."
+          }
+        }
+      }
+    },
+    "error.queue.loadFailed.messageWithDetail": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@"
+          }
+        }
+      }
+    },
+    "error.queue.rateLimited.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rate limited"
+          }
+        }
+      }
+    },
+    "error.queue.rateLimited.message": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify is rate limiting requests. %@"
+          }
+        }
+      }
+    },
+    "error.queue.updateFailed.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Queue update failed"
+          }
+        }
+      }
+    },
+    "error.queue.updateFailed.message": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@"
+          }
+        }
+      }
+    },
+    "error.queue.playbackUnavailable.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playback unavailable"
+          }
+        }
+      }
+    },
+    "error.queue.playbackUnavailable.message": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect Spotiglass playback before adding to the queue."
+          }
+        }
+      }
+    },
+    "error.queue.alreadyAdding.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Already adding to queue"
+          }
+        }
+      }
+    },
+    "error.queue.alreadyAdding.message": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That track is already being added."
+          }
+        }
+      }
+    },
+    "error.queue.alreadyQueued.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Already queued"
+          }
+        }
+      }
+    },
+    "error.queue.alreadyQueued.message": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That track was queued just now."
+          }
+        }
+      }
+    },
+    "error.queue.statusPending.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Queue status pending"
+          }
+        }
+      }
+    },
+    "error.queue.statusPending.message": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Queue status is still being confirmed. Try again in a moment."
+          }
+        }
+      }
+    },
+    "error.playback.signInAgain.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign in again"
+          }
+        }
+      }
+    },
+    "error.playback.signInAgain.message": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify rejected the access token used for playback."
+          }
+        }
+      }
+    },
+    "error.playback.premium.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify Premium required"
+          }
+        }
+      }
+    },
+    "error.playback.premium.message": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify Web Playback SDK playback requires a Premium account."
+          }
+        }
+      }
+    },
+    "error.playback.premium.messageWithDetail": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@"
+          }
+        }
+      }
+    },
+    "error.playback.rateLimited.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playback rate limited"
+          }
+        }
+      }
+    },
+    "error.playback.rateLimited.message": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify is rate limiting playback commands. %@"
+          }
+        }
+      }
+    },
+    "error.playback.commandFailed.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playback command failed"
+          }
+        }
+      }
+    },
+    "error.playback.commandFailed.message": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@"
+          }
+        }
+      }
+    },
+    "error.playback.couldNotStart.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playback could not start"
+          }
+        }
+      }
+    },
+    "error.playback.error.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playback error"
+          }
+        }
+      }
+    },
+    "error.playback.deviceUnavailable.title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playback device unavailable"
+          }
+        }
+      }
+    },
+    "error.playback.deviceUnavailable.reconnect": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reconnect playback before using controls."
+          }
+        }
+      }
+    },
+    "error.playback.deviceUnavailable.notReady": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The Spotify Web Playback SDK has not reported a ready device yet."
+          }
+        }
+      }
+    },
+    "common.comma": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ", "
+          }
+        }
+      }
+    },
+    "common.commaList": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ", "
+          }
+        }
+      }
+    },
+    "settings.account.accessToken": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Access token"
+          }
+        }
+      }
+    },
+    "settings.account.details": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Details"
+          }
+        }
+      }
+    },
+    "palette.section.commands": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "COMMANDS"
+          }
+        }
+      }
+    },
+    "palette.section.playlists": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PLAYLISTS"
+          }
+        }
+      }
+    },
+    "palette.section.thisPlaylist": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HERE"
+          }
+        }
+      }
+    },
+    "palette.section.myPlaylists": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MY PLAYLISTS"
+          }
+        }
+      }
+    },
+    "palette.section.tracks": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SONGS"
+          }
+        }
+      }
+    },
+    "palette.section.artists": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ARTISTS"
+          }
+        }
+      }
+    },
+    "palette.section.albums": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ALBUMS"
+          }
+        }
+      }
+    },
+    "queue.subtitle.repeatOne": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Repeat one — upcoming tracks resume when repeat is off"
+          }
+        }
+      }
+    },
+    "queue.subtitle.oneTrackUpNext": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 track up next"
+          }
+        }
+      }
+    },
+    "queue.subtitle.tracksUpNext": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld tracks up next"
+          }
+        }
+      }
+    },
+    "queue.subtitle.repeatPlaylist": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · Repeat playlist"
+          }
+        }
+      }
+    },
+    "queue.upNext.empty.repeat": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This song repeats until you turn repeat off. The full queue returns in Up next afterward."
+          }
+        }
+      }
+    },
+    "queue.upNext.empty.default": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No upcoming tracks. Start a playlist or add tracks to the queue."
+          }
+        }
+      }
+    },
+    "queue.help.shuffle": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shuffle playback order"
+          }
+        }
+      }
+    },
+    "browser.playlistOwnerTracks": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ • %@"
+          }
+        }
+      }
+    },
+    "settings.appearance.lyricsPreview.line1": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Past line drifting up"
+          }
+        }
+      }
+    },
+    "settings.appearance.lyricsPreview.line2": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Currently playing line"
+          }
+        }
+      }
+    },
+    "settings.appearance.lyricsPreview.line3": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Future line rising"
+          }
+        }
+      }
+    },
+    "palette.footer.searchHintPrefix": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove "
+          }
+        }
+      }
+    },
+    "palette.footer.searchHintSuffix": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " prefix to search Spotify"
+          }
+        }
+      }
+    },
+    "playback.repeat.off": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Repeat off"
+          }
+        }
+      }
+    },
+    "playback.repeat.playlist": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Repeat playlist"
+          }
+        }
+      }
+    },
+    "playback.repeat.one": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Repeat one"
+          }
+        }
+      }
+    },
+    "pin.album.default": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Album"
+          }
+        }
+      }
+    },
+    "palette.settings.advanced": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Advanced (JSON)"
+          }
+        }
+      }
+    },
+    "palette.settings.clearShortcut": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear shortcut"
+          }
+        }
+      }
+    },
+    "palette.settings.cancelPrefetchHelp": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel prefetch"
+          }
+        }
+      }
+    },
+    "pin.kind.playlist": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "playlist"
+          }
+        }
+      }
+    },
+    "pin.kind.artist": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "artist"
+          }
+        }
+      }
+    },
+    "pin.kind.album": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "album"
+          }
+        }
+      }
+    },
+    "pin.kind.track": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "track"
+          }
+        }
+      }
+    },
+    "browser.cachedFallback": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Showing cached data while Spotify refreshes."
+          }
+        }
+      }
+    },
+    "browser.loadingPlaylists": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading playlists..."
+          }
+        }
+      }
+    },
+    "browser.refreshingPlaylists": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refreshing playlists..."
+          }
+        }
+      }
+    },
+    "browser.refreshingDetail": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refreshing…"
+          }
+        }
+      }
+    },
+    "browser.toolbar.refreshHelp": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reloads the sidebar library, the open playlist or artist, or the queue when the queue panel is focused. Shortcut: ⌘R."
+          }
+        }
+      }
+    },
+    "browser.track.openArtist": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Artist"
+          }
+        }
+      }
+    },
+    "browser.artist.loadMore": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Load more releases"
+          }
+        }
+      }
+    },
+    "browser.artist.loadingMore": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading more releases..."
+          }
+        }
+      }
+    },
+    "lyrics.loading": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading lyrics…"
+          }
+        }
+      }
+    },
+    "lyrics.next.empty.repeat": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This song repeats. Turn repeat off to see what plays next."
+          }
+        }
+      }
+    },
+    "lyrics.next.empty.default": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No upcoming tracks."
+          }
+        }
+      }
+    },
+    "lyrics.error.noLyrics": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No lyrics found for this track."
+          }
+        }
+      }
+    },
+    "lyrics.error.rateLimitedSeconds": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lyrics service is rate limited. Try again in %llds."
+          }
+        }
+      }
+    },
+    "lyrics.error.rateLimitedShortly": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lyrics service is rate limited. Please try again shortly."
+          }
+        }
+      }
+    },
+    "lyrics.error.http": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lyrics service error (HTTP %lld)."
+          }
+        }
+      }
+    },
+    "lyrics.error.decode": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not read lyrics from the service."
+          }
+        }
+      }
+    },
+    "lyrics.error.invalidRequest": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Invalid lyrics request."
+          }
+        }
+      }
+    },
+    "lyrics.error.musicOnly": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lyrics are only available for music tracks."
+          }
+        }
+      }
+    },
+    "lyrics.error.unavailable": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lyrics are temporarily unavailable for this track. Please try again later."
+          }
+        }
+      }
+    },
+    "palette.prefetch.preparing": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preparing…"
+          }
+        }
+      }
+    },
+    "palette.prefetch.loading": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading %lld of %lld playlists…"
+          }
+        }
+      }
+    },
+    "palette.prefetch.loadedAll": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loaded %lld playlists"
+          }
+        }
+      }
+    },
+    "palette.prefetch.loadedPartial": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loaded %lld of %lld playlists (%lld failed)"
+          }
+        }
+      }
+    },
+    "palette.prefetch.cancelled": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prefetch cancelled (%lld of %lld)"
+          }
+        }
+      }
+    },
+    "breadcrumb.home.hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Returns to library home."
+          }
+        }
+      }
+    },
+    "breadcrumb.hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shows this location in the browser."
+          }
+        }
+      }
+    },
+    "auth.error.decode": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify returned a response Spotiglass could not read. Check your connection, try again, or disconnect and connect Spotify again."
+          }
+        }
+      }
+    },
+    "auth.error.offline": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You appear to be offline. Check your network, then try again."
+          }
+        }
+      }
+    },
+    "auth.error.timeout": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The connection to Spotify timed out. Try again."
+          }
+        }
+      }
+    },
+    "auth.error.dns": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not reach Spotify. Check your network and DNS settings."
+          }
+        }
+      }
+    },
+    "auth.error.network": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not connect to Spotify. Check your network, then try again."
+          }
+        }
+      }
+    },
+    "auth.error.tls": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not establish a secure connection to Spotify. Check your network or VPN, then try again."
+          }
+        }
+      }
+    },
+    "auth.error.cancelled": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The request was cancelled. Try again."
+          }
+        }
+      }
+    },
+    "auth.error.generic": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Something went wrong. Check your connection, try again, or disconnect and connect Spotify again."
+          }
+        }
+      }
+    },
+    "playback.play": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Play"
+          }
+        }
+      }
+    },
+    "playback.pause": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pause"
+          }
+        }
+      }
+    },
+    "playback.fallbackName": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify playback"
+          }
+        }
+      }
+    },
+    "auth.keychain.missingEntitlement": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS blocked Keychain access for Spotiglass—often after reinstalling or changing how the app is signed. Try Connect again, or reinstall Spotiglass from a trusted build."
+          }
+        }
+      }
+    },
+    "auth.keychain.interactionNotAllowed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keychain access isn’t allowed right now. Unlock your Mac, wait a moment, then try again."
+          }
+        }
+      }
+    },
+    "auth.keychain.authFailed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keychain verification failed. Try again, or disconnect and connect Spotify again."
+          }
+        }
+      }
+    },
+    "auth.keychain.duplicate": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saved sign-in data conflicted with an existing Keychain entry. Disconnect, then connect again."
+          }
+        }
+      }
+    },
+    "auth.keychain.readOnly": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keychain is read-only. Check disk space and permissions, then try again."
+          }
+        }
+      }
+    },
+    "auth.keychain.notAvailable": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keychain is not available. Restart your Mac and try again."
+          }
+        }
+      }
+    },
+    "auth.keychain.io": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not read or write sign-in data (Keychain I/O error). Try again."
+          }
+        }
+      }
+    },
+    "auth.keychain.param": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keychain rejected the request. Disconnect and connect Spotify again."
+          }
+        }
+      }
+    },
+    "auth.keychain.allocate": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not enough memory to use Keychain. Close other apps and try again."
+          }
+        }
+      }
+    },
+    "auth.keychain.decode": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not decode Keychain data. Disconnect and connect Spotify again."
+          }
+        }
+      }
+    },
+    "auth.keychain.generic": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not access saved Spotify sign-in data (security error %lld)%@. If this keeps happening, note this code when reporting the issue. Try Disconnect, then Connect again."
+          }
+        }
+      }
+    },
+    "auth.token.invalidResponse": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify returned a response Spotiglass could not interpret."
+          }
+        }
+      }
+    },
+    "auth.token.rejectedWithDescription": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify rejected the token request (HTTP %lld): %@"
+          }
+        }
+      }
+    },
+    "auth.token.rejectedWithOAuth": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify rejected the token request (HTTP %lld): %@"
+          }
+        }
+      }
+    },
+    "auth.token.rejected": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify rejected the token request (HTTP %lld)."
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

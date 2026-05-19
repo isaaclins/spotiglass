@@ -164,6 +164,12 @@ struct CommandShortcut: Hashable {
             return nil
         }
         modifiers = event.modifierFlags.intersection([.command, .control, .option, .shift])
+        // Prefer physical key identity (ANSI virtual key code) over localized characters so
+        // shortcuts like cmd-k record consistently on non-US keyboard layouts.
+        if let recordingKey = Self.recordingKeyFromANSIKeyCode(event.keyCode) {
+            key = recordingKey
+            return
+        }
         if let chars = event.charactersIgnoringModifiers, !chars.isEmpty {
             key = Self.normalizedRecordingKey(from: chars)
             return
@@ -199,6 +205,23 @@ struct CommandShortcut: Hashable {
     private static let modifierOnlyKeyCodes: Set<UInt16> = [
         54, 55, 56, 57, 58, 59, 60, 61, 62, 63,
     ]
+
+    /// Maps macOS ANSI virtual key codes (same values as Carbon `kVK_ANSI_*`) to recording keys.
+    private static func recordingKeyFromANSIKeyCode(_ keyCode: UInt16) -> String? {
+        let letters = "abcdefghijklmnopqrstuvwxyz"
+        let letterCodes: [UInt16] = [0, 11, 8, 2, 14, 3, 5, 4, 34, 38, 40, 37, 46, 45, 31, 35, 12, 15, 1, 17, 32, 9, 13, 7, 16, 6, 18, 19, 20, 21, 23]
+        if let index = letterCodes.firstIndex(of: keyCode) {
+            let i = letters.index(letters.startIndex, offsetBy: index)
+            return String(letters[i])
+        }
+        let digits = "0123456789"
+        let digitCodes: [UInt16] = [29, 18, 19, 20, 21, 23, 22, 26, 28, 25]
+        if let index = digitCodes.firstIndex(of: keyCode) {
+            let i = digits.index(digits.startIndex, offsetBy: index)
+            return String(digits[i])
+        }
+        return nil
+    }
 
     private static func normalizedRecordingKey(from characters: String) -> String {
         let first = String(characters.prefix(1))

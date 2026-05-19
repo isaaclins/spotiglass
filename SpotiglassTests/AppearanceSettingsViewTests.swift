@@ -14,10 +14,8 @@ final class AppearanceSettingsViewTests: XCTestCase {
         let store = try ViewTestHost.makeSettingsStore()
         let view = AppearanceSettingsView(settingsStore: store)
         ViewTestHost.host(view)
-
-        let inspected = try view.inspect()
-        XCTAssertNoThrow(try inspected.find(text: "Appearance"))
-        XCTAssertNoThrow(try inspected.find(text: "Color scheme"))
-        XCTAssertNoThrow(try inspected.find(text: "Command palette"))
+        ViewTestHost.assertFindLocalizedText("settings.section.appearance", in: view)
+        ViewTestHost.assertFindLocalizedText("settings.appearance.colorScheme", in: view)
+        ViewTestHost.assertFindLocalizedText("settings.appearance.commandPalette", in: view)
     }
 }

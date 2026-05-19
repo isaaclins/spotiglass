@@ -108,6 +108,7 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
             api: MockBrowsingAPI(playlistResults: [], trackResults: [:]),
             cache: MockBrowsingCache()
         )
+        browserVM.detailState = .loading
         let playbackVM = PlaybackSessionViewModel(
             playbackAPI: MockPlaybackAPI(),
             webCommander: MockWebPlaybackCommander()

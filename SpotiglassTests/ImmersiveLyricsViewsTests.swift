@@ -203,7 +203,10 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
         XCTAssertTrue(controller.isAutoCentering)
 
         controller.noteUserScrollActivity()
-        try? await Task.sleep(for: .milliseconds(2100))
+        let resumeDeadline = Date().addingTimeInterval(3.0)
+        while Date() < resumeDeadline, !controller.isAutoCentering {
+            try? await Task.sleep(for: .milliseconds(50))
+        }
         XCTAssertTrue(controller.isAutoCentering)
     }
 

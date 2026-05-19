@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import XCTest
 @testable import Spotiglass
 
 /// Shared AppKit helpers for deterministic focus and layout in unit tests.
@@ -13,7 +14,7 @@ enum AppKitTestSupport {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    static func pumpRunLoop(for duration: TimeInterval = 0.05) {
+    static func pumpRunLoop(for duration: TimeInterval = 0.12) {
         let deadline = Date().addingTimeInterval(duration)
         while Date() < deadline {
             RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.01))
@@ -60,6 +61,68 @@ enum ViewTestHost {
     static func tearDownAll() {
         windows.forEach { $0.close() }
         windows.removeAll()
+    }
+
+    private static var spotiglassBundle: Bundle {
+        if let bundle = Bundle.allBundles.first(where: { $0.bundleURL.pathExtension == "app" }) {
+            return bundle
+        }
+        return Bundle(for: SpotiglassSettingsStore.self)
+    }
+
+    static func localizedString(_ key: String) -> String {
+        String(localized: String.LocalizationValue(key), bundle: spotiglassBundle)
+    }
+
+    /// Finds copy from ``Localizable.xcstrings`` (unit tests host in the test bundle, not `.main`).
+    static func assertFindLocalizedText<V: View>(
+        _ key: String,
+        in view: V,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let resolved = localizedString(key)
+        var lastError: Error?
+        for candidate in [resolved, key] {
+            for _ in 0 ..< 10 {
+                AppKitTestSupport.pumpRunLoop(for: 0.05)
+                do {
+                    _ = try view.inspect().find(text: candidate)
+                    return
+                } catch {
+                    lastError = error
+                }
+            }
+        }
+        XCTFail(
+            "Expected localized text for \"\(key)\" in view hierarchy: \(String(describing: lastError))",
+            file: file,
+            line: line
+        )
+    }
+
+    /// ViewInspector can miss text until SwiftUI finishes laying out the hosted window.
+    static func assertFindText<V: View>(
+        _ text: String,
+        in view: V,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        var lastError: Error?
+        for _ in 0 ..< 10 {
+            AppKitTestSupport.pumpRunLoop(for: 0.05)
+            do {
+                _ = try view.inspect().find(text: text)
+                return
+            } catch {
+                lastError = error
+            }
+        }
+        XCTFail(
+            "Expected text \"\(text)\" in view hierarchy: \(String(describing: lastError))",
+            file: file,
+            line: line
+        )
     }
 
     static func makeSettingsStore() throws -> SpotiglassSettingsStore {

@@ -5,18 +5,21 @@ extension LrcLibClient.Failure {
     var userFacingMessage: String {
         switch self {
         case .noLyrics:
-            return "No lyrics found for this track."
+            return String(localized: "lyrics.error.noLyrics")
         case let .rateLimited(retryAfter):
             if let retryAfter {
-                return "Lyrics service is rate limited. Try again in \(Int(retryAfter.rounded()))s."
+                return String(
+                    format: String(localized: "lyrics.error.rateLimitedSeconds"),
+                    Int(retryAfter.rounded())
+                )
             }
-            return "Lyrics service is rate limited. Please try again shortly."
+            return String(localized: "lyrics.error.rateLimitedShortly")
         case let .http(code):
-            return "Lyrics service error (HTTP \(code))."
+            return String(format: String(localized: "lyrics.error.http"), code)
         case .decoding:
-            return "Could not read lyrics from the service."
+            return String(localized: "lyrics.error.decode")
         case .invalidURL:
-            return "Invalid lyrics request."
+            return String(localized: "lyrics.error.invalidRequest")
         }
     }
 }
@@ -72,7 +75,7 @@ final class ImmersiveLyricsViewModel: ObservableObject {
 
     func load(track: PlaybackNowPlaying) async {
         guard let tid = track.spotifyTrackIDForLyrics else {
-            phase = .failed("Lyrics are only available for music tracks.")
+            phase = .failed(String(localized: "lyrics.error.musicOnly"))
             return
         }
 
@@ -136,6 +139,9 @@ final class ImmersiveLyricsViewModel: ObservableObject {
     /// Clears shared in-memory state (`SpotiglassTests` only).
     // periphery:ignore
     internal static func resetSharedStateForTesting() {
+        for task in inFlight.values {
+            task.cancel()
+        }
         cache.removeAll()
         inFlight.removeAll()
         noLyricsCooldownUntil.removeAll()
@@ -179,7 +185,7 @@ final class ImmersiveLyricsViewModel: ObservableObject {
                 let retryAfter = max(0, metadata.nextEligibleFetchAt.timeIntervalSinceNow)
                 return LrcLibClient.Failure.rateLimited(retryAfter: retryAfter).userFacingMessage
             case .transient, .permanent:
-                return "Lyrics are temporarily unavailable for this track. Please try again later."
+                return String(localized: "lyrics.error.unavailable")
             }
         }
         return LrcLibClient.Failure.noLyrics.userFacingMessage

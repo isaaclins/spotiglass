@@ -20,16 +20,19 @@ final class SettingsShellViewsTests: XCTestCase {
         )
         .environmentObject(auth)
         ViewTestHost.host(view)
-
-        let inspected = try view.inspect()
-        for title in ["Playback", "Appearance", "Account", "Keyboard"] {
-            XCTAssertNoThrow(try inspected.find(text: title))
+        for key in [
+            "settings.section.playback",
+            "settings.section.appearance",
+            "settings.section.account",
+            "settings.section.keyboard"
+        ] {
+            ViewTestHost.assertFindLocalizedText(key, in: view)
         }
     }
 
     func testPlaybackSettingsView() throws {
         let view = PlaybackSettingsView()
         ViewTestHost.host(view)
-        XCTAssertNoThrow(try view.inspect().find(text: "Premium and Web Playback"))
+        ViewTestHost.assertFindLocalizedText("settings.playback.premium.title", in: view)
     }
 }

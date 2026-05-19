@@ -181,9 +181,12 @@ final class PlaybackChromeViewsTests: XCTestCase {
         )
 
         ViewTestHost.host(view, size: CGSize(width: 420, height: 640))
-        XCTAssertNoThrow(try view.inspect().find(text: "Queue"))
-        XCTAssertNoThrow(try view.inspect().find(text: "Nothing playing"))
-        XCTAssertNoThrow(try view.inspect().find(text: "No upcoming tracks. Start a playlist or add tracks to the queue."))
+        ViewTestHost.assertFindLocalizedText("queue.title", in: view)
+        ViewTestHost.assertFindText("Nothing playing", in: view)
+        ViewTestHost.assertFindText(
+            "No upcoming tracks. Start a playlist or add tracks to the queue.",
+            in: view
+        )
     }
 
     func testQueuePanelPopulatedNowPlayingAndUpNext() async throws {
