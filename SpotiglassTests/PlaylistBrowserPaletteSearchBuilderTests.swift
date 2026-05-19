@@ -86,6 +86,73 @@ final class PlaylistBrowserPaletteSearchBuilderTests: XCTestCase {
         XCTAssertTrue(result.myPlaylists.isEmpty)
     }
 
+    func testAllCategoryMapsSpotifyCatalogHits() async throws {
+        let (env, _, _, _) = recordingEnvironment()
+        let searchJSON = """
+        {
+          "tracks": {
+            "items": [
+              {
+                "type": "track",
+                "id": "track-1",
+                "name": "Midnight City",
+                "artists": [{ "name": "M83" }],
+                "album": { "images": [] },
+                "duration_ms": 240000,
+                "explicit": true,
+                "uri": "spotify:track:track-1"
+              }
+            ]
+          },
+          "artists": {
+            "items": [
+              { "id": "artist-1", "name": "M83", "images": [], "uri": "spotify:artist:artist-1" }
+            ]
+          },
+          "albums": {
+            "items": [
+              {
+                "id": "album-1",
+                "name": "Album",
+                "artists": [{ "name": "M83" }],
+                "images": [],
+                "uri": "spotify:album:album-1"
+              }
+            ]
+          },
+          "playlists": {
+            "items": [
+              {
+                "id": "playlist-1",
+                "name": "Mix",
+                "owner": { "id": "o1", "display_name": "Me" },
+                "images": [],
+                "items": { "total": 2 },
+                "snapshot_id": "snap"
+              }
+            ]
+          }
+        }
+        """
+        let http = QueueHTTPClient([.json(searchJSON)])
+        let client = SpotifyAPIClient(
+            tokenProvider: StaticSpotifyAccessTokenProvider(token: "tok"),
+            httpClient: http
+        )
+        let result = try await PlaylistBrowserPaletteSearchBuilder.search(
+            query: "midnight",
+            category: .all,
+            spotifySearchClient: client,
+            environment: env,
+            loadedContextTracks: nil,
+            visiblePlaylists: []
+        )
+        XCTAssertEqual(result.tracks.count, 1)
+        XCTAssertEqual(result.artists.count, 1)
+        XCTAssertEqual(result.albums.count, 1)
+        XCTAssertEqual(result.catalogPlaylists.count, 1)
+    }
+
     func testMyPlaylistsCategorySkipsNetworkSearch() async throws {
         let (env, _, _, _) = recordingEnvironment()
         let row = PlaylistRowViewModel(
