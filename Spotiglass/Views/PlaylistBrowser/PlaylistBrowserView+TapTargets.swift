@@ -45,40 +45,14 @@ extension PlaylistBrowserView {
     }
 
     func resolveAlbumID(name: String, artistHint: String) async throws -> String? {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        let escaped = trimmed.replacingOccurrences(of: "\"", with: "")
-        let firstArtist = artistHint.split(separator: ",").first.map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) } ?? ""
-        let query: String
-        if firstArtist.isEmpty {
-            query = "album:\"\(escaped)\""
-        } else {
-            let artistEsc = firstArtist.replacingOccurrences(of: "\"", with: "")
-            query = "album:\"\(escaped)\" artist:\"\(artistEsc)\""
+        try await PlaylistBrowserTapTargetResolver.resolveAlbumID(name: name, artistHint: artistHint) { query, limit in
+            try await spotifySearchClient.search(query: query, limit: limit)
         }
-        let results = try await spotifySearchClient.search(query: query, limit: 10)
-        guard !results.albums.isEmpty else { return nil }
-        let normalizedQuery = trimmed.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
-        if let exact = results.albums.first(where: {
-            $0.name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current) == normalizedQuery
-        }) {
-            return exact.id
-        }
-        return results.albums.first?.id
     }
 
     func resolveArtistID(forName name: String) async throws -> String? {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        let escaped = trimmed.replacingOccurrences(of: "\"", with: "")
-        let results = try await spotifySearchClient.search(query: "artist:\"\(escaped)\"", limit: 5)
-        guard !results.artists.isEmpty else { return nil }
-        let normalizedQuery = trimmed.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
-        if let exact = results.artists.first(where: {
-            $0.name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current) == normalizedQuery
-        }) {
-            return exact.id
+        try await PlaylistBrowserTapTargetResolver.resolveArtistID(forName: name) { query, limit in
+            try await spotifySearchClient.search(query: query, limit: limit)
         }
-        return results.artists.first?.id
     }
 }

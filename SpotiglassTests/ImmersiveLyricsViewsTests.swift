@@ -123,6 +123,159 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
         XCTAssertNoThrow(try view.inspect())
     }
 
+    func testLyricsAutoCenterControllerEngageAndIdleResume() async {
+        let controller = LyricsAutoCenterController()
+        XCTAssertTrue(controller.isAutoCentering)
+
+        controller.noteUserScrollActivity()
+        XCTAssertFalse(controller.isAutoCentering)
+
+        controller.engageImmediately()
+        XCTAssertTrue(controller.isAutoCentering)
+
+        controller.noteUserScrollActivity()
+        try? await Task.sleep(for: .milliseconds(2100))
+        XCTAssertTrue(controller.isAutoCentering)
+    }
+
+    func testLyricsLineTextActiveAndInactive() throws {
+        let active = ImmersiveLyricsLineText("Active line", distance: 0, size: .medium)
+        let inactive = ImmersiveLyricsLineText("Far line", distance: 3, size: .large)
+        ViewTestHost.host(
+            VStack { active; inactive },
+            size: CGSize(width: 360, height: 120)
+        )
+        XCTAssertNoThrow(try active.inspect().find(text: "Active line"))
+        XCTAssertNoThrow(try inactive.inspect().find(text: "Far line"))
+    }
+
+    func testReturnToCurrentLinePill() throws {
+        var tapped = false
+        let pill = LyricsReturnToCurrentLinePill { tapped = true }
+        ViewTestHost.host(pill, size: CGSize(width: 280, height: 56))
+        try pill.inspect().find(button: "Return to current line").tap()
+        XCTAssertTrue(tapped)
+    }
+
+    func testTimedLyricsScrollViewRendersLines() throws {
+        let lines = [
+            SyncedLyricLine(id: 0, startTimeMs: 0, words: "First"),
+            SyncedLyricLine(id: 1, startTimeMs: 4_000, words: "Second")
+        ]
+        let view = ImmersiveLyricsTimedLyricsScrollView(
+            lines: lines,
+            maxHeight: 320,
+            positionMs: 2_000,
+            reduceMotion: true,
+            usesLyricsScrollEdgeFade: false,
+            lyricsTextSize: .medium
+        )
+        .frame(width: 400, height: 360)
+
+        ViewTestHost.host(view, size: CGSize(width: 400, height: 360))
+        XCTAssertNoThrow(try view.inspect().find(text: "First"))
+        XCTAssertNoThrow(try view.inspect().find(text: "Second"))
+    }
+
+    func testPlainLyricsScrollViewRendersLines() throws {
+        let view = ImmersiveLyricsPlainLyricsScrollView(
+            lines: ["Alpha", "Beta"],
+            maxHeight: 280,
+            positionMs: 30_000,
+            trackDurationMs: 120_000,
+            reduceMotion: true,
+            usesLyricsScrollEdgeFade: true,
+            lyricsTextSize: .small
+        )
+        .frame(width: 400, height: 320)
+
+        ViewTestHost.host(view, size: CGSize(width: 400, height: 320))
+        XCTAssertNoThrow(try view.inspect().find(text: "Alpha"))
+    }
+
+    func testNextInQueueSectionEmptyAndPopulated() async throws {
+        let api = MockPlaybackAPI()
+        let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: MockWebPlaybackCommander())
+        let queue = QueueViewModel(
+            playbackAPI: api,
+            playbackSession: playback,
+            pollIntervalNanoseconds: 60_000_000_000
+        )
+        playback.handle(.ready(deviceID: "device-1"))
+        playback.handle(.stateChanged(
+            PlaybackNowPlaying(
+                name: "Current", artists: ["A"], albumName: "Al", albumID: "al-1",
+                albumArtURL: nil, durationMilliseconds: 180_000, positionMilliseconds: 0,
+                uri: "spotify:track:cur"
+            ),
+            isPaused: false,
+            nextTracks: []
+        ))
+        playback.repeatMode = .track
+
+        let emptySection = ImmersiveLyricsNextInQueueSectionView(
+            queueViewModel: queue,
+            playbackViewModel: playback,
+            navigateToArtist: { _ in },
+            navigateToAlbum: { _, _, _ in }
+        )
+        .frame(width: 320, height: 160)
+        ViewTestHost.host(emptySection, size: CGSize(width: 320, height: 160))
+        XCTAssertNoThrow(try emptySection.inspect().find(text: "NEXT IN QUEUE:"))
+        XCTAssertNoThrow(try emptySection.inspect().find(text: "This song repeats. Turn repeat off to see what plays next."))
+
+        let sdkNext = [
+            PlaybackNowPlaying(
+                name: "Up Next", artists: ["Artist"], albumName: "Album", albumID: "alb-2",
+                albumArtURL: nil, durationMilliseconds: 200_000, positionMilliseconds: 0,
+                uri: "spotify:track:next"
+            )
+        ]
+        playback.handle(.stateChanged(
+            PlaybackNowPlaying(
+                name: "Current", artists: ["A"], albumName: "Al", albumID: "al-1",
+                albumArtURL: nil, durationMilliseconds: 180_000, positionMilliseconds: 0,
+                uri: "spotify:track:cur"
+            ),
+            isPaused: false,
+            nextTracks: sdkNext
+        ))
+        playback.repeatMode = .off
+        await queue.refreshQueue()
+
+        let populated = ImmersiveLyricsNextInQueueSectionView(
+            queueViewModel: queue,
+            playbackViewModel: playback,
+            navigateToArtist: { _ in },
+            navigateToAlbum: { _, _, _ in }
+        )
+        .frame(width: 320, height: 200)
+        ViewTestHost.host(populated, size: CGSize(width: 320, height: 200))
+        XCTAssertNoThrow(try populated.inspect().find(text: "Up Next"))
+    }
+
+    func testQueueUpcomingRowShowsArtistAndAlbumLinks() throws {
+        let item = QueueItem(
+            name: "Track",
+            subtitle: "Artist Name",
+            albumArtURL: nil,
+            albumName: "Album Title",
+            albumID: "album-99",
+            durationMilliseconds: 180_000,
+            uri: "spotify:track:t1",
+            artistTapTargets: [ArtistTapTarget(id: "ar-1", name: "Artist Name")]
+        )
+        let row = ImmersiveLyricsQueueUpcomingRowView(
+            item: item,
+            navigateToArtist: { _ in },
+            navigateToAlbum: { _, _, _ in }
+        )
+        ViewTestHost.host(row, size: CGSize(width: 360, height: 80))
+        XCTAssertNoThrow(try row.inspect().find(text: "Track"))
+        XCTAssertNoThrow(try row.inspect().find(text: "Artist Name"))
+        XCTAssertNoThrow(try row.inspect().find(text: "Album Title"))
+    }
+
     private func phaseColumn(
         lyricsModel: ImmersiveLyricsViewModel,
         track: PlaybackNowPlaying? = nil,
