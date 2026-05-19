@@ -2,7 +2,7 @@ import SwiftUI
 
 struct LibraryHomeSidebarRow: View {
     var body: some View {
-        Label("Home", systemImage: "house")
+        Label(String(localized: "browser.home"), systemImage: "house")
             .onDrag({
                 LibrarySidebarRowTransfer(rowToken: LibrarySidebarOrder.homeToken).itemProvider()
             })
@@ -44,7 +44,7 @@ struct PinnedSidebarLibraryRow: View {
             }
         }
         .contextMenu {
-            Button("Unpin") { pinnedStore.unpin(id: item.id) }
+            Button(String(localized: "browser.unpin.short")) { pinnedStore.unpin(id: item.id) }
         }
     }
 }

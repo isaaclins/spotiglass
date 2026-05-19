@@ -5,15 +5,15 @@ struct PlaylistsSidebarSectionHeader: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
-            Text("Playlists")
+            Text("browser.playlists", bundle: .main)
                 .font(.title3.weight(.semibold))
             switch playlistState {
             case .staleCache:
-                Text("Showing cached data")
+                Text("browser.cachedData", bundle: .main)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             case .refreshing:
-                Text("Refreshing")
+                Text("browser.refreshing", bundle: .main)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             default:
@@ -41,13 +41,13 @@ struct PlaylistsSidebarSectionContent: View {
             likedSongsSidebarRow
             switch playlistState {
             case .loading:
-                ProgressView("Loading playlists...")
+                ProgressView(String(localized: "browser.loadingPlaylists"))
             case let .loaded(playlists), let .refreshing(playlists), let .staleCache(playlists, _):
                 ForEach(playlists) { playlist in
                     playlistSidebarRow(playlist: playlist)
                 }
             case let .empty(message):
-                EmptyStateView(title: "No playlists", message: message)
+                EmptyStateView(title: String(localized: "browser.noPlaylists.title"), message: message)
             case let .error(error):
                 ErrorStateView(error: error)
             }
@@ -93,11 +93,11 @@ struct PlaylistsSidebarSectionContent: View {
         )
         .contextMenu {
             if pinned {
-                Button("Unpin") {
+                Button(String(localized: "browser.unpin.short")) {
                     pinnedStore.unpin(id: PinnedItem.id(forKind: .playlist, spotifyID: playlist.id))
                 }
             } else {
-                Button("Pin to Sidebar") {
+                Button(String(localized: "browser.pin")) {
                     pinnedStore.pin(.playlist(summary))
                 }
             }

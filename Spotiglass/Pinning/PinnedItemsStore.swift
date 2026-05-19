@@ -24,7 +24,12 @@ final class PinnedItemsStore: ObservableObject {
             items = []
             return
         }
-        items = (try? cache.loadPinnedItems(userID: userID)) ?? []
+        if let loaded = try? cache.loadPinnedItems(userID: userID) {
+            items = loaded
+        } else {
+            items = []
+            SpotiglassLog.error(SpotiglassLog.pinning, "Failed to load pinned items for user")
+        }
     }
 
     /// Returns `true` if the item was newly pinned, `false` if it was already
@@ -91,6 +96,10 @@ final class PinnedItemsStore: ObservableObject {
 
     private func persist() {
         guard let userID = boundUserID, let cache else { return }
-        try? cache.savePinnedItems(items, userID: userID)
+        do {
+            try cache.savePinnedItems(items, userID: userID)
+        } catch {
+            SpotiglassLog.error(SpotiglassLog.pinning, "Failed to save pinned items: \(error.localizedDescription)")
+        }
     }
 }

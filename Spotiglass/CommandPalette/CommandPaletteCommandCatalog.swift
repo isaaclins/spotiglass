@@ -20,115 +20,111 @@ struct CommandPaletteCommandSpec: Identifiable {
 }
 
 enum CommandPaletteCommandCatalog {
-    static let editable: [CommandPaletteCommandSpec] = [
+    private static func localizedTitle(commandID: String) -> String {
+        String(localized: String.LocalizationValue("palette.command.\(commandID).title"))
+    }
+
+    private static func localizedSubtitle(commandID: String) -> String {
+        String(localized: String.LocalizationValue("palette.command.\(commandID).subtitle"))
+    }
+
+    private static func spec(
+        commandID: String,
+        iconSystemName: String,
+        defaultWhen: CommandPaletteContext,
+        defaultKeystroke: String?
+    ) -> CommandPaletteCommandSpec {
         CommandPaletteCommandSpec(
+            commandID: commandID,
+            title: localizedTitle(commandID: commandID),
+            subtitle: localizedSubtitle(commandID: commandID),
+            iconSystemName: iconSystemName,
+            defaultWhen: defaultWhen,
+            defaultKeystroke: defaultKeystroke
+        )
+    }
+
+    static let editable: [CommandPaletteCommandSpec] = [
+        spec(
             commandID: CommandPaletteCommandID.openSettings,
-            title: "Open Settings",
-            subtitle: "Spotiglass preferences and shortcuts",
             iconSystemName: "gearshape",
             defaultWhen: .always,
             defaultKeystroke: "cmd-,"
         ),
-        CommandPaletteCommandSpec(
+        spec(
             commandID: CommandPaletteCommandID.openPalette,
-            title: "Open Command Palette",
-            subtitle: "Search tracks, playlists, and commands",
             iconSystemName: "command.circle",
             defaultWhen: .always,
             defaultKeystroke: "cmd-k"
         ),
-        CommandPaletteCommandSpec(
+        spec(
             commandID: CommandPaletteCommandID.refreshPlaylists,
-            title: "Refresh",
-            subtitle: "Reload the focused library, playlist, artist, or queue",
             iconSystemName: "arrow.clockwise",
             defaultWhen: .signedIn,
             defaultKeystroke: "cmd-r"
         ),
-        CommandPaletteCommandSpec(
+        spec(
             commandID: CommandPaletteCommandID.connectPlayback,
-            title: "Connect Playback",
-            subtitle: "Connect Spotiglass playback device",
             iconSystemName: "dot.radiowaves.left.and.right",
             defaultWhen: .signedIn,
             defaultKeystroke: "shift-cmd-k"
         ),
-        CommandPaletteCommandSpec(
+        spec(
             commandID: CommandPaletteCommandID.togglePlayback,
-            title: "Toggle Play/Pause",
-            subtitle: "Pause or resume Spotify playback",
             iconSystemName: "playpause",
             defaultWhen: .signedIn,
             defaultKeystroke: "space"
         ),
-        CommandPaletteCommandSpec(
+        spec(
             commandID: CommandPaletteCommandID.nextTrack,
-            title: "Next Track",
-            subtitle: "Skip to the next track",
             iconSystemName: "forward.fill",
             defaultWhen: .signedIn,
             defaultKeystroke: "shift-cmd-right"
         ),
-        CommandPaletteCommandSpec(
+        spec(
             commandID: CommandPaletteCommandID.previousTrack,
-            title: "Previous Track",
-            subtitle: "Return to the previous track",
             iconSystemName: "backward.fill",
             defaultWhen: .signedIn,
             defaultKeystroke: "shift-cmd-left"
         ),
-        CommandPaletteCommandSpec(
+        spec(
             commandID: CommandPaletteCommandID.toggleQueue,
-            title: "Toggle Queue",
-            subtitle: "Show or hide the playback queue panel",
             iconSystemName: "list.bullet.indent",
             defaultWhen: .signedIn,
             defaultKeystroke: "alt-cmd-q"
         ),
-        CommandPaletteCommandSpec(
+        spec(
             commandID: CommandPaletteCommandID.toggleLyrics,
-            title: "Toggle Lyrics",
-            subtitle: "Show or hide immersive synchronized lyrics",
             iconSystemName: "music.note.list",
             defaultWhen: .signedIn,
             defaultKeystroke: nil
         ),
-        CommandPaletteCommandSpec(
+        spec(
             commandID: CommandPaletteCommandID.signOut,
-            title: "Disconnect Spotify",
-            subtitle: "Sign out and clear local session",
             iconSystemName: "xmark.circle",
             defaultWhen: .signedIn,
             defaultKeystroke: nil
         ),
-        CommandPaletteCommandSpec(
+        spec(
             commandID: CommandPaletteCommandID.pinSelected,
-            title: "Pin Selected Palette Item",
-            subtitle: "Pin the highlighted result to the sidebar",
             iconSystemName: "pin",
             defaultWhen: .paletteOpen,
             defaultKeystroke: "cmd-return"
         ),
-        CommandPaletteCommandSpec(
+        spec(
             commandID: CommandPaletteCommandID.unpinSelected,
-            title: "Unpin Selected Palette Item",
-            subtitle: "Remove the highlighted result from the sidebar",
             iconSystemName: "pin.slash",
             defaultWhen: .paletteOpen,
             defaultKeystroke: nil
         ),
-        CommandPaletteCommandSpec(
+        spec(
             commandID: CommandPaletteCommandID.enqueueSelected,
-            title: "Add Selected Palette Item to Queue",
-            subtitle: "Queues the highlighted track without dismissing the palette",
             iconSystemName: "text.line.last.and.arrowtriangle.forward",
             defaultWhen: .paletteOpen,
             defaultKeystroke: "shift-return"
         ),
-        CommandPaletteCommandSpec(
+        spec(
             commandID: CommandPaletteCommandID.prefetchAllPlaylists,
-            title: "Load all your songs into Spotiglass",
-            subtitle: "Cache every playlist's tracks for instant opens",
             iconSystemName: "square.and.arrow.down.on.square",
             defaultWhen: .signedIn,
             defaultKeystroke: nil

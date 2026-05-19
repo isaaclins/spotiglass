@@ -1,8 +1,17 @@
 .DS_Store
-node_modules/
 build/
 dist/
 public/
 
+# Swift Package Manager
+.swiftpm/
+.build/
+Package.resolved
+
 # Xcode per-user state (UI layout, breakpoints, personal schemes)
 **/xcuserdata/
+*.xcuserstate
+
+# Autoresearch / local experiment logs (optional local only)
+results.tsv
+run.log

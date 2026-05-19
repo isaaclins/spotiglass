@@ -82,7 +82,7 @@ enum PlaylistBrowserPaletteSearchBuilder {
             return CommandPaletteItem(
                 id: "playlist-\(playlist.id)",
                 title: playlist.name,
-                subtitle: "Playlist • \(playlist.ownerName)",
+                subtitle: String(format: String(localized: "browser.palette.subtitle.playlist"), playlist.ownerName),
                 iconSystemName: "music.note.list",
                 section: .playlists,
                 keywords: [playlist.ownerName, playlist.id],
@@ -110,7 +110,7 @@ enum PlaylistBrowserPaletteSearchBuilder {
             return CommandPaletteItem(
                 id: "artist-\(artist.id)",
                 title: artist.name,
-                subtitle: "Artist",
+                subtitle: String(localized: "browser.palette.subtitle.artist"),
                 iconSystemName: "person.wave.2",
                 artistAvatarURL: artist.imageURL,
                 section: .artists,
@@ -229,7 +229,7 @@ enum PlaylistBrowserPaletteSearchBuilder {
             let item = CommandPaletteItem(
                 id: "playlist-\(row.id)",
                 title: row.title,
-                subtitle: "Your library • \(row.owner)",
+                subtitle: String(format: String(localized: "browser.palette.subtitle.library"), row.owner),
                 iconSystemName: "music.note.list",
                 section: .myPlaylists,
                 keywords: [row.owner, row.title, row.id],

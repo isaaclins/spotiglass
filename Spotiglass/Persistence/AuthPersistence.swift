@@ -32,28 +32,32 @@ enum KeychainRefreshTokenStoreError: Error, Equatable, LocalizedError {
     private static func message(forUnexpectedStatus status: OSStatus) -> String {
         switch status {
         case errSecMissingEntitlement:
-            return "macOS blocked Keychain access for Spotiglass—often after reinstalling or changing how the app is signed. Try Connect again, or reinstall Spotiglass from a trusted build."
+            return String(localized: "auth.keychain.missingEntitlement")
         case errSecInteractionNotAllowed:
-            return "Keychain access isn’t allowed right now. Unlock your Mac, wait a moment, then try again."
+            return String(localized: "auth.keychain.interactionNotAllowed")
         case errSecAuthFailed:
-            return "Keychain verification failed. Try again, or disconnect and connect Spotify again."
+            return String(localized: "auth.keychain.authFailed")
         case errSecDuplicateItem:
-            return "Saved sign-in data conflicted with an existing Keychain entry. Disconnect, then connect again."
+            return String(localized: "auth.keychain.duplicate")
         case errSecReadOnly:
-            return "Keychain is read-only. Check disk space and permissions, then try again."
+            return String(localized: "auth.keychain.readOnly")
         case errSecNotAvailable:
-            return "Keychain is not available. Restart your Mac and try again."
+            return String(localized: "auth.keychain.notAvailable")
         case errSecIO:
-            return "Could not read or write sign-in data (Keychain I/O error). Try again."
+            return String(localized: "auth.keychain.io")
         case errSecParam:
-            return "Keychain rejected the request. Disconnect and connect Spotify again."
+            return String(localized: "auth.keychain.param")
         case errSecAllocate:
-            return "Not enough memory to use Keychain. Close other apps and try again."
+            return String(localized: "auth.keychain.allocate")
         case errSecDecode:
-            return "Could not decode Keychain data. Disconnect and connect Spotify again."
+            return String(localized: "auth.keychain.decode")
         default:
             let suffix = SecCopyErrorMessageString(status, nil).map { " — \($0 as String)" } ?? ""
-            return "Could not access saved Spotify sign-in data (security error \(status))\(suffix). If this keeps happening, note this code when reporting the issue. Try Disconnect, then Connect again."
+            return String(
+                format: String(localized: "auth.keychain.generic"),
+                status,
+                suffix
+            )
         }
     }
 }

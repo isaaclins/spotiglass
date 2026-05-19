@@ -147,8 +147,8 @@ extension PlaylistBrowserViewModel {
 
         if case let .playlist(missingID) = sidebarSelection, playlistsByID[missingID] == nil {
             detailState = .error(BrowsingDisplayError(
-                title: "Playlist unavailable",
-                message: "The selected playlist was deleted or is no longer accessible.",
+                title: String(localized: "error.browsing.playlistUnavailable.title"),
+                message: String(localized: "error.browsing.playlistUnavailable.deleted"),
                 canRetry: true
             ))
         }

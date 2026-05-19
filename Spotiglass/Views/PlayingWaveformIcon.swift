@@ -30,7 +30,8 @@ struct PlayingWaveformIcon: View {
         .onChange(of: isPlaying) { _, nowPlaying in
             isAnimating = nowPlaying
         }
-        .accessibilityHidden(true)
+        .accessibilityLabel(isPlaying ? String(localized: "playback.nowPlaying") : String(localized: "playback.paused"))
+        .accessibilityAddTraits(.isImage)
     }
 
     private func bar(index: Int, baseFraction: CGFloat, durationOffset: Double, durationScale: Double) -> some View {

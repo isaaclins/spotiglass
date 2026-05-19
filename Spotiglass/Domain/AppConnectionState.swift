@@ -1,5 +1,8 @@
 import Foundation
 
+// Sign-in UX state for the shell (titles/messages). Distinct from `AuthViewModel`'s
+// internal flow state and from Spotify API DTOs in Services.
+
 enum AppConnectionState: Equatable {
     case signedOut
     case signingIn
@@ -10,28 +13,31 @@ enum AppConnectionState: Equatable {
     var title: String {
         switch self {
         case .signedOut:
-            "Spotify is not connected"
+            String(localized: "app.connection.signedOut.title")
         case .signingIn:
-            "Opening Spotify sign-in"
+            String(localized: "app.connection.signingIn.title")
         case .signedIn:
-            "Spotify is connected"
+            String(localized: "app.connection.signedIn.title")
         case .refreshing:
-            "Refreshing Spotify session"
+            String(localized: "app.connection.refreshing.title")
         case .failed:
-            "Spotify sign-in needs attention"
+            String(localized: "app.connection.failed.title")
         }
     }
 
     var message: String {
         switch self {
         case .signedOut:
-            "Enter your Spotify client ID, then connect your Spotify account."
+            String(localized: "app.connection.signedOut.message")
         case .signingIn:
-            "Complete authorization in the browser window. Spotiglass is listening on 127.0.0.1 for the callback."
+            String(localized: "app.connection.signingIn.message")
         case let .signedIn(session):
-            "Access token is valid until \(session.expiresAt.formatted(date: .omitted, time: .shortened))."
+            String(
+                format: String(localized: "app.connection.signedIn.message"),
+                session.expiresAt.formatted(date: .omitted, time: .shortened)
+            )
         case .refreshing:
-            "Spotiglass is refreshing the stored Spotify session."
+            String(localized: "app.connection.refreshing.message")
         case let .failed(error):
             error.message
         }

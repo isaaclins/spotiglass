@@ -61,15 +61,15 @@ struct ArtistDetailContent: View {
             VStack(alignment: .leading, spacing: SpotiglassDesign.spacingL) {
                 header
                 if !detail.tracks.isEmpty {
-                    Text("Tracks")
+                    Text("browser.tracks", bundle: .main)
                         .font(.title3.weight(.semibold))
                         .padding(.horizontal, SpotiglassDesign.spacingL)
                     tracksSection
                 }
-                albumStrip(title: "Albums", albums: detail.albums, group: .album)
-                albumStrip(title: "Singles", albums: detail.singles, group: .single)
-                albumStrip(title: "Compilations", albums: detail.compilations, group: .compilation)
-                albumStrip(title: "Appears on", albums: detail.appearsOn, group: .appearsOn)
+                albumStrip(title: String(localized: "browser.albums"), albums: detail.albums, group: .album)
+                albumStrip(title: String(localized: "browser.singles"), albums: detail.singles, group: .single)
+                albumStrip(title: String(localized: "browser.compilations"), albums: detail.compilations, group: .compilation)
+                albumStrip(title: String(localized: "browser.appearsOn"), albums: detail.appearsOn, group: .appearsOn)
                 if detail.canLoadMoreAlbums || detail.isLoadingMoreAlbums {
                     loadMoreButton
                         .padding(.horizontal, SpotiglassDesign.spacingL)
@@ -93,7 +93,7 @@ struct ArtistDetailContent: View {
                                 Circle().fill(SpotiglassDesign.mediaBadgeBackgroundColor(colorScheme: colorScheme))
                             )
                             .padding(4)
-                            .accessibilityLabel("Pinned to sidebar")
+                            .accessibilityLabel(String(localized: "browser.pinned"))
                     }
                 }
 
@@ -131,11 +131,11 @@ struct ArtistDetailContent: View {
         )
         .contextMenu {
             if isArtistPinned {
-                Button("Unpin from Sidebar") {
+                Button(String(localized: "browser.unpin")) {
                     pinnedStore.unpin(id: PinnedItem.id(forKind: .artist, spotifyID: artistID))
                 }
             } else {
-                Button("Pin to Sidebar") {
+                Button(String(localized: "browser.pin")) {
                     pinnedStore.pin(.artist(detail.artist))
                 }
             }
@@ -214,9 +214,9 @@ struct ArtistDetailContent: View {
         )
         .contextMenu {
             if pinned {
-                Button("Unpin from Sidebar") { pinnedStore.unpin(id: pinnedItem.id) }
+                Button(String(localized: "browser.unpin")) { pinnedStore.unpin(id: pinnedItem.id) }
             } else {
-                Button("Pin to Sidebar") { pinnedStore.pin(pinnedItem) }
+                Button(String(localized: "browser.pin")) { pinnedStore.pin(pinnedItem) }
             }
         }
     }
@@ -263,7 +263,7 @@ struct ArtistDetailContent: View {
                     ProgressView()
                         .controlSize(.small)
                 }
-                Text(detail.isLoadingMoreAlbums ? "Loading more releases..." : "Load more releases")
+                Text(detail.isLoadingMoreAlbums ? String(localized: "browser.artist.loadingMore") : String(localized: "browser.artist.loadMore"))
             }
             .frame(maxWidth: .infinity)
         }

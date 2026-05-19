@@ -6,31 +6,36 @@ struct AccountSettingsView: View {
     var body: some View {
         Form {
             Section {
-                LabeledContent("Status") {
+                LabeledContent(String(localized: "settings.account.status")) {
                     Text(viewModel.state.title)
                 }
                 if let session = activeSession {
-                    LabeledContent("Access token") {
-                        Text("Valid until \(session.expiresAt.formatted(date: .omitted, time: .shortened))")
+                    LabeledContent(String(localized: "settings.account.accessToken")) {
+                        Text(
+                            String(
+                                format: String(localized: "settings.account.validUntil"),
+                                session.expiresAt.formatted(date: .omitted, time: .shortened)
+                            )
+                        )
                             .foregroundStyle(.secondary)
                     }
                 } else {
-                    LabeledContent("Details") {
+                    LabeledContent(String(localized: "settings.account.details")) {
                         Text(viewModel.state.message)
                             .foregroundStyle(.secondary)
                             .textSelection(.enabled)
                     }
                 }
             } header: {
-                Text("Connection")
+                Text("settings.account.connection", bundle: .main)
             }
 
             Section {
                 SpotifyClientIDAndActionsView(viewModel: viewModel, layout: .settings)
             } header: {
-                Text("Spotify developer app")
+                Text("settings.account.developerApp", bundle: .main)
             } footer: {
-                Text("Use the Client ID from your app in the Spotify Developer Dashboard. OAuth uses a fixed loopback redirect on 127.0.0.1.")
+                Text("settings.account.developerApp.hint", bundle: .main)
                     .foregroundStyle(.secondary)
             }
         }

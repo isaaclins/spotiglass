@@ -48,11 +48,11 @@ struct PlaybackControlsView: View {
                                 .foregroundStyle(.secondary)
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("Lyrics")
-                        .accessibilityHint("Opens synchronized lyrics for the current track.")
+                        .accessibilityLabel(String(localized: "playback.controls.lyrics"))
+                        .accessibilityHint(String(localized: "playback.controls.lyrics.hint"))
                     }
                     if shouldShowPausedIndicator {
-                        Text("Paused")
+                        Text("playback.paused.label", bundle: .main)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
@@ -89,8 +89,8 @@ struct PlaybackControlsView: View {
                     .buttonStyle(.plain)
                     .id("artwork:\(item.uri ?? item.name)")
                     .transition(.opacity.combined(with: .scale(scale: 0.94)))
-                    .accessibilityLabel("Open lyrics")
-                    .accessibilityHint("Opens synchronized lyrics for the current track.")
+                    .accessibilityLabel(String(localized: "playback.controls.openLyrics"))
+                    .accessibilityHint(String(localized: "playback.controls.lyrics.hint"))
                 } else {
                     ArtworkView(url: item.albumArtURL, size: 44)
                         .id("artwork:\(item.uri ?? item.name)")
@@ -114,7 +114,7 @@ struct PlaybackControlsView: View {
         HStack(spacing: 0) {
             ForEach(Array(artistTapTargets.enumerated()), id: \.element.stableID) { index, target in
                 if index > 0 {
-                    Text(", ")
+                    Text("common.comma", bundle: .main)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -127,7 +127,7 @@ struct PlaybackControlsView: View {
                         .lineLimit(1)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Open artist \(target.name)")
+                .accessibilityLabel(String(format: String(localized: "playback.controls.openArtist"), target.name))
             }
             Spacer(minLength: 0)
         }
@@ -159,8 +159,8 @@ struct PlaybackControlsView: View {
                 Image(systemName: "backward.fill")
             }
             .disabled(!hasReadyDevice || viewModel.isSkipCommandPending)
-            .accessibilityLabel("Previous track")
-            .accessibilityHint("Skips to the previous Spotify track when playback is connected.")
+            .accessibilityLabel(String(localized: "playback.controls.previous"))
+            .accessibilityHint(String(localized: "playback.controls.previous.hint"))
 
             Button {
                 Task { await viewModel.togglePlayPause() }
@@ -171,7 +171,7 @@ struct PlaybackControlsView: View {
             }
             .disabled(!hasReadyDevice)
             .accessibilityLabel(playPauseAccessibilityLabel)
-            .accessibilityHint("Toggles Spotify playback in Spotiglass.")
+            .accessibilityHint(String(localized: "playback.controls.playPause.hint"))
 
             Button {
                 Task { await viewModel.next() }
@@ -179,8 +179,8 @@ struct PlaybackControlsView: View {
                 Image(systemName: "forward.fill")
             }
             .disabled(!hasReadyDevice || viewModel.isSkipCommandPending || viewModel.isNextCommandLockedOut)
-            .accessibilityLabel("Next track")
-            .accessibilityHint("Skips to the next Spotify track when playback is connected.")
+            .accessibilityLabel(String(localized: "playback.controls.next"))
+            .accessibilityHint(String(localized: "playback.controls.next.hint"))
 
             Button {
                 Task { await viewModel.cycleRepeat() }
@@ -190,7 +190,7 @@ struct PlaybackControlsView: View {
             }
             .disabled(!hasReadyDevice)
             .accessibilityLabel(repeatAccessibilityLabel)
-            .accessibilityHint("Cycles repeat: off, repeat playlist, repeat one track.")
+            .accessibilityHint(String(localized: "playback.controls.repeat.hint"))
         }
         .controlSize(.regular)
     }
@@ -211,11 +211,11 @@ struct PlaybackControlsView: View {
     private var repeatAccessibilityLabel: String {
         switch viewModel.repeatMode {
         case .off:
-            "Repeat off"
+            String(localized: "playback.repeat.off")
         case .context:
-            "Repeat playlist"
+            String(localized: "playback.repeat.playlist")
         case .track:
-            "Repeat one"
+            String(localized: "playback.repeat.one")
         }
     }
 
@@ -284,8 +284,8 @@ struct PlaybackControlsView: View {
             .menuIndicator(.hidden)
             .disabled(!hasReadyDevice)
             .opacity(hasReadyDevice ? 1 : 0.45)
-            .accessibilityLabel("Playback device")
-            .accessibilityHint("Spotify Connect targets and Mac audio output. Choosing a Mac output sets the system default device.")
+            .accessibilityLabel(String(localized: "playback.controls.device"))
+            .accessibilityHint(String(localized: "playback.controls.device.hint"))
         }
     }
 
@@ -310,8 +310,8 @@ struct PlaybackControlsView: View {
                 .disabled(!hasReadyDevice)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Playback volume")
-        .accessibilityHint("Adjusts Spotify Web Playback output in Spotiglass. This is not the Mac system volume.")
+        .accessibilityLabel(String(localized: "playback.controls.volume"))
+        .accessibilityHint(String(localized: "playback.controls.volume.hint"))
     }
 
     private var playbackVolumeBinding: Binding<Double> {
@@ -328,32 +328,32 @@ struct PlaybackControlsView: View {
             Button {
                 viewModel.start()
             } label: {
-                Label("Reconnect", systemImage: "dot.radiowaves.left.and.right")
+                Label(String(localized: "playback.controls.reconnect"), systemImage: "dot.radiowaves.left.and.right")
             }
-            .accessibilityLabel("Reconnect playback")
-            .accessibilityHint("Registers the Spotiglass Web Playback device with Spotify. Spotify Premium is required.")
+            .accessibilityLabel(String(localized: "playback.controls.reconnect.label"))
+            .accessibilityHint(String(localized: "playback.controls.reconnect.hint"))
         case .connecting:
             ProgressView()
                 .controlSize(.small)
-                .accessibilityLabel("Connecting playback")
+                .accessibilityLabel(String(localized: "playback.controls.connecting"))
         case let .error(error):
             switch error.recoveryAction {
             case .reconnect:
                 Button {
                     viewModel.start()
                 } label: {
-                    Label("Reconnect", systemImage: "dot.radiowaves.left.and.right")
+                    Label(String(localized: "playback.controls.reconnect"), systemImage: "dot.radiowaves.left.and.right")
                 }
-                .accessibilityLabel("Reconnect playback")
-                .accessibilityHint("Restarts the hidden Spotify Web Playback SDK device.")
+                .accessibilityLabel(String(localized: "playback.controls.reconnect.label"))
+                .accessibilityHint(String(localized: "playback.controls.reconnect.sdk.hint"))
             case .retryTransfer:
                 Button {
                     Task { await viewModel.retryPlaybackTransfer() }
                 } label: {
-                    Label("Retry", systemImage: "arrow.clockwise")
+                    Label(String(localized: "playback.controls.retry"), systemImage: "arrow.clockwise")
                 }
-                .accessibilityLabel("Retry playback transfer")
-                .accessibilityHint("Attempts to move Spotify playback to Spotiglass again.")
+                .accessibilityLabel(String(localized: "playback.controls.retry.label"))
+                .accessibilityHint(String(localized: "playback.controls.retry.hint"))
             case .reauthenticate, .none:
                 EmptyView()
             }
@@ -433,9 +433,9 @@ struct PlaybackControlsView: View {
     private var playPauseAccessibilityLabel: String {
         switch viewModel.connectionState {
         case .playing:
-            "Pause"
+            String(localized: "playback.pause")
         default:
-            "Play"
+            String(localized: "playback.play")
         }
     }
 

@@ -26,14 +26,14 @@ struct CommandPaletteHintsChipView: View {
 
     var body: some View {
         HStack(spacing: SpotiglassDesign.spacingS) {
-            Text("↑↓ navigate")
-            Text("↩ run")
-            Text("esc close")
+            Text("palette.footer.navigate", bundle: .main)
+            Text("palette.footer.run", bundle: .main)
+            Text("palette.footer.close", bundle: .main)
             if viewModel.canEnqueueSelectedItem {
-                Text("⇧↩ queue")
+                Text("palette.footer.queue", bundle: .main)
             }
             if viewModel.canPinSelectedItem {
-                Text("⌘↩ pin")
+                Text("palette.footer.pin", bundle: .main)
             }
         }
         .font(.caption)
@@ -49,7 +49,9 @@ struct CommandPaletteCommandsHintChipView: View {
     var paletteGlass: Namespace.ID
 
     var body: some View {
-        Text("Remove \(Text(">").foregroundStyle(.tertiary)) prefix to search Spotify")
+        (Text("palette.footer.searchHintPrefix", bundle: .main)
+            + Text("palette.footer.searchPrefix", bundle: .main).foregroundStyle(.tertiary)
+            + Text("palette.footer.searchHintSuffix", bundle: .main))
             .multilineTextAlignment(.trailing)
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -75,7 +77,7 @@ struct CommandPaletteCategoryPillsRowView: View {
             }
         }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Search result category")
+        .accessibilityLabel(String(localized: "palette.category.accessibility"))
     }
 }
 

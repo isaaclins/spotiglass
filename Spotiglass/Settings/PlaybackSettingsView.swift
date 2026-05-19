@@ -5,24 +5,24 @@ struct PlaybackSettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: SpotiglassDesign.spacingL) {
                 playbackSection(
-                    title: "Premium and Web Playback",
+                    title: String(localized: "settings.playback.premium.title"),
                     items: [
-                        "Playback uses Spotify’s Web Playback SDK in a hidden web view. Spotify reports an account error for non-Premium accounts; playlist browsing may still work.",
-                        "After you sign in, Spotiglass registers this Mac as a Spotify Connect device automatically.",
+                        String(localized: "settings.playback.premium.item1"),
+                        String(localized: "settings.playback.premium.item2"),
                     ]
                 )
 
                 playbackSection(
-                    title: "When something drops",
+                    title: String(localized: "settings.playback.whenDrops.title"),
                     items: [
-                        "Use Reconnect in the playback bar or run “Connect Playback” from the Command Palette if playback stops or shows an error.",
+                        String(localized: "settings.playback.whenDrops.item"),
                     ]
                 )
 
                 playbackSection(
-                    title: "Sessions",
+                    title: String(localized: "settings.playback.sessions.title"),
                     items: [
-                        "Only one Spotify account is signed in at a time. Disconnect in Account settings to switch accounts or clear the stored session.",
+                        String(localized: "settings.playback.sessions.item"),
                     ]
                 )
             }

@@ -59,7 +59,7 @@ struct PlaylistListRow: View {
                             Circle().fill(SpotiglassDesign.mediaBadgeBackgroundColor(colorScheme: colorScheme))
                         )
                         .padding(2)
-                        .accessibilityLabel("Pinned to sidebar")
+                        .accessibilityLabel(String(localized: "browser.pinned"))
                 }
             }
 
@@ -68,7 +68,7 @@ struct PlaylistListRow: View {
                     .font(.headline)
                     .lineLimit(1)
 
-                Text("\(playlist.owner) • \(playlist.trackCountText)")
+                Text(String(format: String(localized: "browser.playlistOwnerTracks"), playlist.owner, playlist.trackCountText))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -77,6 +77,15 @@ struct PlaylistListRow: View {
         .padding(.vertical, SpotiglassDesign.spacingXS)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(playlist.title), by \(playlist.owner), \(playlist.trackCountText)\(isActive ? ", now playing" : "")\(isPinned ? ", pinned" : "")")
+        .accessibilityLabel(
+            String(
+                format: String(localized: "browser.playlistRow.accessibility"),
+                playlist.title,
+                playlist.owner,
+                playlist.trackCountText,
+                isActive ? String(localized: "browser.playlistRow.nowPlaying") : "",
+                isPinned ? String(localized: "browser.playlistRow.pinned") : ""
+            )
+        )
     }
 }

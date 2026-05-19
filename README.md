@@ -22,7 +22,6 @@
 
 - Signed-in playlist and track browsing with sidebar pins, queue, artist pages, and command palette search.
 - In-app playback through the Spotify Web Playback SDK in a hidden `WKWebView`.
-- Live 10-band equalizer with presets, persisted in `~/.config/spotiglass/settings.json`.
 - Appearance controls for System, Light, or Dark, plus command palette backdrop blur.
 - Keychain-backed refresh tokens, local playlist cache, and keyboard shortcuts you can remap in Settings.
 
@@ -75,7 +74,6 @@ The GitHub Actions workflow **Release artifact** runs unit tests, builds an unsi
 | [Building and testing](docs/building-and-testing.md) | `make`, `xcodebuild`, local Release bundle |
 | [CI and releases](docs/ci-and-releases.md) | Workflow dispatch artifact, Gatekeeper |
 | [Data storage](docs/data-storage.md) | Keychain, cache paths, `settings.json` |
-| [Equalizer](docs/equalizer.md) | Live EQ, presets, troubleshooting |
 | [Pinning](docs/pinning.md) | Sidebar pins and drag targets |
 | [Limitations](docs/limitations.md) | Premium, signing, API limits |
 
@@ -101,4 +99,4 @@ Open an issue describing the change you want to make before opening a pull reque
 
 ## License
 
-This repository does not currently publish a license file.
+See [LICENSE](LICENSE). Personal, non-commercial use is permitted under the repository license; commercial or organizational use requires a separate written license from the copyright holder.

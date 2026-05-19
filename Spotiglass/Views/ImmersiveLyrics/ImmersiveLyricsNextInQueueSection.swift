@@ -9,7 +9,7 @@ struct ImmersiveLyricsNextInQueueSectionView: View {
     var body: some View {
         let upcoming = Array(queueViewModel.upcomingItems.prefix(3))
         VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
-            Text("NEXT IN QUEUE:")
+            Text("lyrics.nextInQueue", bundle: .main)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.white.opacity(0.45))
                 .padding(.top, SpotiglassDesign.spacingS)
@@ -34,9 +34,9 @@ struct ImmersiveLyricsNextInQueueSectionView: View {
 
     private var nextInQueueEmptyMessage: String {
         if playbackViewModel.repeatMode == .track {
-            return "This song repeats. Turn repeat off to see what plays next."
+            return String(localized: "lyrics.next.empty.repeat")
         }
-        return "No upcoming tracks."
+        return String(localized: "lyrics.next.empty.default")
     }
 }
 
@@ -80,7 +80,7 @@ struct ImmersiveLyricsQueueUpcomingSubtitleView: View {
                 HStack(spacing: 0) {
                     ForEach(Array(item.artistTapTargets.enumerated()), id: \.element.stableID) { index, target in
                         if index > 0 {
-                            Text(", ")
+                            Text("common.comma", bundle: .main)
                                 .font(.caption)
                                 .foregroundStyle(.white.opacity(0.5))
                         }
@@ -93,7 +93,7 @@ struct ImmersiveLyricsQueueUpcomingSubtitleView: View {
                                 .lineLimit(2)
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("Open artist \(target.name)")
+                        .accessibilityLabel(String(format: String(localized: "lyrics.openArtist"), target.name))
                     }
                     Spacer(minLength: 0)
                 }
@@ -115,7 +115,7 @@ struct ImmersiveLyricsQueueUpcomingSubtitleView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Open album \(albumName)")
+                .accessibilityLabel(String(format: String(localized: "lyrics.openAlbum"), albumName))
             }
         }
     }

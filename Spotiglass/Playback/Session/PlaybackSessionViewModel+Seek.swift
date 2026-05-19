@@ -95,7 +95,7 @@ extension PlaybackSessionViewModel {
 
     private func sendSeekCommand(milliseconds: Int) async -> Bool {
         guard let deviceID else {
-            setConnectionState(.error(PlaybackDisplayError(title: "Playback device unavailable", message: "Reconnect playback before using controls.", recoveryAction: .reconnect)))
+            setConnectionState(.error(Self.playbackDeviceReconnectRequiredError()))
             return false
         }
         do {

@@ -13,7 +13,13 @@ struct SpotiglassApp: App {
         let keymapStore = CommandPaletteKeymapStore(settingsStore: store)
         _settingsStore = StateObject(wrappedValue: store)
         _commandPaletteManager = StateObject(wrappedValue: CommandPaletteManager(keymapStore: keymapStore))
-        let pinningCache: PinnedItemsCache = (try? SpotifyLocalCache()) ?? InMemoryPinnedItemsCache()
+        let pinningCache: PinnedItemsCache
+        if let diskCache = try? SpotifyLocalCache() {
+            pinningCache = diskCache
+        } else {
+            SpotiglassLog.info(SpotiglassLog.persistence, "Using in-memory pinned-items cache")
+            pinningCache = InMemoryPinnedItemsCache()
+        }
         _pinnedStore = StateObject(wrappedValue: PinnedItemsStore(cache: pinningCache))
         let authVM: AuthViewModel
         if AppMetadata.isRunningUnitTests {
@@ -41,7 +47,7 @@ struct SpotiglassApp: App {
         .windowResizability(.contentMinSize)
         .commands {
             CommandMenu("Spotiglass") {
-                Button("Open Command Palette") {
+                Button(String(localized: "app.menu.openPalette")) {
                     commandPaletteManager.execute(commandID: CommandPaletteCommandID.openPalette)
                 }
                 .keyboardShortcut("k", modifiers: [.command])

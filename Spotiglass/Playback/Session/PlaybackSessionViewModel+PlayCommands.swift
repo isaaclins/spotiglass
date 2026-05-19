@@ -4,11 +4,7 @@ import Foundation
 extension PlaybackSessionViewModel {
     func play(uri: String) async {
         guard let deviceID else {
-            setConnectionState(.error(PlaybackDisplayError(
-                title: "Playback device unavailable",
-                message: "The Spotify Web Playback SDK has not reported a ready device yet.",
-                recoveryAction: .reconnect
-            )))
+            setConnectionState(.error(Self.playbackDeviceNotReadyError()))
             return
         }
 
@@ -39,11 +35,7 @@ extension PlaybackSessionViewModel {
 
     func play(contextURI: String) async {
         guard let deviceID else {
-            setConnectionState(.error(PlaybackDisplayError(
-                title: "Playback device unavailable",
-                message: "The Spotify Web Playback SDK has not reported a ready device yet.",
-                recoveryAction: .reconnect
-            )))
+            setConnectionState(.error(Self.playbackDeviceNotReadyError()))
             return
         }
 
@@ -69,11 +61,7 @@ extension PlaybackSessionViewModel {
 
     func playFromPlaylist(clickedURI: String, playableURIs: [String], playlistID: String? = nil) async {
         guard let deviceID else {
-            setConnectionState(.error(PlaybackDisplayError(
-                title: "Playback device unavailable",
-                message: "The Spotify Web Playback SDK has not reported a ready device yet.",
-                recoveryAction: .reconnect
-            )))
+            setConnectionState(.error(Self.playbackDeviceNotReadyError()))
             return
         }
 

@@ -9,7 +9,7 @@ alwaysApply: false
 
 # Browsing refactor conventions
 
-The "Browsing" feature (playlist sidebar, playlist detail, artist detail, sidebar drag/drop, palette glue) is being decomposed from two ~2,200-line files in `Spotiglass/Views/` into a dedicated **`Spotiglass/Browsing/`** feature folder. This rule is binding for every agent making changes inside that scope.
+The "Browsing" feature (playlist sidebar, playlist detail, artist detail, sidebar drag/drop, palette glue) is being consolidated into **`Spotiglass/Browsing/`**, mirroring `Pinning/` and `CommandPalette/`. Agents 1–2 already moved protocols, row view models, and load state out of the former monoliths; **`PlaylistBrowserViewModel` and its `+Concern` extensions still live under `Spotiglass/Views/`** (~200-line core + extensions), and browser UI lives under **`Spotiglass/Views/PlaylistBrowser/`**. This rule is binding for every agent making changes inside that scope.
 
 ## Folder layout (decided)
 

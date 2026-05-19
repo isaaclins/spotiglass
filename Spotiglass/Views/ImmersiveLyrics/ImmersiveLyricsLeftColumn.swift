@@ -31,7 +31,7 @@ struct ImmersiveLyricsLeftColumnView: View {
                     .buttonStyle(.plain)
                     .disabled(!hasPlaybackDeviceForTransportControls)
                     .accessibilityLabel(lyricsRepeatAccessibilityLabel)
-                    .accessibilityHint("Cycles repeat: off, repeat playlist, repeat one track.")
+                    .accessibilityHint(String(localized: "playback.controls.repeat.hint"))
                 }
 
                 ImmersiveLyricsArtistLineView(track: track, navigateToArtist: navigateToArtist)
@@ -52,7 +52,7 @@ struct ImmersiveLyricsLeftColumnView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("Open album \(album)")
+                    .accessibilityLabel(String(format: String(localized: "lyrics.openAlbum"), album))
                 }
 
                 ImmersiveLyricsNextInQueueSectionView(
@@ -81,11 +81,11 @@ struct ImmersiveLyricsLeftColumnView: View {
     private var lyricsRepeatAccessibilityLabel: String {
         switch playbackViewModel.repeatMode {
         case .off:
-            "Repeat off"
+            String(localized: "playback.repeat.off")
         case .context:
-            "Repeat playlist"
+            String(localized: "playback.repeat.playlist")
         case .track:
-            "Repeat one"
+            String(localized: "playback.repeat.one")
         }
     }
 
@@ -114,7 +114,7 @@ struct ImmersiveLyricsArtistLineView: View {
             HStack(spacing: 0) {
                 ForEach(Array(track.artistTapTargets.enumerated()), id: \.element.stableID) { index, target in
                     if index > 0 {
-                        Text(", ")
+                        Text("common.comma", bundle: .main)
                             .font(.subheadline)
                             .foregroundStyle(.white.opacity(0.72))
                     }
@@ -127,7 +127,7 @@ struct ImmersiveLyricsArtistLineView: View {
                             .lineLimit(2)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("Open artist \(target.name)")
+                    .accessibilityLabel(String(format: String(localized: "lyrics.openArtist"), target.name))
                 }
                 Spacer(minLength: 0)
             }

@@ -19,9 +19,9 @@ struct AppearanceSettingsView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
-            Text("Appearance")
+            Text("settings.section.appearance", bundle: .main)
                 .font(.title3.weight(.semibold))
-            Text("Visual options for Spotiglass windows and overlays.")
+            Text("settings.section.appearance.subtitle", bundle: .main)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -29,29 +29,31 @@ struct AppearanceSettingsView: View {
 
     private var colorSchemeSection: some View {
         VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
-            Text("Color scheme")
+            Text("settings.appearance.colorScheme", bundle: .main)
                 .font(.headline)
-            Picker("Color scheme", selection: colorSchemeBinding) {
+            Picker(String(localized: "settings.appearance.colorScheme"), selection: colorSchemeBinding) {
                 ForEach(AppearanceColorScheme.allCases, id: \.self) { scheme in
                     Text(scheme.displayName).tag(scheme)
                 }
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            Text("System follows macOS. Light and Dark apply only to Spotiglass.")
+            Text("settings.appearance.colorScheme.hint", bundle: .main)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
+        .accessibilityElement(children: .contain)
     }
 
     private var commandPaletteSection: some View {
         VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
-            Text("Command palette")
+            Text("settings.appearance.commandPalette", bundle: .main)
                 .font(.headline)
-            Toggle("Blur window behind palette", isOn: backdropBlurBinding)
+            Toggle(String(localized: "settings.appearance.backdropBlur"), isOn: backdropBlurBinding)
                 .toggleStyle(.switch)
-            Text("When on, the rest of the window is slightly blurred while the palette is open.")
+                .accessibilityHint(String(localized: "settings.appearance.backdropBlur.hint"))
+            Text("settings.appearance.backdropBlur.hint", bundle: .main)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -80,9 +82,9 @@ struct AppearanceSettingsView: View {
 
     private var lyricsTextSizeSection: some View {
         VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
-            Text("Lyrics text size")
+            Text("settings.appearance.lyricsTextSize", bundle: .main)
                 .font(.headline)
-            Picker("Lyrics text size", selection: lyricsTextSizeBinding) {
+            Picker(String(localized: "settings.appearance.lyricsTextSize"), selection: lyricsTextSizeBinding) {
                 ForEach(LyricsTextSize.allCases, id: \.self) { size in
                     Text(size.displayName).tag(size)
                 }
@@ -92,7 +94,7 @@ struct AppearanceSettingsView: View {
 
             LyricsTextSizePreview(size: settingsStore.settings.appearance.lyricsTextSize)
 
-            Text("Controls font size and line spacing in the immersive lyrics view.")
+            Text("settings.appearance.lyricsTextSize.hint", bundle: .main)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -116,9 +118,9 @@ private struct LyricsTextSizePreview: View {
     let size: LyricsTextSize
 
     private let lines: [(text: String, distance: Int)] = [
-        ("Past line drifting up",   -1),
-        ("Currently playing line",   0),
-        ("Future line rising",       1)
+        (String(localized: "settings.appearance.lyricsPreview.line1"),   -1),
+        (String(localized: "settings.appearance.lyricsPreview.line2"),   0),
+        (String(localized: "settings.appearance.lyricsPreview.line3"),       1)
     ]
 
     var body: some View {
@@ -145,6 +147,8 @@ private struct LyricsTextSizePreview: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .spotiglassSurface(corner: .m)
         .animation(SpotiglassMotion.surfaceSpring, value: size)
-        .accessibilityLabel("Lyrics preview, \(size.displayName) size")
+        .accessibilityLabel(
+            String(format: String(localized: "settings.appearance.lyricsPreview.label"), size.displayName)
+        )
     }
 }

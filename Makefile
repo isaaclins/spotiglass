@@ -4,7 +4,9 @@
 #        make release         — unsigned Release bundle (matches CI layout)
 #        make test            — unit tests on macOS
 
-.PHONY: all build run release test coverage coverage-check scan clean list help
+.PHONY: all build run release test coverage coverage-check format lint scan clean list help
+
+SWIFT_FORMAT := $(shell command -v swift-format 2>/dev/null)
 
 PROJECT       := Spotiglass.xcodeproj
 SCHEME        := Spotiglass
@@ -73,6 +75,20 @@ coverage:
 coverage-check: coverage
 	./scripts/check-coverage-per-file.sh
 
+format:
+ifndef SWIFT_FORMAT
+	@echo "swift-format not found. Install with: brew install swift-format" >&2
+	@exit 1
+endif
+	@find Spotiglass SpotiglassTests -name '*.swift' -print0 | xargs -0 "$(SWIFT_FORMAT)" format -i -r --configuration .swift-format
+
+lint:
+ifndef SWIFT_FORMAT
+	@echo "swift-format not found. Install with: brew install swift-format" >&2
+	@exit 1
+endif
+	@find Spotiglass SpotiglassTests -name '*.swift' -print0 | xargs -0 "$(SWIFT_FORMAT)" lint --strict --configuration .swift-format
+
 scan:
 	periphery scan \
 		--project $(PROJECT) \
@@ -97,6 +113,8 @@ help:
 	@echo "  make test          — unit tests"
 	@echo "  make coverage      — unit tests with code coverage report"
 	@echo "  make coverage-check — coverage + per-file gate (see scripts/coverage-allowlist.json)"
+	@echo "  make format        — in-place swift-format (requires brew install swift-format)"
+	@echo "  make lint          — swift-format lint --strict"
 	@echo "  make scan          — periphery (dead code) + tokei (LOC); both run even if one fails"
 	@echo "  make list          — list schemes"
 	@echo "  make clean         — remove $(DERIVED_DATA) + Keychain items (service $(KEYCHAIN_SERVICE))"

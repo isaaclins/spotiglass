@@ -240,7 +240,7 @@ final class AuthViewModel: ObservableObject {
         guard session.includesRequiredBrowsingScopes() else {
             throw SpotifyAPIError.insufficientScope(
                 requiredScopes: SpotifyAuthConfiguration.requiredBrowsingScopes,
-                message: "Your current Spotify session is missing playlist or Liked Songs permissions. Disconnect and connect again to grant required scopes.",
+                message: String(localized: "auth.insufficientScope.message"),
                 details: nil
             )
         }
@@ -257,28 +257,29 @@ final class AuthViewModel: ObservableObject {
             return Self.urlErrorMessage(urlError)
         }
         if error is DecodingError {
-            return "Spotify returned a response Spotiglass could not read. Check your connection, try again, or disconnect and connect Spotify again."
+            return String(localized: "auth.error.decode")
         }
         return Self.genericAuthFailureMessage
     }
 
-    private static let genericAuthFailureMessage =
-        "Something went wrong. Check your connection, try again, or disconnect and connect Spotify again."
+    private static var genericAuthFailureMessage: String {
+        String(localized: "auth.error.generic")
+    }
 
     private static func urlErrorMessage(_ error: URLError) -> String {
         switch error.code {
         case .notConnectedToInternet:
-            return "You appear to be offline. Check your network, then try again."
+            return String(localized: "auth.error.offline")
         case .timedOut:
-            return "The connection to Spotify timed out. Try again."
+            return String(localized: "auth.error.timeout")
         case .cannotFindHost, .dnsLookupFailed:
-            return "Could not reach Spotify. Check your network and DNS settings."
+            return String(localized: "auth.error.dns")
         case .cannotConnectToHost, .networkConnectionLost:
-            return "Could not connect to Spotify. Check your network, then try again."
+            return String(localized: "auth.error.network")
         case .secureConnectionFailed, .serverCertificateUntrusted, .clientCertificateRejected:
-            return "Could not establish a secure connection to Spotify. Check your network or VPN, then try again."
+            return String(localized: "auth.error.tls")
         case .cancelled:
-            return "The request was cancelled. Try again."
+            return String(localized: "auth.error.cancelled")
         default:
             let text = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
             if text.isEmpty || text.localizedCaseInsensitiveContains("couldn’t be completed") || text.localizedCaseInsensitiveContains("couldn't be completed") {

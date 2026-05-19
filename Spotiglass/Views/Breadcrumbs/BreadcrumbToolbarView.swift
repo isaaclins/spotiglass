@@ -16,7 +16,7 @@ struct BreadcrumbToolbarView: View {
                 .accessibilityHint(
                     viewModel.breadcrumbPath.isEmpty
                         ? ""
-                        : "Returns to library home."
+                        : String(localized: "breadcrumb.home.hint")
                 )
                 .contentShape(Rectangle())
                 .onTapGesture {
@@ -57,7 +57,7 @@ struct BreadcrumbToolbarView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(crumb.label)
         .accessibilityAddTraits(isLeaf ? [] : .isButton)
-        .accessibilityHint(isLeaf ? "" : "Shows this location in the browser.")
+        .accessibilityHint(isLeaf ? "" : String(localized: "breadcrumb.hint"))
         .contentShape(Rectangle())
         .onTapGesture {
             guard !isLeaf else { return }

@@ -4,7 +4,7 @@ import Foundation
 extension PlaybackSessionViewModel {
     func toggleShuffle() async {
         guard let deviceID else {
-            setConnectionState(.error(PlaybackDisplayError(title: "Playback device unavailable", message: "Reconnect playback before using controls.", recoveryAction: .reconnect)))
+            setConnectionState(.error(Self.playbackDeviceReconnectRequiredError()))
             return
         }
         let target = !shuffleEnabled
@@ -70,7 +70,7 @@ extension PlaybackSessionViewModel {
 
     func cycleRepeat() async {
         guard let deviceID else {
-            setConnectionState(.error(PlaybackDisplayError(title: "Playback device unavailable", message: "Reconnect playback before using controls.", recoveryAction: .reconnect)))
+            setConnectionState(.error(Self.playbackDeviceReconnectRequiredError()))
             return
         }
         let nextMode = repeatMode.next

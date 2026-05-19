@@ -57,6 +57,7 @@ final class SpotiglassSettingsStore: ObservableObject {
             lastError = nil
         } catch {
             lastError = error.localizedDescription
+            SpotiglassLog.error(SpotiglassLog.settings, "Settings reload failed: \(error.localizedDescription)")
         }
     }
 
@@ -107,6 +108,7 @@ final class SpotiglassSettingsStore: ObservableObject {
                 lastError = "Settings file was invalid and has been reset to defaults. \(error.localizedDescription)"
             } catch {
                 lastError = error.localizedDescription
+                SpotiglassLog.error(SpotiglassLog.settings, "Settings bootstrap failed: \(error.localizedDescription)")
             }
         }
     }

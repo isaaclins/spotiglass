@@ -33,7 +33,7 @@ struct QueuePanelView: View {
     private var header: some View {
         HStack {
             VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
-                Text("Queue")
+                Text("queue.title", bundle: .main)
                     .font(.title2.weight(.semibold))
                 Text(subtitleText)
                     .font(.caption)
@@ -47,9 +47,13 @@ struct QueuePanelView: View {
                     .foregroundStyle(playbackViewModel.shuffleEnabled ? SpotiglassDesign.controlAccent : Color.primary)
             }
             .disabled(playbackViewModel.deviceID == nil)
-            .accessibilityLabel(playbackViewModel.shuffleEnabled ? "Shuffle on" : "Shuffle off")
-            .accessibilityHint("Toggles shuffle for Spotify playback on this device.")
-            .help("Shuffle playback order")
+            .accessibilityLabel(
+                playbackViewModel.shuffleEnabled
+                    ? String(localized: "queue.shuffle.on")
+                    : String(localized: "queue.shuffle.off")
+            )
+            .accessibilityHint(String(localized: "queue.shuffle.hint"))
+            .help(String(localized: "queue.help.shuffle"))
         }
         .padding(SpotiglassDesign.spacingM)
     }
@@ -57,15 +61,20 @@ struct QueuePanelView: View {
     private var subtitleText: String {
         switch playbackViewModel.repeatMode {
         case .track:
-            return "Repeat one — upcoming tracks resume when repeat is off"
+            return String(localized: "queue.subtitle.repeatOne")
         case .off:
-            let count = queueViewModel.upcomingItems.count
-            return count == 1 ? "1 track up next" : "\(count) tracks up next"
+            return upcomingCountLine
         case .context:
-            let count = queueViewModel.upcomingItems.count
-            let countLine = count == 1 ? "1 track up next" : "\(count) tracks up next"
-            return "\(countLine) · Repeat playlist"
+            return String(format: String(localized: "queue.subtitle.repeatPlaylist"), upcomingCountLine)
         }
+    }
+
+    private var upcomingCountLine: String {
+        let count = queueViewModel.upcomingItems.count
+        if count == 1 {
+            return String(localized: "queue.subtitle.oneTrackUpNext")
+        }
+        return String(format: String(localized: "queue.subtitle.tracksUpNext"), count)
     }
 
     private func errorBanner(_ error: BrowsingDisplayError) -> some View {
@@ -75,7 +84,7 @@ struct QueuePanelView: View {
             Text(error.message)
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Button("Dismiss") {
+            Button(String(localized: "queue.dismiss")) {
                 queueViewModel.clearError()
             }
             .buttonStyle(.borderless)
@@ -90,7 +99,7 @@ struct QueuePanelView: View {
     @ViewBuilder
     private var nowPlayingSection: some View {
         VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
-            Text("Now playing")
+            Text("queue.nowPlaying", bundle: .main)
                 .font(.headline)
 
             ZStack {
@@ -108,7 +117,7 @@ struct QueuePanelView: View {
                     .id("now-playing-row:\(item.id)")
                     .transition(.opacity.combined(with: .scale(scale: 0.98)))
                 } else {
-                    Text("Nothing playing")
+                    Text("queue.nothingPlaying", bundle: .main)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -124,7 +133,7 @@ struct QueuePanelView: View {
     @ViewBuilder
     private var upNextSection: some View {
         VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
-            Text("Up next")
+            Text("queue.upNext", bundle: .main)
                 .font(.headline)
 
             if queueViewModel.upcomingItems.isEmpty {
@@ -163,9 +172,9 @@ struct QueuePanelView: View {
 
     private var upNextEmptyMessage: String {
         if playbackViewModel.repeatMode == .track {
-            return "This song repeats until you turn repeat off. The full queue returns in Up next afterward."
+            return String(localized: "queue.upNext.empty.repeat")
         }
-        return "No upcoming tracks. Start a playlist or add tracks to the queue."
+        return String(localized: "queue.upNext.empty.default")
     }
 
     private func copyURI(_ uri: String?) {
@@ -211,13 +220,15 @@ private struct QueueRowView: View {
         .contentShape(Rectangle())
         .onTapGesture(perform: onSelect)
         .contextMenu {
-            Button("Play Now", action: onSelect)
+            Button(String(localized: "queue.playNow"), action: onSelect)
             if item.uri != nil {
-                Button("Copy Spotify URI", action: onCopyURI)
+                Button(String(localized: "queue.copyURI"), action: onCopyURI)
             }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(item.name), \(item.subtitle)")
+        .accessibilityLabel(
+            String(format: String(localized: "queue.item.accessibility"), item.name, item.subtitle)
+        )
     }
 
     @ViewBuilder
@@ -231,7 +242,7 @@ private struct QueueRowView: View {
             HStack(spacing: 0) {
                 ForEach(Array(item.artistTapTargets.enumerated()), id: \.element.stableID) { index, target in
                     if index > 0 {
-                        Text(", ")
+                        Text("common.comma", bundle: .main)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -244,7 +255,9 @@ private struct QueueRowView: View {
                             .lineLimit(1)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("Open artist \(target.name)")
+                    .accessibilityLabel(
+                        String(format: String(localized: "queue.openArtist"), target.name)
+                    )
                 }
                 Spacer(minLength: 0)
             }

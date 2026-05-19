@@ -36,14 +36,14 @@ struct CommandPaletteSettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: SpotiglassDesign.spacingM) {
                 if presentation == .standalone {
-                    Text("Command Palette Keymap")
+                    Text("palette.settings.title", bundle: .main)
                         .font(.title2.weight(.semibold))
                 }
 
-                Text("Shortcuts")
+                Text("palette.settings.shortcuts", bundle: .main)
                     .font(presentation == .settingsTabs ? .headline : .title3.weight(.semibold))
 
-                Text("Click a field and press a shortcut. Esc cancels; Delete clears. Conflicts can replace the other binding.")
+                Text("palette.settings.hint", bundle: .main)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
@@ -64,7 +64,7 @@ struct CommandPaletteSettingsView: View {
                 )
 
                 HStack(spacing: SpotiglassDesign.spacingS) {
-                    Button("Reset to Defaults") {
+                    Button(String(localized: "palette.settings.reset")) {
                         pendingConflictByCommand = [:]
                         keymapStore.resetToDefaults()
                     }
@@ -73,7 +73,7 @@ struct CommandPaletteSettingsView: View {
                 Divider()
                     .padding(.vertical, SpotiglassDesign.spacingXS)
 
-                DisclosureGroup("Advanced (JSON)") {
+                DisclosureGroup(String(localized: "palette.settings.advanced")) {
                     advancedJSONSection
                 }
                 .tint(SpotiglassDesign.controlAccent)
@@ -136,7 +136,7 @@ struct CommandPaletteSettingsView: View {
                                 .foregroundStyle(.secondary)
                         }
                         .buttonStyle(.plain)
-                        .help("Clear shortcut")
+                        .help(String(localized: "palette.settings.clearShortcut"))
                         .transition(.opacity.combined(with: .scale(scale: 0.7)))
                     }
                 }
@@ -148,11 +148,15 @@ struct CommandPaletteSettingsView: View {
 
             if let pending = pendingConflictByCommand[spec.commandID] {
                 HStack(alignment: .firstTextBaseline, spacing: SpotiglassDesign.spacingS) {
-                    (Text("Already assigned to ") + Text(displayTitle(for: pending.otherCommandID)).bold()
-                        + Text(" — use Replace to move it here."))
+                    Text(
+                        String(
+                            format: String(localized: "palette.settings.conflict"),
+                            displayTitle(for: pending.otherCommandID)
+                        )
+                    )
                         .font(.caption)
                         .foregroundStyle(.orange)
-                    Button("Replace") {
+                    Button(String(localized: "palette.settings.replace")) {
                         do {
                             try keymapStore.setBinding(
                                 commandID: spec.commandID,
@@ -189,7 +193,7 @@ struct CommandPaletteSettingsView: View {
 
     private var advancedJSONSection: some View {
         VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
-            Text("File: \(keymapStore.fileURL.path)")
+            Text(String(format: String(localized: "palette.settings.file"), keymapStore.fileURL.path))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
@@ -211,18 +215,18 @@ struct CommandPaletteSettingsView: View {
             }
 
             HStack(spacing: SpotiglassDesign.spacingS) {
-                Button("Apply") {
+                Button(String(localized: "palette.settings.apply")) {
                     keymapStore.applyEditorText()
                 }
-                Button("Revert") {
+                Button(String(localized: "palette.settings.revert")) {
                     pendingConflictByCommand = [:]
                     keymapStore.reloadFromDisk()
                 }
-                Button("Reset Defaults") {
+                Button(String(localized: "palette.settings.resetDefaults")) {
                     pendingConflictByCommand = [:]
                     keymapStore.resetToDefaults()
                 }
-                Button("Open settings.json") {
+                Button(String(localized: "palette.settings.openJSON")) {
                     keymapStore.openKeymapFile()
                 }
             }

@@ -46,17 +46,33 @@ extension PlaybackSessionViewModel {
                 clearTogglePlayPauseAckWait()
             }
         case let .initializationError(message):
-            setConnectionState(.error(PlaybackDisplayError(title: "Playback could not start", message: message, recoveryAction: .reconnect)))
+            setConnectionState(.error(PlaybackDisplayError(
+                title: String(localized: "error.playback.couldNotStart.title"),
+                message: message,
+                recoveryAction: .reconnect
+            )))
             Task {
                 await attemptPlaybackHostRecovery(cause: .initializationError)
             }
         case let .authenticationError(message):
-            setConnectionState(.error(PlaybackDisplayError(title: "Sign in again", message: message, recoveryAction: .reauthenticate)))
+            setConnectionState(.error(PlaybackDisplayError(
+                title: String(localized: "error.playback.signInAgain.title"),
+                message: message,
+                recoveryAction: .reauthenticate
+            )))
         case let .accountError(message):
-            setConnectionState(.error(PlaybackDisplayError(title: "Spotify Premium required", message: message, recoveryAction: nil)))
+            setConnectionState(.error(PlaybackDisplayError(
+                title: String(localized: "error.playback.premium.title"),
+                message: message,
+                recoveryAction: nil
+            )))
         case let .playbackError(message):
             clearTogglePlayPauseAckWait()
-            setConnectionState(.error(PlaybackDisplayError(title: "Playback error", message: message, recoveryAction: .retryTransfer)))
+            setConnectionState(.error(PlaybackDisplayError(
+                title: String(localized: "error.playback.error.title"),
+                message: message,
+                recoveryAction: .retryTransfer
+            )))
         case .log:
             break
         }

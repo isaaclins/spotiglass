@@ -63,13 +63,13 @@ enum CommandPaletteSection: String {
 
     var displayLabel: String {
         switch self {
-        case .tracks: "SONGS"
-        case .artists: "ARTISTS"
-        case .commands: "COMMANDS"
-        case .playlists: "PLAYLISTS"
-        case .thisPlaylist: "HERE"
-        case .myPlaylists: "MY PLAYLISTS"
-        case .albums: "ALBUMS"
+        case .tracks: String(localized: "palette.section.tracks")
+        case .artists: String(localized: "palette.section.artists")
+        case .commands: String(localized: "palette.section.commands")
+        case .playlists: String(localized: "palette.section.playlists")
+        case .thisPlaylist: String(localized: "palette.section.thisPlaylist")
+        case .myPlaylists: String(localized: "palette.section.myPlaylists")
+        case .albums: String(localized: "palette.section.albums")
         }
     }
 }

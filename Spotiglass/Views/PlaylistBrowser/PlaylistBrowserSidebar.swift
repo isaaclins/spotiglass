@@ -27,7 +27,7 @@ struct PlaylistBrowserSidebar: View {
                     }
                     libraryTrailingDropSlot
                 } header: {
-                    Text("Library")
+                    Text("browser.library", bundle: .main)
                 }
                 Section {
                     PlaylistsSidebarSectionContent(
@@ -56,7 +56,7 @@ struct PlaylistBrowserSidebar: View {
                 if case let .staleCache(_, error) = viewModel.playlistState {
                     StaleCacheBanner(error: error)
                 } else if case .refreshing = viewModel.playlistState {
-                    ProgressView("Refreshing playlists...")
+                    ProgressView(String(localized: "browser.refreshingPlaylists"))
                         .controlSize(.small)
                         .padding(SpotiglassDesign.spacingS)
                         .background(.background, in: Capsule())

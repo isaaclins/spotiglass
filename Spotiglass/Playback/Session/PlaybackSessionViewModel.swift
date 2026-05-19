@@ -28,27 +28,93 @@ final class PlaybackSessionViewModel: ObservableObject {
     /// Resolved SF Symbol for the playback-bar device button (hybrid: macOS output when this Web Playback device is active).
     @Published var trayOutputSymbolName = "headphones"
     @Published var isRefreshingConnectDevices = false
-    @Published var playCommandAttemptedCount = 0
-    @Published var playCommandDedupedCount = 0
-    @Published var playCommandSentCount = 0
-    @Published var playCommandSupersededCount = 0
-    @Published var nextCommandAttemptedCount = 0
-    @Published var nextCommandSentCount = 0
-    @Published var nextCommandDroppedDedupeCount = 0
-    @Published var nextCommandDroppedLockoutCount = 0
-    @Published var nextCommandTimeoutUnlockCount = 0
-    @Published var playbackHostReloadAttemptCount = 0
-    @Published var playbackHostReloadSuppressedCooldownCount = 0
-    @Published var playbackHostReloadSuppressedBudgetCount = 0
-    @Published var playbackHostReuseConnectAttemptCount = 0
-    @Published var playbackHostReuseSoftResetAttemptCount = 0
-    @Published var playbackHostReuseSuccessCount = 0
-    @Published var playbackHostRecoveryFailureCount = 0
-    @Published var playbackHostReloadAttemptsByCause: [String: Int] = [:]
-    @Published var playbackHostReloadSuppressedCooldownByCause: [String: Int] = [:]
-    @Published var playbackHostReloadSuppressedBudgetByCause: [String: Int] = [:]
-    @Published var playbackHostReuseAttemptsByCause: [String: Int] = [:]
-    @Published var playbackHostRecoveryFailuresByCause: [String: Int] = [:]
+
+    var diagnostics = PlaybackSessionDiagnostics()
+
+    var playCommandAttemptedCount: Int {
+        get { diagnostics.playCommandAttemptedCount }
+        set { diagnostics.playCommandAttemptedCount = newValue }
+    }
+    var playCommandDedupedCount: Int {
+        get { diagnostics.playCommandDedupedCount }
+        set { diagnostics.playCommandDedupedCount = newValue }
+    }
+    var playCommandSentCount: Int {
+        get { diagnostics.playCommandSentCount }
+        set { diagnostics.playCommandSentCount = newValue }
+    }
+    var playCommandSupersededCount: Int {
+        get { diagnostics.playCommandSupersededCount }
+        set { diagnostics.playCommandSupersededCount = newValue }
+    }
+    var nextCommandAttemptedCount: Int {
+        get { diagnostics.nextCommandAttemptedCount }
+        set { diagnostics.nextCommandAttemptedCount = newValue }
+    }
+    var nextCommandSentCount: Int {
+        get { diagnostics.nextCommandSentCount }
+        set { diagnostics.nextCommandSentCount = newValue }
+    }
+    var nextCommandDroppedDedupeCount: Int {
+        get { diagnostics.nextCommandDroppedDedupeCount }
+        set { diagnostics.nextCommandDroppedDedupeCount = newValue }
+    }
+    var nextCommandDroppedLockoutCount: Int {
+        get { diagnostics.nextCommandDroppedLockoutCount }
+        set { diagnostics.nextCommandDroppedLockoutCount = newValue }
+    }
+    var nextCommandTimeoutUnlockCount: Int {
+        get { diagnostics.nextCommandTimeoutUnlockCount }
+        set { diagnostics.nextCommandTimeoutUnlockCount = newValue }
+    }
+    var playbackHostReloadAttemptCount: Int {
+        get { diagnostics.playbackHostReloadAttemptCount }
+        set { diagnostics.playbackHostReloadAttemptCount = newValue }
+    }
+    var playbackHostReloadSuppressedCooldownCount: Int {
+        get { diagnostics.playbackHostReloadSuppressedCooldownCount }
+        set { diagnostics.playbackHostReloadSuppressedCooldownCount = newValue }
+    }
+    var playbackHostReloadSuppressedBudgetCount: Int {
+        get { diagnostics.playbackHostReloadSuppressedBudgetCount }
+        set { diagnostics.playbackHostReloadSuppressedBudgetCount = newValue }
+    }
+    var playbackHostReuseConnectAttemptCount: Int {
+        get { diagnostics.playbackHostReuseConnectAttemptCount }
+        set { diagnostics.playbackHostReuseConnectAttemptCount = newValue }
+    }
+    var playbackHostReuseSoftResetAttemptCount: Int {
+        get { diagnostics.playbackHostReuseSoftResetAttemptCount }
+        set { diagnostics.playbackHostReuseSoftResetAttemptCount = newValue }
+    }
+    var playbackHostReuseSuccessCount: Int {
+        get { diagnostics.playbackHostReuseSuccessCount }
+        set { diagnostics.playbackHostReuseSuccessCount = newValue }
+    }
+    var playbackHostRecoveryFailureCount: Int {
+        get { diagnostics.playbackHostRecoveryFailureCount }
+        set { diagnostics.playbackHostRecoveryFailureCount = newValue }
+    }
+    var playbackHostReloadAttemptsByCause: [String: Int] {
+        get { diagnostics.playbackHostReloadAttemptsByCause }
+        set { diagnostics.playbackHostReloadAttemptsByCause = newValue }
+    }
+    var playbackHostReloadSuppressedCooldownByCause: [String: Int] {
+        get { diagnostics.playbackHostReloadSuppressedCooldownByCause }
+        set { diagnostics.playbackHostReloadSuppressedCooldownByCause = newValue }
+    }
+    var playbackHostReloadSuppressedBudgetByCause: [String: Int] {
+        get { diagnostics.playbackHostReloadSuppressedBudgetByCause }
+        set { diagnostics.playbackHostReloadSuppressedBudgetByCause = newValue }
+    }
+    var playbackHostReuseAttemptsByCause: [String: Int] {
+        get { diagnostics.playbackHostReuseAttemptsByCause }
+        set { diagnostics.playbackHostReuseAttemptsByCause = newValue }
+    }
+    var playbackHostRecoveryFailuresByCause: [String: Int] {
+        get { diagnostics.playbackHostRecoveryFailuresByCause }
+        set { diagnostics.playbackHostRecoveryFailuresByCause = newValue }
+    }
 
     let playbackAPI: SpotifyPlaybackControlling
     let webCommander: WebPlaybackCommanding
@@ -358,29 +424,70 @@ final class PlaybackSessionViewModel: ObservableObject {
         }
     }
 
+    static func playbackDeviceNotReadyError() -> PlaybackDisplayError {
+        PlaybackDisplayError(
+            title: String(localized: "error.playback.deviceUnavailable.title"),
+            message: String(localized: "error.playback.deviceUnavailable.notReady"),
+            recoveryAction: .reconnect
+        )
+    }
+
+    static func playbackDeviceReconnectRequiredError() -> PlaybackDisplayError {
+        PlaybackDisplayError(
+            title: String(localized: "error.playback.deviceUnavailable.title"),
+            message: String(localized: "error.playback.deviceUnavailable.reconnect"),
+            recoveryAction: .reconnect
+        )
+    }
+
     static func displayError(for error: Error) -> PlaybackDisplayError {
         if let apiError = error as? SpotifyAPIError {
             switch apiError {
             case .unauthorized:
-                return PlaybackDisplayError(title: "Sign in again", message: "Spotify rejected the access token used for playback.", recoveryAction: .reauthenticate)
+                return PlaybackDisplayError(
+                    title: String(localized: "error.playback.signInAgain.title"),
+                    message: String(localized: "error.playback.signInAgain.message"),
+                    recoveryAction: .reauthenticate
+                )
             case let .forbidden(message, _):
-                return PlaybackDisplayError(title: "Spotify Premium required", message: message ?? "Spotify Web Playback SDK playback requires a Premium account.", recoveryAction: nil)
+                return PlaybackDisplayError(
+                    title: String(localized: "error.playback.premium.title"),
+                    message: message ?? String(localized: "error.playback.premium.message"),
+                    recoveryAction: nil
+                )
             case let .rateLimited(retryAfter):
                 let clause = SpotifyRateLimitDisplay.retryAfterClause(seconds: retryAfter)
                 return PlaybackDisplayError(
-                    title: "Playback rate limited",
-                    message: "Spotify is rate limiting playback commands. \(clause)",
+                    title: String(localized: "error.playback.rateLimited.title"),
+                    message: String(format: String(localized: "error.playback.rateLimited.message"), clause),
                     recoveryAction: .retryTransfer
                 )
             default:
-                return PlaybackDisplayError(title: "Playback command failed", message: "\(apiError)", recoveryAction: .retryTransfer)
+                return PlaybackDisplayError(
+                    title: String(localized: "error.playback.commandFailed.title"),
+                    message: String(format: String(localized: "error.playback.commandFailed.message"), String(describing: apiError)),
+                    recoveryAction: .retryTransfer
+                )
             }
         }
-        return PlaybackDisplayError(title: "Playback command failed", message: error.localizedDescription, recoveryAction: .retryTransfer)
+        return PlaybackDisplayError(
+            title: String(localized: "error.playback.commandFailed.title"),
+            message: String(format: String(localized: "error.playback.commandFailed.message"), error.localizedDescription),
+            recoveryAction: .retryTransfer
+        )
     }
 
     func fallbackNowPlaying() -> PlaybackNowPlaying {
-        PlaybackNowPlaying(name: "Spotify playback", artists: [], albumName: nil, albumID: nil, albumArtURL: nil, durationMilliseconds: 0, positionMilliseconds: 0, uri: nil)
+        PlaybackNowPlaying(
+            name: String(localized: "playback.fallbackName"),
+            artists: [],
+            albumName: nil,
+            albumID: nil,
+            albumArtURL: nil,
+            durationMilliseconds: 0,
+            positionMilliseconds: 0,
+            uri: nil
+        )
     }
 
     var currentNowPlayingURI: String? {

@@ -61,8 +61,8 @@ struct CommandPalettePrefetchProgressHeader: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
-                .help("Cancel prefetch")
-                .accessibilityLabel("Cancel loading all playlist songs")
+                .help(String(localized: "palette.settings.cancelPrefetchHelp"))
+                .accessibilityLabel(String(localized: "palette.cancelPrefetch"))
             }
         }
         .padding(.horizontal, SpotiglassDesign.spacingM)
@@ -74,15 +74,31 @@ struct CommandPalettePrefetchProgressHeader: View {
         let processed = progress.completed + progress.skipped + progress.failed
         switch progress.phase {
         case .running:
-            if progress.total == 0 { return "Preparing…" }
-            return "Loading \(processed) of \(progress.total) playlists…"
+            if progress.total == 0 { return String(localized: "palette.prefetch.preparing") }
+            return String(
+                format: String(localized: "palette.prefetch.loading"),
+                processed,
+                progress.total
+            )
         case .finished:
             if progress.failed == 0 {
-                return "Loaded \(progress.completed + progress.skipped) playlists"
+                return String(
+                    format: String(localized: "palette.prefetch.loadedAll"),
+                    progress.completed + progress.skipped
+                )
             }
-            return "Loaded \(progress.completed + progress.skipped) of \(progress.total) playlists (\(progress.failed) failed)"
+            return String(
+                format: String(localized: "palette.prefetch.loadedPartial"),
+                progress.completed + progress.skipped,
+                progress.total,
+                progress.failed
+            )
         case .cancelled:
-            return "Prefetch cancelled (\(processed) of \(progress.total))"
+            return String(
+                format: String(localized: "palette.prefetch.cancelled"),
+                processed,
+                progress.total
+            )
         }
     }
 }
@@ -104,7 +120,7 @@ struct CommandPaletteResultsBodyView: View {
             if hasUserQuery, !onlyPrefix, !trimmed.isEmpty, !viewModel.isLoading {
                 VStack {
                     Spacer()
-                    Text("No results for \"\(trimmed)\"")
+                    Text(String(format: String(localized: "palette.noResults"), trimmed))
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity)
@@ -139,14 +155,14 @@ struct CommandPaletteSearchingPlaceholderView: View {
                         .font(.system(size: 32, weight: .regular))
                         .foregroundStyle(.secondary)
                         .symbolRenderingMode(.hierarchical)
-                        .accessibilityLabel("Searching Spotify")
+                        .accessibilityLabel(String(localized: "palette.searching"))
                 } else {
                     Image(systemName: "sparkles")
                         .font(.system(size: 32, weight: .regular))
                         .foregroundStyle(.secondary)
                         .symbolRenderingMode(.hierarchical)
                         .symbolEffect(.variableColor.iterative.reversing, options: .repeating)
-                        .accessibilityLabel("Searching Spotify")
+                        .accessibilityLabel(String(localized: "palette.searching"))
                 }
             }
             Spacer()

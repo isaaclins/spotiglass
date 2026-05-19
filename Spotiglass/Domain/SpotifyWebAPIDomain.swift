@@ -1,5 +1,8 @@
 import Foundation
 
+// App-facing Spotify library models used by browsing UI and playback context.
+// Wire-format decoding lives in `Services/SpotifyAPIModels.swift` (`*DTO`) and maps here via `domainModel()`.
+
 struct SpotifyUserProfile: Codable, Equatable {
     let id: String
     let displayName: String?

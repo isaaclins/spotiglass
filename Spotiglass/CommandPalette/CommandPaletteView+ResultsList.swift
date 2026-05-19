@@ -107,7 +107,7 @@ struct CommandPaletteResultRowView: View {
                     Text(item.title)
                         .lineLimit(1)
                     if item.isExplicit {
-                        Text("Explicit")
+                        Text("palette.explicit", bundle: .main)
                             .font(.caption2.weight(.medium))
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)

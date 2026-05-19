@@ -25,7 +25,7 @@ SKIP_MARKERS = (
 def _extract_paths(payload: object) -> list[str]:
     paths: list[str] = []
     if isinstance(payload, dict):
-        for key in ("path", "file_path", "target_file", "old_path", "new_path"):
+        for key in ("path", "file_path", "target_file", " _path", "new_path"):
             v = payload.get(key)
             if isinstance(v, str) and v:
                 paths.append(v)

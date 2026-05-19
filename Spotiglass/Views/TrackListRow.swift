@@ -43,7 +43,7 @@ struct TrackListRow: View {
                                 Circle().fill(SpotiglassDesign.mediaBadgeBackgroundColor(colorScheme: colorScheme))
                             )
                             .padding(2)
-                            .accessibilityLabel("Pinned to sidebar")
+                            .accessibilityLabel(String(localized: "browser.pinned"))
                     }
                 }
 
@@ -94,7 +94,7 @@ struct TrackListRow: View {
         }
         .contextMenu {
             if !track.artistRefs.isEmpty {
-                Menu("Open Artist") {
+                Menu(String(localized: "browser.track.openArtist")) {
                     ForEach(track.artistRefs) { ref in
                         Button(ref.name) {
                             openArtist(ref.id)
@@ -102,25 +102,34 @@ struct TrackListRow: View {
                     }
                 }
             }
-            Button("Add to Queue") {
+            Button(String(localized: "browser.addToQueue")) {
                 guard let uri = track.playableURI else { return }
                 Task { await addToQueue(uri) }
             }
             .disabled(!hasPlaybackDevice || track.playableURI == nil)
             if let pinned = track.pinnedTrackItem() {
                 if isTrackPinned {
-                    Button("Unpin from Sidebar") {
+                    Button(String(localized: "browser.unpin")) {
                         pinnedStore.unpin(id: pinned.id)
                     }
                 } else {
-                    Button("Pin to Sidebar") {
+                    Button(String(localized: "browser.pin")) {
                         pinnedStore.pin(pinned)
                     }
                 }
             }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(trackNumber). \(track.title), \(track.subtitle), \(track.durationText)\(isCurrent ? ", currently playing" : "")")
+        .accessibilityLabel(
+            String(
+                format: String(localized: "browser.trackRow.accessibility"),
+                "\(trackNumber)",
+                track.title,
+                track.subtitle,
+                track.durationText,
+                isCurrent ? String(localized: "browser.trackRow.nowPlaying") : ""
+            )
+        )
     }
 
     @ViewBuilder
@@ -134,7 +143,7 @@ struct TrackListRow: View {
             HStack(spacing: 0) {
                 ForEach(Array(track.artistRefs.enumerated()), id: \.element.id) { index, ref in
                     if index > 0 {
-                        Text(", ")
+                        Text("common.comma", bundle: .main)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

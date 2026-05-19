@@ -1,19 +1,5 @@
 import Foundation
 
-protocol HTTPClient {
-    func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse)
-}
-
-extension URLSession: HTTPClient {
-    func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
-        let (data, response) = try await data(for: request, delegate: nil)
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw SpotifyTokenClientError.invalidResponse
-        }
-        return (data, httpResponse)
-    }
-}
-
 struct SpotifyTokenGrant: Equatable {
     let accessToken: String
     let tokenType: String
@@ -38,15 +24,23 @@ enum SpotifyTokenClientError: Error, Equatable, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidResponse:
-            return "Spotify returned a response Spotiglass could not interpret."
+            return String(localized: "auth.token.invalidResponse")
         case let .httpError(status, description, oauthError, _):
             if let description, !description.isEmpty {
-                return "Spotify rejected the token request (HTTP \(status)): \(description)"
+                return String(
+                    format: String(localized: "auth.token.rejectedWithDescription"),
+                    status,
+                    description
+                )
             }
             if let oauthError, !oauthError.isEmpty {
-                return "Spotify rejected the token request (HTTP \(status)): \(oauthError)"
+                return String(
+                    format: String(localized: "auth.token.rejectedWithOAuth"),
+                    status,
+                    oauthError
+                )
             }
-            return "Spotify rejected the token request (HTTP \(status))."
+            return String(format: String(localized: "auth.token.rejected"), status)
         }
     }
 }

@@ -49,7 +49,7 @@ struct PlaylistDetailContent: View {
             Divider()
 
             if detail.tracks.isEmpty {
-                EmptyStateView(title: "No tracks", message: "This playlist is empty.")
+                EmptyStateView(title: String(localized: "browser.noTracks.title"), message: String(localized: "browser.noTracks.emptyPlaylist"))
             } else {
                 VirtualizedTrackList(
                     tracks: detail.tracks,
@@ -125,7 +125,7 @@ struct PlaylistDetailContent: View {
                     .font(.largeTitle.weight(.semibold))
                     .lineLimit(2)
 
-                Text("\(detail.playlist.owner) • \(detail.playlist.trackCountText)")
+                Text(String(format: String(localized: "browser.playlistOwnerTracks"), detail.playlist.owner, detail.playlist.trackCountText))
                     .foregroundStyle(.secondary)
             }
 
@@ -166,11 +166,11 @@ struct LibraryHeaderPinningModifier: ViewModifier {
                 )
                 .contextMenu {
                     if isHeaderPinned {
-                        Button("Unpin from Sidebar") {
+                        Button(String(localized: "browser.unpin")) {
                             pinnedStore.unpin(id: headerPinnedItem.id)
                         }
                     } else {
-                        Button("Pin to Sidebar") {
+                        Button(String(localized: "browser.pin")) {
                             pinnedStore.pin(headerPinnedItem)
                         }
                     }

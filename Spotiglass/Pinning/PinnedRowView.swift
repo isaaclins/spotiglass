@@ -30,7 +30,7 @@ struct PinnedRowView: View {
                         }
                         .buttonStyle(.plain)
                         .offset(x: -6, y: -6)
-                        .accessibilityLabel("Unpin \(item.title)")
+                        .accessibilityLabel(String(format: String(localized: "pin.unpin"), item.title))
                     }
                 }
 
@@ -41,7 +41,7 @@ struct PinnedRowView: View {
                         .foregroundStyle(item.isStale ? Color.secondary : Color.primary)
                         .lineLimit(1)
                     if item.isStale {
-                        Text("Unavailable")
+                        Text("pin.unavailable", bundle: .main)
                             .font(.caption2.weight(.medium))
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
@@ -60,7 +60,15 @@ struct PinnedRowView: View {
         .contentShape(Rectangle())
         .onHover { isHovering = $0 }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Pinned \(item.kind.accessibilityLabel): \(item.title), \(item.subtitle)\(item.isStale ? ", unavailable" : "")")
+        .accessibilityLabel(
+            String(
+                format: String(localized: "pin.row.accessibility"),
+                item.kind.accessibilityLabel,
+                item.title,
+                item.subtitle,
+                item.isStale ? String(localized: "pin.row.unavailable") : ""
+            )
+        )
     }
 
     @ViewBuilder
@@ -124,11 +132,11 @@ private struct CachedCircularArtwork: View {
 private extension PinnedItemKind {
     var accessibilityLabel: String {
         switch self {
-        case .playlist: "playlist"
-        case .artist: "artist"
-        case .album: "album"
-        case .track: "track"
-        case .likedSongs: "Liked Songs"
+        case .playlist: String(localized: "pin.kind.playlist")
+        case .artist: String(localized: "pin.kind.artist")
+        case .album: String(localized: "pin.kind.album")
+        case .track: String(localized: "pin.kind.track")
+        case .likedSongs: String(localized: "pin.likedSongs")
         }
     }
 }

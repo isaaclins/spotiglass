@@ -179,9 +179,9 @@ struct PlaylistBrowserView: View {
                     Button {
                         lyricsOverlay.dismiss()
                     } label: {
-                        Label("Close lyrics", systemImage: "xmark.circle")
+                        Label(String(localized: "browser.closeLyrics"), systemImage: "xmark.circle")
                     }
-                    .accessibilityHint("Closes the immersive lyrics overlay.")
+                    .accessibilityHint(String(localized: "browser.closeLyrics.hint"))
                 }
                 ToolbarItem(placement: .primaryAction) {
                     unifiedRefreshToolbarButton
@@ -191,17 +191,17 @@ struct PlaylistBrowserView: View {
                     Button {
                         isQueueVisible.toggle()
                     } label: {
-                        Label("Queue", systemImage: "list.bullet.indent")
+                        Label(String(localized: "browser.queue"), systemImage: "list.bullet.indent")
                     }
-                    .accessibilityHint("Shows or hides the playback queue.")
+                    .accessibilityHint(String(localized: "browser.queue.hint"))
 
                     Button {
                         viewModel.clearForSignOut()
                         signOut()
                     } label: {
-                        Label("Disconnect", systemImage: "xmark.circle")
+                        Label(String(localized: "browser.disconnect"), systemImage: "xmark.circle")
                     }
-                    .accessibilityHint("Disconnects Spotify and returns to the sign-in screen.")
+                    .accessibilityHint(String(localized: "browser.disconnect.hint"))
                 }
                 ToolbarItem(placement: .primaryAction) {
                     unifiedRefreshToolbarButton

@@ -1,0 +1,151 @@
+Spotiglass License Agreement (Draft)
+
+Copyright (c) 2026 Isaac Lins. All rights reserved.
+
+Repository: https://github.com/isaaclins/spotiglass
+
+IMPORTANT: This is a draft license for review. It is not legal advice.
+Have qualified counsel review this text before you rely on it for enforcement
+or commercial distribution.
+
+1. Licensor
+
+   The licensor of the Software is Isaac Lins ("Licensor"), the copyright
+   holder identified above.
+
+2. Definitions
+
+   "Software" means the Spotiglass source code, binaries, documentation, and
+   associated materials in this repository.
+
+   "You" means the individual or legal entity exercising permissions under
+   this license.
+
+   "Personal Use" means use of the Software by an individual solely for
+   personal, non-commercial purposes (for example: listening to your own music
+   on your own Mac, learning, or hobby use).
+
+   "Organizational Use" means use of the Software by or on behalf of any
+   company, partnership, government agency, educational institution, non-profit,
+   or other legal entity, whether or not a fee is charged to end users.
+
+   "Commercial Use" means any use of the Software that is not Personal Use,
+   including Organizational Use, use in paid services, internal business tools,
+   consulting deliverables, SaaS or hosted offerings, redistribution to third
+   parties, and any activity intended to generate revenue or commercial advantage,
+   whether or not a fee is charged to end users.
+
+   "Derivative" means any work based on or incorporating the Software, including
+   modifications, forks, or combined works.
+
+   "Distribution" means making the Software or any Derivative available to any
+   third party, including by network, download, sale, sublicense, or as part of
+   another product or service.
+
+   "Contribution" means any patch, pull request, issue comment, or other material
+   You submit for inclusion in the repository.
+
+3. Grant for Personal Use
+
+   Subject to the terms of this agreement, Licensor grants You a non-exclusive,
+   non-transferable, revocable license to use, modify, and run the Software for
+   Personal Use only, including private forks on Your own machines.
+
+4. Commercial Use Requires a Separate License
+
+   Commercial Use is not permitted under this Personal Use grant. No rights are
+   granted by implication. Examples that require a separate written commercial
+   license include (without limitation): Organizational Use; Distribution of
+   binaries or Derivatives to customers or employees; offering Spotiglass (or a
+   Derivative) as part of a product or managed service; and use to support a
+   revenue-generating business.
+
+   To obtain a commercial license, contact Licensor using Section 14.
+
+5. Redistribution
+
+   For Personal Use, You may share unmodified copies of the Software's source
+   code provided this license and copyright notices remain intact.
+
+   Distribution of binaries, modified source, or Derivatives to others is not
+   permitted under this Personal Use grant except as necessary for Personal Use
+   on machines You control. Any other Distribution requires a separate commercial
+   license from Licensor.
+
+6. Contributions
+
+   If You submit a Contribution, You represent that You have the right to do so
+   and You license that Contribution to Licensor under the same terms as this
+   agreement (Personal Use grant for the project; Commercial Use of Contributions
+   as part of the Software follows this license). Contributions do not grant You
+   additional rights in the Software beyond this agreement.
+
+7. Trademark
+
+   This license does not grant any rights to the "Spotiglass" name, logo, or
+   branding, or to Spotify's trademarks, service marks, or logos. You may not
+   use those marks in a way that suggests endorsement or affiliation.
+
+8. Third-Party Services
+
+   The Software integrates with Spotify services. Your use of Spotify is governed
+   solely by Spotify's terms. This license does not grant any rights to
+   Spotify's APIs, trademarks, or content.
+
+9. Disclaimer of Warranty
+
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS
+   FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.
+
+10. Limitation of Liability
+
+    IN NO EVENT SHALL LICENSOR BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER
+    LIABILITY ARISING FROM OR RELATED TO THE SOFTWARE OR THIS AGREEMENT, WHETHER
+    IN CONTRACT, TORT, OR OTHERWISE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
+    DAMAGES.
+
+11. Indemnification
+
+    You agree to indemnify and hold harmless Licensor from claims, damages, and
+    expenses (including reasonable attorneys' fees) arising from Your Commercial
+    Use, Distribution without a commercial license, breach of this agreement, or
+    misuse of the Software, except to the extent caused by Licensor's willful
+    misconduct.
+
+12. Termination
+
+    This license terminates automatically if You breach it. Upon termination, You
+    must stop using and destroy copies of the Software in Your possession.
+    Sections that by their nature should survive (including warranty disclaimer,
+    limitation of liability, indemnification, and governing law) survive
+    termination.
+
+13. General
+
+    Severability: If any provision is unenforceable, the remainder stays in effect.
+
+    Entire agreement: This document is the entire agreement regarding the
+    Software and supersedes prior understandings on that subject.
+
+    Amendments: Only Licensor may amend this license in writing for future
+    versions of the Software; Your continued use after notice may constitute
+    acceptance where permitted by law.
+
+    Governing law: This agreement is governed by the laws applicable where the
+    copyright holder resides, without regard to conflict-of-law rules.
+
+14. Commercial Licensing Contact
+
+    Do not use the security vulnerability reporting channel for licensing.
+
+    For commercial licensing, open a GitHub Discussion on the repository or
+    contact the repository owner through a private channel. Include:
+
+    - Organization name and contact
+    - Intended use and deployment model (internal, customer-facing, SaaS, etc.)
+    - Whether You need Distribution rights
+    - Timeline
+
+    See CONTRIBUTING.md for contribution guidelines and SECURITY.md for security
+    reports only.

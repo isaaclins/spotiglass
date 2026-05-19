@@ -6,8 +6,8 @@ extension PlaylistBrowserViewModel {
         guard session == detailSession else { return }
         guard let playlist = playlistsByID[playlistID] else {
             detailState = .error(BrowsingDisplayError(
-                title: "Playlist unavailable",
-                message: "This playlist disappeared or is no longer accessible.",
+                title: String(localized: "error.browsing.playlistUnavailable.title"),
+                message: String(localized: "error.browsing.playlistUnavailable.gone"),
                 canRetry: true
             ))
             return

@@ -10,7 +10,7 @@ extension PlaylistBrowserView {
         .buttonStyle(.borderless)
         .disabled(isUnifiedRefreshBusy)
         .accessibilityHint(
-            "Reloads the sidebar library, the open playlist or artist, or the queue when the queue panel is focused. Shortcut: ⌘R."
+            String(localized: "browser.toolbar.refreshHelp")
         )
     }
 
@@ -32,7 +32,7 @@ extension PlaylistBrowserView {
                 }
             }
             .frame(width: 16, height: 16)
-            Text("Refresh")
+            Text("browser.refresh", bundle: .main)
         }
     }
 
