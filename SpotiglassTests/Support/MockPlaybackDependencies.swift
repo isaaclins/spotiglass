@@ -57,6 +57,7 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
     var fetchAvailableDevicesDelayNanoseconds: UInt64 = 0
     var setShuffleError: Error?
     var setRepeatError: Error?
+    var fetchPlayerSnapshotError: Error?
     var playDelayNanoseconds: UInt64 = 0
     var seekDelayNanoseconds: UInt64 = 0
     var setRepeatDelayNanoseconds: UInt64 = 0
@@ -129,6 +130,9 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
 
     func fetchPlayerSnapshot() async throws -> SpotifyPlayerSnapshot? {
         actions.append("fetchPlayerSnapshot")
+        if let fetchPlayerSnapshotError {
+            throw fetchPlayerSnapshotError
+        }
         if !snapshotResponses.isEmpty {
             return snapshotResponses.removeFirst()
         }

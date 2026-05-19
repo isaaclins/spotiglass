@@ -108,6 +108,53 @@ final class PlaybackBridgeAndModelsTests: XCTestCase {
         XCTAssertNil(SpotifyPlaybackBridgeParser.spotifyAlbumID(fromAlbumURI: "spotify:track:wrong"))
     }
 
+    func testBridgeParsesNotReadyInitializationAndUnsupportedEvents() throws {
+        XCTAssertEqual(
+            try SpotifyPlaybackBridgeParser.parse(["name": "not_ready", "payload": ["deviceID": "device-2"]]),
+            .notReady(deviceID: "device-2")
+        )
+        guard case let .initializationError(message) = try SpotifyPlaybackBridgeParser.parse([
+            "name": "initialization_error",
+            "payload": ["message": "SDK failed"]
+        ]) else {
+            return XCTFail("Expected initialization error")
+        }
+        XCTAssertEqual(message, "SDK failed")
+
+        guard case let .authenticationError(authMessage) = try SpotifyPlaybackBridgeParser.parse([
+            "name": "authentication_error",
+            "payload": [:]
+        ]) else {
+            return XCTFail("Expected authentication error")
+        }
+        XCTAssertEqual(authMessage, "Spotify playback reported an error.")
+
+        XCTAssertEqual(
+            try SpotifyPlaybackBridgeParser.parse(["name": "log", "payload": ["message": "hello"]]),
+            .log("hello")
+        )
+
+        XCTAssertThrowsError(try SpotifyPlaybackBridgeParser.parse(["name": "unknown_event", "payload": [:]])) { error in
+            XCTAssertEqual(error as? PlaybackBridgeMessageError, .unsupportedEvent("unknown_event"))
+        }
+        XCTAssertThrowsError(try SpotifyPlaybackBridgeParser.parse(["payload": [:]])) { error in
+            XCTAssertEqual(error as? PlaybackBridgeMessageError, .invalidEnvelope)
+        }
+    }
+
+    func testBridgeParsesStateChangedWithEmptyTrackWindow() throws {
+        let event = try SpotifyPlaybackBridgeParser.parse([
+            "name": "state_changed",
+            "payload": ["paused": true, "track": NSNull(), "nextTracks": []]
+        ])
+        guard case let .stateChanged(nowPlaying, isPaused, nextTracks) = event else {
+            return XCTFail("Expected state changed")
+        }
+        XCTAssertNil(nowPlaying)
+        XCTAssertTrue(isPaused)
+        XCTAssertTrue(nextTracks.isEmpty)
+    }
+
     func testTokenBridgeOnlyReturnsAccessToken() async throws {
         let provider = MockPlaybackTokenProvider(accessToken: "access", refreshedAccessToken: "refreshed")
         let bridge = PlaybackTokenBridge(provider: provider)

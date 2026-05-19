@@ -506,6 +506,101 @@ final class QueuePanelTests: XCTestCase {
         XCTAssertEqual(fetchesBeforeInactive, fetchesAfterInactive, "Polling should stop immediately when app resigns active state.")
     }
 
+    func testQueueViewModelPlayItemDelegatesToPlaybackSession() async {
+        let api = QueueTestPlaybackAPI()
+        let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: StubWebPlaybackCommander())
+        playback.handle(.ready(deviceID: "device-1"))
+        let queue = QueueViewModel(playbackAPI: api, playbackSession: playback)
+        let item = QueueItem.from(track: SpotifyTrack(
+            id: "t",
+            name: "Track",
+            artists: ["A"],
+            albumArtworkURL: nil,
+            durationMilliseconds: 60_000,
+            isExplicit: false,
+            isPlayable: true,
+            linkedFromID: nil,
+            uri: "spotify:track:play-me"
+        ))
+
+        await queue.playItem(item)
+
+        XCTAssertTrue(api.actions.contains("transfer:device-1:false"))
+        XCTAssertTrue(api.actions.contains("play:device-1:spotify:track:play-me"))
+    }
+
+    func testQueueViewModelAddToQueueWithoutDeviceShowsPlaybackUnavailable() async {
+        let api = QueueTestPlaybackAPI()
+        let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: StubWebPlaybackCommander())
+        let queue = QueueViewModel(playbackAPI: api, playbackSession: playback)
+
+        await queue.addToQueue(uri: "spotify:track:x")
+
+        XCTAssertEqual(queue.lastError?.title, "Playback unavailable")
+        XCTAssertFalse(api.actions.contains(where: { $0.hasPrefix("addToQueue:") }))
+    }
+
+    func testQueuePrefetchForLyricsAllowsHiddenPanelFetch() async {
+        let api = QueueTestPlaybackAPI()
+        let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: StubWebPlaybackCommander())
+        playback.handle(.ready(deviceID: "device-1"))
+        playback.handle(.stateChanged(
+            PlaybackNowPlaying(name: "T", artists: [], albumName: nil, albumID: nil, albumArtURL: nil, durationMilliseconds: 60_000, positionMilliseconds: 0, uri: "spotify:track:t"),
+            isPaused: false,
+            nextTracks: []
+        ))
+        let queue = QueueViewModel(playbackAPI: api, playbackSession: playback)
+        queue.setPanelVisible(false)
+
+        await queue.prefetchQueueForLyricsOverlay()
+
+        XCTAssertTrue(api.actions.contains("fetchQueue"))
+    }
+
+    func testQueueOptimisticReconcileClearsAfterTimeout() async {
+        let api = QueueTestPlaybackAPI()
+        let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: StubWebPlaybackCommander(), postShuffleSyncDelay: .seconds(10))
+        playback.handle(.ready(deviceID: "device-1"))
+        let queue = QueueViewModel(
+            playbackAPI: api,
+            playbackSession: playback,
+            optimisticReconcileTimeout: .milliseconds(40)
+        )
+
+        let one = SpotifyTrack(id: "1", name: "One", artists: ["A"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:1")
+        let two = SpotifyTrack(id: "2", name: "Two", artists: ["B"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:2")
+        api.queueResponse = SpotifyQueueResponse(queue: [.track(one), .track(two)])
+        queue.setPanelVisible(true)
+        await queue.refreshQueue()
+        let original = queue.upcomingItems.map(\.id)
+
+        await queue.toggleShuffle()
+        let optimistic = queue.upcomingItems.map(\.id)
+        XCTAssertNotEqual(optimistic, original)
+
+        try? await Task.sleep(nanoseconds: 60_000_000)
+        await queue.refreshQueue()
+        XCTAssertEqual(queue.upcomingItems.map(\.id), original, "Optimistic projection should clear after reconcile timeout.")
+    }
+
+    func testQueueRefreshMapsUnauthorizedAPIError() async {
+        let api = QueueTestPlaybackAPI()
+        let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: StubWebPlaybackCommander())
+        playback.handle(.ready(deviceID: "device-1"))
+        playback.handle(.stateChanged(
+            PlaybackNowPlaying(name: "T", artists: [], albumName: nil, albumID: nil, albumArtURL: nil, durationMilliseconds: 60_000, positionMilliseconds: 0, uri: "spotify:track:t"),
+            isPaused: false,
+            nextTracks: []
+        ))
+        let queue = QueueViewModel(playbackAPI: api, playbackSession: playback)
+        queue.setPanelVisible(true)
+        api.errorToThrow = SpotifyAPIError.unauthorized
+
+        await queue.refreshQueue()
+
+        XCTAssertEqual(queue.lastError?.title, "Sign in again")
+    }
+
     func testCancelledQueuePollDoesNotRefreshImmediately() async {
         let api = QueueTestPlaybackAPI()
         let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: StubWebPlaybackCommander())
