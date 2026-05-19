@@ -23,12 +23,12 @@ final class PlaylistBrowserArtistSelectionCoverageTests: XCTestCase {
             genres: [],
             uri: "spotify:artist:artist-1"
         )
-        let snapshot = ArtistDetailSnapshot(
+        let snapshot = PlaylistBrowserViewModel.ArtistDetailSnapshot(
             artistDetail: artist,
-            tracks: [],
             albums: [],
-            paging: nil,
-            usedStaleCache: false
+            tracks: [],
+            usedStaleCache: false,
+            paging: nil
         )
         vm.cachedArtistSnapshots["artist-1"] = PlaylistBrowserViewModel.CachedArtistSnapshot(
             snapshot: snapshot,

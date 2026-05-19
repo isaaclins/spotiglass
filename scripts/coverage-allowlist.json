@@ -12,7 +12,6 @@
     "Spotiglass/Playback/SpotifyPlaybackModels.swift",
     "Spotiglass/Services/SpotifyDTOs+Common.swift",
     "Spotiglass/Views/ImmersiveLyrics/ImmersiveLyricsBackgroundLayer.swift",
-    "Spotiglass/Views/ImmersiveLyricsView.swift",
     "Spotiglass/Views/PlaylistBrowser/LibraryDropInfrastructure.swift",
     "Spotiglass/Views/PlaylistBrowser/LibrarySidebarRowViews.swift",
     "Spotiglass/Views/PlaylistBrowser/PlaylistBrowserDetailColumn.swift",

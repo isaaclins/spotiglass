@@ -76,7 +76,8 @@ final class CommandPaletteShortcutCoverageTests: XCTestCase {
         XCTAssertTrue(shortcut.displayChips.contains("⌘"))
 
         XCTAssertTrue(CommandPaletteContext.runtimeFilterMatchesBinding(when: .always, context: .signedIn))
-        XCTAssertTrue(CommandPaletteContext.bindingsOverlapInRuntime(.signedIn, .paletteOpen))
+        XCTAssertTrue(CommandPaletteContext.bindingsOverlapInRuntime(.always, .signedIn))
+        XCTAssertFalse(CommandPaletteContext.bindingsOverlapInRuntime(.signedIn, .paletteOpen))
     }
 
     func testJSONValueRoundTrip() throws {

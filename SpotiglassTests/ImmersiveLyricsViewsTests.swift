@@ -166,10 +166,12 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
     }
 
     func testBlurredArtworkHostsAndLoadsFromDiskCache() async throws {
-        let dir = spotiglassTestsTemporaryDirectory()
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let url = URL(string: "https://example.com/blur-art.png")!
-        let file = ArtworkImageStore.cacheFileURL(for: url, diskDirectory: dir)
+        let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
+            .appendingPathComponent(AppMetadata.displayName, isDirectory: true)
+            .appendingPathComponent("Artwork", isDirectory: true)
+        try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+        let url = URL(string: "https://example.com/blur-art-\(UUID().uuidString).png")!
+        let file = ArtworkImageStore.cacheFileURL(for: url, diskDirectory: base)
         let png: [UInt8] = [
             0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
             0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,

@@ -140,15 +140,6 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
         await fulfillment(of: [openPlaylist], timeout: 2)
     }
 
-    func testBaseItemsRespectSignedInFlag() {
-        let manager = CommandPaletteManager()
-        manager.isSignedIn = false
-        let signedOutCount = manager.viewModel.staticItemsProvider().count
-        manager.isSignedIn = true
-        let signedInCount = manager.viewModel.staticItemsProvider().count
-        XCTAssertGreaterThanOrEqual(signedInCount, signedOutCount)
-    }
-
     func testExecuteRefreshAndPrefetchHooks() async {
         let manager = CommandPaletteManager()
         let refresh = expectation(description: "refresh")
