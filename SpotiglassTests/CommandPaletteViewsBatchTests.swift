@@ -229,4 +229,19 @@ final class CommandPaletteViewsBatchTests: XCTestCase {
         ViewTestHost.host(field.frame(width: 200, height: 28))
         XCTAssertNotNil(field)
     }
+
+    func testHotkeyRecorderMakeNSViewSyncsDisplay() throws {
+        let (_, keymap, manager) = try makeHarness()
+        let spec = CommandPaletteCommandCatalog.editable.first!
+        let field = HotkeyRecorderField(
+            commandID: spec.commandID,
+            keymapStore: keymap,
+            onRecordingChange: { manager.isRecordingHotkey = $0 },
+            onCaptureConflict: { _, _ in },
+            onApplied: {}
+        )
+        let view = field.frame(width: 220, height: 32)
+        ViewTestHost.host(view)
+        _ = try field.inspect()
+    }
 }
