@@ -125,7 +125,7 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
         )
         .environmentObject(LyricsOverlayController())
         ViewTestHost.host(column, size: CGSize(width: 720, height: 520))
-        XCTAssertNoThrow(try column.inspect().find(text: "Loading…"))
+        ViewTestHost.assertFindText("Loading…", in: column)
     }
 
     func testPlaylistBrowserViewHostsShell() async throws {
