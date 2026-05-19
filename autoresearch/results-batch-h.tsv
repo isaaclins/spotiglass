@@ -1,0 +1,3 @@
+exp_id	batch	metric	before	after	commit	notes
+h1	H	FILES_AT_THRESHOLD	72	101	a4215ff	ListDetailViewsTests; gated TrackListRow VirtualizedTrackList PlaylistDetailContent ArtistDetailView BrowserStateViews
+h2	H	FILES_AT_THRESHOLD	101	130	672e8e8	Tier A: AppConnectionState SpotifyAuthModels SpotifyTokenClient LikedSongsDetailLoading QueueViewModel PlaybackSessionViewModel CommandPaletteViewModel; allowlist 47→26
