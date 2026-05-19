@@ -189,6 +189,7 @@
 		TST00000000000000000014 /* PlaylistBrowserNavigationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000064 /* PlaylistBrowserNavigationTests.swift */; };
 		TST00000000000000000015 /* PlaylistBrowserArtistFallbackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000065 /* PlaylistBrowserArtistFallbackTests.swift */; };
 		TST000000000000000000C2 /* PlaylistBrowserPrefetchAllTracksTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */; };
+		TST00000000000000000000E8 /* PlaybackChromeViewsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100E8 /* PlaybackChromeViewsTests.swift */; };
 		TST00000000000000000000E7 /* PlaylistBrowserPaletteSearchBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100E7 /* PlaylistBrowserPaletteSearchBuilderTests.swift */; };
 		TST00000000000000000000E6 /* PlaylistBrowserChromeViewsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100E6 /* PlaylistBrowserChromeViewsTests.swift */; };
 		TST00000000000000000000E5 /* CommandPaletteViewsBatchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100E5 /* CommandPaletteViewsBatchTests.swift */; };
@@ -419,6 +420,7 @@
 		TST00000000000000000064 /* PlaylistBrowserNavigationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserNavigationTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000065 /* PlaylistBrowserArtistFallbackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserArtistFallbackTests.swift; sourceTree = "<group>"; };
 		TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserPrefetchAllTracksTests.swift; sourceTree = "<group>"; };
+		TST00000000000000000100E8 /* PlaybackChromeViewsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackChromeViewsTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000100E7 /* PlaylistBrowserPaletteSearchBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserPaletteSearchBuilderTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000100E6 /* PlaylistBrowserChromeViewsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserChromeViewsTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000100E5 /* CommandPaletteViewsBatchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteViewsBatchTests.swift; sourceTree = "<group>"; };
@@ -760,6 +762,7 @@
 				TST00000000000000000064 /* PlaylistBrowserNavigationTests.swift */,
 				TST00000000000000000065 /* PlaylistBrowserArtistFallbackTests.swift */,
 				TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */,
+				TST00000000000000000100E8 /* PlaybackChromeViewsTests.swift */,
 				TST00000000000000000100E7 /* PlaylistBrowserPaletteSearchBuilderTests.swift */,
 				TST00000000000000000100E6 /* PlaylistBrowserChromeViewsTests.swift */,
 				TST00000000000000000100E5 /* CommandPaletteViewsBatchTests.swift */,
@@ -1166,6 +1169,7 @@
 				TST00000000000000000014 /* PlaylistBrowserNavigationTests.swift in Sources */,
 				TST00000000000000000015 /* PlaylistBrowserArtistFallbackTests.swift in Sources */,
 				TST000000000000000000C2 /* PlaylistBrowserPrefetchAllTracksTests.swift in Sources */,
+				TST00000000000000000000E8 /* PlaybackChromeViewsTests.swift in Sources */,
 				TST00000000000000000000E7 /* PlaylistBrowserPaletteSearchBuilderTests.swift in Sources */,
 				TST00000000000000000000E6 /* PlaylistBrowserChromeViewsTests.swift in Sources */,
 				TST00000000000000000000E5 /* CommandPaletteViewsBatchTests.swift in Sources */,
