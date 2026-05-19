@@ -120,6 +120,10 @@
 		COV00000000000000000001 /* BrowserWidthCommitPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = COV00000000000000000011 /* BrowserWidthCommitPolicy.swift */; };
 		COV00000000000000000002 /* PlaylistBrowserPlaybackHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = COV00000000000000000012 /* PlaylistBrowserPlaybackHelpers.swift */; };
 		COV00000000000000000003 /* PlaylistBrowserPaletteSearchBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = COV00000000000000000013 /* PlaylistBrowserPaletteSearchBuilder.swift */; };
+		COV00000000000000000004 /* PlaylistBrowserTapTargetResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = COV00000000000000000014 /* PlaylistBrowserTapTargetResolver.swift */; };
+		COV00000000000000000005 /* PlaylistBrowserPinnedSidebarPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = COV00000000000000000015 /* PlaylistBrowserPinnedSidebarPolicy.swift */; };
+		COV00000000000000000006 /* TransportPollScheduling.swift in Sources */ = {isa = PBXBuildFile; fileRef = COV00000000000000000016 /* TransportPollScheduling.swift */; };
+		COV00000000000000000007 /* WebPlaybackCommandScriptBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = COV00000000000000000017 /* WebPlaybackCommandScriptBuilder.swift */; };
 		G70000000000000000000001 /* CommandPaletteModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = G70000000000000000000011 /* CommandPaletteModels.swift */; };
 		G70000000000000000000002 /* CommandPaletteKeymap.swift in Sources */ = {isa = PBXBuildFile; fileRef = G70000000000000000000012 /* CommandPaletteKeymap.swift */; };
 		G70000000000000000000003 /* CommandPaletteKeymapStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = G70000000000000000000013 /* CommandPaletteKeymapStore.swift */; };
@@ -189,6 +193,20 @@
 		TST00000000000000000014 /* PlaylistBrowserNavigationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000064 /* PlaylistBrowserNavigationTests.swift */; };
 		TST00000000000000000015 /* PlaylistBrowserArtistFallbackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000065 /* PlaylistBrowserArtistFallbackTests.swift */; };
 		TST000000000000000000C2 /* PlaylistBrowserPrefetchAllTracksTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */; };
+		TST00000000000000000000FA /* ListDetailViewsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100FA /* ListDetailViewsTests.swift */; };
+		TST00000000000000000000F2 /* PlaybackSessionPlayCommandsAndTrayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100F2 /* PlaybackSessionPlayCommandsAndTrayTests.swift */; };
+		TST00000000000000000000F1 /* WebPlaybackCommandScriptBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100F1 /* WebPlaybackCommandScriptBuilderTests.swift */; };
+		TST00000000000000000000F0 /* TransportPollSchedulingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100F0 /* TransportPollSchedulingTests.swift */; };
+		TST00000000000000000000ED /* BrowserChromeViewsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100ED /* BrowserChromeViewsTests.swift */; };
+		TST00000000000000000000EC /* PlaylistBrowserPinnedSidebarPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100EC /* PlaylistBrowserPinnedSidebarPolicyTests.swift */; };
+		TST00000000000000000000EB /* PlaylistBrowserTapTargetResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100EB /* PlaylistBrowserTapTargetResolverTests.swift */; };
+		TST00000000000000000000EA /* HotkeyRecorderFieldTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100EA /* HotkeyRecorderFieldTests.swift */; };
+		TST00000000000000000000F8 /* TrackRowViewModelContentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100F8 /* TrackRowViewModelContentTests.swift */; };
+		TST00000000000000000000F7 /* AuthViewModelCoverageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100F7 /* AuthViewModelCoverageTests.swift */; };
+		TST00000000000000000000F6 /* SpotifyAPIClientArtistsEndpointTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100F6 /* SpotifyAPIClientArtistsEndpointTests.swift */; };
+		TST00000000000000000000F5 /* SpotifyGETResponseCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100F5 /* SpotifyGETResponseCacheTests.swift */; };
+		TST00000000000000000000F4 /* SpotifyAPIErrorUserMessageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100F4 /* SpotifyAPIErrorUserMessageTests.swift */; };
+		TST00000000000000000000F3 /* BrowsingLoadStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100F3 /* BrowsingLoadStateTests.swift */; };
 		TST00000000000000000000E9 /* ImmersiveLyricsViewsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100E9 /* ImmersiveLyricsViewsTests.swift */; };
 		TST00000000000000000000E8 /* PlaybackChromeViewsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100E8 /* PlaybackChromeViewsTests.swift */; };
 		TST00000000000000000000E7 /* PlaylistBrowserPaletteSearchBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100E7 /* PlaylistBrowserPaletteSearchBuilderTests.swift */; };
@@ -370,6 +388,10 @@
 		COV00000000000000000011 /* BrowserWidthCommitPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserWidthCommitPolicy.swift; sourceTree = "<group>"; };
 		COV00000000000000000012 /* PlaylistBrowserPlaybackHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserPlaybackHelpers.swift; sourceTree = "<group>"; };
 		COV00000000000000000013 /* PlaylistBrowserPaletteSearchBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserPaletteSearchBuilder.swift; sourceTree = "<group>"; };
+		COV00000000000000000014 /* PlaylistBrowserTapTargetResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserTapTargetResolver.swift; sourceTree = "<group>"; };
+		COV00000000000000000015 /* PlaylistBrowserPinnedSidebarPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserPinnedSidebarPolicy.swift; sourceTree = "<group>"; };
+		COV00000000000000000016 /* TransportPollScheduling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransportPollScheduling.swift; sourceTree = "<group>"; };
+		COV00000000000000000017 /* WebPlaybackCommandScriptBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebPlaybackCommandScriptBuilder.swift; sourceTree = "<group>"; };
 		G70000000000000000000011 /* CommandPaletteModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteModels.swift; sourceTree = "<group>"; };
 		G70000000000000000000012 /* CommandPaletteKeymap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteKeymap.swift; sourceTree = "<group>"; };
 		G70000000000000000000013 /* CommandPaletteKeymapStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteKeymapStore.swift; sourceTree = "<group>"; };
@@ -421,6 +443,20 @@
 		TST00000000000000000064 /* PlaylistBrowserNavigationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserNavigationTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000065 /* PlaylistBrowserArtistFallbackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserArtistFallbackTests.swift; sourceTree = "<group>"; };
 		TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserPrefetchAllTracksTests.swift; sourceTree = "<group>"; };
+		TST00000000000000000100FA /* ListDetailViewsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListDetailViewsTests.swift; sourceTree = "<group>"; };
+		TST00000000000000000100F2 /* PlaybackSessionPlayCommandsAndTrayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackSessionPlayCommandsAndTrayTests.swift; sourceTree = "<group>"; };
+		TST00000000000000000100F1 /* WebPlaybackCommandScriptBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebPlaybackCommandScriptBuilderTests.swift; sourceTree = "<group>"; };
+		TST00000000000000000100F0 /* TransportPollSchedulingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransportPollSchedulingTests.swift; sourceTree = "<group>"; };
+		TST00000000000000000100ED /* BrowserChromeViewsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserChromeViewsTests.swift; sourceTree = "<group>"; };
+		TST00000000000000000100EC /* PlaylistBrowserPinnedSidebarPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserPinnedSidebarPolicyTests.swift; sourceTree = "<group>"; };
+		TST00000000000000000100EB /* PlaylistBrowserTapTargetResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserTapTargetResolverTests.swift; sourceTree = "<group>"; };
+		TST00000000000000000100EA /* HotkeyRecorderFieldTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyRecorderFieldTests.swift; sourceTree = "<group>"; };
+		TST00000000000000000100F8 /* TrackRowViewModelContentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackRowViewModelContentTests.swift; sourceTree = "<group>"; };
+		TST00000000000000000100F7 /* AuthViewModelCoverageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthViewModelCoverageTests.swift; sourceTree = "<group>"; };
+		TST00000000000000000100F6 /* SpotifyAPIClientArtistsEndpointTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyAPIClientArtistsEndpointTests.swift; sourceTree = "<group>"; };
+		TST00000000000000000100F5 /* SpotifyGETResponseCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyGETResponseCacheTests.swift; sourceTree = "<group>"; };
+		TST00000000000000000100F4 /* SpotifyAPIErrorUserMessageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyAPIErrorUserMessageTests.swift; sourceTree = "<group>"; };
+		TST00000000000000000100F3 /* BrowsingLoadStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowsingLoadStateTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000100E9 /* ImmersiveLyricsViewsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImmersiveLyricsViewsTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000100E8 /* PlaybackChromeViewsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackChromeViewsTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000100E7 /* PlaylistBrowserPaletteSearchBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserPaletteSearchBuilderTests.swift; sourceTree = "<group>"; };
@@ -764,6 +800,20 @@
 				TST00000000000000000064 /* PlaylistBrowserNavigationTests.swift */,
 				TST00000000000000000065 /* PlaylistBrowserArtistFallbackTests.swift */,
 				TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */,
+				TST00000000000000000100F2 /* PlaybackSessionPlayCommandsAndTrayTests.swift */,
+				TST00000000000000000100F1 /* WebPlaybackCommandScriptBuilderTests.swift */,
+				TST00000000000000000100F0 /* TransportPollSchedulingTests.swift */,
+				TST00000000000000000100FA /* ListDetailViewsTests.swift */,
+				TST00000000000000000100ED /* BrowserChromeViewsTests.swift */,
+				TST00000000000000000100EC /* PlaylistBrowserPinnedSidebarPolicyTests.swift */,
+				TST00000000000000000100EB /* PlaylistBrowserTapTargetResolverTests.swift */,
+				TST00000000000000000100EA /* HotkeyRecorderFieldTests.swift */,
+				TST00000000000000000100F8 /* TrackRowViewModelContentTests.swift */,
+				TST00000000000000000100F7 /* AuthViewModelCoverageTests.swift */,
+				TST00000000000000000100F6 /* SpotifyAPIClientArtistsEndpointTests.swift */,
+				TST00000000000000000100F5 /* SpotifyGETResponseCacheTests.swift */,
+				TST00000000000000000100F4 /* SpotifyAPIErrorUserMessageTests.swift */,
+				TST00000000000000000100F3 /* BrowsingLoadStateTests.swift */,
 				TST00000000000000000100E9 /* ImmersiveLyricsViewsTests.swift */,
 				TST00000000000000000100E8 /* PlaybackChromeViewsTests.swift */,
 				TST00000000000000000100E7 /* PlaylistBrowserPaletteSearchBuilderTests.swift */,
@@ -846,6 +896,10 @@
 				COV00000000000000000011 /* BrowserWidthCommitPolicy.swift */,
 				COV00000000000000000012 /* PlaylistBrowserPlaybackHelpers.swift */,
 				COV00000000000000000013 /* PlaylistBrowserPaletteSearchBuilder.swift */,
+				COV00000000000000000014 /* PlaylistBrowserTapTargetResolver.swift */,
+				COV00000000000000000015 /* PlaylistBrowserPinnedSidebarPolicy.swift */,
+				COV00000000000000000016 /* TransportPollScheduling.swift */,
+				COV00000000000000000017 /* WebPlaybackCommandScriptBuilder.swift */,
 				A1000000000000000000001A /* SpotifyPaletteSearchAugmentation.swift */,
 				FC00000000000000000000011 /* ArtworkImageStore.swift */,
 				C30000000000000000000018 /* SpotifyRateLimitDisplay.swift */,
@@ -1004,6 +1058,10 @@
 				COV00000000000000000001 /* BrowserWidthCommitPolicy.swift in Sources */,
 				COV00000000000000000002 /* PlaylistBrowserPlaybackHelpers.swift in Sources */,
 				COV00000000000000000003 /* PlaylistBrowserPaletteSearchBuilder.swift in Sources */,
+				COV00000000000000000004 /* PlaylistBrowserTapTargetResolver.swift in Sources */,
+				COV00000000000000000005 /* PlaylistBrowserPinnedSidebarPolicy.swift in Sources */,
+				COV00000000000000000006 /* TransportPollScheduling.swift in Sources */,
+				COV00000000000000000007 /* WebPlaybackCommandScriptBuilder.swift in Sources */,
 				B20000000000000000000001 /* SpotifyAuthModels.swift in Sources */,
 				B20000000000000000000002 /* PKCE.swift in Sources */,
 				B20000000000000000000003 /* LoopbackOAuthCallback.swift in Sources */,
@@ -1172,6 +1230,20 @@
 				TST00000000000000000014 /* PlaylistBrowserNavigationTests.swift in Sources */,
 				TST00000000000000000015 /* PlaylistBrowserArtistFallbackTests.swift in Sources */,
 				TST000000000000000000C2 /* PlaylistBrowserPrefetchAllTracksTests.swift in Sources */,
+				TST00000000000000000000F2 /* PlaybackSessionPlayCommandsAndTrayTests.swift in Sources */,
+				TST00000000000000000000F1 /* WebPlaybackCommandScriptBuilderTests.swift in Sources */,
+				TST00000000000000000000F0 /* TransportPollSchedulingTests.swift in Sources */,
+				TST00000000000000000000FA /* ListDetailViewsTests.swift in Sources */,
+				TST00000000000000000000ED /* BrowserChromeViewsTests.swift in Sources */,
+				TST00000000000000000000EC /* PlaylistBrowserPinnedSidebarPolicyTests.swift in Sources */,
+				TST00000000000000000000EB /* PlaylistBrowserTapTargetResolverTests.swift in Sources */,
+				TST00000000000000000000EA /* HotkeyRecorderFieldTests.swift in Sources */,
+				TST00000000000000000000F8 /* TrackRowViewModelContentTests.swift in Sources */,
+				TST00000000000000000000F7 /* AuthViewModelCoverageTests.swift in Sources */,
+				TST00000000000000000000F6 /* SpotifyAPIClientArtistsEndpointTests.swift in Sources */,
+				TST00000000000000000000F5 /* SpotifyGETResponseCacheTests.swift in Sources */,
+				TST00000000000000000000F4 /* SpotifyAPIErrorUserMessageTests.swift in Sources */,
+				TST00000000000000000000F3 /* BrowsingLoadStateTests.swift in Sources */,
 				TST00000000000000000000E9 /* ImmersiveLyricsViewsTests.swift in Sources */,
 				TST00000000000000000000E8 /* PlaybackChromeViewsTests.swift in Sources */,
 				TST00000000000000000000E7 /* PlaylistBrowserPaletteSearchBuilderTests.swift in Sources */,
