@@ -184,6 +184,38 @@ final class CommandPaletteViewsBatchTests: XCTestCase {
         XCTAssertNoThrow(try FooterHost(viewModel: vm).inspect().find(text: "↑↓ navigate"))
     }
 
+    func testResultsCardPrefetchAndError() async throws {
+        let vm = CommandPaletteViewModel()
+        vm.show()
+        vm.prefetchProgress = PrefetchAllPlaylistsProgress(
+            phase: .running, total: 4, completed: 1, skipped: 0, failed: 0
+        )
+        struct CardHost: View {
+            @Namespace private var glass
+            @ObservedObject var viewModel: CommandPaletteViewModel
+            var body: some View {
+                CommandPaletteResultsCardView(
+                    viewModel: viewModel,
+                    accessibilityReduceMotion: true,
+                    paletteGlass: glass
+                )
+            }
+        }
+        let host = CardHost(viewModel: vm)
+        ViewTestHost.host(host, size: CGSize(width: 700, height: 420))
+        XCTAssertNoThrow(try host.inspect())
+
+        vm.searchProvider = { _, _ in
+            throw SpotifyAPIError.server(statusCode: 500, message: "err", details: nil)
+        }
+        vm.query = "ab"
+        vm.refresh()
+        try await Task.sleep(for: .milliseconds(500))
+        XCTAssertNotNil(vm.errorText)
+        ViewTestHost.host(host, size: CGSize(width: 700, height: 420))
+        XCTAssertNoThrow(try host.inspect())
+    }
+
     func testHotkeyRecorderFieldHosts() throws {
         let (_, keymap, manager) = try makeHarness()
         let spec = CommandPaletteCommandCatalog.editable.first!
