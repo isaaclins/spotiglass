@@ -19,11 +19,21 @@ struct LibraryPinnedItemDropDelegate: DropDelegate {
     let clearDragPreview: () -> Void
 
     func validateDrop(info: DropInfo) -> Bool {
-        let hasPinned = !info.itemProviders(for: [UTType.spotiglassPinnedItem]).isEmpty
-        let hasLibraryRow = !info.itemProviders(for: [UTType.spotiglassLibrarySidebarRow]).isEmpty
-        let hasPlainText = !info.itemProviders(for: [UTType.plainText]).isEmpty
-        let hasText = !info.itemProviders(for: [UTType.text]).isEmpty
-        return hasPinned || hasLibraryRow || hasPlainText || hasText
+        Self.acceptsDrop(
+            hasPinned: !info.itemProviders(for: [UTType.spotiglassPinnedItem]).isEmpty,
+            hasLibraryRow: !info.itemProviders(for: [UTType.spotiglassLibrarySidebarRow]).isEmpty,
+            hasPlainText: !info.itemProviders(for: [UTType.plainText]).isEmpty,
+            hasText: !info.itemProviders(for: [UTType.text]).isEmpty
+        )
+    }
+
+    static func acceptsDrop(
+        hasPinned: Bool,
+        hasLibraryRow: Bool,
+        hasPlainText: Bool,
+        hasText: Bool
+    ) -> Bool {
+        hasPinned || hasLibraryRow || hasPlainText || hasText
     }
 
     func dropEntered(info: DropInfo) {

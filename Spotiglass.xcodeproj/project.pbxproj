@@ -205,6 +205,7 @@
 		TST00000000000000000014 /* PlaylistBrowserNavigationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000064 /* PlaylistBrowserNavigationTests.swift */; };
 		TST00000000000000000015 /* PlaylistBrowserArtistFallbackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000065 /* PlaylistBrowserArtistFallbackTests.swift */; };
 		TST000000000000000000C2 /* PlaylistBrowserPrefetchAllTracksTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */; };
+		TST000000000000000000010E /* SpotifyPlaybackModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000001010E /* SpotifyPlaybackModelsTests.swift */; };
 		TST000000000000000000010D /* LibraryDropInfrastructureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000001010D /* LibraryDropInfrastructureTests.swift */; };
 		TST000000000000000000010C /* PlaylistBrowserShellViewsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000001010C /* PlaylistBrowserShellViewsTests.swift */; };
 		TST000000000000000000010B /* PlaylistBrowserTypesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000001010B /* PlaylistBrowserTypesTests.swift */; };
@@ -490,6 +491,7 @@
 		TST00000000000000000064 /* PlaylistBrowserNavigationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserNavigationTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000065 /* PlaylistBrowserArtistFallbackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserArtistFallbackTests.swift; sourceTree = "<group>"; };
 		TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserPrefetchAllTracksTests.swift; sourceTree = "<group>"; };
+		TST000000000000000001010E /* SpotifyPlaybackModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyPlaybackModelsTests.swift; sourceTree = "<group>"; };
 		TST000000000000000001010D /* LibraryDropInfrastructureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryDropInfrastructureTests.swift; sourceTree = "<group>"; };
 		TST000000000000000001010C /* PlaylistBrowserShellViewsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserShellViewsTests.swift; sourceTree = "<group>"; };
 		TST000000000000000001010B /* PlaylistBrowserTypesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserTypesTests.swift; sourceTree = "<group>"; };
@@ -902,6 +904,7 @@
 				TST00000000000000000064 /* PlaylistBrowserNavigationTests.swift */,
 				TST00000000000000000065 /* PlaylistBrowserArtistFallbackTests.swift */,
 				TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */,
+				TST000000000000000001010E /* SpotifyPlaybackModelsTests.swift */,
 				TST000000000000000001010D /* LibraryDropInfrastructureTests.swift */,
 				TST000000000000000001010C /* PlaylistBrowserShellViewsTests.swift */,
 				TST000000000000000001010B /* PlaylistBrowserTypesTests.swift */,
@@ -1362,6 +1365,7 @@
 				TST00000000000000000014 /* PlaylistBrowserNavigationTests.swift in Sources */,
 				TST00000000000000000015 /* PlaylistBrowserArtistFallbackTests.swift in Sources */,
 				TST000000000000000000C2 /* PlaylistBrowserPrefetchAllTracksTests.swift in Sources */,
+				TST000000000000000000010E /* SpotifyPlaybackModelsTests.swift in Sources */,
 				TST000000000000000000010D /* LibraryDropInfrastructureTests.swift in Sources */,
 				TST000000000000000000010C /* PlaylistBrowserShellViewsTests.swift in Sources */,
 				TST000000000000000000010B /* PlaylistBrowserTypesTests.swift in Sources */,
