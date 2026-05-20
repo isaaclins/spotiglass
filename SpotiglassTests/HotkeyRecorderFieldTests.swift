@@ -146,16 +146,20 @@ final class ZHotkeyRecorderFieldTests: XCTestCase {
         )
 
         XCTAssertTrue(beginRecording(on: view, in: window))
+        AppKitTestSupport.pumpRunLoop(for: 0.02)
         view.updateLiveModifierChips([.command, .shift])
         XCTAssertTrue(view.subviews.first(where: { $0 is NSButton }) is NSButton)
 
         view.keyDown(with: try keyEvent(for: stolen, window: window))
+        AppKitTestSupport.pumpRunLoop(for: 0.02)
         XCTAssertEqual(conflict?.0, stolen)
         XCTAssertEqual(conflict?.1, CommandPaletteCommandID.openPalette)
         XCTAssertFalse(view.isRecording)
 
         XCTAssertTrue(beginRecording(on: view, in: window))
+        AppKitTestSupport.pumpRunLoop(for: 0.02)
         view.keyDown(with: keyEvent(virtualKey: 25, modifierFlags: [.control], window: window))
+        AppKitTestSupport.pumpRunLoop(for: 0.02)
         XCTAssertEqual(applied, 1)
         XCTAssertNotNil(keymap.primaryShortcut(for: field.commandID))
 
@@ -163,13 +167,17 @@ final class ZHotkeyRecorderFieldTests: XCTestCase {
         try keymap.setBinding(commandID: field.commandID, shortcut: bound, replaceConflicting: true)
         view.syncFromStore()
         XCTAssertTrue(beginRecording(on: view, in: window))
+        AppKitTestSupport.pumpRunLoop(for: 0.02)
         view.keyDown(with: keyEvent(virtualKey: 51, window: window))
+        AppKitTestSupport.pumpRunLoop(for: 0.02)
         XCTAssertEqual(applied, 2)
         XCTAssertNil(keymap.primaryShortcut(for: field.commandID))
 
         XCTAssertTrue(beginRecording(on: view, in: window))
+        AppKitTestSupport.pumpRunLoop(for: 0.02)
         XCTAssertTrue(recording)
         view.keyDown(with: keyEvent(virtualKey: 53, window: window))
+        AppKitTestSupport.pumpRunLoop(for: 0.02)
         XCTAssertFalse(view.isRecording)
         XCTAssertFalse(recording)
 

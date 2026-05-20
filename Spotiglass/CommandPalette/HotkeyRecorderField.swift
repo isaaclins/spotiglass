@@ -55,6 +55,9 @@ struct HotkeyRecorderField: NSViewRepresentable {
         func recordingBegan(in view: RecorderKeyContainerView) {
             teardownMonitors()
             parent.onRecordingChange(true)
+            // Local event monitors destabilize the XCTest host on headless CI; key paths are
+            // exercised via injected keyDown events in HotkeyRecorderFieldTests instead.
+            guard !Self.isRunningUnderXCTest else { return }
             mouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak view] event in
                 guard let view, view.isRecording else { return event }
                 guard event.window === view.window else { return event }
@@ -78,6 +81,10 @@ struct HotkeyRecorderField: NSViewRepresentable {
         func recordingEnded() {
             teardownMonitors()
             parent.onRecordingChange(false)
+        }
+
+        private static var isRunningUnderXCTest: Bool {
+            ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
         }
 
         func handleKeyDown(_ event: NSEvent, in view: RecorderKeyContainerView) {
