@@ -189,6 +189,15 @@ final class RecorderKeyContainerView: NSView {
         finishRecordingAndResign()
     }
 
+    /// Test hook: drive ``HotkeyRecorderField.Coordinator/handleKeyDown(_:in:)`` without key-window
+    /// first-responder churn (unreliable on headless CI runners).
+    func testing_beginKeyCapture() {
+        guard !isRecording else { return }
+        isRecording = true
+        updateLiveModifierChips(NSEvent.modifierFlags)
+        coordinator?.recordingBegan(in: self)
+    }
+
     func finishRecordingAndResign() {
         guard isRecording else { return }
         isRecording = false

@@ -57,13 +57,14 @@ final class ZHotkeyRecorderFieldTests: XCTestCase {
         commandID: String = CommandPaletteCommandID.openSettings,
         onRecordingChange: @escaping (Bool) -> Void = { _ in },
         onCaptureConflict: @escaping (CommandShortcut, String) -> Void = { _, _ in },
-        onApplied: @escaping () -> Void = {}
+        onApplied: @escaping () -> Void = {},
+        attachWindow: Bool = false
     ) throws -> (
         HotkeyRecorderField,
         CommandPaletteKeymapStore,
         RecorderKeyContainerView,
         HotkeyRecorderField.Coordinator,
-        NSWindow
+        NSWindow?
     ) {
         let url = makeCommandPaletteTestsTempSettingsURL()
         let settings = SpotiglassSettingsStore(fileURL: url)
@@ -78,15 +79,19 @@ final class ZHotkeyRecorderFieldTests: XCTestCase {
         let coordinator = HotkeyRecorderField.Coordinator(field)
         let view = RecorderKeyContainerView(frame: NSRect(x: 0, y: 0, width: 220, height: 32))
         view.coordinator = coordinator
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 240, height: 40),
-            styleMask: [.titled],
-            backing: .buffered,
-            defer: false
-        )
-        window.contentView = view
-        window.makeKeyAndOrderFront(nil)
-        windows.append(window)
+        var window: NSWindow?
+        if attachWindow {
+            let w = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 240, height: 40),
+                styleMask: [.titled],
+                backing: .buffered,
+                defer: false
+            )
+            w.contentView = view
+            w.makeKeyAndOrderFront(nil)
+            windows.append(w)
+            window = w
+        }
         harnessRoots.append(settings)
         harnessRoots.append(keymap)
         harnessRoots.append(coordinator)
@@ -94,18 +99,9 @@ final class ZHotkeyRecorderFieldTests: XCTestCase {
         return (field, keymap, view, coordinator, window)
     }
 
-    private func beginRecording(on view: RecorderKeyContainerView, in window: NSWindow) -> Bool {
-        view.coordinator?.teardownMonitors()
-        window.makeKeyAndOrderFront(nil)
-        guard window.makeFirstResponder(view) else { return false }
-        AppKitTestSupport.pumpRunLoop(for: 0.02)
-        return view.isRecording
-    }
-
     private func keyEvent(
         virtualKey: CGKeyCode,
-        modifierFlags: NSEvent.ModifierFlags = [],
-        window: NSWindow
+        modifierFlags: NSEvent.ModifierFlags = []
     ) -> NSEvent {
         let source = CGEventSource(stateID: .combinedSessionState)
         let cgEvent = CGEvent(keyboardEventSource: source, virtualKey: virtualKey, keyDown: true)!
@@ -118,26 +114,18 @@ final class ZHotkeyRecorderFieldTests: XCTestCase {
         return NSEvent(cgEvent: cgEvent)!
     }
 
-    private func keyEvent(
-        for shortcut: CommandShortcut,
-        window: NSWindow
-    ) throws -> NSEvent {
+    private func keyEvent(for shortcut: CommandShortcut) throws -> NSEvent {
         guard let virtualKey = USKeyboard.virtualKey(for: shortcut.key) else {
             throw XCTSkip("No US virtual key mapping for \(shortcut.key)")
         }
-        return keyEvent(virtualKey: virtualKey, modifierFlags: shortcut.modifiers, window: window)
+        return keyEvent(virtualKey: virtualKey, modifierFlags: shortcut.modifiers)
     }
 
-    /// One window session avoids repeated first-responder / NSEvent-monitor cycles that time out under XCTest.
-    func testRecordingCaptureConflictApplyDeleteAndEscape() throws {
-        var recording = false
-        var applied = 0
+    func testCaptureConflictShortcutEndsRecording() throws {
         var conflict: (CommandShortcut, String)?
         let stolen = try CommandShortcut(keystroke: "ctrl-j")
-        let (field, keymap, view, _, window) = try makeHarness(
-            onRecordingChange: { recording = $0 },
-            onCaptureConflict: { shortcut, otherID in conflict = (shortcut, otherID) },
-            onApplied: { applied += 1 }
+        let (field, keymap, view, _, _) = try makeHarness(
+            onCaptureConflict: { shortcut, otherID in conflict = (shortcut, otherID) }
         )
         try keymap.setBinding(
             commandID: CommandPaletteCommandID.openPalette,
@@ -145,44 +133,52 @@ final class ZHotkeyRecorderFieldTests: XCTestCase {
             replaceConflicting: true
         )
 
-        XCTAssertTrue(beginRecording(on: view, in: window))
-        AppKitTestSupport.pumpRunLoop(for: 0.02)
+        view.testing_beginKeyCapture()
         view.updateLiveModifierChips([.command, .shift])
-        XCTAssertTrue(view.subviews.first(where: { $0 is NSButton }) is NSButton)
+        view.keyDown(with: try keyEvent(for: stolen))
 
-        view.keyDown(with: try keyEvent(for: stolen, window: window))
-        AppKitTestSupport.pumpRunLoop(for: 0.02)
         XCTAssertEqual(conflict?.0, stolen)
         XCTAssertEqual(conflict?.1, CommandPaletteCommandID.openPalette)
         XCTAssertFalse(view.isRecording)
+        _ = field
+    }
 
-        XCTAssertTrue(beginRecording(on: view, in: window))
-        AppKitTestSupport.pumpRunLoop(for: 0.02)
-        view.keyDown(with: keyEvent(virtualKey: 25, modifierFlags: [.control], window: window))
-        AppKitTestSupport.pumpRunLoop(for: 0.02)
+    func testApplyShortcutUpdatesKeymap() throws {
+        var applied = 0
+        let (_, keymap, view, _, _) = try makeHarness(onApplied: { applied += 1 })
+
+        view.testing_beginKeyCapture()
+        view.keyDown(with: keyEvent(virtualKey: 25, modifierFlags: [.control]))
+
         XCTAssertEqual(applied, 1)
-        XCTAssertNotNil(keymap.primaryShortcut(for: field.commandID))
+        XCTAssertNotNil(keymap.primaryShortcut(for: CommandPaletteCommandID.openSettings))
+        XCTAssertFalse(view.isRecording)
+    }
 
-        let bound = try XCTUnwrap(keymap.primaryShortcut(for: field.commandID))
+    func testDeleteClearsBinding() throws {
+        var applied = 0
+        let (field, keymap, view, _, _) = try makeHarness(onApplied: { applied += 1 })
+        let bound = try CommandShortcut(keystroke: "ctrl-k")
         try keymap.setBinding(commandID: field.commandID, shortcut: bound, replaceConflicting: true)
-        view.syncFromStore()
-        XCTAssertTrue(beginRecording(on: view, in: window))
-        AppKitTestSupport.pumpRunLoop(for: 0.02)
-        view.keyDown(with: keyEvent(virtualKey: 51, window: window))
-        AppKitTestSupport.pumpRunLoop(for: 0.02)
-        XCTAssertEqual(applied, 2)
-        XCTAssertNil(keymap.primaryShortcut(for: field.commandID))
 
-        XCTAssertTrue(beginRecording(on: view, in: window))
-        AppKitTestSupport.pumpRunLoop(for: 0.02)
+        view.testing_beginKeyCapture()
+        view.keyDown(with: keyEvent(virtualKey: 51))
+
+        XCTAssertEqual(applied, 1)
+        XCTAssertNil(keymap.primaryShortcut(for: field.commandID))
+        XCTAssertFalse(view.isRecording)
+    }
+
+    func testEscapeCancelsRecording() throws {
+        var recording = false
+        let (_, _, view, _, _) = try makeHarness(onRecordingChange: { recording = $0 })
+
+        view.testing_beginKeyCapture()
         XCTAssertTrue(recording)
-        view.keyDown(with: keyEvent(virtualKey: 53, window: window))
-        AppKitTestSupport.pumpRunLoop(for: 0.02)
+        view.keyDown(with: keyEvent(virtualKey: 53))
+
         XCTAssertFalse(view.isRecording)
         XCTAssertFalse(recording)
-
-        view.coordinator?.teardownMonitors()
-        view.coordinator?.teardownMonitors()
     }
 
     func testHostedRepresentableUpdateAndTeardown() throws {
