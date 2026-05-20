@@ -14,9 +14,7 @@ This project keeps **`Spotiglass/AppIcon.icon`** next to **`Assets.xcassets`** (
 
 **`SpotiglassBrandLogo`** uses **`NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath)`**, not `Image("AppIcon")`: app icons are not a normal catalog **`imageset`**, so named lookups log *No image named 'AppIcon' found in asset catalog* even when the Icon Composer pipeline is correct.
 
-After changing the icon, do a **clean build** and remove the old app from the **Dock** (or clear the icon cache) so macOS shows the update.
-
-`scripts/make_square_icon.swift` is only a helper if you need to build a **raster** app icon set from a flat PNG; the shipped app uses **Icon Composer → Xcode**, not a hand-maintained `AppIcon.appiconset`.
+After changing the icon, do a **clean build** and remove the old app from the **Dock** (or clear the icon cache) so macOS shows the update. The shipped app uses **Icon Composer → Xcode**, not a hand-maintained `AppIcon.appiconset`.
 
 To regenerate the logo used by the root `README.md` from the current app icon pipeline:
 
