@@ -197,6 +197,41 @@ final class PlaybackBridgeAndModelsTests: XCTestCase {
         XCTAssertEqual(SpotifyPlaybackHost.deviceName, "Spotiglass")
     }
 
+    func testParseNowPlayingTrimsEmptyAlbumName() throws {
+        let event = try SpotifyPlaybackBridgeParser.parse([
+            "name": "state_changed",
+            "payload": [
+                "paused": true,
+                "track": [
+                    "name": "Song",
+                    "artists": ["A"],
+                    "albumName": "   ",
+                    "albumURI": "spotify:album:album1",
+                    "durationMilliseconds": 1000,
+                    "positionMilliseconds": 0,
+                    "uri": "spotify:track:1"
+                ]
+            ]
+        ])
+        guard case let .stateChanged(nowPlaying, _, _) = event else {
+            return XCTFail("expected state")
+        }
+        XCTAssertNil(nowPlaying?.albumName)
+        XCTAssertEqual(nowPlaying?.albumID, "album1")
+    }
+
+    func testCoordinatorDispatchRejectsUnknownHandler() async {
+        let bridge = PlaybackTokenBridge(provider: MockPlaybackTokenProvider(accessToken: "a", refreshedAccessToken: "b"))
+        let result = await SpotifyPlaybackWebViewCoordinatorDispatch.tokenReply(
+            handlerName: "unknown",
+            body: [:],
+            refresh: false,
+            tokenBridge: bridge
+        )
+        XCTAssertNil(result.payload)
+        XCTAssertNotNil(result.error)
+    }
+
     func testTokenBridgeOnlyReturnsAccessToken() async throws {
         let provider = MockPlaybackTokenProvider(accessToken: "access", refreshedAccessToken: "refreshed")
         let bridge = PlaybackTokenBridge(provider: provider)

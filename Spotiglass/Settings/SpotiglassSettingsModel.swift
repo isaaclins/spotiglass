@@ -1,6 +1,35 @@
 import Foundation
 import SwiftUI
 
+/// In-app UI language persisted in ``AppearanceSettings``.
+enum AppLanguage: String, Codable, CaseIterable, Equatable {
+    case english = "en"
+    case spanish = "es"
+    case german = "de"
+
+    /// Fixed native label so users can find their language in the picker.
+    var nativeDisplayName: String {
+        switch self {
+        case .english: "English"
+        case .spanish: "Español"
+        case .german: "Deutsch"
+        }
+    }
+
+    /// macOS preferred language when it is en/es/de; otherwise English.
+    static func resolvedDefault() -> AppLanguage {
+        let code = Locale.preferredLanguages.first?
+            .split(separator: "-")
+            .first
+            .map(String.init) ?? "en"
+        switch code {
+        case "es": return .spanish
+        case "de": return .german
+        default: return .english
+        }
+    }
+}
+
 /// App-wide light/dark appearance override persisted in ``SpotiglassSettingsFile``.
 enum AppearanceColorScheme: String, Codable, CaseIterable, Equatable {
     case system
@@ -9,9 +38,9 @@ enum AppearanceColorScheme: String, Codable, CaseIterable, Equatable {
 
     var displayName: String {
         switch self {
-        case .system: "System"
-        case .light: "Light"
-        case .dark: "Dark"
+        case .system: SpotiglassL10n.string("settings.appearance.scheme.system")
+        case .light: SpotiglassL10n.string("settings.appearance.scheme.light")
+        case .dark: SpotiglassL10n.string("settings.appearance.scheme.dark")
         }
     }
 
@@ -34,9 +63,9 @@ enum LyricsTextSize: String, Codable, CaseIterable, Equatable {
 
     var displayName: String {
         switch self {
-        case .small: "Small"
-        case .medium: "Medium"
-        case .large: "Large"
+        case .small: SpotiglassL10n.string("settings.appearance.lyricsSize.small")
+        case .medium: SpotiglassL10n.string("settings.appearance.lyricsSize.medium")
+        case .large: SpotiglassL10n.string("settings.appearance.lyricsSize.large")
         }
     }
 
@@ -88,26 +117,30 @@ enum LyricsTextSize: String, Codable, CaseIterable, Equatable {
 
 /// Shell appearance preferences persisted in ``SpotiglassSettingsFile``.
 struct AppearanceSettings: Codable, Equatable {
+    var language: AppLanguage
     var colorScheme: AppearanceColorScheme
     var lyricsTextSize: LyricsTextSize
 
     init(
+        language: AppLanguage = AppLanguage.resolvedDefault(),
         colorScheme: AppearanceColorScheme = .system,
         lyricsTextSize: LyricsTextSize = .medium
     ) {
+        self.language = language
         self.colorScheme = colorScheme
         self.lyricsTextSize = lyricsTextSize
     }
 
-    /// Backward-compatible decode: files written before `lyricsTextSize` existed
-    /// default to `.medium` without failing the parse.
+    /// Backward-compatible decode for older `settings.json` files.
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        language = try container.decodeIfPresent(AppLanguage.self, forKey: .language) ?? AppLanguage.resolvedDefault()
         colorScheme = try container.decodeIfPresent(AppearanceColorScheme.self, forKey: .colorScheme) ?? .system
         lyricsTextSize = try container.decodeIfPresent(LyricsTextSize.self, forKey: .lyricsTextSize) ?? .medium
     }
 
     private enum CodingKeys: String, CodingKey {
+        case language
         case colorScheme
         case lyricsTextSize
     }

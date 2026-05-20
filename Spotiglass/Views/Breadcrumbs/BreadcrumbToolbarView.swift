@@ -16,7 +16,7 @@ struct BreadcrumbToolbarView: View {
                 .accessibilityHint(
                     viewModel.breadcrumbPath.isEmpty
                         ? ""
-                        : String(localized: "breadcrumb.home.hint")
+                        : SpotiglassL10n.string("breadcrumb.home.hint")
                 )
                 .contentShape(Rectangle())
                 .onTapGesture {
@@ -57,7 +57,7 @@ struct BreadcrumbToolbarView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(crumb.label)
         .accessibilityAddTraits(isLeaf ? [] : .isButton)
-        .accessibilityHint(isLeaf ? "" : String(localized: "breadcrumb.hint"))
+        .accessibilityHint(isLeaf ? "" : SpotiglassL10n.string("breadcrumb.hint"))
         .contentShape(Rectangle())
         .onTapGesture {
             guard !isLeaf else { return }

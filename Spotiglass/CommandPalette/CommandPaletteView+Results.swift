@@ -61,8 +61,8 @@ struct CommandPalettePrefetchProgressHeader: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
-                .help(String(localized: "palette.settings.cancelPrefetchHelp"))
-                .accessibilityLabel(String(localized: "palette.cancelPrefetch"))
+                .help(SpotiglassL10n.string("palette.settings.cancelPrefetchHelp"))
+                .accessibilityLabel(SpotiglassL10n.string("palette.cancelPrefetch"))
             }
         }
         .padding(.horizontal, SpotiglassDesign.spacingM)
@@ -74,28 +74,28 @@ struct CommandPalettePrefetchProgressHeader: View {
         let processed = progress.completed + progress.skipped + progress.failed
         switch progress.phase {
         case .running:
-            if progress.total == 0 { return String(localized: "palette.prefetch.preparing") }
+            if progress.total == 0 { return SpotiglassL10n.string("palette.prefetch.preparing") }
             return String(
-                format: String(localized: "palette.prefetch.loading"),
+                format: SpotiglassL10n.string("palette.prefetch.loading"),
                 processed,
                 progress.total
             )
         case .finished:
             if progress.failed == 0 {
                 return String(
-                    format: String(localized: "palette.prefetch.loadedAll"),
+                    format: SpotiglassL10n.string("palette.prefetch.loadedAll"),
                     progress.completed + progress.skipped
                 )
             }
             return String(
-                format: String(localized: "palette.prefetch.loadedPartial"),
+                format: SpotiglassL10n.string("palette.prefetch.loadedPartial"),
                 progress.completed + progress.skipped,
                 progress.total,
                 progress.failed
             )
         case .cancelled:
             return String(
-                format: String(localized: "palette.prefetch.cancelled"),
+                format: SpotiglassL10n.string("palette.prefetch.cancelled"),
                 processed,
                 progress.total
             )
@@ -120,7 +120,7 @@ struct CommandPaletteResultsBodyView: View {
             if hasUserQuery, !onlyPrefix, !trimmed.isEmpty, !viewModel.isLoading {
                 VStack {
                     Spacer()
-                    Text(String(format: String(localized: "palette.noResults"), trimmed))
+                    Text(String(format: SpotiglassL10n.string("palette.noResults"), trimmed))
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity)
@@ -155,14 +155,14 @@ struct CommandPaletteSearchingPlaceholderView: View {
                         .font(.system(size: 32, weight: .regular))
                         .foregroundStyle(.secondary)
                         .symbolRenderingMode(.hierarchical)
-                        .accessibilityLabel(String(localized: "palette.searching"))
+                        .accessibilityLabel(SpotiglassL10n.string("palette.searching"))
                 } else {
                     Image(systemName: "sparkles")
                         .font(.system(size: 32, weight: .regular))
                         .foregroundStyle(.secondary)
                         .symbolRenderingMode(.hierarchical)
                         .symbolEffect(.variableColor.iterative.reversing, options: .repeating)
-                        .accessibilityLabel(String(localized: "palette.searching"))
+                        .accessibilityLabel(SpotiglassL10n.string("palette.searching"))
                 }
             }
             Spacer()

@@ -3,8 +3,37 @@ import XCTest
 
 @MainActor
 final class CommandPaletteViewModelSectionsTests: XCTestCase {
+    /// Configures categories and filter before presentation so `show()` does not reset an invalid `.thisPlaylist` filter.
+    private func prepareSongSearch(
+        _ viewModel: CommandPaletteViewModel,
+        includeThisPlaylist: Bool = false,
+        category: CommandPaletteSearchCategory = .all
+    ) {
+        viewModel.setAvailableSearchCategories(
+            CommandPaletteSearchCategory.footerOrder(includeThisPlaylist: includeThisPlaylist),
+            refreshIfFilterInvalidated: false
+        )
+        viewModel.show()
+        viewModel.searchCategoryFilter = category
+    }
+
+    private func waitForPaletteSearch(
+        _ viewModel: CommandPaletteViewModel,
+        until sectionsCount: Int,
+        timeout: TimeInterval = 2
+    ) async {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if !viewModel.isLoading, viewModel.sections.count == sectionsCount {
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(25))
+        }
+    }
+
     func testLegacyAtPrefixSetsArtistCategoryAndStripsQuery() async {
         let viewModel = CommandPaletteViewModel()
+        defer { viewModel.hide() }
         viewModel.searchProvider = { _, _ in CommandPaletteSearchResults() }
 
         viewModel.show()
@@ -18,6 +47,7 @@ final class CommandPaletteViewModelSectionsTests: XCTestCase {
 
     func testTracksCategoryEmitsOnlyTracksSection() async {
         let viewModel = CommandPaletteViewModel()
+        defer { viewModel.hide() }
         viewModel.staticItemsProvider = {
             [
                 CommandPaletteItem(
@@ -55,11 +85,10 @@ final class CommandPaletteViewModelSectionsTests: XCTestCase {
             )
         }
 
-        viewModel.show()
-        viewModel.searchCategoryFilter = .tracks
+        prepareSongSearch(viewModel, category: .tracks)
         viewModel.query = "midnight"
         viewModel.refresh()
-        try? await Task.sleep(for: .milliseconds(400))
+        await waitForPaletteSearch(viewModel, until: 1)
 
         XCTAssertEqual(viewModel.sections.count, 1)
         XCTAssertEqual(viewModel.sections.first?.section, .tracks)
@@ -69,6 +98,7 @@ final class CommandPaletteViewModelSectionsTests: XCTestCase {
 
     func testAllCategoryEmitsPlaylistsThisPlaylistTracksArtistsAlbumsInOrder() async {
         let viewModel = CommandPaletteViewModel()
+        defer { viewModel.hide() }
         viewModel.searchProvider = { _, _ in
             CommandPaletteSearchResults(
                 tracks: [
@@ -124,11 +154,10 @@ final class CommandPaletteViewModelSectionsTests: XCTestCase {
             )
         }
 
-        viewModel.show()
-        viewModel.searchCategoryFilter = .all
+        prepareSongSearch(viewModel, includeThisPlaylist: true, category: .all)
         viewModel.query = "any"
         viewModel.refresh()
-        try? await Task.sleep(for: .milliseconds(400))
+        await waitForPaletteSearch(viewModel, until: 5)
 
         XCTAssertEqual(viewModel.sections.count, 5)
         XCTAssertEqual(viewModel.sections.map(\.section), [.playlists, .thisPlaylist, .tracks, .artists, .albums])
@@ -137,6 +166,7 @@ final class CommandPaletteViewModelSectionsTests: XCTestCase {
 
     func testArtistsCategoryEmitsOnlyArtistsSection() async {
         let viewModel = CommandPaletteViewModel()
+        defer { viewModel.hide() }
         viewModel.searchProvider = { _, _ in
             CommandPaletteSearchResults(
                 tracks: [
@@ -162,11 +192,10 @@ final class CommandPaletteViewModelSectionsTests: XCTestCase {
             )
         }
 
-        viewModel.show()
-        viewModel.searchCategoryFilter = .artists
+        prepareSongSearch(viewModel, category: .artists)
         viewModel.query = "m83"
         viewModel.refresh()
-        try? await Task.sleep(for: .milliseconds(400))
+        await waitForPaletteSearch(viewModel, until: 1)
 
         XCTAssertEqual(viewModel.sections.count, 1)
         XCTAssertEqual(viewModel.sections.first?.section, .artists)
@@ -175,6 +204,7 @@ final class CommandPaletteViewModelSectionsTests: XCTestCase {
 
     func testThisPlaylistCategoryEmitsOnlyThisPlaylistSection() async {
         let viewModel = CommandPaletteViewModel()
+        defer { viewModel.hide() }
         viewModel.searchProvider = { _, _ in
             CommandPaletteSearchResults(
                 tracks: [
@@ -200,12 +230,10 @@ final class CommandPaletteViewModelSectionsTests: XCTestCase {
             )
         }
 
-        viewModel.show()
-        viewModel.setAvailableSearchCategories(CommandPaletteSearchCategory.footerOrder(includeThisPlaylist: true))
-        viewModel.searchCategoryFilter = .thisPlaylist
+        prepareSongSearch(viewModel, includeThisPlaylist: true, category: .thisPlaylist)
         viewModel.query = "list"
         viewModel.refresh()
-        try? await Task.sleep(for: .milliseconds(400))
+        await waitForPaletteSearch(viewModel, until: 1)
 
         XCTAssertEqual(viewModel.sections.count, 1)
         XCTAssertEqual(viewModel.sections.first?.section, .thisPlaylist)
@@ -214,6 +242,7 @@ final class CommandPaletteViewModelSectionsTests: XCTestCase {
 
     func testMyPlaylistsCategoryEmitsOnlyMyPlaylistsSection() async {
         let viewModel = CommandPaletteViewModel()
+        defer { viewModel.hide() }
         viewModel.searchProvider = { _, _ in
             CommandPaletteSearchResults(
                 tracks: [
@@ -249,11 +278,10 @@ final class CommandPaletteViewModelSectionsTests: XCTestCase {
             )
         }
 
-        viewModel.show()
-        viewModel.searchCategoryFilter = .myPlaylists
+        prepareSongSearch(viewModel, category: .myPlaylists)
         viewModel.query = "list"
         viewModel.refresh()
-        try? await Task.sleep(for: .milliseconds(400))
+        await waitForPaletteSearch(viewModel, until: 1)
 
         XCTAssertEqual(viewModel.sections.count, 1)
         XCTAssertEqual(viewModel.sections.first?.section, .myPlaylists)
@@ -262,6 +290,7 @@ final class CommandPaletteViewModelSectionsTests: XCTestCase {
 
     func testAllCategoryMergesCatalogPlaylistsThenLibraryNotAlreadyInCatalog() async {
         let viewModel = CommandPaletteViewModel()
+        defer { viewModel.hide() }
         viewModel.searchProvider = { _, _ in
             CommandPaletteSearchResults(
                 catalogPlaylists: [
@@ -295,11 +324,10 @@ final class CommandPaletteViewModelSectionsTests: XCTestCase {
             )
         }
 
-        viewModel.show()
-        viewModel.searchCategoryFilter = .all
+        prepareSongSearch(viewModel, category: .all)
         viewModel.query = "any"
         viewModel.refresh()
-        try? await Task.sleep(for: .milliseconds(400))
+        await waitForPaletteSearch(viewModel, until: 1)
 
         XCTAssertEqual(viewModel.sections.count, 1)
         XCTAssertEqual(viewModel.sections.first?.section, .playlists)
@@ -308,6 +336,7 @@ final class CommandPaletteViewModelSectionsTests: XCTestCase {
 
     func testCommandsScopeEmitsOnlyCommandsSection() async {
         let viewModel = CommandPaletteViewModel()
+        defer { viewModel.hide() }
         viewModel.staticItemsProvider = {
             [
                 CommandPaletteItem(
@@ -346,7 +375,7 @@ final class CommandPaletteViewModelSectionsTests: XCTestCase {
         viewModel.show()
         viewModel.query = ">"
         viewModel.refresh()
-        try? await Task.sleep(for: .milliseconds(400))
+        await waitForPaletteSearch(viewModel, until: 1)
 
         XCTAssertEqual(viewModel.sections.count, 1)
         XCTAssertEqual(viewModel.sections.first?.section, .commands)
@@ -355,14 +384,15 @@ final class CommandPaletteViewModelSectionsTests: XCTestCase {
 
     func testNoResultsLeavesSectionsEmptyForNonEmptyQuery() async {
         let viewModel = CommandPaletteViewModel()
+        defer { viewModel.hide() }
         viewModel.searchProvider = { _, _ in
             CommandPaletteSearchResults()
         }
 
-        viewModel.show()
+        prepareSongSearch(viewModel, category: .tracks)
         viewModel.query = "nothing"
         viewModel.refresh()
-        try? await Task.sleep(for: .milliseconds(400))
+        await waitForPaletteSearch(viewModel, until: 0)
 
         XCTAssertTrue(viewModel.sections.isEmpty)
         XCTAssertTrue(viewModel.visibleItems.isEmpty)

@@ -2,9 +2,27 @@ name: Release artifact
 
 on:
   workflow_dispatch:
+    inputs:
+      marketing_version:
+        description: "Marketing version (e.g. 0.2.0)"
+        required: true
+        type: string
+      build_number:
+        description: "CFBundleVersion build number (must increase; default = run number)"
+        required: false
+        type: string
+      release_notes:
+        description: "Optional release notes (markdown)"
+        required: false
+        type: string
+      publish_sparkle_update:
+        description: "Publish GitHub Release + appcast (needs SPARKLE_EDDSA_PRIVATE_KEY secret)"
+        required: false
+        type: boolean
+        default: true
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -24,9 +42,14 @@ jobs:
       SCHEME: Spotiglass
       CONFIGURATION: Release
       DERIVED_DATA: ${{ github.workspace }}/build/DerivedData
+      MARKETING_VERSION: ${{ inputs.marketing_version }}
+      BUILD_NUMBER: ${{ inputs.build_number || github.run_number }}
+      SPARKLE_VERSION: "2.7.1"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Select latest stable Xcode
         uses: maxim-lobanov/setup-xcode@v1
@@ -40,6 +63,14 @@ jobs:
           xcodebuild -version
           xcrun --show-sdk-path --sdk macosx
           xcrun --show-sdk-version --sdk macosx
+          echo "Release version: ${MARKETING_VERSION} (${BUILD_NUMBER})"
+
+      - name: Resolve Swift packages
+        run: |
+          set -euo pipefail
+          xcodebuild -resolvePackageDependencies \
+            -project "$PROJECT" \
+            -scheme "$SCHEME"
 
       - name: Run unit tests with coverage
         run: |
@@ -70,6 +101,8 @@ jobs:
             -configuration "$CONFIGURATION" \
             -destination 'generic/platform=macOS' \
             -derivedDataPath "$DERIVED_DATA" \
+            MARKETING_VERSION="$MARKETING_VERSION" \
+            CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
@@ -99,3 +132,84 @@ jobs:
           if-no-files-found: error
           retention-days: 14
           include-hidden-files: false
+
+      - name: Prepare Sparkle update archive
+        if: inputs.publish_sparkle_update
+        run: |
+          set -euo pipefail
+          TAG="v${MARKETING_VERSION}"
+          APP_SOURCE="$DERIVED_DATA/Build/Products/$CONFIGURATION/Spotiglass.app"
+          ARCHIVES_DIR="$GITHUB_WORKSPACE/docs/sparkle-archives"
+          mkdir -p "$ARCHIVES_DIR"
+          ZIP_NAME="Spotiglass-${MARKETING_VERSION}.zip"
+          ditto -c -k --sequesterRsrc --keepParent "$APP_SOURCE" "$ARCHIVES_DIR/$ZIP_NAME"
+
+          if [ -n "${{ inputs.release_notes }}" ]; then
+            NOTES_FILE="$GITHUB_WORKSPACE/docs/release-notes/${TAG}.md"
+            mkdir -p "$(dirname "$NOTES_FILE")"
+            printf '%s\n' "${{ inputs.release_notes }}" > "$NOTES_FILE"
+            cp "$NOTES_FILE" "$ARCHIVES_DIR/Spotiglass-${MARKETING_VERSION}.md"
+          fi
+
+      - name: Install Sparkle release tools
+        if: inputs.publish_sparkle_update
+        run: |
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/build/sparkle"
+          curl -fsSL -o "$GITHUB_WORKSPACE/build/sparkle/Sparkle.tar.xz" \
+            "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-${SPARKLE_VERSION}.tar.xz"
+          tar -xf "$GITHUB_WORKSPACE/build/sparkle/Sparkle.tar.xz" -C "$GITHUB_WORKSPACE/build/sparkle"
+          echo "SPARKLE_BIN=$GITHUB_WORKSPACE/build/sparkle/Sparkle-${SPARKLE_VERSION}/bin" >> "$GITHUB_ENV"
+
+      - name: Generate appcast and sign update
+        if: inputs.publish_sparkle_update
+        env:
+          SPARKLE_EDDSA_PRIVATE_KEY: ${{ secrets.SPARKLE_EDDSA_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SPARKLE_EDDSA_PRIVATE_KEY:-}" ]; then
+            echo "::error::SPARKLE_EDDSA_PRIVATE_KEY secret is required when publish_sparkle_update is true."
+            exit 1
+          fi
+          TAG="v${MARKETING_VERSION}"
+          ARCHIVES_DIR="$GITHUB_WORKSPACE/docs/sparkle-archives"
+          DOWNLOAD_PREFIX="https://github.com/isaaclins/spotiglass/releases/download/${TAG}/"
+          printf '%s' "$SPARKLE_EDDSA_PRIVATE_KEY" > "$RUNNER_TEMP/sparkle_eddsa_private.key"
+          "$SPARKLE_BIN/generate_appcast" \
+            --ed-key-file "$RUNNER_TEMP/sparkle_eddsa_private.key" \
+            --download-url-prefix "$DOWNLOAD_PREFIX" \
+            --embed-release-notes \
+            -o "$GITHUB_WORKSPACE/docs/appcast.xml" \
+            "$ARCHIVES_DIR"
+          rm -f "$RUNNER_TEMP/sparkle_eddsa_private.key"
+
+      - name: Create GitHub Release
+        if: inputs.publish_sparkle_update
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="v${MARKETING_VERSION}"
+          ARCHIVES_DIR="$GITHUB_WORKSPACE/docs/sparkle-archives"
+          NOTES_ARG=()
+          if [ -n "${{ inputs.release_notes }}" ]; then
+            NOTES_ARG=(--notes-file "$GITHUB_WORKSPACE/docs/release-notes/${TAG}.md")
+          fi
+          shopt -s nullglob
+          ASSETS=("$ARCHIVES_DIR"/Spotiglass-"${MARKETING_VERSION}".zip "$ARCHIVES_DIR"/*.delta)
+          gh release create "$TAG" "${ASSETS[@]}" --title "Spotiglass ${MARKETING_VERSION}" "${NOTES_ARG[@]}"
+
+      - name: Publish appcast to docs (GitHub Pages)
+        if: inputs.publish_sparkle_update
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/appcast.xml docs/release-notes/ docs/sparkle-archives/ 2>/dev/null || true
+          git add docs/appcast.xml docs/release-notes/ || true
+          if git diff --staged --quiet; then
+            echo "No appcast changes to commit."
+            exit 0
+          fi
+          git commit -m "chore(release): Sparkle appcast for v${MARKETING_VERSION}"
+          git push

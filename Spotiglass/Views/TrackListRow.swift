@@ -43,7 +43,7 @@ struct TrackListRow: View {
                                 Circle().fill(SpotiglassDesign.mediaBadgeBackgroundColor(colorScheme: colorScheme))
                             )
                             .padding(2)
-                            .accessibilityLabel(String(localized: "browser.pinned"))
+                            .accessibilityLabel(SpotiglassL10n.string("browser.pinned"))
                     }
                 }
 
@@ -94,7 +94,7 @@ struct TrackListRow: View {
         }
         .contextMenu {
             if !track.artistRefs.isEmpty {
-                Menu(String(localized: "browser.track.openArtist")) {
+                Menu(SpotiglassL10n.string("browser.track.openArtist")) {
                     ForEach(track.artistRefs) { ref in
                         Button(ref.name) {
                             openArtist(ref.id)
@@ -102,18 +102,18 @@ struct TrackListRow: View {
                     }
                 }
             }
-            Button(String(localized: "browser.addToQueue")) {
+            Button(SpotiglassL10n.string("browser.addToQueue")) {
                 guard let uri = track.playableURI else { return }
                 Task { await addToQueue(uri) }
             }
             .disabled(!hasPlaybackDevice || track.playableURI == nil)
             if let pinned = track.pinnedTrackItem() {
                 if isTrackPinned {
-                    Button(String(localized: "browser.unpin")) {
+                    Button(SpotiglassL10n.string("browser.unpin")) {
                         pinnedStore.unpin(id: pinned.id)
                     }
                 } else {
-                    Button(String(localized: "browser.pin")) {
+                    Button(SpotiglassL10n.string("browser.pin")) {
                         pinnedStore.pin(pinned)
                     }
                 }
@@ -122,12 +122,12 @@ struct TrackListRow: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
             String(
-                format: String(localized: "browser.trackRow.accessibility"),
+                format: SpotiglassL10n.string("browser.trackRow.accessibility"),
                 "\(trackNumber)",
                 track.title,
                 track.subtitle,
                 track.durationText,
-                isCurrent ? String(localized: "browser.trackRow.nowPlaying") : ""
+                isCurrent ? SpotiglassL10n.string("browser.trackRow.nowPlaying") : ""
             )
         )
     }
@@ -143,7 +143,7 @@ struct TrackListRow: View {
             HStack(spacing: 0) {
                 ForEach(Array(track.artistRefs.enumerated()), id: \.element.id) { index, ref in
                     if index > 0 {
-                        Text("common.comma", bundle: .main)
+                        Text(SpotiglassL10n.string("common.comma"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

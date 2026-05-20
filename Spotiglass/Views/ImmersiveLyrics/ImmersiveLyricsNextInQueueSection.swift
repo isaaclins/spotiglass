@@ -9,7 +9,7 @@ struct ImmersiveLyricsNextInQueueSectionView: View {
     var body: some View {
         let upcoming = Array(queueViewModel.upcomingItems.prefix(3))
         VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
-            Text("lyrics.nextInQueue", bundle: .main)
+            Text(SpotiglassL10n.string("lyrics.nextInQueue"))
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.white.opacity(0.45))
                 .padding(.top, SpotiglassDesign.spacingS)
@@ -34,9 +34,9 @@ struct ImmersiveLyricsNextInQueueSectionView: View {
 
     private var nextInQueueEmptyMessage: String {
         if playbackViewModel.repeatMode == .track {
-            return String(localized: "lyrics.next.empty.repeat")
+            return SpotiglassL10n.string("lyrics.next.empty.repeat")
         }
-        return String(localized: "lyrics.next.empty.default")
+        return SpotiglassL10n.string("lyrics.next.empty.default")
     }
 }
 
@@ -80,7 +80,7 @@ struct ImmersiveLyricsQueueUpcomingSubtitleView: View {
                 HStack(spacing: 0) {
                     ForEach(Array(item.artistTapTargets.enumerated()), id: \.element.stableID) { index, target in
                         if index > 0 {
-                            Text("common.comma", bundle: .main)
+                            Text(SpotiglassL10n.string("common.comma"))
                                 .font(.caption)
                                 .foregroundStyle(.white.opacity(0.5))
                         }
@@ -93,7 +93,7 @@ struct ImmersiveLyricsQueueUpcomingSubtitleView: View {
                                 .lineLimit(2)
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel(String(format: String(localized: "lyrics.openArtist"), target.name))
+                        .accessibilityLabel(String(format: SpotiglassL10n.string("lyrics.openArtist"), target.name))
                     }
                     Spacer(minLength: 0)
                 }
@@ -115,7 +115,7 @@ struct ImmersiveLyricsQueueUpcomingSubtitleView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(String(format: String(localized: "lyrics.openAlbum"), albumName))
+                .accessibilityLabel(String(format: SpotiglassL10n.string("lyrics.openAlbum"), albumName))
             }
         }
     }

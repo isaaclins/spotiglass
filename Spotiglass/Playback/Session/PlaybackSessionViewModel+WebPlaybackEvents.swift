@@ -47,7 +47,7 @@ extension PlaybackSessionViewModel {
             }
         case let .initializationError(message):
             setConnectionState(.error(PlaybackDisplayError(
-                title: String(localized: "error.playback.couldNotStart.title"),
+                title: SpotiglassL10n.string("error.playback.couldNotStart.title"),
                 message: message,
                 recoveryAction: .reconnect
             )))
@@ -56,20 +56,20 @@ extension PlaybackSessionViewModel {
             }
         case let .authenticationError(message):
             setConnectionState(.error(PlaybackDisplayError(
-                title: String(localized: "error.playback.signInAgain.title"),
+                title: SpotiglassL10n.string("error.playback.signInAgain.title"),
                 message: message,
                 recoveryAction: .reauthenticate
             )))
         case let .accountError(message):
             setConnectionState(.error(PlaybackDisplayError(
-                title: String(localized: "error.playback.premium.title"),
+                title: SpotiglassL10n.string("error.playback.premium.title"),
                 message: message,
                 recoveryAction: nil
             )))
         case let .playbackError(message):
             clearTogglePlayPauseAckWait()
             setConnectionState(.error(PlaybackDisplayError(
-                title: String(localized: "error.playback.error.title"),
+                title: SpotiglassL10n.string("error.playback.error.title"),
                 message: message,
                 recoveryAction: .retryTransfer
             )))

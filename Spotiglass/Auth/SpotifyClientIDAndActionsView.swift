@@ -23,34 +23,34 @@ struct SpotifyClientIDAndActionsView: View {
                 Button {
                     triggerSignInIfAllowed()
                 } label: {
-                    Label(String(localized: "auth.connect.button"), systemImage: "arrow.right.circle.fill")
+                    Label(SpotiglassL10n.string("auth.connect.button"), systemImage: "arrow.right.circle.fill")
                         .symbolRenderingMode(.hierarchical)
                 }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
                 .disabled(!canSignIn)
-                .accessibilityHint(String(localized: "auth.connect.hint"))
+                .accessibilityHint(SpotiglassL10n.string("auth.connect.hint"))
 
                 if viewModel.state == .signingIn {
                     Button {
                         viewModel.cancelSignIn()
                     } label: {
-                        Label(String(localized: "auth.cancel.button"), systemImage: "xmark.circle")
+                        Label(SpotiglassL10n.string("auth.cancel.button"), systemImage: "xmark.circle")
                             .symbolRenderingMode(.hierarchical)
                     }
                     .buttonStyle(.bordered)
                     .keyboardShortcut(.cancelAction)
-                    .accessibilityHint(String(localized: "auth.cancel.hint"))
+                    .accessibilityHint(SpotiglassL10n.string("auth.cancel.hint"))
                 } else {
                     Button {
                         viewModel.signOut()
                     } label: {
-                        Label(String(localized: "auth.disconnect.button"), systemImage: "rectangle.portrait.and.arrow.right")
+                        Label(SpotiglassL10n.string("auth.disconnect.button"), systemImage: "rectangle.portrait.and.arrow.right")
                             .symbolRenderingMode(.hierarchical)
                     }
                     .buttonStyle(.bordered)
                     .disabled(!viewModel.state.isConnectedOrRefreshing)
-                    .accessibilityHint(String(localized: "auth.disconnect.hint"))
+                    .accessibilityHint(SpotiglassL10n.string("auth.disconnect.hint"))
                 }
             }
         }
@@ -60,17 +60,17 @@ struct SpotifyClientIDAndActionsView: View {
     private var clientIDField: some View {
         Group {
             if showsPlaintextClientID {
-                TextField(String(localized: "auth.clientID.label"), text: $viewModel.clientID)
+                TextField(SpotiglassL10n.string("auth.clientID.label"), text: $viewModel.clientID)
             } else {
-                SecureField(String(localized: "auth.clientID.label"), text: $viewModel.clientID)
+                SecureField(SpotiglassL10n.string("auth.clientID.label"), text: $viewModel.clientID)
             }
         }
         .textFieldStyle(.roundedBorder)
         .frame(maxWidth: layout == .welcome ? 420 : .infinity)
         .disabled(viewModel.state == .signingIn)
         .focused($isClientIDFocused)
-        .accessibilityLabel(String(localized: "auth.clientID.label"))
-        .accessibilityHint(String(localized: "auth.clientID.hint"))
+        .accessibilityLabel(SpotiglassL10n.string("auth.clientID.label"))
+        .accessibilityHint(SpotiglassL10n.string("auth.clientID.hint"))
         .onSubmit {
             triggerSignInIfAllowed()
         }

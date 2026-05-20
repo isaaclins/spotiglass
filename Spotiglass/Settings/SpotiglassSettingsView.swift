@@ -10,10 +10,10 @@ enum SpotiglassSettingsSection: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .playback: String(localized: "settings.section.playback")
-        case .appearance: String(localized: "settings.section.appearance")
-        case .account: String(localized: "settings.section.account")
-        case .keyboard: String(localized: "settings.section.keyboard")
+        case .playback: SpotiglassL10n.string("settings.section.playback")
+        case .appearance: SpotiglassL10n.string("settings.section.appearance")
+        case .account: SpotiglassL10n.string("settings.section.account")
+        case .keyboard: SpotiglassL10n.string("settings.section.keyboard")
         }
     }
 

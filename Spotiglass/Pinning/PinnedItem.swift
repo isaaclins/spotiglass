@@ -53,7 +53,7 @@ extension PinnedItem {
             id: id(forKind: .artist, spotifyID: artist.id),
             kind: .artist,
             title: artist.name,
-            subtitle: String(localized: "browser.palette.subtitle.artist"),
+            subtitle: SpotiglassL10n.string("browser.palette.subtitle.artist"),
             artworkURL: artist.imageURL,
             spotifyURI: artist.uri,
             isStale: false
@@ -66,7 +66,7 @@ extension PinnedItem {
             id: id(forKind: .artist, spotifyID: artist.id),
             kind: .artist,
             title: artist.name,
-            subtitle: String(localized: "browser.palette.subtitle.artist"),
+            subtitle: SpotiglassL10n.string("browser.palette.subtitle.artist"),
             artworkURL: artist.imageURL,
             spotifyURI: artist.uri,
             isStale: false
@@ -78,7 +78,7 @@ extension PinnedItem {
             id: id(forKind: .album, spotifyID: album.id),
             kind: .album,
             title: album.name,
-            subtitle: album.releaseYear ?? String(localized: "pin.album.default"),
+            subtitle: album.releaseYear ?? SpotiglassL10n.string("pin.album.default"),
             artworkURL: album.imageURL,
             spotifyURI: album.uri,
             isStale: false
@@ -113,7 +113,7 @@ extension PinnedItem {
         PinnedItem(
             id: PinnedItem.likedSongsID,
             kind: .likedSongs,
-            title: String(localized: "pin.likedSongs"),
+            title: SpotiglassL10n.string("pin.likedSongs"),
             subtitle: ownerDisplay,
             artworkURL: artworkURL,
             spotifyURI: nil,

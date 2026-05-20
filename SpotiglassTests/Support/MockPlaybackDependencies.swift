@@ -118,6 +118,7 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
     }
 
     var queueResponse = SpotifyQueueResponse(queue: [])
+    var addToQueueErrors: [Error] = []
 
     func fetchQueue() async throws -> SpotifyQueueResponse {
         actions.append("fetchQueue")
@@ -126,6 +127,9 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
 
     func addToQueue(uri: String, deviceID: String) async throws {
         actions.append("addToQueue:\(deviceID):\(uri)")
+        if !addToQueueErrors.isEmpty {
+            throw addToQueueErrors.removeFirst()
+        }
     }
 
     func fetchPlayerSnapshot() async throws -> SpotifyPlayerSnapshot? {

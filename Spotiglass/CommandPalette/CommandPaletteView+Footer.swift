@@ -26,14 +26,14 @@ struct CommandPaletteHintsChipView: View {
 
     var body: some View {
         HStack(spacing: SpotiglassDesign.spacingS) {
-            Text("palette.footer.navigate", bundle: .main)
-            Text("palette.footer.run", bundle: .main)
-            Text("palette.footer.close", bundle: .main)
+            Text(SpotiglassL10n.string("palette.footer.navigate"))
+            Text(SpotiglassL10n.string("palette.footer.run"))
+            Text(SpotiglassL10n.string("palette.footer.close"))
             if viewModel.canEnqueueSelectedItem {
-                Text("palette.footer.queue", bundle: .main)
+                Text(SpotiglassL10n.string("palette.footer.queue"))
             }
             if viewModel.canPinSelectedItem {
-                Text("palette.footer.pin", bundle: .main)
+                Text(SpotiglassL10n.string("palette.footer.pin"))
             }
         }
         .font(.caption)
@@ -49,9 +49,9 @@ struct CommandPaletteCommandsHintChipView: View {
     var paletteGlass: Namespace.ID
 
     var body: some View {
-        (Text("palette.footer.searchHintPrefix", bundle: .main)
-            + Text("palette.footer.searchPrefix", bundle: .main).foregroundStyle(.tertiary)
-            + Text("palette.footer.searchHintSuffix", bundle: .main))
+        (Text(SpotiglassL10n.string("palette.footer.searchHintPrefix"))
+            + Text(SpotiglassL10n.string("palette.footer.searchPrefix")).foregroundStyle(.tertiary)
+            + Text(SpotiglassL10n.string("palette.footer.searchHintSuffix")))
             .multilineTextAlignment(.trailing)
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -77,7 +77,7 @@ struct CommandPaletteCategoryPillsRowView: View {
             }
         }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(String(localized: "palette.category.accessibility"))
+        .accessibilityLabel(SpotiglassL10n.string("palette.category.accessibility"))
     }
 }
 

@@ -159,7 +159,7 @@ struct PlaylistBrowserMainDetailColumn: View {
                     if case let .staleCache(_, error) = viewModel.detailState {
                         StaleCacheBanner(error: error)
                     } else if case .refreshing = viewModel.detailState {
-                        ProgressView(String(localized: "browser.refreshingDetail"))
+                        ProgressView(SpotiglassL10n.string("browser.refreshingDetail"))
                             .controlSize(.small)
                             .padding(SpotiglassDesign.spacingS)
                             .background(.background, in: Capsule())
@@ -167,7 +167,7 @@ struct PlaylistBrowserMainDetailColumn: View {
                     }
                 }
             case let .empty(message):
-                EmptyStateView(title: String(localized: "browser.noTracks.title"), message: message)
+                EmptyStateView(title: SpotiglassL10n.string("browser.noTracks.title"), message: message)
             case let .error(error):
                 ErrorStateView(error: error)
             }

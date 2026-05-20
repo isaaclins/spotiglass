@@ -6,36 +6,36 @@ struct AccountSettingsView: View {
     var body: some View {
         Form {
             Section {
-                LabeledContent(String(localized: "settings.account.status")) {
+                LabeledContent(SpotiglassL10n.string("settings.account.status")) {
                     Text(viewModel.state.title)
                 }
                 if let session = activeSession {
-                    LabeledContent(String(localized: "settings.account.accessToken")) {
+                    LabeledContent(SpotiglassL10n.string("settings.account.accessToken")) {
                         Text(
                             String(
-                                format: String(localized: "settings.account.validUntil"),
+                                format: SpotiglassL10n.string("settings.account.validUntil"),
                                 session.expiresAt.formatted(date: .omitted, time: .shortened)
                             )
                         )
                             .foregroundStyle(.secondary)
                     }
                 } else {
-                    LabeledContent(String(localized: "settings.account.details")) {
+                    LabeledContent(SpotiglassL10n.string("settings.account.details")) {
                         Text(viewModel.state.message)
                             .foregroundStyle(.secondary)
                             .textSelection(.enabled)
                     }
                 }
             } header: {
-                Text("settings.account.connection", bundle: .main)
+                Text(SpotiglassL10n.string("settings.account.connection"))
             }
 
             Section {
                 SpotifyClientIDAndActionsView(viewModel: viewModel, layout: .settings)
             } header: {
-                Text("settings.account.developerApp", bundle: .main)
+                Text(SpotiglassL10n.string("settings.account.developerApp"))
             } footer: {
-                Text("settings.account.developerApp.hint", bundle: .main)
+                Text(SpotiglassL10n.string("settings.account.developerApp.hint"))
                     .foregroundStyle(.secondary)
             }
         }

@@ -63,13 +63,13 @@ enum CommandPaletteSection: String {
 
     var displayLabel: String {
         switch self {
-        case .tracks: String(localized: "palette.section.tracks")
-        case .artists: String(localized: "palette.section.artists")
-        case .commands: String(localized: "palette.section.commands")
-        case .playlists: String(localized: "palette.section.playlists")
-        case .thisPlaylist: String(localized: "palette.section.thisPlaylist")
-        case .myPlaylists: String(localized: "palette.section.myPlaylists")
-        case .albums: String(localized: "palette.section.albums")
+        case .tracks: SpotiglassL10n.string("palette.section.tracks")
+        case .artists: SpotiglassL10n.string("palette.section.artists")
+        case .commands: SpotiglassL10n.string("palette.section.commands")
+        case .playlists: SpotiglassL10n.string("palette.section.playlists")
+        case .thisPlaylist: SpotiglassL10n.string("palette.section.thisPlaylist")
+        case .myPlaylists: SpotiglassL10n.string("palette.section.myPlaylists")
+        case .albums: SpotiglassL10n.string("palette.section.albums")
         }
     }
 }

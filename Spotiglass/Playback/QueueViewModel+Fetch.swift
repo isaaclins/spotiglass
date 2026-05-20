@@ -327,35 +327,35 @@ extension QueueViewModel {
             switch apiError {
             case .unauthorized:
                 return BrowsingDisplayError(
-                    title: String(localized: "error.queue.signInAgain.title"),
-                    message: String(localized: "error.queue.signInAgain.message"),
+                    title: SpotiglassL10n.string("error.queue.signInAgain.title"),
+                    message: SpotiglassL10n.string("error.queue.signInAgain.message"),
                     canRetry: false
                 )
             case let .forbidden(message, _):
                 return BrowsingDisplayError(
-                    title: String(localized: "error.queue.loadFailed.title"),
-                    message: message ?? String(localized: "error.queue.loadFailed.message"),
+                    title: SpotiglassL10n.string("error.queue.loadFailed.title"),
+                    message: message ?? SpotiglassL10n.string("error.queue.loadFailed.message"),
                     canRetry: false
                 )
             case let .rateLimited(retryAfter):
                 let clause = SpotifyRateLimitDisplay.retryAfterClause(seconds: retryAfter)
                 return BrowsingDisplayError(
-                    title: String(localized: "error.queue.rateLimited.title"),
-                    message: String(format: String(localized: "error.queue.rateLimited.message"), clause),
+                    title: SpotiglassL10n.string("error.queue.rateLimited.title"),
+                    message: String(format: SpotiglassL10n.string("error.queue.rateLimited.message"), clause),
                     canRetry: true,
                     diagnosticDetails: SpotifyRateLimitDisplay.rawRetryDiagnostic(seconds: retryAfter)
                 )
             default:
                 return BrowsingDisplayError(
-                    title: String(localized: "error.queue.updateFailed.title"),
-                    message: String(format: String(localized: "error.queue.updateFailed.message"), String(describing: apiError)),
+                    title: SpotiglassL10n.string("error.queue.updateFailed.title"),
+                    message: String(format: SpotiglassL10n.string("error.queue.updateFailed.message"), String(describing: apiError)),
                     canRetry: true
                 )
             }
         }
         return BrowsingDisplayError(
-            title: String(localized: "error.queue.updateFailed.title"),
-            message: String(format: String(localized: "error.queue.updateFailed.message"), error.localizedDescription),
+            title: SpotiglassL10n.string("error.queue.updateFailed.title"),
+            message: String(format: SpotiglassL10n.string("error.queue.updateFailed.message"), error.localizedDescription),
             canRetry: true
         )
     }
@@ -384,8 +384,8 @@ extension QueueViewModel {
         let normalizedRetry = max(0, retryAfter)
         let clause = SpotifyRateLimitDisplay.retryAfterClause(seconds: normalizedRetry)
         return BrowsingDisplayError(
-            title: String(localized: "error.queue.rateLimited.title"),
-            message: String(format: String(localized: "error.queue.rateLimited.message"), clause),
+            title: SpotiglassL10n.string("error.queue.rateLimited.title"),
+            message: String(format: SpotiglassL10n.string("error.queue.rateLimited.message"), clause),
             canRetry: true,
             diagnosticDetails: SpotifyRateLimitDisplay.rawRetryDiagnostic(seconds: normalizedRetry)
         )

@@ -426,16 +426,16 @@ final class PlaybackSessionViewModel: ObservableObject {
 
     static func playbackDeviceNotReadyError() -> PlaybackDisplayError {
         PlaybackDisplayError(
-            title: String(localized: "error.playback.deviceUnavailable.title"),
-            message: String(localized: "error.playback.deviceUnavailable.notReady"),
+            title: SpotiglassL10n.string("error.playback.deviceUnavailable.title"),
+            message: SpotiglassL10n.string("error.playback.deviceUnavailable.notReady"),
             recoveryAction: .reconnect
         )
     }
 
     static func playbackDeviceReconnectRequiredError() -> PlaybackDisplayError {
         PlaybackDisplayError(
-            title: String(localized: "error.playback.deviceUnavailable.title"),
-            message: String(localized: "error.playback.deviceUnavailable.reconnect"),
+            title: SpotiglassL10n.string("error.playback.deviceUnavailable.title"),
+            message: SpotiglassL10n.string("error.playback.deviceUnavailable.reconnect"),
             recoveryAction: .reconnect
         )
     }
@@ -445,41 +445,41 @@ final class PlaybackSessionViewModel: ObservableObject {
             switch apiError {
             case .unauthorized:
                 return PlaybackDisplayError(
-                    title: String(localized: "error.playback.signInAgain.title"),
-                    message: String(localized: "error.playback.signInAgain.message"),
+                    title: SpotiglassL10n.string("error.playback.signInAgain.title"),
+                    message: SpotiglassL10n.string("error.playback.signInAgain.message"),
                     recoveryAction: .reauthenticate
                 )
             case let .forbidden(message, _):
                 return PlaybackDisplayError(
-                    title: String(localized: "error.playback.premium.title"),
-                    message: message ?? String(localized: "error.playback.premium.message"),
+                    title: SpotiglassL10n.string("error.playback.premium.title"),
+                    message: message ?? SpotiglassL10n.string("error.playback.premium.message"),
                     recoveryAction: nil
                 )
             case let .rateLimited(retryAfter):
                 let clause = SpotifyRateLimitDisplay.retryAfterClause(seconds: retryAfter)
                 return PlaybackDisplayError(
-                    title: String(localized: "error.playback.rateLimited.title"),
-                    message: String(format: String(localized: "error.playback.rateLimited.message"), clause),
+                    title: SpotiglassL10n.string("error.playback.rateLimited.title"),
+                    message: String(format: SpotiglassL10n.string("error.playback.rateLimited.message"), clause),
                     recoveryAction: .retryTransfer
                 )
             default:
                 return PlaybackDisplayError(
-                    title: String(localized: "error.playback.commandFailed.title"),
-                    message: String(format: String(localized: "error.playback.commandFailed.message"), String(describing: apiError)),
+                    title: SpotiglassL10n.string("error.playback.commandFailed.title"),
+                    message: String(format: SpotiglassL10n.string("error.playback.commandFailed.message"), String(describing: apiError)),
                     recoveryAction: .retryTransfer
                 )
             }
         }
         return PlaybackDisplayError(
-            title: String(localized: "error.playback.commandFailed.title"),
-            message: String(format: String(localized: "error.playback.commandFailed.message"), error.localizedDescription),
+            title: SpotiglassL10n.string("error.playback.commandFailed.title"),
+            message: String(format: SpotiglassL10n.string("error.playback.commandFailed.message"), error.localizedDescription),
             recoveryAction: .retryTransfer
         )
     }
 
     func fallbackNowPlaying() -> PlaybackNowPlaying {
         PlaybackNowPlaying(
-            name: String(localized: "playback.fallbackName"),
+            name: SpotiglassL10n.string("playback.fallbackName"),
             artists: [],
             albumName: nil,
             albumID: nil,

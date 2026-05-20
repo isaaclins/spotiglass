@@ -36,6 +36,10 @@ final class SpotiglassSettingsStore: ObservableObject {
 
     // MARK: - Public API
 
+    var appLocale: Locale {
+        Locale(identifier: settings.appearance.language.rawValue)
+    }
+
     func updateKeybinds(_ keybinds: [CommandPaletteKeyBinding]) throws {
         var next = settings
         next.keybinds = keybinds

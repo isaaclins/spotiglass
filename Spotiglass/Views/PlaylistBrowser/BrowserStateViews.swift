@@ -51,12 +51,12 @@ struct ErrorStateView: View {
         }
         .alert(error.title, isPresented: $isShowingDiagnosticAlert) {
             if let diagnosticDetails = error.diagnosticDetails {
-                Button(String(localized: "browser.copyError")) {
+                Button(SpotiglassL10n.string("browser.copyError")) {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(diagnosticDetails, forType: .string)
                 }
             }
-            Button(String(localized: "browser.ok"), role: .cancel) {}
+            Button(SpotiglassL10n.string("browser.ok"), role: .cancel) {}
         } message: {
             Text(error.diagnosticDetails ?? error.message)
         }
@@ -67,7 +67,7 @@ struct StaleCacheBanner: View {
     let error: BrowsingDisplayError?
 
     var body: some View {
-        Text(error?.message ?? String(localized: "browser.cachedFallback"))
+        Text(error?.message ?? SpotiglassL10n.string("browser.cachedFallback"))
             .font(.caption)
             .padding(SpotiglassDesign.spacingS)
             .background(.background, in: Capsule())

@@ -32,29 +32,29 @@ enum KeychainRefreshTokenStoreError: Error, Equatable, LocalizedError {
     private static func message(forUnexpectedStatus status: OSStatus) -> String {
         switch status {
         case errSecMissingEntitlement:
-            return String(localized: "auth.keychain.missingEntitlement")
+            return SpotiglassL10n.string("auth.keychain.missingEntitlement")
         case errSecInteractionNotAllowed:
-            return String(localized: "auth.keychain.interactionNotAllowed")
+            return SpotiglassL10n.string("auth.keychain.interactionNotAllowed")
         case errSecAuthFailed:
-            return String(localized: "auth.keychain.authFailed")
+            return SpotiglassL10n.string("auth.keychain.authFailed")
         case errSecDuplicateItem:
-            return String(localized: "auth.keychain.duplicate")
+            return SpotiglassL10n.string("auth.keychain.duplicate")
         case errSecReadOnly:
-            return String(localized: "auth.keychain.readOnly")
+            return SpotiglassL10n.string("auth.keychain.readOnly")
         case errSecNotAvailable:
-            return String(localized: "auth.keychain.notAvailable")
+            return SpotiglassL10n.string("auth.keychain.notAvailable")
         case errSecIO:
-            return String(localized: "auth.keychain.io")
+            return SpotiglassL10n.string("auth.keychain.io")
         case errSecParam:
-            return String(localized: "auth.keychain.param")
+            return SpotiglassL10n.string("auth.keychain.param")
         case errSecAllocate:
-            return String(localized: "auth.keychain.allocate")
+            return SpotiglassL10n.string("auth.keychain.allocate")
         case errSecDecode:
-            return String(localized: "auth.keychain.decode")
+            return SpotiglassL10n.string("auth.keychain.decode")
         default:
             let suffix = SecCopyErrorMessageString(status, nil).map { " — \($0 as String)" } ?? ""
             return String(
-                format: String(localized: "auth.keychain.generic"),
+                format: SpotiglassL10n.string("auth.keychain.generic"),
                 status,
                 suffix
             )

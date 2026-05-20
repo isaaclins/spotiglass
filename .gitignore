@@ -15,3 +15,9 @@ Package.resolved
 # Autoresearch / local experiment logs (optional local only)
 results.tsv
 run.log
+
+# Sparkle signing (never commit)
+scripts/sparkle_eddsa_private.key
+
+# Sparkle release staging (zip/delta); appcast.xml in docs/ is committed
+docs/sparkle-archives/

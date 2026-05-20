@@ -301,7 +301,7 @@ struct LyricsReturnToCurrentLinePill: View {
 
     var body: some View {
         Button(action: action) {
-            Label(String(localized: "lyrics.returnToLine"), systemImage: "scope")
+            Label(SpotiglassL10n.string("lyrics.returnToLine"), systemImage: "scope")
                 .labelStyle(.titleAndIcon)
                 .font(.callout.weight(.semibold))
                 .symbolEffect(.pulse, options: .repeating, value: iconPulse)
@@ -313,6 +313,6 @@ struct LyricsReturnToCurrentLinePill: View {
             verticalPadding: ImmersiveLyricsLayout.resumePillVerticalPadding
         ))
         .onAppear { iconPulse.toggle() }
-        .accessibilityLabel(String(localized: "lyrics.returnToLine"))
+        .accessibilityLabel(SpotiglassL10n.string("lyrics.returnToLine"))
     }
 }

@@ -177,6 +177,23 @@ final class ZHotkeyRecorderFieldTests: XCTestCase {
         view.coordinator?.teardownMonitors()
     }
 
+    func testHostedRepresentableUpdateAndTeardown() throws {
+        let url = makeCommandPaletteTestsTempSettingsURL()
+        let settings = SpotiglassSettingsStore(fileURL: url)
+        let keymap = CommandPaletteKeymapStore(settingsStore: settings)
+        harnessRoots.append(settings)
+        harnessRoots.append(keymap)
+        let field = HotkeyRecorderField(
+            commandID: CommandPaletteCommandID.openSettings,
+            keymapStore: keymap,
+            onRecordingChange: { _ in },
+            onCaptureConflict: { _, _ in },
+            onApplied: {}
+        )
+        ViewTestHost.host(field.frame(width: 220, height: 32), size: CGSize(width: 240, height: 40))
+        field.keymapStore.lastError = nil
+    }
+
     func testSwiftUIRepresentableMounts() throws {
         let url = makeCommandPaletteTestsTempSettingsURL()
         let settings = SpotiglassSettingsStore(fileURL: url)

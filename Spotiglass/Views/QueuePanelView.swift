@@ -33,7 +33,7 @@ struct QueuePanelView: View {
     private var header: some View {
         HStack {
             VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
-                Text("queue.title", bundle: .main)
+                Text(SpotiglassL10n.string("queue.title"))
                     .font(.title2.weight(.semibold))
                 Text(subtitleText)
                     .font(.caption)
@@ -49,11 +49,11 @@ struct QueuePanelView: View {
             .disabled(playbackViewModel.deviceID == nil)
             .accessibilityLabel(
                 playbackViewModel.shuffleEnabled
-                    ? String(localized: "queue.shuffle.on")
-                    : String(localized: "queue.shuffle.off")
+                    ? SpotiglassL10n.string("queue.shuffle.on")
+                    : SpotiglassL10n.string("queue.shuffle.off")
             )
-            .accessibilityHint(String(localized: "queue.shuffle.hint"))
-            .help(String(localized: "queue.help.shuffle"))
+            .accessibilityHint(SpotiglassL10n.string("queue.shuffle.hint"))
+            .help(SpotiglassL10n.string("queue.help.shuffle"))
         }
         .padding(SpotiglassDesign.spacingM)
     }
@@ -61,20 +61,20 @@ struct QueuePanelView: View {
     private var subtitleText: String {
         switch playbackViewModel.repeatMode {
         case .track:
-            return String(localized: "queue.subtitle.repeatOne")
+            return SpotiglassL10n.string("queue.subtitle.repeatOne")
         case .off:
             return upcomingCountLine
         case .context:
-            return String(format: String(localized: "queue.subtitle.repeatPlaylist"), upcomingCountLine)
+            return String(format: SpotiglassL10n.string("queue.subtitle.repeatPlaylist"), upcomingCountLine)
         }
     }
 
     private var upcomingCountLine: String {
         let count = queueViewModel.upcomingItems.count
         if count == 1 {
-            return String(localized: "queue.subtitle.oneTrackUpNext")
+            return SpotiglassL10n.string("queue.subtitle.oneTrackUpNext")
         }
-        return String(format: String(localized: "queue.subtitle.tracksUpNext"), count)
+        return String(format: SpotiglassL10n.string("queue.subtitle.tracksUpNext"), count)
     }
 
     private func errorBanner(_ error: BrowsingDisplayError) -> some View {
@@ -84,7 +84,7 @@ struct QueuePanelView: View {
             Text(error.message)
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Button(String(localized: "queue.dismiss")) {
+            Button(SpotiglassL10n.string("queue.dismiss")) {
                 queueViewModel.clearError()
             }
             .buttonStyle(.borderless)
@@ -99,7 +99,7 @@ struct QueuePanelView: View {
     @ViewBuilder
     private var nowPlayingSection: some View {
         VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
-            Text("queue.nowPlaying", bundle: .main)
+            Text(SpotiglassL10n.string("queue.nowPlaying"))
                 .font(.headline)
 
             ZStack {
@@ -117,7 +117,7 @@ struct QueuePanelView: View {
                     .id("now-playing-row:\(item.id)")
                     .transition(.opacity.combined(with: .scale(scale: 0.98)))
                 } else {
-                    Text("queue.nothingPlaying", bundle: .main)
+                    Text(SpotiglassL10n.string("queue.nothingPlaying"))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -133,7 +133,7 @@ struct QueuePanelView: View {
     @ViewBuilder
     private var upNextSection: some View {
         VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
-            Text("queue.upNext", bundle: .main)
+            Text(SpotiglassL10n.string("queue.upNext"))
                 .font(.headline)
 
             if queueViewModel.upcomingItems.isEmpty {
@@ -172,9 +172,9 @@ struct QueuePanelView: View {
 
     private var upNextEmptyMessage: String {
         if playbackViewModel.repeatMode == .track {
-            return String(localized: "queue.upNext.empty.repeat")
+            return SpotiglassL10n.string("queue.upNext.empty.repeat")
         }
-        return String(localized: "queue.upNext.empty.default")
+        return SpotiglassL10n.string("queue.upNext.empty.default")
     }
 
     private func copyURI(_ uri: String?) {
@@ -220,14 +220,14 @@ private struct QueueRowView: View {
         .contentShape(Rectangle())
         .onTapGesture(perform: onSelect)
         .contextMenu {
-            Button(String(localized: "queue.playNow"), action: onSelect)
+            Button(SpotiglassL10n.string("queue.playNow"), action: onSelect)
             if item.uri != nil {
-                Button(String(localized: "queue.copyURI"), action: onCopyURI)
+                Button(SpotiglassL10n.string("queue.copyURI"), action: onCopyURI)
             }
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
-            String(format: String(localized: "queue.item.accessibility"), item.name, item.subtitle)
+            String(format: SpotiglassL10n.string("queue.item.accessibility"), item.name, item.subtitle)
         )
     }
 
@@ -242,7 +242,7 @@ private struct QueueRowView: View {
             HStack(spacing: 0) {
                 ForEach(Array(item.artistTapTargets.enumerated()), id: \.element.stableID) { index, target in
                     if index > 0 {
-                        Text("common.comma", bundle: .main)
+                        Text(SpotiglassL10n.string("common.comma"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -256,7 +256,7 @@ private struct QueueRowView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(
-                        String(format: String(localized: "queue.openArtist"), target.name)
+                        String(format: SpotiglassL10n.string("queue.openArtist"), target.name)
                     )
                 }
                 Spacer(minLength: 0)

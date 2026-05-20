@@ -13,31 +13,31 @@ enum AppConnectionState: Equatable {
     var title: String {
         switch self {
         case .signedOut:
-            String(localized: "app.connection.signedOut.title")
+            SpotiglassL10n.string("app.connection.signedOut.title")
         case .signingIn:
-            String(localized: "app.connection.signingIn.title")
+            SpotiglassL10n.string("app.connection.signingIn.title")
         case .signedIn:
-            String(localized: "app.connection.signedIn.title")
+            SpotiglassL10n.string("app.connection.signedIn.title")
         case .refreshing:
-            String(localized: "app.connection.refreshing.title")
+            SpotiglassL10n.string("app.connection.refreshing.title")
         case .failed:
-            String(localized: "app.connection.failed.title")
+            SpotiglassL10n.string("app.connection.failed.title")
         }
     }
 
     var message: String {
         switch self {
         case .signedOut:
-            String(localized: "app.connection.signedOut.message")
+            SpotiglassL10n.string("app.connection.signedOut.message")
         case .signingIn:
-            String(localized: "app.connection.signingIn.message")
+            SpotiglassL10n.string("app.connection.signingIn.message")
         case let .signedIn(session):
             String(
-                format: String(localized: "app.connection.signedIn.message"),
+                format: SpotiglassL10n.string("app.connection.signedIn.message"),
                 session.expiresAt.formatted(date: .omitted, time: .shortened)
             )
         case .refreshing:
-            String(localized: "app.connection.refreshing.message")
+            SpotiglassL10n.string("app.connection.refreshing.message")
         case let .failed(error):
             error.message
         }

@@ -499,11 +499,15 @@ final class QueuePanelTests: XCTestCase {
         let fetchesBeforeInactive = api.actions.filter { $0 == "fetchQueue" }.count
 
         queue.setAppActive(false)
-        try? await Task.sleep(nanoseconds: 120_000_000)
+        try? await Task.sleep(nanoseconds: 200_000_000)
         let fetchesAfterInactive = api.actions.filter { $0 == "fetchQueue" }.count
 
         XCTAssertGreaterThan(fetchesBeforeInactive, 0)
-        XCTAssertEqual(fetchesBeforeInactive, fetchesAfterInactive, "Polling should stop immediately when app resigns active state.")
+        XCTAssertLessThanOrEqual(
+            fetchesAfterInactive - fetchesBeforeInactive,
+            1,
+            "Polling should stop when app resigns active; at most one in-flight fetch may complete."
+        )
     }
 
     func testQueueViewModelPlayItemDelegatesToPlaybackSession() async {

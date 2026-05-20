@@ -37,16 +37,26 @@ struct LibraryPinnedItemDropDelegate: DropDelegate {
     }
 
     func dropEntered(info: DropInfo) {
-        updateInsertionIndex(info.location)
+        Self.trackInsertion(at: info.location, update: updateInsertionIndex)
     }
 
     func dropUpdated(info: DropInfo) -> DropProposal? {
-        updateInsertionIndex(info.location)
-        return DropProposal(operation: .copy)
+        Self.trackInsertion(at: info.location, update: updateInsertionIndex)
+        return Self.dropProposal
     }
 
     func dropExited(info: DropInfo) {
-        clearInsertionIndex()
+        Self.clearInsertion(update: clearInsertionIndex)
+    }
+
+    static let dropProposal = DropProposal(operation: .copy)
+
+    static func trackInsertion(at location: CGPoint, update: (CGPoint) -> Void) {
+        update(location)
+    }
+
+    static func clearInsertion(update: () -> Void) {
+        update()
     }
 
     func performDrop(info: DropInfo) -> Bool {
@@ -54,32 +64,26 @@ struct LibraryPinnedItemDropDelegate: DropDelegate {
         clearInsertionIndex()
         if let provider = info.itemProviders(for: [UTType.spotiglassPinnedItem]).first {
             provider.loadDataRepresentation(forTypeIdentifier: UTType.spotiglassPinnedItem.identifier) { data, _ in
-                guard let data,
-                      let transfer = try? JSONDecoder().decode(PinnedItemTransfer.self, from: data)
-                else {
-                    Task { @MainActor in clearDragPreview() }
-                    return
-                }
                 Task { @MainActor in
-                    if !performPinnedDrop(transfer, location) {
-                        clearDragPreview()
-                    }
+                    Self.handlePinnedPayload(
+                        data: data,
+                        location: location,
+                        performPinnedDrop: performPinnedDrop,
+                        clearDragPreview: clearDragPreview
+                    )
                 }
             }
             return true
         }
         if let provider = info.itemProviders(for: [UTType.spotiglassLibrarySidebarRow]).first {
             provider.loadDataRepresentation(forTypeIdentifier: UTType.spotiglassLibrarySidebarRow.identifier) { data, _ in
-                guard let data,
-                      let transfer = try? JSONDecoder().decode(LibrarySidebarRowTransfer.self, from: data)
-                else {
-                    Task { @MainActor in clearDragPreview() }
-                    return
-                }
                 Task { @MainActor in
-                    if !performLibraryRowDrop(transfer, location) {
-                        clearDragPreview()
-                    }
+                    Self.handleLibraryRowPayload(
+                        data: data,
+                        location: location,
+                        performLibraryRowDrop: performLibraryRowDrop,
+                        clearDragPreview: clearDragPreview
+                    )
                 }
             }
             return true
@@ -90,33 +94,90 @@ struct LibraryPinnedItemDropDelegate: DropDelegate {
             for typeIdentifier in candidates {
                 if !provider.hasItemConformingToTypeIdentifier(typeIdentifier) { continue }
                 provider.loadDataRepresentation(forTypeIdentifier: typeIdentifier) { data, _ in
-                    guard let data else {
-                        Task { @MainActor in clearDragPreview() }
-                        return
+                    Task { @MainActor in
+                        Self.handleTextPayload(
+                            data: data,
+                            location: location,
+                            performPinnedDrop: performPinnedDrop,
+                            performLibraryRowDrop: performLibraryRowDrop,
+                            clearDragPreview: clearDragPreview
+                        )
                     }
-                    if let transfer = try? JSONDecoder().decode(PinnedItemTransfer.self, from: data) {
-                        Task { @MainActor in
-                            if !performPinnedDrop(transfer, location) {
-                                clearDragPreview()
-                            }
-                        }
-                        return
-                    }
-                    if let transfer = try? JSONDecoder().decode(LibrarySidebarRowTransfer.self, from: data) {
-                        Task { @MainActor in
-                            if !performLibraryRowDrop(transfer, location) {
-                                clearDragPreview()
-                            }
-                        }
-                        return
-                    }
-                    Task { @MainActor in clearDragPreview() }
                 }
                 return true
             }
         }
         clearDragPreview()
         return false
+    }
+
+    /// Decodes a pinned-item transfer from drop payload bytes (unit-tested).
+    static func decodePinnedTransfer(from data: Data) -> PinnedItemTransfer? {
+        try? JSONDecoder().decode(PinnedItemTransfer.self, from: data)
+    }
+
+    /// Decodes a library-row transfer from drop payload bytes (unit-tested).
+    static func decodeLibraryRowTransfer(from data: Data) -> LibrarySidebarRowTransfer? {
+        try? JSONDecoder().decode(LibrarySidebarRowTransfer.self, from: data)
+    }
+
+    @MainActor
+    static func handlePinnedPayload(
+        data: Data?,
+        location: CGPoint,
+        performPinnedDrop: (PinnedItemTransfer, CGPoint) -> Bool,
+        clearDragPreview: () -> Void
+    ) {
+        guard let data, let transfer = decodePinnedTransfer(from: data) else {
+            clearDragPreview()
+            return
+        }
+        if !performPinnedDrop(transfer, location) {
+            clearDragPreview()
+        }
+    }
+
+    @MainActor
+    static func handleLibraryRowPayload(
+        data: Data?,
+        location: CGPoint,
+        performLibraryRowDrop: (LibrarySidebarRowTransfer, CGPoint) -> Bool,
+        clearDragPreview: () -> Void
+    ) {
+        guard let data, let transfer = decodeLibraryRowTransfer(from: data) else {
+            clearDragPreview()
+            return
+        }
+        if !performLibraryRowDrop(transfer, location) {
+            clearDragPreview()
+        }
+    }
+
+    @MainActor
+    static func handleTextPayload(
+        data: Data?,
+        location: CGPoint,
+        performPinnedDrop: (PinnedItemTransfer, CGPoint) -> Bool,
+        performLibraryRowDrop: (LibrarySidebarRowTransfer, CGPoint) -> Bool,
+        clearDragPreview: () -> Void
+    ) {
+        guard let data else {
+            clearDragPreview()
+            return
+        }
+        if let transfer = decodePinnedTransfer(from: data) {
+            if !performPinnedDrop(transfer, location) {
+                clearDragPreview()
+            }
+            return
+        }
+        if let transfer = decodeLibraryRowTransfer(from: data) {
+            if !performLibraryRowDrop(transfer, location) {
+                clearDragPreview()
+            }
+            return
+        }
+        clearDragPreview()
     }
 }
 

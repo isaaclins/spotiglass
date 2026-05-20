@@ -10,7 +10,7 @@ extension PlaylistBrowserView {
         .buttonStyle(.borderless)
         .disabled(isUnifiedRefreshBusy)
         .accessibilityHint(
-            String(localized: "browser.toolbar.refreshHelp")
+            SpotiglassL10n.string("browser.toolbar.refreshHelp")
         )
     }
 
@@ -32,7 +32,7 @@ extension PlaylistBrowserView {
                 }
             }
             .frame(width: 16, height: 16)
-            Text("browser.refresh", bundle: .main)
+            Text(SpotiglassL10n.string("browser.refresh"))
         }
     }
 

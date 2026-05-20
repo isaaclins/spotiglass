@@ -82,7 +82,7 @@ enum PlaylistBrowserPaletteSearchBuilder {
             return CommandPaletteItem(
                 id: "playlist-\(playlist.id)",
                 title: playlist.name,
-                subtitle: String(format: String(localized: "browser.palette.subtitle.playlist"), playlist.ownerName),
+                subtitle: String(format: SpotiglassL10n.string("browser.palette.subtitle.playlist"), playlist.ownerName),
                 iconSystemName: "music.note.list",
                 section: .playlists,
                 keywords: [playlist.ownerName, playlist.id],
@@ -110,7 +110,7 @@ enum PlaylistBrowserPaletteSearchBuilder {
             return CommandPaletteItem(
                 id: "artist-\(artist.id)",
                 title: artist.name,
-                subtitle: String(localized: "browser.palette.subtitle.artist"),
+                subtitle: SpotiglassL10n.string("browser.palette.subtitle.artist"),
                 iconSystemName: "person.wave.2",
                 artistAvatarURL: artist.imageURL,
                 section: .artists,
@@ -229,7 +229,7 @@ enum PlaylistBrowserPaletteSearchBuilder {
             let item = CommandPaletteItem(
                 id: "playlist-\(row.id)",
                 title: row.title,
-                subtitle: String(format: String(localized: "browser.palette.subtitle.library"), row.owner),
+                subtitle: String(format: SpotiglassL10n.string("browser.palette.subtitle.library"), row.owner),
                 iconSystemName: "music.note.list",
                 section: .myPlaylists,
                 keywords: [row.owner, row.title, row.id],

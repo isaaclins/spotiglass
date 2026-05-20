@@ -6,31 +6,20 @@ extension PlaylistBrowserView {
     }
 
     var visiblePinnedLibraryItems: [PinnedItem] {
-        pinnedStore.items.filter { $0.id != PinnedItem.likedSongsID }
+        PlaylistBrowserLibraryActions.visiblePinnedLibraryItems(from: pinnedStore.items)
     }
 
     var libraryRows: [LibrarySidebarRow] {
-        let pinnedByToken = Dictionary(uniqueKeysWithValues: visiblePinnedLibraryItems.map {
-            (LibrarySidebarOrder.pinnedToken(for: $0.id), $0)
-        })
-        return libraryRowOrder.compactMap { token in
-            switch token {
-            case LibrarySidebarOrder.homeToken:
-                return .home
-            default:
-                guard let item = pinnedByToken[token] else { return nil }
-                return .pinned(item)
-            }
-        }
+        PlaylistBrowserLibraryActions.libraryRows(order: libraryRowOrder, pinnedItems: pinnedStore.items)
     }
 
     func syncLibraryRowOrder() {
         if pinnedStore.isPinned(id: PinnedItem.likedSongsID) {
             pinnedStore.unpin(id: PinnedItem.likedSongsID)
         }
-        libraryRowOrder = LibrarySidebarOrder.normalizedOrder(
+        libraryRowOrder = PlaylistBrowserLibraryActions.libraryRowOrderAfterSync(
             existing: libraryRowOrder,
-            pinnedItemIDs: visiblePinnedLibraryItems.map(\.id)
+            visiblePinnedItemIDs: visiblePinnedLibraryItems.map(\.id)
         )
     }
 
@@ -39,13 +28,11 @@ extension PlaylistBrowserView {
             libraryDropInsertionIndex = nil
             dragPreviewState.endDrag()
         }
-        guard let transfer = transfers.first else { return false }
-        let moved = LibrarySidebarOrder.moved(
+        guard let moved = PlaylistBrowserLibraryActions.updatedOrderForLibraryTransferDrop(
             order: libraryRowOrder,
-            movingToken: transfer.rowToken,
-            toInsertionIndex: insertionIndex
-        )
-        guard moved != libraryRowOrder else { return false }
+            transfers: transfers,
+            insertionIndex: insertionIndex
+        ) else { return false }
         libraryRowOrder = moved
         return true
     }
@@ -55,42 +42,23 @@ extension PlaylistBrowserView {
             libraryDropInsertionIndex = nil
             dragPreviewState.endDrag()
         }
-        guard let transfer = transfers.first else { return false }
-        let sourceToken = LibrarySidebarOrder.pinnedToken(for: transfer.item.id)
-        let targetPinnedIndex = LibrarySidebarOrder.pinnedInsertionIndex(
+        guard let application = PlaylistBrowserLibraryActions.pinnedTransferDropApplication(
             order: libraryRowOrder,
-            movingPinnedToken: transfer.isFromPinnedSidebar ? sourceToken : nil,
-            toInsertionIndex: insertionIndex
-        )
+            transfers: transfers,
+            insertionIndex: insertionIndex
+        ) else { return false }
 
-        if transfer.isFromPinnedSidebar {
-            let movedRows = LibrarySidebarOrder.moved(
-                order: libraryRowOrder,
-                movingToken: sourceToken,
-                toInsertionIndex: insertionIndex
-            )
-            guard movedRows != libraryRowOrder else { return false }
-            pinnedStore.reorder(itemID: transfer.item.id, toInsertionIndex: targetPinnedIndex)
-            libraryRowOrder = movedRows
-        } else {
-            guard pinnedStore.pin(transfer.item, at: targetPinnedIndex) else { return false }
+        if let itemID = application.reorderItemID, let index = application.reorderToIndex {
+            pinnedStore.reorder(itemID: itemID, toInsertionIndex: index)
+            libraryRowOrder = application.libraryRowOrder
+        } else if let item = application.pinItem, let index = application.pinAtIndex {
+            guard pinnedStore.pin(item, at: index) else { return false }
             syncLibraryRowOrder()
         }
         return true
     }
 
-    /// Reconstructs a lightweight ``SpotifyPlaylistSummary`` from the visible
-    /// row view-model so the pinned-item snapshot is fully populated even
-    /// when the underlying summary cache has aged out. Field defaults match
-    /// what `PinnedRowView` actually displays.
     func playlistSummaryFromRow(_ row: PlaylistRowViewModel) -> SpotifyPlaylistSummary {
-        SpotifyPlaylistSummary(
-            id: row.id,
-            name: row.title,
-            ownerName: row.owner,
-            imageURL: row.artworkURL,
-            trackCount: 0,
-            snapshotID: row.snapshotID
-        )
+        PlaylistBrowserLibraryActions.playlistSummaryFromRow(row)
     }
 }

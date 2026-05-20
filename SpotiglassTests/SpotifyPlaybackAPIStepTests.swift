@@ -268,7 +268,7 @@ final class SpotifyPlaybackAPIStepTests: XCTestCase {
             guard case let .rateLimited(retryAfter) = error else {
                 return XCTFail("Expected rate-limited error, got \(error)")
             }
-            XCTAssertEqual(retryAfter, 7, accuracy: 0.001)
+            XCTAssertEqual(retryAfter ?? 0, 7, accuracy: 0.001)
         }
         XCTAssertEqual(httpClient.requests.count, 1, "Non-device/player GET endpoints should not use playback retry loop.")
     }

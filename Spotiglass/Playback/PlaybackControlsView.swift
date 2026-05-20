@@ -48,11 +48,11 @@ struct PlaybackControlsView: View {
                                 .foregroundStyle(.secondary)
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel(String(localized: "playback.controls.lyrics"))
-                        .accessibilityHint(String(localized: "playback.controls.lyrics.hint"))
+                        .accessibilityLabel(SpotiglassL10n.string("playback.controls.lyrics"))
+                        .accessibilityHint(SpotiglassL10n.string("playback.controls.lyrics.hint"))
                     }
                     if shouldShowPausedIndicator {
-                        Text("playback.paused.label", bundle: .main)
+                        Text(SpotiglassL10n.string("playback.paused.label"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
@@ -89,8 +89,8 @@ struct PlaybackControlsView: View {
                     .buttonStyle(.plain)
                     .id("artwork:\(item.uri ?? item.name)")
                     .transition(.opacity.combined(with: .scale(scale: 0.94)))
-                    .accessibilityLabel(String(localized: "playback.controls.openLyrics"))
-                    .accessibilityHint(String(localized: "playback.controls.lyrics.hint"))
+                    .accessibilityLabel(SpotiglassL10n.string("playback.controls.openLyrics"))
+                    .accessibilityHint(SpotiglassL10n.string("playback.controls.lyrics.hint"))
                 } else {
                     ArtworkView(url: item.albumArtURL, size: 44)
                         .id("artwork:\(item.uri ?? item.name)")
@@ -114,7 +114,7 @@ struct PlaybackControlsView: View {
         HStack(spacing: 0) {
             ForEach(Array(artistTapTargets.enumerated()), id: \.element.stableID) { index, target in
                 if index > 0 {
-                    Text("common.comma", bundle: .main)
+                    Text(SpotiglassL10n.string("common.comma"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -127,7 +127,7 @@ struct PlaybackControlsView: View {
                         .lineLimit(1)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(String(format: String(localized: "playback.controls.openArtist"), target.name))
+                .accessibilityLabel(String(format: SpotiglassL10n.string("playback.controls.openArtist"), target.name))
             }
             Spacer(minLength: 0)
         }
@@ -159,8 +159,8 @@ struct PlaybackControlsView: View {
                 Image(systemName: "backward.fill")
             }
             .disabled(!hasReadyDevice || viewModel.isSkipCommandPending)
-            .accessibilityLabel(String(localized: "playback.controls.previous"))
-            .accessibilityHint(String(localized: "playback.controls.previous.hint"))
+            .accessibilityLabel(SpotiglassL10n.string("playback.controls.previous"))
+            .accessibilityHint(SpotiglassL10n.string("playback.controls.previous.hint"))
 
             Button {
                 Task { await viewModel.togglePlayPause() }
@@ -171,7 +171,7 @@ struct PlaybackControlsView: View {
             }
             .disabled(!hasReadyDevice)
             .accessibilityLabel(playPauseAccessibilityLabel)
-            .accessibilityHint(String(localized: "playback.controls.playPause.hint"))
+            .accessibilityHint(SpotiglassL10n.string("playback.controls.playPause.hint"))
 
             Button {
                 Task { await viewModel.next() }
@@ -179,8 +179,8 @@ struct PlaybackControlsView: View {
                 Image(systemName: "forward.fill")
             }
             .disabled(!hasReadyDevice || viewModel.isSkipCommandPending || viewModel.isNextCommandLockedOut)
-            .accessibilityLabel(String(localized: "playback.controls.next"))
-            .accessibilityHint(String(localized: "playback.controls.next.hint"))
+            .accessibilityLabel(SpotiglassL10n.string("playback.controls.next"))
+            .accessibilityHint(SpotiglassL10n.string("playback.controls.next.hint"))
 
             Button {
                 Task { await viewModel.cycleRepeat() }
@@ -190,7 +190,7 @@ struct PlaybackControlsView: View {
             }
             .disabled(!hasReadyDevice)
             .accessibilityLabel(repeatAccessibilityLabel)
-            .accessibilityHint(String(localized: "playback.controls.repeat.hint"))
+            .accessibilityHint(SpotiglassL10n.string("playback.controls.repeat.hint"))
         }
         .controlSize(.regular)
     }
@@ -211,11 +211,11 @@ struct PlaybackControlsView: View {
     private var repeatAccessibilityLabel: String {
         switch viewModel.repeatMode {
         case .off:
-            String(localized: "playback.repeat.off")
+            SpotiglassL10n.string("playback.repeat.off")
         case .context:
-            String(localized: "playback.repeat.playlist")
+            SpotiglassL10n.string("playback.repeat.playlist")
         case .track:
-            String(localized: "playback.repeat.one")
+            SpotiglassL10n.string("playback.repeat.one")
         }
     }
 
@@ -284,8 +284,8 @@ struct PlaybackControlsView: View {
             .menuIndicator(.hidden)
             .disabled(!hasReadyDevice)
             .opacity(hasReadyDevice ? 1 : 0.45)
-            .accessibilityLabel(String(localized: "playback.controls.device"))
-            .accessibilityHint(String(localized: "playback.controls.device.hint"))
+            .accessibilityLabel(SpotiglassL10n.string("playback.controls.device"))
+            .accessibilityHint(SpotiglassL10n.string("playback.controls.device.hint"))
         }
     }
 
@@ -310,8 +310,8 @@ struct PlaybackControlsView: View {
                 .disabled(!hasReadyDevice)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(String(localized: "playback.controls.volume"))
-        .accessibilityHint(String(localized: "playback.controls.volume.hint"))
+        .accessibilityLabel(SpotiglassL10n.string("playback.controls.volume"))
+        .accessibilityHint(SpotiglassL10n.string("playback.controls.volume.hint"))
     }
 
     private var playbackVolumeBinding: Binding<Double> {
@@ -328,32 +328,32 @@ struct PlaybackControlsView: View {
             Button {
                 viewModel.start()
             } label: {
-                Label(String(localized: "playback.controls.reconnect"), systemImage: "dot.radiowaves.left.and.right")
+                Label(SpotiglassL10n.string("playback.controls.reconnect"), systemImage: "dot.radiowaves.left.and.right")
             }
-            .accessibilityLabel(String(localized: "playback.controls.reconnect.label"))
-            .accessibilityHint(String(localized: "playback.controls.reconnect.hint"))
+            .accessibilityLabel(SpotiglassL10n.string("playback.controls.reconnect.label"))
+            .accessibilityHint(SpotiglassL10n.string("playback.controls.reconnect.hint"))
         case .connecting:
             ProgressView()
                 .controlSize(.small)
-                .accessibilityLabel(String(localized: "playback.controls.connecting"))
+                .accessibilityLabel(SpotiglassL10n.string("playback.controls.connecting"))
         case let .error(error):
             switch error.recoveryAction {
             case .reconnect:
                 Button {
                     viewModel.start()
                 } label: {
-                    Label(String(localized: "playback.controls.reconnect"), systemImage: "dot.radiowaves.left.and.right")
+                    Label(SpotiglassL10n.string("playback.controls.reconnect"), systemImage: "dot.radiowaves.left.and.right")
                 }
-                .accessibilityLabel(String(localized: "playback.controls.reconnect.label"))
-                .accessibilityHint(String(localized: "playback.controls.reconnect.sdk.hint"))
+                .accessibilityLabel(SpotiglassL10n.string("playback.controls.reconnect.label"))
+                .accessibilityHint(SpotiglassL10n.string("playback.controls.reconnect.sdk.hint"))
             case .retryTransfer:
                 Button {
                     Task { await viewModel.retryPlaybackTransfer() }
                 } label: {
-                    Label(String(localized: "playback.controls.retry"), systemImage: "arrow.clockwise")
+                    Label(SpotiglassL10n.string("playback.controls.retry"), systemImage: "arrow.clockwise")
                 }
-                .accessibilityLabel(String(localized: "playback.controls.retry.label"))
-                .accessibilityHint(String(localized: "playback.controls.retry.hint"))
+                .accessibilityLabel(SpotiglassL10n.string("playback.controls.retry.label"))
+                .accessibilityHint(SpotiglassL10n.string("playback.controls.retry.hint"))
             case .reauthenticate, .none:
                 EmptyView()
             }
@@ -433,9 +433,9 @@ struct PlaybackControlsView: View {
     private var playPauseAccessibilityLabel: String {
         switch viewModel.connectionState {
         case .playing:
-            String(localized: "playback.pause")
+            SpotiglassL10n.string("playback.pause")
         default:
-            String(localized: "playback.play")
+            SpotiglassL10n.string("playback.play")
         }
     }
 

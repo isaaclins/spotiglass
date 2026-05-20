@@ -8,6 +8,18 @@
             "state": "translated",
             "value": "Appearance"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apariencia"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Darstellung"
+          }
         }
       }
     },
@@ -17,6 +29,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Visual options for Spotiglass windows and overlays."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opciones visuales para ventanas y superposiciones de Spotiglass."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Visuelle Optionen für Spotiglass-Fenster und Overlays."
           }
         }
       }
@@ -28,6 +52,18 @@
             "state": "translated",
             "value": "Playback"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reproducción"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wiedergabe"
+          }
         }
       }
     },
@@ -37,6 +73,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Account"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cuenta"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konto"
           }
         }
       }
@@ -48,6 +96,18 @@
             "state": "translated",
             "value": "Keyboard"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Teclado"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tastatur"
+          }
         }
       }
     },
@@ -57,6 +117,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Color scheme"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esquema de color"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Farbschema"
           }
         }
       }
@@ -68,6 +140,18 @@
             "state": "translated",
             "value": "System follows macOS. Light and Dark apply only to Spotiglass."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sistema sigue macOS. Claro y Oscuro se aplican solo a Spotiglass."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System folgt macOS. Hell und Dunkel gelten nur für Spotiglass."
+          }
         }
       }
     },
@@ -77,6 +161,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Command palette"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paleta de comandos"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Befehls-Palette"
           }
         }
       }
@@ -88,6 +184,18 @@
             "state": "translated",
             "value": "Blur window behind palette"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desenfocar ventana detrás de la paleta"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fenster hinter Palette unscharf machen"
+          }
         }
       }
     },
@@ -97,6 +205,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "When on, the rest of the window is slightly blurred while the palette is open."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cuando está activado, el resto de la ventana se desenfoca ligeramente mientras la paleta está abierta."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wenn aktiviert, wird der Rest des Fensters leicht unscharf, solange die Palette geöffnet ist."
           }
         }
       }
@@ -108,6 +228,18 @@
             "state": "translated",
             "value": "Premium and Web Playback"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Premium y reproducción web"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Premium und Web-Wiedergabe"
+          }
         }
       }
     },
@@ -118,12 +250,36 @@
             "state": "translated",
             "value": "Connection"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conexión"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verbindung"
+          }
         }
       }
     },
     "settings.account.status": {
       "localizations": {
         "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Status"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estado"
+          }
+        },
+        "de": {
           "stringUnit": {
             "state": "translated",
             "value": "Status"
@@ -138,6 +294,18 @@
             "state": "translated",
             "value": "Queue"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cola"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Warteschlange"
+          }
         }
       }
     },
@@ -147,6 +315,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Shuffle on"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aleatorio activado"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zufallswiedergabe ein"
           }
         }
       }
@@ -158,6 +338,18 @@
             "state": "translated",
             "value": "Shuffle off"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aleatorio desactivado"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zufallswiedergabe aus"
+          }
         }
       }
     },
@@ -167,6 +359,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Now playing"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reproduciendo ahora"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wird gerade wiedergegeben"
           }
         }
       }
@@ -178,6 +382,18 @@
             "state": "translated",
             "value": "Playback paused"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reproducción en pausa"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wiedergabe pausiert"
+          }
         }
       }
     },
@@ -187,6 +403,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Spotify is not connected"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify no está conectado"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify ist nicht verbunden"
           }
         }
       }
@@ -198,6 +426,18 @@
             "state": "translated",
             "value": "Enter your Spotify client ID, then connect your Spotify account."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Introduce tu ID de cliente de Spotify y conecta tu cuenta de Spotify."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gib deine Spotify-Client-ID ein und verbinde dann dein Spotify-Konto."
+          }
         }
       }
     },
@@ -207,6 +447,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Opening Spotify sign-in"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abriendo inicio de sesión de Spotify"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify-Anmeldung wird geöffnet"
           }
         }
       }
@@ -218,6 +470,18 @@
             "state": "translated",
             "value": "Complete authorization in the browser window. Spotiglass is listening on 127.0.0.1 for the callback."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Completa la autorización en la ventana del navegador. Spotiglass escucha en 127.0.0.1 el callback."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schließe die Autorisierung im Browserfenster ab. Spotiglass lauscht auf 127.0.0.1 auf den Callback."
+          }
         }
       }
     },
@@ -227,6 +491,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Spotify is connected"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify está conectado"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify ist verbunden"
           }
         }
       }
@@ -238,6 +514,18 @@
             "state": "translated",
             "value": "Access token is valid until %@."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El token de acceso es válido hasta %@."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Zugriffstoken ist gültig bis %@."
+          }
         }
       }
     },
@@ -247,6 +535,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Refreshing Spotify session"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualizando sesión de Spotify"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify-Sitzung wird aktualisiert"
           }
         }
       }
@@ -258,6 +558,18 @@
             "state": "translated",
             "value": "Spotiglass is refreshing the stored Spotify session."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass está actualizando la sesión de Spotify almacenada."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass aktualisiert die gespeicherte Spotify-Sitzung."
+          }
         }
       }
     },
@@ -267,6 +579,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Spotify sign-in needs attention"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El inicio de sesión de Spotify requiere atención"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify-Anmeldung erfordert Aufmerksamkeit"
           }
         }
       }
@@ -278,6 +602,18 @@
             "state": "translated",
             "value": "Connect Spotify"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conectar Spotify"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify verbinden"
+          }
         }
       }
     },
@@ -287,6 +623,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Starts Spotify sign-in using the configured client ID."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inicia el inicio de sesión de Spotify con el ID de cliente configurado."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Startet die Spotify-Anmeldung mit der konfigurierten Client-ID."
           }
         }
       }
@@ -298,6 +646,18 @@
             "state": "translated",
             "value": "Cancel"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancelar"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abbrechen"
+          }
         }
       }
     },
@@ -307,6 +667,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Stops waiting for the browser sign-in and returns to the welcome screen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deja de esperar el inicio de sesión en el navegador y vuelve a la pantalla de bienvenida."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beendet das Warten auf die Browser-Anmeldung und kehrt zum Willkommensbildschirm zurück."
           }
         }
       }
@@ -318,6 +690,18 @@
             "state": "translated",
             "value": "Disconnect"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desconectar"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trennen"
+          }
         }
       }
     },
@@ -327,6 +711,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Clears the current Spotify sign-in state."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Borra el estado actual del inicio de sesión de Spotify."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Löscht den aktuellen Spotify-Anmeldestatus."
           }
         }
       }
@@ -338,6 +734,18 @@
             "state": "translated",
             "value": "Spotify client ID"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ID de cliente de Spotify"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify-Client-ID"
+          }
         }
       }
     },
@@ -347,6 +755,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Paste the client ID from your Spotify Developer Dashboard app. Value is hidden until you click or tab into this field."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pega el ID de cliente de tu app en el Spotify Developer Dashboard. El valor está oculto hasta que hagas clic o entres en este campo."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Füge die Client-ID aus deiner App im Spotify Developer Dashboard ein. Der Wert ist verborgen, bis du in dieses Feld klickst oder es fokussierst."
           }
         }
       }
@@ -358,6 +778,18 @@
             "state": "translated",
             "value": "Your current Spotify session is missing playlist or Liked Songs permissions. Disconnect and connect again to grant required scopes."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu sesión actual de Spotify no tiene permisos de listas o Canciones que te gustan. Desconéctate y vuelve a conectar para conceder los permisos necesarios."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deiner aktuellen Spotify-Sitzung fehlen Berechtigungen für Playlists oder Liked Songs. Trenne die Verbindung und verbinde dich erneut, um die erforderlichen Bereiche zu gewähren."
+          }
         }
       }
     },
@@ -367,6 +799,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Valid until %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Válido hasta %@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gültig bis %@"
           }
         }
       }
@@ -378,6 +822,18 @@
             "state": "translated",
             "value": "Spotify developer app"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App de desarrollador de Spotify"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify-Entwickler-App"
+          }
         }
       }
     },
@@ -387,6 +843,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Use the Client ID from your app in the Spotify Developer Dashboard. OAuth uses a fixed loopback redirect on 127.0.0.1."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usa el ID de cliente de tu app en el Spotify Developer Dashboard. OAuth usa una redirección fija en 127.0.0.1."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verwende die Client-ID deiner App im Spotify Developer Dashboard. OAuth nutzt eine feste Loopback-Weiterleitung auf 127.0.0.1."
           }
         }
       }
@@ -398,6 +866,18 @@
             "state": "translated",
             "value": "Lyrics text size"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tamaño del texto de letras"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Textgröße der Songtexte"
+          }
         }
       }
     },
@@ -407,6 +887,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Controls font size and line spacing in the immersive lyrics view."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Controla el tamaño de fuente y el espaciado entre líneas en la vista inmersiva de letras."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Steuert Schriftgröße und Zeilenabstand in der immersiven Songtext-Ansicht."
           }
         }
       }
@@ -418,6 +910,18 @@
             "state": "translated",
             "value": "Lyrics preview, %@ size"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vista previa de letras, tamaño %@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Songtext-Vorschau, Größe %@"
+          }
         }
       }
     },
@@ -427,6 +931,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "When something drops"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cuando algo falla"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wenn etwas ausfällt"
           }
         }
       }
@@ -438,6 +954,18 @@
             "state": "translated",
             "value": "Use Reconnect in the playback bar or run “Connect Playback” from the Command Palette if playback stops or shows an error."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usa Reconectar en la barra de reproducción o ejecuta «Conectar reproducción» desde la Paleta de comandos si la reproducción se detiene o muestra un error."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verwende „Erneut verbinden“ in der Wiedergabeleiste oder führe „Wiedergabe verbinden“ aus der Befehls-Palette aus, wenn die Wiedergabe stoppt oder einen Fehler anzeigt."
+          }
         }
       }
     },
@@ -447,6 +975,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sessions"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sesiones"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sitzungen"
           }
         }
       }
@@ -458,6 +998,18 @@
             "state": "translated",
             "value": "Only one Spotify account is signed in at a time. Disconnect in Account settings to switch accounts or clear the stored session."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo puede haber una cuenta de Spotify conectada a la vez. Desconéctate en Ajustes de cuenta para cambiar de cuenta o borrar la sesión almacenada."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Es kann jeweils nur ein Spotify-Konto angemeldet sein. Trenne die Verbindung in den Kontoeinstellungen, um das Konto zu wechseln oder die gespeicherte Sitzung zu löschen."
+          }
         }
       }
     },
@@ -467,6 +1019,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Playback uses Spotify’s Web Playback SDK in a hidden web view. Spotify reports an account error for non-Premium accounts; playlist browsing may still work."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La reproducción usa el Web Playback SDK de Spotify en una vista web oculta. Spotify informa de un error de cuenta para cuentas sin Premium; explorar listas puede seguir funcionando."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Wiedergabe nutzt Spotifys Web Playback SDK in einer versteckten Webansicht. Spotify meldet einen Kontofehler für Nicht-Premium-Konten; das Durchsuchen von Playlists kann weiterhin funktionieren."
           }
         }
       }
@@ -478,6 +1042,18 @@
             "state": "translated",
             "value": "After you sign in, Spotiglass registers this Mac as a Spotify Connect device automatically."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tras iniciar sesión, Spotiglass registra este Mac como dispositivo Spotify Connect automáticamente."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nach der Anmeldung registriert Spotiglass diesen Mac automatisch als Spotify-Connect-Gerät."
+          }
         }
       }
     },
@@ -487,6 +1063,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Now playing"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reproduciendo ahora"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wird gerade wiedergegeben"
           }
         }
       }
@@ -498,6 +1086,18 @@
             "state": "translated",
             "value": "Nothing playing"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nada en reproducción"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Es wird nichts wiedergegeben"
+          }
         }
       }
     },
@@ -507,6 +1107,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Up next"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A continuación"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Als Nächstes"
           }
         }
       }
@@ -518,6 +1130,18 @@
             "state": "translated",
             "value": "Dismiss"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cerrar"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schließen"
+          }
         }
       }
     },
@@ -527,6 +1151,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Play Now"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reproducir ahora"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jetzt abspielen"
           }
         }
       }
@@ -538,6 +1174,18 @@
             "state": "translated",
             "value": "Copy Spotify URI"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copiar URI de Spotify"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify-URI kopieren"
+          }
         }
       }
     },
@@ -547,6 +1195,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Toggles shuffle for Spotify playback on this device."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activa o desactiva el modo aleatorio para la reproducción de Spotify en este dispositivo."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schaltet die Zufallswiedergabe für Spotify auf diesem Gerät um."
           }
         }
       }
@@ -558,12 +1218,36 @@
             "state": "translated",
             "value": "Open artist %@"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir artista %@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Künstler %@ öffnen"
+          }
         }
       }
     },
     "queue.item.accessibility": {
       "localizations": {
         "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@, %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@, %@"
+          }
+        },
+        "de": {
           "stringUnit": {
             "state": "translated",
             "value": "%@, %@"
@@ -578,6 +1262,18 @@
             "state": "translated",
             "value": "Paused"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En pausa"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pausiert"
+          }
         }
       }
     },
@@ -587,6 +1283,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Lyrics"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Letras"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Songtexte"
           }
         }
       }
@@ -598,6 +1306,18 @@
             "state": "translated",
             "value": "Opens synchronized lyrics for the current track."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abre las letras sincronizadas de la pista actual."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Öffnet synchronisierte Songtexte für den aktuellen Titel."
+          }
         }
       }
     },
@@ -607,6 +1327,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Open lyrics"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir letras"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Songtexte öffnen"
           }
         }
       }
@@ -618,6 +1350,18 @@
             "state": "translated",
             "value": "Previous track"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pista anterior"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorheriger Titel"
+          }
         }
       }
     },
@@ -627,6 +1371,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Skips to the previous Spotify track when playback is connected."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Salta a la pista anterior de Spotify cuando la reproducción está conectada."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Springt zum vorherigen Spotify-Titel, wenn die Wiedergabe verbunden ist."
           }
         }
       }
@@ -638,6 +1394,18 @@
             "state": "translated",
             "value": "Toggles Spotify playback in Spotiglass."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alterna la reproducción de Spotify en Spotiglass."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schaltet die Spotify-Wiedergabe in Spotiglass um."
+          }
         }
       }
     },
@@ -647,6 +1415,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Next track"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pista siguiente"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nächster Titel"
           }
         }
       }
@@ -658,6 +1438,18 @@
             "state": "translated",
             "value": "Skips to the next Spotify track when playback is connected."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Salta a la pista siguiente de Spotify cuando la reproducción está conectada."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Springt zum nächsten Spotify-Titel, wenn die Wiedergabe verbunden ist."
+          }
         }
       }
     },
@@ -667,6 +1459,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Cycles repeat: off, repeat playlist, repeat one track."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alterna repetición: desactivada, repetir lista, repetir una pista."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wechselt Wiederholung: aus, Playlist wiederholen, einen Titel wiederholen."
           }
         }
       }
@@ -678,6 +1482,18 @@
             "state": "translated",
             "value": "Playback device"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dispositivo de reproducción"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wiedergabegerät"
+          }
         }
       }
     },
@@ -687,6 +1503,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Spotify Connect targets and Mac audio output. Choosing a Mac output sets the system default device."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Destinos de Spotify Connect y salida de audio del Mac. Al elegir una salida del Mac se establece el dispositivo predeterminado del sistema."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify-Connect-Ziele und Mac-Audioausgabe. Die Wahl einer Mac-Ausgabe setzt das System-Standardgerät."
           }
         }
       }
@@ -698,6 +1526,18 @@
             "state": "translated",
             "value": "Playback volume"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volumen de reproducción"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wiedergabelautstärke"
+          }
         }
       }
     },
@@ -707,6 +1547,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Adjusts Spotify Web Playback output in Spotiglass. This is not the Mac system volume."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajusta la salida del Web Playback de Spotify en Spotiglass. No es el volumen del sistema del Mac."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Passt die Spotify-Web-Wiedergabe in Spotiglass an. Das ist nicht die Mac-Systemlautstärke."
           }
         }
       }
@@ -718,6 +1570,18 @@
             "state": "translated",
             "value": "Reconnect"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reconectar"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erneut verbinden"
+          }
         }
       }
     },
@@ -727,6 +1591,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Reconnect playback"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reconectar reproducción"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wiedergabe erneut verbinden"
           }
         }
       }
@@ -738,6 +1614,18 @@
             "state": "translated",
             "value": "Registers the Spotiglass Web Playback device with Spotify. Spotify Premium is required."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Registra el dispositivo Web Playback de Spotiglass con Spotify. Se requiere Spotify Premium."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Registriert das Spotiglass-Web-Wiedergabegerät bei Spotify. Spotify Premium ist erforderlich."
+          }
         }
       }
     },
@@ -747,6 +1635,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Connecting playback"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conectando reproducción"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wiedergabe wird verbunden"
           }
         }
       }
@@ -758,6 +1658,18 @@
             "state": "translated",
             "value": "Restarts the hidden Spotify Web Playback SDK device."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reinicia el dispositivo oculto del Web Playback SDK de Spotify."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Startet das versteckte Spotify-Web-Playback-SDK-Gerät neu."
+          }
         }
       }
     },
@@ -767,6 +1679,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Retry"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reintentar"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erneut versuchen"
           }
         }
       }
@@ -778,6 +1702,18 @@
             "state": "translated",
             "value": "Retry playback transfer"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reintentar transferencia de reproducción"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wiedergabeübertragung erneut versuchen"
+          }
         }
       }
     },
@@ -787,6 +1723,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Attempts to move Spotify playback to Spotiglass again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Intenta mover la reproducción de Spotify a Spotiglass de nuevo."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Versucht erneut, die Spotify-Wiedergabe nach Spotiglass zu verschieben."
           }
         }
       }
@@ -798,12 +1746,36 @@
             "state": "translated",
             "value": "Open artist %@"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir artista %@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Künstler %@ öffnen"
+          }
         }
       }
     },
     "playback.scrubber.remaining": {
       "localizations": {
         "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "−%@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "−%@"
+          }
+        },
+        "de": {
           "stringUnit": {
             "state": "translated",
             "value": "−%@"
@@ -818,6 +1790,18 @@
             "state": "translated",
             "value": "Playback progress"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Progreso de reproducción"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wiedergabefortschritt"
+          }
         }
       }
     },
@@ -828,12 +1812,36 @@
             "state": "translated",
             "value": "Library"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Biblioteca"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mediathek"
+          }
         }
       }
     },
     "browser.playlists": {
       "localizations": {
         "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playlists"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Listas"
+          }
+        },
+        "de": {
           "stringUnit": {
             "state": "translated",
             "value": "Playlists"
@@ -848,6 +1856,18 @@
             "state": "translated",
             "value": "Showing cached data"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrando datos en caché"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zwischengespeicherte Daten werden angezeigt"
+          }
         }
       }
     },
@@ -857,6 +1877,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Refreshing"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualizando"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wird aktualisiert"
           }
         }
       }
@@ -868,6 +1900,18 @@
             "state": "translated",
             "value": "Refresh"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualizar"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktualisieren"
+          }
         }
       }
     },
@@ -877,6 +1921,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Home"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inicio"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start"
           }
         }
       }
@@ -888,6 +1944,18 @@
             "state": "translated",
             "value": "No playlists"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin listas"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Playlists"
+          }
         }
       }
     },
@@ -897,6 +1965,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "No tracks"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin pistas"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Titel"
           }
         }
       }
@@ -908,6 +1988,18 @@
             "state": "translated",
             "value": "This playlist is empty."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta lista está vacía."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Playlist ist leer."
+          }
         }
       }
     },
@@ -917,6 +2009,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tracks"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pistas"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Titel"
           }
         }
       }
@@ -928,12 +2032,36 @@
             "state": "translated",
             "value": "Albums"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Álbumes"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alben"
+          }
         }
       }
     },
     "browser.singles": {
       "localizations": {
         "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Singles"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sencillos"
+          }
+        },
+        "de": {
           "stringUnit": {
             "state": "translated",
             "value": "Singles"
@@ -948,6 +2076,18 @@
             "state": "translated",
             "value": "Compilations"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recopilaciones"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kompilationen"
+          }
         }
       }
     },
@@ -957,6 +2097,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Appears on"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aparece en"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erschienen auf"
           }
         }
       }
@@ -968,6 +2120,18 @@
             "state": "translated",
             "value": "Close lyrics"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cerrar letras"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Songtexte schließen"
+          }
         }
       }
     },
@@ -977,6 +2141,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Closes the immersive lyrics overlay."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cierra la superposición inmersiva de letras."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schließt das immersive Songtext-Overlay."
           }
         }
       }
@@ -988,6 +2164,18 @@
             "state": "translated",
             "value": "Queue"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cola"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Warteschlange"
+          }
         }
       }
     },
@@ -997,6 +2185,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Shows or hides the playback queue."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Muestra u oculta la cola de reproducción."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blendet die Wiedergabe-Warteschlange ein oder aus."
           }
         }
       }
@@ -1008,6 +2208,18 @@
             "state": "translated",
             "value": "Disconnect"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desconectar"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trennen"
+          }
         }
       }
     },
@@ -1017,6 +2229,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Disconnects Spotify and returns to the sign-in screen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desconecta Spotify y vuelve a la pantalla de inicio de sesión."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trennt Spotify und kehrt zum Anmeldebildschirm zurück."
           }
         }
       }
@@ -1028,12 +2252,36 @@
             "state": "translated",
             "value": "Copy Error"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copiar error"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fehler kopieren"
+          }
         }
       }
     },
     "browser.ok": {
       "localizations": {
         "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        },
+        "de": {
           "stringUnit": {
             "state": "translated",
             "value": "OK"
@@ -1048,6 +2296,18 @@
             "state": "translated",
             "value": "Pinned to sidebar"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fijado en la barra lateral"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In der Seitenleiste angeheftet"
+          }
         }
       }
     },
@@ -1057,6 +2317,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Add to Queue"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Añadir a la cola"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zur Warteschlange hinzufügen"
           }
         }
       }
@@ -1068,6 +2340,18 @@
             "state": "translated",
             "value": "Unpin from Sidebar"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitar de la barra lateral"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aus Seitenleiste lösen"
+          }
         }
       }
     },
@@ -1077,6 +2361,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Pin to Sidebar"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fijar en la barra lateral"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "An Seitenleiste anheften"
           }
         }
       }
@@ -1088,6 +2384,18 @@
             "state": "translated",
             "value": "Unpin"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitar"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lösen"
+          }
         }
       }
     },
@@ -1097,6 +2405,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@, by %@, %@%@%@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@, de %@, %@%@%@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@, von %@, %@%@%@"
           }
         }
       }
@@ -1108,6 +2428,18 @@
             "state": "translated",
             "value": ", now playing"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ", reproduciendo ahora"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ", wird gerade wiedergegeben"
+          }
         }
       }
     },
@@ -1118,12 +2450,36 @@
             "state": "translated",
             "value": ", pinned"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ", fijado"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ", angeheftet"
+          }
         }
       }
     },
     "browser.trackRow.accessibility": {
       "localizations": {
         "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@. %@, %@, %@%@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@. %@, %@, %@%@"
+          }
+        },
+        "de": {
           "stringUnit": {
             "state": "translated",
             "value": "%@. %@, %@, %@%@"
@@ -1138,12 +2494,36 @@
             "state": "translated",
             "value": ", currently playing"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ", reproduciendo ahora"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ", wird gerade wiedergegeben"
+          }
         }
       }
     },
     "browser.palette.subtitle.playlist": {
       "localizations": {
         "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playlist • %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lista • %@"
+          }
+        },
+        "de": {
           "stringUnit": {
             "state": "translated",
             "value": "Playlist • %@"
@@ -1158,6 +2538,18 @@
             "state": "translated",
             "value": "Artist"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Artista"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Künstler"
+          }
         }
       }
     },
@@ -1167,6 +2559,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Your library • %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu biblioteca • %@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deine Mediathek • %@"
           }
         }
       }
@@ -1178,6 +2582,18 @@
             "state": "translated",
             "value": "Unavailable"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No disponible"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht verfügbar"
+          }
         }
       }
     },
@@ -1187,6 +2603,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Unpin %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitar %@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ lösen"
           }
         }
       }
@@ -1198,6 +2626,18 @@
             "state": "translated",
             "value": "Pinned %@: %@, %@%@"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ fijado: %@, %@%@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Angeheftet %@: %@, %@%@"
+          }
         }
       }
     },
@@ -1208,12 +2648,36 @@
             "state": "translated",
             "value": ", unavailable"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ", no disponible"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ", nicht verfügbar"
+          }
         }
       }
     },
     "pin.likedSongs": {
       "localizations": {
         "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Liked Songs"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Canciones que te gustan"
+          }
+        },
+        "de": {
           "stringUnit": {
             "state": "translated",
             "value": "Liked Songs"
@@ -1228,6 +2692,18 @@
             "state": "translated",
             "value": "This track is instrumental."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta pista es instrumental."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Titel ist instrumental."
+          }
         }
       }
     },
@@ -1237,6 +2713,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Try again"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reintentar"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erneut versuchen"
           }
         }
       }
@@ -1248,6 +2736,18 @@
             "state": "translated",
             "value": "NEXT IN QUEUE:"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A CONTINUACIÓN EN LA COLA:"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ALS NÄCHSTES IN DER WARTESCHLANGE:"
+          }
         }
       }
     },
@@ -1257,6 +2757,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Return to current line"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volver a la línea actual"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zur aktuellen Zeile zurück"
           }
         }
       }
@@ -1268,6 +2780,18 @@
             "state": "translated",
             "value": "Open artist %@"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir artista %@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Künstler %@ öffnen"
+          }
         }
       }
     },
@@ -1277,6 +2801,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Open album %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir álbum %@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Album %@ öffnen"
           }
         }
       }
@@ -1288,6 +2824,18 @@
             "state": "translated",
             "value": "Open Settings"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir ajustes"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einstellungen öffnen"
+          }
         }
       }
     },
@@ -1297,6 +2845,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Spotiglass preferences and shortcuts"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preferencias y atajos de Spotiglass"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass-Einstellungen und Tastenkürzel"
           }
         }
       }
@@ -1308,6 +2868,18 @@
             "state": "translated",
             "value": "Open Command Palette"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir paleta de comandos"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Befehls-Palette öffnen"
+          }
         }
       }
     },
@@ -1317,6 +2889,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Search tracks, playlists, and commands"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Busca pistas, listas y comandos"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Titel, Playlists und Befehle suchen"
           }
         }
       }
@@ -1328,6 +2912,18 @@
             "state": "translated",
             "value": "Refresh"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualizar"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktualisieren"
+          }
         }
       }
     },
@@ -1337,6 +2933,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Reload the focused library, playlist, artist, or queue"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recarga la biblioteca, lista, artista o cola enfocados"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lädt die fokussierte Mediathek, Playlist, den Künstler oder die Warteschlange neu"
           }
         }
       }
@@ -1348,6 +2956,18 @@
             "state": "translated",
             "value": "Connect Playback"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conectar reproducción"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wiedergabe verbinden"
+          }
         }
       }
     },
@@ -1357,6 +2977,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Connect Spotiglass playback device"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conectar dispositivo de reproducción de Spotiglass"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass-Wiedergabegerät verbinden"
           }
         }
       }
@@ -1368,6 +3000,18 @@
             "state": "translated",
             "value": "Toggle Play/Pause"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alternar reproducir/pausa"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wiedergabe/Pause umschalten"
+          }
         }
       }
     },
@@ -1377,6 +3021,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Pause or resume Spotify playback"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pausa o reanuda la reproducción de Spotify"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify-Wiedergabe pausieren oder fortsetzen"
           }
         }
       }
@@ -1388,6 +3044,18 @@
             "state": "translated",
             "value": "Next Track"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pista siguiente"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nächster Titel"
+          }
         }
       }
     },
@@ -1397,6 +3065,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Skip to the next track"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saltar a la pista siguiente"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zum nächsten Titel springen"
           }
         }
       }
@@ -1408,6 +3088,18 @@
             "state": "translated",
             "value": "Previous Track"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pista anterior"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorheriger Titel"
+          }
         }
       }
     },
@@ -1417,6 +3109,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Return to the previous track"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volver a la pista anterior"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zum vorherigen Titel zurück"
           }
         }
       }
@@ -1428,6 +3132,18 @@
             "state": "translated",
             "value": "Toggle Queue"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alternar cola"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Warteschlange umschalten"
+          }
         }
       }
     },
@@ -1437,6 +3153,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Show or hide the playback queue panel"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar u ocultar el panel de cola de reproducción"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wiedergabe-Warteschlangen-Panel ein- oder ausblenden"
           }
         }
       }
@@ -1448,6 +3176,18 @@
             "state": "translated",
             "value": "Toggle Lyrics"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alternar letras"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Songtexte umschalten"
+          }
         }
       }
     },
@@ -1457,6 +3197,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Show or hide immersive synchronized lyrics"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar u ocultar letras sincronizadas inmersivas"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Immersive synchronisierte Songtexte ein- oder ausblenden"
           }
         }
       }
@@ -1468,6 +3220,18 @@
             "state": "translated",
             "value": "Disconnect Spotify"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desconectar Spotify"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify trennen"
+          }
         }
       }
     },
@@ -1477,6 +3241,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sign out and clear local session"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cerrar sesión y borrar la sesión local"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abmelden und lokale Sitzung löschen"
           }
         }
       }
@@ -1488,6 +3264,18 @@
             "state": "translated",
             "value": "Pin Selected Palette Item"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fijar elemento seleccionado de la paleta"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ausgewähltes Paletten-Element anheften"
+          }
         }
       }
     },
@@ -1497,6 +3285,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Pin the highlighted result to the sidebar"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fija el resultado resaltado en la barra lateral"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Heftet das hervorgehobene Ergebnis an die Seitenleiste"
           }
         }
       }
@@ -1508,6 +3308,18 @@
             "state": "translated",
             "value": "Unpin Selected Palette Item"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitar elemento seleccionado de la paleta"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ausgewähltes Paletten-Element lösen"
+          }
         }
       }
     },
@@ -1517,6 +3329,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Remove the highlighted result from the sidebar"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quita el resultado resaltado de la barra lateral"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Entfernt das hervorgehobene Ergebnis aus der Seitenleiste"
           }
         }
       }
@@ -1528,6 +3352,18 @@
             "state": "translated",
             "value": "Add Selected Palette Item to Queue"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Añadir elemento seleccionado a la cola"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ausgewähltes Paletten-Element zur Warteschlange hinzufügen"
+          }
         }
       }
     },
@@ -1537,6 +3373,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Queues the highlighted track without dismissing the palette"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Encola la pista resaltada sin cerrar la paleta"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stellt den hervorgehobenen Titel in die Warteschlange, ohne die Palette zu schließen"
           }
         }
       }
@@ -1548,6 +3396,18 @@
             "state": "translated",
             "value": "Load all your songs into Spotiglass"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cargar todas tus canciones en Spotiglass"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle deine Songs in Spotiglass laden"
+          }
         }
       }
     },
@@ -1557,6 +3417,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Cache every playlist's tracks for instant opens"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guarda en caché las pistas de cada lista para abrirlas al instante"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speichert die Titel jeder Playlist für sofortiges Öffnen im Cache"
           }
         }
       }
@@ -1568,6 +3440,18 @@
             "state": "translated",
             "value": "↑↓ navigate"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "↑↓ navegar"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "↑↓ navigieren"
+          }
         }
       }
     },
@@ -1577,6 +3461,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "↩ run"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "↩ ejecutar"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "↩ ausführen"
           }
         }
       }
@@ -1588,6 +3484,18 @@
             "state": "translated",
             "value": "esc close"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "esc cerrar"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "esc schließen"
+          }
         }
       }
     },
@@ -1597,6 +3505,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "⇧↩ queue"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⇧↩ cola"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⇧↩ Warteschlange"
           }
         }
       }
@@ -1608,6 +3528,18 @@
             "state": "translated",
             "value": "⌘↩ pin"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⌘↩ fijar"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⌘↩ anheften"
+          }
         }
       }
     },
@@ -1618,12 +3550,36 @@
             "state": "translated",
             "value": "Remove %@ prefix to search Spotify"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quita el prefijo %@ para buscar en Spotify"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Entferne das Präfix %@, um Spotify zu durchsuchen"
+          }
         }
       }
     },
     "palette.footer.searchPrefix": {
       "localizations": {
         "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ">"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ">"
+          }
+        },
+        "de": {
           "stringUnit": {
             "state": "translated",
             "value": ">"
@@ -1638,6 +3594,18 @@
             "state": "translated",
             "value": "No results for \"%@\""
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin resultados para «%@»"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Ergebnisse für „%@“"
+          }
         }
       }
     },
@@ -1647,6 +3615,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Explicit"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Explícito"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Explizit"
           }
         }
       }
@@ -1658,6 +3638,18 @@
             "state": "translated",
             "value": "Searching Spotify"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscando en Spotify"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify wird durchsucht"
+          }
         }
       }
     },
@@ -1667,6 +3659,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Cancel loading all playlist songs"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancelar carga de todas las canciones de las listas"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Laden aller Playlist-Songs abbrechen"
           }
         }
       }
@@ -1678,6 +3682,18 @@
             "state": "translated",
             "value": "Search result category"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Categoría de resultados de búsqueda"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suchergebnis-Kategorie"
+          }
         }
       }
     },
@@ -1687,6 +3703,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Command Palette Keymap"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atajos de la paleta de comandos"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tastenkürzel der Befehls-Palette"
           }
         }
       }
@@ -1698,6 +3726,18 @@
             "state": "translated",
             "value": "Shortcuts"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atajos"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tastenkürzel"
+          }
         }
       }
     },
@@ -1707,6 +3747,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Click a field and press a shortcut. Esc cancels; Delete clears. Conflicts can replace the other binding."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Haz clic en un campo y pulsa un atajo. Esc cancela; Suprimir borra. Los conflictos pueden reemplazar la otra asignación."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klicke ein Feld an und drücke ein Tastenkürzel. Esc bricht ab; Entf löscht. Konflikte können die andere Belegung ersetzen."
           }
         }
       }
@@ -1718,6 +3770,18 @@
             "state": "translated",
             "value": "Reset to Defaults"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restablecer valores predeterminados"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auf Standard zurücksetzen"
+          }
         }
       }
     },
@@ -1727,6 +3791,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Already assigned to %@ — use Replace to move it here."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ya asignado a %@ — usa Reemplazar para moverlo aquí."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bereits %@ zugewiesen — Ersetzen verwenden, um es hierher zu verschieben."
           }
         }
       }
@@ -1738,6 +3814,18 @@
             "state": "translated",
             "value": "File: %@"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Archivo: %@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datei: %@"
+          }
         }
       }
     },
@@ -1747,6 +3835,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Apply"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aplicar"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Übernehmen"
           }
         }
       }
@@ -1758,6 +3858,18 @@
             "state": "translated",
             "value": "Revert"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revertir"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zurücksetzen"
+          }
         }
       }
     },
@@ -1767,6 +3879,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Reset Defaults"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restablecer predeterminados"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Standard wiederherstellen"
           }
         }
       }
@@ -1778,6 +3902,18 @@
             "state": "translated",
             "value": "Open settings.json"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir settings.json"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "settings.json öffnen"
+          }
         }
       }
     },
@@ -1787,6 +3923,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Replace"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reemplazar"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ersetzen"
           }
         }
       }
@@ -1798,6 +3946,40 @@
             "state": "translated",
             "value": "Open Command Palette"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir paleta de comandos"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Befehls-Palette öffnen"
+          }
+        }
+      }
+    },
+    "app.menu.checkForUpdates": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check for Updates…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscar actualizaciones…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nach Updates suchen…"
+          }
         }
       }
     },
@@ -1807,6 +3989,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Try again shortly."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inténtalo de nuevo en breve."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Versuche es in Kürze erneut."
           }
         }
       }
@@ -1818,6 +4012,18 @@
             "state": "translated",
             "value": "Spotify asked for a long wait (about %lld day(s)); try again later."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify pidió una espera larga (unos %lld día(s)); inténtalo más tarde."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify verlangt eine lange Wartezeit (etwa %lld Tag(e)); versuche es später erneut."
+          }
         }
       }
     },
@@ -1827,6 +4033,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Try again in several hours."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inténtalo de nuevo dentro de varias horas."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Versuche es in einigen Stunden erneut."
           }
         }
       }
@@ -1838,6 +4056,18 @@
             "state": "translated",
             "value": "Try again in about %lld hour(s)."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inténtalo de nuevo en unas %lld hora(s)."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Versuche es in etwa %lld Stunde(n) erneut."
+          }
         }
       }
     },
@@ -1847,6 +4077,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Try again in about %lld minute(s)."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inténtalo de nuevo en unos %lld minuto(s)."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Versuche es in etwa %lld Minute(n) erneut."
           }
         }
       }
@@ -1858,6 +4100,18 @@
             "state": "translated",
             "value": "Try again in %lld seconds."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inténtalo de nuevo en %lld segundos."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Versuche es in %lld Sekunden erneut."
+          }
         }
       }
     },
@@ -1867,6 +4121,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Retry-After (seconds, as reported): %lld"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retry-After (segundos, según informado): %lld"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retry-After (Sekunden, wie gemeldet): %lld"
           }
         }
       }
@@ -1878,6 +4144,18 @@
             "state": "translated",
             "value": "Sign in again"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inicia sesión de nuevo"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erneut anmelden"
+          }
         }
       }
     },
@@ -1887,6 +4165,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Your Spotify sign-in expired. Disconnect and connect Spotify again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu sesión de Spotify ha caducado. Desconéctate y conecta Spotify de nuevo."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deine Spotify-Anmeldung ist abgelaufen. Trenne die Verbindung und verbinde Spotify erneut."
           }
         }
       }
@@ -1898,6 +4188,18 @@
             "state": "translated",
             "value": "Reconnect Spotify"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reconectar Spotify"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify erneut verbinden"
+          }
         }
       }
     },
@@ -1907,6 +4209,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Your current Spotify session is missing playlist or Liked Songs permissions. Disconnect and connect again to grant required scopes."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu sesión actual de Spotify no tiene permisos de listas o Canciones que te gustan. Desconéctate y vuelve a conectar para conceder los permisos necesarios."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deiner aktuellen Spotify-Sitzung fehlen Berechtigungen für Playlists oder Liked Songs. Trenne die Verbindung und verbinde dich erneut, um die erforderlichen Bereiche zu gewähren."
           }
         }
       }
@@ -1918,6 +4232,18 @@
             "state": "translated",
             "value": "Access denied"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Acceso denegado"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zugriff verweigert"
+          }
         }
       }
     },
@@ -1928,12 +4254,36 @@
             "state": "translated",
             "value": "Spotify denied access to this resource."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify denegó el acceso a este recurso."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify hat den Zugriff auf diese Ressource verweigert."
+          }
         }
       }
     },
     "error.browsing.accessDenied.messageWithDetail": {
       "localizations": {
         "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@"
+          }
+        },
+        "de": {
           "stringUnit": {
             "state": "translated",
             "value": "%@"
@@ -1948,6 +4298,18 @@
             "state": "translated",
             "value": "Spotify is rate limiting requests"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify está limitando las solicitudes"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify begrenzt Anfragen"
+          }
         }
       }
     },
@@ -1957,6 +4319,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Too many requests were sent to Spotify. %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se enviaron demasiadas solicitudes a Spotify. %@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Es wurden zu viele Anfragen an Spotify gesendet. %@"
           }
         }
       }
@@ -1968,6 +4342,18 @@
             "state": "translated",
             "value": "Not found"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No encontrado"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht gefunden"
+          }
         }
       }
     },
@@ -1978,12 +4364,36 @@
             "state": "translated",
             "value": "This Spotify resource is no longer available."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este recurso de Spotify ya no está disponible."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Spotify-Ressource ist nicht mehr verfügbar."
+          }
         }
       }
     },
     "error.browsing.notFound.messageWithDetail": {
       "localizations": {
         "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@"
+          }
+        },
+        "de": {
           "stringUnit": {
             "state": "translated",
             "value": "%@"
@@ -1998,6 +4408,18 @@
             "state": "translated",
             "value": "Network unavailable"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Red no disponible"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Netzwerk nicht verfügbar"
+          }
         }
       }
     },
@@ -2007,6 +4429,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Could not read Spotify response"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo leer la respuesta de Spotify"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify-Antwort konnte nicht gelesen werden"
           }
         }
       }
@@ -2018,6 +4452,18 @@
             "state": "translated",
             "value": "Spotify rejected the request"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify rechazó la solicitud"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify hat die Anfrage abgelehnt"
+          }
         }
       }
     },
@@ -2028,12 +4474,36 @@
             "state": "translated",
             "value": "Spotify rejected this request."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify rechazó esta solicitud."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify hat diese Anfrage abgelehnt."
+          }
         }
       }
     },
     "error.browsing.badRequest.messageWithDetail": {
       "localizations": {
         "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@"
+          }
+        },
+        "de": {
           "stringUnit": {
             "state": "translated",
             "value": "%@"
@@ -2048,6 +4518,18 @@
             "state": "translated",
             "value": "Spotify service issue"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Problema del servicio de Spotify"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify-Dienstproblem"
+          }
         }
       }
     },
@@ -2058,12 +4540,36 @@
             "state": "translated",
             "value": "Spotify returned a server error."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify devolvió un error del servidor."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify hat einen Serverfehler zurückgegeben."
+          }
         }
       }
     },
     "error.browsing.server.messageWithDetail": {
       "localizations": {
         "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@"
+          }
+        },
+        "de": {
           "stringUnit": {
             "state": "translated",
             "value": "%@"
@@ -2078,6 +4584,18 @@
             "state": "translated",
             "value": "Invalid request"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solicitud no válida"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ungültige Anfrage"
+          }
         }
       }
     },
@@ -2087,6 +4605,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Something went wrong"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Algo salió mal"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Etwas ist schiefgelaufen"
           }
         }
       }
@@ -2098,6 +4628,18 @@
             "state": "translated",
             "value": "Playlist unavailable"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lista no disponible"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playlist nicht verfügbar"
+          }
         }
       }
     },
@@ -2107,6 +4649,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "This playlist disappeared or is no longer accessible."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta lista desapareció o ya no es accesible."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Playlist ist verschwunden oder nicht mehr zugänglich."
           }
         }
       }
@@ -2118,6 +4672,18 @@
             "state": "translated",
             "value": "The selected playlist was deleted or is no longer accessible."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La lista seleccionada fue eliminada o ya no es accesible."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die ausgewählte Playlist wurde gelöscht oder ist nicht mehr zugänglich."
+          }
         }
       }
     },
@@ -2127,6 +4693,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sign in again"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inicia sesión de nuevo"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erneut anmelden"
           }
         }
       }
@@ -2138,6 +4716,18 @@
             "state": "translated",
             "value": "Spotify rejected the access token."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify rechazó el token de acceso."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify hat das Zugriffstoken abgelehnt."
+          }
         }
       }
     },
@@ -2147,6 +4737,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Could not load queue"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo cargar la cola"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Warteschlange konnte nicht geladen werden"
           }
         }
       }
@@ -2158,12 +4760,36 @@
             "state": "translated",
             "value": "Spotify denied access."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify denegó el acceso."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify hat den Zugriff verweigert."
+          }
         }
       }
     },
     "error.queue.loadFailed.messageWithDetail": {
       "localizations": {
         "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@"
+          }
+        },
+        "de": {
           "stringUnit": {
             "state": "translated",
             "value": "%@"
@@ -2178,6 +4804,18 @@
             "state": "translated",
             "value": "Rate limited"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Límite de solicitudes"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anfragelimit"
+          }
         }
       }
     },
@@ -2187,6 +4825,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Spotify is rate limiting requests. %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify está limitando las solicitudes. %@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify begrenzt Anfragen. %@"
           }
         }
       }
@@ -2198,12 +4848,36 @@
             "state": "translated",
             "value": "Queue update failed"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Error al actualizar la cola"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Warteschlangen-Update fehlgeschlagen"
+          }
         }
       }
     },
     "error.queue.updateFailed.message": {
       "localizations": {
         "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@"
+          }
+        },
+        "de": {
           "stringUnit": {
             "state": "translated",
             "value": "%@"
@@ -2218,6 +4892,18 @@
             "state": "translated",
             "value": "Playback unavailable"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reproducción no disponible"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wiedergabe nicht verfügbar"
+          }
         }
       }
     },
@@ -2227,6 +4913,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Connect Spotiglass playback before adding to the queue."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conecta la reproducción de Spotiglass antes de añadir a la cola."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verbinde die Spotiglass-Wiedergabe, bevor du zur Warteschlange hinzufügst."
           }
         }
       }
@@ -2238,6 +4936,18 @@
             "state": "translated",
             "value": "Already adding to queue"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ya se está añadiendo a la cola"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wird bereits zur Warteschlange hinzugefügt"
+          }
         }
       }
     },
@@ -2247,6 +4957,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "That track is already being added."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esa pista ya se está añadiendo."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Titel wird bereits hinzugefügt."
           }
         }
       }
@@ -2258,6 +4980,18 @@
             "state": "translated",
             "value": "Already queued"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ya en cola"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bereits in der Warteschlange"
+          }
         }
       }
     },
@@ -2267,6 +5001,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "That track was queued just now."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esa pista se acaba de encolar."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Titel wurde gerade in die Warteschlange gestellt."
           }
         }
       }
@@ -2278,6 +5024,18 @@
             "state": "translated",
             "value": "Queue status pending"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estado de cola pendiente"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Warteschlangenstatus ausstehend"
+          }
         }
       }
     },
@@ -2287,6 +5045,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Queue status is still being confirmed. Try again in a moment."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El estado de la cola aún se está confirmando. Inténtalo de nuevo en un momento."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Warteschlangenstatus wird noch bestätigt. Versuche es in einem Moment erneut."
           }
         }
       }
@@ -2298,6 +5068,18 @@
             "state": "translated",
             "value": "Sign in again"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inicia sesión de nuevo"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erneut anmelden"
+          }
         }
       }
     },
@@ -2307,6 +5089,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Spotify rejected the access token used for playback."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify rechazó el token de acceso usado para la reproducción."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify hat das für die Wiedergabe verwendete Zugriffstoken abgelehnt."
           }
         }
       }
@@ -2318,6 +5112,18 @@
             "state": "translated",
             "value": "Spotify Premium required"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se requiere Spotify Premium"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify Premium erforderlich"
+          }
         }
       }
     },
@@ -2328,12 +5134,36 @@
             "state": "translated",
             "value": "Spotify Web Playback SDK playback requires a Premium account."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La reproducción con el Web Playback SDK de Spotify requiere una cuenta Premium."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify-Web-Playback-SDK-Wiedergabe erfordert ein Premium-Konto."
+          }
         }
       }
     },
     "error.playback.premium.messageWithDetail": {
       "localizations": {
         "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@"
+          }
+        },
+        "de": {
           "stringUnit": {
             "state": "translated",
             "value": "%@"
@@ -2348,6 +5178,18 @@
             "state": "translated",
             "value": "Playback rate limited"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reproducción limitada por solicitudes"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wiedergabe durch Anfragelimit"
+          }
         }
       }
     },
@@ -2357,6 +5199,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Spotify is rate limiting playback commands. %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify está limitando los comandos de reproducción. %@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify begrenzt Wiedergabebefehle. %@"
           }
         }
       }
@@ -2368,12 +5222,36 @@
             "state": "translated",
             "value": "Playback command failed"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comando de reproducción fallido"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wiedergabebefehl fehlgeschlagen"
+          }
         }
       }
     },
     "error.playback.commandFailed.message": {
       "localizations": {
         "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@"
+          }
+        },
+        "de": {
           "stringUnit": {
             "state": "translated",
             "value": "%@"
@@ -2388,6 +5266,18 @@
             "state": "translated",
             "value": "Playback could not start"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo iniciar la reproducción"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wiedergabe konnte nicht gestartet werden"
+          }
         }
       }
     },
@@ -2397,6 +5287,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Playback error"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Error de reproducción"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wiedergabefehler"
           }
         }
       }
@@ -2408,6 +5310,18 @@
             "state": "translated",
             "value": "Playback device unavailable"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dispositivo de reproducción no disponible"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wiedergabegerät nicht verfügbar"
+          }
         }
       }
     },
@@ -2417,6 +5331,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Reconnect playback before using controls."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reconecta la reproducción antes de usar los controles."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verbinde die Wiedergabe erneut, bevor du die Steuerung verwendest."
           }
         }
       }
@@ -2428,12 +5354,36 @@
             "state": "translated",
             "value": "The Spotify Web Playback SDK has not reported a ready device yet."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El Web Playback SDK de Spotify aún no ha informado de un dispositivo listo."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Spotify-Web-Playback-SDK hat noch kein bereites Gerät gemeldet."
+          }
         }
       }
     },
     "common.comma": {
       "localizations": {
         "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ", "
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ", "
+          }
+        },
+        "de": {
           "stringUnit": {
             "state": "translated",
             "value": ", "
@@ -2448,6 +5398,18 @@
             "state": "translated",
             "value": ", "
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ", "
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ", "
+          }
         }
       }
     },
@@ -2458,12 +5420,36 @@
             "state": "translated",
             "value": "Access token"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Token de acceso"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zugriffstoken"
+          }
         }
       }
     },
     "settings.account.details": {
       "localizations": {
         "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Details"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Detalles"
+          }
+        },
+        "de": {
           "stringUnit": {
             "state": "translated",
             "value": "Details"
@@ -2478,12 +5464,36 @@
             "state": "translated",
             "value": "COMMANDS"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "COMANDOS"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "BEFEHLE"
+          }
         }
       }
     },
     "palette.section.playlists": {
       "localizations": {
         "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PLAYLISTS"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LISTAS"
+          }
+        },
+        "de": {
           "stringUnit": {
             "state": "translated",
             "value": "PLAYLISTS"
@@ -2498,6 +5508,18 @@
             "state": "translated",
             "value": "HERE"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AQUÍ"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HIER"
+          }
         }
       }
     },
@@ -2508,12 +5530,36 @@
             "state": "translated",
             "value": "MY PLAYLISTS"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MIS LISTAS"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MEINE PLAYLISTS"
+          }
         }
       }
     },
     "palette.section.tracks": {
       "localizations": {
         "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SONGS"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CANCIONES"
+          }
+        },
+        "de": {
           "stringUnit": {
             "state": "translated",
             "value": "SONGS"
@@ -2528,6 +5574,18 @@
             "state": "translated",
             "value": "ARTISTS"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ARTISTAS"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "KÜNSTLER"
+          }
         }
       }
     },
@@ -2537,6 +5595,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "ALBUMS"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ÁLBUMES"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ALBEN"
           }
         }
       }
@@ -2548,6 +5618,18 @@
             "state": "translated",
             "value": "Repeat one — upcoming tracks resume when repeat is off"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Repetir una — las pistas siguientes continúan cuando se desactiva la repetición"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einen wiederholen — anstehende Titel setzen fort, wenn Wiederholung aus ist"
+          }
         }
       }
     },
@@ -2557,6 +5639,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "1 track up next"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 pista a continuación"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 Titel als Nächstes"
           }
         }
       }
@@ -2568,6 +5662,18 @@
             "state": "translated",
             "value": "%lld tracks up next"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld pistas a continuación"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld Titel als Nächstes"
+          }
         }
       }
     },
@@ -2577,6 +5683,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ · Repeat playlist"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · Repetir lista"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · Playlist wiederholen"
           }
         }
       }
@@ -2588,6 +5706,18 @@
             "state": "translated",
             "value": "This song repeats until you turn repeat off. The full queue returns in Up next afterward."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta canción se repite hasta que desactives la repetición. La cola completa volverá a A continuación después."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Song wiederholt sich, bis du die Wiederholung ausschaltest. Danach kehrt die vollständige Warteschlange unter Als Nächstes zurück."
+          }
         }
       }
     },
@@ -2597,6 +5727,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "No upcoming tracks. Start a playlist or add tracks to the queue."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay pistas siguientes. Inicia una lista o añade pistas a la cola."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine anstehenden Titel. Starte eine Playlist oder füge Titel zur Warteschlange hinzu."
           }
         }
       }
@@ -2608,12 +5750,36 @@
             "state": "translated",
             "value": "Shuffle playback order"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Orden aleatorio de reproducción"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zufällige Wiedergabereihenfolge"
+          }
         }
       }
     },
     "browser.playlistOwnerTracks": {
       "localizations": {
         "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ • %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ • %@"
+          }
+        },
+        "de": {
           "stringUnit": {
             "state": "translated",
             "value": "%@ • %@"
@@ -2628,6 +5794,18 @@
             "state": "translated",
             "value": "Past line drifting up"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Línea pasada subiendo"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vergangene Zeile schwebt nach oben"
+          }
         }
       }
     },
@@ -2637,6 +5815,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Currently playing line"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Línea que se reproduce ahora"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktuell wiedergegebene Zeile"
           }
         }
       }
@@ -2648,6 +5838,18 @@
             "state": "translated",
             "value": "Future line rising"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Línea futura ascendiendo"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kommende Zeile steigt auf"
+          }
         }
       }
     },
@@ -2657,6 +5859,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Remove "
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quita "
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Entferne "
           }
         }
       }
@@ -2668,6 +5882,18 @@
             "state": "translated",
             "value": " prefix to search Spotify"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " prefijo para buscar en Spotify"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " Präfix, um Spotify zu durchsuchen"
+          }
         }
       }
     },
@@ -2677,6 +5903,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Repeat off"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Repetición desactivada"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wiederholung aus"
           }
         }
       }
@@ -2688,6 +5926,18 @@
             "state": "translated",
             "value": "Repeat playlist"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Repetir lista"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playlist wiederholen"
+          }
         }
       }
     },
@@ -2698,12 +5948,36 @@
             "state": "translated",
             "value": "Repeat one"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Repetir una"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einen wiederholen"
+          }
         }
       }
     },
     "pin.album.default": {
       "localizations": {
         "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Album"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Álbum"
+          }
+        },
+        "de": {
           "stringUnit": {
             "state": "translated",
             "value": "Album"
@@ -2718,6 +5992,18 @@
             "state": "translated",
             "value": "Advanced (JSON)"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Avanzado (JSON)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erweitert (JSON)"
+          }
         }
       }
     },
@@ -2727,6 +6013,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Clear shortcut"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Borrar atajo"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tastenkürzel löschen"
           }
         }
       }
@@ -2738,6 +6036,18 @@
             "state": "translated",
             "value": "Cancel prefetch"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancelar precarga"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorabladen abbrechen"
+          }
         }
       }
     },
@@ -2747,6 +6057,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "playlist"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "lista"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playlist"
           }
         }
       }
@@ -2758,6 +6080,18 @@
             "state": "translated",
             "value": "artist"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "artista"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Künstler"
+          }
         }
       }
     },
@@ -2767,6 +6101,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "album"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "álbum"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Album"
           }
         }
       }
@@ -2778,6 +6124,18 @@
             "state": "translated",
             "value": "track"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "pista"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Titel"
+          }
         }
       }
     },
@@ -2787,6 +6145,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Showing cached data while Spotify refreshes."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrando datos en caché mientras Spotify se actualiza."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zwischengespeicherte Daten werden angezeigt, während Spotify aktualisiert wird."
           }
         }
       }
@@ -2798,6 +6168,18 @@
             "state": "translated",
             "value": "Loading playlists..."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cargando listas..."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playlists werden geladen …"
+          }
         }
       }
     },
@@ -2807,6 +6189,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Refreshing playlists..."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualizando listas..."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playlists werden aktualisiert …"
           }
         }
       }
@@ -2818,6 +6212,18 @@
             "state": "translated",
             "value": "Refreshing…"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualizando…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wird aktualisiert …"
+          }
         }
       }
     },
@@ -2827,6 +6233,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Reloads the sidebar library, the open playlist or artist, or the queue when the queue panel is focused. Shortcut: ⌘R."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recarga la biblioteca de la barra lateral, la lista o artista abierto, o la cola cuando el panel de cola está enfocado. Atajo: ⌘R."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lädt die Seitenleisten-Mediathek, die geöffnete Playlist oder den Künstler oder die Warteschlange neu, wenn das Warteschlangen-Panel fokussiert ist. Tastenkürzel: ⌘R."
           }
         }
       }
@@ -2838,6 +6256,18 @@
             "state": "translated",
             "value": "Open Artist"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir artista"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Künstler öffnen"
+          }
         }
       }
     },
@@ -2847,6 +6277,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Load more releases"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cargar más lanzamientos"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weitere Veröffentlichungen laden"
           }
         }
       }
@@ -2858,6 +6300,18 @@
             "state": "translated",
             "value": "Loading more releases..."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cargando más lanzamientos..."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weitere Veröffentlichungen werden geladen …"
+          }
         }
       }
     },
@@ -2867,6 +6321,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Loading lyrics…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cargando letras…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Songtexte werden geladen …"
           }
         }
       }
@@ -2878,6 +6344,18 @@
             "state": "translated",
             "value": "This song repeats. Turn repeat off to see what plays next."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta canción se repite. Desactiva la repetición para ver qué suena a continuación."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Song wiederholt sich. Schalte die Wiederholung aus, um zu sehen, was als Nächstes spielt."
+          }
         }
       }
     },
@@ -2887,6 +6365,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "No upcoming tracks."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay pistas siguientes."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine anstehenden Titel."
           }
         }
       }
@@ -2898,6 +6388,18 @@
             "state": "translated",
             "value": "No lyrics found for this track."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se encontraron letras para esta pista."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Songtexte für diesen Titel gefunden."
+          }
         }
       }
     },
@@ -2907,6 +6409,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Lyrics service is rate limited. Try again in %llds."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El servicio de letras está limitado. Inténtalo de nuevo en %lld s."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Songtext-Dienst ist begrenzt. Versuche es in %lld s erneut."
           }
         }
       }
@@ -2918,6 +6432,18 @@
             "state": "translated",
             "value": "Lyrics service is rate limited. Please try again shortly."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El servicio de letras está limitado. Inténtalo de nuevo en breve."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Songtext-Dienst ist begrenzt. Bitte versuche es in Kürze erneut."
+          }
         }
       }
     },
@@ -2927,6 +6453,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Lyrics service error (HTTP %lld)."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Error del servicio de letras (HTTP %lld)."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Songtext-Dienstfehler (HTTP %lld)."
           }
         }
       }
@@ -2938,6 +6476,18 @@
             "state": "translated",
             "value": "Could not read lyrics from the service."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudieron leer las letras del servicio."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Songtexte konnten vom Dienst nicht gelesen werden."
+          }
         }
       }
     },
@@ -2947,6 +6497,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Invalid lyrics request."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solicitud de letras no válida."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ungültige Songtext-Anfrage."
           }
         }
       }
@@ -2958,6 +6520,18 @@
             "state": "translated",
             "value": "Lyrics are only available for music tracks."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las letras solo están disponibles para pistas musicales."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Songtexte sind nur für Musiktitel verfügbar."
+          }
         }
       }
     },
@@ -2967,6 +6541,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Lyrics are temporarily unavailable for this track. Please try again later."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las letras no están disponibles temporalmente para esta pista. Inténtalo más tarde."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Songtexte sind für diesen Titel vorübergehend nicht verfügbar. Bitte versuche es später erneut."
           }
         }
       }
@@ -2978,6 +6564,18 @@
             "state": "translated",
             "value": "Preparing…"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preparando…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wird vorbereitet …"
+          }
         }
       }
     },
@@ -2987,6 +6585,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Loading %lld of %lld playlists…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cargando %lld de %lld listas…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lade %lld von %lld Playlists …"
           }
         }
       }
@@ -2998,6 +6608,18 @@
             "state": "translated",
             "value": "Loaded %lld playlists"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se cargaron %lld listas"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld Playlists geladen"
+          }
         }
       }
     },
@@ -3007,6 +6629,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Loaded %lld of %lld playlists (%lld failed)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se cargaron %lld de %lld listas (%lld fallaron)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld von %lld Playlists geladen (%lld fehlgeschlagen)"
           }
         }
       }
@@ -3018,6 +6652,18 @@
             "state": "translated",
             "value": "Prefetch cancelled (%lld of %lld)"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Precarga cancelada (%lld de %lld)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorabladen abgebrochen (%lld von %lld)"
+          }
         }
       }
     },
@@ -3027,6 +6673,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Returns to library home."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vuelve al inicio de la biblioteca."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kehrt zur Mediathek-Startseite zurück."
           }
         }
       }
@@ -3038,6 +6696,18 @@
             "state": "translated",
             "value": "Shows this location in the browser."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Muestra esta ubicación en el explorador."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zeigt diesen Ort im Browser an."
+          }
         }
       }
     },
@@ -3047,6 +6717,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Spotify returned a response Spotiglass could not read. Check your connection, try again, or disconnect and connect Spotify again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify devolvió una respuesta que Spotiglass no pudo leer. Comprueba tu conexión, inténtalo de nuevo o desconéctate y vuelve a conectar Spotify."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify hat eine Antwort zurückgegeben, die Spotiglass nicht lesen konnte. Prüfe deine Verbindung, versuche es erneut oder trenne und verbinde Spotify erneut."
           }
         }
       }
@@ -3058,6 +6740,18 @@
             "state": "translated",
             "value": "You appear to be offline. Check your network, then try again."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Parece que estás sin conexión. Comprueba tu red e inténtalo de nuevo."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Du scheinst offline zu sein. Prüfe dein Netzwerk und versuche es erneut."
+          }
         }
       }
     },
@@ -3067,6 +6761,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "The connection to Spotify timed out. Try again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La conexión con Spotify agotó el tiempo de espera. Inténtalo de nuevo."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Verbindung zu Spotify ist abgelaufen. Versuche es erneut."
           }
         }
       }
@@ -3078,6 +6784,18 @@
             "state": "translated",
             "value": "Could not reach Spotify. Check your network and DNS settings."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo contactar con Spotify. Comprueba tu red y la configuración DNS."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify konnte nicht erreicht werden. Prüfe dein Netzwerk und die DNS-Einstellungen."
+          }
         }
       }
     },
@@ -3087,6 +6805,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Could not connect to Spotify. Check your network, then try again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo conectar con Spotify. Comprueba tu red e inténtalo de nuevo."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verbindung zu Spotify fehlgeschlagen. Prüfe dein Netzwerk und versuche es erneut."
           }
         }
       }
@@ -3098,6 +6828,18 @@
             "state": "translated",
             "value": "Could not establish a secure connection to Spotify. Check your network or VPN, then try again."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo establecer una conexión segura con Spotify. Comprueba tu red o VPN e inténtalo de nuevo."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sichere Verbindung zu Spotify konnte nicht hergestellt werden. Prüfe dein Netzwerk oder VPN und versuche es erneut."
+          }
         }
       }
     },
@@ -3107,6 +6849,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "The request was cancelled. Try again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La solicitud fue cancelada. Inténtalo de nuevo."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Anfrage wurde abgebrochen. Versuche es erneut."
           }
         }
       }
@@ -3118,6 +6872,18 @@
             "state": "translated",
             "value": "Something went wrong. Check your connection, try again, or disconnect and connect Spotify again."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Algo salió mal. Comprueba tu conexión, inténtalo de nuevo o desconéctate y vuelve a conectar Spotify."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Etwas ist schiefgelaufen. Prüfe deine Verbindung, versuche es erneut oder trenne und verbinde Spotify erneut."
+          }
         }
       }
     },
@@ -3128,12 +6894,36 @@
             "state": "translated",
             "value": "Play"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reproducir"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wiedergabe"
+          }
         }
       }
     },
     "playback.pause": {
       "localizations": {
         "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pause"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pausa"
+          }
+        },
+        "de": {
           "stringUnit": {
             "state": "translated",
             "value": "Pause"
@@ -3148,6 +6938,18 @@
             "state": "translated",
             "value": "Spotify playback"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reproducción de Spotify"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify-Wiedergabe"
+          }
         }
       }
     },
@@ -3157,6 +6959,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "macOS blocked Keychain access for Spotiglass—often after reinstalling or changing how the app is signed. Try Connect again, or reinstall Spotiglass from a trusted build."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS bloqueó el acceso al llavero para Spotiglass, a menudo tras reinstalar o cambiar la firma de la app. Prueba Conectar de nuevo o reinstala Spotiglass desde una compilación de confianza."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS hat den Schlüsselbund-Zugriff für Spotiglass blockiert — oft nach Neuinstallation oder geänderter Signatur. Versuche erneut Verbinden oder installiere Spotiglass aus einer vertrauenswürdigen Version neu."
           }
         }
       }
@@ -3168,6 +6982,18 @@
             "state": "translated",
             "value": "Keychain access isn’t allowed right now. Unlock your Mac, wait a moment, then try again."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El acceso al llavero no está permitido ahora mismo. Desbloquea tu Mac, espera un momento e inténtalo de nuevo."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schlüsselbund-Zugriff ist gerade nicht erlaubt. Entsperre deinen Mac, warte einen Moment und versuche es erneut."
+          }
         }
       }
     },
@@ -3177,6 +7003,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Keychain verification failed. Try again, or disconnect and connect Spotify again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Falló la verificación del llavero. Inténtalo de nuevo o desconéctate y vuelve a conectar Spotify."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schlüsselbund-Verifizierung fehlgeschlagen. Versuche es erneut oder trenne und verbinde Spotify erneut."
           }
         }
       }
@@ -3188,6 +7026,18 @@
             "state": "translated",
             "value": "Saved sign-in data conflicted with an existing Keychain entry. Disconnect, then connect again."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los datos de inicio de sesión guardados entraron en conflicto con una entrada existente del llavero. Desconéctate y vuelve a conectar."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gespeicherte Anmeldedaten kollidierten mit einem vorhandenen Schlüsselbund-Eintrag. Trenne die Verbindung und verbinde dich erneut."
+          }
         }
       }
     },
@@ -3197,6 +7047,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Keychain is read-only. Check disk space and permissions, then try again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El llavero es de solo lectura. Comprueba el espacio en disco y los permisos, e inténtalo de nuevo."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schlüsselbund ist schreibgeschützt. Prüfe Speicherplatz und Berechtigungen und versuche es erneut."
           }
         }
       }
@@ -3208,6 +7070,18 @@
             "state": "translated",
             "value": "Keychain is not available. Restart your Mac and try again."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El llavero no está disponible. Reinicia tu Mac e inténtalo de nuevo."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schlüsselbund ist nicht verfügbar. Starte deinen Mac neu und versuche es erneut."
+          }
         }
       }
     },
@@ -3217,6 +7091,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Could not read or write sign-in data (Keychain I/O error). Try again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudieron leer ni escribir los datos de inicio de sesión (error de E/S del llavero). Inténtalo de nuevo."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anmeldedaten konnten nicht gelesen oder geschrieben werden (Schlüsselbund-E/A-Fehler). Versuche es erneut."
           }
         }
       }
@@ -3228,6 +7114,18 @@
             "state": "translated",
             "value": "Keychain rejected the request. Disconnect and connect Spotify again."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El llavero rechazó la solicitud. Desconéctate y vuelve a conectar Spotify."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schlüsselbund hat die Anfrage abgelehnt. Trenne die Verbindung und verbinde Spotify erneut."
+          }
         }
       }
     },
@@ -3237,6 +7135,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Not enough memory to use Keychain. Close other apps and try again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay memoria suficiente para usar el llavero. Cierra otras apps e inténtalo de nuevo."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht genug Speicher für den Schlüsselbund. Schließe andere Apps und versuche es erneut."
           }
         }
       }
@@ -3248,6 +7158,18 @@
             "state": "translated",
             "value": "Could not decode Keychain data. Disconnect and connect Spotify again."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudieron decodificar los datos del llavero. Desconéctate y vuelve a conectar Spotify."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schlüsselbund-Daten konnten nicht dekodiert werden. Trenne die Verbindung und verbinde Spotify erneut."
+          }
         }
       }
     },
@@ -3257,6 +7179,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Could not access saved Spotify sign-in data (security error %lld)%@. If this keeps happening, note this code when reporting the issue. Try Disconnect, then Connect again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo acceder a los datos guardados de inicio de sesión de Spotify (error de seguridad %lld)%@. Si sigue ocurriendo, anota este código al informar del problema. Prueba Desconectar y luego Conectar de nuevo."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gespeicherte Spotify-Anmeldedaten konnten nicht gelesen werden (Sicherheitsfehler %lld)%@. Wenn das weiterhin passiert, notiere diesen Code bei der Fehlermeldung. Versuche Trennen und dann erneut Verbinden."
           }
         }
       }
@@ -3268,6 +7202,18 @@
             "state": "translated",
             "value": "Spotify returned a response Spotiglass could not interpret."
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify devolvió una respuesta que Spotiglass no pudo interpretar."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify hat eine Antwort zurückgegeben, die Spotiglass nicht interpretieren konnte."
+          }
         }
       }
     },
@@ -3277,6 +7223,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Spotify rejected the token request (HTTP %lld): %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify rechazó la solicitud de token (HTTP %lld): %@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify hat die Token-Anfrage abgelehnt (HTTP %lld): %@"
           }
         }
       }
@@ -3288,6 +7246,18 @@
             "state": "translated",
             "value": "Spotify rejected the token request (HTTP %lld): %@"
           }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify rechazó la solicitud de token (HTTP %lld): %@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify hat die Token-Anfrage abgelehnt (HTTP %lld): %@"
+          }
         }
       }
     },
@@ -3297,6 +7267,194 @@
           "stringUnit": {
             "state": "translated",
             "value": "Spotify rejected the token request (HTTP %lld)."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify rechazó la solicitud de token (HTTP %lld)."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify hat die Token-Anfrage abgelehnt (HTTP %lld)."
+          }
+        }
+      }
+    },
+    "settings.appearance.language": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Language"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Idioma"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sprache"
+          }
+        }
+      }
+    },
+    "settings.appearance.language.hint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Controls Spotiglass UI language. English, Spanish, and German are available."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Controla el idioma de la interfaz de Spotiglass. Están disponibles inglés, español y alemán."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Legt die Sprache der Spotiglass-Oberfläche fest. Verfügbar sind Englisch, Spanisch und Deutsch."
+          }
+        }
+      }
+    },
+    "settings.appearance.lyricsSize.large": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Large"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Large"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Groß"
+          }
+        }
+      }
+    },
+    "settings.appearance.lyricsSize.medium": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Medium"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Medium"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mittel"
+          }
+        }
+      }
+    },
+    "settings.appearance.lyricsSize.small": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Small"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Small"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klein"
+          }
+        }
+      }
+    },
+    "settings.appearance.scheme.dark": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dark"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dark"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dunkel"
+          }
+        }
+      }
+    },
+    "settings.appearance.scheme.light": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Light"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Light"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hell"
+          }
+        }
+      }
+    },
+    "settings.appearance.scheme.system": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sistema"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System"
           }
         }
       }

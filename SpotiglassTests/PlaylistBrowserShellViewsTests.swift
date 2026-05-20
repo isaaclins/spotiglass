@@ -91,7 +91,7 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
         XCTAssertNoThrow(try split.inspect())
     }
 
-    func testPinnedSidebarLibraryRowHosts() throws {
+    func testPinnedSidebarLibraryRowHostsAndDragLifecycle() throws {
         let playlist = PlaylistBrowsingTestFixtures.playlist(id: "pin", name: "Pinned")
         let item = PinnedItem.playlist(playlist)
         let store = PinnedItemsStore(cache: InMemoryPinnedItemsCache())
@@ -132,27 +132,107 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
     func testPlaylistBrowserViewHostsShell() async throws {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "p1", name: "Focus")])],
-            trackResults: [:]
+            trackResults: ["p1": [.success([PlaylistBrowsingTestFixtures.track(id: "t1")])]]
         )
         let browserVM = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
         await browserVM.load()
+        let store = PinnedItemsStore(cache: InMemoryPinnedItemsCache())
+        store.bind(userID: "u1")
+        store.pin(PinnedItem.playlist(PlaylistBrowsingTestFixtures.playlist(id: "pin", name: "Pinned")))
+        let palette = CommandPaletteManager()
         let tokens = ShellTestTokenProvider()
         let view = PlaylistBrowserView(
             viewModel: browserVM,
             playbackTokenProvider: tokens,
             searchTokenProvider: tokens,
-            commandPaletteManager: CommandPaletteManager(),
+            commandPaletteManager: palette,
             signOut: {}
         )
-        .environmentObject(PinnedItemsStore(cache: InMemoryPinnedItemsCache()))
+        .environmentObject(store)
         .environmentObject(LyricsOverlayController())
         let controller = ViewTestHost.host(view, size: CGSize(width: 960, height: 640))
+        AppKitTestSupport.pumpRunLoop(for: 0.4)
         XCTAssertNoThrow(try view.inspect().find(text: "Focus"))
+        XCTAssertTrue(palette.isSignedIn)
 
         controller.view.frame = CGRect(x: 0, y: 0, width: 400, height: 640)
         controller.view.layoutSubtreeIfNeeded()
-        AppKitTestSupport.pumpRunLoop(for: 0.15)
+        AppKitTestSupport.pumpRunLoop(for: 0.2)
         XCTAssertTrue(PlaylistBrowserView.mutualExclusionWidth(for: 400))
+    }
+
+    func testLibraryHomeRowHosts() throws {
+        let row = LibraryHomeSidebarRow()
+        ViewTestHost.host(row, size: CGSize(width: 220, height: 36))
+        ViewTestHost.assertFindLocalizedText("browser.home", in: row)
+    }
+
+    func testPlaylistBrowserSidebarWithLibraryRowsHosts() throws {
+        let browserVM = PlaylistBrowserViewModel(
+            api: MockBrowsingAPI(playlistResults: [], trackResults: [:]),
+            cache: MockBrowsingCache()
+        )
+        let playbackVM = PlaybackSessionViewModel(
+            playbackAPI: MockPlaybackAPI(),
+            webCommander: MockWebPlaybackCommander()
+        )
+        let store = PinnedItemsStore(cache: InMemoryPinnedItemsCache())
+        store.bind(userID: "u1")
+        let liked = PlaylistRowViewModel(likedSongsOwnerDisplay: "You", totalTrackCount: nil, artworkURL: nil)
+        let sidebar = PlaylistBrowserSidebar(
+            viewModel: browserVM,
+            playbackViewModel: playbackVM,
+            libraryRows: [.home],
+            libraryDropInsertionIndex: .constant(nil),
+            libraryRowFramesByToken: .constant([:]),
+            dragPreviewState: PinnedDragPreviewState.shared,
+            likedSongsStubRow: liked,
+            playlistSummaryFromRow: { row in
+                SpotifyPlaylistSummary(
+                    id: row.id, name: row.title, ownerName: row.owner,
+                    imageURL: row.artworkURL, trackCount: 0, snapshotID: row.snapshotID
+                )
+            },
+            onLibraryAppear: {},
+            onSidebarListSelectionChange: { _, _ in },
+            handlePinnedTransferDrop: { _, _ in false },
+            handleLibraryTransferDrop: { _, _ in false }
+        )
+        .environmentObject(store)
+        ViewTestHost.host(sidebar, size: CGSize(width: 280, height: 520))
+        XCTAssertNoThrow(try sidebar.inspect().find(text: "Library"))
+    }
+
+    func testDetailColumnWithLoadedPlaylistHostsTracks() async throws {
+        let playlist = PlaylistBrowsingTestFixtures.playlist(id: "p1", name: "Loaded")
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([playlist])],
+            trackResults: ["p1": [.success([PlaylistBrowsingTestFixtures.track(id: "t1")])]]
+        )
+        let browserVM = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+        await browserVM.load()
+        browserVM.sidebarSelection = .playlist("p1")
+        browserVM.detailState = .loading
+
+        let playbackVM = PlaybackSessionViewModel(
+            playbackAPI: MockPlaybackAPI(),
+            webCommander: MockWebPlaybackCommander()
+        )
+        let queueVM = QueueViewModel(playbackAPI: MockPlaybackAPI(), playbackSession: playbackVM)
+        let column = PlaylistBrowserMainDetailColumn(
+            viewModel: browserVM,
+            playbackViewModel: playbackVM,
+            queueViewModel: queueVM,
+            pendingPlaylistListScrollRestoreID: .constant(nil),
+            detailLastVisibleTrackID: .constant(nil),
+            currentPlaybackURI: nil,
+            isCurrentlyPlaying: false,
+            hasPlaybackDevice: true
+        )
+        .environmentObject(LyricsOverlayController())
+        ViewTestHost.host(column, size: CGSize(width: 720, height: 520))
+        AppKitTestSupport.pumpRunLoop(for: 0.15)
+        XCTAssertNoThrow(try column.inspect())
     }
 
 }

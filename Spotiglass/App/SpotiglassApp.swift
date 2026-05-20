@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct SpotiglassApp: App {
+    private let sparkleUpdater = SparkleUpdaterController()
     @StateObject private var authViewModel: AuthViewModel
     @StateObject private var settingsStore: SpotiglassSettingsStore
     @StateObject private var commandPaletteManager: CommandPaletteManager
@@ -28,6 +29,7 @@ struct SpotiglassApp: App {
             authVM = AuthViewModel()
         }
         _authViewModel = StateObject(wrappedValue: authVM)
+        SpotiglassL10n.settingsStore = store
     }
 
     private var preferredColorScheme: ColorScheme? {
@@ -41,13 +43,18 @@ struct SpotiglassApp: App {
                 .environmentObject(settingsStore)
                 .environmentObject(pinnedStore)
                 .environmentObject(lyricsOverlayController)
+                .environment(\.locale, settingsStore.appLocale)
+                .id(settingsStore.settings.appearance.language)
                 .preferredColorScheme(preferredColorScheme)
                 .frame(minWidth: 520, minHeight: 360)
         }
         .windowResizability(.contentMinSize)
         .commands {
+            CommandGroup(after: .appInfo) {
+                CheckForUpdatesView(updater: sparkleUpdater.updater)
+            }
             CommandMenu("Spotiglass") {
-                Button(String(localized: "app.menu.openPalette")) {
+                Button(SpotiglassL10n.string("app.menu.openPalette")) {
                     commandPaletteManager.execute(commandID: CommandPaletteCommandID.openPalette)
                 }
                 .keyboardShortcut("k", modifiers: [.command])
@@ -60,6 +67,7 @@ struct SpotiglassApp: App {
                 settingsStore: settingsStore
             )
             .environmentObject(authViewModel)
+            .environment(\.locale, settingsStore.appLocale)
             .preferredColorScheme(preferredColorScheme)
         }
     }

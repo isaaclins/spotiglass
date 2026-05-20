@@ -2,8 +2,19 @@ import Foundation
 import Security
 
 struct KeychainRefreshTokenStore: RefreshTokenStore {
-    private let service = "com.isaaclins.spotiglass.spotify-auth"
-    private let account = "spotify-refresh-token"
+    private let service: String
+    private let account: String
+    private let client: SecItemClient
+
+    init(
+        service: String = "com.isaaclins.spotiglass.spotify-auth",
+        account: String = "spotify-refresh-token",
+        client: SecItemClient = LiveSecItemClient()
+    ) {
+        self.service = service
+        self.account = account
+        self.client = client
+    }
 
     func loadRefreshToken() throws -> String? {
         var query = baseQuery()
@@ -11,7 +22,7 @@ struct KeychainRefreshTokenStore: RefreshTokenStore {
         query[kSecMatchLimit as String] = kSecMatchLimitOne
 
         var item: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        let status = client.copyMatching(query as CFDictionary, result: &item)
         if status == errSecItemNotFound {
             return nil
         }
@@ -33,7 +44,7 @@ struct KeychainRefreshTokenStore: RefreshTokenStore {
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         ]
 
-        let status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        let status = client.update(query as CFDictionary, attributes as CFDictionary)
         if status == errSecSuccess {
             return
         }
@@ -43,14 +54,14 @@ struct KeychainRefreshTokenStore: RefreshTokenStore {
 
         query[kSecValueData as String] = data
         query[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-        let addStatus = SecItemAdd(query as CFDictionary, nil)
+        let addStatus = client.add(query as CFDictionary, result: nil)
         guard addStatus == errSecSuccess else {
             throw KeychainRefreshTokenStoreError.unexpectedStatus(addStatus)
         }
     }
 
     func deleteRefreshToken() throws {
-        let status = SecItemDelete(baseQuery() as CFDictionary)
+        let status = client.delete(baseQuery() as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw KeychainRefreshTokenStoreError.unexpectedStatus(status)
         }

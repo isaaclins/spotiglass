@@ -1,29 +1,13 @@
 {
   "files": [
     "Spotiglass/Browsing/PlaylistBrowserViewModel+ArtistSelection.swift",
-    "Spotiglass/Browsing/PlaylistBrowserViewModel+PrefetchAllTracks.swift",
-    "Spotiglass/CommandPalette/CommandPaletteEventMonitor.swift",
-    "Spotiglass/CommandPalette/CommandPaletteManager.swift",
     "Spotiglass/CommandPalette/HotkeyRecorderField.swift",
-    "Spotiglass/Infrastructure/SpotiglassLog.swift",
-    "Spotiglass/Persistence/KeychainRefreshTokenStore.swift",
-    "Spotiglass/Playback/QueueViewModel+Enqueue.swift",
-    "Spotiglass/Playback/SpotifyPlaybackBridge.swift",
-    "Spotiglass/Playback/SpotifyPlaybackModels.swift",
-    "Spotiglass/Services/SpotifyDTOs+Common.swift",
-    "Spotiglass/Views/ImmersiveLyrics/ImmersiveLyricsBackgroundLayer.swift",
     "Spotiglass/Views/PlaylistBrowser/LibraryDropInfrastructure.swift",
     "Spotiglass/Views/PlaylistBrowser/LibrarySidebarRowViews.swift",
     "Spotiglass/Views/PlaylistBrowser/PlaylistBrowserDetailColumn.swift",
     "Spotiglass/Views/PlaylistBrowser/PlaylistBrowserSidebar.swift",
     "Spotiglass/Views/PlaylistBrowser/PlaylistBrowserView+CommandPalette.swift",
     "Spotiglass/Views/PlaylistBrowser/PlaylistBrowserView+Library.swift",
-    "Spotiglass/Views/PlaylistBrowser/PlaylistBrowserView+Playback.swift",
-    "Spotiglass/Views/PlaylistBrowser/PlaylistBrowserView+Preview.swift",
-    "Spotiglass/Views/PlaylistBrowser/PlaylistBrowserView+SidebarSelection.swift",
-    "Spotiglass/Views/PlaylistBrowser/PlaylistBrowserView+TapTargets.swift",
-    "Spotiglass/Views/PlaylistBrowser/PlaylistBrowserView+Width.swift",
-    "Spotiglass/Views/PlaylistBrowserView.swift",
     "Spotiglass/Views/RootView.swift"
   ]
 }

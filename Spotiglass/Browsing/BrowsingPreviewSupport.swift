@@ -1,21 +1,11 @@
+import Foundation
+
+#if DEBUG
 import SwiftUI
+#endif
 
-#Preview {
-    PlaylistBrowserView(
-        viewModel: PlaylistBrowserViewModel(
-            api: PreviewBrowsingAPI(),
-            cache: PreviewBrowsingCache()
-        ),
-        playbackTokenProvider: PreviewPlaybackTokenProvider(),
-        searchTokenProvider: PreviewPlaybackTokenProvider(),
-        commandPaletteManager: CommandPaletteManager(),
-        signOut: {}
-    )
-    .environmentObject(PinnedItemsStore(cache: InMemoryPinnedItemsCache()))
-    .environmentObject(LyricsOverlayController())
-}
-
-private struct PreviewBrowsingAPI: SpotifyBrowsingAPI {
+/// Preview-only browsing API used by ``PlaylistBrowserView`` canvas; exercised in unit tests for coverage.
+struct PreviewBrowsingAPI: SpotifyBrowsingAPI {
     func currentUserProfile() async throws -> SpotifyUserProfile {
         SpotifyUserProfile(id: "preview", displayName: nil, country: "US")
     }
@@ -72,13 +62,35 @@ private struct PreviewBrowsingAPI: SpotifyBrowsingAPI {
 
     func currentUserPlaylists(limit: Int) async throws -> [SpotifyPlaylistSummary] {
         [
-            SpotifyPlaylistSummary(id: "playlist", name: "Preview Playlist", ownerName: "Isaac", imageURL: nil, trackCount: 2, snapshotID: "snapshot")
+            SpotifyPlaylistSummary(
+                id: "playlist",
+                name: "Preview Playlist",
+                ownerName: "Isaac",
+                imageURL: nil,
+                trackCount: 2,
+                snapshotID: "snapshot"
+            ),
         ]
     }
 
     func playlistTracks(playlistID: String, limit: Int, maxPages: Int) async throws -> [SpotifyPlaylistTrackItem] {
         [
-            SpotifyPlaylistTrackItem(id: "track", content: .track(SpotifyTrack(id: "track", name: "Preview Track", artists: ["Artist"], albumArtworkURL: nil, durationMilliseconds: 181_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:track")))
+            SpotifyPlaylistTrackItem(
+                id: "track",
+                content: .track(
+                    SpotifyTrack(
+                        id: "track",
+                        name: "Preview Track",
+                        artists: ["Artist"],
+                        albumArtworkURL: nil,
+                        durationMilliseconds: 181_000,
+                        isExplicit: false,
+                        isPlayable: true,
+                        linkedFromID: nil,
+                        uri: "spotify:track:track"
+                    )
+                )
+            ),
         ]
     }
 
@@ -87,7 +99,7 @@ private struct PreviewBrowsingAPI: SpotifyBrowsingAPI {
     }
 }
 
-private struct PreviewBrowsingCache: SpotifyBrowsingCache {
+struct PreviewBrowsingCache: SpotifyBrowsingCache {
     func loadPlaylistsBundle(now: Date) throws -> (playlists: [SpotifyPlaylistSummary], age: TimeInterval)? { nil }
     func savePlaylists(_ playlists: [SpotifyPlaylistSummary], cachedAt: Date) throws {}
     func loadTracks(playlistID: String, snapshotID: String, now: Date, maxAge: TimeInterval) throws -> [SpotifyPlaylistTrackItem]? { nil }
@@ -97,12 +109,26 @@ private struct PreviewBrowsingCache: SpotifyBrowsingCache {
 }
 
 @MainActor
-private final class PreviewPlaybackTokenProvider: PlaybackAccessTokenProviding {
+final class PreviewPlaybackTokenProvider: PlaybackAccessTokenProviding, SpotifyAccessTokenProviding {
     func playbackAccessToken() async throws -> String { "preview-token" }
     func refreshedPlaybackAccessToken() async throws -> String { "preview-token" }
-}
-
-extension PreviewPlaybackTokenProvider: SpotifyAccessTokenProviding {
     func accessToken() async throws -> String { "preview-token" }
     func refreshAccessTokenAfterUnauthorized() async throws -> String { "preview-token" }
 }
+
+#if DEBUG
+#Preview {
+    PlaylistBrowserView(
+        viewModel: PlaylistBrowserViewModel(
+            api: PreviewBrowsingAPI(),
+            cache: PreviewBrowsingCache()
+        ),
+        playbackTokenProvider: PreviewPlaybackTokenProvider(),
+        searchTokenProvider: PreviewPlaybackTokenProvider(),
+        commandPaletteManager: CommandPaletteManager(),
+        signOut: {}
+    )
+    .environmentObject(PinnedItemsStore(cache: InMemoryPinnedItemsCache()))
+    .environmentObject(LyricsOverlayController())
+}
+#endif

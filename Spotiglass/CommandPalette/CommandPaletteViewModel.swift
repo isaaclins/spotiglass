@@ -41,6 +41,10 @@ final class CommandPaletteViewModel: ObservableObject {
     /// After Spotify returns HTTP 429, blocks new palette searches until this instant (in addition to client-side GET retries inside `SpotifyAPIClient`).
     private var rateLimitCooldownUntil: Date = .distantPast
 
+    deinit {
+        searchTask?.cancel()
+    }
+
     /// Flat list of items across all visible sections, in display order.
     /// Used for arrow-key navigation and Enter execution.
     var visibleItems: [CommandPaletteItem] {

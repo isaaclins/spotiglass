@@ -140,6 +140,41 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
         await fulfillment(of: [openPlaylist], timeout: 2)
     }
 
+    func testPaletteOpenReturnExecutesSelection() async {
+        let manager = CommandPaletteManager()
+        manager.viewModel.show()
+        manager.viewModel.testingReplaceSections([
+            (.commands, [
+                CommandPaletteItem(
+                    id: "run",
+                    title: "Run",
+                    subtitle: nil,
+                    iconSystemName: "command",
+                    section: .commands,
+                    keywords: [],
+                    action: {}
+                ),
+            ]),
+        ])
+        XCTAssertTrue(manager.handleKeyEvent(keyDown(keyCode: 36)))
+    }
+
+    func testSignedOutKeymapStillMatchesWhenConfigured() throws {
+        let url = makeCommandPaletteTestsTempSettingsURL()
+        let settings = SpotiglassSettingsStore(fileURL: url)
+        let keymap = CommandPaletteKeymapStore(settingsStore: settings)
+        let manager = CommandPaletteManager(keymapStore: keymap)
+        manager.isSignedIn = false
+        try keymap.setBinding(
+            commandID: CommandPaletteCommandID.openPalette,
+            shortcut: try CommandShortcut(keystroke: "cmd-k"),
+            replaceConflicting: true
+        )
+        XCTAssertFalse(manager.viewModel.isPresented)
+        XCTAssertTrue(manager.handleKeyEvent(keyDown(keyCode: 40, characters: "k", modifiers: [.command])))
+        XCTAssertTrue(manager.viewModel.isPresented)
+    }
+
     func testExecuteRefreshAndPrefetchHooks() async {
         let manager = CommandPaletteManager()
         let refresh = expectation(description: "refresh")
@@ -151,5 +186,113 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
         manager.prefetchAllPlaylists = { prefetched = true }
         manager.execute(commandID: CommandPaletteCommandID.prefetchAllPlaylists)
         XCTAssertTrue(prefetched)
+    }
+
+    func testExecuteSignOutSettingsAndTransport() async {
+        let manager = CommandPaletteManager()
+        var signedOut = false
+        manager.signOut = { signedOut = true }
+        manager.execute(commandID: CommandPaletteCommandID.signOut)
+        XCTAssertTrue(signedOut)
+
+        var openedSettings = false
+        manager.openSettings = { openedSettings = true }
+        manager.execute(commandID: CommandPaletteCommandID.openSettings)
+        XCTAssertTrue(openedSettings)
+
+        let next = expectation(description: "next")
+        manager.nextTrack = { next.fulfill() }
+        manager.execute(commandID: CommandPaletteCommandID.nextTrack)
+        await fulfillment(of: [next], timeout: 2)
+
+        let previous = expectation(description: "previous")
+        manager.previousTrack = { previous.fulfill() }
+        manager.execute(commandID: CommandPaletteCommandID.previousTrack)
+        await fulfillment(of: [previous], timeout: 2)
+    }
+
+    func testExecutePlayURIFilterArtistAndQueueLyrics() async {
+        let manager = CommandPaletteManager()
+        let playURI = expectation(description: "playURI")
+        manager.playURI = { uri in
+            XCTAssertEqual(uri, "spotify:track:1")
+            playURI.fulfill()
+        }
+        manager.execute(commandID: "playback.playURI", args: ["uri": .string("spotify:track:1")])
+        await fulfillment(of: [playURI], timeout: 2)
+
+        var filtered: String?
+        manager.filterByArtist = { filtered = $0 }
+        manager.execute(commandID: CommandPaletteCommandID.filterByArtist, args: ["name": .string("Kanye")])
+        XCTAssertEqual(filtered, "Kanye")
+
+        var queueToggled = false
+        manager.toggleQueue = { queueToggled = true }
+        manager.execute(commandID: CommandPaletteCommandID.toggleQueue)
+        XCTAssertTrue(queueToggled)
+
+        var lyricsToggled = false
+        manager.toggleLyrics = { lyricsToggled = true }
+        manager.execute(commandID: CommandPaletteCommandID.toggleLyrics)
+        XCTAssertTrue(lyricsToggled)
+    }
+
+    func testExecuteConnectDisconnectAndPlaylistNavigation() async {
+        let manager = CommandPaletteManager()
+        var connected = false
+        manager.connectPlayback = { connected = true }
+        manager.execute(commandID: CommandPaletteCommandID.connectPlayback)
+        XCTAssertTrue(connected)
+
+        let disconnect = expectation(description: "disconnect")
+        manager.disconnectPlayback = { disconnect.fulfill() }
+        manager.execute(commandID: CommandPaletteCommandID.disconnectPlayback)
+        await fulfillment(of: [disconnect], timeout: 2)
+
+        let next = expectation(description: "nextPlaylist")
+        manager.selectNextPlaylist = { next.fulfill() }
+        manager.execute(commandID: CommandPaletteCommandID.selectNextPlaylist)
+        await fulfillment(of: [next], timeout: 2)
+
+        let openArtist = expectation(description: "openArtist")
+        manager.openArtist = { id in
+            XCTAssertEqual(id, "artist-9")
+            openArtist.fulfill()
+        }
+        manager.execute(commandID: CommandPaletteCommandID.openArtist, args: ["artistID": .string("artist-9")])
+        await fulfillment(of: [openArtist], timeout: 2)
+    }
+
+    func testExecutePinEnqueueAndOpenPalette() async {
+        let manager = CommandPaletteManager()
+        manager.viewModel.show()
+        manager.execute(commandID: CommandPaletteCommandID.openPalette)
+        XCTAssertTrue(manager.viewModel.isPresented)
+
+        manager.execute(commandID: CommandPaletteCommandID.pinSelected)
+        manager.execute(commandID: CommandPaletteCommandID.unpinSelected)
+        manager.execute(commandID: CommandPaletteCommandID.enqueueSelected)
+        try? await Task.sleep(nanoseconds: 50_000_000)
+    }
+
+    func testPaletteReturnExecutesSelection() async {
+        let manager = CommandPaletteManager()
+        manager.viewModel.show()
+        let executed = expectation(description: "executed")
+        manager.viewModel.testingReplaceSections([
+            (.commands, [
+                CommandPaletteItem(
+                    id: "run",
+                    title: "Run",
+                    subtitle: nil,
+                    iconSystemName: "command",
+                    section: .commands,
+                    keywords: [],
+                    action: { executed.fulfill() }
+                ),
+            ]),
+        ])
+        XCTAssertTrue(manager.handleKeyEvent(keyDown(keyCode: 36)))
+        await fulfillment(of: [executed], timeout: 2)
     }
 }

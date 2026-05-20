@@ -24,23 +24,23 @@ enum SpotifyTokenClientError: Error, Equatable, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidResponse:
-            return String(localized: "auth.token.invalidResponse")
+            return SpotiglassL10n.string("auth.token.invalidResponse")
         case let .httpError(status, description, oauthError, _):
             if let description, !description.isEmpty {
                 return String(
-                    format: String(localized: "auth.token.rejectedWithDescription"),
+                    format: SpotiglassL10n.string("auth.token.rejectedWithDescription"),
                     status,
                     description
                 )
             }
             if let oauthError, !oauthError.isEmpty {
                 return String(
-                    format: String(localized: "auth.token.rejectedWithOAuth"),
+                    format: SpotiglassL10n.string("auth.token.rejectedWithOAuth"),
                     status,
                     oauthError
                 )
             }
-            return String(format: String(localized: "auth.token.rejected"), status)
+            return String(format: SpotiglassL10n.string("auth.token.rejected"), status)
         }
     }
 }

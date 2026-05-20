@@ -16,4 +16,16 @@ final class SpotiglassFoundationTests: XCTestCase {
         XCTAssertEqual(AppMetadata.displayName, "Spotiglass")
         XCTAssertEqual(AppMetadata.bundleIdentifier, "com.isaaclins.spotiglass")
     }
+
+    func testSparkleConfigurationFeedAndPublicKey() {
+        XCTAssertEqual(
+            SparkleConfiguration.feedURL,
+            "https://isaaclins.github.io/spotiglass/appcast.xml"
+        )
+        XCTAssertEqual(
+            SparkleConfiguration.publicEDKey,
+            "HknEj0Snyq5WsrWwAxj89njv+qkdMASLlzKMFrlog8Y="
+        )
+    }
+
 }

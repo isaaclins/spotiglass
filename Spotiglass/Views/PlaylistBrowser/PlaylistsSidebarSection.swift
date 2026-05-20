@@ -5,15 +5,15 @@ struct PlaylistsSidebarSectionHeader: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
-            Text("browser.playlists", bundle: .main)
+            Text(SpotiglassL10n.string("browser.playlists"))
                 .font(.title3.weight(.semibold))
             switch playlistState {
             case .staleCache:
-                Text("browser.cachedData", bundle: .main)
+                Text(SpotiglassL10n.string("browser.cachedData"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             case .refreshing:
-                Text("browser.refreshing", bundle: .main)
+                Text(SpotiglassL10n.string("browser.refreshing"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             default:
@@ -41,13 +41,13 @@ struct PlaylistsSidebarSectionContent: View {
             likedSongsSidebarRow
             switch playlistState {
             case .loading:
-                ProgressView(String(localized: "browser.loadingPlaylists"))
+                ProgressView(SpotiglassL10n.string("browser.loadingPlaylists"))
             case let .loaded(playlists), let .refreshing(playlists), let .staleCache(playlists, _):
                 ForEach(playlists) { playlist in
                     playlistSidebarRow(playlist: playlist)
                 }
             case let .empty(message):
-                EmptyStateView(title: String(localized: "browser.noPlaylists.title"), message: message)
+                EmptyStateView(title: SpotiglassL10n.string("browser.noPlaylists.title"), message: message)
             case let .error(error):
                 ErrorStateView(error: error)
             }
@@ -93,11 +93,11 @@ struct PlaylistsSidebarSectionContent: View {
         )
         .contextMenu {
             if pinned {
-                Button(String(localized: "browser.unpin.short")) {
+                Button(SpotiglassL10n.string("browser.unpin.short")) {
                     pinnedStore.unpin(id: PinnedItem.id(forKind: .playlist, spotifyID: playlist.id))
                 }
             } else {
-                Button(String(localized: "browser.pin")) {
+                Button(SpotiglassL10n.string("browser.pin")) {
                     pinnedStore.pin(.playlist(summary))
                 }
             }

@@ -16,7 +16,7 @@ struct ImmersiveLyricsLyricsPhaseColumn: View {
                 Color.clear
                     .frame(maxWidth: .infinity, minHeight: 160)
             case .loading:
-                ProgressView(String(localized: "lyrics.loading"))
+                ProgressView(SpotiglassL10n.string("lyrics.loading"))
                     .controlSize(.large)
                     .tint(.white)
                     .foregroundStyle(.white.opacity(0.85))
@@ -27,7 +27,7 @@ struct ImmersiveLyricsLyricsPhaseColumn: View {
                         .font(.body)
                         .foregroundStyle(.white.opacity(0.9))
                     if let track = currentTrack {
-                        Button(String(localized: "lyrics.tryAgain")) {
+                        Button(SpotiglassL10n.string("lyrics.tryAgain")) {
                             Task { await lyricsModel.load(track: track) }
                         }
                         .buttonStyle(.borderedProminent)
@@ -61,7 +61,7 @@ struct ImmersiveLyricsReadyContentView: View {
     var body: some View {
         switch lyrics {
         case .instrumental:
-            Text("lyrics.instrumental", bundle: .main)
+            Text(SpotiglassL10n.string("lyrics.instrumental"))
                 .font(.title3.weight(.medium))
                 .foregroundStyle(.white.opacity(0.85))
                 .frame(maxWidth: .infinity, minHeight: 120, alignment: .leading)

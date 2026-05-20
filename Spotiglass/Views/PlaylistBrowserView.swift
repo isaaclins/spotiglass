@@ -179,9 +179,9 @@ struct PlaylistBrowserView: View {
                     Button {
                         lyricsOverlay.dismiss()
                     } label: {
-                        Label(String(localized: "browser.closeLyrics"), systemImage: "xmark.circle")
+                        Label(SpotiglassL10n.string("browser.closeLyrics"), systemImage: "xmark.circle")
                     }
-                    .accessibilityHint(String(localized: "browser.closeLyrics.hint"))
+                    .accessibilityHint(SpotiglassL10n.string("browser.closeLyrics.hint"))
                 }
                 ToolbarItem(placement: .primaryAction) {
                     unifiedRefreshToolbarButton
@@ -191,17 +191,17 @@ struct PlaylistBrowserView: View {
                     Button {
                         isQueueVisible.toggle()
                     } label: {
-                        Label(String(localized: "browser.queue"), systemImage: "list.bullet.indent")
+                        Label(SpotiglassL10n.string("browser.queue"), systemImage: "list.bullet.indent")
                     }
-                    .accessibilityHint(String(localized: "browser.queue.hint"))
+                    .accessibilityHint(SpotiglassL10n.string("browser.queue.hint"))
 
                     Button {
                         viewModel.clearForSignOut()
                         signOut()
                     } label: {
-                        Label(String(localized: "browser.disconnect"), systemImage: "xmark.circle")
+                        Label(SpotiglassL10n.string("browser.disconnect"), systemImage: "xmark.circle")
                     }
-                    .accessibilityHint(String(localized: "browser.disconnect.hint"))
+                    .accessibilityHint(SpotiglassL10n.string("browser.disconnect.hint"))
                 }
                 ToolbarItem(placement: .primaryAction) {
                     unifiedRefreshToolbarButton

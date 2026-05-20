@@ -5,24 +5,24 @@ struct PlaybackSettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: SpotiglassDesign.spacingL) {
                 playbackSection(
-                    title: String(localized: "settings.playback.premium.title"),
+                    title: SpotiglassL10n.string("settings.playback.premium.title"),
                     items: [
-                        String(localized: "settings.playback.premium.item1"),
-                        String(localized: "settings.playback.premium.item2"),
+                        SpotiglassL10n.string("settings.playback.premium.item1"),
+                        SpotiglassL10n.string("settings.playback.premium.item2"),
                     ]
                 )
 
                 playbackSection(
-                    title: String(localized: "settings.playback.whenDrops.title"),
+                    title: SpotiglassL10n.string("settings.playback.whenDrops.title"),
                     items: [
-                        String(localized: "settings.playback.whenDrops.item"),
+                        SpotiglassL10n.string("settings.playback.whenDrops.item"),
                     ]
                 )
 
                 playbackSection(
-                    title: String(localized: "settings.playback.sessions.title"),
+                    title: SpotiglassL10n.string("settings.playback.sessions.title"),
                     items: [
-                        String(localized: "settings.playback.sessions.item"),
+                        SpotiglassL10n.string("settings.playback.sessions.item"),
                     ]
                 )
             }

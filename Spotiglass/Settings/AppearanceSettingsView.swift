@@ -8,6 +8,7 @@ struct AppearanceSettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: SpotiglassDesign.spacingL) {
                 header
+                languageSection
                 colorSchemeSection
                 lyricsTextSizeSection
                 commandPaletteSection
@@ -19,26 +20,54 @@ struct AppearanceSettingsView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
-            Text("settings.section.appearance", bundle: .main)
+            Text(SpotiglassL10n.string("settings.section.appearance"))
                 .font(.title3.weight(.semibold))
-            Text("settings.section.appearance.subtitle", bundle: .main)
+            Text(SpotiglassL10n.string("settings.section.appearance.subtitle"))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
 
+    private var languageSection: some View {
+        VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
+            Text(SpotiglassL10n.string("settings.appearance.language"))
+                .font(.headline)
+            Picker(SpotiglassL10n.string("settings.appearance.language"), selection: languageBinding) {
+                ForEach(AppLanguage.allCases, id: \.self) { language in
+                    Text(language.nativeDisplayName).tag(language)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            Text(SpotiglassL10n.string("settings.appearance.language.hint"))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    private var languageBinding: Binding<AppLanguage> {
+        Binding(
+            get: { settingsStore.settings.appearance.language },
+            set: { newValue in
+                try? settingsStore.mutate { $0.appearance.language = newValue }
+            }
+        )
+    }
+
     private var colorSchemeSection: some View {
         VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
-            Text("settings.appearance.colorScheme", bundle: .main)
+            Text(SpotiglassL10n.string("settings.appearance.colorScheme"))
                 .font(.headline)
-            Picker(String(localized: "settings.appearance.colorScheme"), selection: colorSchemeBinding) {
+            Picker(SpotiglassL10n.string("settings.appearance.colorScheme"), selection: colorSchemeBinding) {
                 ForEach(AppearanceColorScheme.allCases, id: \.self) { scheme in
                     Text(scheme.displayName).tag(scheme)
                 }
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            Text("settings.appearance.colorScheme.hint", bundle: .main)
+            Text(SpotiglassL10n.string("settings.appearance.colorScheme.hint"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -48,12 +77,12 @@ struct AppearanceSettingsView: View {
 
     private var commandPaletteSection: some View {
         VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
-            Text("settings.appearance.commandPalette", bundle: .main)
+            Text(SpotiglassL10n.string("settings.appearance.commandPalette"))
                 .font(.headline)
-            Toggle(String(localized: "settings.appearance.backdropBlur"), isOn: backdropBlurBinding)
+            Toggle(SpotiglassL10n.string("settings.appearance.backdropBlur"), isOn: backdropBlurBinding)
                 .toggleStyle(.switch)
-                .accessibilityHint(String(localized: "settings.appearance.backdropBlur.hint"))
-            Text("settings.appearance.backdropBlur.hint", bundle: .main)
+                .accessibilityHint(SpotiglassL10n.string("settings.appearance.backdropBlur.hint"))
+            Text(SpotiglassL10n.string("settings.appearance.backdropBlur.hint"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -82,9 +111,9 @@ struct AppearanceSettingsView: View {
 
     private var lyricsTextSizeSection: some View {
         VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
-            Text("settings.appearance.lyricsTextSize", bundle: .main)
+            Text(SpotiglassL10n.string("settings.appearance.lyricsTextSize"))
                 .font(.headline)
-            Picker(String(localized: "settings.appearance.lyricsTextSize"), selection: lyricsTextSizeBinding) {
+            Picker(SpotiglassL10n.string("settings.appearance.lyricsTextSize"), selection: lyricsTextSizeBinding) {
                 ForEach(LyricsTextSize.allCases, id: \.self) { size in
                     Text(size.displayName).tag(size)
                 }
@@ -94,7 +123,7 @@ struct AppearanceSettingsView: View {
 
             LyricsTextSizePreview(size: settingsStore.settings.appearance.lyricsTextSize)
 
-            Text("settings.appearance.lyricsTextSize.hint", bundle: .main)
+            Text(SpotiglassL10n.string("settings.appearance.lyricsTextSize.hint"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -118,9 +147,9 @@ private struct LyricsTextSizePreview: View {
     let size: LyricsTextSize
 
     private let lines: [(text: String, distance: Int)] = [
-        (String(localized: "settings.appearance.lyricsPreview.line1"),   -1),
-        (String(localized: "settings.appearance.lyricsPreview.line2"),   0),
-        (String(localized: "settings.appearance.lyricsPreview.line3"),       1)
+        (SpotiglassL10n.string("settings.appearance.lyricsPreview.line1"),   -1),
+        (SpotiglassL10n.string("settings.appearance.lyricsPreview.line2"),   0),
+        (SpotiglassL10n.string("settings.appearance.lyricsPreview.line3"),       1)
     ]
 
     var body: some View {
@@ -148,7 +177,7 @@ private struct LyricsTextSizePreview: View {
         .spotiglassSurface(corner: .m)
         .animation(SpotiglassMotion.surfaceSpring, value: size)
         .accessibilityLabel(
-            String(format: String(localized: "settings.appearance.lyricsPreview.label"), size.displayName)
+            String(format: SpotiglassL10n.string("settings.appearance.lyricsPreview.label"), size.displayName)
         )
     }
 }

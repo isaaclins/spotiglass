@@ -23,6 +23,7 @@ xcodebuild test \
   -parallel-testing-enabled NO \
   -enableCodeCoverage YES \
   -resultBundlePath "$BUNDLE" \
+  CODE_SIGNING_ALLOWED=NO \
   > "$LOG" 2>&1 || {
     echo "✗ xcodebuild failed; tail of $LOG:" >&2
     tail -40 "$LOG" >&2

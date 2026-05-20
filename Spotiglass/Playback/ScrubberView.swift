@@ -61,7 +61,7 @@ struct PlaybackProgressScrubberGroup: View {
             .opacity(isEnabled ? 1 : 0.4)
             .disabled(!isEnabled)
 
-            Text(String(format: String(localized: "playback.scrubber.remaining"), PlaybackNowPlaying.mmss(milliseconds: max(0, durationMs - positionMs))))
+            Text(String(format: SpotiglassL10n.string("playback.scrubber.remaining"), PlaybackNowPlaying.mmss(milliseconds: max(0, durationMs - positionMs))))
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
                 .frame(minWidth: 40, alignment: .leading)
@@ -151,7 +151,7 @@ struct ScrubberView: View {
         }
         .frame(height: hoverHeight + thumbDiameter)
         .accessibilityElement()
-        .accessibilityLabel(String(localized: "playback.scrubber.progress"))
+        .accessibilityLabel(SpotiglassL10n.string("playback.scrubber.progress"))
         .accessibilityValue("\(Int(displayFraction * 100))%")
     }
 }

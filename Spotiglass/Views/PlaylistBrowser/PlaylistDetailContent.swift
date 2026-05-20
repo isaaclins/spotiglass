@@ -49,7 +49,7 @@ struct PlaylistDetailContent: View {
             Divider()
 
             if detail.tracks.isEmpty {
-                EmptyStateView(title: String(localized: "browser.noTracks.title"), message: String(localized: "browser.noTracks.emptyPlaylist"))
+                EmptyStateView(title: SpotiglassL10n.string("browser.noTracks.title"), message: SpotiglassL10n.string("browser.noTracks.emptyPlaylist"))
             } else {
                 VirtualizedTrackList(
                     tracks: detail.tracks,
@@ -125,7 +125,7 @@ struct PlaylistDetailContent: View {
                     .font(.largeTitle.weight(.semibold))
                     .lineLimit(2)
 
-                Text(String(format: String(localized: "browser.playlistOwnerTracks"), detail.playlist.owner, detail.playlist.trackCountText))
+                Text(String(format: SpotiglassL10n.string("browser.playlistOwnerTracks"), detail.playlist.owner, detail.playlist.trackCountText))
                     .foregroundStyle(.secondary)
             }
 
@@ -166,11 +166,11 @@ struct LibraryHeaderPinningModifier: ViewModifier {
                 )
                 .contextMenu {
                     if isHeaderPinned {
-                        Button(String(localized: "browser.unpin")) {
+                        Button(SpotiglassL10n.string("browser.unpin")) {
                             pinnedStore.unpin(id: headerPinnedItem.id)
                         }
                     } else {
-                        Button(String(localized: "browser.pin")) {
+                        Button(SpotiglassL10n.string("browser.pin")) {
                             pinnedStore.pin(headerPinnedItem)
                         }
                     }

@@ -3,12 +3,16 @@ import SwiftUI
 extension PlaylistBrowserView {
     func openArtistFromTapTarget(_ target: ArtistTapTarget, origin: BrowserNavigationOrigin = .extend) {
         Task {
-            if let id = target.id {
-                await viewModel.selectArtist(id: id, origin: origin, displayName: target.name)
-                return
-            }
-            guard let resolvedID = try? await resolveArtistID(forName: target.name) else { return }
-            await viewModel.selectArtist(id: resolvedID, origin: origin, displayName: target.name)
+            await PlaylistBrowserTapTargetNavigation.openArtist(
+                target,
+                origin: origin,
+                selectArtist: { id, origin, displayName in
+                    await viewModel.selectArtist(id: id, origin: origin, displayName: displayName)
+                },
+                resolveArtistID: { name in
+                    try await resolveArtistID(forName: name)
+                }
+            )
         }
     }
 
@@ -19,28 +23,24 @@ extension PlaylistBrowserView {
         origin: BrowserNavigationOrigin = .extend
     ) {
         Task {
-            if let id = album.id {
-                await viewModel.selectAlbum(
-                    id: id,
-                    displayTitle: album.name,
-                    displaySubtitle: artistSubtitle,
-                    artworkURL: artworkURL,
-                    origin: origin
-                )
-                return
-            }
-            do {
-                guard let resolvedID = try await resolveAlbumID(name: album.name, artistHint: artistSubtitle) else { return }
-                await viewModel.selectAlbum(
-                    id: resolvedID,
-                    displayTitle: album.name,
-                    displaySubtitle: artistSubtitle,
-                    artworkURL: artworkURL,
-                    origin: origin
-                )
-            } catch {
-                return
-            }
+            await PlaylistBrowserTapTargetNavigation.openAlbum(
+                album,
+                artistSubtitle: artistSubtitle,
+                artworkURL: artworkURL,
+                origin: origin,
+                selectAlbum: { id, title, subtitle, artwork, origin in
+                    await viewModel.selectAlbum(
+                        id: id,
+                        displayTitle: title,
+                        displaySubtitle: subtitle,
+                        artworkURL: artwork,
+                        origin: origin
+                    )
+                },
+                resolveAlbumID: { name, hint in
+                    try await resolveAlbumID(name: name, artistHint: hint)
+                }
+            )
         }
     }
 

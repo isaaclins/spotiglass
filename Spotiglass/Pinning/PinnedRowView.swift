@@ -30,7 +30,7 @@ struct PinnedRowView: View {
                         }
                         .buttonStyle(.plain)
                         .offset(x: -6, y: -6)
-                        .accessibilityLabel(String(format: String(localized: "pin.unpin"), item.title))
+                        .accessibilityLabel(String(format: SpotiglassL10n.string("pin.unpin"), item.title))
                     }
                 }
 
@@ -41,7 +41,7 @@ struct PinnedRowView: View {
                         .foregroundStyle(item.isStale ? Color.secondary : Color.primary)
                         .lineLimit(1)
                     if item.isStale {
-                        Text("pin.unavailable", bundle: .main)
+                        Text(SpotiglassL10n.string("pin.unavailable"))
                             .font(.caption2.weight(.medium))
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
@@ -62,11 +62,11 @@ struct PinnedRowView: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
             String(
-                format: String(localized: "pin.row.accessibility"),
+                format: SpotiglassL10n.string("pin.row.accessibility"),
                 item.kind.accessibilityLabel,
                 item.title,
                 item.subtitle,
-                item.isStale ? String(localized: "pin.row.unavailable") : ""
+                item.isStale ? SpotiglassL10n.string("pin.row.unavailable") : ""
             )
         )
     }
@@ -132,11 +132,11 @@ private struct CachedCircularArtwork: View {
 private extension PinnedItemKind {
     var accessibilityLabel: String {
         switch self {
-        case .playlist: String(localized: "pin.kind.playlist")
-        case .artist: String(localized: "pin.kind.artist")
-        case .album: String(localized: "pin.kind.album")
-        case .track: String(localized: "pin.kind.track")
-        case .likedSongs: String(localized: "pin.likedSongs")
+        case .playlist: SpotiglassL10n.string("pin.kind.playlist")
+        case .artist: SpotiglassL10n.string("pin.kind.artist")
+        case .album: SpotiglassL10n.string("pin.kind.album")
+        case .track: SpotiglassL10n.string("pin.kind.track")
+        case .likedSongs: SpotiglassL10n.string("pin.likedSongs")
         }
     }
 }

@@ -240,7 +240,7 @@ final class AuthViewModel: ObservableObject {
         guard session.includesRequiredBrowsingScopes() else {
             throw SpotifyAPIError.insufficientScope(
                 requiredScopes: SpotifyAuthConfiguration.requiredBrowsingScopes,
-                message: String(localized: "auth.insufficientScope.message"),
+                message: SpotiglassL10n.string("auth.insufficientScope.message"),
                 details: nil
             )
         }
@@ -257,29 +257,29 @@ final class AuthViewModel: ObservableObject {
             return Self.urlErrorMessage(urlError)
         }
         if error is DecodingError {
-            return String(localized: "auth.error.decode")
+            return SpotiglassL10n.string("auth.error.decode")
         }
         return Self.genericAuthFailureMessage
     }
 
     private static var genericAuthFailureMessage: String {
-        String(localized: "auth.error.generic")
+        SpotiglassL10n.string("auth.error.generic")
     }
 
     private static func urlErrorMessage(_ error: URLError) -> String {
         switch error.code {
         case .notConnectedToInternet:
-            return String(localized: "auth.error.offline")
+            return SpotiglassL10n.string("auth.error.offline")
         case .timedOut:
-            return String(localized: "auth.error.timeout")
+            return SpotiglassL10n.string("auth.error.timeout")
         case .cannotFindHost, .dnsLookupFailed:
-            return String(localized: "auth.error.dns")
+            return SpotiglassL10n.string("auth.error.dns")
         case .cannotConnectToHost, .networkConnectionLost:
-            return String(localized: "auth.error.network")
+            return SpotiglassL10n.string("auth.error.network")
         case .secureConnectionFailed, .serverCertificateUntrusted, .clientCertificateRejected:
-            return String(localized: "auth.error.tls")
+            return SpotiglassL10n.string("auth.error.tls")
         case .cancelled:
-            return String(localized: "auth.error.cancelled")
+            return SpotiglassL10n.string("auth.error.cancelled")
         default:
             let text = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
             if text.isEmpty || text.localizedCaseInsensitiveContains("couldn’t be completed") || text.localizedCaseInsensitiveContains("couldn't be completed") {

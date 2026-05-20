@@ -5,21 +5,21 @@ extension LrcLibClient.Failure {
     var userFacingMessage: String {
         switch self {
         case .noLyrics:
-            return String(localized: "lyrics.error.noLyrics")
+            return SpotiglassL10n.string("lyrics.error.noLyrics")
         case let .rateLimited(retryAfter):
             if let retryAfter {
                 return String(
-                    format: String(localized: "lyrics.error.rateLimitedSeconds"),
+                    format: SpotiglassL10n.string("lyrics.error.rateLimitedSeconds"),
                     Int(retryAfter.rounded())
                 )
             }
-            return String(localized: "lyrics.error.rateLimitedShortly")
+            return SpotiglassL10n.string("lyrics.error.rateLimitedShortly")
         case let .http(code):
-            return String(format: String(localized: "lyrics.error.http"), code)
+            return String(format: SpotiglassL10n.string("lyrics.error.http"), code)
         case .decoding:
-            return String(localized: "lyrics.error.decode")
+            return SpotiglassL10n.string("lyrics.error.decode")
         case .invalidURL:
-            return String(localized: "lyrics.error.invalidRequest")
+            return SpotiglassL10n.string("lyrics.error.invalidRequest")
         }
     }
 }
@@ -75,7 +75,7 @@ final class ImmersiveLyricsViewModel: ObservableObject {
 
     func load(track: PlaybackNowPlaying) async {
         guard let tid = track.spotifyTrackIDForLyrics else {
-            phase = .failed(String(localized: "lyrics.error.musicOnly"))
+            phase = .failed(SpotiglassL10n.string("lyrics.error.musicOnly"))
             return
         }
 
@@ -185,7 +185,7 @@ final class ImmersiveLyricsViewModel: ObservableObject {
                 let retryAfter = max(0, metadata.nextEligibleFetchAt.timeIntervalSinceNow)
                 return LrcLibClient.Failure.rateLimited(retryAfter: retryAfter).userFacingMessage
             case .transient, .permanent:
-                return String(localized: "lyrics.error.unavailable")
+                return SpotiglassL10n.string("lyrics.error.unavailable")
             }
         }
         return LrcLibClient.Failure.noLyrics.userFacingMessage

@@ -6,8 +6,8 @@ extension PlaylistBrowserViewModel {
         guard session == detailSession else { return }
         guard let playlist = playlistsByID[playlistID] else {
             detailState = .error(BrowsingDisplayError(
-                title: String(localized: "error.browsing.playlistUnavailable.title"),
-                message: String(localized: "error.browsing.playlistUnavailable.gone"),
+                title: SpotiglassL10n.string("error.browsing.playlistUnavailable.title"),
+                message: SpotiglassL10n.string("error.browsing.playlistUnavailable.gone"),
                 canRetry: true
             ))
             return
