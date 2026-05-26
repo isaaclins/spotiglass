@@ -91,7 +91,7 @@ Use `scripts/generate_readme_logo.sh --rebuild` to force a fresh unsigned Releas
 
 If Spotiglass has been useful and you want to support ongoing development:
 
-- [Buy Me a Coffee](https://buymeacoffee.com/isaaclins)
+- [Buy Me a Coffee](https://buymeacoffee.com/isaaclins) — tips fund releases and docs; see [SUPPORT.md](SUPPORT.md) for details.
 
 ## Contributing
 
