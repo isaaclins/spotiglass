@@ -4,6 +4,8 @@ struct PlaylistRowViewModel: Equatable, Identifiable {
     let id: String
     let title: String
     let owner: String
+    /// Spotify user id for the playlist owner; empty for album rows where owner is artist text.
+    let ownerID: String
     let trackCountText: String
     let artworkURL: URL?
     let snapshotID: String
@@ -12,9 +14,19 @@ struct PlaylistRowViewModel: Equatable, Identifiable {
         self.id = playlist.id
         self.title = playlist.name
         self.owner = playlist.ownerName
+        self.ownerID = playlist.ownerID
         self.trackCountText = playlist.trackCount == 1 ? "1 track" : "\(playlist.trackCount) tracks"
         self.artworkURL = playlist.imageURL
         self.snapshotID = playlist.snapshotID
+    }
+
+    func ownerTracksLine(currentUserID: String?) -> String {
+        PlaylistOwnerDisplay.ownerTracksLine(
+            ownerName: owner,
+            ownerID: ownerID,
+            trackCountText: trackCountText,
+            currentUserID: currentUserID
+        )
     }
 
     /// Virtual library row for Liked Songs (sidebar and detail header). Pass `totalTrackCount: nil` for the sidebar before counts are known (`trackCountText` becomes “Saved tracks”).
@@ -22,6 +34,7 @@ struct PlaylistRowViewModel: Equatable, Identifiable {
         self.id = SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID
         self.title = "Liked Songs"
         self.owner = likedSongsOwnerDisplay
+        self.ownerID = ""
         if let totalTrackCount {
             self.trackCountText = totalTrackCount == 1 ? "1 track" : "\(totalTrackCount) tracks"
         } else {
@@ -39,6 +52,7 @@ struct PlaylistRowViewModel: Equatable, Identifiable {
         self.id = albumID
         self.title = albumDisplayName
         self.owner = artistsDisplay
+        self.ownerID = ""
         self.trackCountText = totalTrackCount == 1 ? "1 track" : "\(totalTrackCount) tracks"
         self.artworkURL = artworkURL
         self.snapshotID = "album-\(albumID)"

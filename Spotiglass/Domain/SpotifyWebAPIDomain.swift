@@ -12,6 +12,7 @@ struct SpotifyUserProfile: Codable, Equatable {
 struct SpotifyPlaylistSummary: Codable, Equatable, Identifiable {
     let id: String
     let name: String
+    let ownerID: String
     let ownerName: String
     let imageURL: URL?
     let trackCount: Int

@@ -85,7 +85,9 @@ extension PlaylistBrowserViewModel {
 
     private func fetchPlaylistsForRefresh(trigger: PlaylistRefreshTrigger) async throws -> [SpotifyPlaylistSummary] {
         if let inFlightPlaylistListRefreshTask {
-            return try await inFlightPlaylistListRefreshTask.value
+            let (playlists, profile) = try await inFlightPlaylistListRefreshTask.value
+            currentUserSpotifyID = profile.id
+            return playlists
         }
 
         if trigger == .userInitiated,
@@ -103,11 +105,14 @@ extension PlaylistBrowserViewModel {
         playlistListRefreshGeneration += 1
         let generation = playlistListRefreshGeneration
         let task = Task { [api] in
-            try await api.currentUserPlaylists(limit: 50)
+            async let playlists = api.currentUserPlaylists(limit: 50)
+            async let profile = api.currentUserProfile()
+            return try await (playlists, profile)
         }
         inFlightPlaylistListRefreshTask = task
         do {
-            let playlists = try await task.value
+            let (playlists, profile) = try await task.value
+            currentUserSpotifyID = profile.id
             if generation == playlistListRefreshGeneration {
                 inFlightPlaylistListRefreshTask = nil
             }

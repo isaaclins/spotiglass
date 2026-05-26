@@ -2,6 +2,8 @@ import SwiftUI
 
 struct PlaylistListRow: View {
     let playlist: PlaylistRowViewModel
+    /// Signed-in Spotify user id; hides owner subtitle on the user's own playlists.
+    var currentUserSpotifyID: String?
     var isActive: Bool = false
     var isPlaying: Bool = false
     /// Sidebar list row is the current `List` selection (drives heart vs heart.fill for Liked Songs).
@@ -68,7 +70,7 @@ struct PlaylistListRow: View {
                     .font(.headline)
                     .lineLimit(1)
 
-                Text(String(format: SpotiglassL10n.string("browser.playlistOwnerTracks"), playlist.owner, playlist.trackCountText))
+                Text(playlist.ownerTracksLine(currentUserID: currentUserSpotifyID))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -78,13 +80,14 @@ struct PlaylistListRow: View {
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
-            String(
-                format: SpotiglassL10n.string("browser.playlistRow.accessibility"),
-                playlist.title,
-                playlist.owner,
-                playlist.trackCountText,
-                isActive ? SpotiglassL10n.string("browser.playlistRow.nowPlaying") : "",
-                isPinned ? SpotiglassL10n.string("browser.playlistRow.pinned") : ""
+            PlaylistOwnerDisplay.accessibilityLabel(
+                title: playlist.title,
+                ownerName: playlist.owner,
+                ownerID: playlist.ownerID,
+                trackCountText: playlist.trackCountText,
+                currentUserID: currentUserSpotifyID,
+                nowPlaying: isActive ? SpotiglassL10n.string("browser.playlistRow.nowPlaying") : "",
+                pinned: isPinned ? SpotiglassL10n.string("browser.playlistRow.pinned") : ""
             )
         )
     }

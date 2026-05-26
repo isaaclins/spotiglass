@@ -5765,6 +5765,26 @@
         }
       }
     },
+    "browser.palette.subtitle.playlistOwn": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playlist"
+          }
+        }
+      }
+    },
+    "browser.playlistRow.accessibilityOwnPlaylist": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@, %@%@%@"
+          }
+        }
+      }
+    },
     "browser.playlistOwnerTracks": {
       "localizations": {
         "en": {

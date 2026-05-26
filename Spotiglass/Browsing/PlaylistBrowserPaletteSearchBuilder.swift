@@ -21,7 +21,8 @@ enum PlaylistBrowserPaletteSearchBuilder {
         spotifySearchClient: SpotifyAPIClient,
         environment: PlaylistBrowserPaletteSearchEnvironment,
         loadedContextTracks: [TrackRowViewModel]?,
-        visiblePlaylists: [PlaylistRowViewModel]
+        visiblePlaylists: [PlaylistRowViewModel],
+        currentUserSpotifyID: String?
     ) async throws -> CommandPaletteSearchResults {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -50,7 +51,8 @@ enum PlaylistBrowserPaletteSearchBuilder {
         mapped.myPlaylists = localLibraryPlaylistMatches(
             visiblePlaylists: visiblePlaylists,
             trimmedQuery: trimmed,
-            environment: environment
+            environment: environment,
+            currentUserSpotifyID: currentUserSpotifyID
         )
         if category == .myPlaylists {
             return mapped
@@ -82,7 +84,11 @@ enum PlaylistBrowserPaletteSearchBuilder {
             return CommandPaletteItem(
                 id: "playlist-\(playlist.id)",
                 title: playlist.name,
-                subtitle: String(format: SpotiglassL10n.string("browser.palette.subtitle.playlist"), playlist.ownerName),
+                subtitle: PlaylistOwnerDisplay.palettePlaylistSubtitle(
+                    ownerName: playlist.ownerName,
+                    ownerID: playlist.ownerID,
+                    currentUserID: currentUserSpotifyID
+                ),
                 iconSystemName: "music.note.list",
                 section: .playlists,
                 keywords: [playlist.ownerName, playlist.id],
@@ -206,13 +212,15 @@ enum PlaylistBrowserPaletteSearchBuilder {
     static func localLibraryPlaylistMatches(
         visiblePlaylists: [PlaylistRowViewModel],
         trimmedQuery: String,
-        environment: PlaylistBrowserPaletteSearchEnvironment
+        environment: PlaylistBrowserPaletteSearchEnvironment,
+        currentUserSpotifyID: String?
     ) -> [CommandPaletteItem] {
         var libraryRows: [(item: CommandPaletteItem, score: Int)] = []
         for row in visiblePlaylists {
             let summary = SpotifyPlaylistSummary(
                 id: row.id,
                 name: row.title,
+                ownerID: row.ownerID,
                 ownerName: row.owner,
                 imageURL: row.artworkURL,
                 trackCount: 0,
@@ -229,7 +237,7 @@ enum PlaylistBrowserPaletteSearchBuilder {
             let item = CommandPaletteItem(
                 id: "playlist-\(row.id)",
                 title: row.title,
-                subtitle: String(format: SpotiglassL10n.string("browser.palette.subtitle.library"), row.owner),
+                subtitle: row.ownerTracksLine(currentUserID: currentUserSpotifyID),
                 iconSystemName: "music.note.list",
                 section: .myPlaylists,
                 keywords: [row.owner, row.title, row.id],

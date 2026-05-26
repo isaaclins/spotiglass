@@ -49,6 +49,7 @@ enum PlaylistBrowserLibraryActions {
         SpotifyPlaylistSummary(
             id: row.id,
             name: row.title,
+            ownerID: row.ownerID,
             ownerName: row.owner,
             imageURL: row.artworkURL,
             trackCount: 0,

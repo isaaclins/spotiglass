@@ -6,7 +6,8 @@ final class PinnedItemsCacheTests: XCTestCase {
         let cache = InMemoryPinnedItemsCache()
         let pin = PinnedItem.playlist(
             SpotifyPlaylistSummary(
-                id: "p1", name: "Mix", ownerName: "Me",
+                id: "p1", name: "Mix",
+                ownerID: "test-owner", ownerName: "Me",
                 imageURL: nil, trackCount: 1, snapshotID: "s"
             )
         )

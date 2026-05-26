@@ -5,7 +5,8 @@ final class PinnedItemFactoryTests: XCTestCase {
 
     func testPlaylistFactoryUsesPlaylistKindAndStableID() {
         let playlist = SpotifyPlaylistSummary(
-            id: "p1", name: "My Mix", ownerName: "Bob",
+            id: "p1", name: "My Mix",
+                ownerID: "test-owner", ownerName: "Bob",
             imageURL: URL(string: "https://x/p.jpg"), trackCount: 12,
             snapshotID: "snap"
         )

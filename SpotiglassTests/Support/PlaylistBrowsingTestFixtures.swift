@@ -14,6 +14,7 @@ enum PlaylistBrowsingTestFixtures {
         SpotifyPlaylistSummary(
             id: id,
             name: name,
+            ownerID: "owner-id",
             ownerName: "Owner",
             imageURL: nil,
             trackCount: 1,

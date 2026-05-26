@@ -58,6 +58,7 @@ struct PlaylistsSidebarSectionContent: View {
     private var likedSongsSidebarRow: some View {
         PlaylistListRow(
             playlist: likedSongsStubRow,
+            currentUserSpotifyID: viewModel.currentUserSpotifyID,
             isActive: playbackViewModel.activePlaylistID == SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID,
             isPlaying: isCurrentlyPlaying,
             isListSelected: viewModel.sidebarSelection == .likedSongs,
@@ -73,6 +74,7 @@ struct PlaylistsSidebarSectionContent: View {
         let summary = playlistSummaryFromRow(playlist)
         PlaylistListRow(
             playlist: playlist,
+            currentUserSpotifyID: viewModel.currentUserSpotifyID,
             isActive: playlist.id == playbackViewModel.activePlaylistID,
             isPlaying: isCurrentlyPlaying,
             isListSelected: viewModel.sidebarSelection == .playlist(playlist.id),

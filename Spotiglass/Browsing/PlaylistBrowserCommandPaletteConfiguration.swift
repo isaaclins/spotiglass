@@ -143,7 +143,8 @@ enum PlaylistBrowserCommandPaletteConfiguration {
             spotifySearchClient: spotifySearchClient,
             environment: environment,
             loadedContextTracks: viewModel.loadedContextTracksForPalette,
-            visiblePlaylists: viewModel.visiblePlaylists
+            visiblePlaylists: viewModel.visiblePlaylists,
+            currentUserSpotifyID: viewModel.currentUserSpotifyID
         )
     }
 }

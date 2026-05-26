@@ -12,7 +12,8 @@ final class PinnedRowViewTests: XCTestCase {
     func testPlaylistPinRendersTitle() throws {
         let pin = PinnedItem.playlist(
             SpotifyPlaylistSummary(
-                id: "p1", name: "Daily", ownerName: "Me",
+                id: "p1", name: "Daily",
+                ownerID: "test-owner", ownerName: "Me",
                 imageURL: nil, trackCount: 3, snapshotID: "s"
             )
         )
@@ -24,7 +25,8 @@ final class PinnedRowViewTests: XCTestCase {
     func testStaleBadge() throws {
         var pin = PinnedItem.playlist(
             SpotifyPlaylistSummary(
-                id: "p2", name: "Gone", ownerName: "Me",
+                id: "p2", name: "Gone",
+                ownerID: "test-owner", ownerName: "Me",
                 imageURL: nil, trackCount: 0, snapshotID: "s"
             )
         )
@@ -82,7 +84,8 @@ final class PinnedRowViewTests: XCTestCase {
     func testDragPillKinds() throws {
         let playlist = PinnedItem.playlist(
             SpotifyPlaylistSummary(
-                id: "p3", name: "Mix", ownerName: "Me",
+                id: "p3", name: "Mix",
+                ownerID: "test-owner", ownerName: "Me",
                 imageURL: nil, trackCount: 1, snapshotID: "s"
             )
         )

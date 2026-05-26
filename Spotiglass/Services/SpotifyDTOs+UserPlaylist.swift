@@ -64,6 +64,7 @@ struct SpotifyPlaylistDTO: Decodable {
         SpotifyPlaylistSummary(
             id: id,
             name: name,
+            ownerID: owner.id,
             ownerName: owner.displayName ?? owner.id,
             imageURL: images.largestImageURL,
             trackCount: items.total,

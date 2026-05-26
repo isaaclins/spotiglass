@@ -32,7 +32,8 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
         let liked = PlaylistRowViewModel(likedSongsOwnerDisplay: "You", totalTrackCount: nil, artworkURL: nil)
         let summary: (PlaylistRowViewModel) -> SpotifyPlaylistSummary = { row in
             SpotifyPlaylistSummary(
-                id: row.id, name: row.title, ownerName: row.owner,
+                id: row.id, name: row.title,
+                ownerID: "test-owner", ownerName: row.owner,
                 imageURL: row.artworkURL, trackCount: 0, snapshotID: row.snapshotID
             )
         }
@@ -189,7 +190,8 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
             likedSongsStubRow: liked,
             playlistSummaryFromRow: { row in
                 SpotifyPlaylistSummary(
-                    id: row.id, name: row.title, ownerName: row.owner,
+                    id: row.id, name: row.title,
+                ownerID: "test-owner", ownerName: row.owner,
                     imageURL: row.artworkURL, trackCount: 0, snapshotID: row.snapshotID
                 )
             },
