@@ -129,6 +129,7 @@
 		COV00000000000000000001 /* BrowserWidthCommitPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = COV00000000000000000011 /* BrowserWidthCommitPolicy.swift */; };
 		COV00000000000000000002 /* PlaylistBrowserPlaybackHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = COV00000000000000000012 /* PlaylistBrowserPlaybackHelpers.swift */; };
 		COV00000000000000000003 /* PlaylistBrowserPaletteSearchBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = COV00000000000000000013 /* PlaylistBrowserPaletteSearchBuilder.swift */; };
+		POD00000000000000000000001 /* PlaylistOwnerDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = POD00000000000000000000011 /* PlaylistOwnerDisplay.swift */; };
 		COV00000000000000000004 /* PlaylistBrowserTapTargetResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = COV00000000000000000014 /* PlaylistBrowserTapTargetResolver.swift */; };
 		COV00000000000000000005 /* PlaylistBrowserPinnedSidebarPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = COV00000000000000000015 /* PlaylistBrowserPinnedSidebarPolicy.swift */; };
 		COV00000000000000000006 /* TransportPollScheduling.swift in Sources */ = {isa = PBXBuildFile; fileRef = COV00000000000000000016 /* TransportPollScheduling.swift */; };
@@ -273,6 +274,7 @@
 		TST00000000000000000000E5 /* CommandPaletteViewsBatchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100E5 /* CommandPaletteViewsBatchTests.swift */; };
 		TST00000000000000000000E4 /* SpotiglassComponentsViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100E4 /* SpotiglassComponentsViewTests.swift */; };
 		TST00000000000000000000E3 /* PlaylistListRowViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100E3 /* PlaylistListRowViewTests.swift */; };
+		TST00000000000000000000E4 /* PlaylistOwnerDisplayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100E4 /* PlaylistOwnerDisplayTests.swift */; };
 		TST00000000000000000000E2 /* CommandPaletteViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100E2 /* CommandPaletteViewTests.swift */; };
 		TST00000000000000000000E1 /* HiddenPlaybackWebViewSmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100E1 /* HiddenPlaybackWebViewSmokeTests.swift */; };
 		TST00000000000000000000E0 /* PinnedRowViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100E0 /* PinnedRowViewTests.swift */; };
@@ -454,6 +456,7 @@
 		COV00000000000000000011 /* BrowserWidthCommitPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserWidthCommitPolicy.swift; sourceTree = "<group>"; };
 		COV00000000000000000012 /* PlaylistBrowserPlaybackHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserPlaybackHelpers.swift; sourceTree = "<group>"; };
 		COV00000000000000000013 /* PlaylistBrowserPaletteSearchBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserPaletteSearchBuilder.swift; sourceTree = "<group>"; };
+		POD00000000000000000000011 /* PlaylistOwnerDisplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistOwnerDisplay.swift; sourceTree = "<group>"; };
 		COV00000000000000000014 /* PlaylistBrowserTapTargetResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserTapTargetResolver.swift; sourceTree = "<group>"; };
 		COV00000000000000000015 /* PlaylistBrowserPinnedSidebarPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserPinnedSidebarPolicy.swift; sourceTree = "<group>"; };
 		COV00000000000000000016 /* TransportPollScheduling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransportPollScheduling.swift; sourceTree = "<group>"; };
@@ -580,6 +583,7 @@
 		TST00000000000000000100E5 /* CommandPaletteViewsBatchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteViewsBatchTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000100E4 /* SpotiglassComponentsViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotiglassComponentsViewTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000100E3 /* PlaylistListRowViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistListRowViewTests.swift; sourceTree = "<group>"; };
+		TST00000000000000000100E4 /* PlaylistOwnerDisplayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistOwnerDisplayTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000100E2 /* CommandPaletteViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteViewTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000100E1 /* HiddenPlaybackWebViewSmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HiddenPlaybackWebViewSmokeTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000100E0 /* PinnedRowViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinnedRowViewTests.swift; sourceTree = "<group>"; };
@@ -742,6 +746,7 @@
 				BB10000000000000000000014 /* SpotifyBrowsingCache.swift */,
 				BB10000000000000000000015 /* BrowsingLoadState.swift */,
 				BB10000000000000000000016 /* PlaylistRowViewModel.swift */,
+				POD00000000000000000000011 /* PlaylistOwnerDisplay.swift */,
 				BB10000000000000000000017 /* TrackRowViewModel.swift */,
 				BB10000000000000000000018 /* ArtistBrowsingModels.swift */,
 				BB10000000000000000000019 /* ArtistFallbackCooldownStore.swift */,
@@ -1032,6 +1037,7 @@
 				TST00000000000000000100E5 /* CommandPaletteViewsBatchTests.swift */,
 				TST00000000000000000100E4 /* SpotiglassComponentsViewTests.swift */,
 				TST00000000000000000100E3 /* PlaylistListRowViewTests.swift */,
+				TST00000000000000000100E4 /* PlaylistOwnerDisplayTests.swift */,
 				TST00000000000000000100E2 /* CommandPaletteViewTests.swift */,
 				TST00000000000000000100E1 /* HiddenPlaybackWebViewSmokeTests.swift */,
 				TST00000000000000000100E0 /* PinnedRowViewTests.swift */,
@@ -1323,6 +1329,7 @@
 				BB10000000000000000000004 /* SpotifyBrowsingCache.swift in Sources */,
 				BB10000000000000000000005 /* BrowsingLoadState.swift in Sources */,
 				BB10000000000000000000006 /* PlaylistRowViewModel.swift in Sources */,
+				POD00000000000000000000001 /* PlaylistOwnerDisplay.swift in Sources */,
 				BB10000000000000000000007 /* TrackRowViewModel.swift in Sources */,
 				BB10000000000000000000008 /* ArtistBrowsingModels.swift in Sources */,
 				BB10000000000000000000009 /* ArtistFallbackCooldownStore.swift in Sources */,
@@ -1524,6 +1531,7 @@
 				TST00000000000000000000E5 /* CommandPaletteViewsBatchTests.swift in Sources */,
 				TST00000000000000000000E4 /* SpotiglassComponentsViewTests.swift in Sources */,
 				TST00000000000000000000E3 /* PlaylistListRowViewTests.swift in Sources */,
+				TST00000000000000000000E4 /* PlaylistOwnerDisplayTests.swift in Sources */,
 				TST00000000000000000000E2 /* CommandPaletteViewTests.swift in Sources */,
 				TST00000000000000000000E1 /* HiddenPlaybackWebViewSmokeTests.swift in Sources */,
 				TST00000000000000000000E0 /* PinnedRowViewTests.swift in Sources */,

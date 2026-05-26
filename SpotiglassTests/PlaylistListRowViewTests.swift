@@ -12,7 +12,8 @@ final class PlaylistListRowViewTests: XCTestCase {
     func testPlaylistRowShowsTitle() throws {
         let row = PlaylistRowViewModel(
             SpotifyPlaylistSummary(
-                id: "pl", name: "Focus", ownerName: "Me",
+                id: "pl", name: "Focus",
+                ownerID: "test-owner", ownerName: "Me",
                 imageURL: nil, trackCount: 4, snapshotID: "snap"
             )
         )

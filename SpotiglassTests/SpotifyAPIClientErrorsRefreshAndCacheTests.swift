@@ -194,6 +194,7 @@ final class SpotifyAPIClientErrorsRefreshAndCacheTests: XCTestCase {
         let playlist = SpotifyPlaylistSummary(
             id: "playlist-1",
             name: "Playlist",
+                ownerID: "test-owner",
             ownerName: "Owner",
             imageURL: nil,
             trackCount: 1,

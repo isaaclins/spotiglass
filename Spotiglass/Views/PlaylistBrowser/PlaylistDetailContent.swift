@@ -2,6 +2,7 @@ import SwiftUI
 
 struct PlaylistDetailContent: View {
     let detail: PlaylistDetailViewModel
+    var currentUserSpotifyID: String?
     @Binding var pendingScrollRestoreTrackID: String?
     let onTrackEnteredViewportApproximation: (String) -> Void
     let playURI: (String) -> Void
@@ -25,6 +26,7 @@ struct PlaylistDetailContent: View {
                 SpotifyPlaylistSummary(
                     id: detail.playlist.id,
                     name: detail.playlist.title,
+                    ownerID: detail.playlist.ownerID,
                     ownerName: detail.playlist.owner,
                     imageURL: detail.playlist.artworkURL,
                     trackCount: 0,
@@ -125,7 +127,7 @@ struct PlaylistDetailContent: View {
                     .font(.largeTitle.weight(.semibold))
                     .lineLimit(2)
 
-                Text(String(format: SpotiglassL10n.string("browser.playlistOwnerTracks"), detail.playlist.owner, detail.playlist.trackCountText))
+                Text(detail.playlist.ownerTracksLine(currentUserID: currentUserSpotifyID))
                     .foregroundStyle(.secondary)
             }
 

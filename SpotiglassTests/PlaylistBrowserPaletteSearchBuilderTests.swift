@@ -54,7 +54,8 @@ final class PlaylistBrowserPaletteSearchBuilderTests: XCTestCase {
         let items = PlaylistBrowserPaletteSearchBuilder.localLibraryPlaylistMatches(
             visiblePlaylists: [row],
             trimmedQuery: "focus",
-            environment: env
+            environment: env,
+            currentUserSpotifyID: "owner-id"
         )
         XCTAssertEqual(items.count, 1)
         XCTAssertEqual(items.first?.title, "Focus Flow")
@@ -79,7 +80,8 @@ final class PlaylistBrowserPaletteSearchBuilderTests: XCTestCase {
             spotifySearchClient: client,
             environment: env,
             loadedContextTracks: rows,
-            visiblePlaylists: []
+            visiblePlaylists: [],
+            currentUserSpotifyID: nil
         )
         XCTAssertEqual(result.inPlaylistMatches.count, 1)
         XCTAssertTrue(result.tracks.isEmpty)
@@ -145,7 +147,8 @@ final class PlaylistBrowserPaletteSearchBuilderTests: XCTestCase {
             spotifySearchClient: client,
             environment: env,
             loadedContextTracks: nil,
-            visiblePlaylists: []
+            visiblePlaylists: [],
+            currentUserSpotifyID: nil
         )
         XCTAssertEqual(result.tracks.count, 1)
         XCTAssertEqual(result.artists.count, 1)
@@ -169,7 +172,8 @@ final class PlaylistBrowserPaletteSearchBuilderTests: XCTestCase {
             spotifySearchClient: client,
             environment: env,
             loadedContextTracks: nil,
-            visiblePlaylists: [row]
+            visiblePlaylists: [row],
+            currentUserSpotifyID: "owner-id"
         )
         XCTAssertEqual(result.myPlaylists.count, 1)
         XCTAssertTrue(http.requests.isEmpty)

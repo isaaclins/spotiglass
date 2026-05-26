@@ -23,6 +23,8 @@ final class PlaylistBrowserViewModel: ObservableObject {
 
     /// `internal(set)` so split extensions in other files can update state (`private(set)` is file-private).
     @Published internal(set) var playlistState: BrowsingLoadState<[PlaylistRowViewModel]> = .loading
+    /// Spotify user id for the signed-in account; used to hide redundant owner labels on own playlists.
+    @Published internal(set) var currentUserSpotifyID: String?
     @Published internal(set) var detailState: BrowsingLoadState<BrowsingDetailContent> = .empty("Select an item in the sidebar or open an artist from search.")
     @Published var sidebarSelection: SidebarSelection?
     @Published internal(set) var canNavigateBack = false
@@ -86,7 +88,7 @@ final class PlaylistBrowserViewModel: ObservableObject {
     var adjacentPlaylistSelectionTask: Task<Void, Never>?
     var pendingAdjacentPlaylistOffset: Int = 0
     var lastTracksRevalidationByID: [String: (snapshotID: String, at: Date)] = [:]
-    var inFlightPlaylistListRefreshTask: Task<[SpotifyPlaylistSummary], Error>?
+    var inFlightPlaylistListRefreshTask: Task<([SpotifyPlaylistSummary], SpotifyUserProfile), Error>?
     var playlistListRefreshGeneration = 0
     var lastManualPlaylistRefreshAt: Date?
     /// Collapses concurrent liked-songs refresh triggers into one network run.

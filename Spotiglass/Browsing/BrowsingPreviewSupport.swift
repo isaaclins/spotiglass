@@ -65,6 +65,7 @@ struct PreviewBrowsingAPI: SpotifyBrowsingAPI {
             SpotifyPlaylistSummary(
                 id: "playlist",
                 name: "Preview Playlist",
+                ownerID: "preview-user",
                 ownerName: "Isaac",
                 imageURL: nil,
                 trackCount: 2,

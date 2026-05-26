@@ -83,6 +83,7 @@ struct PlaylistBrowserMainDetailColumn: View {
                         case let .playlist(detail):
                             PlaylistDetailContent(
                                 detail: detail,
+                                currentUserSpotifyID: viewModel.currentUserSpotifyID,
                                 pendingScrollRestoreTrackID: $pendingPlaylistListScrollRestoreID,
                                 onTrackEnteredViewportApproximation: { detailLastVisibleTrackID = $0 },
                                 playURI: { uri in
