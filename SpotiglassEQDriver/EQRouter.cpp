@@ -57,6 +57,12 @@ struct Ring {
     float buffer[kRingFrames * kChannels];
     std::atomic<size_t> read_pos{0};
     std::atomic<size_t> write_pos{0};
+    // OutputCallback-only counters; the target device's IO thread is the
+    // single reader/writer of these. Used by the diagnostic log to surface
+    // underruns when downstream (e.g. Bluetooth) drains the ring faster than
+    // DoIOOperation can fill it.
+    uint64_t cb_count = 0;
+    uint64_t underrun_total = 0;
 };
 
 AudioObjectID FindDeviceByUID(const char* uid) {
@@ -96,6 +102,9 @@ OSStatus OutputCallback(AudioObjectID /*inDevice*/,
     Ring* ring = static_cast<Ring*>(inClientData);
     if (!ring || !outOutputData) return noErr;
 
+    ring->cb_count++;
+    const bool should_log = (ring->cb_count == 1) || (ring->cb_count % 50 == 0);
+
     for (UInt32 b = 0; b < outOutputData->mNumberBuffers; ++b) {
         AudioBuffer& buf = outOutputData->mBuffers[b];
         if (!buf.mData) continue;
@@ -127,6 +136,15 @@ OSStatus OutputCallback(AudioObjectID /*inDevice*/,
             }
         }
         ring->read_pos.store(read_pos + to_copy, std::memory_order_release);
+
+        const UInt32 underrun = frames - to_copy;
+        ring->underrun_total += underrun;
+        if (should_log) {
+            EQR_log("OutputCB[%llu] buf=%u ch=%u req=%u avail=%zu copied=%u underrun=%u underrun_total=%llu",
+                    (unsigned long long)ring->cb_count, (unsigned)b, (unsigned)channels,
+                    (unsigned)frames, avail, (unsigned)to_copy,
+                    (unsigned)underrun, (unsigned long long)ring->underrun_total);
+        }
     }
     return noErr;
 }
