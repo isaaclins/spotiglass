@@ -21,11 +21,11 @@ struct CommandPaletteCommandSpec: Identifiable {
 
 enum CommandPaletteCommandCatalog {
     private static func localizedTitle(commandID: String) -> String {
-        SpotiglassL10n.string(String.LocalizationValue("palette.command.\(commandID).title"))
+        SpotiglassL10n.string(forKey: "palette.command.\(commandID).title")
     }
 
     private static func localizedSubtitle(commandID: String) -> String {
-        SpotiglassL10n.string(String.LocalizationValue("palette.command.\(commandID).subtitle"))
+        SpotiglassL10n.string(forKey: "palette.command.\(commandID).subtitle")
     }
 
     private static func spec(
