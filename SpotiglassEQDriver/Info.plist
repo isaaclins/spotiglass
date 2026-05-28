@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Standard bundle keys. The Mach-O is a CFPlugIn loaded by coreaudiod. -->
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleExecutable</key>
+    <string>SpotiglassEQDriver</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.isaaclins.spotiglass.eqdriver</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>Spotiglass EQ Driver</string>
+    <key>CFBundlePackageType</key>
+    <string>BNDL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>0.1.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+
+    <!-- CFPlugIn factory registration. The UUID under CFPlugInFactories is
+         a stable identifier for the AudioServerPlugIn factory function; the
+         UUID inside CFPlugInTypes binds it to the AudioServerPlugIn type. -->
+    <key>CFPlugInDynamicRegistration</key>
+    <string>NO</string>
+    <key>CFPlugInFactories</key>
+    <dict>
+        <key>D5C1A8F4-9CEA-4D9F-8B41-2CE7C13FA7E3</key>
+        <string>SpotiglassEQDriver_Create</string>
+    </dict>
+    <key>CFPlugInTypes</key>
+    <dict>
+        <!-- kAudioServerPlugInTypeUUID -->
+        <key>443ABAB8-E7B3-491A-B985-BEB9187030DB</key>
+        <array>
+            <string>D5C1A8F4-9CEA-4D9F-8B41-2CE7C13FA7E3</string>
+        </array>
+    </dict>
+
+    <!-- AudioServerPlugIn declares its supported features here. We register
+         exactly one virtual output device with the friendly name shown to
+         users in System Settings → Sound → Output. -->
+    <key>NSHumanReadableCopyright</key>
+    <string>© Isaac Lins. Released as part of Spotiglass. Not for redistribution outside Spotiglass.app.</string>
+</dict>
+</plist>
