@@ -2,6 +2,7 @@
 #define SPOTIGLASS_EQ_ROUTER_H
 
 #include <stddef.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -21,6 +22,12 @@ void EQRouter_Push(EQRouter* router, const float* frames, size_t n_frames);
 // the router and stable until the router is closed. Used by the watcher
 // thread to detect target changes without re-opening the device.
 const char* EQRouter_TargetUID(EQRouter* router);
+
+// Returns the CoreAudio AudioObjectID of the device the router currently
+// forwards to (0 / kAudioObjectUnknown when the router is null or closed).
+// Used by the volume-control mirror to read / write the target device's
+// kAudioDevicePropertyVolumeScalar without re-resolving its UID.
+uint32_t EQRouter_TargetDevice(EQRouter* router);
 
 // Tear down the router and stop forwarding.
 void EQRouter_Close(EQRouter* router);

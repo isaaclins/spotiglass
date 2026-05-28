@@ -211,6 +211,10 @@ const char* EQRouter_TargetUID(EQRouter* router) {
     return router ? router->target_uid : "";
 }
 
+uint32_t EQRouter_TargetDevice(EQRouter* router) {
+    return router ? static_cast<uint32_t>(router->device) : kAudioObjectUnknown;
+}
+
 void EQRouter_Push(EQRouter* router, const float* frames, size_t n_frames) {
     if (!router || !frames || n_frames == 0) return;
     Ring& ring = router->ring;
