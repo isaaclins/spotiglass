@@ -223,19 +223,26 @@ struct EqualizerSettings: Codable, Equatable {
     var activePresetName: String?
     /// User-defined presets stored alongside the built-ins.
     var userPresets: [EqualizerPreset]
+    /// Persistent UID of the hardware output device the EQ should forward
+    /// processed audio to. `nil` means the controller picks a sensible
+    /// default at enable time (the previous default before EQ activation,
+    /// falling back to `BuiltInSpeakerDevice`).
+    var forwardingTargetUID: String?
 
     init(
         enabled: Bool = false,
         preamp: Double = 0,
         bands: [Double] = Array(repeating: 0, count: EqualizerSettings.bandCount),
         activePresetName: String? = EqualizerPreset.flatName,
-        userPresets: [EqualizerPreset] = []
+        userPresets: [EqualizerPreset] = [],
+        forwardingTargetUID: String? = nil
     ) {
         self.enabled = enabled
         self.preamp = preamp
         self.bands = EqualizerSettings.normalizedBands(bands)
         self.activePresetName = activePresetName
         self.userPresets = userPresets
+        self.forwardingTargetUID = forwardingTargetUID
     }
 
     init(from decoder: Decoder) throws {
@@ -247,6 +254,7 @@ struct EqualizerSettings: Codable, Equatable {
         bands = EqualizerSettings.normalizedBands(raw)
         activePresetName = try container.decodeIfPresent(String.self, forKey: .activePresetName)
         userPresets = try container.decodeIfPresent([EqualizerPreset].self, forKey: .userPresets) ?? []
+        forwardingTargetUID = try container.decodeIfPresent(String.self, forKey: .forwardingTargetUID)
     }
 
     /// Pads/truncates raw band arrays so the in-memory shape stays consistent.
@@ -274,6 +282,7 @@ struct EqualizerSettings: Codable, Equatable {
         case bands
         case activePresetName
         case userPresets
+        case forwardingTargetUID
     }
 }
 

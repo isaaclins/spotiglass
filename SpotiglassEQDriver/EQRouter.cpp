@@ -138,6 +138,10 @@ struct EQRouter {
     AudioDeviceIOProcID ioProc = nullptr;
     bool started = false;
     Ring ring;
+    // Copy of the target UID used to open this router. The watcher thread
+    // compares this against the contents of the target file to decide whether
+    // to swap routers on the fly. Owned by the EQRouter, lives until close.
+    char target_uid[256] = {0};
 };
 
 extern "C" {
@@ -175,8 +179,13 @@ EQRouter* EQRouter_Open(const char* target_uid) {
         return nullptr;
     }
     router->started = true;
+    strncpy(router->target_uid, target_uid, sizeof(router->target_uid) - 1);
     EQR_log("  OK: router started on device %u", device);
     return router;
+}
+
+const char* EQRouter_TargetUID(EQRouter* router) {
+    return router ? router->target_uid : "";
 }
 
 void EQRouter_Push(EQRouter* router, const float* frames, size_t n_frames) {

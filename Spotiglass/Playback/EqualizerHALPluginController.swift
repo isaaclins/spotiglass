@@ -150,6 +150,36 @@ final class EqualizerHALPluginController: @unchecked Sendable {
         try? FileManager.default.removeItem(at: forwardingTargetURL)
     }
 
+    /// Public entry point for changing where EQ-processed audio is sent
+    /// while the EQ is engaged. Writes the new target UID; the driver's
+    /// background watcher picks it up within ~250 ms and atomically swaps
+    /// the open `AudioDeviceIOProc` to the new device. Pass an empty string
+    /// or nil-equivalent to fall back to ``fallbackForwardingUID``.
+    func setForwardingTarget(uid: String) {
+        let resolved = uid.isEmpty ? Self.fallbackForwardingUID : uid
+        Self.writeForwardingTarget(uid: resolved)
+    }
+
+    /// Enumerates output-only devices the user can plausibly route EQ'd
+    /// audio TO. Excludes Spotiglass EQ itself (would recurse) and any
+    /// input-only devices. Used by the Settings UI dropdown.
+    func availableForwardingTargets() -> [AudioDeviceEnumerator.Device] {
+        AudioDeviceEnumerator.allOutputDevices()
+            .filter { $0.name != Self.virtualDeviceName }
+    }
+
+    /// The UID currently written to the forwarding-target file. Reads
+    /// it back from disk (driver's source of truth) so the picker stays
+    /// in sync with whatever EQRouter is actually forwarding to.
+    func currentForwardingTargetUID() -> String? {
+        guard let data = try? String(
+            contentsOf: Self.forwardingTargetURL,
+            encoding: .utf8
+        ) else { return nil }
+        let trimmed = data.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
     /// Removes the bundled `.driver` from `~/Library/Audio/Plug-Ins/HAL/`.
     /// coreaudiod will keep the device visible until it next reloads its HAL
     /// directory (kickstart or log-out/in).
@@ -308,9 +338,10 @@ enum EqualizerHALPluginError: LocalizedError {
 /// OUTPUT devices — never queries input scope, never asks for microphone
 /// permission.
 enum AudioDeviceEnumerator {
-    struct Device: Equatable {
+    struct Device: Equatable, Hashable {
         let id: AudioObjectID
         let name: String
+        let uid: String
     }
 
     static func allOutputDevices() -> [Device] {
@@ -339,9 +370,10 @@ enum AudioDeviceEnumerator {
             &ids
         )
         guard status == noErr else { return [] }
-        return ids.compactMap { id in
+        return ids.compactMap { id -> Device? in
             guard hasOutputStream(deviceID: id) else { return nil }
-            return Device(id: id, name: deviceName(id: id))
+            guard let deviceUID = uid(of: id) else { return nil }
+            return Device(id: id, name: deviceName(id: id), uid: deviceUID)
         }
     }
 

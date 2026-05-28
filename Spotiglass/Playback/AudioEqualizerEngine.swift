@@ -95,6 +95,28 @@ final class AudioEqualizerEngine: ObservableObject {
         publishCoefficients()
     }
 
+    // MARK: - Forwarding-target picker
+
+    /// Lists output-only hardware devices the EQ can forward to. Excludes
+    /// the Spotiglass EQ device itself. Used by the Settings UI dropdown.
+    func availableForwardingTargets() -> [AudioDeviceEnumerator.Device] {
+        pluginController.availableForwardingTargets()
+    }
+
+    /// Updates where EQ-processed audio is sent. Writes the UID to the
+    /// driver's target file; the driver's background watcher (~500 ms)
+    /// swaps its `AudioDeviceIOProc` atomically — no need to toggle EQ.
+    func setForwardingTarget(uid: String) {
+        pluginController.setForwardingTarget(uid: uid)
+    }
+
+    /// The UID currently written to the target file (whatever the driver
+    /// is forwarding to right now). Lets the Settings dropdown reflect the
+    /// real on-disk state instead of just the last persisted preference.
+    func currentForwardingTargetUID() -> String? {
+        pluginController.currentForwardingTargetUID()
+    }
+
     // MARK: - Internals
 
     private func publishCoefficients() {

@@ -16,6 +16,7 @@ struct EqualizerSettingsView: View {
             VStack(alignment: .leading, spacing: SpotiglassDesign.spacingL) {
                 header
                 statusRow
+                forwardingTargetRow
                 presetRow
                 preampRow
                 bandsRow
@@ -82,6 +83,60 @@ struct EqualizerSettingsView: View {
                     .foregroundStyle(.green)
             }
         }
+    }
+
+    /// Picker for the hardware device the EQ should forward processed audio to.
+    /// Refreshed on appear; the driver's background watcher (~500 ms) picks up
+    /// the new UID and atomically swaps its `AudioDeviceIOProc` so the change
+    /// is audible without toggling EQ off and on.
+    private var forwardingTargetRow: some View {
+        let equalizer = settingsStore.settings.equalizer
+        let devices = engine.availableForwardingTargets()
+        return HStack(alignment: .center, spacing: SpotiglassDesign.spacingS) {
+            Text("Send EQ'd audio to")
+                .font(.subheadline.weight(.semibold))
+
+            Picker("Send EQ'd audio to", selection: forwardingTargetBinding) {
+                Text("Auto (previous default)").tag(Optional<String>.none)
+                ForEach(devices, id: \.id) { device in
+                    Text(device.name).tag(Optional(device.uid))
+                }
+            }
+            .labelsHidden()
+            .frame(maxWidth: 300)
+
+            Spacer()
+
+            if let active = activeForwardingDeviceName(equalizer: equalizer, devices: devices) {
+                Label(active, systemImage: "speaker.wave.2.fill")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func activeForwardingDeviceName(
+        equalizer: EqualizerSettings,
+        devices: [AudioDeviceEnumerator.Device]
+    ) -> String? {
+        guard let uid = equalizer.forwardingTargetUID
+            ?? engine.currentForwardingTargetUID()
+        else { return nil }
+        return devices.first { $0.uid == uid }?.name ?? uid
+    }
+
+    private var forwardingTargetBinding: Binding<String?> {
+        Binding(
+            get: { settingsStore.settings.equalizer.forwardingTargetUID },
+            set: { newValue in
+                mutateEqualizer { $0.forwardingTargetUID = newValue }
+                if let uid = newValue, !uid.isEmpty {
+                    engine.setForwardingTarget(uid: uid)
+                }
+                // nil ("Auto") leaves the file alone — next enable() will
+                // capture the current default and write a fresh fallback.
+            }
+        )
     }
 
     private var presetRow: some View {

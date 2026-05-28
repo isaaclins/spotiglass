@@ -288,11 +288,64 @@ HRESULT QueryInterface(void* /*self*/, REFIID uuid, LPVOID* outInterface) {
 ULONG AddRef(void* /*self*/) { return 1; }
 ULONG Release(void* /*self*/) { return 1; }
 
+// Watcher thread: every 500ms, reads the forwarding target file and, if the
+// UID differs from the router currently in gPlugin.router, opens a new
+// router on the new device and atomically swaps. This lets the Settings UI
+// switch where EQ'd audio goes (e.g., from speakers to headphones) without
+// requiring the user to toggle EQ off and back on.
+void* TargetWatcherMain(void* /*unused*/) {
+    while (true) {
+        struct timespec ts = {0, 500 * 1000 * 1000}; // 500ms
+        nanosleep(&ts, nullptr);
+
+        FILE* f = fopen("/tmp/com.isaaclins.spotiglass.eq.target", "r");
+        if (!f) continue;
+        char new_uid[256] = {0};
+        if (!fgets(new_uid, sizeof(new_uid), f)) { fclose(f); continue; }
+        fclose(f);
+        size_t len = strlen(new_uid);
+        while (len > 0 && (new_uid[len - 1] == '\n' || new_uid[len - 1] == '\r')) {
+            new_uid[--len] = '\0';
+        }
+        if (len == 0) continue;
+
+        pthread_mutex_lock(&gPlugin.stateLock);
+        EQRouter* current = gPlugin.router;
+        const char* current_uid = current ? EQRouter_TargetUID(current) : "";
+        bool same = (strcmp(current_uid, new_uid) == 0);
+        pthread_mutex_unlock(&gPlugin.stateLock);
+        if (same) continue;
+
+        // Target changed. Open a fresh router on the new device, then
+        // atomically swap pointers and close the old one. Doing the open
+        // BEFORE acquiring the lock keeps the IO-thread `EQRouter_Push`
+        // path lock-free; only the pointer swap is briefly serialised.
+        EQRouter* opened = EQRouter_Open(new_uid);
+        if (!opened) continue;
+        pthread_mutex_lock(&gPlugin.stateLock);
+        EQRouter* prior = gPlugin.router;
+        gPlugin.router = opened;
+        pthread_mutex_unlock(&gPlugin.stateLock);
+        if (prior) EQRouter_Close(prior);
+    }
+    return nullptr;
+}
+
 OSStatus Initialize(AudioServerPlugInDriverRef /*self*/, AudioServerPlugInHostRef host) {
     pthread_mutex_lock(&gPlugin.stateLock);
     gPlugin.host = host;
     EQDSP_Reset(&gPlugin.dsp);
     pthread_mutex_unlock(&gPlugin.stateLock);
+
+    // Start the target-file watcher exactly once per plugin lifetime.
+    static pthread_t watcher;
+    static bool watcher_started = false;
+    if (!watcher_started) {
+        if (pthread_create(&watcher, nullptr, TargetWatcherMain, nullptr) == 0) {
+            pthread_detach(watcher);
+            watcher_started = true;
+        }
+    }
     return noErr;
 }
 
