@@ -387,6 +387,12 @@ extern "C" {
 /// Factory function name registered in Info.plist under
 /// `CFPlugInFactories`. Returns a pointer to the
 /// AudioServerPlugInDriverInterface vtable.
+///
+/// `default` visibility is required so `dlsym` inside the
+/// `Core-Audio-Driver-Service.helper` host can locate the symbol; the
+/// `extern "C"` block only disables C++ name mangling, not the
+/// `-fvisibility=hidden` we pass at compile time.
+__attribute__((visibility("default")))
 void* SpotiglassEQDriver_Create(CFAllocatorRef /*allocator*/, CFUUIDRef typeUUID) {
     if (!CFEqual(typeUUID, kAudioServerPlugInTypeUUID)) return nullptr;
     return &gInterfacePtr;
