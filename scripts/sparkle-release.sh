@@ -27,6 +27,9 @@ GENERATE_APPCAST="${GENERATE_APPCAST:-}"
 if [[ -z "$GENERATE_APPCAST" && -x "$ROOT/build/sparkle/Sparkle-${SPARKLE_VERSION}/bin/generate_appcast" ]]; then
   GENERATE_APPCAST="$ROOT/build/sparkle/Sparkle-${SPARKLE_VERSION}/bin/generate_appcast"
 fi
+if [[ -z "$GENERATE_APPCAST" && -x "$ROOT/build/sparkle/bin/generate_appcast" ]]; then
+  GENERATE_APPCAST="$ROOT/build/sparkle/bin/generate_appcast"
+fi
 if [[ -z "$GENERATE_APPCAST" && -x /tmp/sparkle-dl/bin/generate_appcast ]]; then
   GENERATE_APPCAST="/tmp/sparkle-dl/bin/generate_appcast"
 fi
@@ -34,7 +37,9 @@ fi
 DERIVED_DATA="$ROOT/build/DerivedData"
 APP_SOURCE="$DERIVED_DATA/Build/Products/Release/Spotiglass.app"
 ARCHIVES_DIR="$ROOT/docs/sparkle-archives"
+DMG_DIR="$ROOT/build/release"
 ZIP_NAME="Spotiglass-${MARKETING_VERSION}.zip"
+DMG_NAME="Spotiglass-${MARKETING_VERSION}.dmg"
 DOWNLOAD_PREFIX="https://github.com/isaaclins/spotiglass/releases/download/${TAG}/"
 
 echo "==> Building Release ${MARKETING_VERSION} (${BUILD_NUMBER})"
@@ -56,6 +61,19 @@ ZIP_PATH="$ARCHIVES_DIR/$ZIP_NAME"
 rm -f "$ZIP_PATH"
 ditto -c -k --sequesterRsrc --keepParent "$APP_SOURCE" "$ZIP_PATH"
 
+mkdir -p "$DMG_DIR"
+DMG_PATH="$DMG_DIR/$DMG_NAME"
+DMG_STAGE="$(mktemp -d)"
+cp -R "$APP_SOURCE" "$DMG_STAGE/Spotiglass.app"
+ln -s /Applications "$DMG_STAGE/Applications"
+rm -f "$DMG_PATH"
+hdiutil create \
+  -volname "Spotiglass ${MARKETING_VERSION}" \
+  -srcfolder "$DMG_STAGE" \
+  -ov -format UDZO \
+  "$DMG_PATH"
+rm -rf "$DMG_STAGE"
+
 if [[ -n "$RELEASE_NOTES" && -f "$RELEASE_NOTES" ]]; then
   cp "$RELEASE_NOTES" "$ARCHIVES_DIR/Spotiglass-${MARKETING_VERSION}.md"
 fi
@@ -66,7 +84,11 @@ if [[ -z "$GENERATE_APPCAST" ]]; then
   curl -fsSL -o "$SPARKLE_TARBALL" \
     "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-${SPARKLE_VERSION}.tar.xz"
   tar -xf "$SPARKLE_TARBALL" -C "$ROOT/build/sparkle"
-  GENERATE_APPCAST="$ROOT/build/sparkle/Sparkle-${SPARKLE_VERSION}/bin/generate_appcast"
+  if [[ -x "$ROOT/build/sparkle/Sparkle-${SPARKLE_VERSION}/bin/generate_appcast" ]]; then
+    GENERATE_APPCAST="$ROOT/build/sparkle/Sparkle-${SPARKLE_VERSION}/bin/generate_appcast"
+  else
+    GENERATE_APPCAST="$ROOT/build/sparkle/bin/generate_appcast"
+  fi
 fi
 
 ED_KEY_ARGS=()
@@ -87,9 +109,10 @@ echo "==> Generating appcast (docs/appcast.xml)"
 echo ""
 echo "Next steps:"
 echo "  1. Create GitHub Release ${TAG} and upload:"
+echo "       ${DMG_PATH}"
 echo "       ${ZIP_PATH}"
 echo "       (and any ${ARCHIVES_DIR}/*.delta files if present)"
 echo "  2. Commit docs/appcast.xml (and release notes) to main for GitHub Pages."
 echo "  3. Ensure repo Pages uses branch main, folder /docs."
 echo ""
-echo "  gh release create ${TAG} \"${ZIP_PATH}\" --title \"Spotiglass ${MARKETING_VERSION}\""
+echo "  gh release create ${TAG} \"${DMG_PATH}\" \"${ZIP_PATH}\" --title \"Spotiglass ${MARKETING_VERSION}\""

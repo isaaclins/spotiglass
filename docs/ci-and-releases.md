@@ -21,7 +21,8 @@ No Spotiglass server is required. Updates use:
 | Piece | Host |
 |-------|------|
 | Appcast RSS | [GitHub Pages](https://isaaclins.github.io/spotiglass/appcast.xml) — `docs/appcast.xml` on branch `main` |
-| Update `.zip` | [GitHub Releases](https://github.com/isaaclins/spotiglass/releases) |
+| Update `.zip` | [GitHub Releases](https://github.com/isaaclins/spotiglass/releases) — used by Sparkle |
+| Installer `.dmg` | [GitHub Releases](https://github.com/isaaclins/spotiglass/releases) — human download, drag-to-Applications |
 | Archive signatures | Sparkle EdDSA (`SUPublicEDKey` in the app; private key in CI only) |
 
 The app checks the feed automatically about once per day, or via **Spotiglass → Check for Updates…** in the menu bar. Automatic **install** is off by default (`SUAllowsAutomaticUpdates` = false); the user confirms the update.
@@ -42,8 +43,9 @@ The app checks the feed automatically about once per day, or via **Spotiglass �
 3. The workflow will:
    - Build and test an unsigned Release `Spotiglass.app`
    - Upload the 14-day Actions artifact
-   - Zip the app, sign the archive with EdDSA, regenerate `docs/appcast.xml`
-   - Create a GitHub Release `v{version}` with the zip asset
+   - Zip the app for Sparkle, sign the archive with EdDSA, regenerate `docs/appcast.xml`
+   - Package the app into a `Spotiglass-{version}.dmg` (drag-to-Applications) for human downloads
+   - Create a GitHub Release `v{version}` with both the `.dmg` and Sparkle `.zip` attached
    - Commit `docs/appcast.xml` (and optional `docs/release-notes/`) to `main` for Pages
 
 **Local parity:** `./scripts/sparkle-release.sh 0.2.0 42 docs/release-notes/v0.2.0.md` then create the Release and push the appcast commit manually if needed.

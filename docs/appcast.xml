@@ -1,10 +1,18 @@
-<?xml version="1.0" encoding="utf-8"?>
-<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/" version="2.0">
     <channel>
         <title>Spotiglass</title>
         <link>https://isaaclins.github.io/spotiglass/appcast.xml</link>
         <description>Spotiglass application updates</description>
         <language>en</language>
         <!-- Items are appended by scripts/sparkle-release.sh and CI (generate_appcast). -->
+        <item>
+            <title>0.1.1</title>
+            <pubDate>Thu, 28 May 2026 10:13:17 +0200</pubDate>
+            <sparkle:version>2</sparkle:version>
+            <sparkle:shortVersionString>0.1.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.1.1/Spotiglass-0.1.1.zip" length="7669805" type="application/octet-stream" sparkle:edSignature="GNK4S2eI2EABZ4TZN6sohc3xZrx5Bp27hnNZqNDDMxam4iAyFez5pBBC0OYIx4geXeGdQRpm+naNP8n3Is7ZAw=="/>
+        </item>
     </channel>
 </rss>

@@ -150,9 +150,23 @@ jobs:
           TAG="v${MARKETING_VERSION}"
           APP_SOURCE="$DERIVED_DATA/Build/Products/$CONFIGURATION/Spotiglass.app"
           ARCHIVES_DIR="$GITHUB_WORKSPACE/docs/sparkle-archives"
-          mkdir -p "$ARCHIVES_DIR"
+          DMG_DIR="$GITHUB_WORKSPACE/build/release"
+          mkdir -p "$ARCHIVES_DIR" "$DMG_DIR"
           ZIP_NAME="Spotiglass-${MARKETING_VERSION}.zip"
+          DMG_NAME="Spotiglass-${MARKETING_VERSION}.dmg"
+          # Sparkle .zip lives in ARCHIVES_DIR for generate_appcast; .dmg lives
+          # outside it so Sparkle does not treat the two as duplicate updates.
           ditto -c -k --sequesterRsrc --keepParent "$APP_SOURCE" "$ARCHIVES_DIR/$ZIP_NAME"
+
+          DMG_STAGE="$(mktemp -d)"
+          cp -R "$APP_SOURCE" "$DMG_STAGE/Spotiglass.app"
+          ln -s /Applications "$DMG_STAGE/Applications"
+          hdiutil create \
+            -volname "Spotiglass ${MARKETING_VERSION}" \
+            -srcfolder "$DMG_STAGE" \
+            -ov -format UDZO \
+            "$DMG_DIR/$DMG_NAME"
+          rm -rf "$DMG_STAGE"
 
           if [ -n "${{ inputs.release_notes }}" ]; then
             NOTES_FILE="$GITHUB_WORKSPACE/docs/release-notes/${TAG}.md"
@@ -205,8 +219,13 @@ jobs:
           if [ -n "${{ inputs.release_notes }}" ]; then
             NOTES_ARG=(--notes-file "$GITHUB_WORKSPACE/docs/release-notes/${TAG}.md")
           fi
+          DMG_DIR="$GITHUB_WORKSPACE/build/release"
           shopt -s nullglob
-          ASSETS=("$ARCHIVES_DIR"/Spotiglass-"${MARKETING_VERSION}".zip "$ARCHIVES_DIR"/*.delta)
+          ASSETS=(
+            "$DMG_DIR"/Spotiglass-"${MARKETING_VERSION}".dmg
+            "$ARCHIVES_DIR"/Spotiglass-"${MARKETING_VERSION}".zip
+            "$ARCHIVES_DIR"/*.delta
+          )
           gh release create "$TAG" "${ASSETS[@]}" --title "Spotiglass ${MARKETING_VERSION}" "${NOTES_ARG[@]}"
 
       - name: Publish appcast to docs (GitHub Pages)
