@@ -260,7 +260,9 @@ struct EqualizerSettingsView: View {
                 mutateEqualizer { $0.enabled = newValue }
                 if newValue {
                     do {
-                        try engine.start()
+                        try engine.start(
+                            forwardingTargetUID: settingsStore.settings.equalizer.forwardingTargetUID
+                        )
                         engine.apply(settings: settingsStore.settings.equalizer)
                     } catch {
                         // Revert toggle if engine could not start.

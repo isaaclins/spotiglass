@@ -52,9 +52,14 @@ final class AudioEqualizerEngine: ObservableObject {
     /// Installs the HAL plugin (if needed), routes the system default output
     /// to it, and publishes the current coefficient frame so the IO callback
     /// has values to apply on the next audio cycle.
-    func start() throws {
+    ///
+    /// `forwardingTargetUID` lets the caller restore a previously-picked
+    /// output device (from `EqualizerSettings.forwardingTargetUID`) so the
+    /// user's pick survives a disable→enable cycle instead of resetting to
+    /// the built-in speaker.
+    func start(forwardingTargetUID: String? = nil) throws {
         do {
-            try pluginController.enable()
+            try pluginController.enable(preferredForwardingUID: forwardingTargetUID)
             isRunning = true
             lastError = nil
             publishCoefficients()

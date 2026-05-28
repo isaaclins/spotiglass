@@ -85,18 +85,27 @@ final class EqualizerHALPluginController: @unchecked Sendable {
     /// directory) and routes the system default output to the Spotiglass
     /// virtual device. Throws if the bundled driver is missing or the file
     /// copy / device lookup fails. NEVER asks for microphone permission.
-    func enable() throws {
+    ///
+    /// `preferredForwardingUID` lets the caller pin the EQRouter's forwarding
+    /// target to a previously-saved device UID, which is what makes the
+    /// Settings → "Send EQ'd audio to" picker survive a disable→enable cycle.
+    /// When nil, falls back to the previous default output (or the built-in
+    /// speaker if that would loop Spotiglass EQ back to itself).
+    func enable(preferredForwardingUID: String? = nil) throws {
         try installIfNeeded()
         if let deviceID = lookupSpotiglassEQDeviceID() {
             try captureCurrentDefaultOutput()
             // Always write the forwarding target so the driver's EQRouter has
-            // somewhere to send the EQ'd audio. If the previous default was
-            // already Spotiglass EQ (e.g., EQ was already enabled, user
-            // toggled off then on without changing default elsewhere), fall
-            // back to the system's built-in speaker UID, since picking
-            // Spotiglass EQ as its own forwarding target would recurse
-            // forever.
+            // somewhere to send the EQ'd audio. A persisted user pick wins;
+            // otherwise we restore the previous default. If the previous
+            // default was already Spotiglass EQ (e.g., EQ was already enabled,
+            // user toggled off then on without changing default elsewhere),
+            // fall back to the system's built-in speaker UID, since picking
+            // Spotiglass EQ as its own forwarding target would recurse forever.
             let targetUID: String? = {
+                if let preferred = preferredForwardingUID, !preferred.isEmpty {
+                    return preferred
+                }
                 if let previous = previousDefaultOutputID,
                    previous != deviceID,
                    let uid = AudioDeviceEnumerator.uid(of: previous) {
