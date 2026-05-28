@@ -50,7 +50,6 @@ struct SpotiglassApp: App {
                 .environmentObject(pinnedStore)
                 .environmentObject(lyricsOverlayController)
                 .environment(\.locale, settingsStore.appLocale)
-                .id(settingsStore.settings.appearance.language)
                 .preferredColorScheme(preferredColorScheme)
                 .frame(minWidth: 520, minHeight: 360)
         }
@@ -75,7 +74,6 @@ struct SpotiglassApp: App {
             )
             .environmentObject(authViewModel)
             .environment(\.locale, settingsStore.appLocale)
-            .id(settingsStore.settings.appearance.language)
             .preferredColorScheme(preferredColorScheme)
         }
     }
