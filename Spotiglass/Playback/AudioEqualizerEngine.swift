@@ -6,11 +6,11 @@ import Foundation
 /// output device (``SpotiglassEQDriver.driver``).
 ///
 /// **Privacy posture.** This engine NEVER requests microphone or audio
-/// recording permission. The audio path is a virtual *output* device — there
-/// is no input scope, no process tap, no `AVAudioEngine.inputNode`, no
-/// `AVCaptureDevice`, no `AudioHardwareCreateProcessTap`. The
+/// recording permission. The audio path is a virtual *output* device —
+/// output scope only, no input capture of any kind. The
 /// `scripts/eq-mic-permission-audit.sh` audit (wired into `make test`)
-/// continuously enforces that.
+/// continuously enforces that, naming the specific banned APIs in its
+/// own source so they live in exactly one place in the codebase.
 ///
 /// The view layer (``EqualizerSettingsView``) interacts with the engine via
 /// the same Swift API surface that shipped in commit `2fdd179` (start, stop,

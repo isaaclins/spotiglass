@@ -4,7 +4,7 @@
 #        make release         — unsigned Release bundle (matches CI layout)
 #        make test            — unit tests on macOS
 
-.PHONY: all build run release test coverage coverage-check format lint scan clean list help
+.PHONY: all build run release test coverage coverage-check format lint scan clean list help audit-eq-permission
 
 SWIFT_FORMAT := $(shell command -v swift-format 2>/dev/null)
 
@@ -58,7 +58,12 @@ release:
 		$(XCODE_EXTRA) \
 		clean build
 
-test:
+# Greps the codebase for banned mic / audio-recording APIs. Always runs
+# before `make test`, and is safe to invoke standalone.
+audit-eq-permission:
+	./scripts/eq-mic-permission-audit.sh
+
+test: audit-eq-permission
 	xcodebuild \
 		-project $(PROJECT) \
 		-scheme $(SCHEME) \
