@@ -68,6 +68,7 @@ struct SpotiglassApp: App {
             )
             .environmentObject(authViewModel)
             .environment(\.locale, settingsStore.appLocale)
+            .id(settingsStore.settings.appearance.language)
             .preferredColorScheme(preferredColorScheme)
         }
     }
