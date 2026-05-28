@@ -10,6 +10,9 @@ struct TrackRowViewModel: Equatable, Identifiable {
     let durationText: String
     let badgeText: String?
     let isUnavailable: Bool
+    /// Tracked alongside ``badgeText`` so pin/queue paths can recognise explicit
+    /// tracks after the badge string is localized.
+    let isExplicit: Bool
     let playableURI: String?
     let artistRefs: [SpotifyArtistRef]
 
@@ -37,35 +40,45 @@ struct TrackRowViewModel: Equatable, Identifiable {
             self.subtitle = track.artists.joined(separator: ", ")
             self.artworkURL = track.albumArtworkURL
             self.durationText = Self.durationText(milliseconds: track.durationMilliseconds)
-            self.badgeText = track.isPlayable == false ? "Unavailable" : (track.isExplicit ? "Explicit" : nil)
+            self.badgeText = track.isPlayable == false
+                ? SpotiglassL10n.string("browser.trackBadge.unavailable")
+                : (track.isExplicit ? SpotiglassL10n.string("browser.trackBadge.explicit") : nil)
             self.isUnavailable = track.isPlayable == false
+            self.isExplicit = track.isExplicit
             self.playableURI = track.isPlayable == false ? nil : track.uri
             self.artistRefs = track.artistRefs
         case let .episode(episode):
             self.title = episode.name
-            self.subtitle = episode.showName ?? "Podcast episode"
+            self.subtitle = episode.showName ?? SpotiglassL10n.string("browser.trackBadge.podcastEpisode")
             self.artworkURL = episode.artworkURL
             self.durationText = Self.durationText(milliseconds: episode.durationMilliseconds)
-            self.badgeText = episode.isPlayable == false ? "Unavailable episode" : "Episode"
+            self.badgeText = episode.isPlayable == false
+                ? SpotiglassL10n.string("browser.trackBadge.unavailableEpisode")
+                : SpotiglassL10n.string("browser.trackBadge.episode")
             self.isUnavailable = episode.isPlayable == false
+            self.isExplicit = false
             self.playableURI = episode.isPlayable == false ? nil : episode.uri
             self.artistRefs = []
         case let .localTrack(track):
             self.title = track.name
-            self.subtitle = track.artists.isEmpty ? "Local track" : track.artists.joined(separator: ", ")
+            self.subtitle = track.artists.isEmpty
+                ? SpotiglassL10n.string("browser.trackBadge.localTrack")
+                : track.artists.joined(separator: ", ")
             self.artworkURL = nil
             self.durationText = Self.durationText(milliseconds: track.durationMilliseconds)
-            self.badgeText = "Local"
+            self.badgeText = SpotiglassL10n.string("browser.trackBadge.local")
             self.isUnavailable = false
+            self.isExplicit = false
             self.playableURI = nil
             self.artistRefs = []
         case let .unavailable(reason):
-            self.title = "Unavailable item"
+            self.title = SpotiglassL10n.string("browser.trackBadge.unavailableItem")
             self.subtitle = reason
             self.artworkURL = nil
             self.durationText = "--:--"
-            self.badgeText = "Unavailable"
+            self.badgeText = SpotiglassL10n.string("browser.trackBadge.unavailable")
             self.isUnavailable = true
+            self.isExplicit = false
             self.playableURI = nil
             self.artistRefs = []
         }
@@ -78,8 +91,11 @@ struct TrackRowViewModel: Equatable, Identifiable {
         self.subtitle = track.artists.joined(separator: ", ")
         self.artworkURL = track.albumArtworkURL
         self.durationText = Self.durationText(milliseconds: track.durationMilliseconds)
-        self.badgeText = track.isPlayable == false ? "Unavailable" : (track.isExplicit ? "Explicit" : nil)
+        self.badgeText = track.isPlayable == false
+            ? SpotiglassL10n.string("browser.trackBadge.unavailable")
+            : (track.isExplicit ? SpotiglassL10n.string("browser.trackBadge.explicit") : nil)
         self.isUnavailable = track.isPlayable == false
+        self.isExplicit = track.isExplicit
         self.playableURI = track.isPlayable == false ? nil : track.uri
         self.artistRefs = track.artistRefs
     }
@@ -111,7 +127,7 @@ struct TrackRowViewModel: Equatable, Identifiable {
             artistRefs: artistRefs,
             albumArtworkURL: artworkURL,
             durationMilliseconds: durationMillisecondsForPinning,
-            isExplicit: badgeText == "Explicit",
+            isExplicit: isExplicit,
             isPlayable: !isUnavailable,
             linkedFromID: nil,
             uri: playableURI

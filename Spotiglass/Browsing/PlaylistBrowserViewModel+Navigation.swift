@@ -131,13 +131,13 @@ extension PlaylistBrowserViewModel {
                 breadcrumbPath = [
                     BrowserBreadcrumb(
                         id: UUID(),
-                        label: "Liked Songs",
+                        label: SpotiglassL10n.string("browser.likedSongs.title"),
                         systemImage: "heart.fill",
                         kind: .likedSongs
                     )
                 ]
             case let .playlist(id):
-                let title = playlistsByID[id]?.name ?? "Playlist"
+                let title = playlistsByID[id]?.name ?? SpotiglassL10n.string("browser.breadcrumb.playlistFallback")
                 breadcrumbPath = [
                     BrowserBreadcrumb(
                         id: UUID(),
@@ -246,7 +246,7 @@ extension PlaylistBrowserViewModel {
         if let cached = cachedArtistSnapshots[id] {
             return cached.snapshot.artistDetail.name
         }
-        return "Artist"
+        return SpotiglassL10n.string("browser.breadcrumb.artistFallback")
     }
 
     func refineLastBreadcrumbArtistLabelIfNeeded(artistID: String, resolvedName: String) {
