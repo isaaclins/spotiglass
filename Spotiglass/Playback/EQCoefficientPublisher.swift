@@ -24,10 +24,11 @@ import os.lock
 /// pass a temporary directory through ``init(shmDirectory:)`` to use a tmpfs
 /// backing instead of `/tmp` so multiple tests don't collide.
 final class EQCoefficientPublisher {
-    /// Default backing path; suffixed with the UID to avoid collisions across
-    /// concurrent user sessions on a shared machine.
+    /// Default backing path. Fixed (no uid suffix) so it matches the path
+    /// the driver opens from inside coreaudiod, where `getuid()` returns
+    /// _coreaudiod's uid (202), not the logged-in user.
     static var defaultBackingPath: String {
-        "/tmp/com.isaaclins.spotiglass.eq.coeffs.v1.u\(getuid())"
+        "/tmp/com.isaaclins.spotiglass.eq.coeffs.v1"
     }
 
     private let backingURL: URL

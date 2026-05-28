@@ -34,9 +34,13 @@
 // work before `coreaudiod` will register the device.
 
 #include <CoreAudio/AudioServerPlugIn.h>
+#include <mach/mach_time.h>
 #include <pthread.h>
+#include <stdio.h>
+#include <unistd.h>
 
 #include "EQCoefficientReader.h"
+#include "EQRouter.h"
 #include "SpotiglassEQDSP.h"
 
 namespace {
@@ -63,6 +67,25 @@ struct PluginState {
     EQCoefficientReader* coeffReader = nullptr;
     EQCoefficientFrame lastFrame{};
     Float64 currentSampleRate = 48000.0;
+    // Whether StartIO has been called and StopIO has not yet been. This is
+    // what kAudioDevicePropertyDeviceIsRunning must reflect. Keeping it
+    // separate from `coeffReader` (which is null when the publisher file
+    // doesn't exist yet) so a missing coefficient file doesn't make
+    // coreaudiod think the device is dead and kill the IO thread with
+    // kAudioHardwareStoppedError ('stop').
+    bool ioRunning = false;
+    // Mach absolute-time anchor for `GetZeroTimeStamp`. Set on StartIO so
+    // the sample count keeps advancing during playback; without an
+    // ever-advancing timeline coreaudiod tears down the IO thread.
+    UInt64 ioStartHostTime = 0;
+    UInt64 ioStartSeed = 1;
+
+    // Forwards EQ-processed audio out to the real hardware output that was
+    // active before the user routed default-output to Spotiglass EQ. Without
+    // this, audio routed to our virtual device would have nowhere to go.
+    // Lazily opened on StartIO; closed on StopIO. NEVER opens an input
+    // IOProc — output-scope only, no microphone path.
+    EQRouter* router = nullptr;
 };
 
 PluginState gPlugin;
@@ -213,12 +236,45 @@ OSStatus DoIOOperation(AudioServerPlugInDriverRef /*self*/,
         gPlugin.coeffReader, &freshFrame
     );
     // 0 = success, 1 = torn read (use cached), 2 = no reader
+    // Periodic diagnostic — every 200 IO cycles (~2s @ 96-frame cycles)
+    // dump snapshot status + first band coefficient so we can see whether
+    // the driver is actually reading new coefficient frames.
+    static UInt32 ioCycleCounter = 0;
+    if ((ioCycleCounter++ % 200) == 0) {
+        FILE* log = fopen("/tmp/com.isaaclins.spotiglass.eq.router.log", "a");
+        if (log) {
+            fprintf(log,
+                "DoIO[%u]: snapStatus=%d preamp=%.3f band[0..3]=%.4f,%.4f,%.4f,%.4f rate=%u mask=0x%x frames=%u\n",
+                ioCycleCounter,
+                snapshotStatus,
+                (double)freshFrame.preampLinear,
+                (double)freshFrame.bandCoeffs[0],
+                (double)freshFrame.bandCoeffs[1],
+                (double)freshFrame.bandCoeffs[2],
+                (double)freshFrame.bandCoeffs[3],
+                (unsigned)freshFrame.sampleRateHz,
+                (unsigned)freshFrame.enabledMask,
+                (unsigned)ioBufferFrameSize);
+            fclose(log);
+        }
+    }
     EQDSP_Apply(
         &gPlugin.dsp,
         snapshotStatus == 0 ? &freshFrame : nullptr,
         static_cast<float*>(ioMainBuffer),
         ioBufferFrameSize
     );
+    // Forward the post-EQ stereo buffer to the previous real default output
+    // so the user actually hears the result. EQRouter_Push is lock-free and
+    // drops oldest frames if the consumer's IOProc falls behind, so it's
+    // safe to call from this realtime callback.
+    if (gPlugin.router) {
+        EQRouter_Push(
+            gPlugin.router,
+            static_cast<const float*>(ioMainBuffer),
+            ioBufferFrameSize
+        );
+    }
     return noErr;
 }
 
@@ -245,14 +301,76 @@ OSStatus StartIO(AudioServerPlugInDriverRef /*self*/,
                  UInt32 /*clientID*/) {
     pthread_mutex_lock(&gPlugin.stateLock);
     if (!gPlugin.coeffReader) {
-        // Default backing path. Must mirror EQCoefficientPublisher.defaultBackingPath.
-        char path[256];
-        snprintf(path, sizeof(path),
-                 "/tmp/com.isaaclins.spotiglass.eq.coeffs.v1.u%u", getuid());
-        gPlugin.coeffReader = EQCoefficientReader_Open(path);
+        // Fixed path (no uid suffix). The Swift host writes from the
+        // logged-in user; the driver reads from inside coreaudiod where
+        // `getuid()` returns _coreaudiod's uid (202). Sharing one path keeps
+        // both sides aligned. Must mirror EQCoefficientPublisher.defaultBackingPath.
+        gPlugin.coeffReader = EQCoefficientReader_Open(
+            "/tmp/com.isaaclins.spotiglass.eq.coeffs.v1"
+        );
+        FILE* log = fopen("/tmp/com.isaaclins.spotiglass.eq.router.log", "a");
+        if (log) {
+            fprintf(log, "StartIO: coeffReader_Open(\"%s\") → %p\n",
+                    "/tmp/com.isaaclins.spotiglass.eq.coeffs.v1",
+                    (void*)gPlugin.coeffReader);
+            fclose(log);
+        }
     }
     EQDSP_Reset(&gPlugin.dsp);
+    gPlugin.ioRunning = true;
+    gPlugin.ioStartHostTime = mach_absolute_time();
+    gPlugin.ioStartSeed++;
+
+    // Snapshot whether the router still needs opening, then release the
+    // state lock BEFORE the call out (held locks across calls back into
+    // coreaudiod deadlock). EQRouter is currently disabled (see below).
+    bool need_open_router = (gPlugin.router == nullptr);
     pthread_mutex_unlock(&gPlugin.stateLock);
+
+    if (need_open_router) {
+        // Open the router on a detached worker thread so coreaudiod's IO
+        // setup for OUR device finishes first. Calling
+        // AudioDeviceCreateIOProcID + AudioDeviceStart from inside
+        // coreaudiod is supported (it's how the plugin can forward audio to
+        // real hardware) but it MUST run on its own thread — inline calls
+        // either block our StartIO or interleave badly with the IO thread
+        // that's still spinning up.
+        pthread_t worker;
+        if (pthread_create(&worker, nullptr,
+                           [](void*) -> void* {
+                               // Brief yield so the EQ device's own IO
+                               // thread can finish its first cycle before
+                               // we add a peer-device IOProc to the
+                               // coreaudiod scheduler. 20ms is plenty.
+                               struct timespec ts = {0, 20 * 1000 * 1000}; // 20ms
+                               nanosleep(&ts, nullptr);
+                               const char* target_path = "/tmp/com.isaaclins.spotiglass.eq.target";
+                               FILE* f = fopen(target_path, "r");
+                               if (!f) return nullptr;
+                               char uid[256] = {0};
+                               if (!fgets(uid, sizeof(uid), f)) { fclose(f); return nullptr; }
+                               fclose(f);
+                               size_t len = strlen(uid);
+                               while (len > 0 && (uid[len - 1] == '\n' || uid[len - 1] == '\r')) {
+                                   uid[--len] = '\0';
+                               }
+                               if (len == 0) return nullptr;
+                               EQRouter* opened = EQRouter_Open(uid);
+                               if (!opened) return nullptr;
+                               pthread_mutex_lock(&gPlugin.stateLock);
+                               if (!gPlugin.router) {
+                                   gPlugin.router = opened;
+                                   pthread_mutex_unlock(&gPlugin.stateLock);
+                               } else {
+                                   pthread_mutex_unlock(&gPlugin.stateLock);
+                                   EQRouter_Close(opened);
+                               }
+                               return nullptr;
+                           },
+                           nullptr) == 0) {
+            pthread_detach(worker);
+        }
+    }
     return noErr;
 }
 
@@ -260,10 +378,17 @@ OSStatus StopIO(AudioServerPlugInDriverRef /*self*/,
                 AudioObjectID /*deviceID*/,
                 UInt32 /*clientID*/) {
     pthread_mutex_lock(&gPlugin.stateLock);
+    gPlugin.ioRunning = false;
     if (gPlugin.coeffReader) {
         EQCoefficientReader_Close(gPlugin.coeffReader);
         gPlugin.coeffReader = nullptr;
     }
+    // Intentionally KEEP gPlugin.router open across StopIO so the next
+    // StartIO doesn't pay the ~200ms AudioDeviceCreateIOProcID +
+    // AudioDeviceStart warmup. Without this, every fresh client (e.g., back-
+    // to-back `afplay` calls) triggers a Stop/Start cycle and the first
+    // ~200ms of audio is dropped while the router reopens. The router will
+    // be torn down for real in DestroyDevice / plugin teardown.
     pthread_mutex_unlock(&gPlugin.stateLock);
     return noErr;
 }
@@ -567,9 +692,10 @@ OSStatus GetPropertyData(AudioServerPlugInDriverRef self, AudioObjectID objectID
             case kAudioDevicePropertyClockDomain:  return putUInt32(0);
             case kAudioDevicePropertyDeviceIsAlive: return putUInt32(1);
             case kAudioDevicePropertyDeviceIsRunning:
-                // Best-effort: 1 once StartIO succeeded. Tracked indirectly by
-                // coeffReader presence (StartIO opens it, StopIO closes it).
-                return putUInt32(gPlugin.coeffReader != nullptr ? 1 : 0);
+                // 1 between StartIO and StopIO. coreaudiod queries this and
+                // tears down the IO thread with `kAudioHardwareStoppedError`
+                // if it ever returns 0 while the device should be running.
+                return putUInt32(gPlugin.ioRunning ? 1 : 0);
             case kAudioDevicePropertyDeviceCanBeDefaultDevice:       return putUInt32(1);
             case kAudioDevicePropertyDeviceCanBeDefaultSystemDevice: return putUInt32(1);
             case kAudioDevicePropertyLatency:                        return putUInt32(0);
@@ -685,9 +811,26 @@ OSStatus SetPropertyData(AudioServerPlugInDriverRef self, AudioObjectID objectID
 OSStatus GetZeroTimeStamp(AudioServerPlugInDriverRef /*self*/, AudioObjectID /*deviceID*/,
                           UInt32 /*clientID*/, Float64* outSampleTime, UInt64* outHostTime,
                           UInt64* outSeed) {
-    if (outSampleTime) *outSampleTime = 0;
-    if (outHostTime)   *outHostTime = 0;
-    if (outSeed)       *outSeed = 1;
+    // coreaudiod uses this to peg the device's sample-domain timeline to
+    // the host clock. Returning a static value makes coreaudiod think the
+    // device isn't advancing and it tears down the IO thread with
+    // `kAudioHardwareStoppedError`. Compute an ever-advancing sample count
+    // anchored at StartIO via mach_absolute_time.
+    static mach_timebase_info_data_t s_tb = {0, 0};
+    if (s_tb.denom == 0) mach_timebase_info(&s_tb);
+    const UInt64 now = mach_absolute_time();
+    pthread_mutex_lock(&gPlugin.stateLock);
+    const UInt64 anchor = gPlugin.ioStartHostTime ? gPlugin.ioStartHostTime : now;
+    const UInt64 seed = gPlugin.ioStartSeed;
+    const Float64 rate = gPlugin.currentSampleRate;
+    pthread_mutex_unlock(&gPlugin.stateLock);
+    // Convert (now - anchor) mach ticks to nanoseconds to samples.
+    const UInt64 elapsed_ticks = (now >= anchor) ? (now - anchor) : 0;
+    const Float64 elapsed_ns = static_cast<Float64>(elapsed_ticks) * s_tb.numer / s_tb.denom;
+    const Float64 elapsed_samples = elapsed_ns * rate / 1.0e9;
+    if (outSampleTime) *outSampleTime = elapsed_samples;
+    if (outHostTime)   *outHostTime = anchor;
+    if (outSeed)       *outSeed = seed;
     return noErr;
 }
 OSStatus WillDoIOOperation(AudioServerPlugInDriverRef /*self*/, AudioObjectID /*deviceID*/,

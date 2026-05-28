@@ -28,7 +28,10 @@ EQCoefficientReader* EQCoefficientReader_Open(const char* backingPath) {
         close(fd);
         return NULL;
     }
-    if ((size_t)sb.st_size < sizeof(EQCoefficientFrame)) {
+    // Use the wire-format size (220), not sizeof(EQCoefficientFrame) which is
+    // 224 (4 bytes of trailing C alignment padding). The Swift publisher
+    // writes exactly the wire layout.
+    if ((size_t)sb.st_size < SPOTIGLASS_EQ_WIRE_BYTES) {
         close(fd);
         return NULL;
     }

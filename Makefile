@@ -4,7 +4,7 @@
 #        make release         — unsigned Release bundle (matches CI layout)
 #        make test            — unit tests on macOS
 
-.PHONY: all build run release test coverage coverage-check format lint scan clean list help audit-eq-permission build-driver embed-driver
+.PHONY: all build run release test coverage coverage-check format lint scan clean list help audit-eq-permission build-driver embed-driver sign-driver install-driver
 
 SWIFT_FORMAT := $(shell command -v swift-format 2>/dev/null)
 
@@ -84,8 +84,41 @@ embed-driver: build build-driver
 	echo "embedded → $$dst/SpotiglassEQDriver.driver"; \
 	echo; \
 	echo "To activate after first launch:"; \
-	echo "  sudo launchctl kickstart -k system/com.apple.audio.coreaudiod"; \
+	echo "  sudo killall coreaudiod"; \
 	echo "(or log out and back in)"
+
+# Re-signs build/SpotiglassEQDriver.driver with the user's Apple Development
+# identity. The build-driver step leaves the bundle ad-hoc signed (coreaudiod
+# rejects ad-hoc on macOS 26). Override CODESIGN_IDENTITY to use a different
+# identity. If signing fails with errSecInternalComponent, run
+# `bash scripts/setup-eq-driver-signing.sh` first to trust Apple Root CA.
+CODESIGN_IDENTITY ?= $(shell security find-identity -v -p codesigning | awk '/Apple Development/ { print $$2; exit }')
+sign-driver:
+	@if [ -z "$(CODESIGN_IDENTITY)" ]; then \
+		echo "No Apple Development identity in keychain. Open Xcode → Settings → Accounts and sign in." >&2; exit 1; \
+	fi
+	codesign --force --sign "$(CODESIGN_IDENTITY)" build/SpotiglassEQDriver.driver
+	@signature=$$(codesign -dv build/SpotiglassEQDriver.driver 2>&1 | grep "TeamIdentifier" | cut -d= -f2); \
+	if [ "$$signature" = "not set" ]; then \
+		echo "Signature fell back to ad-hoc. Run scripts/setup-eq-driver-signing.sh to trust Apple Root CA, then retry." >&2; \
+		exit 1; \
+	fi
+	@echo "OK: build/SpotiglassEQDriver.driver re-signed."
+
+# Installs the freshly built+signed driver to /Library/Audio/Plug-Ins/HAL/
+# (system scope — the only path coreaudiod scans on macOS 26) and reloads
+# coreaudiod. Requires sudo.
+install-driver: build-driver sign-driver
+	sudo rm -rf /Library/Audio/Plug-Ins/HAL/SpotiglassEQDriver.driver
+	sudo cp -pR build/SpotiglassEQDriver.driver /Library/Audio/Plug-Ins/HAL/
+	sudo killall coreaudiod || true
+	@sleep 3
+	@echo
+	@if system_profiler SPAudioDataType 2>/dev/null | grep -q "Spotiglass EQ"; then \
+		echo "OK: coreaudiod loaded the driver. Spotiglass EQ should appear in System Settings → Sound → Output."; \
+	else \
+		echo "WARNING: coreaudiod did not pick up the driver. Check system logs for the failure reason."; \
+	fi
 
 test: audit-eq-permission
 	xcodebuild \
@@ -147,4 +180,8 @@ help:
 	@echo "  make scan          — periphery (dead code) + tokei (LOC); both run even if one fails"
 	@echo "  make list          — list schemes"
 	@echo "  make clean         — remove $(DERIVED_DATA) + Keychain items (service $(KEYCHAIN_SERVICE))"
+	@echo "  make build-driver  — build SpotiglassEQDriver.driver (universal Mach-O)"
+	@echo "  make embed-driver  — build + embed .driver inside the Debug app"
+	@echo "  make sign-driver   — re-sign build/SpotiglassEQDriver.driver with Apple Dev cert"
+	@echo "  make install-driver — build, sign, sudo-install to /Library/Audio/Plug-Ins/HAL/, reload coreaudiod"
 	@echo "Vars: UNSIGNED=1 (CODE_SIGNING_ALLOWED=NO); XCODE_EXTRA for extra settings"

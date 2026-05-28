@@ -169,13 +169,14 @@ on Apple Silicon.
 ## Activating the driver
 
 On first enable Spotiglass copies the embedded `SpotiglassEQDriver.driver` to
-`~/Library/Audio/Plug-Ins/HAL/`. `coreaudiod` only scans that directory at
-launch, so it needs a restart. Spotiglass surfaces this in the UI as:
-
-> *"The Spotiglass EQ driver is installed. To activate it now, log out and
-> log back in, or run `sudo launchctl kickstart -k
-> system/com.apple.audio.coreaudiod` in Terminal. (This is a standard
-> CoreAudio activation step; Spotiglass never runs sudo for you.)"*
+`/Library/Audio/Plug-Ins/HAL/`. On macOS 26 `coreaudiod` only scans the
+system-scope HAL directory (the legacy `~/Library/Audio/Plug-Ins/HAL/` is
+ignored), so the install requires `sudo`. Since the GUI process never runs
+sudo on the user's behalf, the controller stages a copy in
+`~/Library/Application Support/Spotiglass/staged-driver/` and surfaces the
+exact `sudo cp -pR …` command for the user to run in Terminal. After the
+copy, the user reloads coreaudiod with `sudo killall coreaudiod` (the
+`launchctl kickstart` route is blocked by SIP on macOS 26).
 
 After activation, `"Spotiglass EQ"` appears in **System Settings → Sound →
 Output**. Spotiglass flips the system default output to it via
@@ -260,8 +261,25 @@ as the recommended next step once Developer ID signing is wired up.
   (e.g., user picks a new monitor), the driver re-publishes the rate and the
   GUI process re-derives coefficients. Brief glitch may be audible during
   the recomputation cycle.
-- **Property dispatcher scaffolding:** `SpotiglassEQPlugin.cpp` has `TODO(PROP)`
-  markers on the AudioObject property-routing dispatchers. The DSP path
-  (the part most prone to error) is complete and verified by XCTest;
-  filling in the property dispatcher to Apple's `NullAudio`-sample pattern
-  is the remaining engineering work before coreaudiod accepts the device.
+- **Trust anchor for signing:** A fresh checkout (or a login keychain that
+  has been swept of stale anchors) won't have the Apple Inc. Root CA cert
+  trust-anchored. Without that, `codesign` rejects the Apple Development
+  identity with `errSecInternalComponent` / "unable to build chain to
+  self-signed root" and silently falls back to ad-hoc — which coreaudiod
+  refuses to load. Run `bash scripts/setup-eq-driver-signing.sh` once per
+  user/account; it downloads the cert from `apple.com`, imports it into the
+  login keychain, and runs `security add-trusted-cert -r trustRoot` (you'll
+  be prompted for your login password). Xcode does this the first time you
+  build a signed app, so most dev machines already have it.
+
+- **In-driver forwarding (EQRouter):** A virtual output device with no
+  real backing produces silence. To make the EQ audible, `SpotiglassEQDSP`
+  applies biquads to the in-place IO buffer and then hands the processed
+  frames to `EQRouter` (see `SpotiglassEQDriver/EQRouter.{h,cpp}`), which
+  opens a public-client `AudioDeviceIOProc` on the *previous* default
+  output (e.g. MacBook Pro Speakers) and writes the processed audio there
+  via a lock-free SPSC ring buffer. The Swift controller writes the
+  forwarding target's UID to `/tmp/com.isaaclins.spotiglass.eq.target.u<uid>`
+  before flipping default-output to Spotiglass EQ. **EQRouter is
+  output-scope only.** It never opens an input IOProc and never reads from
+  any input stream — no microphone path exists by construction.

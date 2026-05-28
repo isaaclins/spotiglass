@@ -27,6 +27,12 @@
 #define SPOTIGLASS_EQ_COEFFS_PER_BAND  5
 #define SPOTIGLASS_EQ_COEFF_FLOATS \
     (SPOTIGLASS_EQ_BAND_COUNT * SPOTIGLASS_EQ_COEFFS_PER_BAND)
+// Wire size of the on-disk struct: sequence(8) + preampLinear(4) + 50*float(200)
+// + sampleRateHz(4) + enabledMask(4) = 220 bytes. The compiler adds 4 bytes of
+// trailing alignment padding (sizeof becomes 224) but the wire writer (Swift)
+// only emits the declared fields. Use this constant for size-validation when
+// opening the mmap, not `sizeof` — they don't match by 4 bytes.
+#define SPOTIGLASS_EQ_WIRE_BYTES        220u
 
 #ifdef __cplusplus
 extern "C" {

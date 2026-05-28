@@ -16,14 +16,28 @@ import Foundation
 /// pure virtual output device; this controller only ever queries / sets the
 /// default OUTPUT device, never input.
 final class EqualizerHALPluginController: @unchecked Sendable {
-    /// User-scope HAL plugins directory. `~` is resolved through `FileManager`.
+    /// System-scope HAL plugins directory.
+    ///
+    /// macOS 26's `coreaudiod` scans only `/Library/Audio/Plug-Ins/HAL/`; the
+    /// older user-scope path (`~/Library/Audio/Plug-Ins/HAL/`) is no longer
+    /// loaded. Installing here therefore requires `sudo` from the user — the
+    /// controller writes the path into a staging area and surfaces the copy +
+    /// coreaudiod kickstart commands rather than running them itself.
     nonisolated static var defaultHALDirectory: URL {
+        URL(fileURLWithPath: "/Library/Audio/Plug-Ins/HAL", isDirectory: true)
+    }
+
+    /// Staging directory inside the user's home where the controller copies
+    /// the embedded driver before prompting the user to move it system-scope.
+    /// This keeps the GUI process sudo-free while making it trivial for the
+    /// user to finish the install with a single `sudo cp -R` command.
+    nonisolated static var stagingDirectory: URL {
         FileManager.default
             .homeDirectoryForCurrentUser
             .appendingPathComponent("Library", isDirectory: true)
-            .appendingPathComponent("Audio", isDirectory: true)
-            .appendingPathComponent("Plug-Ins", isDirectory: true)
-            .appendingPathComponent("HAL", isDirectory: true)
+            .appendingPathComponent("Application Support", isDirectory: true)
+            .appendingPathComponent("Spotiglass", isDirectory: true)
+            .appendingPathComponent("staged-driver", isDirectory: true)
     }
 
     /// Bundle identifier of the embedded `.driver`. Must match the
@@ -59,6 +73,14 @@ final class EqualizerHALPluginController: @unchecked Sendable {
 
     // MARK: - Public API
 
+    /// Pure install step. Copies the embedded `.driver` into the HAL directory
+    /// if it isn't already there. Used by ``enable()`` and exposed separately
+    /// so tests can exercise just the file-copy side-effect without touching
+    /// the system default output device. NEVER asks for microphone permission.
+    func install() throws {
+        try installIfNeeded()
+    }
+
     /// On first enable, installs the `.driver` (if not already in the HAL
     /// directory) and routes the system default output to the Spotiglass
     /// virtual device. Throws if the bundled driver is missing or the file
@@ -67,6 +89,24 @@ final class EqualizerHALPluginController: @unchecked Sendable {
         try installIfNeeded()
         if let deviceID = lookupSpotiglassEQDeviceID() {
             try captureCurrentDefaultOutput()
+            // Always write the forwarding target so the driver's EQRouter has
+            // somewhere to send the EQ'd audio. If the previous default was
+            // already Spotiglass EQ (e.g., EQ was already enabled, user
+            // toggled off then on without changing default elsewhere), fall
+            // back to the system's built-in speaker UID, since picking
+            // Spotiglass EQ as its own forwarding target would recurse
+            // forever.
+            let targetUID: String? = {
+                if let previous = previousDefaultOutputID,
+                   previous != deviceID,
+                   let uid = AudioDeviceEnumerator.uid(of: previous) {
+                    return uid
+                }
+                return Self.fallbackForwardingUID
+            }()
+            if let uid = targetUID {
+                Self.writeForwardingTarget(uid: uid)
+            }
             try setDefaultOutputDevice(to: deviceID)
         } else {
             throw EqualizerHALPluginError.driverNotLoadedYet(
@@ -75,12 +115,39 @@ final class EqualizerHALPluginController: @unchecked Sendable {
         }
     }
 
+    /// Fallback UID for the EQRouter's forwarding target when we don't have
+    /// a captured previous default (or when the captured "previous" is the
+    /// EQ device itself). MacBook's internal speaker UID is the safest
+    /// default — every Mac has one and it's the most likely intent.
+    nonisolated static let fallbackForwardingUID = "BuiltInSpeakerDevice"
+
     /// Restores the previously-active default output device. Does NOT remove
     /// the `.driver` from disk — call ``uninstall()`` for that.
     func disable() {
         guard let previous = previousDefaultOutputID else { return }
         try? setDefaultOutputDevice(to: previous)
         previousDefaultOutputID = nil
+        // Forget the forwarding target so the next enable() captures a fresh
+        // pre-EQ default (in case the user changed it in the meantime).
+        Self.clearForwardingTarget()
+    }
+
+    /// Path of the one-shot file the C++ driver reads in StartIO to learn
+    /// which real hardware output to forward EQ-processed audio to. Fixed
+    /// path with no uid suffix: the Swift host writes as the logged-in user,
+    /// the driver reads from inside coreaudiod where `getuid()` returns
+    /// `_coreaudiod`'s uid (202), so a shared path side-steps that mismatch.
+    nonisolated static var forwardingTargetURL: URL {
+        URL(fileURLWithPath: "/tmp/com.isaaclins.spotiglass.eq.target")
+    }
+
+    private static func writeForwardingTarget(uid: String) {
+        let url = forwardingTargetURL
+        try? (uid + "\n").write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    private static func clearForwardingTarget() {
+        try? FileManager.default.removeItem(at: forwardingTargetURL)
     }
 
     /// Removes the bundled `.driver` from `~/Library/Audio/Plug-Ins/HAL/`.
@@ -104,18 +171,46 @@ final class EqualizerHALPluginController: @unchecked Sendable {
     // MARK: - Install internals
 
     private func installIfNeeded() throws {
-        if !fileManager.fileExists(atPath: halDirectory.path) {
-            try fileManager.createDirectory(at: halDirectory, withIntermediateDirectories: true)
+        let destination = installedDriverURL
+        // If a copy already exists in the HAL directory, trust it. The system
+        // scope (/Library/Audio/Plug-Ins/HAL) is root-owned on macOS 26, so the
+        // unprivileged app process cannot replace it anyway; the install must
+        // happen out-of-band via `sudo cp -pR`. Re-running the copy with a
+        // writable temp dir is still useful for tests, which is what the
+        // create-if-missing branch below covers.
+        if fileManager.fileExists(atPath: destination.path) {
+            return
         }
         guard let source = embeddedDriverURL else {
             throw EqualizerHALPluginError.embeddedDriverMissing
         }
-        let destination = installedDriverURL
-        if fileManager.fileExists(atPath: destination.path) {
-            // Replace in-place so updates to the bundled driver land on next enable.
-            try fileManager.removeItem(at: destination)
+        do {
+            if !fileManager.fileExists(atPath: halDirectory.path) {
+                try fileManager.createDirectory(at: halDirectory, withIntermediateDirectories: true)
+            }
+            try fileManager.copyItem(at: source, to: destination)
+        } catch {
+            // App-scope process cannot write to /Library/Audio/Plug-Ins/HAL.
+            // Stage the bundle in user-scope and surface a one-shot sudo install
+            // command via ``requiresSudoInstall`` so the UI can render it.
+            let staged = try stageEmbeddedDriver(from: source)
+            throw EqualizerHALPluginError.requiresSudoInstall(
+                stagedPath: staged.path,
+                destinationPath: destination.path
+            )
         }
-        try fileManager.copyItem(at: source, to: destination)
+    }
+
+    private func stageEmbeddedDriver(from source: URL) throws -> URL {
+        let stagedBundle = Self.stagingDirectory
+            .appendingPathComponent(Self.driverBundleName, isDirectory: true)
+        try? fileManager.removeItem(at: stagedBundle)
+        try fileManager.createDirectory(
+            at: Self.stagingDirectory,
+            withIntermediateDirectories: true
+        )
+        try fileManager.copyItem(at: source, to: stagedBundle)
+        return stagedBundle
     }
 
     private static func locateEmbeddedDriver(in bundle: Bundle) -> URL? {
@@ -186,6 +281,7 @@ enum EqualizerHALPluginError: LocalizedError {
     case embeddedDriverMissing
     case driverNotLoadedYet(hint: String)
     case coreAudioStatus(OSStatus)
+    case requiresSudoInstall(stagedPath: String, destinationPath: String)
 
     var errorDescription: String? {
         switch self {
@@ -195,6 +291,15 @@ enum EqualizerHALPluginError: LocalizedError {
             return hint
         case let .coreAudioStatus(status):
             return "CoreAudio error \(status) while routing the default output device."
+        case let .requiresSudoInstall(staged, destination):
+            return """
+                Spotiglass cannot install the EQ driver itself — macOS 26's coreaudiod only loads HAL plugins from /Library/Audio/Plug-Ins/HAL/, which is root-owned. The driver has been staged at:
+                  \(staged)
+                To finish the install, open Terminal and run:
+                  sudo cp -pR "\(staged)" "\(destination.replacingOccurrences(of: "/SpotiglassEQDriver.driver", with: "/"))"
+                  sudo killall coreaudiod
+                Then re-enable the EQ.
+                """
         }
     }
 }
@@ -261,6 +366,22 @@ enum AudioDeviceEnumerator {
         var raw: Unmanaged<CFString>?
         let status = AudioObjectGetPropertyData(id, &address, 0, nil, &size, &raw)
         guard status == noErr, let raw else { return "" }
+        return raw.takeRetainedValue() as String
+    }
+
+    /// Returns the persistent device UID for an AudioObjectID. The EQ
+    /// driver uses this UID to re-resolve the device inside coreaudiod and
+    /// open its output IOProc for forwarding.
+    static func uid(of id: AudioObjectID) -> String? {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyDeviceUID,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var size = UInt32(MemoryLayout<CFString?>.size)
+        var raw: Unmanaged<CFString>?
+        let status = AudioObjectGetPropertyData(id, &address, 0, nil, &size, &raw)
+        guard status == noErr, let raw else { return nil }
         return raw.takeRetainedValue() as String
     }
 }

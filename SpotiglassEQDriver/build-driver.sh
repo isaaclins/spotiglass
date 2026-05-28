@@ -68,6 +68,8 @@ echo "==> compiling SpotiglassEQDSP.c"
 xcrun clang   "${C_FLAGS[@]}"   -c "$SRC/SpotiglassEQDSP.c"        -o "$SRC/SpotiglassEQDSP.o"
 echo "==> compiling EQCoefficientReader.c"
 xcrun clang   "${C_FLAGS[@]}"   -c "$SRC/EQCoefficientReader.c"     -o "$SRC/EQCoefficientReader.o"
+echo "==> compiling EQRouter.cpp"
+xcrun clang++ "${CXX_FLAGS[@]}" -c "$SRC/EQRouter.cpp"              -o "$SRC/EQRouter.o"
 echo "==> compiling SpotiglassEQPlugin.cpp"
 xcrun clang++ "${CXX_FLAGS[@]}" -c "$SRC/SpotiglassEQPlugin.cpp"    -o "$SRC/SpotiglassEQPlugin.o"
 
@@ -75,6 +77,7 @@ echo "==> linking SpotiglassEQDriver bundle binary"
 xcrun clang++ "${LINK_FLAGS[@]}" \
     "$SRC/SpotiglassEQDSP.o" \
     "$SRC/EQCoefficientReader.o" \
+    "$SRC/EQRouter.o" \
     "$SRC/SpotiglassEQPlugin.o" \
     -o "$OUT_BIN"
 

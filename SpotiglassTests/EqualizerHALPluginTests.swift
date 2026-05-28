@@ -50,14 +50,10 @@ final class EqualizerHALPluginTests: XCTestCase {
             bundle: fakeAppBundle
         )
         XCTAssertFalse(controller.isInstalled)
-        // enable() also tries to flip the system default output; under test we
-        // expect the lookup to return nil (no actual coreaudiod device named
-        // "Spotiglass EQ") and the controller to surface driverNotLoadedYet.
-        XCTAssertThrowsError(try controller.enable()) { error in
-            guard case EqualizerHALPluginError.driverNotLoadedYet = error else {
-                return XCTFail("expected driverNotLoadedYet, got \(error)")
-            }
-        }
+        // Use the pure install() entry point so the test doesn't accidentally
+        // flip the system's real default output device when a Spotiglass EQ
+        // is actually loaded on the host running the tests.
+        try controller.install()
         XCTAssertTrue(controller.isInstalled,
                       "the .driver should be copied even when coreaudiod hasn't picked it up")
         let marker = controller.installedDriverURL.appendingPathComponent("Marker.txt")
@@ -74,7 +70,7 @@ final class EqualizerHALPluginTests: XCTestCase {
             bundle: fakeAppBundle
         )
         // Stage an install first.
-        _ = try? controller.enable()
+        try controller.install()
         XCTAssertTrue(controller.isInstalled)
         try controller.uninstall()
         XCTAssertFalse(controller.isInstalled)
@@ -82,22 +78,31 @@ final class EqualizerHALPluginTests: XCTestCase {
         XCTAssertNoThrow(try controller.uninstall())
     }
 
-    func testInstallReplacesPreviousDriverInPlace() throws {
+    func testEnableTrustsExistingInstalledDriverAndDoesNotReplaceIt() throws {
+        // The system HAL directory (/Library/Audio/Plug-Ins/HAL) is root-owned
+        // on macOS 26, so the unprivileged app process must not try to clobber
+        // an existing install. Once the .driver is present, enable() should
+        // leave it alone and proceed to route the default output.
         let controller = EqualizerHALPluginController(
             halDirectory: halDirectory,
             fileManager: .default,
             bundle: fakeAppBundle
         )
-        _ = try? controller.enable()
-        let stalePath = controller.installedDriverURL.appendingPathComponent("StaleFile.txt")
-        try "stale".write(to: stalePath, atomically: true, encoding: .utf8)
+        try controller.install()
+        let userFile = controller.installedDriverURL.appendingPathComponent("UserFile.txt")
+        try "preserved".write(to: userFile, atomically: true, encoding: .utf8)
 
-        // Re-install. The previous bundle (including StaleFile.txt) should be
-        // removed and replaced with a fresh copy of the embedded source.
-        _ = try? controller.enable()
-        XCTAssertFalse(
-            FileManager.default.fileExists(atPath: stalePath.path),
-            "re-install must clear the old bundle's contents"
+        // Re-install. The existing bundle (and any sibling files in it) must
+        // survive — the controller has no business clobbering a root-owned
+        // install it can't actually rewrite in production.
+        try controller.install()
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: userFile.path),
+            "enable() must not replace an existing installed bundle"
+        )
+        XCTAssertEqual(
+            try String(contentsOf: userFile, encoding: .utf8),
+            "preserved"
         )
     }
 
@@ -110,7 +115,7 @@ final class EqualizerHALPluginTests: XCTestCase {
             fileManager: .default,
             bundle: emptyAppBundle
         )
-        XCTAssertThrowsError(try controller.enable()) { error in
+        XCTAssertThrowsError(try controller.install()) { error in
             guard case EqualizerHALPluginError.embeddedDriverMissing = error else {
                 return XCTFail("expected embeddedDriverMissing, got \(error)")
             }
