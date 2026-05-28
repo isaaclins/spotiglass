@@ -232,7 +232,8 @@ final class RecorderKeyContainerView: NSView {
         if f.contains(.shift) { parts.append("⇧") }
         if f.contains(.command) { parts.append("⌘") }
         let mod = parts.joined(separator: " ")
-        button.title = mod.isEmpty ? "Recording…" : "Recording…  \(mod)"
+        let recording = SpotiglassL10n.string("palette.hotkeyRecorder.recording")
+        button.title = mod.isEmpty ? recording : "\(recording)  \(mod)"
     }
 
     func syncFromStore() {
@@ -243,7 +244,7 @@ final class RecorderKeyContainerView: NSView {
         if let sc = store.primaryShortcut(for: id) {
             button.title = sc.displayChips.joined(separator: " ")
         } else {
-            button.title = "Click to record"
+            button.title = SpotiglassL10n.string("palette.hotkeyRecorder.clickToRecord")
         }
     }
 }

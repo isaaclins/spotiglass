@@ -83,19 +83,19 @@ enum CommandPaletteScopePresentation {
     ) -> String {
         switch scope {
         case .commands:
-            "Run a command"
+            SpotiglassL10n.string("palette.searchPlaceholder.commands")
         case .songs:
             switch category {
             case .all:
-                "Search Spotify"
+                SpotiglassL10n.string("palette.searchPlaceholder.songs.all")
             case .tracks:
-                "Search tracks"
+                SpotiglassL10n.string("palette.searchPlaceholder.songs.tracks")
             case .artists:
-                "Search artists"
+                SpotiglassL10n.string("palette.searchPlaceholder.songs.artists")
             case .thisPlaylist:
-                "Search in this playlist"
+                SpotiglassL10n.string("palette.searchPlaceholder.songs.thisPlaylist")
             case .myPlaylists:
-                "Search your playlists"
+                SpotiglassL10n.string("palette.searchPlaceholder.songs.myPlaylists")
             }
         }
     }

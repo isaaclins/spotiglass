@@ -101,11 +101,11 @@ enum CommandPaletteSearchCategory: String, Identifiable, Hashable {
 
     var segmentLabel: String {
         switch self {
-        case .all: "All"
-        case .tracks: "Tracks"
-        case .artists: "Artists"
-        case .thisPlaylist: "Here"
-        case .myPlaylists: "My Playlists"
+        case .all: SpotiglassL10n.string("palette.searchCategory.all")
+        case .tracks: SpotiglassL10n.string("palette.searchCategory.tracks")
+        case .artists: SpotiglassL10n.string("palette.searchCategory.artists")
+        case .thisPlaylist: SpotiglassL10n.string("palette.searchCategory.here")
+        case .myPlaylists: SpotiglassL10n.string("palette.searchCategory.myPlaylists")
         }
     }
 
