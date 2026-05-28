@@ -96,26 +96,17 @@ final class EqualizerHALPluginController: @unchecked Sendable {
         if let deviceID = lookupSpotiglassEQDeviceID() {
             try captureCurrentDefaultOutput()
             // Always write the forwarding target so the driver's EQRouter has
-            // somewhere to send the EQ'd audio. A persisted user pick wins;
-            // otherwise we restore the previous default. If the previous
-            // default was already Spotiglass EQ (e.g., EQ was already enabled,
-            // user toggled off then on without changing default elsewhere),
-            // fall back to the system's built-in speaker UID, since picking
-            // Spotiglass EQ as its own forwarding target would recurse forever.
-            let targetUID: String? = {
-                if let preferred = preferredForwardingUID, !preferred.isEmpty {
-                    return preferred
-                }
-                if let previous = previousDefaultOutputID,
-                   previous != deviceID,
-                   let uid = AudioDeviceEnumerator.uid(of: previous) {
-                    return uid
-                }
-                return Self.fallbackForwardingUID
-            }()
-            if let uid = targetUID {
-                Self.writeForwardingTarget(uid: uid)
+            // somewhere to send the EQ'd audio. The previous default's UID is
+            // only relevant when it isn't Spotiglass EQ itself (otherwise the
+            // EQ would route to itself and recurse forever).
+            let previousUID = previousDefaultOutputID.flatMap { previous -> String? in
+                previous == deviceID ? nil : AudioDeviceEnumerator.uid(of: previous)
             }
+            let targetUID = Self.resolveForwardingTargetUID(
+                preferred: preferredForwardingUID,
+                previousUID: previousUID
+            )
+            Self.writeForwardingTarget(uid: targetUID)
             try setDefaultOutputDevice(to: deviceID)
         } else {
             throw EqualizerHALPluginError.driverNotLoadedYet(
@@ -150,12 +141,30 @@ final class EqualizerHALPluginController: @unchecked Sendable {
         URL(fileURLWithPath: "/tmp/com.isaaclins.spotiglass.eq.target")
     }
 
-    private static func writeForwardingTarget(uid: String) {
+    /// Pure precedence rule for the EQRouter's forwarding target: an
+    /// explicitly-persisted user pick wins; otherwise we restore the previous
+    /// default output's UID; otherwise we fall back to the built-in speaker.
+    /// Lifted out of `enable()` so tests can exercise the precedence without
+    /// needing a loaded HAL driver in the test process.
+    nonisolated static func resolveForwardingTargetUID(
+        preferred: String?,
+        previousUID: String?
+    ) -> String {
+        if let preferred = preferred, !preferred.isEmpty {
+            return preferred
+        }
+        if let previousUID = previousUID, !previousUID.isEmpty {
+            return previousUID
+        }
+        return fallbackForwardingUID
+    }
+
+    static func writeForwardingTarget(uid: String) {
         let url = forwardingTargetURL
         try? (uid + "\n").write(to: url, atomically: true, encoding: .utf8)
     }
 
-    private static func clearForwardingTarget() {
+    static func clearForwardingTarget() {
         try? FileManager.default.removeItem(at: forwardingTargetURL)
     }
 
