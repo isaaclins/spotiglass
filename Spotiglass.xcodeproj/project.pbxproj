@@ -222,6 +222,7 @@
 		TST00000000000000000014 /* PlaylistBrowserNavigationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000064 /* PlaylistBrowserNavigationTests.swift */; };
 		TST00000000000000000015 /* PlaylistBrowserArtistFallbackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000065 /* PlaylistBrowserArtistFallbackTests.swift */; };
 		TST000000000000000000C2 /* PlaylistBrowserPrefetchAllTracksTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */; };
+		TST0000000000000000000121 /* EqualizerHALPluginTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010121 /* EqualizerHALPluginTests.swift */; };
 		TST000000000000000000011C /* EQCoefficientPublisherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000001011C /* EQCoefficientPublisherTests.swift */; };
 		TST000000000000000000011A /* EqualizerCoefficientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000001011A /* EqualizerCoefficientTests.swift */; };
 		TST0000000000000000000119 /* EqualizerPresetsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010119 /* EqualizerPresetsTests.swift */; };
@@ -541,6 +542,7 @@
 		TST00000000000000000064 /* PlaylistBrowserNavigationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserNavigationTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000065 /* PlaylistBrowserArtistFallbackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserArtistFallbackTests.swift; sourceTree = "<group>"; };
 		TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserPrefetchAllTracksTests.swift; sourceTree = "<group>"; };
+		TST0000000000000000010121 /* EqualizerHALPluginTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EqualizerHALPluginTests.swift; sourceTree = "<group>"; };
 		TST000000000000000001011C /* EQCoefficientPublisherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EQCoefficientPublisherTests.swift; sourceTree = "<group>"; };
 		TST000000000000000001011A /* EqualizerCoefficientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EqualizerCoefficientTests.swift; sourceTree = "<group>"; };
 		TST0000000000000000010119 /* EqualizerPresetsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EqualizerPresetsTests.swift; sourceTree = "<group>"; };
@@ -1003,6 +1005,7 @@
 				TST00000000000000000064 /* PlaylistBrowserNavigationTests.swift */,
 				TST00000000000000000065 /* PlaylistBrowserArtistFallbackTests.swift */,
 				TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */,
+				TST0000000000000000010121 /* EqualizerHALPluginTests.swift */,
 				TST000000000000000001011C /* EQCoefficientPublisherTests.swift */,
 				TST000000000000000001011A /* EqualizerCoefficientTests.swift */,
 				TST0000000000000000010119 /* EqualizerPresetsTests.swift */,
@@ -1509,6 +1512,7 @@
 				TST00000000000000000014 /* PlaylistBrowserNavigationTests.swift in Sources */,
 				TST00000000000000000015 /* PlaylistBrowserArtistFallbackTests.swift in Sources */,
 				TST000000000000000000C2 /* PlaylistBrowserPrefetchAllTracksTests.swift in Sources */,
+				TST0000000000000000000121 /* EqualizerHALPluginTests.swift in Sources */,
 				TST000000000000000000011C /* EQCoefficientPublisherTests.swift in Sources */,
 				TST000000000000000000011A /* EqualizerCoefficientTests.swift in Sources */,
 				TST0000000000000000000119 /* EqualizerPresetsTests.swift in Sources */,
