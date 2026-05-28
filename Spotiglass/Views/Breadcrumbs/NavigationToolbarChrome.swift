@@ -23,12 +23,13 @@ struct NavigationToolbarChrome: NSViewRepresentable {
         back.isBordered = false
         back.focusRingType = .none
         let backSymbol = NSImage.SymbolConfiguration(pointSize: 15, weight: .semibold)
-        back.image = NSImage(systemSymbolName: "chevron.left", accessibilityDescription: "Back")?
+        let backLabel = SpotiglassL10n.string("breadcrumb.back")
+        back.image = NSImage(systemSymbolName: "chevron.left", accessibilityDescription: backLabel)?
             .withSymbolConfiguration(backSymbol)
         back.imagePosition = .imageOnly
         back.target = context.coordinator
         back.action = #selector(Coordinator.didTapBack)
-        back.toolTip = "Back"
+        back.toolTip = backLabel
         back.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             back.widthAnchor.constraint(equalToConstant: 32),
