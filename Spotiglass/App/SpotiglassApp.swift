@@ -10,6 +10,10 @@ struct SpotiglassApp: App {
     @StateObject private var lyricsOverlayController = LyricsOverlayController()
 
     init() {
+        SpotiglassLog.boot()
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
+        SpotiglassLog.info(.persistence, "Spotiglass launching (version=\(version) build=\(build))")
         let store = SpotiglassSettingsStore()
         let keymapStore = CommandPaletteKeymapStore(settingsStore: store)
         _settingsStore = StateObject(wrappedValue: store)
@@ -53,7 +57,7 @@ struct SpotiglassApp: App {
             CommandGroup(after: .appInfo) {
                 CheckForUpdatesView(updater: sparkleUpdater.updater)
             }
-            CommandMenu("Spotiglass") {
+            CommandMenu(SpotiglassL10n.string("app.menu.name")) {
                 Button(SpotiglassL10n.string("app.menu.openPalette")) {
                     commandPaletteManager.execute(commandID: CommandPaletteCommandID.openPalette)
                 }

@@ -8382,6 +8382,28 @@
           }
         }
       }
+    },
+    "app.menu.name": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
