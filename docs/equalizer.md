@@ -235,13 +235,24 @@ as the recommended next step once Developer ID signing is wired up.
 
 ## Known limitations
 
-- **Code signing:** macOS 26 requires HAL plugins to be Developer ID signed
-  for `coreaudiod` to load them in a non-developer environment. The embedded
-  build at `Spotiglass.app/Contents/Library/Audio/Plug-Ins/HAL/SpotiglassEQDriver.driver`
-  is ad-hoc signed (matching the host app's "Sign to Run Locally"); this
-  loads in coreaudiod only after manual `spctl` / `csrutil` adjustments.
-  Production release builds (`make release`) inherit whatever
-  signing identity the user configures via `XCODE_EXTRA='CODE_SIGN_IDENTITY=…'`.
+- **Code signing:** macOS 26 will load a HAL plugin signed with a free
+  *Apple Development* identity (Personal Team) — full *Developer ID
+  Application* signing is not required for the driver to register in
+  `coreaudiod` and appear in System Settings → Sound → Output. The
+  embedded build at
+  `Spotiglass.app/Contents/Library/Audio/Plug-Ins/HAL/SpotiglassEQDriver.driver`
+  is signed with whichever identity the user passes via
+  `XCODE_EXTRA='CODE_SIGN_IDENTITY=…'`. For shipping outside developer
+  machines, sign with a Developer ID Application identity and notarize.
+
+  When copying the `.driver` into `/Library/Audio/Plug-Ins/HAL/` outside
+  Xcode (e.g. for testing on a different account), use `cp -pR`, NOT
+  `cp -R`. The signature embeds the source file's mtime as `cs_mtime`;
+  a plain copy bumps the destination mtime, the kernel sees
+  `cs_mtime != mtime`, taints the page, and refuses to load with
+  `CODE SIGNING: rejecting invalid page`. `cp -pR` preserves mtimes; or
+  re-sign in place at the destination (`sudo codesign --force --sign
+  <identity> /Library/Audio/Plug-Ins/HAL/SpotiglassEQDriver.driver`).
 - **coreaudiod restart:** macOS does not provide a sudo-free way to reload
   HAL plugins from `~/Library/Audio/Plug-Ins/HAL/`. Spotiglass surfaces
   instructions but does not run sudo on the user's behalf.

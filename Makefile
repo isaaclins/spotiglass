@@ -71,11 +71,16 @@ build-driver:
 # Builds the .driver and copies it into the Debug Spotiglass.app at
 # Contents/Library/Audio/Plug-Ins/HAL/. After this, the app's
 # EqualizerHALPluginController can find and install the embedded driver.
+#
+# IMPORTANT: cp -pR preserves the source file's mtime so the kernel's
+# code-signing check (cs_mtime vs file mtime) keeps passing after the copy.
+# Plain `cp -R` would bump the mtime and the kernel would refuse to map the
+# binary with "rejecting invalid page ... cs_mtime != mtime".
 embed-driver: build build-driver
 	@dst="$(DEBUG_APP)/Contents/Library/Audio/Plug-Ins/HAL"; \
 	mkdir -p "$$dst"; \
 	rm -rf "$$dst/SpotiglassEQDriver.driver"; \
-	cp -R build/SpotiglassEQDriver.driver "$$dst/"; \
+	cp -pR build/SpotiglassEQDriver.driver "$$dst/"; \
 	echo "embedded → $$dst/SpotiglassEQDriver.driver"; \
 	echo; \
 	echo "To activate after first launch:"; \
