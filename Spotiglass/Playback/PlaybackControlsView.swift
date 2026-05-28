@@ -365,19 +365,19 @@ struct PlaybackControlsView: View {
     private var title: String {
         switch viewModel.connectionState {
         case .disconnected:
-            "Playback disconnected"
+            SpotiglassL10n.string("playback.controls.state.disconnected.title")
         case .connecting:
-            "Connecting Spotify playback..."
+            SpotiglassL10n.string("playback.controls.state.connecting.title")
         case .ready:
-            "Ready to play"
+            SpotiglassL10n.string("playback.controls.state.ready.title")
         case .transferring:
-            "Transferring playback..."
+            SpotiglassL10n.string("playback.controls.state.transferring.title")
         case let .playing(nowPlaying):
             nowPlaying.name
         case let .paused(nowPlaying):
-            nowPlaying?.name ?? "Playback paused"
+            nowPlaying?.name ?? SpotiglassL10n.string("playback.controls.state.paused.title")
         case .unavailable:
-            "Playback unavailable"
+            SpotiglassL10n.string("playback.controls.state.unavailable.title")
         case let .error(error):
             error.title
         }
@@ -398,17 +398,17 @@ struct PlaybackControlsView: View {
     private var subtitle: String {
         switch viewModel.connectionState {
         case .disconnected:
-            "Spotiglass connects playback automatically when signed in. Use Reconnect if playback stops."
+            SpotiglassL10n.string("playback.controls.state.disconnected.subtitle")
         case .connecting:
-            "Spotify Premium is required for in-app playback."
+            SpotiglassL10n.string("playback.controls.state.connecting.subtitle")
         case .ready:
-            "Choose a track or press play."
+            SpotiglassL10n.string("playback.controls.state.ready.subtitle")
         case .transferring:
-            "Moving Spotify playback to Spotiglass."
+            SpotiglassL10n.string("playback.controls.state.transferring.subtitle")
         case let .playing(nowPlaying):
             nowPlaying.artistText
         case let .paused(nowPlaying):
-            nowPlaying?.artistText ?? "Paused"
+            nowPlaying?.artistText ?? SpotiglassL10n.string("playback.controls.state.paused.subtitle")
         case let .unavailable(message):
             message
         case let .error(error):

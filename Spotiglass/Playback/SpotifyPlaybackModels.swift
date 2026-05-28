@@ -24,7 +24,9 @@ struct PlaybackNowPlaying: Equatable {
     let uri: String?
 
     var artistText: String {
-        artists.isEmpty ? "Unknown artist" : artists.joined(separator: ", ")
+        artists.isEmpty
+            ? SpotiglassL10n.string("playback.nowPlaying.unknownArtist")
+            : artists.joined(separator: ", ")
     }
 
     var artistTapTargets: [ArtistTapTarget] {
@@ -179,7 +181,7 @@ extension QueueItem {
     static func from(episode: SpotifyEpisode) -> QueueItem {
         QueueItem(
             name: episode.name,
-            subtitle: episode.showName ?? "Podcast",
+            subtitle: episode.showName ?? SpotiglassL10n.string("playback.queue.episodeFallback"),
             albumArtURL: episode.artworkURL,
             durationMilliseconds: episode.durationMilliseconds,
             uri: episode.uri
