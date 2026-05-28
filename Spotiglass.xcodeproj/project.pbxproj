@@ -216,6 +216,7 @@
 		TST00000000000000000014 /* PlaylistBrowserNavigationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000064 /* PlaylistBrowserNavigationTests.swift */; };
 		TST00000000000000000015 /* PlaylistBrowserArtistFallbackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000065 /* PlaylistBrowserArtistFallbackTests.swift */; };
 		TST000000000000000000C2 /* PlaylistBrowserPrefetchAllTracksTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */; };
+		TST0000000000000000000114 /* LocalizationCoverageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010114 /* LocalizationCoverageTests.swift */; };
 		TST0000000000000000000113 /* PlaylistBrowserCommandPaletteConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010113 /* PlaylistBrowserCommandPaletteConfigurationTests.swift */; };
 		TST0000000000000000000110 /* PlaylistBrowserSidebarSelectionHandlingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010110 /* PlaylistBrowserSidebarSelectionHandlingTests.swift */; };
 		TST0000000000000000000120 /* SpotiglassLogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010120 /* SpotiglassLogTests.swift */; };
@@ -525,6 +526,7 @@
 		TST00000000000000000064 /* PlaylistBrowserNavigationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserNavigationTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000065 /* PlaylistBrowserArtistFallbackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserArtistFallbackTests.swift; sourceTree = "<group>"; };
 		TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserPrefetchAllTracksTests.swift; sourceTree = "<group>"; };
+		TST0000000000000000010114 /* LocalizationCoverageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizationCoverageTests.swift; sourceTree = "<group>"; };
 		TST0000000000000000010113 /* PlaylistBrowserCommandPaletteConfigurationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserCommandPaletteConfigurationTests.swift; sourceTree = "<group>"; };
 		TST0000000000000000010110 /* PlaylistBrowserSidebarSelectionHandlingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserSidebarSelectionHandlingTests.swift; sourceTree = "<group>"; };
 		TST0000000000000000010120 /* SpotiglassLogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotiglassLogTests.swift; sourceTree = "<group>"; };
@@ -979,6 +981,7 @@
 				TST00000000000000000064 /* PlaylistBrowserNavigationTests.swift */,
 				TST00000000000000000065 /* PlaylistBrowserArtistFallbackTests.swift */,
 				TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */,
+				TST0000000000000000010114 /* LocalizationCoverageTests.swift */,
 				TST0000000000000000010113 /* PlaylistBrowserCommandPaletteConfigurationTests.swift */,
 				TST0000000000000000010110 /* PlaylistBrowserSidebarSelectionHandlingTests.swift */,
 				TST0000000000000000010120 /* SpotiglassLogTests.swift */,
@@ -1473,6 +1476,7 @@
 				TST00000000000000000014 /* PlaylistBrowserNavigationTests.swift in Sources */,
 				TST00000000000000000015 /* PlaylistBrowserArtistFallbackTests.swift in Sources */,
 				TST000000000000000000C2 /* PlaylistBrowserPrefetchAllTracksTests.swift in Sources */,
+				TST0000000000000000000114 /* LocalizationCoverageTests.swift in Sources */,
 				TST0000000000000000000113 /* PlaylistBrowserCommandPaletteConfigurationTests.swift in Sources */,
 				TST0000000000000000000110 /* PlaylistBrowserSidebarSelectionHandlingTests.swift in Sources */,
 				TST0000000000000000000120 /* SpotiglassLogTests.swift in Sources */,
