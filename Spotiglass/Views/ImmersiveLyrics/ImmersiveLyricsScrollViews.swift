@@ -368,15 +368,21 @@ private struct TappableLyricButtonStyle: ButtonStyle {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.97 : 1.0, anchor: .leading)
             .background(alignment: .leading) {
-                // Always-rendered glow whose opacity animates between 0 and
-                // 0.08 — cleaner spring continuity than appearing/disappearing
-                // the view via a conditional.
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(.white.opacity(configuration.isPressed ? 0.08 : 0))
-                    .blur(radius: 14)
-                    .padding(.vertical, -6)
-                    .padding(.horizontal, -10)
-                    .allowsHitTesting(false)
+                // Only render the glow when pressed. A previous always-rendered
+                // version with opacity-driven fill produced a faint horizontal
+                // seam between rows because each row's blurred-but-transparent
+                // background still got composited, and the layer boundary was
+                // visible. Conditional + .transition(.opacity) keeps the fade
+                // smooth without that artifact.
+                if configuration.isPressed {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(.white.opacity(0.08))
+                        .blur(radius: 14)
+                        .padding(.vertical, -6)
+                        .padding(.horizontal, -10)
+                        .allowsHitTesting(false)
+                        .transition(.opacity)
+                }
             }
             .animation(
                 reduceMotion
