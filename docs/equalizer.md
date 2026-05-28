@@ -166,6 +166,70 @@ on Apple Silicon.
 - **Con:** Shared memory needs a stable path. We use `/tmp` and a UID-suffixed
   name to avoid collisions across user sessions.
 
+## ADR-EQ-3 — Volume control via target-device mirror
+
+### Context
+
+`Spotiglass EQ` is the system default output while the EQ is engaged, so the
+macOS menu-bar / Control Center volume slider acts on it — not on the
+downstream device (speakers, headphones, AirPods) that actually emits sound.
+Without a `kAudioVolumeControl` exposed on the virtual device, the slider
+is greyed out and the user has to dive into System Settings → Sound to
+adjust the EQRouter target's volume, which defeats the point of routing
+audio through Spotiglass EQ in the first place.
+
+Three ways to expose a working slider:
+
+| | Soft attenuation in DSP | Pass-through to target | Hybrid (mirror + DSP fallback) |
+|---|---|---|---|
+| Adjusts target's hardware volume? | ❌ No | ✅ Yes | Both, by device capability |
+| Works on targets without VolumeScalar | ✅ Multiplies samples in DoIO | ❌ Slider does nothing | ✅ DSP path catches them |
+| Cost in the IO callback | One vDSP_vsmul per cycle | Zero | One vDSP_vsmul per cycle on fallback |
+| Stays in sync with target's own volume controls | ❌ Drifts | ✅ Mirrors | ✅ Mirrors when available |
+
+### Decision
+
+**Mirror to the EQRouter target's `kAudioDevicePropertyVolumeScalar`** for
+both reads and writes, with a local atomic cache as fallback. No DSP-side
+attenuation in v1.
+
+### Reason
+
+For the targets we ship against (built-in speakers, USB DACs, AirPods,
+Bluetooth headsets), the target device accepts `kAudioDevicePropertyVolumeScalar`
+on the output scope's main element. Mirroring keeps the menu-bar slider in
+sync with the user's actual loudness and avoids double-attenuation
+(slider value + downstream hardware gain). The cache (`PluginState::cachedVolumeScalar`)
+gives the property handlers a stable answer when the EQRouter is mid-swap
+or when the target temporarily refuses a read.
+
+The IO callback intentionally stays out of the volume path so the realtime
+thread budget remains untouched.
+
+### Layout
+
+```cpp
+constexpr UInt32 kVolumeControlObjectID = 4;     // device-owned control
+constexpr Float32 kVolumeMinDB = -64.0f;          // slider floor
+constexpr Float32 kVolumeMaxDB =   0.0f;          // slider ceiling
+// dB curve: dB = 20·log10(scalar), inverted as scalar = 10^(dB/20).
+```
+
+The control is published via the device's `kAudioObjectPropertyControlList`
+(one ID) and `kAudioObjectPropertyOwnedObjects` (stream + control).
+
+### Consequences
+
+- **Pro:** Menu-bar slider works immediately. No syscalls or vDSP work
+  inside `DoIOOperation`.
+- **Pro:** Slider tracks downstream hardware-side changes (e.g. user
+  presses physical headphone volume button) via `ReadTargetVolumeOrCached`.
+- **Con:** Targets that don't expose `VolumeScalar` make the slider a
+  no-op cache. A future ADR can lift the slider's value into a DSP
+  attenuation post-EQ for those cases without changing the slider model.
+- **Con:** The control reports a single channel-master scalar — no
+  per-channel or balance control yet. Acceptable for the EQ use case.
+
 ## Activating the driver
 
 On first enable Spotiglass copies the embedded `SpotiglassEQDriver.driver` to
