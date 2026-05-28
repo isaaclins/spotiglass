@@ -5,6 +5,7 @@ extension PlaybackSessionViewModel {
     func handle(_ event: PlaybackBridgeEvent) {
         switch event {
         case let .ready(deviceID):
+            SpotiglassLog.info(.playback, "SDK ready deviceID=\(deviceID) previousDeviceID=\(self.deviceID ?? "<nil>") autoResumeOnNextReady=\(autoResumeOnNextReady)")
             if self.deviceID != deviceID {
                 hasTransferredPlaybackToCurrentDevice = false
             }
@@ -20,6 +21,7 @@ extension PlaybackSessionViewModel {
                 }
             }
         case let .notReady(deviceID):
+            SpotiglassLog.info(.playback, "SDK not_ready deviceID=\(deviceID)")
             if self.deviceID == deviceID {
                 self.deviceID = nil
             }
@@ -31,8 +33,10 @@ extension PlaybackSessionViewModel {
                 await attemptPlaybackHostRecovery(cause: .notReady)
             }
         case let .stateChanged(nowPlaying, isPaused, nextTracks):
+            let suppressed = shouldSuppressStaleStateChange(nowPlaying: nowPlaying)
+            SpotiglassLog.info(.playback, "SDK state_changed nowPlayingURI=\(nowPlaying?.uri ?? "<nil>") isPaused=\(isPaused) nextCount=\(nextTracks.count) pendingPlayURI=\(pendingPlayURI ?? "<nil>") suppressed=\(suppressed)")
             observeSkipAdvance(nowPlayingURI: nowPlaying?.uri)
-            if shouldSuppressStaleStateChange(nowPlaying: nowPlaying) {
+            if suppressed {
                 return
             }
             sdkNextTracks = nextTracks

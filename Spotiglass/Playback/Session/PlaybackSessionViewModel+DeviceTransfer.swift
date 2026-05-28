@@ -85,6 +85,7 @@ extension PlaybackSessionViewModel {
             // Recovery is the user's explicit ask; never short-circuit it on cached state.
             alreadyActive = false
         }
+        SpotiglassLog.info(.playback, "performTransfer deviceID=\(deviceID) play=\(play) origin=\(origin) alreadyActive=\(alreadyActive) snapshotActive=\(latestPlayerSnapshot?.activeDevice?.deviceID ?? "<nil>")")
         if alreadyActive {
             if (origin == .ensureBeforePlay || origin == .autoResume), deviceID == self.deviceID {
                 hasTransferredPlaybackToCurrentDevice = true
@@ -105,7 +106,9 @@ extension PlaybackSessionViewModel {
         transferAttemptInstants.append(clock.now)
         do {
             try await playbackAPI.transferPlayback(to: deviceID, play: play)
+            SpotiglassLog.info(.playback, "transferPlayback PUT ok deviceID=\(deviceID) play=\(play)")
         } catch let apiError as SpotifyAPIError {
+            SpotiglassLog.error(.playback, "transferPlayback PUT failed deviceID=\(deviceID) play=\(play) error=\(apiError)")
             if case let .rateLimited(retryAfter) = apiError {
                 let cooldown = retryAfter ?? Self.durationSeconds(transferDefaultCooldown)
                 transferRetryCooldownUntil = clock.now.advanced(by: .seconds(cooldown))
@@ -129,8 +132,10 @@ extension PlaybackSessionViewModel {
 
     func ensurePlaybackTransferredIfNeeded(deviceID: String) async throws {
         guard !hasTransferredPlaybackToCurrentDevice else {
+            SpotiglassLog.info(.playback, "ensureTransferred skipped (already transferred) deviceID=\(deviceID)")
             return
         }
+        SpotiglassLog.info(.playback, "ensureTransferred starting deviceID=\(deviceID)")
         setConnectionState(.transferring(deviceID: deviceID))
         try await performTransfer(deviceID: deviceID, play: false, origin: .ensureBeforePlay)
     }

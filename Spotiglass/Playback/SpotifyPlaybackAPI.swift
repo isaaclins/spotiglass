@@ -376,11 +376,17 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
         request.httpMethod = method
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        var bodyPreview = ""
         if Body.self != EmptyBody.self {
-            request.httpBody = try encoder.encode(body)
+            let bodyData = try encoder.encode(body)
+            request.httpBody = bodyData
+            bodyPreview = String(data: bodyData, encoding: .utf8) ?? "<binary>"
         }
 
+        let queryString = queryItems.map { "\($0.name)=\($0.value ?? "")" }.joined(separator: "&")
+        SpotiglassLog.info(.api, "Spotify \(method) \(path)\(queryString.isEmpty ? "" : "?\(queryString)") body=\(bodyPreview)")
         let (data, response) = try await httpClient.data(for: request)
+        SpotiglassLog.info(.api, "Spotify \(method) \(path) -> status=\(response.statusCode)")
         guard (200..<300).contains(response.statusCode) || response.statusCode == 204 else {
             throw mapPlaybackError(statusCode: response.statusCode, data: data, response: response)
         }

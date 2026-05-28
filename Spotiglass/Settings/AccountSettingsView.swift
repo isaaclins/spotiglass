@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 struct AccountSettingsView: View {
     @ObservedObject var viewModel: AuthViewModel
@@ -36,6 +37,31 @@ struct AccountSettingsView: View {
                 Text(SpotiglassL10n.string("settings.account.developerApp"))
             } footer: {
                 Text(SpotiglassL10n.string("settings.account.developerApp.hint"))
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                LabeledContent("Log file") {
+                    if let url = SpotiglassLog.logFileURL {
+                        HStack(spacing: SpotiglassDesign.spacingS) {
+                            Text(url.path)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                                .textSelection(.enabled)
+                            Button("Reveal in Finder") {
+                                NSWorkspace.shared.activateFileViewerSelecting([url])
+                            }
+                        }
+                    } else {
+                        Text("Log file not available.")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            } header: {
+                Text("Diagnostics")
+            } footer: {
+                Text("Truncated at every launch. Attach this file when filing bug reports.")
                     .foregroundStyle(.secondary)
             }
         }
