@@ -41,7 +41,7 @@ struct AccountSettingsView: View {
             }
 
             Section {
-                LabeledContent("Log file") {
+                LabeledContent(SpotiglassL10n.string("settings.account.diagnostics.logFileLabel")) {
                     if let url = SpotiglassLog.logFileURL {
                         HStack(spacing: SpotiglassDesign.spacingS) {
                             Text(url.path)
@@ -49,19 +49,19 @@ struct AccountSettingsView: View {
                                 .lineLimit(1)
                                 .truncationMode(.middle)
                                 .textSelection(.enabled)
-                            Button("Reveal in Finder") {
+                            Button(SpotiglassL10n.string("settings.account.diagnostics.revealInFinder")) {
                                 NSWorkspace.shared.activateFileViewerSelecting([url])
                             }
                         }
                     } else {
-                        Text("Log file not available.")
+                        Text(SpotiglassL10n.string("settings.account.diagnostics.logFileUnavailable"))
                             .foregroundStyle(.secondary)
                     }
                 }
             } header: {
-                Text("Diagnostics")
+                Text(SpotiglassL10n.string("settings.account.diagnostics.header"))
             } footer: {
-                Text("Truncated at every launch. Attach this file when filing bug reports.")
+                Text(SpotiglassL10n.string("settings.account.diagnostics.footer"))
                     .foregroundStyle(.secondary)
             }
         }
