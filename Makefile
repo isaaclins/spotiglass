@@ -65,8 +65,11 @@ audit-eq-permission:
 
 # Builds SpotiglassEQDriver.driver as a universal Mach-O bundle (no Xcode
 # target needed). Output: build/SpotiglassEQDriver.driver
+#
+# Pass SPOTIGLASS_EQ_DEBUG=1 to compile in verbose driver diagnostic logging
+# (per-cycle DoIO / StartIO / OutputCallback events to /tmp). Off by default.
 build-driver:
-	./SpotiglassEQDriver/build-driver.sh
+	SPOTIGLASS_EQ_DEBUG=$(SPOTIGLASS_EQ_DEBUG) ./SpotiglassEQDriver/build-driver.sh
 
 # Builds the .driver and copies it into the Debug Spotiglass.app at
 # Contents/Library/Audio/Plug-Ins/HAL/. After this, the app's

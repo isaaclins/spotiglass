@@ -52,6 +52,15 @@ C_FLAGS=(
     -arch arm64
     -arch x86_64
 )
+
+# Opt-in diagnostic logging: writes per-cycle DoIO / StartIO / EQRouter /
+# OutputCallback events to /tmp/com.isaaclins.spotiglass.eq.router.log.
+# Off by default so release builds stay quiet; enable for driver bring-up.
+if [ -n "${SPOTIGLASS_EQ_DEBUG:-}" ]; then
+    echo "==> SPOTIGLASS_EQ_DEBUG=1 — verbose driver logging will be compiled in"
+    CXX_FLAGS+=( -DSPOTIGLASS_EQ_DEBUG=1 )
+    C_FLAGS+=( -DSPOTIGLASS_EQ_DEBUG=1 )
+fi
 LINK_FLAGS=(
     -bundle
     -isysroot "$SDK"
