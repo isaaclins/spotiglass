@@ -151,7 +151,11 @@ final class ListDetailViewsTests: XCTestCase {
             togglePlayPause: {},
             hasPlaybackDevice: true,
             addToQueue: { _ in },
-            openArtist: { _ in }
+            openArtist: { _ in },
+            browserViewModel: PlaylistBrowserViewModel(
+                api: MockBrowsingAPI(playlistResults: [], trackResults: [:]),
+                cache: MockBrowsingCache()
+            )
         )
         .environmentObject(pinnedStore())
         ViewTestHost.host(view, size: CGSize(width: 720, height: 520))
@@ -175,7 +179,11 @@ final class ListDetailViewsTests: XCTestCase {
             togglePlayPause: {},
             hasPlaybackDevice: false,
             addToQueue: { _ in },
-            openArtist: { _ in }
+            openArtist: { _ in },
+            browserViewModel: PlaylistBrowserViewModel(
+                api: MockBrowsingAPI(playlistResults: [], trackResults: [:]),
+                cache: MockBrowsingCache()
+            )
         )
         .environmentObject(pinnedStore())
         ViewTestHost.host(view, size: CGSize(width: 720, height: 400))
@@ -196,7 +204,11 @@ final class ListDetailViewsTests: XCTestCase {
             togglePlayPause: {},
             hasPlaybackDevice: false,
             addToQueue: { _ in },
-            openArtist: { _ in }
+            openArtist: { _ in },
+            browserViewModel: PlaylistBrowserViewModel(
+                api: MockBrowsingAPI(playlistResults: [], trackResults: [:]),
+                cache: MockBrowsingCache()
+            )
         )
         .environmentObject(pinnedStore())
         ViewTestHost.host(view, size: CGSize(width: 720, height: 400))

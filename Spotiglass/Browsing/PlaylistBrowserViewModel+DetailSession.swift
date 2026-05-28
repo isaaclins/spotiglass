@@ -2,6 +2,9 @@ import Foundation
 
 extension PlaylistBrowserViewModel {
     func scheduleDetailLoad(for selection: SidebarSelection, refreshCachedData: Bool, session: Int) async {
+        // Drop any shift-click track selection — row ids belong to the
+        // previous detail surface, not the one we're about to load.
+        clearTrackSelection()
         detailLoadTask?.cancel()
         detailLoadGeneration += 1
         let generation = detailLoadGeneration

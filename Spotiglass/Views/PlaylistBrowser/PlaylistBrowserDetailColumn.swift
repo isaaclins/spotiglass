@@ -108,7 +108,8 @@ struct PlaylistBrowserMainDetailColumn: View {
                                 },
                                 openArtist: { artistID in
                                     Task { await viewModel.selectArtist(id: artistID, origin: .extend, displayName: nil) }
-                                }
+                                },
+                                browserViewModel: viewModel
                             )
                         case let .artist(detail):
                             ArtistDetailContent(
@@ -165,6 +166,23 @@ struct PlaylistBrowserMainDetailColumn: View {
                             .padding(SpotiglassDesign.spacingS)
                             .background(.background, in: Capsule())
                             .padding(SpotiglassDesign.spacingM)
+                    }
+                }
+                .overlay(alignment: .bottom) {
+                    if let toast = viewModel.trackMutationToast {
+                        Text(toast)
+                            .font(.callout.weight(.medium))
+                            .padding(.horizontal, SpotiglassDesign.spacingM)
+                            .padding(.vertical, SpotiglassDesign.spacingS)
+                            .background(.regularMaterial, in: Capsule())
+                            .padding(.bottom, SpotiglassDesign.spacingL)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                            .task(id: toast) {
+                                try? await Task.sleep(nanoseconds: 2_400_000_000)
+                                if viewModel.trackMutationToast == toast {
+                                    viewModel.trackMutationToast = nil
+                                }
+                            }
                     }
                 }
             case let .empty(message):

@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct TrackListRow: View {
@@ -18,6 +19,15 @@ struct TrackListRow: View {
     let openArtist: (String) -> Void
     /// When set, the row participates in drag-to-pin for this surface (e.g. `pl:<playlistId>` or `ar:<artistID>`).
     var tracksSurfaceID: String? = nil
+    /// Optional shift-click selection contract. When provided, modifier-aware
+    /// click handling routes through these callbacks; `nil` keeps the legacy
+    /// "click = play" behaviour for surfaces that don't surface multi-select.
+    var isSelected: Bool = false
+    var onShiftSelect: ((String) -> Void)? = nil
+    var onPrimarySelect: ((String) -> Void)? = nil
+    /// Spotify-side track-ops menu items appended after the existing menu.
+    /// Built lazily so closures don't fire until the menu opens.
+    var trackOpsMenuItems: (() -> AnyView)? = nil
 
     @EnvironmentObject private var pinnedStore: PinnedItemsStore
     @Environment(\.colorScheme) private var colorScheme
@@ -86,6 +96,15 @@ struct TrackListRow: View {
             tracksSurfaceID: tracksSurfaceID
         ))
         .onTapGesture {
+            // Shift-click ⇒ extend selection (no playback).
+            // Plain click   ⇒ replace selection, then play / toggle.
+            if NSEvent.modifierFlags.contains(.shift), let onShiftSelect {
+                onShiftSelect(track.id)
+                return
+            }
+            if let onPrimarySelect {
+                onPrimarySelect(track.id)
+            }
             if isCurrent {
                 togglePlayPause()
             } else if let playableURI = track.playableURI {
@@ -117,6 +136,10 @@ struct TrackListRow: View {
                         pinnedStore.pin(pinned)
                     }
                 }
+            }
+            if let trackOpsMenuItems {
+                Divider()
+                trackOpsMenuItems()
             }
         }
         .accessibilityElement(children: .combine)
@@ -185,11 +208,18 @@ struct TrackListRow: View {
     @ViewBuilder
     private var rowBackground: some View {
         ZStack {
-            if isCurrent {
+            if isSelected {
+                RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
+                    .fill(SpotiglassDesign.controlAccent.opacity(0.18))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
+                            .strokeBorder(SpotiglassDesign.controlAccent.opacity(0.45), lineWidth: 1)
+                    )
+            } else if isCurrent {
                 RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
                     .fill(Color.primary.opacity(0.10))
             }
-            if isHovering {
+            if isHovering && !isSelected {
                 RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
                     .fill(Color.primary.opacity(0.05))
             }

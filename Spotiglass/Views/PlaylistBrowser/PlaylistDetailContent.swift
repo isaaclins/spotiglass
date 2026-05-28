@@ -12,9 +12,16 @@ struct PlaylistDetailContent: View {
     let hasPlaybackDevice: Bool
     let addToQueue: (String) async -> Void
     let openArtist: (String) -> Void
+    /// View-model passed in so the row context-menu can call the high-level
+    /// mutation helpers (`addRowsToPlaylist`, `favoriteRows`, etc.) and observe
+    /// `selectedDetailTrackIDs` for the shift-click multi-select highlight.
+    @ObservedObject var browserViewModel: PlaylistBrowserViewModel
 
     @EnvironmentObject private var pinnedStore: PinnedItemsStore
     @Environment(\.colorScheme) private var colorScheme
+    @State private var isPromptingNewPlaylist = false
+    @State private var newPlaylistName = ""
+    @State private var newPlaylistInitialRows: [TrackRowViewModel] = []
 
     private var tracksSurfaceKey: String { "pl:\(detail.playlist.id)" }
 
@@ -66,13 +73,51 @@ struct PlaylistDetailContent: View {
                             hasPlaybackDevice: hasPlaybackDevice,
                             addToQueue: addToQueue,
                             openArtist: openArtist,
-                            tracksSurfaceID: tracksSurfaceKey
+                            tracksSurfaceID: tracksSurfaceKey,
+                            isSelected: browserViewModel.selectedDetailTrackIDs.contains(track.id),
+                            onShiftSelect: { rowID in
+                                browserViewModel.extendSelection(toRowID: rowID)
+                            },
+                            onPrimarySelect: { rowID in
+                                browserViewModel.setPrimarySelection(trackID: rowID)
+                            },
+                            trackOpsMenuItems: {
+                                AnyView(TrackOpsMenuItems(
+                                    rowID: track.id,
+                                    browserViewModel: browserViewModel,
+                                    currentPlaylistID: detail.playlist.id,
+                                    onRequestCreatePlaylist: { rows in
+                                        newPlaylistInitialRows = rows
+                                        newPlaylistName = ""
+                                        isPromptingNewPlaylist = true
+                                    }
+                                ))
+                            }
                         )
                     },
                     pendingScrollRestoreTrackID: $pendingScrollRestoreTrackID,
                     onFirstVisibleTrackChanged: onTrackEnteredViewportApproximation
                 )
             }
+        }
+        .alert("New playlist", isPresented: $isPromptingNewPlaylist) {
+            TextField("Playlist name", text: $newPlaylistName)
+            Button("Cancel", role: .cancel) {
+                newPlaylistInitialRows = []
+                newPlaylistName = ""
+            }
+            Button("Create") {
+                let rows = newPlaylistInitialRows
+                let name = newPlaylistName
+                newPlaylistInitialRows = []
+                newPlaylistName = ""
+                Task { await browserViewModel.createPlaylistWithRows(name: name, rows: rows) }
+            }
+            .disabled(newPlaylistName.trimmingCharacters(in: .whitespaces).isEmpty)
+        } message: {
+            Text(newPlaylistInitialRows.isEmpty
+                 ? "Create an empty playlist in your Spotify library."
+                 : "Create a new playlist with \(newPlaylistInitialRows.count) track\(newPlaylistInitialRows.count == 1 ? "" : "s") added.")
         }
     }
 
@@ -141,6 +186,72 @@ struct PlaylistDetailContent: View {
             isHeaderPinned: isHeaderPinned,
             pinnedStore: pinnedStore
         ))
+    }
+}
+
+/// Spotify track-ops submenu rendered inside `TrackListRow.contextMenu`.
+/// Targets either the active shift-click selection or the row alone — kept
+/// outside the cell so the row body type-checks fast and the menu's expensive
+/// playlist enumeration runs only when the menu is actually opened.
+struct TrackOpsMenuItems: View {
+    let rowID: String
+    @ObservedObject var browserViewModel: PlaylistBrowserViewModel
+    /// Playlist ID currently shown; used to mark "Move" as relative to "this"
+    /// playlist and to filter the source out of "Move to…" destinations.
+    let currentPlaylistID: String
+    let onRequestCreatePlaylist: ([TrackRowViewModel]) -> Void
+
+    var body: some View {
+        let targets = browserViewModel.effectiveTrackTargets(forRowID: rowID)
+        let label = targets.count > 1 ? "\(targets.count) tracks" : "track"
+        let destinations = browserViewModel.userOwnedPlaylistsForMenu(
+            excludingPlaylistID: currentPlaylistID
+        )
+
+        Menu("Add to playlist") {
+            Button("New playlist…") {
+                onRequestCreatePlaylist(targets)
+            }
+            if !destinations.isEmpty { Divider() }
+            ForEach(destinations, id: \.id) { dest in
+                Button(dest.name) {
+                    Task {
+                        await browserViewModel.addRowsToPlaylist(
+                            targets,
+                            playlistID: dest.id,
+                            playlistName: dest.name
+                        )
+                    }
+                }
+            }
+        }
+        .disabled(targets.isEmpty)
+
+        Menu("Move to playlist") {
+            ForEach(destinations, id: \.id) { dest in
+                Button(dest.name) {
+                    Task {
+                        await browserViewModel.moveRowsBetweenPlaylists(
+                            targets,
+                            from: currentPlaylistID,
+                            to: dest.id,
+                            destinationName: dest.name
+                        )
+                    }
+                }
+            }
+        }
+        .disabled(targets.isEmpty || destinations.isEmpty)
+
+        Button("Add to Liked Songs (\(label))") {
+            Task { await browserViewModel.favoriteRows(targets) }
+        }
+        .disabled(targets.isEmpty)
+
+        Button("Remove from Liked Songs (\(label))") {
+            Task { await browserViewModel.unfavoriteRows(targets) }
+        }
+        .disabled(targets.isEmpty)
     }
 }
 
