@@ -33,11 +33,15 @@
 // scaffolded here as `TODO(PROP)` stubs — completing them is the remaining
 // work before `coreaudiod` will register the device.
 
+#include <CoreAudio/AudioHardware.h>
 #include <CoreAudio/AudioServerPlugIn.h>
 #include <mach/mach_time.h>
+#include <math.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <unistd.h>
+
+#include <atomic>
 
 #include "EQCoefficientReader.h"
 #include "EQRouter.h"
@@ -52,6 +56,15 @@ namespace {
 [[maybe_unused]] constexpr UInt32 kPluginObjectID = kAudioObjectPlugInObject;
 [[maybe_unused]] constexpr UInt32 kDeviceObjectID = 2;
 [[maybe_unused]] constexpr UInt32 kOutputStreamObjectID = 3;
+// Master output volume control. Mirrors the EQRouter target device's
+// kAudioDevicePropertyVolumeScalar so the macOS menu-bar volume slider is
+// usable while Spotiglass EQ is the default output. See ADR-EQ-3.
+[[maybe_unused]] constexpr UInt32 kVolumeControlObjectID = 4;
+
+// Volume range exposed by the master control. Matches the typical macOS
+// device range so the menu-bar slider's full travel maps to a useful range.
+constexpr Float32 kVolumeMinDB = -64.0f;
+constexpr Float32 kVolumeMaxDB = 0.0f;
 
 // CFString helpers for property handlers (used once the dispatcher lands).
 [[maybe_unused]] CFStringRef MakeStaticCFString(const char* s) {
@@ -86,9 +99,79 @@ struct PluginState {
     // Lazily opened on StartIO; closed on StopIO. NEVER opens an input
     // IOProc — output-scope only, no microphone path.
     EQRouter* router = nullptr;
+
+    // Last scalar (0..1) the OS / user set on the master volume control.
+    // The control mirrors-through to the EQRouter target device's
+    // VolumeScalar, but we cache here so reads remain stable while the
+    // router is in the middle of a swap (target file change) or null.
+    std::atomic<Float32> cachedVolumeScalar{1.0f};
 };
 
 PluginState gPlugin;
+
+// MARK: - Volume control math + target-device mirroring
+
+/// Clamps a scalar to [0, 1] then converts to dB on a 20·log10 curve, with
+/// the result floored at `kVolumeMinDB`. A scalar of 0 reports the floor
+/// rather than -inf so HAL clients don't see a denormal.
+Float32 ScalarToDB(Float32 scalar) {
+    if (scalar <= 0.0f) return kVolumeMinDB;
+    if (scalar >= 1.0f) return kVolumeMaxDB;
+    const Float32 db = 20.0f * log10f(scalar);
+    return db < kVolumeMinDB ? kVolumeMinDB : db;
+}
+
+/// Inverse of ScalarToDB; clamps the result to [0, 1].
+Float32 DBToScalar(Float32 db) {
+    if (db <= kVolumeMinDB) return 0.0f;
+    if (db >= kVolumeMaxDB) return 1.0f;
+    const Float32 s = powf(10.0f, db / 20.0f);
+    return s < 0.0f ? 0.0f : (s > 1.0f ? 1.0f : s);
+}
+
+/// Reads the current master output volume of whatever real device the
+/// EQRouter is forwarding to. Falls back to the cached value when the
+/// target device does not expose VolumeScalar (some pro audio interfaces
+/// only expose hardware-knob volume).
+Float32 ReadTargetVolumeOrCached() {
+    const AudioObjectID target = EQRouter_TargetDevice(gPlugin.router);
+    if (target == kAudioObjectUnknown) {
+        return gPlugin.cachedVolumeScalar.load(std::memory_order_acquire);
+    }
+    AudioObjectPropertyAddress addr = {
+        kAudioDevicePropertyVolumeScalar,
+        kAudioObjectPropertyScopeOutput,
+        kAudioObjectPropertyElementMain
+    };
+    Float32 value = 0.0f;
+    UInt32 size = sizeof(value);
+    const OSStatus status = AudioObjectGetPropertyData(
+        target, &addr, 0, nullptr, &size, &value
+    );
+    if (status != noErr || size != sizeof(value)) {
+        return gPlugin.cachedVolumeScalar.load(std::memory_order_acquire);
+    }
+    return value;
+}
+
+/// Writes a scalar volume (0..1) to the EQRouter target device. Returns
+/// true on success — false signals the target rejected the write (e.g.
+/// no VolumeScalar property), in which case the caller should still keep
+/// the cached value so the slider stops moving back to the previous spot.
+bool WriteTargetVolume(Float32 scalar) {
+    const AudioObjectID target = EQRouter_TargetDevice(gPlugin.router);
+    if (target == kAudioObjectUnknown) return false;
+    AudioObjectPropertyAddress addr = {
+        kAudioDevicePropertyVolumeScalar,
+        kAudioObjectPropertyScopeOutput,
+        kAudioObjectPropertyElementMain
+    };
+    Float32 value = scalar;
+    const OSStatus status = AudioObjectSetPropertyData(
+        target, &addr, 0, nullptr, sizeof(value), &value
+    );
+    return status == noErr;
+}
 
 // MARK: - Forward declarations (vtable members)
 
@@ -576,6 +659,24 @@ Boolean HasProperty(AudioServerPlugInDriverRef /*self*/, AudioObjectID objectID,
             default: return false;
         }
     }
+    if (objectID == kVolumeControlObjectID) {
+        switch (s) {
+            case kAudioObjectPropertyBaseClass:
+            case kAudioObjectPropertyClass:
+            case kAudioObjectPropertyOwner:
+            case kAudioObjectPropertyOwnedObjects:
+            case kAudioObjectPropertyName:
+            case kAudioControlPropertyScope:
+            case kAudioControlPropertyElement:
+            case kAudioLevelControlPropertyScalarValue:
+            case kAudioLevelControlPropertyDecibelValue:
+            case kAudioLevelControlPropertyDecibelRange:
+            case kAudioLevelControlPropertyConvertScalarToDecibels:
+            case kAudioLevelControlPropertyConvertDecibelsToScalar:
+                return true;
+            default: return false;
+        }
+    }
     return false;
 }
 
@@ -598,6 +699,11 @@ OSStatus IsPropertySettable(AudioServerPlugInDriverRef self, AudioObjectID objec
         (address->mSelector == kAudioStreamPropertyVirtualFormat ||
          address->mSelector == kAudioStreamPropertyPhysicalFormat ||
          address->mSelector == kAudioStreamPropertyIsActive)) {
+        *outIsSettable = true;
+    }
+    if (objectID == kVolumeControlObjectID &&
+        (address->mSelector == kAudioLevelControlPropertyScalarValue ||
+         address->mSelector == kAudioLevelControlPropertyDecibelValue)) {
         *outIsSettable = true;
     }
     return noErr;
@@ -629,6 +735,9 @@ OSStatus GetPropertyDataSize(AudioServerPlugInDriverRef self, AudioObjectID obje
             case kAudioObjectPropertyBaseClass:
             case kAudioObjectPropertyClass:                                *outDataSize = sizeof(AudioClassID); return noErr;
             case kAudioObjectPropertyOwner:                                *outDataSize = sizeof(AudioObjectID); return noErr;
+            case kAudioObjectPropertyOwnedObjects:
+                // Device owns the output stream + the master volume control.
+                *outDataSize = 2 * sizeof(AudioObjectID); return noErr;
             case kAudioObjectPropertyName:
             case kAudioObjectPropertyManufacturer:
             case kAudioDevicePropertyDeviceUID:
@@ -647,7 +756,7 @@ OSStatus GetPropertyDataSize(AudioServerPlugInDriverRef self, AudioObjectID obje
                 *outDataSize = (address->mScope == kAudioObjectPropertyScopeInput)
                     ? 0 : sizeof(AudioObjectID);
                 return noErr;
-            case kAudioObjectPropertyControlList:                           *outDataSize = 0; return noErr;
+            case kAudioObjectPropertyControlList:                           *outDataSize = sizeof(AudioObjectID); return noErr;
             case kAudioDevicePropertySafetyOffset:                          *outDataSize = sizeof(UInt32); return noErr;
             case kAudioDevicePropertyNominalSampleRate:                     *outDataSize = sizeof(Float64); return noErr;
             case kAudioDevicePropertyAvailableNominalSampleRates:
@@ -673,6 +782,22 @@ OSStatus GetPropertyDataSize(AudioServerPlugInDriverRef self, AudioObjectID obje
             case kAudioStreamPropertyAvailableVirtualFormats:
             case kAudioStreamPropertyAvailablePhysicalFormats:
                 *outDataSize = kNumSupportedSampleRates * sizeof(AudioStreamRangedDescription); return noErr;
+        }
+    }
+    if (objectID == kVolumeControlObjectID) {
+        switch (s) {
+            case kAudioObjectPropertyBaseClass:
+            case kAudioObjectPropertyClass:                                  *outDataSize = sizeof(AudioClassID); return noErr;
+            case kAudioObjectPropertyOwner:                                  *outDataSize = sizeof(AudioObjectID); return noErr;
+            case kAudioObjectPropertyOwnedObjects:                           *outDataSize = 0; return noErr;
+            case kAudioObjectPropertyName:                                   *outDataSize = sizeof(CFStringRef); return noErr;
+            case kAudioControlPropertyScope:                                 *outDataSize = sizeof(AudioObjectPropertyScope); return noErr;
+            case kAudioControlPropertyElement:                               *outDataSize = sizeof(AudioObjectPropertyElement); return noErr;
+            case kAudioLevelControlPropertyScalarValue:
+            case kAudioLevelControlPropertyDecibelValue:
+            case kAudioLevelControlPropertyConvertScalarToDecibels:
+            case kAudioLevelControlPropertyConvertDecibelsToScalar:          *outDataSize = sizeof(Float32); return noErr;
+            case kAudioLevelControlPropertyDecibelRange:                     *outDataSize = sizeof(AudioValueRange); return noErr;
         }
     }
     return kAudioHardwareUnknownPropertyError;
@@ -741,7 +866,15 @@ OSStatus GetPropertyData(AudioServerPlugInDriverRef self, AudioObjectID objectID
             case kAudioObjectPropertyOwner:        return putObjectID(kPluginObjectID);
             case kAudioObjectPropertyName:         return putString(kDeviceNameUTF8);
             case kAudioObjectPropertyManufacturer: return putString(kPluginManufacturerUTF8);
-            case kAudioObjectPropertyOwnedObjects: return putObjectID(kOutputStreamObjectID);
+            case kAudioObjectPropertyOwnedObjects: {
+                const UInt32 needed = 2 * sizeof(AudioObjectID);
+                if (inSize < needed) return kAudioHardwareBadPropertySizeError;
+                AudioObjectID* out = static_cast<AudioObjectID*>(outData);
+                out[0] = kOutputStreamObjectID;
+                out[1] = kVolumeControlObjectID;
+                *outDataSize = needed;
+                return noErr;
+            }
             case kAudioDevicePropertyDeviceUID:    return putString(kDeviceUIDUTF8);
             case kAudioDevicePropertyModelUID:     return putString(kModelUIDUTF8);
             case kAudioDevicePropertyTransportType: return putUInt32(kAudioDeviceTransportTypeVirtual);
@@ -769,7 +902,7 @@ OSStatus GetPropertyData(AudioServerPlugInDriverRef self, AudioObjectID objectID
                 }
                 return putObjectID(kOutputStreamObjectID);
             }
-            case kAudioObjectPropertyControlList:                    *outDataSize = 0; return noErr;
+            case kAudioObjectPropertyControlList:                    return putObjectID(kVolumeControlObjectID);
             case kAudioDevicePropertySafetyOffset:                   return putUInt32(0);
             case kAudioDevicePropertyNominalSampleRate: {
                 if (inSize < sizeof(Float64)) return kAudioHardwareBadPropertySizeError;
@@ -834,6 +967,55 @@ OSStatus GetPropertyData(AudioServerPlugInDriverRef self, AudioObjectID objectID
             }
         }
     }
+    if (objectID == kVolumeControlObjectID) {
+        auto putFloat32 = [&](Float32 v) -> OSStatus {
+            if (inSize < sizeof(Float32)) return kAudioHardwareBadPropertySizeError;
+            *static_cast<Float32*>(outData) = v;
+            *outDataSize = sizeof(Float32);
+            return noErr;
+        };
+        switch (s) {
+            case kAudioObjectPropertyBaseClass:        return putClassID(kAudioLevelControlClassID);
+            case kAudioObjectPropertyClass:            return putClassID(kAudioVolumeControlClassID);
+            case kAudioObjectPropertyOwner:            return putObjectID(kDeviceObjectID);
+            case kAudioObjectPropertyOwnedObjects:     *outDataSize = 0; return noErr;
+            case kAudioObjectPropertyName:             return putString("Spotiglass EQ Master Volume");
+            case kAudioControlPropertyScope:           return putUInt32(kAudioObjectPropertyScopeOutput);
+            case kAudioControlPropertyElement:         return putUInt32(kAudioObjectPropertyElementMain);
+            case kAudioLevelControlPropertyScalarValue: {
+                const Float32 fresh = ReadTargetVolumeOrCached();
+                gPlugin.cachedVolumeScalar.store(fresh, std::memory_order_release);
+                return putFloat32(fresh);
+            }
+            case kAudioLevelControlPropertyDecibelValue: {
+                const Float32 fresh = ReadTargetVolumeOrCached();
+                gPlugin.cachedVolumeScalar.store(fresh, std::memory_order_release);
+                return putFloat32(ScalarToDB(fresh));
+            }
+            case kAudioLevelControlPropertyDecibelRange: {
+                if (inSize < sizeof(AudioValueRange)) return kAudioHardwareBadPropertySizeError;
+                AudioValueRange* r = static_cast<AudioValueRange*>(outData);
+                r->mMinimum = kVolumeMinDB;
+                r->mMaximum = kVolumeMaxDB;
+                *outDataSize = sizeof(AudioValueRange);
+                return noErr;
+            }
+            case kAudioLevelControlPropertyConvertScalarToDecibels: {
+                if (inSize < sizeof(Float32)) return kAudioHardwareBadPropertySizeError;
+                Float32* v = static_cast<Float32*>(outData);
+                *v = ScalarToDB(*v);
+                *outDataSize = sizeof(Float32);
+                return noErr;
+            }
+            case kAudioLevelControlPropertyConvertDecibelsToScalar: {
+                if (inSize < sizeof(Float32)) return kAudioHardwareBadPropertySizeError;
+                Float32* v = static_cast<Float32*>(outData);
+                *v = DBToScalar(*v);
+                *outDataSize = sizeof(Float32);
+                return noErr;
+            }
+        }
+    }
     return kAudioHardwareUnknownPropertyError;
 }
 
@@ -860,6 +1042,27 @@ OSStatus SetPropertyData(AudioServerPlugInDriverRef self, AudioObjectID objectID
     }
     // Stream format / IsActive: accept but no-op (we only support one format).
     if (objectID == kOutputStreamObjectID) {
+        return noErr;
+    }
+    if (objectID == kVolumeControlObjectID) {
+        if (inSize < sizeof(Float32)) return kAudioHardwareBadPropertySizeError;
+        const Float32 raw = *static_cast<const Float32*>(inData);
+        Float32 scalar = 1.0f;
+        if (address->mSelector == kAudioLevelControlPropertyScalarValue) {
+            scalar = raw;
+        } else if (address->mSelector == kAudioLevelControlPropertyDecibelValue) {
+            scalar = DBToScalar(raw);
+        } else {
+            return kAudioHardwareUnsupportedOperationError;
+        }
+        if (scalar < 0.0f) scalar = 0.0f;
+        if (scalar > 1.0f) scalar = 1.0f;
+        // Cache locally so subsequent reads remain stable even if the target
+        // device is mid-swap or doesn't expose VolumeScalar. Then mirror to
+        // the EQRouter target — failure to mirror just means the slider
+        // becomes a "soft" cache (no attenuation applied at the moment).
+        gPlugin.cachedVolumeScalar.store(scalar, std::memory_order_release);
+        (void)WriteTargetVolume(scalar);
         return noErr;
     }
     return kAudioHardwareUnsupportedOperationError;
