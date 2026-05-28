@@ -15,24 +15,21 @@ output device and applies a 10-band biquad cascade in its IO callback.
 
 ## Building the `.driver` bundle
 
-This directory ships the *source code* for the plugin. To actually produce a
-loadable `SpotiglassEQDriver.driver` bundle, an Xcode target needs to be
-added to `Spotiglass.xcodeproj` with these settings (not yet done; tracked
-in docs/equalizer.md "Known limitations"):
+Two paths:
 
-1. **Product**: Bundle (extension `.driver`)
-2. **Bundle Type**: `BNDL`
-3. **Embed In**: Spotiglass app (`Contents/Library/Audio/Plug-Ins/HAL/`)
-4. **Link**: `CoreAudio.framework`, `CoreFoundation.framework`,
-   `AudioToolbox.framework`
-5. **Code Signing**: A valid Developer ID. Ad-hoc / Sign-to-Run-Locally is
-   not enough — `coreaudiod` on macOS 26 refuses to load plugins that don't
-   carry a proper signature. See `docs/equalizer.md` → Known limitations.
+1. **`make embed-driver`** (recommended) — builds the host app and the
+   `.driver`, then copies the driver into
+   `Spotiglass.app/Contents/Library/Audio/Plug-Ins/HAL/`. This is the
+   no-Xcode-target shortcut; uses `clang` via `./build-driver.sh` and a
+   Makefile copy step.
 
-Until those steps are completed, the Swift side (`EqualizerHALPluginController`,
-`EQCoefficientPublisher`, `AudioEqualizerEngine`) all compile and pass tests,
-but `enable()` reports `driverNotLoadedYet` because there's no embedded
-`.driver` to copy into `~/Library/Audio/Plug-Ins/HAL/`.
+2. **`./build-driver.sh`** alone — produces a standalone driver bundle at
+   `../build/SpotiglassEQDriver.driver`. Useful for inspecting the Mach-O.
+
+A proper Xcode target (with code-sign-on-copy and a Run scheme) is
+documented in `docs/equalizer-xcode-target.md` as the recommended next
+step once Developer ID signing is wired up. `coreaudiod` on macOS 26
+refuses to load `.driver` bundles signed only ad-hoc.
 
 ## Status of property handlers
 

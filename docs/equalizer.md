@@ -215,13 +215,33 @@ A pre-commit audit script
 (`scripts/eq-mic-permission-audit.sh`, wired into `make test`) greps for the
 above APIs in the EQ code and fails the build on any hit.
 
+## Building the driver
+
+Two paths:
+
+1. **`make embed-driver`** (recommended) — builds the host app, then builds
+   the `.driver` universal Mach-O bundle, then copies it into
+   `Spotiglass.app/Contents/Library/Audio/Plug-Ins/HAL/`. Uses `clang`
+   directly via `SpotiglassEQDriver/build-driver.sh`, so it doesn't need
+   a separate Xcode target.
+
+2. **`./SpotiglassEQDriver/build-driver.sh`** alone — builds the driver
+   bundle at `build/SpotiglassEQDriver.driver` without touching the host
+   app. Useful for inspecting the Mach-O or for CI.
+
+A fully-wired Xcode target (proper integration with Run/Test schemes, no
+Makefile escape hatch) is documented in `docs/equalizer-xcode-target.md`
+as the recommended next step once Developer ID signing is wired up.
+
 ## Known limitations
 
 - **Code signing:** macOS 26 requires HAL plugins to be Developer ID signed
-  for `coreaudiod` to load them in a non-developer environment. Debug builds
-  may fail to load the `.driver` if the signing identity is "Sign to Run
-  Locally". Production release builds (`make release`) configure the
-  `.driver` target to inherit the host app's signing identity.
+  for `coreaudiod` to load them in a non-developer environment. The embedded
+  build at `Spotiglass.app/Contents/Library/Audio/Plug-Ins/HAL/SpotiglassEQDriver.driver`
+  is ad-hoc signed (matching the host app's "Sign to Run Locally"); this
+  loads in coreaudiod only after manual `spctl` / `csrutil` adjustments.
+  Production release builds (`make release`) inherit whatever
+  signing identity the user configures via `XCODE_EXTRA='CODE_SIGN_IDENTITY=…'`.
 - **coreaudiod restart:** macOS does not provide a sudo-free way to reload
   HAL plugins from `~/Library/Audio/Plug-Ins/HAL/`. Spotiglass surfaces
   instructions but does not run sudo on the user's behalf.
@@ -229,3 +249,8 @@ above APIs in the EQ code and fails the build on any hit.
   (e.g., user picks a new monitor), the driver re-publishes the rate and the
   GUI process re-derives coefficients. Brief glitch may be audible during
   the recomputation cycle.
+- **Property dispatcher scaffolding:** `SpotiglassEQPlugin.cpp` has `TODO(PROP)`
+  markers on the AudioObject property-routing dispatchers. The DSP path
+  (the part most prone to error) is complete and verified by XCTest;
+  filling in the property dispatcher to Apple's `NullAudio`-sample pattern
+  is the remaining engineering work before coreaudiod accepts the device.

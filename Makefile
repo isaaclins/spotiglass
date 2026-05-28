@@ -4,7 +4,7 @@
 #        make release         — unsigned Release bundle (matches CI layout)
 #        make test            — unit tests on macOS
 
-.PHONY: all build run release test coverage coverage-check format lint scan clean list help audit-eq-permission
+.PHONY: all build run release test coverage coverage-check format lint scan clean list help audit-eq-permission build-driver embed-driver
 
 SWIFT_FORMAT := $(shell command -v swift-format 2>/dev/null)
 
@@ -62,6 +62,25 @@ release:
 # before `make test`, and is safe to invoke standalone.
 audit-eq-permission:
 	./scripts/eq-mic-permission-audit.sh
+
+# Builds SpotiglassEQDriver.driver as a universal Mach-O bundle (no Xcode
+# target needed). Output: build/SpotiglassEQDriver.driver
+build-driver:
+	./SpotiglassEQDriver/build-driver.sh
+
+# Builds the .driver and copies it into the Debug Spotiglass.app at
+# Contents/Library/Audio/Plug-Ins/HAL/. After this, the app's
+# EqualizerHALPluginController can find and install the embedded driver.
+embed-driver: build build-driver
+	@dst="$(DEBUG_APP)/Contents/Library/Audio/Plug-Ins/HAL"; \
+	mkdir -p "$$dst"; \
+	rm -rf "$$dst/SpotiglassEQDriver.driver"; \
+	cp -R build/SpotiglassEQDriver.driver "$$dst/"; \
+	echo "embedded → $$dst/SpotiglassEQDriver.driver"; \
+	echo; \
+	echo "To activate after first launch:"; \
+	echo "  sudo launchctl kickstart -k system/com.apple.audio.coreaudiod"; \
+	echo "(or log out and back in)"
 
 test: audit-eq-permission
 	xcodebuild \

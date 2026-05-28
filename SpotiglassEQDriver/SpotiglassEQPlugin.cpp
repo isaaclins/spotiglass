@@ -42,13 +42,15 @@
 namespace {
 
 // MARK: - Plugin singleton state
+//
+// Object IDs are exposed once the property dispatcher (`TODO(PROP)` below)
+// is filled in; kept here as ground truth for the AudioObject hierarchy.
+[[maybe_unused]] constexpr UInt32 kPluginObjectID = kAudioObjectPlugInObject;
+[[maybe_unused]] constexpr UInt32 kDeviceObjectID = 2;
+[[maybe_unused]] constexpr UInt32 kOutputStreamObjectID = 3;
 
-constexpr UInt32 kPluginObjectID = kAudioObjectPlugInObject;
-constexpr UInt32 kDeviceObjectID = 2;
-constexpr UInt32 kOutputStreamObjectID = 3;
-
-// CFString helpers for property handlers.
-CFStringRef MakeStaticCFString(const char* s) {
+// CFString helpers for property handlers (used once the dispatcher lands).
+[[maybe_unused]] CFStringRef MakeStaticCFString(const char* s) {
     return CFStringCreateWithCString(kCFAllocatorDefault, s, kCFStringEncodingUTF8);
 }
 
