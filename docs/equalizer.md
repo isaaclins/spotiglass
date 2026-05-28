@@ -1,0 +1,231 @@
+# Equalizer
+
+Spotiglass ships a realtime 10-band parametric equalizer that filters Spotify
+Web Playback SDK audio. **Spotiglass EQ requires NO microphone or
+audio-recording permission.** The EQ does not tap, record, or capture audio
+input from anywhere — it is a virtual *output* device installed as a CoreAudio
+`AudioServerPlugIn`. Music routed through it is filtered in the IO callback
+using vDSP biquads at the device's native sample rate, with no resampling.
+
+## How users turn it on
+
+1. Open **Settings → Equalizer** in Spotiglass.
+2. Toggle **Enable Equalizer**. On the first enable Spotiglass copies the
+   bundled `SpotiglassEQDriver.driver` into `~/Library/Audio/Plug-Ins/HAL/`,
+   re-loads `coreaudiod` (see "Activating the driver" below), and routes the
+   system default output to `"Spotiglass EQ"`. Spotify Web Playback SDK audio
+   is already wired to the system default, so it picks up the new device
+   without restarting playback.
+3. Pick a built-in preset (Flat, Bass Boost, Vocal, Treble Boost, Acoustic,
+   Electronic, Loudness) or drag the 10 sliders to taste. The 80 Hz, 170 Hz,
+   310 Hz, 600 Hz, 1 kHz, 3 kHz, 6 kHz, 12 kHz, 14 kHz, 16 kHz bands and the
+   preamp update live on every slider change — no audio restart.
+4. Save custom curves as user presets. Everything persists to
+   `~/.config/spotiglass/settings.json`.
+
+Disabling restores the previous default output and removes the
+`.driver` from the user's HAL directory.
+
+## Architecture
+
+```
+  ┌─────────────────────────────┐         ┌────────────────────────────┐
+  │ Spotiglass (GUI process)    │         │ coreaudiod (system daemon) │
+  │                             │         │                            │
+  │  EqualizerSettingsView      │         │   AudioServerPlugIn host   │
+  │           │                 │         │           │                │
+  │  EqualizerStateController   │         │  SpotiglassEQDriver.driver │
+  │           │                 │         │           │                │
+  │           ▼                 │  shm    │           ▼                │
+  │  EQCoefficientPublisher  ───┼────────►│  EQCoefficientReader       │
+  │  (atomic seqlock write)     │         │  (RT-safe, no syscalls)    │
+  │                             │         │                            │
+  │           │                 │         │           │                │
+  │           ▼                 │         │           ▼                │
+  │  AudioObject default-output │         │  vDSP biquad cascade in    │
+  │  setter                     │         │  IO callback @ native rate │
+  └─────────────────────────────┘         └────────────────────────────┘
+```
+
+The GUI process owns persisted settings and writes coefficient updates to a
+POSIX shared-memory region. The HAL plugin lives inside `coreaudiod` and reads
+that region in its real-time IO callback — no syscalls, no allocations, no
+locks.
+
+## ADR-EQ-1 — AudioServerPlugIn vs AudioDriverKit
+
+### Context
+
+The EQ has to live below the application layer because Spotify's Web Playback
+SDK plays audio through standard system output — Spotiglass can't tap into the
+SDK's audio graph from JavaScript. Two macOS APIs can register a virtual
+output device that runs DSP in the kernel-adjacent path:
+
+| | AudioServerPlugIn | AudioDriverKit |
+|---|---|---|
+| Runs in | `coreaudiod` (user-space, root daemon) | DriverKit dext (sandboxed user space) |
+| Install path | `~/Library/Audio/Plug-Ins/HAL/<name>.driver` | App bundle (`Contents/Library/SystemExtensions`) + `systemextensionsctl` |
+| Entitlement | None (signed app is sufficient) | **`com.apple.developer.driverkit.transport.coreaudio`** — Apple-gated, request-only |
+| User interaction to install | Plugin copy + coreaudiod restart | OSSystemExtensionRequest + user approval in System Settings → Privacy & Security |
+| Long-term support | Maintained, used by BlackHole / BackgroundMusic / Loopback | Apple's recommended forward path, but practically blocked for indies |
+
+### Decision
+
+**AudioServerPlugIn.**
+
+### Reason
+
+`AudioDriverKit` is the architecturally cleaner choice, but the required
+`com.apple.developer.driverkit.transport.coreaudio` entitlement is granted by
+Apple only on request and is not available to indie macOS developers without
+a formal review. Without it the DriverKit dext refuses to load. Every shipping
+third-party EQ on macOS (eqMac, BackgroundMusic, BlackHole, Loopback,
+Soundsource) uses `AudioServerPlugIn` for exactly this reason. Spotiglass
+adopts the same path: a bundled `.driver`, copied to the user's HAL directory
+on first enable, no Apple entitlement gate.
+
+### Consequences
+
+- **Pro:** No entitlement gate. Plugin is a self-contained C++ bundle inside
+  `Spotiglass.app`.
+- **Pro:** Standard install path means dot-files / Migration Assistant pick it
+  up correctly.
+- **Con:** Activating the driver requires `coreaudiod` to re-load the HAL
+  directory, which `launchctl kickstart -k system/com.apple.audio.coreaudiod`
+  forces but needs `sudo`. Spotiglass handles this by writing the plugin to
+  `~/Library/Audio/Plug-Ins/HAL/` without sudo and then surfacing a
+  one-line prompt to the user: *"Run `sudo launchctl kickstart -k system/com.apple.audio.coreaudiod`
+  or log out and back in to activate the Spotiglass EQ driver."* This is the
+  same activation step every other CoreAudio plugin asks for on first
+  install.
+- **Con:** Code signing requirements apply. Production builds need a real
+  Developer ID signature for the `.driver` bundle; ad-hoc signing usually
+  loads only when SIP / amfi loosening is in place. Documented under "Known
+  limitations" below.
+
+## ADR-EQ-2 — IPC for live coefficient updates
+
+### Context
+
+The GUI process needs to send updated biquad coefficients (10 bands × 5 floats
++ a preamp gain = 51 floats, ~204 bytes) to the HAL plugin every time the
+user drags a slider or picks a preset. The plugin then reads those
+coefficients from inside its IO callback, which runs on a real-time
+audio-priority thread at sub-10 ms cadence. Three candidates:
+
+| | CFMessagePort | XPC service | POSIX shared memory |
+|---|---|---|---|
+| Direction | Bidirectional, message-passing | Bidirectional, request/response | Unidirectional, polled |
+| RT-safety | ❌ Syscall + allocation per send | ❌ Syscall + queue dispatch per send | ✅ Reader does only atomic loads |
+| Setup cost | Low | Medium (.plist registration) | Low (`shm_open` once) |
+| Used by audio plugins | Rarely | Rarely (mostly for control planes) | Industry standard inside CoreAudio drivers |
+
+### Decision
+
+**POSIX shared memory with a 64-bit atomic seqlock**, named
+`"/com.isaaclins.spotiglass.eq.coeffs.v1"`.
+
+### Reason
+
+The HAL IO callback is a real-time thread. Per Apple's RT-audio rules
+(documented in "Audio Server Plug-In Driver Programming Guide" and CoreAudio
+mailing-list lore), it cannot:
+
+- allocate memory,
+- take locks that may block on the CPU scheduler,
+- call into syscalls that can page-fault or be preempted by a non-RT thread.
+
+CFMessagePort and XPC both violate all three. Shared memory with atomic
+loads/stores satisfies all three: the reader does a CAS-free seqlock read
+which compiles to two `lock-cmpxchg`-free loads on Apple Silicon, and the
+writer (GUI process, non-RT) does two `release` stores around a
+non-atomic memcpy.
+
+### Layout
+
+```c
+struct EQCoefficientFrame {
+    _Atomic(uint64_t) sequence;           // odd while writing, even when stable
+    float             preampLinear;        // applied before band 0
+    float             bandCoeffs[10 * 5];  // {b0, b1, b2, a1, a2} per band
+    uint32_t          sampleRateHz;        // recomputed when device rate changes
+    uint32_t          enabledMask;         // bit i = band i enabled (future use)
+};
+```
+
+Total size 232 bytes, aligned to 16 bytes; fits in a single cacheline group
+on Apple Silicon.
+
+### Consequences
+
+- **Pro:** No syscalls inside the IO callback. Updates are torn-free under
+  the seqlock protocol (the IO callback retries at most once if it observes
+  an odd sequence). Latency is one audio cycle (~5 ms).
+- **Pro:** Read-only mapping in the daemon side; writer side can be
+  destroyed/recreated independently for hot-swap of the GUI process.
+- **Con:** Shared memory needs a stable path. We use `/tmp` and a UID-suffixed
+  name to avoid collisions across user sessions.
+
+## Activating the driver
+
+On first enable Spotiglass copies the embedded `SpotiglassEQDriver.driver` to
+`~/Library/Audio/Plug-Ins/HAL/`. `coreaudiod` only scans that directory at
+launch, so it needs a restart. Spotiglass surfaces this in the UI as:
+
+> *"The Spotiglass EQ driver is installed. To activate it now, log out and
+> log back in, or run `sudo launchctl kickstart -k
+> system/com.apple.audio.coreaudiod` in Terminal. (This is a standard
+> CoreAudio activation step; Spotiglass never runs sudo for you.)"*
+
+After activation, `"Spotiglass EQ"` appears in **System Settings → Sound →
+Output**. Spotiglass flips the system default output to it via
+`AudioObjectSetPropertyData` (kAudioHardwarePropertyDefaultOutputDevice) and
+records the previous default in `~/.config/spotiglass/settings.json` so
+disable can restore it.
+
+## Adding a new preset
+
+1. Add a case to `EqualizerPresets.builtIn` with the band gain dictionary.
+2. Add a row to `SpotiglassTests/EqualizerPresetsTests.swift` asserting the
+   gains.
+3. Run `make test`.
+
+## Style guide for band gains
+
+- Built-in presets cap individual band gains at ±9 dB and preamp at ±6 dB to
+  stay well below clipping for normalized streams.
+- vDSP biquads use Robert Bristow-Johnson's audio EQ cookbook formulas (peaking
+  EQ for the eight middle bands, low-shelf for 80 Hz, high-shelf for 16 kHz).
+- Coefficients are recomputed in the GUI process whenever a slider moves or a
+  preset is picked, then published through the seqlock. The plugin never
+  computes filter coefficients on the RT thread.
+
+## Privacy
+
+Spotiglass EQ:
+
+- **Never** requests Microphone / Audio Recording permission.
+- **Never** uses `AudioHardwareCreateProcessTap` / `CATapDescription`.
+- **Never** uses input-scope CoreAudio. The `.driver` registers
+  `kAudioDeviceTransportTypeVirtual` with output streams only.
+- **Never** captures, records, or persists audio data — coefficients are
+  applied in-place in the IO callback's output buffer.
+
+A pre-commit audit script
+(`scripts/eq-mic-permission-audit.sh`, wired into `make test`) greps for the
+above APIs in the EQ code and fails the build on any hit.
+
+## Known limitations
+
+- **Code signing:** macOS 26 requires HAL plugins to be Developer ID signed
+  for `coreaudiod` to load them in a non-developer environment. Debug builds
+  may fail to load the `.driver` if the signing identity is "Sign to Run
+  Locally". Production release builds (`make release`) configure the
+  `.driver` target to inherit the host app's signing identity.
+- **coreaudiod restart:** macOS does not provide a sudo-free way to reload
+  HAL plugins from `~/Library/Audio/Plug-Ins/HAL/`. Spotiglass surfaces
+  instructions but does not run sudo on the user's behalf.
+- **Sample-rate changes:** When the device's active sample rate changes
+  (e.g., user picks a new monitor), the driver re-publishes the rate and the
+  GUI process re-derives coefficients. Brief glitch may be audible during
+  the recomputation cycle.
