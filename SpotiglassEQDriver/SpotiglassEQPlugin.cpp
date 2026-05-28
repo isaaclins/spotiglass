@@ -236,6 +236,7 @@ OSStatus DoIOOperation(AudioServerPlugInDriverRef /*self*/,
         gPlugin.coeffReader, &freshFrame
     );
     // 0 = success, 1 = torn read (use cached), 2 = no reader
+#if defined(SPOTIGLASS_EQ_DEBUG)
     // Periodic diagnostic — every 200 IO cycles (~2s @ 96-frame cycles)
     // dump snapshot status + first band coefficient so we can see whether
     // the driver is actually reading new coefficient frames.
@@ -258,6 +259,7 @@ OSStatus DoIOOperation(AudioServerPlugInDriverRef /*self*/,
             fclose(log);
         }
     }
+#endif
     EQDSP_Apply(
         &gPlugin.dsp,
         snapshotStatus == 0 ? &freshFrame : nullptr,
@@ -361,6 +363,7 @@ OSStatus StartIO(AudioServerPlugInDriverRef /*self*/,
         gPlugin.coeffReader = EQCoefficientReader_Open(
             "/tmp/com.isaaclins.spotiglass.eq.coeffs.v1"
         );
+#if defined(SPOTIGLASS_EQ_DEBUG)
         FILE* log = fopen("/tmp/com.isaaclins.spotiglass.eq.router.log", "a");
         if (log) {
             fprintf(log, "StartIO: coeffReader_Open(\"%s\") → %p\n",
@@ -368,6 +371,7 @@ OSStatus StartIO(AudioServerPlugInDriverRef /*self*/,
                     (void*)gPlugin.coeffReader);
             fclose(log);
         }
+#endif
     }
     EQDSP_Reset(&gPlugin.dsp);
     gPlugin.ioRunning = true;

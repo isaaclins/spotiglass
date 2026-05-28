@@ -32,8 +32,10 @@
 // Diagnostic log path used during bring-up. Writes from inside coreaudiod
 // otherwise vanish into the audio-driver subsystem; a flat file is the
 // simplest way to confirm StartIO ran, what target UID was read, and whether
-// AudioDeviceCreateIOProcID + AudioDeviceStart returned noErr.
+// AudioDeviceCreateIOProcID + AudioDeviceStart returned noErr. Compiled to
+// a no-op unless SPOTIGLASS_EQ_DEBUG is defined at build time.
 static void EQR_log(const char* fmt, ...) {
+#if defined(SPOTIGLASS_EQ_DEBUG)
     FILE* f = fopen("/tmp/com.isaaclins.spotiglass.eq.router.log", "a");
     if (!f) return;
     va_list ap;
@@ -42,6 +44,9 @@ static void EQR_log(const char* fmt, ...) {
     va_end(ap);
     fputc('\n', f);
     fclose(f);
+#else
+    (void)fmt;
+#endif
 }
 
 namespace {
