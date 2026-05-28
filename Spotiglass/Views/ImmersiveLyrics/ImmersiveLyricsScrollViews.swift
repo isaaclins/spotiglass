@@ -320,11 +320,9 @@ struct ImmersiveLyricsLineText: View {
 // MARK: - Tappable line wrapper for click-to-seek
 
 /// Wraps a lyric line in an interactive button when an `onTap` action is
-/// provided. Drives a premium press / release / hover animation:
-/// - Press: scale 0.97, soft white glow swells behind the line.
-/// - Release: spring back to 1.0 with a subtle overshoot (the low damping
-///   factor in `TappableLyricButtonStyle` produces a ~1.02 peak naturally).
-/// - Hover: pointer cursor + a slight brightness lift on non-active lines.
+/// provided. Press = scale only (no glow), release springs back with a
+/// subtle overshoot, hover lifts brightness on non-active lines and shows
+/// the link cursor.
 ///
 /// When `onTap` is nil (e.g., unsynced plain lyrics with no per-line
 /// timestamp), the content is rendered without any button wrapper so
@@ -367,23 +365,6 @@ private struct TappableLyricButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.97 : 1.0, anchor: .leading)
-            .background(alignment: .leading) {
-                // Only render the glow when pressed. A previous always-rendered
-                // version with opacity-driven fill produced a faint horizontal
-                // seam between rows because each row's blurred-but-transparent
-                // background still got composited, and the layer boundary was
-                // visible. Conditional + .transition(.opacity) keeps the fade
-                // smooth without that artifact.
-                if configuration.isPressed {
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(.white.opacity(0.08))
-                        .blur(radius: 14)
-                        .padding(.vertical, -6)
-                        .padding(.horizontal, -10)
-                        .allowsHitTesting(false)
-                        .transition(.opacity)
-                }
-            }
             .animation(
                 reduceMotion
                     ? nil
