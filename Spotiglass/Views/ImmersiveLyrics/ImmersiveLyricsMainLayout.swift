@@ -12,6 +12,15 @@ struct ImmersiveLyricsMainLayout: View {
     let usesLyricsScrollEdgeFade: Bool
     let lyricsTextSize: LyricsTextSize
 
+    /// Hand to the lyrics column so tapping a synced line seeks playback to
+    /// that line's timestamp. The async hop is wrapped in a `Task` so the
+    /// SwiftUI tap callback stays synchronous.
+    private var seekHandler: (Int) -> Void {
+        { ms in
+            Task { await playbackViewModel.seek(to: ms) }
+        }
+    }
+
     var body: some View {
         GeometryReader { geo in
             let topClearance = max(geo.safeAreaInsets.top, ImmersiveLyricsLayout.minimumTopClearance)
@@ -38,7 +47,8 @@ struct ImmersiveLyricsMainLayout: View {
                             reduceMotion: reduceMotion,
                             usesLyricsScrollEdgeFade: usesLyricsScrollEdgeFade,
                             lyricsTextSize: lyricsTextSize,
-                            maxHeight: usableHeight
+                            maxHeight: usableHeight,
+                            onSeek: seekHandler
                         )
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }

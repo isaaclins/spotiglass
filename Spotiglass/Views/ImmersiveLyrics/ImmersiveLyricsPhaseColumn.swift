@@ -8,6 +8,10 @@ struct ImmersiveLyricsLyricsPhaseColumn: View {
     let usesLyricsScrollEdgeFade: Bool
     let lyricsTextSize: LyricsTextSize
     let maxHeight: CGFloat
+    /// Forwarded down to synced-lyrics rows so tapping a line seeks playback.
+    /// nil → lines remain non-interactive (current behaviour for callers that
+    /// don't supply a seek action).
+    var onSeek: ((Int) -> Void)? = nil
 
     var body: some View {
         Group {
@@ -42,7 +46,8 @@ struct ImmersiveLyricsLyricsPhaseColumn: View {
                     trackDurationMs: currentTrack?.durationMilliseconds,
                     reduceMotion: reduceMotion,
                     usesLyricsScrollEdgeFade: usesLyricsScrollEdgeFade,
-                    lyricsTextSize: lyricsTextSize
+                    lyricsTextSize: lyricsTextSize,
+                    onSeek: onSeek
                 )
             }
         }
@@ -57,6 +62,7 @@ struct ImmersiveLyricsReadyContentView: View {
     let reduceMotion: Bool
     let usesLyricsScrollEdgeFade: Bool
     let lyricsTextSize: LyricsTextSize
+    var onSeek: ((Int) -> Void)? = nil
 
     var body: some View {
         switch lyrics {
@@ -72,7 +78,8 @@ struct ImmersiveLyricsReadyContentView: View {
                 positionMs: positionMs,
                 reduceMotion: reduceMotion,
                 usesLyricsScrollEdgeFade: usesLyricsScrollEdgeFade,
-                lyricsTextSize: lyricsTextSize
+                lyricsTextSize: lyricsTextSize,
+                onSeek: onSeek
             )
         case let .unsyncedPlain(lines):
             ImmersiveLyricsPlainLyricsScrollView(

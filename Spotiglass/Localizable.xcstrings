@@ -4295,6 +4295,29 @@
         }
       }
     },
+    "lyrics.jumpToLineHint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Springt die Wiedergabe zu dieser Zeile."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jumps playback to this line."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Salta la reproducción a esta línea."
+          }
+        }
+      }
+    },
     "lyrics.loading" : {
       "extractionState" : "stale",
       "localizations" : {
