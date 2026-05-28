@@ -5,13 +5,21 @@ struct CommandPaletteCommandSpec: Identifiable {
     var id: String { commandID }
 
     let commandID: String
-    let title: String
-    let subtitle: String
     let iconSystemName: String
     /// Context filter stored in `keymap.json` for this command’s default binding.
     let defaultWhen: CommandPaletteContext
     /// When non-`nil`, included in the default keymap JSON.
     let defaultKeystroke: String?
+
+    /// Resolved against the current ``SpotiglassSettingsStore`` locale on every read so the
+    /// palette, Settings → Keyboard, and the menubar all pick up live language switches.
+    var title: String {
+        SpotiglassL10n.string(forKey: "palette.command.\(commandID).title")
+    }
+
+    var subtitle: String {
+        SpotiglassL10n.string(forKey: "palette.command.\(commandID).subtitle")
+    }
 
     /// Commands that only make sense while signed in (still listed in Keyboard settings when signed out).
     var requiresSignInForPalette: Bool {
@@ -20,14 +28,6 @@ struct CommandPaletteCommandSpec: Identifiable {
 }
 
 enum CommandPaletteCommandCatalog {
-    private static func localizedTitle(commandID: String) -> String {
-        SpotiglassL10n.string(forKey: "palette.command.\(commandID).title")
-    }
-
-    private static func localizedSubtitle(commandID: String) -> String {
-        SpotiglassL10n.string(forKey: "palette.command.\(commandID).subtitle")
-    }
-
     private static func spec(
         commandID: String,
         iconSystemName: String,
@@ -36,8 +36,6 @@ enum CommandPaletteCommandCatalog {
     ) -> CommandPaletteCommandSpec {
         CommandPaletteCommandSpec(
             commandID: commandID,
-            title: localizedTitle(commandID: commandID),
-            subtitle: localizedSubtitle(commandID: commandID),
             iconSystemName: iconSystemName,
             defaultWhen: defaultWhen,
             defaultKeystroke: defaultKeystroke
