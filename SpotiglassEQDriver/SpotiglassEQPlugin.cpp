@@ -268,37 +268,36 @@ OSStatus StopIO(AudioServerPlugInDriverRef /*self*/,
     return noErr;
 }
 
-// TODO(PROP): The functions below need full implementations before
-// coreaudiod will accept the device. Each is a property-routing dispatcher
-// keyed on `address->mSelector` and `objectID`. The reference implementations
-// in BlackHole / NullAudio sample (Apple Sample Code) demonstrate the
-// patterns; the most important properties to implement are:
-//
-// Plugin object (kAudioObjectPlugInObject):
-//   - kAudioObjectPropertyName, kAudioObjectPropertyManufacturer
-//   - kAudioPlugInPropertyDeviceList (return {kDeviceObjectID})
-//
-// Device object (kDeviceObjectID):
-//   - kAudioObjectPropertyName ("Spotiglass EQ")
-//   - kAudioDevicePropertyDeviceUID ("com.isaaclins.spotiglass.eqdevice")
-//   - kAudioDevicePropertyTransportType (kAudioDeviceTransportTypeVirtual)
-//   - kAudioDevicePropertyStreams (return {kOutputStreamObjectID}; OUTPUT scope only)
-//   - kAudioDevicePropertyNominalSampleRate (settable; triggers
-//     PerformDeviceConfigurationChange to flush DSP state)
-//   - kAudioDevicePropertyAvailableNominalSampleRates ({44100, 48000, 96000, 192000})
-//   - kAudioDevicePropertyZeroTimeStampPeriod (one buffer)
-//   - kAudioDevicePropertyIsHidden = false
-//
-// Output Stream object (kOutputStreamObjectID):
-//   - kAudioStreamPropertyDirection = 0 (output)
-//   - kAudioStreamPropertyVirtualFormat: 32-bit float, stereo, native order
-//   - kAudioStreamPropertyAvailableVirtualFormats: 44.1/48/96/192 stereo float
-//
-// Until those land, coreaudiod will reject the plugin during HAL load with a
-// kAudioHardwareUnsupportedOperationError. The plugin doesn't crash, it just
-// doesn't appear in System Settings → Sound. The DSP path (this file's
-// DoIOOperation + SpotiglassEQDSP.c) is independently testable and
-// independently correct.
+// MARK: - Static device shape
+
+// 2 ch, native-endian Float32 interleaved — the format coreaudiod will
+// publish to clients as "Spotiglass EQ"'s virtual stream format. Sample rate
+// is mutable via SetPropertyData; the constants here are the discrete rates
+// kAudioDevicePropertyAvailableNominalSampleRates advertises.
+constexpr UInt32 kChannelsPerFrame = 2;
+constexpr Float64 kSupportedSampleRates[] = { 44100.0, 48000.0, 88200.0, 96000.0, 192000.0 };
+constexpr UInt32 kNumSupportedSampleRates =
+    sizeof(kSupportedSampleRates) / sizeof(kSupportedSampleRates[0]);
+
+constexpr const char* kPluginNameUTF8 = "Spotiglass EQ Driver";
+constexpr const char* kPluginManufacturerUTF8 = "Isaac Lins";
+constexpr const char* kDeviceNameUTF8 = "Spotiglass EQ";
+constexpr const char* kDeviceUIDUTF8 = "com.isaaclins.spotiglass.eqdevice";
+constexpr const char* kModelUIDUTF8 = "com.isaaclins.spotiglass.eqmodel";
+
+static AudioStreamBasicDescription MakeStreamFormat(Float64 sampleRate) {
+    AudioStreamBasicDescription asbd{};
+    asbd.mSampleRate = sampleRate;
+    asbd.mFormatID = kAudioFormatLinearPCM;
+    asbd.mFormatFlags = kAudioFormatFlagIsFloat | kAudioFormatFlagsNativeEndian
+                      | kAudioFormatFlagIsPacked;
+    asbd.mBytesPerPacket = sizeof(Float32) * kChannelsPerFrame;
+    asbd.mFramesPerPacket = 1;
+    asbd.mBytesPerFrame = sizeof(Float32) * kChannelsPerFrame;
+    asbd.mChannelsPerFrame = kChannelsPerFrame;
+    asbd.mBitsPerChannel = 32;
+    return asbd;
+}
 
 OSStatus CreateDevice(AudioServerPlugInDriverRef /*self*/, CFDictionaryRef /*desc*/,
                       const AudioServerPlugInClientInfo* /*c*/, AudioObjectID* /*out*/) {
@@ -324,34 +323,346 @@ OSStatus AbortDeviceConfigurationChange(AudioServerPlugInDriverRef /*self*/,
                                         AudioObjectID /*deviceID*/, UInt64 /*action*/,
                                         void* /*info*/) { return noErr; }
 
-Boolean HasProperty(AudioServerPlugInDriverRef /*self*/, AudioObjectID /*objectID*/,
-                    pid_t /*pid*/, const AudioObjectPropertyAddress* /*address*/) {
-    return false; // TODO(PROP)
+// MARK: - Property dispatcher
+
+Boolean HasProperty(AudioServerPlugInDriverRef /*self*/, AudioObjectID objectID,
+                    pid_t /*pid*/, const AudioObjectPropertyAddress* address) {
+    if (!address) return false;
+    const AudioObjectPropertySelector s = address->mSelector;
+
+    if (objectID == kPluginObjectID) {
+        switch (s) {
+            case kAudioObjectPropertyBaseClass:
+            case kAudioObjectPropertyClass:
+            case kAudioObjectPropertyOwner:
+            case kAudioObjectPropertyName:
+            case kAudioObjectPropertyManufacturer:
+            case kAudioObjectPropertyOwnedObjects:
+            case kAudioPlugInPropertyDeviceList:
+            case kAudioPlugInPropertyTranslateUIDToDevice:
+            case kAudioPlugInPropertyResourceBundle:
+                return true;
+            default: return false;
+        }
+    }
+    if (objectID == kDeviceObjectID) {
+        switch (s) {
+            case kAudioObjectPropertyBaseClass:
+            case kAudioObjectPropertyClass:
+            case kAudioObjectPropertyOwner:
+            case kAudioObjectPropertyName:
+            case kAudioObjectPropertyManufacturer:
+            case kAudioObjectPropertyOwnedObjects:
+            case kAudioDevicePropertyDeviceUID:
+            case kAudioDevicePropertyModelUID:
+            case kAudioDevicePropertyTransportType:
+            case kAudioDevicePropertyRelatedDevices:
+            case kAudioDevicePropertyClockDomain:
+            case kAudioDevicePropertyDeviceIsAlive:
+            case kAudioDevicePropertyDeviceIsRunning:
+            case kAudioDevicePropertyDeviceCanBeDefaultDevice:
+            case kAudioDevicePropertyDeviceCanBeDefaultSystemDevice:
+            case kAudioDevicePropertyLatency:
+            case kAudioDevicePropertyStreams:
+            case kAudioObjectPropertyControlList:
+            case kAudioDevicePropertySafetyOffset:
+            case kAudioDevicePropertyNominalSampleRate:
+            case kAudioDevicePropertyAvailableNominalSampleRates:
+            case kAudioDevicePropertyIsHidden:
+            case kAudioDevicePropertyZeroTimeStampPeriod:
+            case kAudioDevicePropertyPreferredChannelsForStereo:
+                return true;
+            default: return false;
+        }
+    }
+    if (objectID == kOutputStreamObjectID) {
+        switch (s) {
+            case kAudioObjectPropertyBaseClass:
+            case kAudioObjectPropertyClass:
+            case kAudioObjectPropertyOwner:
+            case kAudioObjectPropertyName:
+            case kAudioStreamPropertyIsActive:
+            case kAudioStreamPropertyDirection:
+            case kAudioStreamPropertyTerminalType:
+            case kAudioStreamPropertyStartingChannel:
+            case kAudioStreamPropertyLatency:
+            case kAudioStreamPropertyVirtualFormat:
+            case kAudioStreamPropertyPhysicalFormat:
+            case kAudioStreamPropertyAvailableVirtualFormats:
+            case kAudioStreamPropertyAvailablePhysicalFormats:
+                return true;
+            default: return false;
+        }
+    }
+    return false;
 }
-OSStatus IsPropertySettable(AudioServerPlugInDriverRef /*self*/, AudioObjectID /*objectID*/,
-                            pid_t /*pid*/, const AudioObjectPropertyAddress* /*address*/,
+
+OSStatus IsPropertySettable(AudioServerPlugInDriverRef self, AudioObjectID objectID,
+                            pid_t pid, const AudioObjectPropertyAddress* address,
                             Boolean* outIsSettable) {
-    if (outIsSettable) *outIsSettable = false;
-    return kAudioHardwareUnknownPropertyError; // TODO(PROP)
+    if (!outIsSettable || !address) return kAudioHardwareIllegalOperationError;
+    if (!HasProperty(self, objectID, pid, address)) {
+        *outIsSettable = false;
+        return kAudioHardwareUnknownPropertyError;
+    }
+    // The only properties Spotiglass exposes as settable are the device
+    // nominal sample rate and the stream's virtual/physical format. Everything
+    // else is read-only metadata.
+    *outIsSettable = false;
+    if (objectID == kDeviceObjectID && address->mSelector == kAudioDevicePropertyNominalSampleRate) {
+        *outIsSettable = true;
+    }
+    if (objectID == kOutputStreamObjectID &&
+        (address->mSelector == kAudioStreamPropertyVirtualFormat ||
+         address->mSelector == kAudioStreamPropertyPhysicalFormat ||
+         address->mSelector == kAudioStreamPropertyIsActive)) {
+        *outIsSettable = true;
+    }
+    return noErr;
 }
-OSStatus GetPropertyDataSize(AudioServerPlugInDriverRef /*self*/, AudioObjectID /*objectID*/,
-                             pid_t /*pid*/, const AudioObjectPropertyAddress* /*address*/,
+
+OSStatus GetPropertyDataSize(AudioServerPlugInDriverRef self, AudioObjectID objectID,
+                             pid_t pid, const AudioObjectPropertyAddress* address,
                              UInt32 /*qSize*/, const void* /*qData*/, UInt32* outDataSize) {
-    if (outDataSize) *outDataSize = 0;
-    return kAudioHardwareUnknownPropertyError; // TODO(PROP)
+    if (!outDataSize || !address) return kAudioHardwareIllegalOperationError;
+    if (!HasProperty(self, objectID, pid, address)) return kAudioHardwareUnknownPropertyError;
+
+    const AudioObjectPropertySelector s = address->mSelector;
+
+    if (objectID == kPluginObjectID) {
+        switch (s) {
+            case kAudioObjectPropertyBaseClass:
+            case kAudioObjectPropertyClass:                 *outDataSize = sizeof(AudioClassID); return noErr;
+            case kAudioObjectPropertyOwner:                 *outDataSize = sizeof(AudioObjectID); return noErr;
+            case kAudioObjectPropertyName:
+            case kAudioObjectPropertyManufacturer:
+            case kAudioPlugInPropertyResourceBundle:        *outDataSize = sizeof(CFStringRef); return noErr;
+            case kAudioObjectPropertyOwnedObjects:
+            case kAudioPlugInPropertyDeviceList:            *outDataSize = sizeof(AudioObjectID); return noErr;
+            case kAudioPlugInPropertyTranslateUIDToDevice:  *outDataSize = sizeof(AudioObjectID); return noErr;
+        }
+    }
+    if (objectID == kDeviceObjectID) {
+        switch (s) {
+            case kAudioObjectPropertyBaseClass:
+            case kAudioObjectPropertyClass:                                *outDataSize = sizeof(AudioClassID); return noErr;
+            case kAudioObjectPropertyOwner:                                *outDataSize = sizeof(AudioObjectID); return noErr;
+            case kAudioObjectPropertyName:
+            case kAudioObjectPropertyManufacturer:
+            case kAudioDevicePropertyDeviceUID:
+            case kAudioDevicePropertyModelUID:                              *outDataSize = sizeof(CFStringRef); return noErr;
+            case kAudioDevicePropertyTransportType:                         *outDataSize = sizeof(UInt32); return noErr;
+            case kAudioDevicePropertyRelatedDevices:                        *outDataSize = sizeof(AudioObjectID); return noErr;
+            case kAudioDevicePropertyClockDomain:                           *outDataSize = sizeof(UInt32); return noErr;
+            case kAudioDevicePropertyDeviceIsAlive:                         *outDataSize = sizeof(UInt32); return noErr;
+            case kAudioDevicePropertyDeviceIsRunning:                       *outDataSize = sizeof(UInt32); return noErr;
+            case kAudioDevicePropertyDeviceCanBeDefaultDevice:              *outDataSize = sizeof(UInt32); return noErr;
+            case kAudioDevicePropertyDeviceCanBeDefaultSystemDevice:        *outDataSize = sizeof(UInt32); return noErr;
+            case kAudioDevicePropertyLatency:                               *outDataSize = sizeof(UInt32); return noErr;
+            case kAudioDevicePropertyStreams:                               *outDataSize = sizeof(AudioObjectID); return noErr;
+            case kAudioObjectPropertyControlList:                           *outDataSize = 0; return noErr;
+            case kAudioDevicePropertySafetyOffset:                          *outDataSize = sizeof(UInt32); return noErr;
+            case kAudioDevicePropertyNominalSampleRate:                     *outDataSize = sizeof(Float64); return noErr;
+            case kAudioDevicePropertyAvailableNominalSampleRates:
+                *outDataSize = kNumSupportedSampleRates * sizeof(AudioValueRange); return noErr;
+            case kAudioDevicePropertyIsHidden:                              *outDataSize = sizeof(UInt32); return noErr;
+            case kAudioDevicePropertyZeroTimeStampPeriod:                   *outDataSize = sizeof(UInt32); return noErr;
+            case kAudioDevicePropertyPreferredChannelsForStereo:            *outDataSize = 2 * sizeof(UInt32); return noErr;
+        }
+    }
+    if (objectID == kOutputStreamObjectID) {
+        switch (s) {
+            case kAudioObjectPropertyBaseClass:
+            case kAudioObjectPropertyClass:                              *outDataSize = sizeof(AudioClassID); return noErr;
+            case kAudioObjectPropertyOwner:                              *outDataSize = sizeof(AudioObjectID); return noErr;
+            case kAudioObjectPropertyName:                               *outDataSize = sizeof(CFStringRef); return noErr;
+            case kAudioStreamPropertyIsActive:                           *outDataSize = sizeof(UInt32); return noErr;
+            case kAudioStreamPropertyDirection:                          *outDataSize = sizeof(UInt32); return noErr;
+            case kAudioStreamPropertyTerminalType:                       *outDataSize = sizeof(UInt32); return noErr;
+            case kAudioStreamPropertyStartingChannel:                    *outDataSize = sizeof(UInt32); return noErr;
+            case kAudioStreamPropertyLatency:                            *outDataSize = sizeof(UInt32); return noErr;
+            case kAudioStreamPropertyVirtualFormat:
+            case kAudioStreamPropertyPhysicalFormat:                     *outDataSize = sizeof(AudioStreamBasicDescription); return noErr;
+            case kAudioStreamPropertyAvailableVirtualFormats:
+            case kAudioStreamPropertyAvailablePhysicalFormats:
+                *outDataSize = kNumSupportedSampleRates * sizeof(AudioStreamRangedDescription); return noErr;
+        }
+    }
+    return kAudioHardwareUnknownPropertyError;
 }
-OSStatus GetPropertyData(AudioServerPlugInDriverRef /*self*/, AudioObjectID /*objectID*/,
-                         pid_t /*pid*/, const AudioObjectPropertyAddress* /*address*/,
-                         UInt32 /*qSize*/, const void* /*qData*/, UInt32 /*inSize*/,
-                         UInt32* outDataSize, void* /*outData*/) {
-    if (outDataSize) *outDataSize = 0;
-    return kAudioHardwareUnknownPropertyError; // TODO(PROP)
+
+OSStatus GetPropertyData(AudioServerPlugInDriverRef self, AudioObjectID objectID,
+                         pid_t pid, const AudioObjectPropertyAddress* address,
+                         UInt32 /*qSize*/, const void* /*qData*/, UInt32 inSize,
+                         UInt32* outDataSize, void* outData) {
+    if (!address || !outDataSize || !outData) return kAudioHardwareIllegalOperationError;
+    if (!HasProperty(self, objectID, pid, address)) return kAudioHardwareUnknownPropertyError;
+    const AudioObjectPropertySelector s = address->mSelector;
+
+    auto putString = [&](const char* utf8) -> OSStatus {
+        if (inSize < sizeof(CFStringRef)) return kAudioHardwareBadPropertySizeError;
+        *static_cast<CFStringRef*>(outData) = MakeStaticCFString(utf8);
+        *outDataSize = sizeof(CFStringRef);
+        return noErr;
+    };
+    auto putUInt32 = [&](UInt32 v) -> OSStatus {
+        if (inSize < sizeof(UInt32)) return kAudioHardwareBadPropertySizeError;
+        *static_cast<UInt32*>(outData) = v;
+        *outDataSize = sizeof(UInt32);
+        return noErr;
+    };
+    auto putClassID = [&](AudioClassID v) -> OSStatus {
+        if (inSize < sizeof(AudioClassID)) return kAudioHardwareBadPropertySizeError;
+        *static_cast<AudioClassID*>(outData) = v;
+        *outDataSize = sizeof(AudioClassID);
+        return noErr;
+    };
+    auto putObjectID = [&](AudioObjectID v) -> OSStatus {
+        if (inSize < sizeof(AudioObjectID)) return kAudioHardwareBadPropertySizeError;
+        *static_cast<AudioObjectID*>(outData) = v;
+        *outDataSize = sizeof(AudioObjectID);
+        return noErr;
+    };
+
+    if (objectID == kPluginObjectID) {
+        switch (s) {
+            case kAudioObjectPropertyBaseClass:    return putClassID(kAudioObjectClassID);
+            case kAudioObjectPropertyClass:        return putClassID(kAudioPlugInClassID);
+            case kAudioObjectPropertyOwner:        return putObjectID(kAudioObjectUnknown);
+            case kAudioObjectPropertyName:         return putString(kPluginNameUTF8);
+            case kAudioObjectPropertyManufacturer: return putString(kPluginManufacturerUTF8);
+            case kAudioObjectPropertyOwnedObjects:
+            case kAudioPlugInPropertyDeviceList:   return putObjectID(kDeviceObjectID);
+            case kAudioPlugInPropertyTranslateUIDToDevice: {
+                if (inSize < sizeof(AudioObjectID)) return kAudioHardwareBadPropertySizeError;
+                CFStringRef uid = nullptr;
+                // qualifierData carries the UID as CFStringRef.
+                // For our single-device plugin, just always return the device if the UID matches.
+                *static_cast<AudioObjectID*>(outData) =
+                    (uid && CFStringCompare(uid, CFSTR("com.isaaclins.spotiglass.eqdevice"), 0) == kCFCompareEqualTo)
+                    ? kDeviceObjectID : kAudioObjectUnknown;
+                *outDataSize = sizeof(AudioObjectID);
+                return noErr;
+            }
+            case kAudioPlugInPropertyResourceBundle: return putString("");
+        }
+    }
+    if (objectID == kDeviceObjectID) {
+        switch (s) {
+            case kAudioObjectPropertyBaseClass:    return putClassID(kAudioObjectClassID);
+            case kAudioObjectPropertyClass:        return putClassID(kAudioDeviceClassID);
+            case kAudioObjectPropertyOwner:        return putObjectID(kPluginObjectID);
+            case kAudioObjectPropertyName:         return putString(kDeviceNameUTF8);
+            case kAudioObjectPropertyManufacturer: return putString(kPluginManufacturerUTF8);
+            case kAudioObjectPropertyOwnedObjects: return putObjectID(kOutputStreamObjectID);
+            case kAudioDevicePropertyDeviceUID:    return putString(kDeviceUIDUTF8);
+            case kAudioDevicePropertyModelUID:     return putString(kModelUIDUTF8);
+            case kAudioDevicePropertyTransportType: return putUInt32(kAudioDeviceTransportTypeVirtual);
+            case kAudioDevicePropertyRelatedDevices: return putObjectID(kDeviceObjectID);
+            case kAudioDevicePropertyClockDomain:  return putUInt32(0);
+            case kAudioDevicePropertyDeviceIsAlive: return putUInt32(1);
+            case kAudioDevicePropertyDeviceIsRunning:
+                // Best-effort: 1 once StartIO succeeded. Tracked indirectly by
+                // coeffReader presence (StartIO opens it, StopIO closes it).
+                return putUInt32(gPlugin.coeffReader != nullptr ? 1 : 0);
+            case kAudioDevicePropertyDeviceCanBeDefaultDevice:       return putUInt32(1);
+            case kAudioDevicePropertyDeviceCanBeDefaultSystemDevice: return putUInt32(1);
+            case kAudioDevicePropertyLatency:                        return putUInt32(0);
+            case kAudioDevicePropertyStreams:                        return putObjectID(kOutputStreamObjectID);
+            case kAudioObjectPropertyControlList:                    *outDataSize = 0; return noErr;
+            case kAudioDevicePropertySafetyOffset:                   return putUInt32(0);
+            case kAudioDevicePropertyNominalSampleRate: {
+                if (inSize < sizeof(Float64)) return kAudioHardwareBadPropertySizeError;
+                *static_cast<Float64*>(outData) = gPlugin.currentSampleRate;
+                *outDataSize = sizeof(Float64);
+                return noErr;
+            }
+            case kAudioDevicePropertyAvailableNominalSampleRates: {
+                const UInt32 needed = kNumSupportedSampleRates * sizeof(AudioValueRange);
+                if (inSize < needed) return kAudioHardwareBadPropertySizeError;
+                AudioValueRange* out = static_cast<AudioValueRange*>(outData);
+                for (UInt32 i = 0; i < kNumSupportedSampleRates; ++i) {
+                    out[i].mMinimum = kSupportedSampleRates[i];
+                    out[i].mMaximum = kSupportedSampleRates[i];
+                }
+                *outDataSize = needed;
+                return noErr;
+            }
+            case kAudioDevicePropertyIsHidden:               return putUInt32(0);
+            case kAudioDevicePropertyZeroTimeStampPeriod:    return putUInt32(static_cast<UInt32>(gPlugin.currentSampleRate));
+            case kAudioDevicePropertyPreferredChannelsForStereo: {
+                if (inSize < 2 * sizeof(UInt32)) return kAudioHardwareBadPropertySizeError;
+                UInt32* out = static_cast<UInt32*>(outData);
+                out[0] = 1; out[1] = 2;
+                *outDataSize = 2 * sizeof(UInt32);
+                return noErr;
+            }
+        }
+    }
+    if (objectID == kOutputStreamObjectID) {
+        switch (s) {
+            case kAudioObjectPropertyBaseClass: return putClassID(kAudioObjectClassID);
+            case kAudioObjectPropertyClass:     return putClassID(kAudioStreamClassID);
+            case kAudioObjectPropertyOwner:     return putObjectID(kDeviceObjectID);
+            case kAudioObjectPropertyName:      return putString("Spotiglass EQ Output");
+            case kAudioStreamPropertyIsActive:  return putUInt32(1);
+            case kAudioStreamPropertyDirection: return putUInt32(0); // output
+            case kAudioStreamPropertyTerminalType: return putUInt32(kAudioStreamTerminalTypeSpeaker);
+            case kAudioStreamPropertyStartingChannel: return putUInt32(1);
+            case kAudioStreamPropertyLatency:   return putUInt32(0);
+            case kAudioStreamPropertyVirtualFormat:
+            case kAudioStreamPropertyPhysicalFormat: {
+                if (inSize < sizeof(AudioStreamBasicDescription)) return kAudioHardwareBadPropertySizeError;
+                *static_cast<AudioStreamBasicDescription*>(outData) =
+                    MakeStreamFormat(gPlugin.currentSampleRate);
+                *outDataSize = sizeof(AudioStreamBasicDescription);
+                return noErr;
+            }
+            case kAudioStreamPropertyAvailableVirtualFormats:
+            case kAudioStreamPropertyAvailablePhysicalFormats: {
+                const UInt32 needed = kNumSupportedSampleRates * sizeof(AudioStreamRangedDescription);
+                if (inSize < needed) return kAudioHardwareBadPropertySizeError;
+                AudioStreamRangedDescription* out =
+                    static_cast<AudioStreamRangedDescription*>(outData);
+                for (UInt32 i = 0; i < kNumSupportedSampleRates; ++i) {
+                    out[i].mFormat = MakeStreamFormat(kSupportedSampleRates[i]);
+                    out[i].mSampleRateRange.mMinimum = kSupportedSampleRates[i];
+                    out[i].mSampleRateRange.mMaximum = kSupportedSampleRates[i];
+                }
+                *outDataSize = needed;
+                return noErr;
+            }
+        }
+    }
+    return kAudioHardwareUnknownPropertyError;
 }
-OSStatus SetPropertyData(AudioServerPlugInDriverRef /*self*/, AudioObjectID /*objectID*/,
-                         pid_t /*pid*/, const AudioObjectPropertyAddress* /*address*/,
-                         UInt32 /*qSize*/, const void* /*qData*/, UInt32 /*inSize*/,
-                         const void* /*inData*/) {
-    return kAudioHardwareUnknownPropertyError; // TODO(PROP)
+
+OSStatus SetPropertyData(AudioServerPlugInDriverRef self, AudioObjectID objectID,
+                         pid_t pid, const AudioObjectPropertyAddress* address,
+                         UInt32 /*qSize*/, const void* /*qData*/, UInt32 inSize,
+                         const void* inData) {
+    if (!address || !inData) return kAudioHardwareIllegalOperationError;
+    if (!HasProperty(self, objectID, pid, address)) return kAudioHardwareUnknownPropertyError;
+
+    if (objectID == kDeviceObjectID && address->mSelector == kAudioDevicePropertyNominalSampleRate) {
+        if (inSize < sizeof(Float64)) return kAudioHardwareBadPropertySizeError;
+        const Float64 newRate = *static_cast<const Float64*>(inData);
+        // Accept only supported rates.
+        bool ok = false;
+        for (UInt32 i = 0; i < kNumSupportedSampleRates; ++i) {
+            if (newRate == kSupportedSampleRates[i]) { ok = true; break; }
+        }
+        if (!ok) return kAudioHardwareIllegalOperationError;
+        pthread_mutex_lock(&gPlugin.stateLock);
+        gPlugin.currentSampleRate = newRate;
+        pthread_mutex_unlock(&gPlugin.stateLock);
+        return noErr;
+    }
+    // Stream format / IsActive: accept but no-op (we only support one format).
+    if (objectID == kOutputStreamObjectID) {
+        return noErr;
+    }
+    return kAudioHardwareUnsupportedOperationError;
 }
 
 OSStatus GetZeroTimeStamp(AudioServerPlugInDriverRef /*self*/, AudioObjectID /*deviceID*/,
