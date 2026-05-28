@@ -16,12 +16,14 @@ final class SettingsShellViewsTests: XCTestCase {
         let auth = AuthViewModel(refreshTokenStore: MemoryOnlyRefreshTokenStore())
         let view = SpotiglassSettingsView(
             commandPaletteManager: manager,
-            settingsStore: store
+            settingsStore: store,
+            equalizerEngine: AudioEqualizerEngine()
         )
         .environmentObject(auth)
         ViewTestHost.host(view)
         for key in [
             "settings.section.playback",
+            "settings.section.equalizer",
             "settings.section.appearance",
             "settings.section.account",
             "settings.section.keyboard"

@@ -8,6 +8,7 @@ struct SpotiglassApp: App {
     @StateObject private var commandPaletteManager: CommandPaletteManager
     @StateObject private var pinnedStore: PinnedItemsStore
     @StateObject private var lyricsOverlayController = LyricsOverlayController()
+    @StateObject private var equalizerEngine: AudioEqualizerEngine
 
     init() {
         SpotiglassLog.boot()
@@ -33,6 +34,7 @@ struct SpotiglassApp: App {
             authVM = AuthViewModel()
         }
         _authViewModel = StateObject(wrappedValue: authVM)
+        _equalizerEngine = StateObject(wrappedValue: AudioEqualizerEngine())
         SpotiglassL10n.settingsStore = store
     }
 
@@ -68,7 +70,8 @@ struct SpotiglassApp: App {
         Settings {
             SpotiglassSettingsView(
                 commandPaletteManager: commandPaletteManager,
-                settingsStore: settingsStore
+                settingsStore: settingsStore,
+                equalizerEngine: equalizerEngine
             )
             .environmentObject(authViewModel)
             .environment(\.locale, settingsStore.appLocale)
