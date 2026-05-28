@@ -459,7 +459,12 @@ OSStatus GetPropertyDataSize(AudioServerPlugInDriverRef self, AudioObjectID obje
             case kAudioDevicePropertyDeviceCanBeDefaultDevice:              *outDataSize = sizeof(UInt32); return noErr;
             case kAudioDevicePropertyDeviceCanBeDefaultSystemDevice:        *outDataSize = sizeof(UInt32); return noErr;
             case kAudioDevicePropertyLatency:                               *outDataSize = sizeof(UInt32); return noErr;
-            case kAudioDevicePropertyStreams:                               *outDataSize = sizeof(AudioObjectID); return noErr;
+            case kAudioDevicePropertyStreams:
+                // Match GetPropertyData's scope filter: input scope reports
+                // zero streams so Spotiglass EQ has zero input channels.
+                *outDataSize = (address->mScope == kAudioObjectPropertyScopeInput)
+                    ? 0 : sizeof(AudioObjectID);
+                return noErr;
             case kAudioObjectPropertyControlList:                           *outDataSize = 0; return noErr;
             case kAudioDevicePropertySafetyOffset:                          *outDataSize = sizeof(UInt32); return noErr;
             case kAudioDevicePropertyNominalSampleRate:                     *outDataSize = sizeof(Float64); return noErr;
@@ -568,7 +573,19 @@ OSStatus GetPropertyData(AudioServerPlugInDriverRef self, AudioObjectID objectID
             case kAudioDevicePropertyDeviceCanBeDefaultDevice:       return putUInt32(1);
             case kAudioDevicePropertyDeviceCanBeDefaultSystemDevice: return putUInt32(1);
             case kAudioDevicePropertyLatency:                        return putUInt32(0);
-            case kAudioDevicePropertyStreams:                        return putObjectID(kOutputStreamObjectID);
+            case kAudioDevicePropertyStreams: {
+                // CRITICAL: Spotiglass EQ is OUTPUT-ONLY. coreaudiod queries
+                // streams with both input and output scopes. If we return a
+                // stream for input scope, the device incorrectly appears with
+                // "Input Channels: 2" in system_profiler — and worse, that's
+                // exactly the audio-recording surface the project policy
+                // forbids.
+                if (address->mScope == kAudioObjectPropertyScopeInput) {
+                    *outDataSize = 0;
+                    return noErr;
+                }
+                return putObjectID(kOutputStreamObjectID);
+            }
             case kAudioObjectPropertyControlList:                    *outDataSize = 0; return noErr;
             case kAudioDevicePropertySafetyOffset:                   return putUInt32(0);
             case kAudioDevicePropertyNominalSampleRate: {
