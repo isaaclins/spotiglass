@@ -56,6 +56,33 @@ xcodebuild \
   CODE_SIGNING_REQUIRED=NO \
   clean build
 
+# Build, re-sign, and embed the SpotiglassEQDriver into the Release .app.
+# The standalone build-driver.sh leaves the bundle ad-hoc signed, which
+# coreaudiod refuses to load on macOS 26. Re-sign with the local Apple
+# Development identity (same one `make sign-driver` uses) so the embedded
+# .driver has a real TeamIdentifier when shipped to users.
+echo "==> Building SpotiglassEQDriver"
+(cd "$ROOT/SpotiglassEQDriver" && bash build-driver.sh)
+
+CODESIGN_IDENTITY="${CODESIGN_IDENTITY:-$(security find-identity -v -p codesigning | awk '/Apple Development/ { print $2; exit }')}"
+if [[ -z "$CODESIGN_IDENTITY" ]]; then
+  echo "ERROR: No Apple Development identity in keychain — open Xcode → Settings → Accounts and sign in, then retry." >&2
+  exit 1
+fi
+echo "==> Re-signing SpotiglassEQDriver with $CODESIGN_IDENTITY"
+codesign --force --sign "$CODESIGN_IDENTITY" "$ROOT/build/SpotiglassEQDriver.driver"
+DRIVER_TEAM=$(codesign -dv "$ROOT/build/SpotiglassEQDriver.driver" 2>&1 | awk -F= '/TeamIdentifier/ { print $2 }')
+if [[ -z "$DRIVER_TEAM" || "$DRIVER_TEAM" == "not set" ]]; then
+  echo "ERROR: Driver signature fell back to ad-hoc (TeamIdentifier=$DRIVER_TEAM). Run scripts/setup-eq-driver-signing.sh to trust Apple Root CA, then retry." >&2
+  exit 1
+fi
+
+DRIVER_DST="$APP_SOURCE/Contents/Library/Audio/Plug-Ins/HAL"
+echo "==> Embedding signed driver into $DRIVER_DST"
+mkdir -p "$DRIVER_DST"
+rm -rf "$DRIVER_DST/SpotiglassEQDriver.driver"
+cp -pR "$ROOT/build/SpotiglassEQDriver.driver" "$DRIVER_DST/"
+
 mkdir -p "$ARCHIVES_DIR"
 ZIP_PATH="$ARCHIVES_DIR/$ZIP_NAME"
 rm -f "$ZIP_PATH"

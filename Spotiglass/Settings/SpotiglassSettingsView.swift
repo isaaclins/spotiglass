@@ -119,9 +119,9 @@ struct SpotiglassSettingsView: View {
                 .foregroundStyle(.tint, .quaternary)
                 .symbolRenderingMode(.palette)
             VStack(alignment: .leading, spacing: 1) {
-                Text("Isaac Lins")
+                Text(SpotiglassL10n.string("settings.account.maintainer"))
                     .font(.callout.weight(.semibold))
-                Text("Account")
+                Text(SpotiglassL10n.string("settings.account.section"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

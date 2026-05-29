@@ -52,9 +52,9 @@ struct EqualizerSettingsView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
-            Text("Equalizer")
+            Text(SpotiglassL10n.string("settings.eq.title"))
                 .font(.title3.weight(.semibold))
-            Text("A live 10-band parametric equalizer applied to Spotiglass playback. Drag any slider while a song is playing — changes apply immediately.")
+            Text(SpotiglassL10n.string("settings.eq.description"))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -63,7 +63,7 @@ struct EqualizerSettingsView: View {
     private var statusRow: some View {
         let equalizer = settingsStore.settings.equalizer
         return HStack(alignment: .center, spacing: SpotiglassDesign.spacingM) {
-            Toggle("Enable Equalizer", isOn: equalizerEnabledBinding)
+            Toggle(SpotiglassL10n.string("settings.eq.enableToggle"), isOn: equalizerEnabledBinding)
                 .toggleStyle(.switch)
                 .controlSize(.large)
 
@@ -74,11 +74,11 @@ struct EqualizerSettingsView: View {
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
             } else if equalizer.enabled, !engine.isRunning {
-                Label("Starting equalizer…", systemImage: "hourglass")
+                Label(SpotiglassL10n.string("settings.eq.starting"), systemImage: "hourglass")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else if equalizer.enabled {
-                Label("Live", systemImage: "waveform")
+                Label(SpotiglassL10n.string("settings.eq.live"), systemImage: "waveform")
                     .font(.caption)
                     .foregroundStyle(.green)
             }
@@ -93,11 +93,11 @@ struct EqualizerSettingsView: View {
         let equalizer = settingsStore.settings.equalizer
         let devices = engine.availableForwardingTargets()
         return HStack(alignment: .center, spacing: SpotiglassDesign.spacingS) {
-            Text("Send EQ'd audio to")
+            Text(SpotiglassL10n.string("settings.eq.target.label"))
                 .font(.subheadline.weight(.semibold))
 
-            Picker("Send EQ'd audio to", selection: forwardingTargetBinding) {
-                Text("Auto (previous default)").tag(Optional<String>.none)
+            Picker(SpotiglassL10n.string("settings.eq.target.label"), selection: forwardingTargetBinding) {
+                Text(SpotiglassL10n.string("settings.eq.target.auto")).tag(Optional<String>.none)
                 ForEach(devices, id: \.id) { device in
                     Text(device.name).tag(Optional(device.uid))
                 }
@@ -142,23 +142,23 @@ struct EqualizerSettingsView: View {
     private var presetRow: some View {
         let equalizer = settingsStore.settings.equalizer
         return HStack(alignment: .center, spacing: SpotiglassDesign.spacingS) {
-            Text("Preset")
+            Text(SpotiglassL10n.string("settings.eq.preset.label"))
                 .font(.subheadline.weight(.semibold))
 
-            Picker("Preset", selection: presetBinding) {
-                Section("Built-in") {
+            Picker(SpotiglassL10n.string("settings.eq.preset.label"), selection: presetBinding) {
+                Section(SpotiglassL10n.string("settings.eq.preset.builtin")) {
                     ForEach(EqualizerPreset.builtIns) { preset in
                         Text(preset.name).tag(Optional(preset.name))
                     }
                 }
                 if !equalizer.userPresets.isEmpty {
-                    Section("Saved") {
+                    Section(SpotiglassL10n.string("settings.eq.preset.saved")) {
                         ForEach(equalizer.userPresets) { preset in
                             Text(preset.name).tag(Optional(preset.name))
                         }
                     }
                 }
-                Text("Custom")
+                Text(SpotiglassL10n.string("settings.eq.preset.custom"))
                     .tag(Optional<String>.none)
             }
             .labelsHidden()
@@ -171,13 +171,13 @@ struct EqualizerSettingsView: View {
                 saveSheetError = nil
                 isPresentingSaveSheet = true
             } label: {
-                Label("Save preset…", systemImage: "square.and.arrow.down")
+                Label(SpotiglassL10n.string("settings.eq.preset.save"), systemImage: "square.and.arrow.down")
             }
 
             Button(role: .destructive) {
                 deleteActiveUserPreset()
             } label: {
-                Label("Delete", systemImage: "trash")
+                Label(SpotiglassL10n.string("settings.eq.preset.delete"), systemImage: "trash")
             }
             .disabled(!isActivePresetUserDefined)
         }
@@ -187,7 +187,7 @@ struct EqualizerSettingsView: View {
         let equalizer = settingsStore.settings.equalizer
         return VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
             HStack {
-                Text("Preamp")
+                Text(SpotiglassL10n.string("settings.eq.preamp"))
                     .font(.subheadline.weight(.semibold))
                 Spacer()
                 Text(formatGain(equalizer.preamp))
@@ -199,7 +199,7 @@ struct EqualizerSettingsView: View {
                 in: EqualizerSettings.preampRangeDB,
                 step: 0.5
             ) {
-                Text("Preamp")
+                Text(SpotiglassL10n.string("settings.eq.preamp"))
             } minimumValueLabel: {
                 Text("\(Int(EqualizerSettings.preampRangeDB.lowerBound)) dB")
                     .font(.caption2)
@@ -214,7 +214,7 @@ struct EqualizerSettingsView: View {
 
     private var bandsRow: some View {
         VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
-            Text("Bands")
+            Text(SpotiglassL10n.string("settings.eq.bands"))
                 .font(.subheadline.weight(.semibold))
 
             HStack(alignment: .top, spacing: SpotiglassDesign.spacingS) {
@@ -231,11 +231,11 @@ struct EqualizerSettingsView: View {
 
     private var footerActions: some View {
         HStack(spacing: SpotiglassDesign.spacingS) {
-            Button("Reset to Flat") {
+            Button(SpotiglassL10n.string("settings.eq.reset")) {
                 applyPreset(EqualizerPreset.flat)
             }
 
-            Button("Open settings.json") {
+            Button(SpotiglassL10n.string("settings.eq.openSettings")) {
                 settingsStore.openFileInDefaultEditor()
             }
 
@@ -447,7 +447,7 @@ private struct VerticalGainSlider: View {
             in: EqualizerSettings.gainRangeDB,
             step: 0.5
         ) {
-            Text("Band gain")
+            Text(SpotiglassL10n.string("settings.eq.bandGain.accessibility"))
         }
         // SwiftUI's Slider is horizontal by default on macOS. Rotate it to render
         // a tall vertical band fader; the binding semantics stay correct.
@@ -466,14 +466,14 @@ private struct SavePresetSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: SpotiglassDesign.spacingM) {
-            Text("Save EQ Preset")
+            Text(SpotiglassL10n.string("settings.eq.savePreset.title"))
                 .font(.headline)
-            Text("Saves the current bands and preamp under the chosen name. Saved presets live alongside the keybinds in `~/.config/spotiglass/settings.json`.")
+            Text(SpotiglassL10n.string("settings.eq.savePreset.message"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            TextField("Preset name", text: $name)
+            TextField(SpotiglassL10n.string("settings.eq.savePreset.field"), text: $name)
                 .textFieldStyle(.roundedBorder)
                 .onSubmit { onSave(name) }
 
@@ -485,8 +485,8 @@ private struct SavePresetSheet: View {
 
             HStack {
                 Spacer()
-                Button("Cancel", role: .cancel, action: onCancel)
-                Button("Save") { onSave(name) }
+                Button(SpotiglassL10n.string("settings.eq.savePreset.cancel"), role: .cancel, action: onCancel)
+                Button(SpotiglassL10n.string("settings.eq.savePreset.save")) { onSave(name) }
                     .keyboardShortcut(.defaultAction)
                     .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }

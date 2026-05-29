@@ -1,5 +1,13 @@
 # CI and releases
 
+> **As of v0.2.0, real releases are cut locally** via `./scripts/sparkle-release.sh`,
+> not from CI. The script embeds `SpotiglassEQDriver.driver` and re-signs it with
+> the maintainer's Apple Development identity — CI doesn't have access to that
+> identity, and `coreaudiod` on macOS 26 rejects ad-hoc-signed HAL plugins, so a
+> CI-published Sparkle update would ship a broken EQ to every user. The
+> Sparkle/Release/Pages steps have been removed from the workflow; what's left is
+> a preview-only build for reviewing a branch.
+
 ## Workflow
 
 The workflow **Release artifact** lives at [.github/workflows/release-artifact.yml](../.github/workflows/release-artifact.yml).
@@ -7,12 +15,12 @@ The workflow **Release artifact** lives at [.github/workflows/release-artifact.y
 | Aspect | Detail |
 |--------|--------|
 | Trigger | `workflow_dispatch` only — not on push or pull request |
-| Inputs | `marketing_version` (required), `build_number` (optional; defaults to run number), `release_notes` (optional markdown), `publish_sparkle_update` (default true) |
-| Steps | Resolve packages → unit tests → coverage gate → unsigned Release build → Actions artifact → optional Sparkle release |
+| Inputs | `marketing_version` (required), `build_number` (optional; defaults to run number) |
+| Steps | Resolve packages → unit tests → coverage gate → unsigned Release build → Actions artifact (preview only) |
 | Artifact name | `Spotiglass-release-app` (14-day retention) |
-| Permanent updates | GitHub Release zip + [appcast](appcast.xml) on GitHub Pages (when Sparkle publish is enabled) |
+| Permanent updates | None — cut releases locally via `scripts/sparkle-release.sh` |
 
-Download the short-lived Actions artifact from the workflow run **Summary** page. For end users and Sparkle, use **GitHub Releases** and the Pages-hosted appcast.
+Download the short-lived Actions artifact from the workflow run **Summary** page to preview a branch. For end users and Sparkle, use **GitHub Releases** (published by the local script) and the Pages-hosted appcast.
 
 ## Sparkle auto-update (serverless)
 

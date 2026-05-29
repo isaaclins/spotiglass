@@ -100,13 +100,13 @@ struct PlaylistDetailContent: View {
                 )
             }
         }
-        .alert("New playlist", isPresented: $isPromptingNewPlaylist) {
-            TextField("Playlist name", text: $newPlaylistName)
-            Button("Cancel", role: .cancel) {
+        .alert(SpotiglassL10n.string("playlist.detail.newPlaylist.title"), isPresented: $isPromptingNewPlaylist) {
+            TextField(SpotiglassL10n.string("playlist.detail.newPlaylist.field"), text: $newPlaylistName)
+            Button(SpotiglassL10n.string("playlist.detail.newPlaylist.cancel"), role: .cancel) {
                 newPlaylistInitialRows = []
                 newPlaylistName = ""
             }
-            Button("Create") {
+            Button(SpotiglassL10n.string("playlist.detail.newPlaylist.create")) {
                 let rows = newPlaylistInitialRows
                 let name = newPlaylistName
                 newPlaylistInitialRows = []
@@ -209,7 +209,7 @@ struct TrackOpsMenuItems: View {
         )
 
         Menu("Add to playlist") {
-            Button("New playlist…") {
+            Button(SpotiglassL10n.string("playlist.detail.newPlaylist.menuItem")) {
                 onRequestCreatePlaylist(targets)
             }
             if !destinations.isEmpty { Divider() }
@@ -243,12 +243,12 @@ struct TrackOpsMenuItems: View {
         }
         .disabled(targets.isEmpty || destinations.isEmpty)
 
-        Button("Add to Liked Songs (\(label))") {
+        Button(SpotiglassL10n.format("playlist.detail.likedSongs.add", label)) {
             Task { await browserViewModel.favoriteRows(targets) }
         }
         .disabled(targets.isEmpty)
 
-        Button("Remove from Liked Songs (\(label))") {
+        Button(SpotiglassL10n.format("playlist.detail.likedSongs.remove", label)) {
             Task { await browserViewModel.unfavoriteRows(targets) }
         }
         .disabled(targets.isEmpty)

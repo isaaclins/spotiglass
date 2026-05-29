@@ -1,5 +1,21 @@
 name: Release artifact
 
+# NOTE: This workflow is PREVIEW-ONLY as of v0.2.0.
+#
+# It builds an unsigned Release Spotiglass.app and uploads it as a 14-day
+# Actions artifact so reviewers can grab a build of a branch without a Mac.
+# It does NOT cut a real release.
+#
+# Real releases are cut locally from a maintainer's Mac via:
+#   ./scripts/sparkle-release.sh <marketing_version> <build_number> docs/release-notes/v<version>.md
+#
+# The local script embeds the SpotiglassEQDriver into the .app and re-signs
+# it with the maintainer's Apple Development identity (coreaudiod on macOS 26
+# rejects ad-hoc-signed HAL plugins). CI doesn't have access to that signing
+# identity, so the Sparkle archive + GitHub Release + appcast publish steps
+# were removed — running them here would publish a working app shell with a
+# broken EQ to all existing 0.x users.
+
 on:
   workflow_dispatch:
     inputs:
@@ -11,22 +27,10 @@ on:
         description: "CFBundleVersion build number (must increase; default = run number)"
         required: false
         type: string
-      release_notes:
-        description: "Optional release notes (markdown)"
-        required: false
-        type: string
-      publish_sparkle_update:
-        description: "Publish GitHub Release + appcast (needs SPARKLE_EDDSA_PRIVATE_KEY secret)"
-        required: false
-        type: boolean
-        default: true
-
-permissions:
-  contents: write
 
 jobs:
   build:
-    name: Build unsigned Release Spotiglass.app
+    name: Build unsigned Release Spotiglass.app (preview only)
     # Pinned to the macos-26 (Tahoe) runner because Spotiglass and
     # SpotiglassTests both have a macOS 26.0 deployment target. The default
     # macos-latest label currently maps to macOS 15, whose host OS (15.7.x)
@@ -44,7 +48,6 @@ jobs:
       DERIVED_DATA: ${{ github.workspace }}/build/DerivedData
       MARKETING_VERSION: ${{ inputs.marketing_version }}
       BUILD_NUMBER: ${{ inputs.build_number || github.run_number }}
-      SPARKLE_VERSION: "2.7.1"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -63,7 +66,7 @@ jobs:
           xcodebuild -version
           xcrun --show-sdk-path --sdk macosx
           xcrun --show-sdk-version --sdk macosx
-          echo "Release version: ${MARKETING_VERSION} (${BUILD_NUMBER})"
+          echo "Preview build: ${MARKETING_VERSION} (${BUILD_NUMBER})"
 
       - name: Resolve Swift packages
         run: |
@@ -133,6 +136,9 @@ jobs:
           cp -R "$APP_SOURCE" "$ARTIFACT_DIR/Spotiglass.app"
           file "$ARTIFACT_DIR/Spotiglass.app/Contents/MacOS/Spotiglass"
           codesign -dv "$ARTIFACT_DIR/Spotiglass.app" 2>&1 || true
+          echo ""
+          echo "NOTE: this preview build does NOT contain SpotiglassEQDriver.driver."
+          echo "Cut a real release locally via ./scripts/sparkle-release.sh."
 
       - name: Upload Spotiglass.app artifact bundle
         uses: actions/upload-artifact@v4
@@ -142,103 +148,3 @@ jobs:
           if-no-files-found: error
           retention-days: 14
           include-hidden-files: false
-
-      - name: Prepare Sparkle update archive
-        if: inputs.publish_sparkle_update
-        run: |
-          set -euo pipefail
-          TAG="v${MARKETING_VERSION}"
-          APP_SOURCE="$DERIVED_DATA/Build/Products/$CONFIGURATION/Spotiglass.app"
-          ARCHIVES_DIR="$GITHUB_WORKSPACE/docs/sparkle-archives"
-          DMG_DIR="$GITHUB_WORKSPACE/build/release"
-          mkdir -p "$ARCHIVES_DIR" "$DMG_DIR"
-          ZIP_NAME="Spotiglass-${MARKETING_VERSION}.zip"
-          DMG_NAME="Spotiglass-${MARKETING_VERSION}.dmg"
-          # Sparkle .zip lives in ARCHIVES_DIR for generate_appcast; .dmg lives
-          # outside it so Sparkle does not treat the two as duplicate updates.
-          ditto -c -k --sequesterRsrc --keepParent "$APP_SOURCE" "$ARCHIVES_DIR/$ZIP_NAME"
-
-          DMG_STAGE="$(mktemp -d)"
-          cp -R "$APP_SOURCE" "$DMG_STAGE/Spotiglass.app"
-          ln -s /Applications "$DMG_STAGE/Applications"
-          hdiutil create \
-            -volname "Spotiglass ${MARKETING_VERSION}" \
-            -srcfolder "$DMG_STAGE" \
-            -ov -format UDZO \
-            "$DMG_DIR/$DMG_NAME"
-          rm -rf "$DMG_STAGE"
-
-          if [ -n "${{ inputs.release_notes }}" ]; then
-            NOTES_FILE="$GITHUB_WORKSPACE/docs/release-notes/${TAG}.md"
-            mkdir -p "$(dirname "$NOTES_FILE")"
-            printf '%s\n' "${{ inputs.release_notes }}" > "$NOTES_FILE"
-            cp "$NOTES_FILE" "$ARCHIVES_DIR/Spotiglass-${MARKETING_VERSION}.md"
-          fi
-
-      - name: Install Sparkle release tools
-        if: inputs.publish_sparkle_update
-        run: |
-          set -euo pipefail
-          mkdir -p "$GITHUB_WORKSPACE/build/sparkle"
-          curl -fsSL -o "$GITHUB_WORKSPACE/build/sparkle/Sparkle.tar.xz" \
-            "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-${SPARKLE_VERSION}.tar.xz"
-          tar -xf "$GITHUB_WORKSPACE/build/sparkle/Sparkle.tar.xz" -C "$GITHUB_WORKSPACE/build/sparkle"
-          echo "SPARKLE_BIN=$GITHUB_WORKSPACE/build/sparkle/Sparkle-${SPARKLE_VERSION}/bin" >> "$GITHUB_ENV"
-
-      - name: Generate appcast and sign update
-        if: inputs.publish_sparkle_update
-        env:
-          SPARKLE_EDDSA_PRIVATE_KEY: ${{ secrets.SPARKLE_EDDSA_PRIVATE_KEY }}
-        run: |
-          set -euo pipefail
-          if [ -z "${SPARKLE_EDDSA_PRIVATE_KEY:-}" ]; then
-            echo "::error::SPARKLE_EDDSA_PRIVATE_KEY secret is required when publish_sparkle_update is true."
-            exit 1
-          fi
-          TAG="v${MARKETING_VERSION}"
-          ARCHIVES_DIR="$GITHUB_WORKSPACE/docs/sparkle-archives"
-          DOWNLOAD_PREFIX="https://github.com/isaaclins/spotiglass/releases/download/${TAG}/"
-          printf '%s' "$SPARKLE_EDDSA_PRIVATE_KEY" > "$RUNNER_TEMP/sparkle_eddsa_private.key"
-          "$SPARKLE_BIN/generate_appcast" \
-            --ed-key-file "$RUNNER_TEMP/sparkle_eddsa_private.key" \
-            --download-url-prefix "$DOWNLOAD_PREFIX" \
-            --embed-release-notes \
-            -o "$GITHUB_WORKSPACE/docs/appcast.xml" \
-            "$ARCHIVES_DIR"
-          rm -f "$RUNNER_TEMP/sparkle_eddsa_private.key"
-
-      - name: Create GitHub Release
-        if: inputs.publish_sparkle_update
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          TAG="v${MARKETING_VERSION}"
-          ARCHIVES_DIR="$GITHUB_WORKSPACE/docs/sparkle-archives"
-          NOTES_ARG=()
-          if [ -n "${{ inputs.release_notes }}" ]; then
-            NOTES_ARG=(--notes-file "$GITHUB_WORKSPACE/docs/release-notes/${TAG}.md")
-          fi
-          DMG_DIR="$GITHUB_WORKSPACE/build/release"
-          shopt -s nullglob
-          ASSETS=(
-            "$DMG_DIR"/Spotiglass-"${MARKETING_VERSION}".dmg
-            "$ARCHIVES_DIR"/Spotiglass-"${MARKETING_VERSION}".zip
-            "$ARCHIVES_DIR"/*.delta
-          )
-          gh release create "$TAG" "${ASSETS[@]}" --title "Spotiglass ${MARKETING_VERSION}" "${NOTES_ARG[@]}"
-
-      - name: Publish appcast to docs (GitHub Pages)
-        if: inputs.publish_sparkle_update
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/appcast.xml docs/release-notes/ docs/sparkle-archives/ 2>/dev/null || true
-          git add docs/appcast.xml docs/release-notes/ || true
-          if git diff --staged --quiet; then
-            echo "No appcast changes to commit."
-            exit 0
-          fi
-          git commit -m "chore(release): Sparkle appcast for v${MARKETING_VERSION}"
-          git push
