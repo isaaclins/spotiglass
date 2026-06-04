@@ -54,6 +54,50 @@ final class LrcParsingTests: XCTestCase {
         XCTAssertEqual(LrcLineParser.activeTimedLineIndex(positionMs: 99_000, lines: lines), 2)
     }
 
+    func testEffectivePositionOffsetShiftsActiveLine() {
+        let lines = [
+            SyncedLyricLine(id: 0, startTimeMs: 0, words: "A"),
+            SyncedLyricLine(id: 1, startTimeMs: 5_000, words: "B"),
+            SyncedLyricLine(id: 2, startTimeMs: 10_000, words: "C")
+        ]
+        // At 4.6s the raw active line is still A; a +0.5s "earlier" nudge crosses into B.
+        let raw = 4_600
+        XCTAssertEqual(LrcLineParser.activeTimedLineIndex(positionMs: raw, lines: lines), 0)
+        let earlier = LrcLineParser.effectivePositionMs(positionMs: raw, offsetMs: 500)
+        XCTAssertEqual(LrcLineParser.activeTimedLineIndex(positionMs: earlier, lines: lines), 1)
+        // A negative nudge holds the previous line a little longer.
+        let later = LrcLineParser.effectivePositionMs(positionMs: 5_200, offsetMs: -500)
+        XCTAssertEqual(LrcLineParser.activeTimedLineIndex(positionMs: later, lines: lines), 0)
+    }
+
+    func testEffectivePositionFloorsAtZero() {
+        XCTAssertEqual(LrcLineParser.effectivePositionMs(positionMs: 200, offsetMs: -2_000), 0)
+        XCTAssertEqual(LrcLineParser.effectivePositionMs(positionMs: 0, offsetMs: 0), 0)
+        XCTAssertEqual(LrcLineParser.effectivePositionMs(positionMs: 1_000, offsetMs: 500), 1_500)
+    }
+
+    func testAppearanceSettingsDefaultsOffsetToZeroForLegacyFiles() throws {
+        // Older settings.json predates the offset key entirely.
+        let legacy = Data(#"{"colorScheme":"dark"}"#.utf8)
+        let decoded = try JSONDecoder().decode(AppearanceSettings.self, from: legacy)
+        XCTAssertEqual(decoded.lyricsOffsetMilliseconds, 0)
+    }
+
+    func testAppearanceSettingsClampsOutOfRangeOffset() throws {
+        let tooHigh = Data(#"{"lyricsOffsetMilliseconds":999999}"#.utf8)
+        let tooLow = Data(#"{"lyricsOffsetMilliseconds":-999999}"#.utf8)
+        XCTAssertEqual(
+            try JSONDecoder().decode(AppearanceSettings.self, from: tooHigh).lyricsOffsetMilliseconds,
+            AppearanceSettings.lyricsOffsetLimitMs
+        )
+        XCTAssertEqual(
+            try JSONDecoder().decode(AppearanceSettings.self, from: tooLow).lyricsOffsetMilliseconds,
+            -AppearanceSettings.lyricsOffsetLimitMs
+        )
+        // In-range values survive untouched.
+        XCTAssertEqual(AppearanceSettings(lyricsOffsetMilliseconds: 500).lyricsOffsetMilliseconds, 500)
+    }
+
     func testActivePlainLineIndex() {
         XCTAssertEqual(LrcLineParser.activePlainLineIndex(positionMs: 0, durationMs: 100_000, lineCount: 4), 0)
         XCTAssertEqual(LrcLineParser.activePlainLineIndex(positionMs: 24_999, durationMs: 100_000, lineCount: 4), 0)

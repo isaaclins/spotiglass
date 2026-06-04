@@ -21,6 +21,11 @@ struct ImmersiveLyricsView: View {
         settingsStore.settings.appearance.lyricsTextSize
     }
 
+    /// User's manual lyric sync nudge, in milliseconds.
+    private var lyricsOffsetMs: Int {
+        settingsStore.settings.appearance.lyricsOffsetMilliseconds
+    }
+
     var body: some View {
         ZStack(alignment: .topLeading) {
             Color.black
@@ -66,10 +71,17 @@ struct ImmersiveLyricsView: View {
     private var lyricsMainLayout: some View {
         if let anchor = playbackViewModel.progressAnchor, anchor.isAdvancing {
             TimelineView(.animation) { context in
-                immersiveMainLayout(positionMs: anchor.interpolatedPositionMs(at: context.date))
+                immersiveMainLayout(
+                    positionMs: LrcLineParser.effectivePositionMs(
+                        positionMs: anchor.interpolatedPositionMs(at: context.date),
+                        offsetMs: lyricsOffsetMs
+                    )
+                )
             }
         } else {
-            immersiveMainLayout(positionMs: staticPositionMs)
+            immersiveMainLayout(
+                positionMs: LrcLineParser.effectivePositionMs(positionMs: staticPositionMs, offsetMs: lyricsOffsetMs)
+            )
         }
     }
 
