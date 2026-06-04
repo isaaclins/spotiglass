@@ -23,7 +23,7 @@ struct SpotifyClientIDAndActionsView: View {
                 Button {
                     triggerSignInIfAllowed()
                 } label: {
-                    Label(SpotiglassL10n.string("auth.connect.button"), systemImage: "arrow.right.circle.fill")
+                    Label(connectButtonTitle, systemImage: connectButtonIcon)
                         .symbolRenderingMode(.hierarchical)
                 }
                 .buttonStyle(.borderedProminent)
@@ -56,28 +56,31 @@ struct SpotifyClientIDAndActionsView: View {
         }
     }
 
-    /// Plain `TextField` while empty or while editing; `SecureField` (dots) when there is a saved value and the field is not focused.
+    /// The Spotify Client ID is a public PKCE identifier, not a secret, so it is
+    /// always shown in plain text — masking it only blocked verification.
     private var clientIDField: some View {
-        Group {
-            if showsPlaintextClientID {
-                TextField(SpotiglassL10n.string("auth.clientID.label"), text: $viewModel.clientID)
-            } else {
-                SecureField(SpotiglassL10n.string("auth.clientID.label"), text: $viewModel.clientID)
+        TextField(SpotiglassL10n.string("auth.clientID.label"), text: $viewModel.clientID)
+            .textFieldStyle(.roundedBorder)
+            .frame(maxWidth: layout == .welcome ? 420 : .infinity)
+            .disabled(viewModel.state == .signingIn)
+            .focused($isClientIDFocused)
+            .accessibilityLabel(SpotiglassL10n.string("auth.clientID.label"))
+            .accessibilityHint(SpotiglassL10n.string("auth.clientID.hint"))
+            .onSubmit {
+                triggerSignInIfAllowed()
             }
-        }
-        .textFieldStyle(.roundedBorder)
-        .frame(maxWidth: layout == .welcome ? 420 : .infinity)
-        .disabled(viewModel.state == .signingIn)
-        .focused($isClientIDFocused)
-        .accessibilityLabel(SpotiglassL10n.string("auth.clientID.label"))
-        .accessibilityHint(SpotiglassL10n.string("auth.clientID.hint"))
-        .onSubmit {
-            triggerSignInIfAllowed()
-        }
     }
 
-    private var showsPlaintextClientID: Bool {
-        isClientIDFocused || clientIDTrimmed.isEmpty
+    /// When already connected, the prominent action is a reconnect rather than a
+    /// fresh "Connect Spotify", which contradicted the "connected" status.
+    private var connectButtonTitle: String {
+        viewModel.state.isConnectedOrRefreshing
+            ? SpotiglassL10n.string("auth.reconnect.button")
+            : SpotiglassL10n.string("auth.connect.button")
+    }
+
+    private var connectButtonIcon: String {
+        viewModel.state.isConnectedOrRefreshing ? "arrow.triangle.2.circlepath" : "arrow.right.circle.fill"
     }
 
     private var clientIDTrimmed: String {

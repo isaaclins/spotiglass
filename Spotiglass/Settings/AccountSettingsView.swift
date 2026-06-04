@@ -15,7 +15,9 @@ struct AccountSettingsView: View {
                         Text(
                             String(
                                 format: SpotiglassL10n.string("settings.account.validUntil"),
-                                session.expiresAt.formatted(date: .omitted, time: .shortened)
+                                session.expiresAt.formatted(
+                                    .dateTime.year().month().day().hour().minute().timeZone()
+                                )
                             )
                         )
                             .foregroundStyle(.secondary)
@@ -44,11 +46,18 @@ struct AccountSettingsView: View {
                 LabeledContent(SpotiglassL10n.string("settings.account.diagnostics.logFileLabel")) {
                     if let url = SpotiglassLog.logFileURL {
                         HStack(spacing: SpotiglassDesign.spacingS) {
+                            // Truncate the front, not the middle, so the file name stays
+                            // readable; the full path is available via tooltip and Copy.
                             Text(url.path)
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
-                                .truncationMode(.middle)
+                                .truncationMode(.head)
                                 .textSelection(.enabled)
+                                .help(url.path)
+                            Button(SpotiglassL10n.string("settings.account.diagnostics.copyPath")) {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(url.path, forType: .string)
+                            }
                             Button(SpotiglassL10n.string("settings.account.diagnostics.revealInFinder")) {
                                 NSWorkspace.shared.activateFileViewerSelecting([url])
                             }
