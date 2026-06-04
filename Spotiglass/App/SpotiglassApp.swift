@@ -15,7 +15,18 @@ struct SpotiglassApp: App {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
         SpotiglassLog.info(.persistence, "Spotiglass launching (version=\(version) build=\(build))")
-        let store = SpotiglassSettingsStore()
+        // Under the unit-test host, point the store at a throwaway file so running
+        // tests never read, write, or migrate the developer's real settings (#27).
+        let store: SpotiglassSettingsStore
+        if AppMetadata.isRunningUnitTests {
+            store = SpotiglassSettingsStore(
+                fileURL: FileManager.default.temporaryDirectory
+                    .appendingPathComponent("SpotiglassTestHost-\(UUID().uuidString)", isDirectory: true)
+                    .appendingPathComponent("settings.json", isDirectory: false)
+            )
+        } else {
+            store = SpotiglassSettingsStore()
+        }
         let keymapStore = CommandPaletteKeymapStore(settingsStore: store)
         _settingsStore = StateObject(wrappedValue: store)
         _commandPaletteManager = StateObject(wrappedValue: CommandPaletteManager(keymapStore: keymapStore))

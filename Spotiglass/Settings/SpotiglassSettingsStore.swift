@@ -6,7 +6,7 @@ import Foundation
 /// (migrated once from the legacy `~/.config/spotiglass/settings.json` on first launch).
 ///
 /// The keymap UI and other settings panes read and write through this store so that
-/// every user-editable setting lives in a single dotfile. The store performs atomic
+/// every user-editable setting lives in a single JSON file. The store performs atomic
 /// writes, watches the file for external edits via `DispatchSourceFileSystemObject`,
 /// and bootstraps a default file on first launch.
 @MainActor
