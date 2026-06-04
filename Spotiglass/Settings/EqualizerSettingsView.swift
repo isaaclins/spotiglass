@@ -426,15 +426,15 @@ private struct EqualizerBandColumn: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
         }
-        .frame(minWidth: 44)
+        .frame(minWidth: 52)
     }
 
-    // Carries the same "dB" unit as the Preamp readout so band and preamp
-    // values format consistently.
+    // Carries the same "dB" unit and one-decimal precision as the Preamp readout
+    // (and the accessibility value), so 0.5 dB steps are reported accurately
+    // instead of being rounded to the nearest whole dB.
     private var formattedGain: String {
-        if gain == 0 { return "0 dB" }
         let prefix = gain > 0 ? "+" : ""
-        return String(format: "%@%.0f dB", prefix, gain)
+        return String(format: "%@%.1f dB", prefix, gain)
     }
 
     private var formattedFrequency: String {
