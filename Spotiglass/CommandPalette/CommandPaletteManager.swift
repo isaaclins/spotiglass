@@ -124,7 +124,9 @@ final class CommandPaletteManager: ObservableObject {
         // A bare key (no ⌘/⌃/⌥) must reach a focused text field rather than fire a
         // single-key command like Space → Play/Pause while the user is typing. The
         // palette has its own field handling above, so this only guards the global
-        // dispatch path. Modifier-bearing shortcuts still fire inside text fields.
+        // dispatch path. Only ⌘/⌃/⌥ count as modifiers here — a Shift-only combo is
+        // treated as bare so shifted typing still reaches the field — but shortcuts
+        // carrying ⌘/⌃/⌥ continue to fire inside text fields.
         if !viewModel.isPresented, Self.eventTargetsTextInput(event) {
             let modifiers = event.modifierFlags.intersection([.command, .control, .option])
             if modifiers.isEmpty {
