@@ -121,6 +121,19 @@ final class CommandPaletteManager: ObservableObject {
             return false
         }
 
+        // A bare key (no ⌘/⌃/⌥) must reach a focused text field rather than fire a
+        // single-key command like Space → Play/Pause while the user is typing. The
+        // palette has its own field handling above, so this only guards the global
+        // dispatch path. Only ⌘/⌃/⌥ count as modifiers here — a Shift-only combo is
+        // treated as bare so shifted typing still reaches the field — but shortcuts
+        // carrying ⌘/⌃/⌥ continue to fire inside text fields.
+        if !viewModel.isPresented, Self.eventTargetsTextInput(event) {
+            let modifiers = event.modifierFlags.intersection([.command, .control, .option])
+            if modifiers.isEmpty {
+                return false
+            }
+        }
+
         let context: CommandPaletteContext = viewModel.isPresented ? .paletteOpen : (isSignedIn ? .signedIn : .signedOut)
         let matched = keymapStore.commandBindings(for: event, context: context)
         guard !matched.isEmpty else { return false }
@@ -137,6 +150,14 @@ final class CommandPaletteManager: ObservableObject {
             execute(commandID: binding.command, args: binding.args)
         }
         return true
+    }
+
+    /// True when the key event is destined for an active text editor (a focused
+    /// `NSTextField`/`NSTextView` uses the window's field editor — an `NSTextView` —
+    /// as first responder), so bare keys should be typed, not treated as commands.
+    private static func eventTargetsTextInput(_ event: NSEvent) -> Bool {
+        guard let responder = event.window?.firstResponder else { return false }
+        return responder is NSTextView
     }
 
     func execute(commandID: String, args: [String: JSONValue]? = nil) {

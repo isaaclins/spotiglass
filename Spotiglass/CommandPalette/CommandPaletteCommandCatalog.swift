@@ -10,6 +10,9 @@ struct CommandPaletteCommandSpec: Identifiable {
     let defaultWhen: CommandPaletteContext
     /// When non-`nil`, included in the default keymap JSON.
     let defaultKeystroke: String?
+    /// Destructive commands (e.g. sign-out) are not bindable to a single keypress
+    /// from the Keyboard settings UI, so a stray keystroke can't wipe the session.
+    var isDestructive: Bool = false
 
     /// Resolved against the current ``SpotiglassSettingsStore`` locale on every read so the
     /// palette, Settings → Keyboard, and the menubar all pick up live language switches.
@@ -32,13 +35,15 @@ enum CommandPaletteCommandCatalog {
         commandID: String,
         iconSystemName: String,
         defaultWhen: CommandPaletteContext,
-        defaultKeystroke: String?
+        defaultKeystroke: String?,
+        isDestructive: Bool = false
     ) -> CommandPaletteCommandSpec {
         CommandPaletteCommandSpec(
             commandID: commandID,
             iconSystemName: iconSystemName,
             defaultWhen: defaultWhen,
-            defaultKeystroke: defaultKeystroke
+            defaultKeystroke: defaultKeystroke,
+            isDestructive: isDestructive
         )
     }
 
@@ -101,7 +106,8 @@ enum CommandPaletteCommandCatalog {
             commandID: CommandPaletteCommandID.signOut,
             iconSystemName: "xmark.circle",
             defaultWhen: .signedIn,
-            defaultKeystroke: nil
+            defaultKeystroke: nil,
+            isDestructive: true
         ),
         spec(
             commandID: CommandPaletteCommandID.pinSelected,

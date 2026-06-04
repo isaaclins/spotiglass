@@ -217,7 +217,12 @@ final class CommandPaletteKeymapStore: ObservableObject {
         else {
             return defaultKeymapText
         }
-        return text
+        // Foundation's `.prettyPrinted` emits a space before each key's colon
+        // (`"command" : "…"`), which standard JSON formatters churn on round-trip.
+        // The separator `" : "` only appears between a quoted key and its value
+        // here (values are followed by `,`/newline, never `:`), so this rewrite to
+        // `"key": value` is safe for this fixed schema.
+        return text.replacingOccurrences(of: "\" : ", with: "\": ")
     }
 
     static let defaultKeymapText = CommandPaletteCommandCatalog.defaultKeymapJSON
