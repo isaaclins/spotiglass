@@ -117,18 +117,27 @@ enum LyricsTextSize: String, Codable, CaseIterable, Equatable {
 
 /// Shell appearance preferences persisted in ``SpotiglassSettingsFile``.
 struct AppearanceSettings: Codable, Equatable {
+    /// Largest lyric sync nudge the UI offers, in milliseconds, in either direction.
+    /// Positive values pull lyric lines *earlier* to compensate for the typical
+    /// fetch/playback-report lag; negative values push them later.
+    static let lyricsOffsetLimitMs = 2_000
+
     var language: AppLanguage
     var colorScheme: AppearanceColorScheme
     var lyricsTextSize: LyricsTextSize
+    /// Manual lyric timing nudge in milliseconds (see ``lyricsOffsetLimitMs``).
+    var lyricsOffsetMilliseconds: Int
 
     init(
         language: AppLanguage = AppLanguage.resolvedDefault(),
         colorScheme: AppearanceColorScheme = .system,
-        lyricsTextSize: LyricsTextSize = .medium
+        lyricsTextSize: LyricsTextSize = .medium,
+        lyricsOffsetMilliseconds: Int = 0
     ) {
         self.language = language
         self.colorScheme = colorScheme
         self.lyricsTextSize = lyricsTextSize
+        self.lyricsOffsetMilliseconds = Self.clampOffset(lyricsOffsetMilliseconds)
     }
 
     /// Backward-compatible decode for older `settings.json` files.
@@ -137,12 +146,20 @@ struct AppearanceSettings: Codable, Equatable {
         language = try container.decodeIfPresent(AppLanguage.self, forKey: .language) ?? AppLanguage.resolvedDefault()
         colorScheme = try container.decodeIfPresent(AppearanceColorScheme.self, forKey: .colorScheme) ?? .system
         lyricsTextSize = try container.decodeIfPresent(LyricsTextSize.self, forKey: .lyricsTextSize) ?? .medium
+        let rawOffset = try container.decodeIfPresent(Int.self, forKey: .lyricsOffsetMilliseconds) ?? 0
+        lyricsOffsetMilliseconds = Self.clampOffset(rawOffset)
+    }
+
+    /// Keeps a (possibly hand-edited or future-version) offset within the supported range.
+    static func clampOffset(_ value: Int) -> Int {
+        min(max(value, -lyricsOffsetLimitMs), lyricsOffsetLimitMs)
     }
 
     private enum CodingKeys: String, CodingKey {
         case language
         case colorScheme
         case lyricsTextSize
+        case lyricsOffsetMilliseconds
     }
 }
 
