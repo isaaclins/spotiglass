@@ -3,8 +3,10 @@ import os
 
 /// Unified logging for Spotiglass. Mirrors every message to:
 ///   1. Apple's unified log (Console.app, subsystem `com.isaaclins.spotiglass`).
-///   2. A plain-text file under `Application Support/Spotiglass/Logs/spotiglass.log`
-///      that is truncated at every app launch, so it never grows without bound.
+///   2. A plain-text file under `Application Support/Spotiglass/Logs/spotiglass.log`.
+///      Each launch starts a fresh `spotiglass.log` and rotates the prior session
+///      to `spotiglass.previous.log`, so the file never grows without bound while one
+///      previous session is kept for bug reports.
 ///
 /// Never log tokens, refresh credentials, or raw OAuth callbacks.
 enum SpotiglassLog {
@@ -35,8 +37,9 @@ enum SpotiglassLog {
     /// could not be opened.
     static var logFileURL: URL? { FileLogSink.shared.fileURL }
 
-    /// Open (truncating) the per-session log file. Safe to call once at app launch.
-    /// Subsequent calls are no-ops.
+    /// Open a fresh per-session log file, rotating the previous session to
+    /// `spotiglass.previous.log`. Safe to call once at app launch; subsequent calls
+    /// are no-ops.
     static func boot() {
         FileLogSink.shared.boot()
     }
