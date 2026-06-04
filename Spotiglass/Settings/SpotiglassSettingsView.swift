@@ -141,10 +141,13 @@ struct SpotiglassSettingsView: View {
         }
         .background(.regularMaterial)
         // Keep a valid pane selected as the search narrows results (#52): if the
-        // active section is filtered out, jump to the first remaining match.
+        // active section is filtered out, jump to the first remaining match. When
+        // nothing matches, keep the current selection so clearing the search lands
+        // back on a populated pane instead of an empty detail view.
         .onChange(of: searchText) { _, _ in
-            if isSearching, let current = section, !visibleSections.contains(current) {
-                section = visibleSections.first
+            if isSearching, let current = section, !visibleSections.contains(current),
+                let firstMatch = visibleSections.first {
+                section = firstMatch
             }
         }
     }
