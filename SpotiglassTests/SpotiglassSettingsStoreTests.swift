@@ -77,11 +77,44 @@ final class SpotiglassSettingsStoreTests: XCTestCase {
         XCTAssertEqual(recovered.version, SpotiglassSettingsFile.currentVersion)
     }
 
-    func testDefaultFileURLIsConfigSpotiglassSettingsJSON() {
+    func testDefaultFileURLIsApplicationSupportSpotiglassSettingsJSON() {
         let url = SpotiglassSettingsStore.defaultFileURL(fileManager: .default)
         XCTAssertEqual(url.lastPathComponent, "settings.json")
-        XCTAssertEqual(url.deletingLastPathComponent().lastPathComponent, "spotiglass")
-        XCTAssertEqual(url.deletingLastPathComponent().deletingLastPathComponent().lastPathComponent, ".config")
+        XCTAssertEqual(url.deletingLastPathComponent().lastPathComponent, "Spotiglass")
+        XCTAssertEqual(
+            url.deletingLastPathComponent().deletingLastPathComponent().lastPathComponent,
+            "Application Support"
+        )
+    }
+
+    func testMigratesLegacyConfigToNewLocation() throws {
+        let root = makeTempDir()
+        let legacy = root.appendingPathComponent("config/spotiglass/settings.json")
+        let destination = root.appendingPathComponent("ApplicationSupport/Spotiglass/settings.json")
+        try FileManager.default.createDirectory(at: legacy.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let payload = #"{"version":1}"#
+        try payload.write(to: legacy, atomically: true, encoding: .utf8)
+
+        SpotiglassSettingsStore.migrateLegacyConfigIfNeeded(fileManager: .default, from: legacy, to: destination)
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: destination.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: legacy.path), "Legacy file should be moved, not copied")
+        XCTAssertEqual(try String(contentsOf: destination, encoding: .utf8), payload)
+    }
+
+    func testMigrationNeverOverwritesExistingSettings() throws {
+        let root = makeTempDir()
+        let legacy = root.appendingPathComponent("config/settings.json")
+        let destination = root.appendingPathComponent("dest/settings.json")
+        try FileManager.default.createDirectory(at: legacy.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try "legacy".write(to: legacy, atomically: true, encoding: .utf8)
+        try "current".write(to: destination, atomically: true, encoding: .utf8)
+
+        SpotiglassSettingsStore.migrateLegacyConfigIfNeeded(fileManager: .default, from: legacy, to: destination)
+
+        XCTAssertEqual(try String(contentsOf: destination, encoding: .utf8), "current", "Existing settings must win")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: legacy.path), "Legacy file is left intact when not migrating")
     }
 
     // MARK: - Helpers
@@ -128,11 +161,15 @@ final class SpotiglassSettingsStoreTests: XCTestCase {
     }
 
     private func makeTempFileURL() -> URL {
+        makeTempDir().appendingPathComponent("settings.json", isDirectory: false)
+    }
+
+    private func makeTempDir() -> URL {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("SpotiglassSettingsStoreTests-\(UUID().uuidString)", isDirectory: true)
         addTeardownBlock {
             try? FileManager.default.removeItem(at: dir)
         }
-        return dir.appendingPathComponent("settings.json", isDirectory: false)
+        return dir
     }
 }
