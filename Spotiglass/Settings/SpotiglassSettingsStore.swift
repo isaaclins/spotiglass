@@ -2,7 +2,8 @@ import AppKit
 import Combine
 import Foundation
 
-/// Single source of truth for `~/.config/spotiglass/settings.json`.
+/// Single source of truth for `~/Library/Application Support/Spotiglass/settings.json`
+/// (migrated once from the legacy `~/.config/spotiglass/settings.json` on first launch).
 ///
 /// The keymap UI and other settings panes read and write through this store so that
 /// every user-editable setting lives in a single dotfile. The store performs atomic
@@ -21,7 +22,19 @@ final class SpotiglassSettingsStore: ObservableObject {
 
     init(fileManager: FileManager = .default, fileURL customFileURL: URL? = nil) {
         self.fileManager = fileManager
-        self.fileURL = customFileURL ?? Self.defaultFileURL(fileManager: fileManager)
+        let resolvedURL = customFileURL ?? Self.defaultFileURL(fileManager: fileManager)
+        // Production (default-path) launches only: relocate a pre-existing config
+        // from the old Linux-style `~/.config/spotiglass` location to the
+        // macOS-standard Application Support path so the two no longer coexist (#27).
+        // Tests pass an explicit `fileURL` and intentionally skip this.
+        if customFileURL == nil {
+            Self.migrateLegacyConfigIfNeeded(
+                fileManager: fileManager,
+                from: Self.legacyFileURL(fileManager: fileManager),
+                to: resolvedURL
+            )
+        }
+        self.fileURL = resolvedURL
         self.settings = Self.bootstrapDefaults()
         loadOrBootstrap()
         startWatchingFile()
@@ -179,12 +192,51 @@ final class SpotiglassSettingsStore: ObservableObject {
 
     // MARK: - Defaults
 
+    /// Canonical settings location: `~/Library/Application Support/Spotiglass/settings.json`,
+    /// alongside the app's `Spotiglass/Logs` directory, so all app data lives under
+    /// the macOS-standard path (#27).
     static func defaultFileURL(fileManager: FileManager) -> URL {
+        let base = (try? fileManager.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: false
+        )) ?? fileManager
+            .homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support", isDirectory: true)
+        return base
+            .appendingPathComponent("Spotiglass", isDirectory: true)
+            .appendingPathComponent("settings.json", isDirectory: false)
+    }
+
+    /// Pre-1.0 location on macOS: `~/.config/spotiglass/settings.json` (a Linux
+    /// convention). Retained only so existing installs can be migrated forward.
+    static func legacyFileURL(fileManager: FileManager) -> URL {
         fileManager
             .homeDirectoryForCurrentUser
             .appendingPathComponent(".config", isDirectory: true)
             .appendingPathComponent("spotiglass", isDirectory: true)
             .appendingPathComponent("settings.json", isDirectory: false)
+    }
+
+    /// One-time move of the legacy config to the new location. No-op when the new
+    /// file already exists (never clobbers current settings) or when there is no
+    /// legacy file. Failures are logged and non-fatal — the caller bootstraps a
+    /// fresh file at the new path instead.
+    static func migrateLegacyConfigIfNeeded(fileManager: FileManager, from legacyURL: URL, to newURL: URL) {
+        guard !fileManager.fileExists(atPath: newURL.path),
+              fileManager.fileExists(atPath: legacyURL.path)
+        else { return }
+        do {
+            try fileManager.createDirectory(
+                at: newURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try fileManager.moveItem(at: legacyURL, to: newURL)
+            SpotiglassLog.info(.settings, "Migrated settings.json from ~/.config/spotiglass to Application Support.")
+        } catch {
+            SpotiglassLog.error(.settings, "Settings migration from legacy location failed: \(error.localizedDescription)")
+        }
     }
 
     static func bootstrapDefaults() -> SpotiglassSettingsFile {

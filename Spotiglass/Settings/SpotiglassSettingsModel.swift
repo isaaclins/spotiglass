@@ -173,7 +173,7 @@ struct CommandPaletteSettings: Codable, Equatable {
     }
 }
 
-/// Top-level shape of `~/.config/spotiglass/settings.json`.
+/// Top-level shape of `~/Library/Application Support/Spotiglass/settings.json`.
 ///
 /// Keeps every user-editable Spotiglass setting in one file so the user has a single
 /// source of truth that plays nicely with dotfile management.
