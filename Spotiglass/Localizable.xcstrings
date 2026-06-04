@@ -9629,6 +9629,28 @@
         }
       }
     },
+    "settings.playback.intro": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass gibt Audio über Spotifys Web Playback SDK wieder, daher gibt es hier keine lokalen Wiedergabe-Einstellungen. Diese Ansicht erklärt, wie die Wiedergabe funktioniert und wie du sie wiederherstellst."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass plays audio through Spotify’s Web Playback SDK, so there are no local playback controls to configure here. This pane explains how playback works and how to recover it."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass reproduce el audio mediante el Web Playback SDK de Spotify, por lo que aquí no hay controles de reproducción locales que configurar. Este panel explica cómo funciona la reproducción y cómo recuperarla."
+          }
+        }
+      }
+    },
     "settings.playback.premium.item1": {
       "extractionState": "stale",
       "localizations": {
@@ -9756,13 +9778,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Use Reconnect in the playback bar or run “Connect Playback” from the Command Palette if playback stops or shows an error."
+            "value": "Use “Reconnect” in the playback bar or run “Connect Playback” from the Command Palette if playback stops or shows an error."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Usa Reconectar en la barra de reproducción o ejecuta «Conectar reproducción» desde la Paleta de comandos si la reproducción se detiene o muestra un error."
+            "value": "Usa «Reconectar» en la barra de reproducción o ejecuta «Conectar reproducción» desde la Paleta de comandos si la reproducción se detiene o muestra un error."
           }
         }
       }
@@ -9773,19 +9795,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Wenn etwas ausfällt"
+            "value": "Wenn die Wiedergabe stoppt"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "When something drops"
+            "value": "If playback stops"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cuando algo falla"
+            "value": "Si la reproducción se detiene"
           }
         }
       }
