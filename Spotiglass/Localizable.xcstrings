@@ -6003,6 +6003,28 @@
         }
       }
     },
+    "palette.settings.advanced.applyHint": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Kurzbefehl-Steuerelemente oben werden sofort übernommen. Änderungen in diesem JSON-Editor werden erst mit „Übernehmen“ wirksam."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The shortcut controls above apply immediately. Changes in this JSON editor apply only when you click Apply."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los controles de atajos de arriba se aplican de inmediato. Los cambios en este editor JSON solo se aplican al pulsar Aplicar."
+          }
+        }
+      }
+    },
     "palette.settings.advanced": {
       "extractionState": "stale",
       "localizations": {
@@ -6210,6 +6232,72 @@
         }
       }
     },
+    "palette.settings.notBindable": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht zuweisbar"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not bindable"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No asignable"
+          }
+        }
+      }
+    },
+    "palette.settings.notBindable.hint": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Aktion ist destruktiv und lässt sich daher nur über die Befehls-Palette ausführen, nicht an eine einzelne Taste binden."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This action is destructive, so it runs from the Command Palette only and can’t be bound to a single keypress."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta acción es destructiva, por lo que solo se ejecuta desde la Paleta de comandos y no puede asignarse a una sola tecla."
+          }
+        }
+      }
+    },
+    "palette.settings.recordingHint": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kurzbefehl drücken · Esc bricht ab · Entf löscht"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Press a shortcut · Esc cancels · Delete clears"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pulsa un atajo · Esc cancela · Supr borra"
+          }
+        }
+      }
+    },
     "palette.settings.reset": {
       "extractionState": "stale",
       "localizations": {
@@ -6239,19 +6327,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Standard wiederherstellen"
+            "value": "Auf Standard zurücksetzen"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reset Defaults"
+            "value": "Reset to Defaults"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Restablecer predeterminados"
+            "value": "Restablecer a predeterminados"
           }
         }
       }

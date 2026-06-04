@@ -13,6 +13,9 @@ struct CommandPaletteSettingsView: View {
     var presentation: Presentation = .standalone
 
     @State private var pendingConflictByCommand: [String: PendingHotkeyConflict] = [:]
+    /// Command whose field is currently recording, so the "Esc cancels / Delete
+    /// clears" hint can be shown inline on the active row instead of only at the top.
+    @State private var recordingCommandID: String?
 
     var body: some View {
         Group {
@@ -29,6 +32,7 @@ struct CommandPaletteSettingsView: View {
         }
         .onDisappear {
             commandPaletteManager.isRecordingHotkey = false
+            recordingCommandID = nil
         }
     }
 
@@ -100,50 +104,77 @@ struct CommandPaletteSettingsView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                HStack(spacing: SpotiglassDesign.spacingXS) {
-                    HotkeyRecorderField(
-                        commandID: spec.commandID,
-                        keymapStore: keymapStore,
-                        onRecordingChange: { active in
-                            commandPaletteManager.isRecordingHotkey = active
-                            if active {
+                if spec.isDestructive {
+                    // Destructive commands can't be bound to a single keypress; they
+                    // run from the Command Palette only, where intent is explicit.
+                    Label(
+                        SpotiglassL10n.string("palette.settings.notBindable"),
+                        systemImage: "lock.fill"
+                    )
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .help(SpotiglassL10n.string("palette.settings.notBindable.hint"))
+                } else {
+                    HStack(spacing: SpotiglassDesign.spacingXS) {
+                        HotkeyRecorderField(
+                            commandID: spec.commandID,
+                            keymapStore: keymapStore,
+                            onRecordingChange: { active in
+                                commandPaletteManager.isRecordingHotkey = active
+                                recordingCommandID = active ? spec.commandID : nil
+                                if active {
+                                    pendingConflictByCommand[spec.commandID] = nil
+                                }
+                            },
+                            onCaptureConflict: { shortcut, otherID in
+                                pendingConflictByCommand[spec.commandID] = PendingHotkeyConflict(
+                                    shortcut: shortcut,
+                                    otherCommandID: otherID
+                                )
+                            },
+                            onApplied: {
                                 pendingConflictByCommand[spec.commandID] = nil
                             }
-                        },
-                        onCaptureConflict: { shortcut, otherID in
-                            pendingConflictByCommand[spec.commandID] = PendingHotkeyConflict(
-                                shortcut: shortcut,
-                                otherCommandID: otherID
-                            )
-                        },
-                        onApplied: {
-                            pendingConflictByCommand[spec.commandID] = nil
-                        }
-                    )
-                    .fixedSize(horizontal: true, vertical: false)
+                        )
+                        // Consistent field width so assigned (chip) and unassigned
+                        // ("Click to record") states read as one control, not two.
+                        .frame(minWidth: 132, alignment: .trailing)
+                        .fixedSize(horizontal: true, vertical: false)
 
-                    if keymapStore.primaryShortcut(for: spec.commandID) != nil {
-                        Button {
-                            pendingConflictByCommand[spec.commandID] = nil
-                            do {
-                                try keymapStore.clearBinding(commandID: spec.commandID)
-                            } catch {
-                                keymapStore.lastError = error.localizedDescription
+                        if keymapStore.primaryShortcut(for: spec.commandID) != nil {
+                            Button {
+                                pendingConflictByCommand[spec.commandID] = nil
+                                do {
+                                    try keymapStore.clearBinding(commandID: spec.commandID)
+                                } catch {
+                                    keymapStore.lastError = error.localizedDescription
+                                }
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .symbolRenderingMode(.hierarchical)
+                                    .font(.system(size: 16))
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 28, height: 28)
+                                    .contentShape(Rectangle())
                             }
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .symbolRenderingMode(.hierarchical)
-                                .foregroundStyle(.secondary)
+                            .buttonStyle(.plain)
+                            .help(SpotiglassL10n.string("palette.settings.clearShortcut"))
+                            .transition(.opacity.combined(with: .scale(scale: 0.7)))
                         }
-                        .buttonStyle(.plain)
-                        .help(SpotiglassL10n.string("palette.settings.clearShortcut"))
-                        .transition(.opacity.combined(with: .scale(scale: 0.7)))
                     }
+                    .animation(
+                        .spring(response: 0.3, dampingFraction: 0.82),
+                        value: keymapStore.primaryShortcut(for: spec.commandID) != nil
+                    )
                 }
-                .animation(
-                    .spring(response: 0.3, dampingFraction: 0.82),
-                    value: keymapStore.primaryShortcut(for: spec.commandID) != nil
-                )
+            }
+
+            if recordingCommandID == spec.commandID {
+                Text(SpotiglassL10n.string("palette.settings.recordingHint"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.leading, 28 + SpotiglassDesign.spacingM)
+                    .transition(.opacity)
             }
 
             if let pending = pendingConflictByCommand[spec.commandID] {
@@ -213,6 +244,13 @@ struct CommandPaletteSettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.orange)
             }
+
+            // The GUI shortcut controls above apply live; this JSON editor does not,
+            // so make the Apply/Revert scope explicit to avoid the ambiguity in #29.
+            Text(SpotiglassL10n.string("palette.settings.advanced.applyHint"))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: SpotiglassDesign.spacingS) {
                 Button(SpotiglassL10n.string("palette.settings.apply")) {
