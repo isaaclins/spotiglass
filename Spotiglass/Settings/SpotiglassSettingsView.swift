@@ -29,6 +29,26 @@ enum SpotiglassSettingsSection: String, CaseIterable, Identifiable {
         }
     }
 
+    /// Lowercased keywords for sidebar search so typing the name of a control
+    /// that lives *inside* a pane (e.g. "language") surfaces the right section,
+    /// not just matches against the localized section title. English-only;
+    /// the localized title is matched separately.
+    var searchTerms: [String] {
+        switch self {
+        case .playback: ["playback", "premium", "web", "device", "reconnect", "sessions", "connect"]
+        case .equalizer: ["equalizer", "eq", "bands", "preamp", "gain", "preset", "output", "device"]
+        case .appearance:
+            ["appearance", "language", "theme", "color", "scheme", "dark", "light", "lyrics", "text size", "command palette", "blur", "offset"]
+        case .account: ["account", "spotify", "client id", "token", "sign in", "sign out", "disconnect", "log", "diagnostics"]
+        case .keyboard: ["keyboard", "shortcuts", "hotkey", "keymap", "bindings", "command palette"]
+        }
+    }
+
+    func matches(searchQuery query: String) -> Bool {
+        if title.lowercased().contains(query) { return true }
+        return searchTerms.contains { $0.contains(query) }
+    }
+
     /// Accent applied to the small rounded icon tile on the left rail —
     /// mirrors macOS Tahoe System Settings.
     var iconAccent: Color {
@@ -51,10 +71,29 @@ struct SpotiglassSettingsView: View {
     @State private var section: SpotiglassSettingsSection? = .playback
     @State private var searchText: String = ""
 
+    private var searchQuery: String {
+        searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    private var isSearching: Bool { !searchQuery.isEmpty }
+
+    /// Sections that match the current search (all of them when not searching).
     private var visibleSections: [SpotiglassSettingsSection] {
-        let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !q.isEmpty else { return SpotiglassSettingsSection.allCases }
-        return SpotiglassSettingsSection.allCases.filter { $0.title.lowercased().contains(q) }
+        guard isSearching else { return SpotiglassSettingsSection.allCases }
+        return SpotiglassSettingsSection.allCases.filter { $0.matches(searchQuery: searchQuery) }
+    }
+
+    /// Sidebar rows. Account is reached through the profile card, so it is not
+    /// repeated as a nav row (#30).
+    private var navigationSections: [SpotiglassSettingsSection] {
+        visibleSections.filter { $0 != .account }
+    }
+
+    /// The profile card doubles as the Account entry, so hide it while searching
+    /// unless Account itself matches — otherwise it survives a filter it does
+    /// not match (#52).
+    private var showsProfileChip: Bool {
+        !isSearching || visibleSections.contains(.account)
     }
 
     var body: some View {
@@ -66,7 +105,8 @@ struct SpotiglassSettingsView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .navigationSplitViewStyle(.balanced)
-        .frame(minWidth: 820, minHeight: 560)
+        // Taller default so each pane's primary controls render above the fold (#20).
+        .frame(minWidth: 820, minHeight: 660)
     }
 
     // MARK: - Sidebar (left pane)
@@ -78,22 +118,48 @@ struct SpotiglassSettingsView: View {
                 .padding(.top, 12)
                 .padding(.bottom, 8)
 
-            profileChip
-                .padding(.horizontal, 12)
-                .padding(.bottom, 10)
-
-            List(selection: $section) {
-                ForEach(visibleSections) { sec in
-                    SettingsSidebarRow(section: sec, isSelected: section == sec)
-                        .tag(sec)
-                        .listRowInsets(EdgeInsets(top: 2, leading: 4, bottom: 2, trailing: 4))
-                        .listRowSeparator(.hidden)
-                }
+            if showsProfileChip {
+                profileChip
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 10)
             }
-            .listStyle(.sidebar)
-            .scrollContentBackground(.hidden)
+
+            if isSearching, visibleSections.isEmpty {
+                noSearchResults
+            } else {
+                List(selection: $section) {
+                    ForEach(navigationSections) { sec in
+                        SettingsSidebarRow(section: sec, isSelected: section == sec)
+                            .tag(sec)
+                            .listRowInsets(EdgeInsets(top: 2, leading: 4, bottom: 2, trailing: 4))
+                            .listRowSeparator(.hidden)
+                    }
+                }
+                .listStyle(.sidebar)
+                .scrollContentBackground(.hidden)
+            }
         }
         .background(.regularMaterial)
+        // Keep a valid pane selected as the search narrows results (#52): if the
+        // active section is filtered out, jump to the first remaining match.
+        .onChange(of: searchText) { _, _ in
+            if isSearching, let current = section, !visibleSections.contains(current) {
+                section = visibleSections.first
+            }
+        }
+    }
+
+    private var noSearchResults: some View {
+        VStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+            Text(SpotiglassL10n.string("settings.search.noResults"))
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal, 16)
     }
 
     private var searchField: some View {

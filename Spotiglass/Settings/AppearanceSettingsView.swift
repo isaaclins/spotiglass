@@ -19,14 +19,13 @@ struct AppearanceSettingsView: View {
         }
     }
 
+    // The window header already shows the pane name ("Appearance"), so this pane
+    // only carries its subtitle — no duplicated title (#26).
     private var header: some View {
-        VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
-            Text(SpotiglassL10n.string("settings.section.appearance"))
-                .font(.title3.weight(.semibold))
-            Text(SpotiglassL10n.string("settings.section.appearance.subtitle"))
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
+        Text(SpotiglassL10n.string("settings.section.appearance.subtitle"))
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var languageSection: some View {

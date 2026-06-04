@@ -8738,7 +8738,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Command palette"
+            "value": "Command Palette"
           }
         },
         "es": {
@@ -9940,6 +9940,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Si la reproducción se detiene"
+          }
+        }
+      }
+    },
+    "settings.search.noResults": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine passenden Einstellungen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No matching settings"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay ajustes coincidentes"
           }
         }
       }
