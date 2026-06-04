@@ -9568,19 +9568,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Automatisch (vorheriger Standard)"
+            "value": "Systemstandard"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Auto (previous default)"
+            "value": "System default"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Automático (predeterminado anterior)"
+            "value": "Predeterminado del sistema"
           }
         }
       }
@@ -9590,19 +9590,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "EQ-Audio senden an"
+            "value": "Ausgabegerät"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Send EQ'd audio to"
+            "value": "Output device"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Enviar audio con EQ a"
+            "value": "Dispositivo de salida"
           }
         }
       }

@@ -185,29 +185,34 @@ struct EqualizerSettingsView: View {
 
     private var preampRow: some View {
         let equalizer = settingsStore.settings.equalizer
+        // Single "Preamp" caption (the slider's own label is hidden) with the live
+        // value pinned next to the slider track rather than the far corner.
         return VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
-            HStack {
-                Text(SpotiglassL10n.string("settings.eq.preamp"))
-                    .font(.subheadline.weight(.semibold))
-                Spacer()
+            Text(SpotiglassL10n.string("settings.eq.preamp"))
+                .font(.subheadline.weight(.semibold))
+            HStack(spacing: SpotiglassDesign.spacingS) {
+                Slider(
+                    value: preampBinding,
+                    in: EqualizerSettings.preampRangeDB,
+                    step: 0.5
+                ) {
+                    Text(SpotiglassL10n.string("settings.eq.preamp"))
+                } minimumValueLabel: {
+                    Text("\(Int(EqualizerSettings.preampRangeDB.lowerBound)) dB")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                } maximumValueLabel: {
+                    Text("+\(Int(EqualizerSettings.preampRangeDB.upperBound)) dB")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .labelsHidden()
+
                 Text(formatGain(equalizer.preamp))
                     .font(.system(.caption, design: .monospaced))
+                    .monospacedDigit()
                     .foregroundStyle(.secondary)
-            }
-            Slider(
-                value: preampBinding,
-                in: EqualizerSettings.preampRangeDB,
-                step: 0.5
-            ) {
-                Text(SpotiglassL10n.string("settings.eq.preamp"))
-            } minimumValueLabel: {
-                Text("\(Int(EqualizerSettings.preampRangeDB.lowerBound)) dB")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            } maximumValueLabel: {
-                Text("+\(Int(EqualizerSettings.preampRangeDB.upperBound)) dB")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .frame(width: 64, alignment: .trailing)
             }
         }
     }
@@ -413,7 +418,7 @@ private struct EqualizerBandColumn: View {
                 .foregroundStyle(gain == 0 ? .secondary : .primary)
                 .frame(height: 14)
 
-            VerticalGainSlider(value: $gain)
+            CenterOriginGainFader(value: $gain)
                 .frame(width: 28, height: 200)
 
             Text(formattedFrequency)
@@ -421,13 +426,15 @@ private struct EqualizerBandColumn: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
         }
-        .frame(minWidth: 36)
+        .frame(minWidth: 44)
     }
 
+    // Carries the same "dB" unit as the Preamp readout so band and preamp
+    // values format consistently.
     private var formattedGain: String {
-        if gain == 0 { return "0" }
+        if gain == 0 { return "0 dB" }
         let prefix = gain > 0 ? "+" : ""
-        return String(format: "%@%.0f", prefix, gain)
+        return String(format: "%@%.0f dB", prefix, gain)
     }
 
     private var formattedFrequency: String {
@@ -438,23 +445,84 @@ private struct EqualizerBandColumn: View {
     }
 }
 
-private struct VerticalGainSlider: View {
+/// Vertical band fader whose fill grows from a centered 0 dB reference line —
+/// upward for boost, downward for cut — so a band at 0 reads as neutral rather
+/// than a half-full bar. Replaces the rotated `Slider`, which filled from the
+/// bottom and rendered a redundant "Band gain" caption ten times.
+private struct CenterOriginGainFader: View {
     @Binding var value: Double
 
+    private let range = EqualizerSettings.gainRangeDB
+    private let step = 0.5
+    private let trackWidth: CGFloat = 5
+    private let thumbDiameter: CGFloat = 16
+
+    /// Maps a dB value to a y-coordinate within the track (top = max boost, bottom = max cut).
+    private func yPosition(for value: Double, usable: CGFloat) -> CGFloat {
+        let fraction = (range.upperBound - value) / (range.upperBound - range.lowerBound)
+        return thumbDiameter / 2 + CGFloat(fraction) * usable
+    }
+
     var body: some View {
-        Slider(
-            value: $value,
-            in: EqualizerSettings.gainRangeDB,
-            step: 0.5
-        ) {
-            Text(SpotiglassL10n.string("settings.eq.bandGain.accessibility"))
+        GeometryReader { geo in
+            let height = geo.size.height
+            let usable = max(1, height - thumbDiameter)
+            let span = range.upperBound - range.lowerBound
+            let centerX = geo.size.width / 2
+            let zeroY = yPosition(for: 0, usable: usable)
+            let valueY = yPosition(for: value, usable: usable)
+
+            ZStack(alignment: .topLeading) {
+                Capsule()
+                    .fill(.quaternary)
+                    .frame(width: trackWidth, height: height)
+                    .position(x: centerX, y: height / 2)
+
+                // 0 dB reference line.
+                Rectangle()
+                    .fill(.secondary.opacity(0.55))
+                    .frame(width: geo.size.width, height: 1)
+                    .position(x: centerX, y: zeroY)
+
+                // Center-origin fill between the 0 dB line and the current value.
+                Capsule()
+                    .fill(Color.accentColor)
+                    .frame(width: trackWidth, height: max(1, abs(valueY - zeroY)))
+                    .position(x: centerX, y: (valueY + zeroY) / 2)
+
+                Circle()
+                    .fill(Color(nsColor: .controlBackgroundColor))
+                    .overlay(Circle().strokeBorder(.secondary.opacity(0.5), lineWidth: 0.5))
+                    .shadow(radius: 1, y: 0.5)
+                    .frame(width: thumbDiameter, height: thumbDiameter)
+                    .position(x: centerX, y: valueY)
+            }
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { drag in
+                        let clampedY = min(max(drag.location.y, thumbDiameter / 2), thumbDiameter / 2 + usable)
+                        let fraction = Double((clampedY - thumbDiameter / 2) / usable)
+                        let raw = range.upperBound - fraction * span
+                        let stepped = (raw / step).rounded() * step
+                        value = EqualizerSettings.clampGain(stepped)
+                    }
+            )
         }
-        // SwiftUI's Slider is horizontal by default on macOS. Rotate it to render
-        // a tall vertical band fader; the binding semantics stay correct.
-        .rotationEffect(.degrees(-90))
-        .frame(width: 200, height: 28)
         .frame(width: 28, height: 200)
+        .accessibilityElement()
+        .accessibilityLabel(Text(SpotiglassL10n.string("settings.eq.bandGain.accessibility")))
         .accessibilityValue(Text(String(format: "%.1f dB", value)))
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment:
+                value = EqualizerSettings.clampGain(value + step)
+            case .decrement:
+                value = EqualizerSettings.clampGain(value - step)
+            @unknown default:
+                break
+            }
+        }
     }
 }
 
