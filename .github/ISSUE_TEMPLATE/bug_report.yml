@@ -1,0 +1,72 @@
+name: Bug report
+description: Something in Spotiglass isn't working the way it should
+title: "[bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for the report! Fill in what you can — a screenshot plus a sentence is already plenty.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of the app?
+      options:
+        - lyrics
+        - playlists
+        - settings
+        - equalizer (EQ)
+        - playback
+        - general / not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - blocker (can't use the app)
+        - major (feature broken)
+        - minor (annoying but usable)
+        - polish (cosmetic / nitpick)
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected
+      description: What you thought should happen.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual
+      description: What actually happens.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshot(s)
+      description: Drag images right into this box.
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Frequency, when it started, guesses at the cause — anything else.
