@@ -72,7 +72,15 @@ private final class FileLogSink {
             booted = true
             guard let dir = Self.logDirectory() else { return }
             let url = dir.appendingPathComponent("spotiglass.log")
-            // Truncate any previous session's file by re-creating it empty.
+            // Preserve the previous session's log so a crash followed by a relaunch
+            // does not wipe the evidence users are asked to attach to bug reports.
+            // We keep exactly one prior log (`spotiglass.previous.log`) before
+            // starting the current session fresh.
+            let previousURL = dir.appendingPathComponent("spotiglass.previous.log")
+            if FileManager.default.fileExists(atPath: url.path) {
+                try? FileManager.default.removeItem(at: previousURL)
+                try? FileManager.default.moveItem(at: url, to: previousURL)
+            }
             FileManager.default.createFile(atPath: url.path, contents: nil)
             guard let handle = try? FileHandle(forWritingTo: url) else { return }
             self.handle = handle

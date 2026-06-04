@@ -415,6 +415,28 @@
         }
       }
     },
+    "auth.reconnect.button": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erneut verbinden"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reconnect"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reconectar"
+          }
+        }
+      }
+    },
     "auth.disconnect.button": {
       "extractionState": "stale",
       "localizations": {
@@ -8297,25 +8319,47 @@
         }
       }
     },
+    "settings.account.diagnostics.copyPath": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopieren"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copiar"
+          }
+        }
+      }
+    },
     "settings.account.diagnostics.footer": {
       "extractionState": "stale",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Wird bei jedem Start gekürzt. Hängen Sie diese Datei an Fehlerberichte an."
+            "value": "Wird bei jedem Start neu angelegt; das Protokoll der vorherigen Sitzung bleibt als spotiglass.previous.log erhalten. Hängen Sie beim Melden von Fehlern beide Dateien an."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Truncated at every launch. Attach this file when filing bug reports."
+            "value": "Reset at each launch; the previous session\u2019s log is kept as spotiglass.previous.log. Attach both when filing bug reports."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Se trunca en cada inicio. Adjunta este archivo al reportar errores."
+            "value": "Se reinicia en cada arranque; el registro de la sesión anterior se conserva como spotiglass.previous.log. Adjunta ambos al reportar errores."
           }
         }
       }
