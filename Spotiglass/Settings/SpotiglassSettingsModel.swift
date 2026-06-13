@@ -234,6 +234,11 @@ struct SpotiglassSettingsFile: Codable, Equatable {
     // periphery:ignore
     var version: Int
     var keybinds: [CommandPaletteKeyBinding]
+    /// Command IDs whose default keystroke has already been written into ``keybinds``
+    /// (or deliberately cleared by the user). Commands added to the catalog after this
+    /// file was created are absent here, which lets the load-time migration seed their
+    /// default binding exactly once without resurrecting bindings the user removed.
+    var seededKeybindCommands: [String]
     var appearance: AppearanceSettings
     var commandPalette: CommandPaletteSettings
     var equalizer: EqualizerSettings
@@ -241,12 +246,14 @@ struct SpotiglassSettingsFile: Codable, Equatable {
     init(
         version: Int = SpotiglassSettingsFile.currentVersion,
         keybinds: [CommandPaletteKeyBinding],
+        seededKeybindCommands: [String] = [],
         appearance: AppearanceSettings = AppearanceSettings(),
         commandPalette: CommandPaletteSettings = CommandPaletteSettings(),
         equalizer: EqualizerSettings = EqualizerSettings()
     ) {
         self.version = version
         self.keybinds = keybinds
+        self.seededKeybindCommands = seededKeybindCommands
         self.appearance = appearance
         self.commandPalette = commandPalette
         self.equalizer = equalizer
@@ -256,6 +263,7 @@ struct SpotiglassSettingsFile: Codable, Equatable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         version = try container.decodeIfPresent(Int.self, forKey: .version) ?? SpotiglassSettingsFile.currentVersion
         keybinds = try container.decodeIfPresent([CommandPaletteKeyBinding].self, forKey: .keybinds) ?? []
+        seededKeybindCommands = try container.decodeIfPresent([String].self, forKey: .seededKeybindCommands) ?? []
         appearance = try container.decodeIfPresent(AppearanceSettings.self, forKey: .appearance) ?? AppearanceSettings()
         commandPalette = try container.decodeIfPresent(CommandPaletteSettings.self, forKey: .commandPalette)
             ?? CommandPaletteSettings()
@@ -265,6 +273,7 @@ struct SpotiglassSettingsFile: Codable, Equatable {
     private enum CodingKeys: String, CodingKey {
         case version
         case keybinds
+        case seededKeybindCommands
         case appearance
         case commandPalette
         case equalizer

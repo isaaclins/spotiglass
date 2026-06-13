@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 // MARK: - Search card
@@ -31,6 +32,12 @@ struct CommandPaletteSearchCardView: View {
                     viewModel.queryDidChangeFromTextField()
                 }
                 .onSubmit {
+                    // Modifier-bearing returns (⇧↩ queue, ⌘↩ pin) belong to the keymap
+                    // dispatch in CommandPaletteManager; if one reaches the field because
+                    // no binding matched, it must not run the default play action.
+                    let modifiers = NSApp.currentEvent?.modifierFlags
+                        .intersection([.command, .control, .option, .shift]) ?? []
+                    guard modifiers.isEmpty else { return }
                     Task { await viewModel.executeSelection() }
                 }
         }

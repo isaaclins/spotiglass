@@ -18,11 +18,9 @@ final class SpotiglassSettingsStoreTests: XCTestCase {
 
     func testRoundTripPreservesKeybindsAndAppearance() throws {
         let url = makeTempFileURL()
-        let original = SpotiglassSettingsFile(
-            keybinds: SpotiglassSettingsStore.defaultKeybinds(),
-            appearance: AppearanceSettings(colorScheme: .dark),
-            commandPalette: CommandPaletteSettings(backdropBlur: false)
-        )
+        var original = SpotiglassSettingsStore.bootstrapDefaults()
+        original.appearance = AppearanceSettings(colorScheme: .dark, lyricsTextScale: 1.8)
+        original.commandPalette = CommandPaletteSettings(backdropBlur: false)
 
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .prettyPrinted]
@@ -215,6 +213,72 @@ final class SpotiglassSettingsStoreTests: XCTestCase {
         XCTAssertFalse(store.settings.keybinds.contains { $0.command == CommandPaletteCommandID.refreshTracks })
         let onDisk = try JSONDecoder().decode(SpotiglassSettingsFile.self, from: Data(contentsOf: url))
         XCTAssertFalse(onDisk.keybinds.contains { $0.command == CommandPaletteCommandID.refreshTracks })
+    }
+
+    func testLoadSeedsDefaultBindingForCommandAddedAfterFileWasWritten() throws {
+        // Simulates a settings.json written before palette.enqueue existed: the command
+        // has neither a binding nor a seeded-list entry, so its ⇧↩ default must be added.
+        let url = makeTempFileURL()
+        let oldKeybinds = SpotiglassSettingsStore.defaultKeybinds()
+            .filter { $0.command != CommandPaletteCommandID.enqueueSelected }
+        let file = SpotiglassSettingsFile(keybinds: oldKeybinds)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .prettyPrinted]
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try encoder.encode(file).write(to: url)
+
+        let store = SpotiglassSettingsStore(fileURL: url)
+
+        let seeded = store.settings.keybinds.first { $0.command == CommandPaletteCommandID.enqueueSelected }
+        XCTAssertEqual(seeded?.keystrokes, ["shift-return"])
+        XCTAssertEqual(seeded?.when, .paletteOpen)
+        XCTAssertTrue(store.settings.seededKeybindCommands.contains(CommandPaletteCommandID.enqueueSelected))
+        let onDisk = try JSONDecoder().decode(SpotiglassSettingsFile.self, from: Data(contentsOf: url))
+        XCTAssertTrue(onDisk.keybinds.contains { $0.command == CommandPaletteCommandID.enqueueSelected })
+    }
+
+    func testLoadDoesNotResurrectBindingTheUserCleared() throws {
+        let url = makeTempFileURL()
+        var file = SpotiglassSettingsStore.bootstrapDefaults()
+        file.keybinds.removeAll { $0.command == CommandPaletteCommandID.enqueueSelected }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .prettyPrinted]
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try encoder.encode(file).write(to: url)
+
+        let store = SpotiglassSettingsStore(fileURL: url)
+
+        XCTAssertFalse(store.settings.keybinds.contains { $0.command == CommandPaletteCommandID.enqueueSelected })
+    }
+
+    func testLoadSkipsSeedingWhenDefaultShortcutIsTakenByUserBinding() throws {
+        let url = makeTempFileURL()
+        // User had rebound palette.pin to ⇧↩ before the enqueue command existed.
+        var oldKeybinds = SpotiglassSettingsStore.defaultKeybinds().filter {
+            $0.command != CommandPaletteCommandID.enqueueSelected
+                && $0.command != CommandPaletteCommandID.pinSelected
+        }
+        oldKeybinds.append(
+            CommandPaletteKeyBinding(
+                keystrokes: ["shift-return"],
+                command: CommandPaletteCommandID.pinSelected,
+                when: .paletteOpen,
+                args: nil
+            )
+        )
+        let file = SpotiglassSettingsFile(keybinds: oldKeybinds)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .prettyPrinted]
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try encoder.encode(file).write(to: url)
+
+        let store = SpotiglassSettingsStore(fileURL: url)
+
+        XCTAssertFalse(store.settings.keybinds.contains { $0.command == CommandPaletteCommandID.enqueueSelected })
+        XCTAssertTrue(
+            store.settings.seededKeybindCommands.contains(CommandPaletteCommandID.enqueueSelected),
+            "Skipped commands must still be marked seeded so they are not retried every launch"
+        )
     }
 
     private func makeTempFileURL() -> URL {

@@ -100,15 +100,63 @@ final class SpotiglassSettingsStore: ObservableObject {
         }
     }
 
-    /// Drops legacy `playlists.refreshTracks` rows (formerly default ⌘T) so refresh is only `playlists.refresh` / ⌘R.
+    /// Drops legacy `playlists.refreshTracks` rows (formerly default ⌘T) so refresh is only `playlists.refresh` / ⌘R,
+    /// and seeds default keystrokes for catalog commands added after this file was written
+    /// (e.g. `palette.enqueue` / ⇧↩) so existing installs pick up new shortcuts.
     private func applyLoadedSettings(_ parsed: SpotiglassSettingsFile) throws {
-        let sanitized = parsed.keybinds.filter { $0.command != CommandPaletteCommandID.refreshTracks }
-        if sanitized.count != parsed.keybinds.count {
-            var next = parsed
+        var next = parsed
+        var changed = false
+        let sanitized = next.keybinds.filter { $0.command != CommandPaletteCommandID.refreshTracks }
+        if sanitized.count != next.keybinds.count {
             next.keybinds = sanitized
+            changed = true
+        }
+        if Self.seedNewDefaultKeybinds(into: &next) {
+            changed = true
+        }
+        if changed {
             try persist(next)
         } else {
-            settings = parsed
+            settings = next
+        }
+    }
+
+    /// Adds the default binding for every catalog command that has one but is not yet
+    /// recorded in ``SpotiglassSettingsFile/seededKeybindCommands``. Skips a default whose
+    /// keystroke the user already assigned to something else in an overlapping context.
+    /// Returns true when the file was mutated and needs persisting.
+    private static func seedNewDefaultKeybinds(into file: inout SpotiglassSettingsFile) -> Bool {
+        let alreadySeeded = Set(file.seededKeybindCommands)
+        let boundCommands = Set(file.keybinds.map(\.command))
+        var changed = false
+        for spec in CommandPaletteCommandCatalog.editable {
+            guard let keystroke = spec.defaultKeystroke, !alreadySeeded.contains(spec.commandID) else { continue }
+            if !boundCommands.contains(spec.commandID),
+               !defaultShortcutTaken(keystroke: keystroke, when: spec.defaultWhen, in: file.keybinds) {
+                file.keybinds.append(
+                    CommandPaletteKeyBinding(
+                        keystrokes: [keystroke],
+                        command: spec.commandID,
+                        when: spec.defaultWhen,
+                        args: nil
+                    )
+                )
+            }
+            file.seededKeybindCommands.append(spec.commandID)
+            changed = true
+        }
+        return changed
+    }
+
+    private static func defaultShortcutTaken(
+        keystroke: String,
+        when: CommandPaletteContext,
+        in keybinds: [CommandPaletteKeyBinding]
+    ) -> Bool {
+        guard let shortcut = try? CommandShortcut(keystroke: keystroke) else { return true }
+        return keybinds.contains { binding in
+            binding.keystrokes.contains { (try? CommandShortcut(keystroke: $0)) == shortcut }
+                && CommandPaletteContext.bindingsOverlapInRuntime(binding.when, when)
         }
     }
 
@@ -123,7 +171,10 @@ final class SpotiglassSettingsStore: ObservableObject {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .prettyPrinted]
         let data = try encoder.encode(next)
-        ignoreNextExternalChange = true
+        // Arm the suppression only while a watcher is listening. Persists that run
+        // before startWatchingFile() (bootstrap, load-time migrations) would
+        // otherwise leave the flag stale and swallow the user's next external edit.
+        ignoreNextExternalChange = fileWatcher != nil
         try data.write(to: fileURL, options: .atomic)
         settings = next
         lastError = nil
@@ -258,7 +309,10 @@ final class SpotiglassSettingsStore: ObservableObject {
     static func bootstrapDefaults() -> SpotiglassSettingsFile {
         SpotiglassSettingsFile(
             version: SpotiglassSettingsFile.currentVersion,
-            keybinds: defaultKeybinds()
+            keybinds: defaultKeybinds(),
+            seededKeybindCommands: CommandPaletteCommandCatalog.editable
+                .filter { $0.defaultKeystroke != nil }
+                .map(\.commandID)
         )
     }
 
