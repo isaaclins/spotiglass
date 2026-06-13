@@ -17,8 +17,8 @@ struct ImmersiveLyricsView: View {
         !reduceTransparency && !reduceMotion
     }
 
-    private var lyricsTextSize: LyricsTextSize {
-        settingsStore.settings.appearance.lyricsTextSize
+    private var lyricsTextSize: LyricsTextMetrics {
+        settingsStore.settings.appearance.lyricsTextMetrics
     }
 
     /// User's manual lyric sync nudge, in milliseconds.

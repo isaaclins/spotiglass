@@ -10,7 +10,7 @@ struct ImmersiveLyricsMainLayout: View {
     let positionMs: Int
     let reduceMotion: Bool
     let usesLyricsScrollEdgeFade: Bool
-    let lyricsTextSize: LyricsTextSize
+    let lyricsTextSize: LyricsTextMetrics
 
     /// Hand to the lyrics column so tapping a synced line seeks playback to
     /// that line's timestamp. The async hop is wrapped in a `Task` so the

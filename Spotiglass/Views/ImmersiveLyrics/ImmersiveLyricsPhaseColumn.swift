@@ -6,7 +6,7 @@ struct ImmersiveLyricsLyricsPhaseColumn: View {
     let positionMs: Int
     let reduceMotion: Bool
     let usesLyricsScrollEdgeFade: Bool
-    let lyricsTextSize: LyricsTextSize
+    let lyricsTextSize: LyricsTextMetrics
     let maxHeight: CGFloat
     /// Forwarded down to synced-lyrics rows so tapping a line seeks playback.
     /// nil → lines remain non-interactive (current behaviour for callers that
@@ -61,7 +61,7 @@ struct ImmersiveLyricsReadyContentView: View {
     let trackDurationMs: Int?
     let reduceMotion: Bool
     let usesLyricsScrollEdgeFade: Bool
-    let lyricsTextSize: LyricsTextSize
+    let lyricsTextSize: LyricsTextMetrics
     var onSeek: ((Int) -> Void)? = nil
 
     var body: some View {

@@ -31,6 +31,63 @@ final class SpotiglassSettingsStoreTests: XCTestCase {
 
         let store = SpotiglassSettingsStore(fileURL: url)
         XCTAssertEqual(store.settings, original)
+        XCTAssertEqual(store.settings.appearance.lyricsTextScale, 1.8)
+    }
+
+    func testLegacyFileWithoutScaleOrSeededListDecodesWithDefaults() throws {
+        // Raw JSON shaped like a settings.json written before lyricsTextScale and
+        // seededKeybindCommands existed — neither key present at all.
+        let legacyJSON = """
+        {
+          "version" : 1,
+          "keybinds" : [],
+          "appearance" : { "colorScheme" : "dark" },
+          "commandPalette" : { "backdropBlur" : true },
+          "equalizer" : { }
+        }
+        """
+        let decoded = try JSONDecoder().decode(SpotiglassSettingsFile.self, from: Data(legacyJSON.utf8))
+        XCTAssertEqual(decoded.appearance.lyricsTextScale, 1.0)
+        XCTAssertEqual(decoded.appearance.colorScheme, .dark)
+    }
+
+    func testOutOfRangeLyricsTextScaleClampsOnDecode() throws {
+        func decodeScale(_ raw: Double) throws -> Double {
+            let json = """
+            { "keybinds" : [], "appearance" : { "lyricsTextScale" : \(raw) } }
+            """
+            return try JSONDecoder()
+                .decode(SpotiglassSettingsFile.self, from: Data(json.utf8))
+                .appearance.lyricsTextScale
+        }
+        XCTAssertEqual(try decodeScale(100.0), AppearanceSettings.lyricsTextScaleRange.upperBound)
+        XCTAssertEqual(try decodeScale(-1.0), AppearanceSettings.lyricsTextScaleRange.lowerBound)
+        XCTAssertEqual(try decodeScale(1.4), 1.4)
+    }
+
+    func testLyricsTextMetricsScaleMultipliesPresetValues() {
+        let base = LyricsTextSize.medium.metrics()
+        let doubled = LyricsTextSize.medium.metrics(scale: 2.0)
+        XCTAssertEqual(doubled.activeFontSize, base.activeFontSize * 2)
+        XCTAssertEqual(doubled.inactiveFontSize, base.inactiveFontSize * 2)
+        XCTAssertEqual(doubled.timedLineSpacing, base.timedLineSpacing * 2)
+        XCTAssertEqual(doubled.plainLineSpacing, base.plainLineSpacing * 2)
+        XCTAssertEqual(doubled.activeGlowRadius, base.activeGlowRadius * 2)
+    }
+
+    func testStageUpdatesMemoryWithoutDiskWriteUntilPersistStaged() throws {
+        let url = makeTempFileURL()
+        let store = SpotiglassSettingsStore(fileURL: url)
+
+        store.stage { $0.appearance.lyricsTextScale = 2.2 }
+
+        XCTAssertEqual(store.settings.appearance.lyricsTextScale, 2.2)
+        var onDisk = try JSONDecoder().decode(SpotiglassSettingsFile.self, from: Data(contentsOf: url))
+        XCTAssertEqual(onDisk.appearance.lyricsTextScale, 1.0, "stage must not touch the file")
+
+        try store.persistStagedSettings()
+        onDisk = try JSONDecoder().decode(SpotiglassSettingsFile.self, from: Data(contentsOf: url))
+        XCTAssertEqual(onDisk.appearance.lyricsTextScale, 2.2)
     }
 
     func testUpdateAppearanceColorSchemePersistsAtomically() throws {

@@ -8979,25 +8979,25 @@
         }
       }
     },
-    "settings.appearance.lyricsPreview.label": {
-      "extractionState": "stale",
+    "settings.appearance.lyricsPreview.label.generic": {
+      "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Songtext-Vorschau, Größe %@"
+            "value": "Vorschau der Songtext-Textgröße"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lyrics preview, %@ size"
+            "value": "Lyrics text size preview"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vista previa de letras, tamaño %@"
+            "value": "Vista previa del tamaño del texto de la letra"
           }
         }
       }
@@ -9136,6 +9136,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "Small"
+          }
+        }
+      }
+    },
+    "settings.appearance.lyricsTextScale": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Songtext-Größe feinjustieren"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fine-tune lyrics size"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajustar el tamaño de la letra"
           }
         }
       }

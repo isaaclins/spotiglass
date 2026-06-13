@@ -113,6 +113,35 @@ enum LyricsTextSize: String, Codable, CaseIterable, Equatable {
         case .large: 20
         }
     }
+
+    /// Resolves this preset into concrete metrics, multiplied by the user's
+    /// continuous ``AppearanceSettings/lyricsTextScale``.
+    func metrics(scale: Double = 1.0) -> LyricsTextMetrics {
+        let factor = CGFloat(AppearanceSettings.clampedLyricsTextScale(scale))
+        return LyricsTextMetrics(
+            activeFontSize: activeFontSize * factor,
+            inactiveFontSize: inactiveFontSize * factor,
+            timedLineSpacing: timedLineSpacing * factor,
+            plainLineSpacing: plainLineSpacing * factor,
+            activeGlowRadius: activeGlowRadius * factor
+        )
+    }
+}
+
+/// Concrete font/spacing values for the immersive lyrics view: a ``LyricsTextSize``
+/// preset combined with the continuous scale slider.
+struct LyricsTextMetrics: Equatable {
+    var activeFontSize: CGFloat
+    var inactiveFontSize: CGFloat
+    var timedLineSpacing: CGFloat
+    var plainLineSpacing: CGFloat
+    var activeGlowRadius: CGFloat
+
+    /// Preset shorthands so call sites (and tests) can keep writing `.medium`
+    /// where a `LyricsTextMetrics` is expected.
+    static let small = LyricsTextSize.small.metrics()
+    static let medium = LyricsTextSize.medium.metrics()
+    static let large = LyricsTextSize.large.metrics()
 }
 
 /// Shell appearance preferences persisted in ``SpotiglassSettingsFile``.
@@ -122,22 +151,39 @@ struct AppearanceSettings: Codable, Equatable {
     /// fetch/playback-report lag; negative values push them later.
     static let lyricsOffsetLimitMs = 2_000
 
+    /// Allowed range for ``lyricsTextScale``. The upper bound is generous so the
+    /// lyrics can get dramatically larger than the biggest preset.
+    static let lyricsTextScaleRange: ClosedRange<Double> = 0.7...3.0
+
+    static func clampedLyricsTextScale(_ value: Double) -> Double {
+        min(max(value, lyricsTextScaleRange.lowerBound), lyricsTextScaleRange.upperBound)
+    }
+
     var language: AppLanguage
     var colorScheme: AppearanceColorScheme
     var lyricsTextSize: LyricsTextSize
     /// Manual lyric timing nudge in milliseconds (see ``lyricsOffsetLimitMs``).
     var lyricsOffsetMilliseconds: Int
+    /// Continuous multiplier applied on top of the ``lyricsTextSize`` preset (1.0 = preset as-is).
+    var lyricsTextScale: Double
+
+    /// The preset and scale combined — what the immersive lyrics view renders with.
+    var lyricsTextMetrics: LyricsTextMetrics {
+        lyricsTextSize.metrics(scale: lyricsTextScale)
+    }
 
     init(
         language: AppLanguage = AppLanguage.resolvedDefault(),
         colorScheme: AppearanceColorScheme = .system,
         lyricsTextSize: LyricsTextSize = .medium,
-        lyricsOffsetMilliseconds: Int = 0
+        lyricsOffsetMilliseconds: Int = 0,
+        lyricsTextScale: Double = 1.0
     ) {
         self.language = language
         self.colorScheme = colorScheme
         self.lyricsTextSize = lyricsTextSize
         self.lyricsOffsetMilliseconds = Self.clampOffset(lyricsOffsetMilliseconds)
+        self.lyricsTextScale = Self.clampedLyricsTextScale(lyricsTextScale)
     }
 
     /// Backward-compatible decode for older `settings.json` files.
@@ -148,6 +194,9 @@ struct AppearanceSettings: Codable, Equatable {
         lyricsTextSize = try container.decodeIfPresent(LyricsTextSize.self, forKey: .lyricsTextSize) ?? .medium
         let rawOffset = try container.decodeIfPresent(Int.self, forKey: .lyricsOffsetMilliseconds) ?? 0
         lyricsOffsetMilliseconds = Self.clampOffset(rawOffset)
+        lyricsTextScale = Self.clampedLyricsTextScale(
+            try container.decodeIfPresent(Double.self, forKey: .lyricsTextScale) ?? 1.0
+        )
     }
 
     /// Keeps a (possibly hand-edited or future-version) offset within the supported range.
@@ -160,6 +209,7 @@ struct AppearanceSettings: Codable, Equatable {
         case colorScheme
         case lyricsTextSize
         case lyricsOffsetMilliseconds
+        case lyricsTextScale
     }
 }
 

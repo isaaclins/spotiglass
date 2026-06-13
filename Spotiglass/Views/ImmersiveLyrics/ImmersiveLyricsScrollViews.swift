@@ -159,7 +159,7 @@ struct ImmersiveLyricsTimedLyricsScrollView: View {
     let positionMs: Int
     let reduceMotion: Bool
     let usesLyricsScrollEdgeFade: Bool
-    let lyricsTextSize: LyricsTextSize
+    let lyricsTextSize: LyricsTextMetrics
     /// Called with `startTimeMs` of the tapped line. When non-nil, lines
     /// become tappable buttons that seek playback there.
     var onSeek: ((Int) -> Void)? = nil
@@ -211,7 +211,7 @@ struct ImmersiveLyricsPlainLyricsScrollView: View {
     let trackDurationMs: Int?
     let reduceMotion: Bool
     let usesLyricsScrollEdgeFade: Bool
-    let lyricsTextSize: LyricsTextSize
+    let lyricsTextSize: LyricsTextMetrics
 
     var body: some View {
         let duration = max(trackDurationMs ?? 1, 1)
@@ -255,9 +255,9 @@ struct ImmersiveLyricsPlainLyricsScrollView: View {
 struct ImmersiveLyricsLineText: View {
     let text: String
     let distance: Int
-    let size: LyricsTextSize
+    let size: LyricsTextMetrics
 
-    init(_ text: String, distance: Int, size: LyricsTextSize) {
+    init(_ text: String, distance: Int, size: LyricsTextMetrics) {
         self.text = text
         self.distance = distance
         self.size = size

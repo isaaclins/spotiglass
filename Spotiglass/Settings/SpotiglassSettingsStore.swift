@@ -72,6 +72,22 @@ final class SpotiglassSettingsStore: ObservableObject {
         try persist(next)
     }
 
+    /// Updates the in-memory settings without writing to disk — for high-frequency
+    /// edits (e.g. a slider drag) where every tick should publish to observers but
+    /// only the final value is worth an atomic file write. Call
+    /// ``persistStagedSettings()`` when the interaction ends; any later `mutate`
+    /// also persists whatever was staged.
+    func stage(_ change: (inout SpotiglassSettingsFile) -> Void) {
+        var next = settings
+        change(&next)
+        settings = next
+    }
+
+    /// Writes the current (possibly staged) in-memory settings to disk.
+    func persistStagedSettings() throws {
+        try persist(settings)
+    }
+
     func reloadFromDisk() {
         do {
             let content = try Data(contentsOf: fileURL)

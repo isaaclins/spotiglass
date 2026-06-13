@@ -121,7 +121,9 @@ struct AppearanceSettingsView: View {
             .pickerStyle(.segmented)
             .labelsHidden()
 
-            LyricsTextSizePreview(size: settingsStore.settings.appearance.lyricsTextSize)
+            lyricsTextScaleSlider
+
+            LyricsTextSizePreview(metrics: settingsStore.settings.appearance.lyricsTextMetrics)
 
             Text(SpotiglassL10n.string("settings.appearance.lyricsTextSize.hint"))
                 .font(.caption)
@@ -211,11 +213,58 @@ struct AppearanceSettingsView: View {
             }
         )
     }
+
+    /// Continuous size slider layered on top of the preset buttons. The "A" end
+    /// caps mirror macOS text-size controls; the readout shows the multiplier.
+    private var lyricsTextScaleSlider: some View {
+        HStack(spacing: SpotiglassDesign.spacingS) {
+            Text(verbatim: "A")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+            Slider(
+                value: lyricsTextScaleBinding,
+                in: AppearanceSettings.lyricsTextScaleRange
+            ) { editing in
+                // Drag ticks only stage in memory (keeps the preview and the live
+                // lyrics view updating); one atomic file write on knob release.
+                if !editing {
+                    try? settingsStore.persistStagedSettings()
+                }
+            }
+            .accessibilityLabel(SpotiglassL10n.string("settings.appearance.lyricsTextScale"))
+            Text(verbatim: "A")
+                .font(.system(size: 19, weight: .semibold))
+                .foregroundStyle(.secondary)
+            Text(
+                verbatim: settingsStore.settings.appearance.lyricsTextScale
+                    .formatted(
+                        .percent
+                            .precision(.fractionLength(0))
+                            .locale(settingsStore.appLocale)
+                    )
+            )
+            .font(.callout.monospacedDigit())
+            .foregroundStyle(.secondary)
+            .frame(width: 48, alignment: .trailing)
+        }
+    }
+
+    private var lyricsTextScaleBinding: Binding<Double> {
+        Binding(
+            get: { settingsStore.settings.appearance.lyricsTextScale },
+            set: { newValue in
+                settingsStore.stage {
+                    $0.appearance.lyricsTextScale = AppearanceSettings.clampedLyricsTextScale(newValue)
+                }
+            }
+        )
+    }
 }
 
-/// Live preview tile that mirrors the immersive lyrics styling for the picked size.
+/// Live preview tile that mirrors the immersive lyrics styling for the picked
+/// size preset combined with the scale slider.
 private struct LyricsTextSizePreview: View {
-    let size: LyricsTextSize
+    let metrics: LyricsTextMetrics
 
     private let lines: [(text: String, distance: Int)] = [
         (SpotiglassL10n.string("settings.appearance.lyricsPreview.line1"),   -1),
@@ -224,11 +273,11 @@ private struct LyricsTextSizePreview: View {
     ]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: max(8, size.timedLineSpacing * 0.55)) {
+        VStack(alignment: .leading, spacing: max(8, metrics.timedLineSpacing * 0.55)) {
             ForEach(lines, id: \.distance) { line in
                 Text(line.text)
                     .font(.system(
-                        size: line.distance == 0 ? size.activeFontSize : size.inactiveFontSize,
+                        size: line.distance == 0 ? metrics.activeFontSize : metrics.inactiveFontSize,
                         weight: line.distance == 0 ? .semibold : .regular
                     ))
                     .foregroundStyle(.primary.opacity(line.distance == 0 ? 1.0 : 0.45))
@@ -237,7 +286,7 @@ private struct LyricsTextSizePreview: View {
                         color: line.distance == 0
                             ? Color.accentColor.opacity(0.22)
                             : .clear,
-                        radius: line.distance == 0 ? size.activeGlowRadius * 0.6 : 0
+                        radius: line.distance == 0 ? metrics.activeGlowRadius * 0.6 : 0
                     )
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -246,9 +295,7 @@ private struct LyricsTextSizePreview: View {
         .padding(.vertical, SpotiglassDesign.spacingM)
         .frame(maxWidth: .infinity, alignment: .leading)
         .spotiglassSurface(corner: .m)
-        .animation(SpotiglassMotion.surfaceSpring, value: size)
-        .accessibilityLabel(
-            String(format: SpotiglassL10n.string("settings.appearance.lyricsPreview.label"), size.displayName)
-        )
+        .animation(SpotiglassMotion.surfaceSpring, value: metrics)
+        .accessibilityLabel(SpotiglassL10n.string("settings.appearance.lyricsPreview.label.generic"))
     }
 }
