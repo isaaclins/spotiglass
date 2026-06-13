@@ -6,9 +6,18 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
     func testPlaybackSessionTransitionsFromConnectingToReadyAndPlaying() async {
         let commander = MockWebPlaybackCommander()
         let playbackAPI = MockPlaybackAPI()
+        // In production `.ready` arrives from the web player only after `connect`
+        // was sent; mirror that ordering here instead of racing the connect task.
+        let connectSent = AsyncSignal()
+        let volumeSent = AsyncSignal()
+        commander.onSend = { command in
+            if command == .connect { connectSent.signal() }
+            if command == .setVolume { volumeSent.signal() }
+        }
         let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: commander)
 
         viewModel.start()
+        await connectSent.wait()
         viewModel.handle(.ready(deviceID: "device-1"))
         viewModel.handle(.stateChanged(PlaybackNowPlaying(
             name: "Track",
@@ -20,7 +29,7 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
             positionMilliseconds: 5_000,
             uri: "spotify:track:1"
         ), isPaused: false, nextTracks: []))
-        try? await Task.sleep(nanoseconds: 100_000_000)
+        await volumeSent.wait()
 
         XCTAssertTrue(commander.didLoadHost)
         XCTAssertEqual(commander.commands.first?.command, .connect)
@@ -102,15 +111,27 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
     func testDifferentPlayCommandsIncrementSupersededCounterWhenOverlapping() async {
         let commander = MockWebPlaybackCommander()
         let playbackAPI = MockPlaybackAPI()
-        playbackAPI.playDelayNanoseconds = 200_000_000
+        // Deterministic overlap, no wall-clock racing: the first play parks inside the
+        // mock (still in flight for the dispatch bookkeeping) until the second play's
+        // API call arrives — and reaching the mock means the second dispatch has
+        // already counted the supersession.
+        let firstPlayEntered = AsyncSignal()
+        let releaseFirstPlay = AsyncSignal()
+        playbackAPI.onPlay = { uri in
+            if uri == "spotify:track:1" {
+                firstPlayEntered.signal()
+                await releaseFirstPlay.wait()
+            } else if uri == "spotify:track:2" {
+                releaseFirstPlay.signal()
+            }
+        }
         let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: commander)
         viewModel.handle(.ready(deviceID: "device-1"))
 
         async let first: Void = viewModel.play(uri: "spotify:track:1")
-        try? await Task.sleep(nanoseconds: 40_000_000)
+        await firstPlayEntered.wait()
         async let second: Void = viewModel.play(uri: "spotify:track:2")
         _ = await (first, second)
-        try? await Task.sleep(nanoseconds: 50_000_000)
 
         XCTAssertEqual(viewModel.playCommandSentCount, 2)
         XCTAssertGreaterThanOrEqual(viewModel.playCommandSupersededCount, 1)

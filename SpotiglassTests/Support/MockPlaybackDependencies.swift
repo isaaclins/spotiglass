@@ -31,6 +31,9 @@ final class MockWebPlaybackCommander: WebPlaybackCommanding {
     private(set) var didLoadHost = false
     private(set) var loadHostCallCount = 0
     private(set) var commands: [SentCommand] = []
+    /// Runs after each command is recorded — lets tests await a specific command
+    /// deterministically instead of sleeping for "long enough".
+    var onSend: ((PlaybackBridgeCommand) async -> Void)?
 
     func loadHost() {
         didLoadHost = true
@@ -39,11 +42,47 @@ final class MockWebPlaybackCommander: WebPlaybackCommanding {
 
     func send(_ command: PlaybackBridgeCommand, payload: [String: Any]) async throws {
         commands.append(SentCommand(command: command, payload: payload))
+        await onSend?(command)
+    }
+}
+
+/// One-shot async signal: `wait()` suspends until `signal()`. Signalling with no
+/// waiter is remembered, so a later `wait()` returns immediately. Lets tests
+/// order overlapping commands deterministically instead of racing wall-clock sleeps.
+final class AsyncSignal: @unchecked Sendable {
+    private let lock = NSLock()
+    private var signaled = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func signal() {
+        lock.lock()
+        signaled = true
+        let resumed = waiters
+        waiters.removeAll()
+        lock.unlock()
+        resumed.forEach { $0.resume() }
+    }
+
+    func wait() async {
+        await withCheckedContinuation { continuation in
+            lock.lock()
+            if signaled {
+                lock.unlock()
+                continuation.resume()
+            } else {
+                waiters.append(continuation)
+                lock.unlock()
+            }
+        }
     }
 }
 
 final class MockPlaybackAPI: SpotifyPlaybackControlling {
     private(set) var actions: [String] = []
+    /// Runs at the top of every `play*` call (before the artificial delay), with the
+    /// URI / context URI / first list URI. Suspending here keeps that play in flight
+    /// from the view model's perspective until the closure returns.
+    var onPlay: ((String) async -> Void)?
     private(set) var seekCallTimestamps: [Date] = []
     /// Returned by `fetchPlayerSnapshot`; updated when mock `setShuffle` / `setRepeat` succeed so background sync matches optimistic UI.
     private var reportedTransport = SpotifyPlayerTransport(shuffle: false, repeatMode: .off)
@@ -81,6 +120,7 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
     }
 
     func play(uri: String, deviceID: String) async throws {
+        await onPlay?(uri)
         if playDelayNanoseconds > 0 {
             try? await Task.sleep(nanoseconds: playDelayNanoseconds)
         }
@@ -88,6 +128,7 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
     }
 
     func play(contextURI: String, deviceID: String) async throws {
+        await onPlay?(contextURI)
         if playDelayNanoseconds > 0 {
             try? await Task.sleep(nanoseconds: playDelayNanoseconds)
         }
@@ -95,6 +136,7 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
     }
 
     func play(uris: [String], deviceID: String) async throws {
+        await onPlay?(uris.first ?? "")
         if playDelayNanoseconds > 0 {
             try? await Task.sleep(nanoseconds: playDelayNanoseconds)
         }
