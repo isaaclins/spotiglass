@@ -21,3 +21,6 @@ scripts/sparkle_eddsa_private.key
 
 # Sparkle release staging (zip/delta); appcast.xml in docs/ is committed
 docs/sparkle-archives/
+
+# Session research scratch — not app content
+digital-agency-site-playbook.md
