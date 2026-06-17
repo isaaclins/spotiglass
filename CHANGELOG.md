@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.1] - 2026-06-17
+
+### Changed
+
+- Command-palette song search is now local-first: matches from data already in memory (the open playlist's tracks and your library playlists) render instantly on every keystroke, and Spotify catalog results merge in when they arrive instead of blocking behind the network. Typing no longer shows a blank spinner while results load.
+- Footer category pills (and Tab) re-filter the already-fetched result set client-side instead of issuing a new network search, so switching between All / Tracks / Artists / This playlist / My Playlists is instant.
+- **All** now leads the footer as the default search mode, and its sections are ordered by how closely each one's best hit matches the query (e.g. typing an artist name floats Artists above Tracks).
+
 ## [0.2.0] - 2026-05-29
 
 ### Added
