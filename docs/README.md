@@ -10,4 +10,4 @@
 | [Data storage](data-storage.md) | Keychain, cache paths, `settings.json` |
 | [Pinning](pinning.md) | Sidebar pins, wiggle mode, palette ⌘↩, storage |
 | [Limitations](limitations.md) | Premium requirement, unsigned builds, operational constraints |
-| [Development roadmap](development/roadmap.md) | Where implementation specs live in this repo |
+| [Development roadmap](development/roadmap.md) | Where roadmap and shipped-milestone tracking live |

@@ -1,3 +1,0 @@
-exp_id	batch	metric	before	after	commit	notes
-h1	H	FILES_AT_THRESHOLD	72	101	pending	ListDetailViewsTests: TrackListRow VirtualizedTrackList PlaylistDetailContent ArtistDetailView BrowserStateViews SpotifyClientIDAndActionsView; AlbumCardTapRouter unit tests
-tier-c	TierC	FILES_ALLOWLISTED	39	25	a31b2db	AuthPersistence 98% WebPlayback 100% AuthFlow 80% Models 97%; shell views 79% DetailColumn 33% LibraryDrop 5%; Phase4 blocked

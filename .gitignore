@@ -12,7 +12,7 @@ Package.resolved
 **/xcuserdata/
 *.xcuserstate
 
-# Autoresearch / local experiment logs (optional local only)
+# Local experiment / run logs (optional local only)
 results.tsv
 run.log
 
