@@ -4,14 +4,14 @@ import XCTest
 
 @MainActor
 final class CommandPaletteModelsTests: XCTestCase {
-    func testFooterOrderPrioritizesHereTracksArtists() {
+    func testFooterOrderLeadsWithAllAsSmartDefault() {
         XCTAssertEqual(
             CommandPaletteSearchCategory.footerOrder(includeThisPlaylist: true),
-            [.thisPlaylist, .tracks, .artists, .all, .myPlaylists]
+            [.all, .tracks, .artists, .thisPlaylist, .myPlaylists]
         )
         XCTAssertEqual(
             CommandPaletteSearchCategory.footerOrder(includeThisPlaylist: false),
-            [.tracks, .artists, .all, .myPlaylists]
+            [.all, .tracks, .artists, .myPlaylists]
         )
     }
 

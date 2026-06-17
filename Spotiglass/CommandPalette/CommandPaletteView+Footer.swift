@@ -89,8 +89,7 @@ struct CommandPaletteCategoryPillView: View {
     var body: some View {
         let isSelected = viewModel.searchCategoryFilter == category
         Button {
-            viewModel.searchCategoryFilter = category
-            viewModel.refresh()
+            viewModel.selectCategory(category)
         } label: {
             Text(category.segmentLabel)
                 .font(.caption.weight(isSelected ? .semibold : .regular))

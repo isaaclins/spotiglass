@@ -128,4 +128,122 @@ final class CommandPaletteViewModelSearchRefreshTests: XCTestCase {
         try? await Task.sleep(for: .milliseconds(450))
         XCTAssertEqual(invocations, ["m83"])
     }
+
+    func testLocalResultsRenderInstantlyBeforeCatalogProviderReturns() async {
+        let viewModel = CommandPaletteViewModel()
+        defer { viewModel.hide() }
+        viewModel.localResultsProvider = { _ in
+            CommandPaletteSearchResults(
+                myPlaylists: [
+                    CommandPaletteItem(
+                        id: "playlist-local",
+                        title: "Local Mix",
+                        subtitle: nil,
+                        iconSystemName: "music.note.list",
+                        section: .myPlaylists,
+                        keywords: []
+                    ) {}
+                ]
+            )
+        }
+        var networkCalls = 0
+        viewModel.searchProvider = { _, _ in
+            networkCalls += 1
+            try? await Task.sleep(for: .milliseconds(2000))
+            return CommandPaletteSearchResults()
+        }
+        viewModel.show()
+        viewModel.searchCategoryFilter = .all
+        viewModel.query = "local"
+        viewModel.refresh()
+
+        // refresh() paints local matches synchronously — before the debounce/network fires.
+        XCTAssertEqual(viewModel.visibleItems.map(\.id), ["playlist-local"])
+        XCTAssertEqual(networkCalls, 0)
+    }
+
+    func testSwitchingCategoryAfterSearchFiltersFromCacheWithoutRefetch() async {
+        let viewModel = CommandPaletteViewModel()
+        defer { viewModel.hide() }
+        var networkCalls = 0
+        viewModel.searchProvider = { _, _ in
+            networkCalls += 1
+            return CommandPaletteSearchResults(
+                tracks: [
+                    CommandPaletteItem(
+                        id: "track-1",
+                        title: "Midnight City",
+                        subtitle: "M83",
+                        iconSystemName: "music.note",
+                        section: .tracks,
+                        keywords: []
+                    ) {}
+                ],
+                artists: [
+                    CommandPaletteItem(
+                        id: "artist-1",
+                        title: "M83",
+                        subtitle: "Artist",
+                        iconSystemName: "person.wave.2",
+                        section: .artists,
+                        keywords: []
+                    ) {}
+                ]
+            )
+        }
+        viewModel.setAvailableSearchCategories(CommandPaletteSearchCategory.footerOrder(includeThisPlaylist: false), refreshIfFilterInvalidated: false)
+        viewModel.show()
+        viewModel.searchCategoryFilter = .all
+        viewModel.query = "midnight"
+        viewModel.refresh()
+        try? await Task.sleep(for: .milliseconds(450))
+        XCTAssertEqual(networkCalls, 1)
+
+        viewModel.selectCategory(.artists)
+        XCTAssertEqual(networkCalls, 1, "Switching pills must re-filter the cache, not re-query")
+        XCTAssertEqual(viewModel.sections.map(\.section), [.artists])
+        XCTAssertEqual(viewModel.visibleItems.map(\.id), ["artist-1"])
+
+        viewModel.selectCategory(.tracks)
+        XCTAssertEqual(networkCalls, 1)
+        XCTAssertEqual(viewModel.visibleItems.map(\.id), ["track-1"])
+    }
+
+    func testAllCategoryFloatsBestMatchingSectionFirst() async {
+        let viewModel = CommandPaletteViewModel()
+        defer { viewModel.hide() }
+        viewModel.searchProvider = { _, _ in
+            CommandPaletteSearchResults(
+                tracks: [
+                    CommandPaletteItem(
+                        id: "track-1",
+                        title: "Some Song",
+                        subtitle: "Other Band",
+                        iconSystemName: "music.note",
+                        section: .tracks,
+                        keywords: []
+                    ) {}
+                ],
+                artists: [
+                    CommandPaletteItem(
+                        id: "artist-1",
+                        title: "Kanye West",
+                        subtitle: "Artist",
+                        iconSystemName: "person.wave.2",
+                        section: .artists,
+                        keywords: []
+                    ) {}
+                ]
+            )
+        }
+        viewModel.setAvailableSearchCategories(CommandPaletteSearchCategory.footerOrder(includeThisPlaylist: false), refreshIfFilterInvalidated: false)
+        viewModel.show()
+        viewModel.searchCategoryFilter = .all
+        viewModel.query = "kanye"
+        viewModel.refresh()
+        try? await Task.sleep(for: .milliseconds(450))
+
+        // "kanye" matches the artist (prefix) but not the track, so Artists floats above Tracks.
+        XCTAssertEqual(viewModel.sections.map(\.section), [.artists, .tracks])
+    }
 }

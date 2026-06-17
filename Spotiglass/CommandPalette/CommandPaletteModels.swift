@@ -109,11 +109,13 @@ enum CommandPaletteSearchCategory: String, Identifiable, Hashable {
         }
     }
 
-    /// Footer segment order; `thisPlaylist` is omitted when no playlist is open in the browser.
+    /// Footer segment order. `.all` leads as the smart default (typing immediately searches
+    /// everything — loaded songs and the catalog — ranked by relevance); `thisPlaylist` ("Here")
+    /// is appended only when a playlist is open in the browser.
     static func footerOrder(includeThisPlaylist: Bool) -> [CommandPaletteSearchCategory] {
-        var order: [CommandPaletteSearchCategory] = [.tracks, .artists, .all]
+        var order: [CommandPaletteSearchCategory] = [.all, .tracks, .artists]
         if includeThisPlaylist {
-            order.insert(.thisPlaylist, at: 0)
+            order.append(.thisPlaylist)
         }
         order.append(.myPlaylists)
         return order
