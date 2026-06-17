@@ -1,8 +1,9 @@
 # Development roadmap
 
-Implementation scope and completion tracking for this project live alongside Cursor rules, not in this `docs/` tree.
+Roadmap and completion tracking live in GitHub, not in this `docs/` tree.
 
-- Master index: `.cursor/rules/ROADMAP.mdc`
-- Per-step specs: `.cursor/rules/roadmap/01-project-foundation.mdc` through `08-integration-hardening.mdc`
+- **Open / planned work:** the [issue tracker](https://github.com/isaaclins/spotiglass/issues).
+- **Shipped milestones:** [`CHANGELOG.md`](../../CHANGELOG.md) and the
+  [GitHub releases](https://github.com/isaaclins/spotiglass/releases).
 
-Those files define what each milestone covered and are the source of truth for roadmap state.
+Those are the source of truth for what is planned and what has shipped.

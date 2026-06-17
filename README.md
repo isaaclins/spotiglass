@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/readme/logo.png" alt="Spotiglass logo" width="128" />
+  <img src=".github/assets/logo.png" alt="Spotiglass logo" width="128" />
 </p>
 
 <h1 align="center">Spotiglass</h1>

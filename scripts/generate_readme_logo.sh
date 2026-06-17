@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_PATH="${ROOT_DIR}/build/DerivedData/Build/Products/Release/Spotiglass.app"
 ICON_PATH="${APP_PATH}/Contents/Resources/AppIcon.icns"
-OUTPUT_PATH="${ROOT_DIR}/assets/readme/logo.png"
+OUTPUT_PATH="${ROOT_DIR}/.github/assets/logo.png"
 
 print_usage() {
   cat <<'EOF'
@@ -14,7 +14,7 @@ Generates a README-ready PNG logo from Spotiglass.app's AppIcon.icns.
 
 Options:
   --rebuild        Force a fresh unsigned Release build before export
-  --output <path>  Override output file path (default: assets/readme/logo.png)
+  --output <path>  Override output file path (default: .github/assets/logo.png)
   -h, --help       Show this help
 EOF
 }

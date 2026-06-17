@@ -33,7 +33,7 @@ final class CommandPaletteViewModelChromeAugmentationTests: XCTestCase {
         viewModel.setAvailableSearchCategories(CommandPaletteSearchCategory.footerOrder(includeThisPlaylist: true), refreshIfFilterInvalidated: false)
         viewModel.searchCategoryFilter = .thisPlaylist
         viewModel.setAvailableSearchCategories(CommandPaletteSearchCategory.footerOrder(includeThisPlaylist: false), refreshIfFilterInvalidated: false)
-        XCTAssertEqual(viewModel.searchCategoryFilter, .tracks)
+        XCTAssertEqual(viewModel.searchCategoryFilter, .all)
     }
 
     func testAugmentationShouldFetchWhenQueryMatchesArtistName() {

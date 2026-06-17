@@ -13,7 +13,7 @@ same terms as the repository. See [LICENSE](LICENSE) for use restrictions
 
 1. Read [docs/getting-started.md](docs/getting-started.md) for Spotify setup.
 2. Read [docs/architecture.md](docs/architecture.md) for module layout.
-3. Check open work: implementation specs live under `.cursor/rules/roadmap/`.
+3. Check open work in the [issue tracker](https://github.com/isaaclins/spotiglass/issues).
 
 ## Build and test
 
@@ -68,8 +68,8 @@ Coordinate before editing `Spotiglass.xcodeproj/project.pbxproj`.
 ## Pull requests
 
 1. Keep changes focused; one concern per PR when possible.
-2. Update the narrowest doc in `docs/` if behavior or setup changes (see
-   `.cursor/rules/documentation-sync.mdc`).
+2. Update the narrowest doc in `docs/` if behavior or setup changes (start
+   from [docs/README.md](docs/README.md), the doc index).
 3. Do not commit secrets, `.env` files, or Keychain exports.
 4. Confirm `make build` (and `make test` when you change testable logic).
 

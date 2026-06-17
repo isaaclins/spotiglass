@@ -64,7 +64,7 @@ flowchart TB
 
 ## Browsing layout (current)
 
-Refactor in progress ([refactor-browsing rule](../.cursor/rules/refactor-browsing.mdc)):
+Refactor in progress:
 
 - Protocols, row VMs, `PlaylistBrowserViewModel` (+ concerns), and playlist-browser helpers: `Spotiglass/Browsing/`
 - Browser UI: `Spotiglass/Views/PlaylistBrowser/`

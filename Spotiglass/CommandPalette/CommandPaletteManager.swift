@@ -26,6 +26,9 @@ final class CommandPaletteManager: ObservableObject {
     var openPlaylist: ((String) async -> Void)?
     var openArtist: ((String) async -> Void)?
     var spotifySearch: ((String, CommandPaletteSearchCategory) async throws -> CommandPaletteSearchResults)?
+    /// Synchronous in-memory matches (open-playlist tracks + library playlists) for the
+    /// palette's local-first instant render. Returns empty when no browser context is wired.
+    var localSpotifySearch: ((String) -> CommandPaletteSearchResults)?
     var filterByArtist: ((String) -> Void)?
     var toggleQueue: (() -> Void)?
     var toggleLyrics: (() -> Void)?
@@ -49,6 +52,9 @@ final class CommandPaletteManager: ObservableObject {
                 return CommandPaletteSearchResults()
             }
             return try await spotifySearch(query, category)
+        }
+        viewModel.localResultsProvider = { [weak self] query in
+            self?.localSpotifySearch?(query) ?? CommandPaletteSearchResults()
         }
         viewModel.cancelPrefetchAllPlaylists = { [weak self] in
             self?.prefetchAllPlaylists?()

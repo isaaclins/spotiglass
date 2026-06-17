@@ -147,6 +147,34 @@ enum PlaylistBrowserPaletteSearchBuilder {
         return mapped
     }
 
+    /// Synchronous, network-free matches from data already in memory (open-playlist tracks +
+    /// library playlists). Drives the palette's local-first instant render before the catalog
+    /// search returns. Mirrors the local portions ``search(query:category:…)`` produces.
+    static func localSearch(
+        query: String,
+        environment: PlaylistBrowserPaletteSearchEnvironment,
+        loadedContextTracks: [TrackRowViewModel]?,
+        visiblePlaylists: [PlaylistRowViewModel],
+        currentUserSpotifyID: String?
+    ) -> CommandPaletteSearchResults {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        var mapped = CommandPaletteSearchResults()
+        if let rows = loadedContextTracks {
+            mapped.inPlaylistMatches = inPlaylistMatches(
+                from: rows,
+                trimmedQuery: trimmed,
+                environment: environment
+            )
+        }
+        mapped.myPlaylists = localLibraryPlaylistMatches(
+            visiblePlaylists: visiblePlaylists,
+            trimmedQuery: trimmed,
+            environment: environment,
+            currentUserSpotifyID: currentUserSpotifyID
+        )
+        return mapped
+    }
+
     static func inPlaylistMatches(
         from rows: [TrackRowViewModel],
         trimmedQuery: String,

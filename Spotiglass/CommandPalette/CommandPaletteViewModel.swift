@@ -27,17 +27,27 @@ final class CommandPaletteViewModel: ObservableObject {
     var cancelPrefetchAllPlaylists: (() -> Void)?
 
     var staticItemsProvider: () -> [CommandPaletteItem] = { [] }
+    /// Network-backed Spotify catalog search. Always invoked for the full multi-type
+    /// result set (the category is a display-time filter, not a fetch parameter).
     var searchProvider: (String, CommandPaletteSearchCategory) async throws -> CommandPaletteSearchResults = { _, _ in
         CommandPaletteSearchResults()
     }
+    /// Synchronous, in-memory matches (open-playlist tracks + library playlists) rendered
+    /// instantly on every keystroke so the list never blanks while the catalog fetch is in flight.
+    var localResultsProvider: (String) -> CommandPaletteSearchResults = { _ in CommandPaletteSearchResults() }
     /// Invoked when the palette wants to restore key-window focus on close.
     var restoreFocus: (() -> Void)?
 
     private var searchTask: Task<Void, Never>?
     /// Skips the next `queryDidChangeFromTextField` refresh after legacy `@` prefix normalization mutates `query` programmatically.
     private var suppressLegacyPrefixQueryRefresh = false
-    /// Last songs-scope search that completed successfully; used to skip redundant identical `(query, category)` provider calls.
-    private var lastSuccessfulSongSearchKey: (query: String, category: CommandPaletteSearchCategory)?
+    /// Lowercased query of the last songs-scope search whose catalog fetch completed; skips redundant identical network calls.
+    private var lastSuccessfulSongSearchQuery: String?
+    /// Best-known result set (instant local matches, upgraded to local+catalog once the network returns)
+    /// for ``cachedResultsQuery``. Lets the footer category pills re-filter instantly without re-querying.
+    private var cachedResults: CommandPaletteSearchResults?
+    /// Trimmed query that ``cachedResults`` corresponds to.
+    private var cachedResultsQuery: String?
     /// After Spotify returns HTTP 429, blocks new palette searches until this instant (in addition to client-side GET retries inside `SpotifyAPIClient`).
     private var rateLimitCooldownUntil: Date = .distantPast
 
@@ -91,7 +101,9 @@ final class CommandPaletteViewModel: ObservableObject {
         sections = []
         errorText = nil
         isLoading = false
-        lastSuccessfulSongSearchKey = nil
+        lastSuccessfulSongSearchQuery = nil
+        cachedResults = nil
+        cachedResultsQuery = nil
         suppressLegacyPrefixQueryRefresh = false
         rateLimitCooldownUntil = .distantPast
     }
@@ -103,7 +115,9 @@ final class CommandPaletteViewModel: ObservableObject {
         selectedIndex = 0
         errorText = nil
         isLoading = false
-        lastSuccessfulSongSearchKey = nil
+        lastSuccessfulSongSearchQuery = nil
+        cachedResults = nil
+        cachedResultsQuery = nil
         suppressLegacyPrefixQueryRefresh = false
         rateLimitCooldownUntil = .distantPast
         searchTask?.cancel()
@@ -131,17 +145,36 @@ final class CommandPaletteViewModel: ObservableObject {
         normalizeLegacyArtistPrefix()
         let parsed = CommandPaletteScope.parse(query)
         let trimmed = parsed.query.trimmingCharacters(in: .whitespacesAndNewlines)
+        searchTask?.cancel()
         if parsed.scope == .songs,
            !trimmed.isEmpty,
-           trimmed.count >= Self.minimumPaletteSearchQueryCharacters,
-           searchCategoryFilter != .thisPlaylist {
+           trimmed.count >= Self.minimumPaletteSearchQueryCharacters {
+            // Local-first: paint in-memory matches immediately so the list never goes
+            // blank while the debounced catalog fetch is in flight.
+            renderInstantLocalResults(trimmed: trimmed)
             isLoading = true
             errorText = nil
         }
-        searchTask?.cancel()
         searchTask = Task { [weak self] in
             guard let self else { return }
             await self.performSearch()
+        }
+    }
+
+    /// Re-filters the cached result set for `category` without hitting the network when the
+    /// current query's results are already loaded; otherwise falls back to a fresh search.
+    /// This is what makes the footer pills (and Tab) switch instantly instead of re-querying.
+    func selectCategory(_ category: CommandPaletteSearchCategory) {
+        guard CommandPaletteScope.parse(query).scope != .commands else { return }
+        searchCategoryFilter = category
+        let trimmed = strippedQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty,
+           trimmed.count >= Self.minimumPaletteSearchQueryCharacters,
+           cachedResultsQuery == trimmed,
+           cachedResults != nil {
+            renderSectionsFromCache(trimmed: trimmed)
+        } else {
+            refresh()
         }
     }
 
@@ -163,8 +196,8 @@ final class CommandPaletteViewModel: ObservableObject {
     func cycleSearchCategory(forward: Bool) {
         guard CommandPaletteScope.parse(query).scope != .commands else { return }
         let ordered = availableSearchCategories
-        searchCategoryFilter = forward ? searchCategoryFilter.next(in: ordered) : searchCategoryFilter.previous(in: ordered)
-        refresh()
+        let next = forward ? searchCategoryFilter.next(in: ordered) : searchCategoryFilter.previous(in: ordered)
+        selectCategory(next)
     }
 
     func executeSelection() async {
@@ -232,7 +265,7 @@ final class CommandPaletteViewModel: ObservableObject {
 
         switch scope {
         case .commands:
-            lastSuccessfulSongSearchKey = nil
+            resetSongSearchCache()
             // `>` alone lists every static command. Any query filters by score.
             let staticItems = staticItemsProvider()
             let filtered: [CommandPaletteItem]
@@ -255,7 +288,7 @@ final class CommandPaletteViewModel: ObservableObject {
 
         case .songs:
             guard !trimmed.isEmpty else {
-                lastSuccessfulSongSearchKey = nil
+                resetSongSearchCache()
                 sections = []
                 errorText = nil
                 isLoading = false
@@ -263,26 +296,36 @@ final class CommandPaletteViewModel: ObservableObject {
                 return
             }
             guard trimmed.count >= Self.minimumPaletteSearchQueryCharacters else {
-                lastSuccessfulSongSearchKey = nil
+                resetSongSearchCache()
                 sections = []
                 errorText = nil
                 isLoading = false
                 selectedIndex = 0
                 return
             }
-            await runSongScopeSearch(query: trimmed, category: searchCategoryFilter)
+            await runSongScopeSearch(query: trimmed)
         }
     }
 
-    /// Spotify search with optional section filter from the footer control.
-    private func runSongScopeSearch(query: String, category: CommandPaletteSearchCategory) async {
+    /// Clears the cached result set and network-dedupe marker so the next songs search refetches.
+    private func resetSongSearchCache() {
+        lastSuccessfulSongSearchQuery = nil
+        cachedResults = nil
+        cachedResultsQuery = nil
+    }
+
+    /// Fetches the full Spotify catalog result set (debounced) and merges it over the
+    /// instant local matches already on screen. The category is applied at render time,
+    /// not requested from the network, so switching pills never triggers another fetch.
+    private func runSongScopeSearch(query: String) async {
         if Date() < rateLimitCooldownUntil {
             isLoading = false
             return
         }
 
         let dedupeQuery = query.lowercased()
-        if let last = lastSuccessfulSongSearchKey, last.query == dedupeQuery, last.category == category {
+        if lastSuccessfulSongSearchQuery == dedupeQuery, cachedResultsQuery == query, cachedResults != nil {
+            renderSectionsFromCache(trimmed: query)
             isLoading = false
             return
         }
@@ -290,16 +333,16 @@ final class CommandPaletteViewModel: ObservableObject {
         isLoading = true
         errorText = nil
         do {
-            if category != .thisPlaylist {
-                try await Task.sleep(for: .milliseconds(340))
-                try Task.checkCancellation()
-            }
-            let searchResults = try await searchProvider(query, category)
+            try await Task.sleep(for: .milliseconds(340))
             try Task.checkCancellation()
-            sections = Self.sections(from: searchResults, category: category)
-            lastSuccessfulSongSearchKey = (dedupeQuery, category)
+            // Always fetch the full multi-type result set; the category is a display filter.
+            let searchResults = try await searchProvider(query, .all)
+            try Task.checkCancellation()
+            cachedResults = searchResults
+            cachedResultsQuery = query
+            lastSuccessfulSongSearchQuery = dedupeQuery
+            renderSectionsFromCache(trimmed: query)
             isLoading = false
-            selectedIndex = 0
         } catch is CancellationError {
             isLoading = false
         } catch let error as SpotifyAPIError {
@@ -307,28 +350,54 @@ final class CommandPaletteViewModel: ObservableObject {
             case let .rateLimited(retryAfter):
                 let seconds = retryAfter ?? 5
                 rateLimitCooldownUntil = Date().addingTimeInterval(seconds)
-                lastSuccessfulSongSearchKey = nil
-                sections = []
+                lastSuccessfulSongSearchQuery = nil
+                // Keep any instant local matches visible; only the catalog half failed.
                 isLoading = false
                 errorText = error.userMessage
-                selectedIndex = 0
             default:
-                sections = []
+                lastSuccessfulSongSearchQuery = nil
                 isLoading = false
                 errorText = error.userMessage
-                selectedIndex = 0
             }
         } catch {
-            sections = []
+            lastSuccessfulSongSearchQuery = nil
             isLoading = false
             errorText = error.localizedDescription
-            selectedIndex = 0
         }
+    }
+
+    /// Paints in-memory matches (open-playlist tracks + library playlists) immediately.
+    /// On a same-query re-render it refreshes only the local portions so already-fetched
+    /// catalog hits are preserved; on a new query it resets the cache to the local set.
+    private func renderInstantLocalResults(trimmed: String) {
+        let local = localResultsProvider(trimmed)
+        if cachedResultsQuery == trimmed, var existing = cachedResults {
+            existing.inPlaylistMatches = local.inPlaylistMatches
+            existing.myPlaylists = local.myPlaylists
+            cachedResults = existing
+        } else {
+            cachedResults = local
+            cachedResultsQuery = trimmed
+        }
+        renderSectionsFromCache(trimmed: trimmed)
+    }
+
+    /// Rebuilds the visible sections from ``cachedResults`` for the active category.
+    private func renderSectionsFromCache(trimmed: String) {
+        let results = cachedResults ?? CommandPaletteSearchResults()
+        sections = Self.sections(from: results, category: searchCategoryFilter, query: trimmed)
+        selectedIndex = 0
+    }
+
+    /// Best (lowest) match score across `items` for `query`; used to rank `.all` sections.
+    private static func bestScore(_ items: [CommandPaletteItem], for query: String) -> Int {
+        items.map { $0.score(for: query) }.min() ?? 100
     }
 
     private static func sections(
         from searchResults: CommandPaletteSearchResults,
-        category: CommandPaletteSearchCategory
+        category: CommandPaletteSearchCategory,
+        query: String
     ) -> [(section: CommandPaletteSection, items: [CommandPaletteItem])] {
         switch category {
         case .all:
@@ -348,6 +417,21 @@ final class CommandPaletteViewModel: ObservableObject {
             }
             if !searchResults.albums.isEmpty {
                 built.append((.albums, searchResults.albums))
+            }
+            // Smart ordering: float the section whose closest hit best matches the query
+            // (e.g. typing an artist name surfaces Artists above Tracks). Ties fall back to
+            // the canonical order so identical-relevance results stay stable.
+            let canonicalOrder: [CommandPaletteSection] = [.playlists, .thisPlaylist, .tracks, .artists, .albums]
+            let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                built.sort { lhs, rhs in
+                    let lScore = bestScore(lhs.items, for: trimmed)
+                    let rScore = bestScore(rhs.items, for: trimmed)
+                    if lScore != rScore { return lScore < rScore }
+                    let lRank = canonicalOrder.firstIndex(of: lhs.section) ?? canonicalOrder.count
+                    let rRank = canonicalOrder.firstIndex(of: rhs.section) ?? canonicalOrder.count
+                    return lRank < rRank
+                }
             }
             return built
         case .thisPlaylist:

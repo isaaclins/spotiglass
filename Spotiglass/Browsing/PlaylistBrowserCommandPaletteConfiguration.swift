@@ -98,20 +98,35 @@ enum PlaylistBrowserCommandPaletteConfiguration {
                 unpin: { pinnedStore.unpin(id: $0) }
             )
         }
+        manager.localSpotifySearch = { [weak manager] query in
+            guard let manager else { return CommandPaletteSearchResults() }
+            let environment = makeEnvironment(
+                commandPaletteManager: manager,
+                queueViewModel: dependencies.queueViewModel,
+                isPinnedByID: { pinnedStore.isPinned(id: $0) },
+                pin: { pinnedStore.pin($0) },
+                unpin: { pinnedStore.unpin(id: $0) }
+            )
+            return PlaylistBrowserPaletteSearchBuilder.localSearch(
+                query: query,
+                environment: environment,
+                loadedContextTracks: dependencies.viewModel.loadedContextTracksForPalette,
+                visiblePlaylists: dependencies.viewModel.visiblePlaylists,
+                currentUserSpotifyID: dependencies.viewModel.currentUserSpotifyID
+            )
+        }
     }
 
-    static func paletteSearch(
-        query: String,
-        category: CommandPaletteSearchCategory,
-        spotifySearchClient: SpotifyAPIClient,
+    /// Builds the action environment (play / open / pin / queue closures) shared by both the
+    /// network-backed ``paletteSearch`` and the synchronous local-first ``localSearch``.
+    static func makeEnvironment(
         commandPaletteManager: CommandPaletteManager,
-        viewModel: PlaylistBrowserViewModel,
         queueViewModel: QueueViewModel,
         isPinnedByID: @escaping (String) -> Bool,
         pin: @escaping (PinnedItem) -> Void,
         unpin: @escaping (String) -> Void
-    ) async throws -> CommandPaletteSearchResults {
-        let environment = PlaylistBrowserPaletteSearchEnvironment(
+    ) -> PlaylistBrowserPaletteSearchEnvironment {
+        PlaylistBrowserPaletteSearchEnvironment(
             isPinnedByID: isPinnedByID,
             pin: pin,
             unpin: unpin,
@@ -136,6 +151,26 @@ enum PlaylistBrowserCommandPaletteConfiguration {
             addToQueue: { uri in
                 await queueViewModel.addToQueue(uri: uri)
             }
+        )
+    }
+
+    static func paletteSearch(
+        query: String,
+        category: CommandPaletteSearchCategory,
+        spotifySearchClient: SpotifyAPIClient,
+        commandPaletteManager: CommandPaletteManager,
+        viewModel: PlaylistBrowserViewModel,
+        queueViewModel: QueueViewModel,
+        isPinnedByID: @escaping (String) -> Bool,
+        pin: @escaping (PinnedItem) -> Void,
+        unpin: @escaping (String) -> Void
+    ) async throws -> CommandPaletteSearchResults {
+        let environment = makeEnvironment(
+            commandPaletteManager: commandPaletteManager,
+            queueViewModel: queueViewModel,
+            isPinnedByID: isPinnedByID,
+            pin: pin,
+            unpin: unpin
         )
         return try await PlaylistBrowserPaletteSearchBuilder.search(
             query: query,
