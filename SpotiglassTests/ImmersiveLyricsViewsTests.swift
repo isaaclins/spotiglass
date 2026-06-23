@@ -77,6 +77,7 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
     }
 
     func testMainLayoutWideShowsTrackTitle() async throws {
+        try ViewTestHost.skipIfViewInspectorGeometryUnsupported()
         let settings = try ViewTestHost.makeSettingsStore()
         let api = MockPlaybackAPI()
         let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: MockWebPlaybackCommander())
@@ -113,6 +114,7 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
     }
 
     func testImmersiveLyricsViewHostsWhenPlaying() async throws {
+        try ViewTestHost.skipIfViewInspectorGeometryUnsupported()
         let settings = try ViewTestHost.makeSettingsStore()
         let api = MockPlaybackAPI()
         let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: MockWebPlaybackCommander())
