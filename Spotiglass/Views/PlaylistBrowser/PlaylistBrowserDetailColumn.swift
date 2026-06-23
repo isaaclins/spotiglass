@@ -80,6 +80,15 @@ struct PlaylistBrowserMainDetailColumn: View {
                             .accessibilityHidden(true)
                     } else {
                         switch content {
+                        case .home:
+                            HomeView(
+                                viewModel: viewModel,
+                                playbackViewModel: playbackViewModel,
+                                queueViewModel: queueViewModel,
+                                currentPlaybackURI: currentPlaybackURI,
+                                isPlaying: isCurrentlyPlaying,
+                                hasPlaybackDevice: hasPlaybackDevice
+                            )
                         case let .playlist(detail):
                             PlaylistDetailContent(
                                 detail: detail,

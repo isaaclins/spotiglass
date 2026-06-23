@@ -12,7 +12,7 @@ final class PlaylistBrowserNavigationTests: XCTestCase {
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
 
         await viewModel.load()
-        XCTAssertEqual(viewModel.selectedPlaylistID, "one")
+        XCTAssertEqual(viewModel.sidebarSelection, .home)
 
         await viewModel.selectArtist(id: "artist-xyz")
 
@@ -38,16 +38,18 @@ final class PlaylistBrowserNavigationTests: XCTestCase {
 
         await viewModel.load()
         XCTAssertFalse(viewModel.canNavigateBack)
-        XCTAssertEqual(viewModel.selectedPlaylistID, "one")
+        XCTAssertEqual(viewModel.sidebarSelection, .home)
 
         await viewModel.selectPlaylist(id: "two")
         XCTAssertTrue(viewModel.canNavigateBack)
         XCTAssertEqual(viewModel.selectedPlaylistID, "two")
 
+        // Back from the first explicit selection returns to the Home landing surface.
         await viewModel.navigateBack()
-        XCTAssertEqual(viewModel.selectedPlaylistID, "one")
+        XCTAssertEqual(viewModel.sidebarSelection, .home)
+        XCTAssertNil(viewModel.selectedPlaylistID)
         XCTAssertFalse(viewModel.canNavigateBack)
-        XCTAssertEqual(PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).map(\.title), ["Track track-one"])
+        XCTAssertEqual(viewModel.detailState, .loaded(.home))
     }
 
     func testSelectAlbumLoadsAlbumAsPlaylistStyleDetail() async {
@@ -177,6 +179,7 @@ final class PlaylistBrowserNavigationTests: XCTestCase {
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
 
         await viewModel.load()
+        await viewModel.selectPlaylist(id: "one")
 
         XCTAssertTrue(viewModel.isCommandPaletteContextSearchEligible)
         XCTAssertEqual(viewModel.loadedContextTracksForPalette?.map(\.title), ["Track track-one"])

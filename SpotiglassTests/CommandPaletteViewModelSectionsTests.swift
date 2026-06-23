@@ -96,7 +96,7 @@ final class CommandPaletteViewModelSectionsTests: XCTestCase {
         XCTAssertEqual(viewModel.visibleItems.map(\.id), ["track-1"])
     }
 
-    func testAllCategoryEmitsPlaylistsThisPlaylistTracksArtistsAlbumsInOrder() async {
+    func testAllCategoryOrdersSongsAndArtistsAheadOfPlaylists() async {
         let viewModel = CommandPaletteViewModel()
         defer { viewModel.hide() }
         viewModel.searchProvider = { _, _ in
@@ -160,8 +160,8 @@ final class CommandPaletteViewModelSectionsTests: XCTestCase {
         await waitForPaletteSearch(viewModel, until: 5)
 
         XCTAssertEqual(viewModel.sections.count, 5)
-        XCTAssertEqual(viewModel.sections.map(\.section), [.playlists, .thisPlaylist, .tracks, .artists, .albums])
-        XCTAssertEqual(viewModel.visibleItems.map(\.id), ["playlist-a", "track-local", "track-1", "artist-1", "album-1"])
+        XCTAssertEqual(viewModel.sections.map(\.section), [.thisPlaylist, .tracks, .artists, .albums, .playlists])
+        XCTAssertEqual(viewModel.visibleItems.map(\.id), ["track-local", "track-1", "artist-1", "album-1", "playlist-a"])
     }
 
     func testArtistsCategoryEmitsOnlyArtistsSection() async {

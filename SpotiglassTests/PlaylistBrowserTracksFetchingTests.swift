@@ -27,6 +27,8 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         )
 
         await viewModel.load()
+        // Load lands on Home, so select the first playlist explicitly to fetch its items.
+        await viewModel.selectPlaylist(id: "a")
         XCTAssertEqual(api.playlistTracksInvocationCountByID["a"], 1)
         await viewModel.selectPlaylist(id: "b")
         XCTAssertEqual(api.playlistTracksInvocationCountByID["b"], 1)
@@ -60,6 +62,8 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         )
 
         await viewModel.load()
+        // Load lands on Home, so select the first playlist explicitly to fetch its items.
+        await viewModel.selectPlaylist(id: "a")
         XCTAssertEqual(api.playlistTracksInvocationCountByID["a"], 1)
         await viewModel.selectPlaylist(id: "b")
         clock = start.addingTimeInterval(31)
@@ -112,6 +116,8 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         let viewModel = PlaylistBrowserViewModel(api: api, cache: cache)
 
         await viewModel.load()
+        // Load lands on Home, so select the playlist explicitly to fetch its items.
+        await viewModel.selectPlaylist(id: "one")
         XCTAssertEqual(api.playlistTracksInvocationCountByID["one"], 1)
         await viewModel.refreshPlaylists(trigger: .automatic)
         XCTAssertEqual(api.playlistTracksInvocationCountByID["one"], 1)
@@ -133,6 +139,8 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         let viewModel = PlaylistBrowserViewModel(api: api, cache: cache, tracksRevalidateMinInterval: 300)
 
         await viewModel.load()
+        // Load lands on Home, so select the playlist explicitly to fetch its items.
+        await viewModel.selectPlaylist(id: "one")
         XCTAssertEqual(api.playlistTracksInvocationCountByID["one"], 1)
         await viewModel.refreshSelectedPlaylist()
         XCTAssertEqual(api.playlistTracksInvocationCountByID["one"], 2)
@@ -159,6 +167,8 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         )
 
         await viewModel.load()
+        // Load lands on Home, so select the first playlist explicitly to fetch its items.
+        await viewModel.selectPlaylist(id: "a")
         XCTAssertEqual(api.playlistTracksInvocationCountByID["a"], 1)
 
         let firstSwitch = Task { await viewModel.selectPlaylist(id: "b") }
@@ -192,6 +202,8 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         )
 
         await viewModel.load()
+        // Load lands on Home, so select the first playlist explicitly to fetch its items.
+        await viewModel.selectPlaylist(id: "a")
         XCTAssertEqual(api.playlistTracksInvocationCountByID["a"], 1)
 
         await viewModel.selectPlaylist(id: "a")

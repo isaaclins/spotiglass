@@ -32,12 +32,12 @@ extension PlaylistBrowserViewModel {
             return
         }
 
-        let existingDetail = detailState.currentValue
+        // No liked-songs cache to fall back to, so show a plain loading state.
+        // Carrying over the previous surface (for example Home) as a refreshing
+        // placeholder would make a revalidation failure surface unrelated content
+        // wrapped in a stale-cache banner instead of a terminal error.
         detailState = .loading
         guard session == detailSession else { return }
-        if let existingDetail {
-            detailState = .refreshing(existingDetail)
-        }
         await revalidateLikedSongs(session: session)
     }
 
