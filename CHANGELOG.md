@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.3.0] - 2026-06-23
+
+### Added
+
+- A Home surface, reachable from the existing **Home** sidebar row, with a localized time-of-day greeting (English, Español, Deutsch), a quick-access grid (Liked Songs plus your playlists), a **Recently Played** carousel that opens albums, and a **Your Top Tracks** list with full playback, queue, and artist navigation.
+- New Spotify scopes `user-top-read` and `user-read-recently-played`. Existing sessions must reconnect to grant them, and until then the Top Tracks and Recently Played sections show a reconnect hint. The greeting and quick access work without reconnecting.
+
+### Changed
+
+- The app now opens to Home by default after the library loads, instead of jumping to the first playlist.
+
+### Fixed
+
+- A failed detail load with no cached data now shows a clear error instead of leaving the previous screen visible behind a stale-content banner.
+- ViewInspector view-host tests no longer crash the test run on the current toolchain.
+
 ## [0.2.1] - 2026-06-17
 
 ### Changed
