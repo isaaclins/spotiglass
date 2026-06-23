@@ -173,6 +173,8 @@ final class PlaylistBrowserBreadcrumbTests: XCTestCase {
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
 
         await viewModel.load()
+        // Load now lands on Home, so select the first playlist explicitly before switching.
+        await viewModel.selectPlaylist(id: "one")
         await viewModel.selectPlaylist(id: "two")
         XCTAssertEqual(viewModel.breadcrumbPath.last?.label, "Two")
 

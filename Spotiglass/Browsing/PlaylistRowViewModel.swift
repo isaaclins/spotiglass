@@ -73,4 +73,8 @@ struct PlaylistDetailViewModel: Equatable {
 enum BrowsingDetailContent: Equatable {
     case playlist(PlaylistDetailViewModel)
     case artist(ArtistDetailViewModel)
+    /// Home surface marker. The home feed renders from the dedicated
+    /// `home*` published sections on ``PlaylistBrowserViewModel`` (each loads
+    /// independently), so the content payload here is just a routing token.
+    case home
 }

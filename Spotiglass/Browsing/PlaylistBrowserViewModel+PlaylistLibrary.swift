@@ -157,6 +157,7 @@ extension PlaylistBrowserViewModel {
                 canRetry: true
             ))
         }
-        sidebarSelection = playlists.first.map { .playlist($0.id) }
+        // Default landing surface is Home, not the first playlist.
+        sidebarSelection = .home
     }
 }

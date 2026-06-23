@@ -33,6 +33,7 @@ extension PlaylistBrowserViewModel {
         switch selection {
         case .home:
             await refreshPlaylists(trigger: .userInitiated)
+            await reloadHomeSections()
         case .likedSongs, .playlist, .pinnedItem:
             await refreshSelectedPlaylist()
         }

@@ -11,6 +11,7 @@ final class PlaybackChromeViewsTests: XCTestCase {
     }
 
     func testScrubberViewExposesAccessibilityProgress() throws {
+        try ViewTestHost.skipIfViewInspectorGeometryUnsupported()
         let view = ScrubberView(
             displayFraction: 0.42,
             durationMilliseconds: 180_000,
@@ -60,6 +61,7 @@ final class PlaybackChromeViewsTests: XCTestCase {
     }
 
     func testPlaybackControlsPlayingShowsTrackTitleAndLyricsControl() throws {
+        try ViewTestHost.skipIfViewInspectorGeometryUnsupported()
         let playback = makePlayingPlayback()
         let view = PlaybackControlsView(
             viewModel: playback,
@@ -89,6 +91,7 @@ final class PlaybackChromeViewsTests: XCTestCase {
     }
 
     func testPlaybackControlsInitializationErrorShowsReconnect() throws {
+        try ViewTestHost.skipIfViewInspectorGeometryUnsupported()
         let playback = PlaybackSessionViewModel(
             playbackAPI: MockPlaybackAPI(),
             webCommander: MockWebPlaybackCommander()
@@ -106,6 +109,7 @@ final class PlaybackChromeViewsTests: XCTestCase {
     }
 
     func testPlaybackControlsPlaybackErrorShowsRetry() throws {
+        try ViewTestHost.skipIfViewInspectorGeometryUnsupported()
         let playback = PlaybackSessionViewModel(
             playbackAPI: MockPlaybackAPI(),
             webCommander: MockWebPlaybackCommander()
@@ -123,6 +127,7 @@ final class PlaybackChromeViewsTests: XCTestCase {
     }
 
     func testPlaybackControlsReadyShowsTransportAccessibility() throws {
+        try ViewTestHost.skipIfViewInspectorGeometryUnsupported()
         let playback = PlaybackSessionViewModel(
             playbackAPI: MockPlaybackAPI(),
             webCommander: MockWebPlaybackCommander()
@@ -142,6 +147,7 @@ final class PlaybackChromeViewsTests: XCTestCase {
     }
 
     func testPlaybackControlsArtistLineRendersOpenArtistButtons() throws {
+        try ViewTestHost.skipIfViewInspectorGeometryUnsupported()
         let playback = makePlayingPlayback()
         let view = PlaybackControlsView(
             viewModel: playback,

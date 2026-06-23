@@ -122,14 +122,29 @@ struct SpotifyAPIClient {
         queryItems: [URLQueryItem] = [],
         cacheMode: SpotifyRequestCacheMode = .freshOnly
     ) async throws -> Response {
+        let traceSearch = path.hasPrefix("/v1/search")
+        let tokenStart = Date()
         let accessToken = try await tokenProvider.accessToken()
+        let tokenMs = Int(Date().timeIntervalSince(tokenStart) * 1000)
         let request = try makeRequest(path: path, queryItems: queryItems, accessToken: accessToken)
-        return try await send(
-            request: request,
-            didRefreshAfterUnauthorized: false,
-            rateLimitRetryCount: 0,
-            cacheMode: cacheMode
-        )
+        let netStart = Date()
+        do {
+            let result: Response = try await send(
+                request: request,
+                didRefreshAfterUnauthorized: false,
+                rateLimitRetryCount: 0,
+                cacheMode: cacheMode
+            )
+            if traceSearch {
+                SpotiglassLog.info(.api, "GET \(path) token=\(tokenMs)ms net=\(Int(Date().timeIntervalSince(netStart) * 1000))ms")
+            }
+            return result
+        } catch {
+            if traceSearch {
+                SpotiglassLog.info(.api, "GET \(path) token=\(tokenMs)ms net=\(Int(Date().timeIntervalSince(netStart) * 1000))ms error")
+            }
+            throw error
+        }
     }
 
     func sendCached<Response: Decodable>(

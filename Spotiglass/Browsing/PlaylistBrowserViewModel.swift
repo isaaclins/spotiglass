@@ -36,6 +36,12 @@ final class PlaylistBrowserViewModel: ObservableObject {
     /// ("Added 4 tracks to My Workout"). Read+set by views; auto-clears.
     @Published var trackMutationToast: String?
     @Published var sidebarSelection: SidebarSelection?
+    /// Home surface: "Recently played" carousel cards. Loaded lazily when Home is shown.
+    @Published internal(set) var homeRecentlyPlayed: HomeSectionState<[HomeMediaCard]> = .loading
+    /// Home surface: "Your top tracks" list rows. Loaded lazily when Home is shown.
+    @Published internal(set) var homeTopTracks: HomeSectionState<[TrackRowViewModel]> = .loading
+    /// Generation token so a stale home section load can't overwrite a newer one.
+    var homeFeedGeneration = 0
     @Published internal(set) var canNavigateBack = false
     /// Logical drill-in path for the principal toolbar; empty at Home.
     @Published internal(set) var breadcrumbPath: [BrowserBreadcrumb] = []
@@ -61,6 +67,8 @@ final class PlaylistBrowserViewModel: ObservableObject {
             case .playlist, .likedSongs: return true
             case .home, .pinnedItem: return false
             }
+        case .home:
+            return false
         }
     }
 
@@ -70,6 +78,7 @@ final class PlaylistBrowserViewModel: ObservableObject {
         switch content {
         case let .playlist(vm): return vm.tracks
         case let .artist(vm): return vm.tracks
+        case .home: return nil
         }
     }
 
@@ -203,6 +212,9 @@ final class PlaylistBrowserViewModel: ObservableObject {
         currentNavigationTarget = nil
         canNavigateBack = false
         breadcrumbPath = []
+        homeFeedGeneration += 1
+        homeRecentlyPlayed = .loading
+        homeTopTracks = .loading
         playlistState = .empty("Connect Spotify to browse playlists.")
         detailState = .empty("Sign in to Spotify to browse playlists and artists.")
     }

@@ -19,7 +19,7 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         XCTAssertEqual(PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).map(\.title), ["Track liked-one"])
     }
 
-    func testInitialLoadTransitionsToLoadedPlaylistAndTracks() async {
+    func testInitialLoadLandsOnHomeAndLoadsPlaylistLibrary() async {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
             trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]]
@@ -28,9 +28,11 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
 
         await viewModel.load()
 
-        XCTAssertEqual(viewModel.selectedPlaylistID, "one")
+        // Default landing surface is Home, not the first playlist.
+        XCTAssertEqual(viewModel.sidebarSelection, .home)
+        XCTAssertNil(viewModel.selectedPlaylistID)
+        XCTAssertEqual(viewModel.detailState, .loaded(.home))
         XCTAssertEqual(viewModel.playlistState.currentValue?.map(\.title), ["One"])
-        XCTAssertEqual(PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).map(\.title), ["Track track-one"])
     }
 
     func testCachedLoadUsesCacheWhenRefreshFails() async {
@@ -118,8 +120,11 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         await viewModel.selectPlaylist(id: "two")
         await viewModel.refreshPlaylists()
 
-        XCTAssertEqual(viewModel.selectedPlaylistID, "one")
-        XCTAssertEqual(PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).map(\.title), ["Track track-one-new"])
+        // When the selected playlist disappears, selection falls back to the Home surface.
+        XCTAssertEqual(viewModel.sidebarSelection, .home)
+        XCTAssertNil(viewModel.selectedPlaylistID)
+        XCTAssertEqual(viewModel.detailState, .loaded(.home))
+        XCTAssertEqual(viewModel.playlistState.currentValue?.map(\.title), ["One"])
     }
 
     func testDetailUsesCachedTracksThenSurfacesRefreshError() async {
@@ -132,6 +137,7 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         let viewModel = PlaylistBrowserViewModel(api: api, cache: cache)
 
         await viewModel.load()
+        await viewModel.selectPlaylist(id: "one")
 
         guard case let .staleCache(.playlist(detail), error) = viewModel.detailState else {
             return XCTFail("Expected stale cached detail")
@@ -150,6 +156,7 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         let viewModel = PlaylistBrowserViewModel(api: api, cache: cache)
 
         await viewModel.load()
+        await viewModel.selectPlaylist(id: "one")
 
         guard case let .staleCache(.playlist(detail), error) = viewModel.detailState else {
             return XCTFail("Expected stale cached detail")
@@ -172,6 +179,7 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         let viewModel = PlaylistBrowserViewModel(api: api, cache: cache)
 
         await viewModel.load()
+        await viewModel.selectPlaylist(id: "one")
 
         XCTAssertEqual(PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).map(\.title), ["Track fresh-track"])
         XCTAssertEqual(cache.savedTracks["one"]?.map(\.id), ["fresh-track"])
@@ -295,6 +303,7 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
 
         await viewModel.load()
+        await viewModel.selectPlaylist(id: "one")
 
         guard case let .error(error) = viewModel.detailState else {
             return XCTFail("Expected insufficient-scope error state")
@@ -313,6 +322,7 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
 
         await viewModel.load()
+        await viewModel.selectPlaylist(id: "one")
 
         XCTAssertEqual(api.lastTracksLimit, 50, "Spotify's /v1/playlists/{id}/items endpoint caps limit at 50; passing more than 50 returns HTTP 400.")
         XCTAssertLessThanOrEqual(api.lastTracksLimit ?? Int.max, 50)

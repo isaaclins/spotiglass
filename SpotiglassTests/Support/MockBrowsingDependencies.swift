@@ -274,6 +274,29 @@ final class MockBrowsingAPI: SpotifyBrowsingAPI {
         }
         return SpotifySavedTracksResult(tracks: [], totalAvailable: 0)
     }
+
+    // MARK: - Home feed (set the handlers per test; default to empty results)
+
+    var recentlyPlayedHandler: ((Int) async throws -> [SpotifyTrack])?
+    var topTracksHandler: ((Int, String) async throws -> [SpotifyTrack])?
+    private(set) var recentlyPlayedCallCount = 0
+    private(set) var topTracksCallCount = 0
+
+    func recentlyPlayedTracks(limit: Int) async throws -> [SpotifyTrack] {
+        recentlyPlayedCallCount += 1
+        if let recentlyPlayedHandler {
+            return try await recentlyPlayedHandler(limit)
+        }
+        return []
+    }
+
+    func topTracks(limit: Int, timeRange: String) async throws -> [SpotifyTrack] {
+        topTracksCallCount += 1
+        if let topTracksHandler {
+            return try await topTracksHandler(limit, timeRange)
+        }
+        return []
+    }
 }
 
 final class MockBrowsingCache: SpotifyBrowsingCache {

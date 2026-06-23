@@ -58,25 +58,11 @@ enum PlaylistBrowserPaletteSearchBuilder {
             return mapped
         }
 
+        // Single round-trip: the primary multi-type search already returns the artist's top
+        // tracks and the palette ranks the artist itself to the top, so the old sequential
+        // `artist:"…"` augmentation call (which roughly doubled search latency) isn't worth it.
         let paletteSearchLimit = 30
         let results = try await spotifySearchClient.search(query: query, limit: paletteSearchLimit)
-
-        var mergedTracks = results.tracks
-        if category == .all || category == .tracks,
-           let firstArtist = results.artists.first,
-           SpotifyPaletteSearchAugmentation.shouldFetchArtistScopedTracks(
-               trimmedUserQuery: trimmed,
-               topArtistName: firstArtist.name,
-               primaryTrackCount: results.tracks.count
-           ) {
-            let sanitized = firstArtist.name.replacingOccurrences(of: "\"", with: "")
-            let scopedQuery = "artist:\"\(sanitized)\""
-            let scoped = try await spotifySearchClient.searchTracks(query: scopedQuery, limit: 50)
-            mergedTracks = SpotifyPaletteSearchAugmentation.mergeTracksPreservingOrder(
-                primary: mergedTracks,
-                extra: scoped
-            )
-        }
 
         mapped.catalogPlaylists = results.playlists.map { playlist in
             let pinPayload = PinnedItem.playlist(playlist)
@@ -106,7 +92,7 @@ enum PlaylistBrowserPaletteSearchBuilder {
             )
         }
 
-        mapped.tracks = mergedTracks.map { track in
+        mapped.tracks = results.tracks.map { track in
             trackPaletteItem(track, environment: environment, pinUnpinClosures: pinUnpinClosures)
         }
 

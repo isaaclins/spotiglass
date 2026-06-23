@@ -63,6 +63,39 @@ enum ViewTestHost {
         windows.removeAll()
     }
 
+    /// Skips a test when running on a toolchain where ViewInspector traps while
+    /// descending into a `GeometryReader`.
+    ///
+    /// ViewInspector 0.10.3 (the latest release, pinned at revision
+    /// e9a06346499a3a889165647e3f23f8a7b2609a1c) constructs a `GeometryProxy`
+    /// to traverse a `GeometryReader`. On the new SwiftUI shipped with macOS 26
+    /// and later (this machine runs the macOS 27 beta), that construction trips
+    /// an internal SwiftUI assertion and raises SIGTRAP, which kills the whole
+    /// hosted XCTest process instead of failing a single test. The production
+    /// `GeometryReader` (it measures library-row frames for drag-and-drop
+    /// insertion targeting) is essential and must not change, so the only safe
+    /// option is to skip the affected view-host tests until ViewInspector ships
+    /// a build that supports this toolchain. Remove this guard, and its call
+    /// sites, once that happens.
+    ///
+    /// The gate fires automatically on the incompatible toolchain (no opt-in env
+    /// var). macOS 26 is the first version on the new SwiftUI, so anything at or
+    /// above it is gated, which covers the current machine.
+    static func skipIfViewInspectorGeometryUnsupported(
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        let version = ProcessInfo.processInfo.operatingSystemVersion
+        guard version.majorVersion >= 26 else { return }
+        throw XCTSkip(
+            "Skipped on macOS \(version.majorVersion): ViewInspector 0.10.3 traps (SIGTRAP) "
+                + "constructing a GeometryProxy to traverse the sidebar GeometryReader on the new SwiftUI. "
+                + "Remove this guard once ViewInspector supports the toolchain.",
+            file: file,
+            line: line
+        )
+    }
+
     private static var spotiglassBundle: Bundle {
         if let bundle = Bundle.allBundles.first(where: { $0.bundleURL.pathExtension == "app" }) {
             return bundle

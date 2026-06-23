@@ -12,6 +12,9 @@ Package.resolved
 **/xcuserdata/
 *.xcuserstate
 
+# Claude Code local directory (machine-only)
+.claude/
+
 # Local experiment / run logs (optional local only)
 results.tsv
 run.log

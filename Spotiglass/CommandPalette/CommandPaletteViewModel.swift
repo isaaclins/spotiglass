@@ -5,6 +5,11 @@ final class CommandPaletteViewModel: ObservableObject {
     /// Spotify palette search does not call the network until the stripped query has at least this many characters (reduces `/v1/search` traffic).
     static let minimumPaletteSearchQueryCharacters = 2
 
+    /// Max rows shown per primary section (tracks, this-playlist) in the unified **All** view.
+    static let allSectionCap = 6
+    /// Max rows shown per secondary section (artists, albums, playlists) in the unified **All** view.
+    static let allSecondarySectionCap = 4
+
     @Published var isPresented = false
     @Published var query = ""
     /// Filters Spotify search sections when not in command (`>`) scope.
@@ -333,10 +338,12 @@ final class CommandPaletteViewModel: ObservableObject {
         isLoading = true
         errorText = nil
         do {
-            try await Task.sleep(for: .milliseconds(340))
+            try await Task.sleep(for: .milliseconds(200))
             try Task.checkCancellation()
             // Always fetch the full multi-type result set; the category is a display filter.
+            let providerStart = Date()
             let searchResults = try await searchProvider(query, .all)
+            SpotiglassLog.info(.api, "palette search '\(query)' provider \(Int(Date().timeIntervalSince(providerStart) * 1000))ms")
             try Task.checkCancellation()
             cachedResults = searchResults
             cachedResultsQuery = query
@@ -389,9 +396,31 @@ final class CommandPaletteViewModel: ObservableObject {
         selectedIndex = 0
     }
 
-    /// Best (lowest) match score across `items` for `query`; used to rank `.all` sections.
-    private static func bestScore(_ items: [CommandPaletteItem], for query: String) -> Int {
-        items.map { $0.score(for: query) }.min() ?? 100
+    /// Section relevance for `.all` ordering. Prefers matches on an item's own name (title)
+    /// and demotes matches that only hit secondary fields — a song matched by its artist, a
+    /// playlist matched by its owner — so typing an artist's name floats the Artist above that
+    /// artist's songs (and a song title still floats Tracks to the top).
+    private static func sectionRelevance(_ items: [CommandPaletteItem], for query: String) -> Int {
+        let needle = query.lowercased()
+        var best = 100
+        for item in items {
+            let title = item.title.lowercased()
+            let score: Int
+            if title == needle {
+                score = 0
+            } else if title.hasPrefix(needle) {
+                score = 1
+            } else if title.contains(needle) {
+                score = 2
+            } else {
+                // Matches only via subtitle/keywords: rank below any title match.
+                let broad = item.score(for: query)
+                score = broad >= 100 ? 100 : broad + 10
+            }
+            best = min(best, score)
+            if best == 0 { break }
+        }
+        return best
     }
 
     private static func sections(
@@ -401,32 +430,36 @@ final class CommandPaletteViewModel: ObservableObject {
     ) -> [(section: CommandPaletteSection, items: [CommandPaletteItem])] {
         switch category {
         case .all:
+            // The unified view is a balanced, scannable *preview* of each type — the dedicated
+            // pills show the full list. Caps keep one type (usually name-matched playlists) from
+            // flooding the viewport and burying the song you actually searched for.
             var built: [(section: CommandPaletteSection, items: [CommandPaletteItem])] = []
-            let mergedPlaylists = searchResults.mergedPlaylistsForAllCategory()
-            if !mergedPlaylists.isEmpty {
-                built.append((.playlists, mergedPlaylists))
-            }
             if !searchResults.inPlaylistMatches.isEmpty {
-                built.append((.thisPlaylist, searchResults.inPlaylistMatches))
+                built.append((.thisPlaylist, Array(searchResults.inPlaylistMatches.prefix(Self.allSectionCap))))
             }
             if !searchResults.tracks.isEmpty {
-                built.append((.tracks, searchResults.tracks))
+                built.append((.tracks, Array(searchResults.tracks.prefix(Self.allSectionCap))))
             }
             if !searchResults.artists.isEmpty {
-                built.append((.artists, searchResults.artists))
+                built.append((.artists, Array(searchResults.artists.prefix(Self.allSecondarySectionCap))))
             }
             if !searchResults.albums.isEmpty {
-                built.append((.albums, searchResults.albums))
+                built.append((.albums, Array(searchResults.albums.prefix(Self.allSecondarySectionCap))))
+            }
+            let mergedPlaylists = searchResults.mergedPlaylistsForAllCategory()
+            if !mergedPlaylists.isEmpty {
+                built.append((.playlists, Array(mergedPlaylists.prefix(Self.allSecondarySectionCap))))
             }
             // Smart ordering: float the section whose closest hit best matches the query
-            // (e.g. typing an artist name surfaces Artists above Tracks). Ties fall back to
-            // the canonical order so identical-relevance results stay stable.
-            let canonicalOrder: [CommandPaletteSection] = [.playlists, .thisPlaylist, .tracks, .artists, .albums]
+            // (typing an artist name surfaces Artists first; a song title surfaces Tracks).
+            // Ties fall back to the canonical order — songs/artists ahead of playlists, since a
+            // name-matched playlist is rarely what you meant when you typed a track or artist.
+            let canonicalOrder: [CommandPaletteSection] = [.thisPlaylist, .tracks, .artists, .albums, .playlists]
             let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmed.isEmpty {
                 built.sort { lhs, rhs in
-                    let lScore = bestScore(lhs.items, for: trimmed)
-                    let rScore = bestScore(rhs.items, for: trimmed)
+                    let lScore = sectionRelevance(lhs.items, for: trimmed)
+                    let rScore = sectionRelevance(rhs.items, for: trimmed)
                     if lScore != rScore { return lScore < rScore }
                     let lRank = canonicalOrder.firstIndex(of: lhs.section) ?? canonicalOrder.count
                     let rRank = canonicalOrder.firstIndex(of: rhs.section) ?? canonicalOrder.count

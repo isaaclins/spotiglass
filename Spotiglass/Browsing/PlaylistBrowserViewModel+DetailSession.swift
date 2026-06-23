@@ -23,8 +23,7 @@ extension PlaylistBrowserViewModel {
         guard !Task.isCancelled else { return }
         switch selection {
         case .home:
-            guard session == detailSession else { return }
-            detailState = .empty("Home is not available yet.")
+            await loadHomeFeed(session: session)
         case .likedSongs:
             await loadLikedSongsTracks(refreshCachedData: refreshCachedData, session: session)
         case let .playlist(playlistID):
