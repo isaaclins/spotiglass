@@ -463,8 +463,7 @@ final class SpotifyAuthStepTests: XCTestCase {
     }
 
     private func makeSettings(clientID: String) -> SpotifyAuthSettings {
-        let suite = "SpotiglassTests-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
+        let defaults = makeEphemeralDefaults()
         defaults.set(clientID, forKey: "spotify.clientID")
         return SpotifyAuthSettings(defaults: defaults)
     }

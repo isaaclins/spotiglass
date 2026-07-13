@@ -4,9 +4,7 @@ import XCTest
 @MainActor
 final class AuthViewModelCoverageTests: XCTestCase {
     func testClientIDDidSetPersistsToSettings() {
-        let suite = "SpotiglassTests-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
-        let settings = SpotifyAuthSettings(defaults: defaults)
+        let settings = SpotifyAuthSettings(defaults: makeEphemeralDefaults())
         let viewModel = AuthViewModel(settings: settings, refreshTokenStore: InMemoryRefreshTokenStore())
 
         viewModel.clientID = "  trimmed-id  "
@@ -157,8 +155,7 @@ final class AuthViewModelCoverageTests: XCTestCase {
     }
 
     private func makeSettings(clientID: String) -> SpotifyAuthSettings {
-        let suite = "SpotiglassTests-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
+        let defaults = makeEphemeralDefaults()
         defaults.set(clientID, forKey: "spotify.clientID")
         return SpotifyAuthSettings(defaults: defaults)
     }

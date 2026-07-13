@@ -35,9 +35,7 @@ final class SpotifyAuthModelsCoverageTests: XCTestCase {
     }
 
     func testAuthSettingsRoundTrip() {
-        let defaults = UserDefaults(suiteName: "SpotifyAuthModelsCoverageTests")!
-        defaults.removePersistentDomain(forName: "SpotifyAuthModelsCoverageTests")
-        var settings = SpotifyAuthSettings(defaults: defaults)
+        var settings = SpotifyAuthSettings(defaults: makeEphemeralDefaults())
         settings.clientID = "  abc  "
         settings.grantedScope = "streaming"
         XCTAssertEqual(settings.clientID, "abc")
