@@ -1,5 +1,4 @@
-import SwiftUI
-import AppKit
+import Foundation
 
 /// Builds and mutates the visible row order for the Library sidebar section: Home and pinned entries.
 enum LibrarySidebarOrder {
@@ -33,80 +32,27 @@ enum LibrarySidebarOrder {
             seen.insert(homeToken)
         }
 
+        // Pins not yet present in the row order (pinned via context menu or
+        // the command palette) join the end of the existing pins group, so a
+        // trailing Home row stays last instead of new pins landing below it.
+        var insertionIndex = missingPinnedInsertionIndex(in: filtered)
         for id in pinnedItemIDs {
             let token = pinnedToken(for: id)
             if seen.insert(token).inserted {
-                filtered.append(token)
+                filtered.insert(token, at: insertionIndex)
+                insertionIndex += 1
             }
         }
         return filtered
     }
 
-    static func moved(order: [String], movingToken: String, toInsertionIndex insertionIndex: Int) -> [String] {
-        guard let source = order.firstIndex(of: movingToken) else { return order }
-        var without = order
-        without.remove(at: source)
-        let clamped = max(0, min(insertionIndex, without.count))
-        without.insert(movingToken, at: clamped)
-        return without
-    }
-
-    static func pinnedInsertionIndex(
-        order: [String],
-        movingPinnedToken: String?,
-        toInsertionIndex insertionIndex: Int
-    ) -> Int {
-        var normalized = order
-        if let movingPinnedToken, let idx = normalized.firstIndex(of: movingPinnedToken) {
-            normalized.remove(at: idx)
+    private static func missingPinnedInsertionIndex(in order: [String]) -> Int {
+        if let lastPinned = order.lastIndex(where: { pinnedItemID(from: $0) != nil }) {
+            return lastPinned + 1
         }
-        let clamped = max(0, min(insertionIndex, normalized.count))
-        return normalized.prefix(clamped).reduce(into: 0) { count, token in
-            if pinnedItemID(from: token) != nil {
-                count += 1
-            }
+        if let homeIndex = order.firstIndex(of: homeToken) {
+            return homeIndex
         }
-    }
-}
-
-/// Full row-shaped placeholder rendered at the prospective drop slot while a
-/// pin drag is in progress. Displays a faded copy of the dragged item using
-/// ``PinnedRowView``'s layout so the skeleton matches the live row, wrapped in
-/// a dotted accent outline. Falls back to a content-less wireframe if the
-/// active dragged item has not been published (first frame of the drag, or
-/// macOS dropping the preview view tree before publication).
-struct PinnedDropSkeletonRow: View {
-    let item: PinnedItem?
-
-    var body: some View {
-        ZStack {
-            if let item {
-                PinnedRowView(
-                    item: item,
-                    isSelected: false,
-                    onUnpin: {}
-                )
-                .opacity(0.45)
-            } else {
-                Color.clear
-                    .frame(height: 56)
-            }
-        }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 2)
-        .overlay {
-            RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
-                .strokeBorder(
-                    SpotiglassDesign.controlAccent.opacity(0.85),
-                    style: StrokeStyle(
-                        lineWidth: 1.5,
-                        lineCap: .round,
-                        lineJoin: .round,
-                        dash: [0.1, 5]
-                    )
-                )
-        }
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
+        return order.count
     }
 }

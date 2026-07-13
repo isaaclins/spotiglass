@@ -190,12 +190,13 @@ final class PinnedItemsStoreTests: XCTestCase {
             existing: existing,
             pinnedItemIDs: ["p1", "p2"]
         )
+        // New pins join the end of the pins group so a trailing Home stays last.
         XCTAssertEqual(
             normalized,
             [
                 LibrarySidebarOrder.pinnedToken(for: "p2"),
-                LibrarySidebarOrder.homeToken,
-                LibrarySidebarOrder.pinnedToken(for: "p1")
+                LibrarySidebarOrder.pinnedToken(for: "p1"),
+                LibrarySidebarOrder.homeToken
             ]
         )
     }
@@ -216,59 +217,36 @@ final class PinnedItemsStoreTests: XCTestCase {
         )
     }
 
-    func testLibrarySidebarOrderPinnedInsertionIndexIgnoresSpecialRows() {
-        let order = [
-            LibrarySidebarOrder.homeToken,
-            LibrarySidebarOrder.pinnedToken(for: "a"),
-            LibrarySidebarOrder.pinnedToken(for: "b")
-        ]
-        let insertion = LibrarySidebarOrder.pinnedInsertionIndex(
-            order: order,
-            movingPinnedToken: nil,
-            toInsertionIndex: 2
-        )
-        XCTAssertEqual(insertion, 1, "Only pinned rows before insertion should count.")
+    func testApplyOrderReordersItemsToMatchVisibleRowOrder() {
+        let cache = RecordingPinnedCache()
+        let store = PinnedItemsStore(cache: cache)
+        store.bind(userID: "u1")
+        let a = PinnedItem.playlist(PlaylistBrowsingTestFixtures.playlist(id: "a", name: "A"))
+        let b = PinnedItem.playlist(PlaylistBrowsingTestFixtures.playlist(id: "b", name: "B"))
+        let c = PinnedItem.playlist(PlaylistBrowsingTestFixtures.playlist(id: "c", name: "C"))
+        store.pin(a)
+        store.pin(b)
+        store.pin(c)
+
+        store.applyOrder([c.id, a.id, b.id])
+        XCTAssertEqual(store.items.map(\.id), [c.id, a.id, b.id])
     }
 
-    func testLibrarySidebarOrderPinnedInsertionIndexExcludesDraggedPinnedRow() {
-        let order = [
-            LibrarySidebarOrder.homeToken,
-            LibrarySidebarOrder.pinnedToken(for: "a"),
-            LibrarySidebarOrder.pinnedToken(for: "b")
-        ]
-        let insertion = LibrarySidebarOrder.pinnedInsertionIndex(
-            order: order,
-            movingPinnedToken: LibrarySidebarOrder.pinnedToken(for: "a"),
-            toInsertionIndex: 4
-        )
-        XCTAssertEqual(insertion, 1, "Dragged source should be removed before counting.")
+    func testApplyOrderKeepsUnlistedItemsAndIgnoresUnknownIDs() {
+        let cache = RecordingPinnedCache()
+        let store = PinnedItemsStore(cache: cache)
+        store.bind(userID: "u1")
+        let a = PinnedItem.playlist(PlaylistBrowsingTestFixtures.playlist(id: "a", name: "A"))
+        let b = PinnedItem.playlist(PlaylistBrowsingTestFixtures.playlist(id: "b", name: "B"))
+        store.pin(a)
+        store.pin(b)
+
+        store.applyOrder([b.id, "unknown-id"])
+        XCTAssertEqual(store.items.map(\.id), [b.id, a.id], "Unlisted pins keep their relative order at the end; unknown IDs are ignored.")
     }
 
-    func testLibrarySidebarOrderMovedReturnsOriginalWhenTokenMissing() {
-        let order = [
-            LibrarySidebarOrder.homeToken
-        ]
-        let moved = LibrarySidebarOrder.moved(
-            order: order,
-            movingToken: LibrarySidebarOrder.pinnedToken(for: "missing"),
-            toInsertionIndex: 0
-        )
-        XCTAssertEqual(moved, order)
-    }
-
-    func testPinnedDragPreviewStateClearsOnEndDrag() {
-        let state = PinnedDragPreviewState(activeItem: nil)
-        let item = PinnedItem.artist(
-            SpotifyArtist(id: "artist-id", name: "Artist", imageURL: nil, uri: "spotify:artist:artist-id")
-        )
-        state.beginDrag(item: item)
-        XCTAssertEqual(state.activeItem?.id, item.id)
-        state.endDrag()
-        XCTAssertNil(state.activeItem)
-    }
-
-    /// Locks the `UTType.spotiglassPinnedItem` JSON wire format that ``LibraryPinnedItemDropDelegate`` loads
-    /// via `NSItemProvider.loadDataRepresentation` (still used for pin/reorder in the Library section).
+    /// Locks the `UTType.spotiglassPinnedItem` JSON wire format loaded from
+    /// `NSItemProvider` payloads (drag-to-pin via `dropDestination`).
     func testPinnedSidebarTransferItemProviderRoundTripDecodesAndUnpins() {
         let cache = RecordingPinnedCache()
         let store = PinnedItemsStore(cache: cache)
@@ -307,7 +285,7 @@ final class PinnedItemsStoreTests: XCTestCase {
         wait(for: [exp], timeout: 2)
     }
 
-    /// Same `transfer.item.id` used by `onDragSessionUpdated` when ending with `.ended(.delete)` for a sidebar pin.
+    /// Unpinning by `transfer.item.id` (context menu / unpin button path).
     func testUnpinRemovesPinnedSidebarTransferItem() {
         let cache = RecordingPinnedCache()
         let store = PinnedItemsStore(cache: cache)

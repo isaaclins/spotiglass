@@ -2,7 +2,7 @@ import XCTest
 @testable import Spotiglass
 
 final class PlaylistBrowserLibraryActionsTests: XCTestCase {
-    func testLibraryRowsAndPinnedDropPlans() {
+    func testLibraryRowsMapTokensAndHideLikedSongs() {
         let playlist = PlaylistBrowsingTestFixtures.playlist(id: "p1", name: "One")
         let pinned = PinnedItem.playlist(playlist)
         let order = [
@@ -20,56 +20,93 @@ final class PlaylistBrowserLibraryActionsTests: XCTestCase {
         } else {
             XCTFail("expected pinned row")
         }
-
-        let transfer = LibrarySidebarRowTransfer(rowToken: LibrarySidebarOrder.homeToken)
-        let moved = PlaylistBrowserLibraryActions.movedLibraryRowOrder(
-            order: order,
-            transfer: transfer,
-            insertionIndex: 1
-        )
-        XCTAssertNotNil(moved)
-
-        let pinTransfer = PinnedItemTransfer(item: pinned, originScopeID: PinnedItemTransfer.pinnedSidebarScopeID)
-        let reorderPlan = PlaylistBrowserLibraryActions.planPinnedTransferDrop(
-            order: order,
-            transfer: pinTransfer,
-            insertionIndex: 0
-        )
-        XCTAssertNotNil(reorderPlan?.pinnedReorderItemID)
-
-        let externalTransfer = PinnedItemTransfer(item: pinned, originScopeID: "other")
-        let pinPlan = PlaylistBrowserLibraryActions.planPinnedTransferDrop(
-            order: order,
-            transfer: externalTransfer,
-            insertionIndex: 1
-        )
-        XCTAssertEqual(pinPlan?.pinItem?.id, pinned.id)
     }
 
-    func testLibraryAndPinnedTransferDropApplications() {
+    func testLibraryRowsDropStaleTokens() {
         let playlist = PlaylistBrowsingTestFixtures.playlist(id: "p1", name: "One")
         let pinned = PinnedItem.playlist(playlist)
-        let order = [LibrarySidebarOrder.homeToken, LibrarySidebarOrder.pinnedToken(for: pinned.id)]
+        let order = [
+            "pinned:removed",
+            LibrarySidebarOrder.pinnedToken(for: pinned.id),
+            LibrarySidebarOrder.homeToken,
+        ]
+        let rows = PlaylistBrowserLibraryActions.libraryRows(order: order, pinnedItems: [pinned])
+        XCTAssertEqual(rows.count, 2)
+    }
 
-        let moved = PlaylistBrowserLibraryActions.updatedOrderForLibraryTransferDrop(
-            order: order,
-            transfers: [LibrarySidebarRowTransfer(rowToken: LibrarySidebarOrder.homeToken)],
-            insertionIndex: 1
+    func testMovedLibraryRowOrderMovesRowDown() {
+        let pinA = PinnedItem.playlist(PlaylistBrowsingTestFixtures.playlist(id: "p1", name: "One"))
+        let pinB = PinnedItem.playlist(PlaylistBrowsingTestFixtures.playlist(id: "p2", name: "Two"))
+        let rows: [LibrarySidebarRow] = [.pinned(pinA), .pinned(pinB), .home]
+
+        // List.onMove semantics: moving index 0 to offset 2 places A between B and Home.
+        let moved = PlaylistBrowserLibraryActions.movedLibraryRowOrder(
+            rows: rows,
+            fromOffsets: IndexSet(integer: 0),
+            toOffset: 2
         )
-        XCTAssertNotNil(moved)
-
-        let application = PlaylistBrowserLibraryActions.pinnedTransferDropApplication(
-            order: order,
-            transfers: [PinnedItemTransfer(item: pinned, originScopeID: PinnedItemTransfer.pinnedSidebarScopeID)],
-            insertionIndex: 0
+        XCTAssertEqual(
+            moved,
+            [
+                LibrarySidebarOrder.pinnedToken(for: pinB.id),
+                LibrarySidebarOrder.pinnedToken(for: pinA.id),
+                LibrarySidebarOrder.homeToken,
+            ]
         )
-        XCTAssertEqual(application?.reorderItemID, pinned.id)
+    }
 
+    func testMovedLibraryRowOrderMovesRowUp() {
+        let pinA = PinnedItem.playlist(PlaylistBrowsingTestFixtures.playlist(id: "p1", name: "One"))
+        let pinB = PinnedItem.playlist(PlaylistBrowsingTestFixtures.playlist(id: "p2", name: "Two"))
+        let rows: [LibrarySidebarRow] = [.home, .pinned(pinA), .pinned(pinB)]
+
+        let moved = PlaylistBrowserLibraryActions.movedLibraryRowOrder(
+            rows: rows,
+            fromOffsets: IndexSet(integer: 2),
+            toOffset: 0
+        )
+        XCTAssertEqual(
+            moved,
+            [
+                LibrarySidebarOrder.pinnedToken(for: pinB.id),
+                LibrarySidebarOrder.homeToken,
+                LibrarySidebarOrder.pinnedToken(for: pinA.id),
+            ]
+        )
+    }
+
+    func testLibraryRowOrderAfterSyncKeepsNewPinsAboveTrailingHome() {
         let synced = PlaylistBrowserLibraryActions.libraryRowOrderAfterSync(
-            existing: [LibrarySidebarOrder.homeToken],
-            visiblePinnedItemIDs: [pinned.id]
+            existing: ["pinned:a", LibrarySidebarOrder.homeToken],
+            visiblePinnedItemIDs: ["a", "b"]
         )
-        XCTAssertTrue(synced.contains(LibrarySidebarOrder.pinnedToken(for: pinned.id)))
+        XCTAssertEqual(synced, ["pinned:a", "pinned:b", LibrarySidebarOrder.homeToken])
+    }
+
+    func testLibraryRowOrderStoreRoundTrip() throws {
+        let suiteName = "LibraryRowOrderStoreTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        XCTAssertNil(LibraryRowOrderStore.load(userID: "user-a", defaults: defaults))
+
+        let order = ["pinned:a", LibrarySidebarOrder.homeToken, "pinned:b"]
+        LibraryRowOrderStore.save(order, userID: "user-a", defaults: defaults)
+        XCTAssertEqual(LibraryRowOrderStore.load(userID: "user-a", defaults: defaults), order)
+        XCTAssertNil(LibraryRowOrderStore.load(userID: "user-b", defaults: defaults))
+    }
+
+    func testLibraryRowOrderStoreOverwritesPreviousOrder() throws {
+        let suiteName = "LibraryRowOrderStoreTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        LibraryRowOrderStore.save(["pinned:a", LibrarySidebarOrder.homeToken], userID: "user-a", defaults: defaults)
+        LibraryRowOrderStore.save([LibrarySidebarOrder.homeToken, "pinned:a"], userID: "user-a", defaults: defaults)
+        XCTAssertEqual(
+            LibraryRowOrderStore.load(userID: "user-a", defaults: defaults),
+            [LibrarySidebarOrder.homeToken, "pinned:a"]
+        )
     }
 
     func testPlaylistSummaryFromRow() {

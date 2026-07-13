@@ -31,18 +31,25 @@ enum PlaylistBrowserLibraryActions {
         LibrarySidebarOrder.normalizedOrder(existing: existing, pinnedItemIDs: pinnedItemIDs)
     }
 
+    static func libraryRowOrderAfterSync(
+        existing: [String],
+        visiblePinnedItemIDs: [String]
+    ) -> [String] {
+        normalizedLibraryRowOrder(existing: existing, pinnedItemIDs: visiblePinnedItemIDs)
+    }
+
+    /// Applies a `List.onMove` reorder to the visible Library rows and returns
+    /// the resulting row-order tokens. Built from the rendered rows (not raw
+    /// order indices) so stale tokens in a persisted order can never shift the
+    /// move target.
     static func movedLibraryRowOrder(
-        order: [String],
-        transfer: LibrarySidebarRowTransfer,
-        insertionIndex: Int
-    ) -> [String]? {
-        let moved = LibrarySidebarOrder.moved(
-            order: order,
-            movingToken: transfer.rowToken,
-            toInsertionIndex: insertionIndex
-        )
-        guard moved != order else { return nil }
-        return moved
+        rows: [LibrarySidebarRow],
+        fromOffsets source: IndexSet,
+        toOffset destination: Int
+    ) -> [String] {
+        var moved = rows
+        moved.move(fromOffsets: source, toOffset: destination)
+        return moved.map(\.id)
     }
 
     static func playlistSummaryFromRow(_ row: PlaylistRowViewModel) -> SpotifyPlaylistSummary {
@@ -54,95 +61,6 @@ enum PlaylistBrowserLibraryActions {
             imageURL: row.artworkURL,
             trackCount: 0,
             snapshotID: row.snapshotID
-        )
-    }
-
-    struct PinnedTransferDropPlan: Equatable {
-        var libraryRowOrder: [String]
-        var pinnedReorderItemID: String?
-        var pinnedReorderToIndex: Int?
-        var pinItem: PinnedItem?
-        var pinAtIndex: Int?
-    }
-
-    static func updatedOrderForLibraryTransferDrop(
-        order: [String],
-        transfers: [LibrarySidebarRowTransfer],
-        insertionIndex: Int
-    ) -> [String]? {
-        guard let transfer = transfers.first else { return nil }
-        return movedLibraryRowOrder(order: order, transfer: transfer, insertionIndex: insertionIndex)
-    }
-
-    struct PinnedTransferDropApplication: Equatable {
-        var libraryRowOrder: [String]
-        var reorderItemID: String?
-        var reorderToIndex: Int?
-        var pinItem: PinnedItem?
-        var pinAtIndex: Int?
-    }
-
-    static func pinnedTransferDropApplication(
-        order: [String],
-        transfers: [PinnedItemTransfer],
-        insertionIndex: Int
-    ) -> PinnedTransferDropApplication? {
-        guard let transfer = transfers.first,
-              let plan = planPinnedTransferDrop(
-                order: order,
-                transfer: transfer,
-                insertionIndex: insertionIndex
-              )
-        else { return nil }
-        return PinnedTransferDropApplication(
-            libraryRowOrder: plan.libraryRowOrder,
-            reorderItemID: plan.pinnedReorderItemID,
-            reorderToIndex: plan.pinnedReorderToIndex,
-            pinItem: plan.pinItem,
-            pinAtIndex: plan.pinAtIndex
-        )
-    }
-
-    static func libraryRowOrderAfterSync(
-        existing: [String],
-        visiblePinnedItemIDs: [String]
-    ) -> [String] {
-        normalizedLibraryRowOrder(existing: existing, pinnedItemIDs: visiblePinnedItemIDs)
-    }
-
-    static func planPinnedTransferDrop(
-        order: [String],
-        transfer: PinnedItemTransfer,
-        insertionIndex: Int
-    ) -> PinnedTransferDropPlan? {
-        let sourceToken = LibrarySidebarOrder.pinnedToken(for: transfer.item.id)
-        let targetPinnedIndex = LibrarySidebarOrder.pinnedInsertionIndex(
-            order: order,
-            movingPinnedToken: transfer.isFromPinnedSidebar ? sourceToken : nil,
-            toInsertionIndex: insertionIndex
-        )
-
-        if transfer.isFromPinnedSidebar {
-            let movedRows = LibrarySidebarOrder.moved(
-                order: order,
-                movingToken: sourceToken,
-                toInsertionIndex: insertionIndex
-            )
-            guard movedRows != order else { return nil }
-            return PinnedTransferDropPlan(
-                libraryRowOrder: movedRows,
-                pinnedReorderItemID: transfer.item.id,
-                pinnedReorderToIndex: targetPinnedIndex,
-                pinItem: nil,
-                pinAtIndex: nil
-            )
-        }
-        return PinnedTransferDropPlan(
-            libraryRowOrder: order,
-            pinnedReorderItemID: nil,
-            pinnedReorderToIndex: nil,
-            pinItem: transfer.item,
-            pinAtIndex: targetPinnedIndex
         )
     }
 }

@@ -5,27 +5,29 @@ struct PlaylistBrowserSidebar: View {
     @ObservedObject var playbackViewModel: PlaybackSessionViewModel
 
     let libraryRows: [LibrarySidebarRow]
-    @Binding var libraryDropInsertionIndex: Int?
-    @Binding var libraryRowFramesByToken: [String: CGRect]
-    @ObservedObject var dragPreviewState: PinnedDragPreviewState
 
     let likedSongsStubRow: PlaylistRowViewModel
     let playlistSummaryFromRow: (PlaylistRowViewModel) -> SpotifyPlaylistSummary
 
     let onLibraryAppear: () -> Void
     let onSidebarListSelectionChange: (SidebarSelection?, SidebarSelection?) -> Void
-    let handlePinnedTransferDrop: ([PinnedItemTransfer], Int) -> Bool
-    let handleLibraryTransferDrop: ([LibrarySidebarRowTransfer], Int) -> Bool
+    /// Native `List.onMove` reorder of the Library section rows.
+    let moveLibraryRows: (IndexSet, Int) -> Void
+    /// Drag-to-pin: a `PinnedItemTransfer` dropped anywhere on the sidebar
+    /// pins the item (appended to the end of the pins group).
+    let pinDroppedTransfers: ([PinnedItemTransfer]) -> Bool
 
     var body: some View {
         ScrollViewReader { proxy in
             List(selection: $viewModel.sidebarSelection) {
                 Section {
-                    libraryLeadingDropSlot
-                    ForEach(Array(libraryRows.enumerated()), id: \.element.id) { index, row in
-                        libraryRowSlot(row, at: index)
+                    ForEach(libraryRows) { row in
+                        libraryRow(row)
+                            .tag(row.sidebarSelectionTag)
                     }
-                    libraryTrailingDropSlot
+                    .onMove { source, destination in
+                        moveLibraryRows(source, destination)
+                    }
                 } header: {
                     Text(SpotiglassL10n.string("browser.library"))
                 }
@@ -41,6 +43,9 @@ struct PlaylistBrowserSidebar: View {
                     PlaylistsSidebarSectionHeader(playlistState: viewModel.playlistState)
                 }
             }
+            .dropDestination(for: PinnedItemTransfer.self) { transfers, _ in
+                pinDroppedTransfers(transfers)
+            }
             .onChange(of: viewModel.sidebarSelection) { oldValue, newValue in
                 onSidebarListSelectionChange(oldValue, newValue)
             }
@@ -51,7 +56,6 @@ struct PlaylistBrowserSidebar: View {
             .onAppear {
                 onLibraryAppear()
             }
-            .onPreferenceChange(LibraryRowFramePreferenceKey.self) { libraryRowFramesByToken = $0 }
             .overlay(alignment: .bottom) {
                 if case let .staleCache(_, error) = viewModel.playlistState {
                     StaleCacheBanner(error: error)
@@ -65,133 +69,16 @@ struct PlaylistBrowserSidebar: View {
             }
             .listStyle(.sidebar)
             .tint(SpotiglassDesign.controlAccent)
-            .coordinateSpace(name: "libraryDropArea")
         }
     }
 
     @ViewBuilder
-    private func libraryRowSlot(_ row: LibrarySidebarRow, at index: Int) -> some View {
-        let rowSelection = row.sidebarSelectionTag
-        VStack(spacing: 0) {
-            if libraryDropInsertionIndex == index {
-                PinnedDropSkeletonRow(item: dragPreviewState.activeItem)
-            }
-            switch row {
-            case .home:
-                LibraryHomeSidebarRow()
-            case let .pinned(item):
-                PinnedSidebarLibraryRow(item: item, isSelected: viewModel.sidebarSelection == .pinnedItem(item.id))
-            }
+    private func libraryRow(_ row: LibrarySidebarRow) -> some View {
+        switch row {
+        case .home:
+            LibraryHomeSidebarRow()
+        case let .pinned(item):
+            PinnedSidebarLibraryRow(item: item, isSelected: viewModel.sidebarSelection == .pinnedItem(item.id))
         }
-        .tag(rowSelection)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            viewModel.sidebarSelection = rowSelection
-        }
-        .onDrop(
-            of: LibraryPinnedItemDropDelegate.acceptedTypeIdentifiers,
-            delegate: LibraryPinnedItemDropDelegate(
-                updateInsertionIndex: { location in
-                    libraryDropInsertionIndex = nearestLibraryInsertionIndex(forY: location.y)
-                },
-                clearInsertionIndex: {
-                    libraryDropInsertionIndex = nil
-                },
-                performPinnedDrop: { transfer, location in
-                    let targetIndex = nearestLibraryInsertionIndex(forY: location.y)
-                    return handlePinnedTransferDrop([transfer], targetIndex)
-                },
-                performLibraryRowDrop: { transfer, location in
-                    let targetIndex = nearestLibraryInsertionIndex(forY: location.y)
-                    return handleLibraryTransferDrop([transfer], targetIndex)
-                },
-                clearDragPreview: {
-                    dragPreviewState.endDrag()
-                }
-            )
-        )
-        .background {
-            GeometryReader { geo in
-                Color.clear.preference(
-                    key: LibraryRowFramePreferenceKey.self,
-                    value: [row.id: geo.frame(in: .named("libraryDropArea"))]
-                )
-            }
-        }
-    }
-
-    private var libraryLeadingDropSlot: some View {
-        Color.clear
-            .frame(height: 8)
-            .contentShape(Rectangle())
-            .onDrop(
-                of: LibraryPinnedItemDropDelegate.acceptedTypeIdentifiers,
-                delegate: LibraryPinnedItemDropDelegate(
-                    updateInsertionIndex: { _ in
-                        libraryDropInsertionIndex = 0
-                    },
-                    clearInsertionIndex: {
-                        if libraryDropInsertionIndex == 0 {
-                            libraryDropInsertionIndex = nil
-                        }
-                    },
-                    performPinnedDrop: { transfer, _ in
-                        handlePinnedTransferDrop([transfer], 0)
-                    },
-                    performLibraryRowDrop: { transfer, _ in
-                        handleLibraryTransferDrop([transfer], 0)
-                    },
-                    clearDragPreview: {
-                        dragPreviewState.endDrag()
-                    }
-                )
-            )
-            .listRowInsets(EdgeInsets())
-    }
-
-    private var libraryTrailingDropSlot: some View {
-        VStack(spacing: 0) {
-            if libraryDropInsertionIndex == libraryRows.count {
-                PinnedDropSkeletonRow(item: dragPreviewState.activeItem)
-            }
-            Color.clear
-                .frame(height: 12)
-        }
-        .contentShape(Rectangle())
-        .onDrop(
-            of: LibraryPinnedItemDropDelegate.acceptedTypeIdentifiers,
-            delegate: LibraryPinnedItemDropDelegate(
-                updateInsertionIndex: { location in
-                    libraryDropInsertionIndex = nearestLibraryInsertionIndex(forY: location.y)
-                },
-                clearInsertionIndex: {
-                    libraryDropInsertionIndex = nil
-                },
-                performPinnedDrop: { transfer, location in
-                    let targetIndex = nearestLibraryInsertionIndex(forY: location.y)
-                    return handlePinnedTransferDrop([transfer], targetIndex)
-                },
-                performLibraryRowDrop: { transfer, location in
-                    let targetIndex = nearestLibraryInsertionIndex(forY: location.y)
-                    return handleLibraryTransferDrop([transfer], targetIndex)
-                },
-                clearDragPreview: {
-                    dragPreviewState.endDrag()
-                }
-            )
-        )
-        .listRowInsets(EdgeInsets())
-    }
-
-    private func nearestLibraryInsertionIndex(forY y: CGFloat) -> Int {
-        guard !libraryRows.isEmpty else { return 0 }
-        let framesInOrder = libraryRows.compactMap { libraryRowFramesByToken[$0.id] }
-        guard !framesInOrder.isEmpty else { return 0 }
-        for (index, frame) in framesInOrder.enumerated() {
-            if y < frame.midY {
-                return index
-            }
-        }
-        return framesInOrder.count
     }
 }

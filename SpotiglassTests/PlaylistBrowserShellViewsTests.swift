@@ -42,15 +42,12 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
             viewModel: browserVM,
             playbackViewModel: playbackVM,
             libraryRows: [.home],
-            libraryDropInsertionIndex: .constant(nil),
-            libraryRowFramesByToken: .constant([:]),
-            dragPreviewState: PinnedDragPreviewState.shared,
             likedSongsStubRow: liked,
             playlistSummaryFromRow: summary,
             onLibraryAppear: {},
             onSidebarListSelectionChange: { _, _ in },
-            handlePinnedTransferDrop: { _, _ in false },
-            handleLibraryTransferDrop: { _, _ in false }
+            moveLibraryRows: { _, _ in },
+            pinDroppedTransfers: { _ in false }
         )
         .environmentObject(store)
         ViewTestHost.host(sidebar, size: CGSize(width: 280, height: 480))
@@ -187,9 +184,6 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
             viewModel: browserVM,
             playbackViewModel: playbackVM,
             libraryRows: [.home],
-            libraryDropInsertionIndex: .constant(nil),
-            libraryRowFramesByToken: .constant([:]),
-            dragPreviewState: PinnedDragPreviewState.shared,
             likedSongsStubRow: liked,
             playlistSummaryFromRow: { row in
                 SpotifyPlaylistSummary(
@@ -200,8 +194,8 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
             },
             onLibraryAppear: {},
             onSidebarListSelectionChange: { _, _ in },
-            handlePinnedTransferDrop: { _, _ in false },
-            handleLibraryTransferDrop: { _, _ in false }
+            moveLibraryRows: { _, _ in },
+            pinDroppedTransfers: { _ in false }
         )
         .environmentObject(store)
         ViewTestHost.host(sidebar, size: CGSize(width: 280, height: 520))

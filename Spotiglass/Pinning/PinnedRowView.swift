@@ -176,7 +176,6 @@ struct PinnedItemDragPill: View {
             horizontalPadding: 10,
             verticalPadding: 6
         )
-        .onAppear { PinnedDragPreviewState.shared.beginDrag(item: item) }
     }
 
     @ViewBuilder

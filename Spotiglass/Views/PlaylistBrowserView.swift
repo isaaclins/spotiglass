@@ -27,9 +27,10 @@ struct PlaylistBrowserView: View {
     @State var libraryRowOrder: [String] = [
         LibrarySidebarOrder.homeToken
     ]
-    @State var libraryDropInsertionIndex: Int?
-    @State var libraryRowFramesByToken: [String: CGRect] = [:]
-    @ObservedObject var dragPreviewState = PinnedDragPreviewState.shared
+    /// User ID whose persisted Library row order has already been loaded into
+    /// ``libraryRowOrder``. Guards the one-time seed per bound account so
+    /// later syncs do not clobber in-session reorders with the disk copy.
+    @State var libraryRowOrderSeededUserID: String?
     @State var unifiedRefreshFocus: UnifiedRefreshFocus = .mainContent
     /// Which side the user most recently OPENED (closed → open transition). Used to pick the loser
     /// when the window shrinks below ``SpotiglassDesign/dualSidebarComfortableMinWidth`` with both
@@ -83,17 +84,16 @@ struct PlaylistBrowserView: View {
                     viewModel: viewModel,
                     playbackViewModel: playbackViewModel,
                     libraryRows: libraryRows,
-                    libraryDropInsertionIndex: $libraryDropInsertionIndex,
-                    libraryRowFramesByToken: $libraryRowFramesByToken,
-                    dragPreviewState: dragPreviewState,
                     likedSongsStubRow: likedSongsStubRow,
                     playlistSummaryFromRow: playlistSummaryFromRow,
                     onLibraryAppear: { syncLibraryRowOrder() },
                     onSidebarListSelectionChange: { oldValue, newValue in
                         handleSidebarSelectionChange(oldValue: oldValue, newValue: newValue)
                     },
-                    handlePinnedTransferDrop: handlePinnedTransferDrop,
-                    handleLibraryTransferDrop: handleLibraryTransferDrop
+                    moveLibraryRows: { source, destination in
+                        moveLibraryRows(fromOffsets: source, toOffset: destination)
+                    },
+                    pinDroppedTransfers: pinDroppedTransfers
                 )
                 .background(.background)
                 .toolbar(removing: lyricsOverlay.isPresented ? .sidebarToggle : nil)

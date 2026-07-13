@@ -8,8 +8,6 @@ extension UTType {
     /// `Info.plist`: only Spotiglass advertises and accepts it, so cross-app
     /// drops never see this type.
     static let spotiglassPinnedItem = UTType(exportedAs: "com.spotiglass.pinned-item")
-    /// In-app drag payload type for reorder-only library chrome rows (Home).
-    static let spotiglassLibrarySidebarRow = UTType(exportedAs: "com.spotiglass.library-sidebar-row")
 }
 
 /// Drag payload for pinned-item interactions.

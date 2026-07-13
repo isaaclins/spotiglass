@@ -69,6 +69,23 @@ final class PinnedItemsStore: ObservableObject {
         persist()
     }
 
+    /// Reorders the pinned list to match ``orderedIDs`` (the visible Library
+    /// row order). Items missing from ``orderedIDs`` keep their relative order
+    /// at the end; unknown IDs are ignored, so a stale order can never drop
+    /// or invent pins.
+    func applyOrder(_ orderedIDs: [String]) {
+        var next: [PinnedItem] = []
+        for id in orderedIDs {
+            if let item = items.first(where: { $0.id == id }) {
+                next.append(item)
+            }
+        }
+        next.append(contentsOf: items.filter { item in !orderedIDs.contains(item.id) })
+        guard next != items else { return }
+        items = next
+        persist()
+    }
+
     func isPinned(id: String) -> Bool {
         items.contains { $0.id == id }
     }
