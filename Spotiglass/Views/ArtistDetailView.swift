@@ -118,17 +118,9 @@ struct ArtistDetailContent: View {
             Spacer()
         }
         .padding(.horizontal, SpotiglassDesign.spacingL)
-        .onDrag(
-            {
-                PinnedItemTransfer(
-                    item: .artist(detail.artist),
-                    originScopeID: "artistHeader:\(artistID)"
-                ).itemProvider()
-            },
-            preview: {
-                PinnedItemDragPill(item: .artist(detail.artist))
-            }
-        )
+        .draggable(PinnedItemTransfer(item: .artist(detail.artist))) {
+            PinnedItemDragPill(item: .artist(detail.artist))
+        }
         .contextMenu {
             if isArtistPinned {
                 Button(SpotiglassL10n.string("browser.unpin")) {
@@ -201,17 +193,9 @@ struct ArtistDetailContent: View {
                 openAlbum(album)
             }
         }
-        .onDrag(
-            {
-                PinnedItemTransfer(
-                    item: pinnedItem,
-                    originScopeID: "artistAlbums:\(artistID)"
-                ).itemProvider()
-            },
-            preview: {
-                PinnedItemDragPill(item: pinnedItem)
-            }
-        )
+        .draggable(PinnedItemTransfer(item: pinnedItem)) {
+            PinnedItemDragPill(item: pinnedItem)
+        }
         .contextMenu {
             if pinned {
                 Button(SpotiglassL10n.string("browser.unpin")) { pinnedStore.unpin(id: pinnedItem.id) }

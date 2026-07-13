@@ -233,13 +233,11 @@ private struct TrackListPinningModifier: ViewModifier {
     let tracksSurfaceID: String?
 
     func body(content: Content) -> some View {
-        if let sid = tracksSurfaceID, let pinned = track.pinnedTrackItem() {
-            let transfer = PinnedItemTransfer(item: pinned, originScopeID: sid)
+        if tracksSurfaceID != nil, let pinned = track.pinnedTrackItem() {
             content
-                .onDrag(
-                    { transfer.itemProvider() },
-                    preview: { PinnedItemDragPill(item: pinned) }
-                )
+                .draggable(PinnedItemTransfer(item: pinned)) {
+                    PinnedItemDragPill(item: pinned)
+                }
         } else {
             content
         }

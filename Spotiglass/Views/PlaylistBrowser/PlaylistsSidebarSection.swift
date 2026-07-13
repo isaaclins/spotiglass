@@ -82,17 +82,9 @@ struct PlaylistsSidebarSectionContent: View {
         )
         .tag(SidebarSelection.playlist(playlist.id))
         .id(playlist.id)
-        .onDrag(
-            {
-                PinnedItemTransfer(
-                    item: .playlist(summary),
-                    originScopeID: "sidebarPlaylists"
-                ).itemProvider()
-            },
-            preview: {
-                PinnedItemDragPill(item: .playlist(summary))
-            }
-        )
+        .draggable(PinnedItemTransfer(item: .playlist(summary))) {
+            PinnedItemDragPill(item: .playlist(summary))
+        }
         .contextMenu {
             if pinned {
                 Button(SpotiglassL10n.string("browser.unpin.short")) {

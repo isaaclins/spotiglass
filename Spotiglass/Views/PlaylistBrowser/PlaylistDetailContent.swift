@@ -266,17 +266,9 @@ struct LibraryHeaderPinningModifier: ViewModifier {
     func body(content: Content) -> some View {
         if supportsHeaderPinning {
             content
-                .onDrag(
-                    {
-                        PinnedItemTransfer(
-                            item: headerPinnedItem,
-                            originScopeID: tracksSurfaceKey
-                        ).itemProvider()
-                    },
-                    preview: {
-                        PinnedItemDragPill(item: headerPinnedItem)
-                    }
-                )
+                .draggable(PinnedItemTransfer(item: headerPinnedItem)) {
+                    PinnedItemDragPill(item: headerPinnedItem)
+                }
                 .contextMenu {
                     if isHeaderPinned {
                         Button(SpotiglassL10n.string("browser.unpin")) {

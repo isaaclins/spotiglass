@@ -245,9 +245,9 @@ final class PinnedItemsStoreTests: XCTestCase {
         XCTAssertEqual(store.items.map(\.id), [b.id, a.id], "Unlisted pins keep their relative order at the end; unknown IDs are ignored.")
     }
 
-    /// Locks the `UTType.spotiglassPinnedItem` JSON wire format loaded from
-    /// `NSItemProvider` payloads (drag-to-pin via `dropDestination`).
-    func testPinnedSidebarTransferItemProviderRoundTripDecodesAndUnpins() {
+    /// Locks the `UTType.spotiglassPinnedItem` JSON wire format used by
+    /// drag-to-pin (`.draggable` sources, `dropDestination` sink).
+    func testPinnedTransferCodableRoundTripAndUnpin() throws {
         let cache = RecordingPinnedCache()
         let store = PinnedItemsStore(cache: cache)
         store.bind(userID: "u1")
@@ -263,51 +263,14 @@ final class PinnedItemsStoreTests: XCTestCase {
             )
         )
         store.pin(playlist)
-        let transfer = PinnedItemTransfer(
-            item: playlist,
-            originScopeID: PinnedItemTransfer.pinnedSidebarScopeID
-        )
-        let exp = expectation(description: "loadDataRepresentation")
-        transfer.itemProvider().loadDataRepresentation(forTypeIdentifier: UTType.spotiglassPinnedItem.identifier) { data, _ in
-            guard let data, let decoded = try? JSONDecoder().decode(PinnedItemTransfer.self, from: data) else {
-                XCTFail("Expected JSON payload decodable as PinnedItemTransfer")
-                exp.fulfill()
-                return
-            }
-            XCTAssertTrue(decoded.isFromPinnedSidebar)
-            XCTAssertEqual(decoded.item.id, playlist.id)
-            DispatchQueue.main.async {
-                store.unpin(id: decoded.item.id)
-                XCTAssertTrue(store.items.isEmpty)
-                exp.fulfill()
-            }
-        }
-        wait(for: [exp], timeout: 2)
-    }
 
-    /// Unpinning by `transfer.item.id` (context menu / unpin button path).
-    func testUnpinRemovesPinnedSidebarTransferItem() {
-        let cache = RecordingPinnedCache()
-        let store = PinnedItemsStore(cache: cache)
-        store.bind(userID: "u1")
-        let playlist = PinnedItem.playlist(
-            SpotifyPlaylistSummary(
-                id: "p-unpin",
-                name: "B",
-                ownerID: "test-owner",
-                ownerName: "o",
-                imageURL: nil,
-                trackCount: 0,
-                snapshotID: "s2"
-            )
-        )
-        store.pin(playlist)
-        let transfer = PinnedItemTransfer(
-            item: playlist,
-            originScopeID: PinnedItemTransfer.pinnedSidebarScopeID
-        )
-        XCTAssertTrue(transfer.isFromPinnedSidebar)
-        store.unpin(id: transfer.item.id)
+        let transfer = PinnedItemTransfer(item: playlist)
+        let data = try JSONEncoder().encode(transfer)
+        let decoded = try JSONDecoder().decode(PinnedItemTransfer.self, from: data)
+        XCTAssertEqual(decoded, transfer)
+        XCTAssertEqual(decoded.item.id, playlist.id)
+
+        store.unpin(id: decoded.item.id)
         XCTAssertTrue(store.items.isEmpty)
     }
 }
