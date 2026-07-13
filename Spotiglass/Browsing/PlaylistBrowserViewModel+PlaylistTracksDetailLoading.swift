@@ -75,6 +75,20 @@ extension PlaylistBrowserViewModel {
             return
         } catch {
             guard session == detailSession else { return }
+            if case SpotifyAPIError.forbidden = error, !playlistIsOwnedByCurrentUser(playlist) {
+                let locked = BrowsingDisplayError(
+                    title: SpotiglassL10n.string("error.browsing.followedPlaylistLocked.title"),
+                    message: SpotiglassL10n.string("error.browsing.followedPlaylistLocked.message"),
+                    canRetry: false,
+                    lockedPlaylist: LockedPlaylistInfo(playlistID: playlist.id, name: playlist.name)
+                )
+                if let existingDetail = detailState.currentValue {
+                    detailState = .staleCache(existingDetail, locked)
+                } else {
+                    detailState = .error(locked)
+                }
+                return
+            }
             let displayError = Self.displayError(for: error)
             if let existingDetail = detailState.currentValue {
                 detailState = .staleCache(existingDetail, displayError)
@@ -82,5 +96,10 @@ extension PlaylistBrowserViewModel {
                 detailState = .error(displayError)
             }
         }
+    }
+
+    private func playlistIsOwnedByCurrentUser(_ playlist: SpotifyPlaylistSummary) -> Bool {
+        guard let currentUserSpotifyID, !currentUserSpotifyID.isEmpty else { return false }
+        return currentUserSpotifyID == playlist.ownerID
     }
 }

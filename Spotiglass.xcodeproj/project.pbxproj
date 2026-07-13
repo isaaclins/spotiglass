@@ -127,6 +127,7 @@
 		E500000000000000000000C0 /* PlaybackSessionViewModel+ProgressAnchor.swift in Sources */ = {isa = PBXBuildFile; fileRef = E500000000000000000000BF /* PlaybackSessionViewModel+ProgressAnchor.swift */; };
 		E60000000000000000000001 /* PlaylistBrowserTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = E60000000000000000000051 /* PlaylistBrowserTypes.swift */; };
 		E60000000000000000000002 /* BrowserStateViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = E60000000000000000000052 /* BrowserStateViews.swift */; };
+		SRC0000000000000000000016 /* FollowedPlaylistLockedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC0000000000000000080016 /* FollowedPlaylistLockedView.swift */; };
 		E60000000000000000000003 /* LibraryDropInfrastructure.swift in Sources */ = {isa = PBXBuildFile; fileRef = E60000000000000000000053 /* LibraryDropInfrastructure.swift */; };
 		E60000000000000000000004 /* PlaylistListRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = E60000000000000000000054 /* PlaylistListRow.swift */; };
 		E60000000000000000000005 /* PlaylistDetailContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = E60000000000000000000055 /* PlaylistDetailContent.swift */; };
@@ -183,6 +184,7 @@
 		P10000000000000000000003 /* PinnedItemTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = P10000000000000000000013 /* PinnedItemTransfer.swift */; };
 		P10000000000000000000004 /* PinnedItemsCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = P10000000000000000000014 /* PinnedItemsCache.swift */; };
 		P10000000000000000000005 /* PinnedItemsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = P10000000000000000000015 /* PinnedItemsStore.swift */; };
+		SRC0000000000000000000017 /* LibraryRowOrderStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC0000000000000000080017 /* LibraryRowOrderStore.swift */; };
 		P10000000000000000000006 /* PinnedRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = P10000000000000000000016 /* PinnedRowView.swift */; };
 		P10000000000000000000007 /* SidebarPinnedRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = P10000000000000000000017 /* SidebarPinnedRows.swift */; };
 		P10000000000000000000008 /* PinnedDragPreviewState.swift in Sources */ = {isa = PBXBuildFile; fileRef = P10000000000000000000018 /* PinnedDragPreviewState.swift */; };
@@ -470,6 +472,7 @@
 		E500000000000000000000BF /* PlaybackSessionViewModel+ProgressAnchor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlaybackSessionViewModel+ProgressAnchor.swift"; sourceTree = "<group>"; };
 		E60000000000000000000051 /* PlaylistBrowserTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserTypes.swift; sourceTree = "<group>"; };
 		E60000000000000000000052 /* BrowserStateViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserStateViews.swift; sourceTree = "<group>"; };
+		SRC0000000000000000080016 /* FollowedPlaylistLockedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FollowedPlaylistLockedView.swift; sourceTree = "<group>"; };
 		E60000000000000000000053 /* LibraryDropInfrastructure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryDropInfrastructure.swift; sourceTree = "<group>"; };
 		E60000000000000000000054 /* PlaylistListRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistListRow.swift; sourceTree = "<group>"; };
 		E60000000000000000000055 /* PlaylistDetailContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistDetailContent.swift; sourceTree = "<group>"; };
@@ -525,6 +528,7 @@
 		P10000000000000000000013 /* PinnedItemTransfer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinnedItemTransfer.swift; sourceTree = "<group>"; };
 		P10000000000000000000014 /* PinnedItemsCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinnedItemsCache.swift; sourceTree = "<group>"; };
 		P10000000000000000000015 /* PinnedItemsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinnedItemsStore.swift; sourceTree = "<group>"; };
+		SRC0000000000000000080017 /* LibraryRowOrderStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryRowOrderStore.swift; sourceTree = "<group>"; };
 		P10000000000000000000016 /* PinnedRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinnedRowView.swift; sourceTree = "<group>"; };
 		P10000000000000000000017 /* SidebarPinnedRows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarPinnedRows.swift; sourceTree = "<group>"; };
 		P10000000000000000000018 /* PinnedDragPreviewState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinnedDragPreviewState.swift; sourceTree = "<group>"; };
@@ -1119,6 +1123,7 @@
 			children = (
 				E60000000000000000000051 /* PlaylistBrowserTypes.swift */,
 				E60000000000000000000052 /* BrowserStateViews.swift */,
+				SRC0000000000000000080016 /* FollowedPlaylistLockedView.swift */,
 				E60000000000000000000053 /* LibraryDropInfrastructure.swift */,
 				E60000000000000000000054 /* PlaylistListRow.swift */,
 				E60000000000000000000055 /* PlaylistDetailContent.swift */,
@@ -1183,6 +1188,7 @@
 				P10000000000000000000013 /* PinnedItemTransfer.swift */,
 				P10000000000000000000014 /* PinnedItemsCache.swift */,
 				P10000000000000000000015 /* PinnedItemsStore.swift */,
+				SRC0000000000000000080017 /* LibraryRowOrderStore.swift */,
 				P10000000000000000000016 /* PinnedRowView.swift */,
 				P10000000000000000000017 /* SidebarPinnedRows.swift */,
 				P10000000000000000000018 /* PinnedDragPreviewState.swift */,
@@ -1401,6 +1407,7 @@
 				P10000000000000000000003 /* PinnedItemTransfer.swift in Sources */,
 				P10000000000000000000004 /* PinnedItemsCache.swift in Sources */,
 				P10000000000000000000005 /* PinnedItemsStore.swift in Sources */,
+				SRC0000000000000000000017 /* LibraryRowOrderStore.swift in Sources */,
 				P10000000000000000000006 /* PinnedRowView.swift in Sources */,
 				P10000000000000000000007 /* SidebarPinnedRows.swift in Sources */,
 				P10000000000000000000008 /* PinnedDragPreviewState.swift in Sources */,
@@ -1425,6 +1432,7 @@
 				D4000000000000000000003D /* PlaylistBrowserViewModel+ErrorMapping.swift in Sources */,
 				E60000000000000000000001 /* PlaylistBrowserTypes.swift in Sources */,
 				E60000000000000000000002 /* BrowserStateViews.swift in Sources */,
+				SRC0000000000000000000016 /* FollowedPlaylistLockedView.swift in Sources */,
 				E60000000000000000000003 /* LibraryDropInfrastructure.swift in Sources */,
 				E60000000000000000000004 /* PlaylistListRow.swift in Sources */,
 				E60000000000000000000005 /* PlaylistDetailContent.swift in Sources */,

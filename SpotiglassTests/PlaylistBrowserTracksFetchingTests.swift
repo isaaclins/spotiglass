@@ -180,6 +180,61 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         XCTAssertEqual(api.playlistTracksInvocationCountByID["b"] ?? 0, 0)
     }
 
+    func testForbiddenTracksOnFollowedPlaylistShowsLockedState() async {
+        // The mock profile id is "u"; the fixture playlist's ownerID is "owner-id",
+        // so the playlist is followed (non-owned) and a 403 must produce the locked state.
+        let followed = PlaylistBrowsingTestFixtures.playlist(id: "followed", name: "Someone Else's Mix", snapshotID: "snap")
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([followed])],
+            trackResults: [
+                "followed": [.failure(SpotifyAPIError.forbidden(message: "Forbidden", details: nil))]
+            ]
+        )
+        let cache = MockBrowsingCache()
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: cache)
+
+        await viewModel.load()
+        await viewModel.selectPlaylist(id: "followed")
+
+        guard case let .error(displayError) = viewModel.detailState else {
+            return XCTFail("Expected a terminal error state, got \(viewModel.detailState)")
+        }
+        XCTAssertNotNil(displayError.lockedPlaylist)
+        XCTAssertEqual(displayError.lockedPlaylist?.playlistID, "followed")
+        XCTAssertEqual(displayError.lockedPlaylist?.contextURI, "spotify:playlist:followed")
+        XCTAssertFalse(displayError.canRetry)
+    }
+
+    func testForbiddenTracksOnOwnedPlaylistDoesNotShowLockedState() async {
+        // Playlist owned by the current user ("u") should fall through to the
+        // generic error mapping, never the followed-playlist locked state.
+        let owned = SpotifyPlaylistSummary(
+            id: "mine",
+            name: "My Mix",
+            ownerID: "u",
+            ownerName: "Me",
+            imageURL: nil,
+            trackCount: 1,
+            snapshotID: "snap"
+        )
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([owned])],
+            trackResults: [
+                "mine": [.failure(SpotifyAPIError.forbidden(message: "Forbidden", details: nil))]
+            ]
+        )
+        let cache = MockBrowsingCache()
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: cache)
+
+        await viewModel.load()
+        await viewModel.selectPlaylist(id: "mine")
+
+        guard case let .error(displayError) = viewModel.detailState else {
+            return XCTFail("Expected a terminal error state, got \(viewModel.detailState)")
+        }
+        XCTAssertNil(displayError.lockedPlaylist)
+    }
+
     func testDoubleArrowNextDebouncesToSingleItemsFetch() async {
         let snapshot = "snap"
         let playlistA = PlaylistBrowsingTestFixtures.playlist(id: "a", name: "A", snapshotID: snapshot)

@@ -197,7 +197,11 @@ struct PlaylistBrowserMainDetailColumn: View {
             case let .empty(message):
                 EmptyStateView(title: SpotiglassL10n.string("browser.noTracks.title"), message: message)
             case let .error(error):
-                ErrorStateView(error: error)
+                if let locked = error.lockedPlaylist {
+                    FollowedPlaylistLockedView(info: locked, playbackViewModel: playbackViewModel)
+                } else {
+                    ErrorStateView(error: error)
+                }
             }
         }
     }

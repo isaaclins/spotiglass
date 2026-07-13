@@ -1801,6 +1801,29 @@
         }
       }
     },
+    "browser.openInSpotify" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In Spotify öffnen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open in Spotify"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir en Spotify"
+          }
+        }
+      }
+    },
     "browser.palette.subtitle.artist" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2073,6 +2096,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Listas"
+          }
+        }
+      }
+    },
+    "browser.playPlaylist" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abspielen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reproducir"
           }
         }
       }
@@ -2880,6 +2926,52 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No se pudo leer la respuesta de Spotify"
+          }
+        }
+      }
+    },
+    "error.browsing.followedPlaylistLocked.message" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spotify erlaubt Spotiglass nicht mehr, die Songs in Playlists aufzulisten, die dir nicht gehören. Du kannst die ganze Playlist trotzdem abspielen oder sie in Spotify öffnen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spotify no longer lets Spotiglass list the songs in playlists you do not own. You can still play the whole playlist or open it in Spotify."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spotify ya no permite que Spotiglass muestre las canciones de las listas que no son tuyas. Todavía puedes reproducir la lista completa o abrirla en Spotify."
+          }
+        }
+      }
+    },
+    "error.browsing.followedPlaylistLocked.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Titelliste nicht verfügbar"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Track list unavailable"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lista de canciones no disponible"
           }
         }
       }
