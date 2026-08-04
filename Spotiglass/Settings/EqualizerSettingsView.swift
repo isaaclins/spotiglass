@@ -12,19 +12,16 @@ struct EqualizerSettingsView: View {
     @State private var saveSheetError: String?
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: SpotiglassDesign.spacingL) {
-                header
-                statusRow
-                forwardingTargetRow
-                presetRow
-                preampRow
-                bandsRow
-                footerActions
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(SpotiglassDesign.spacingL)
+        VStack(alignment: .leading, spacing: SpotiglassDesign.spacingL) {
+            header
+            statusRow
+            forwardingTargetRow
+            presetRow
+            preampRow
+            bandsRow
+            footerActions
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .sheet(isPresented: $isPresentingSaveSheet) {
             SavePresetSheet(
                 name: $pendingSavePresetName,

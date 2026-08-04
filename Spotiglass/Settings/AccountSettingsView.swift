@@ -75,7 +75,7 @@ struct AccountSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .padding(SpotiglassDesign.spacingL)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
     private var activeSession: AuthenticatedSession? {

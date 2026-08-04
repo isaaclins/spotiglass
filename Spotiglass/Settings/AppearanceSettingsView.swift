@@ -5,18 +5,15 @@ struct AppearanceSettingsView: View {
     @ObservedObject var settingsStore: SpotiglassSettingsStore
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: SpotiglassDesign.spacingL) {
-                header
-                languageSection
-                colorSchemeSection
-                lyricsTextSizeSection
-                lyricsOffsetSection
-                commandPaletteSection
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(SpotiglassDesign.spacingL)
+        VStack(alignment: .leading, spacing: SpotiglassDesign.spacingL) {
+            header
+            languageSection
+            colorSchemeSection
+            lyricsTextSizeSection
+            lyricsOffsetSection
+            commandPaletteSection
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // The window header already shows the pane name ("Appearance"), so this pane

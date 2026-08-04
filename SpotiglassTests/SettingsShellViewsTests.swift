@@ -37,4 +37,33 @@ final class SettingsShellViewsTests: XCTestCase {
         ViewTestHost.host(view)
         ViewTestHost.assertFindLocalizedText("settings.playback.premium.title", in: view)
     }
+
+    func testSettingsPanesLeaveScrollingToTheShell() throws {
+        let store = try ViewTestHost.makeSettingsStore()
+        let manager = CommandPaletteManager()
+
+        let appearance = AppearanceSettingsView(settingsStore: store)
+        ViewTestHost.host(appearance)
+        XCTAssertThrowsError(try appearance.inspect().find(ViewType.ScrollView.self))
+
+        let playback = PlaybackSettingsView()
+        ViewTestHost.host(playback)
+        XCTAssertThrowsError(try playback.inspect().find(ViewType.ScrollView.self))
+
+        let keyboard = CommandPaletteSettingsView(
+            keymapStore: manager.keymapStore,
+            commandPaletteManager: manager,
+            presentation: .settingsTabs
+        )
+        ViewTestHost.host(keyboard)
+        XCTAssertThrowsError(try keyboard.inspect().find(ViewType.ScrollView.self))
+
+        let standaloneKeyboard = CommandPaletteSettingsView(
+            keymapStore: manager.keymapStore,
+            commandPaletteManager: manager,
+            presentation: .standalone
+        )
+        ViewTestHost.host(standaloneKeyboard)
+        XCTAssertNoThrow(try standaloneKeyboard.inspect().find(ViewType.ScrollView.self))
+    }
 }

@@ -21,12 +21,13 @@ struct CommandPaletteSettingsView: View {
         Group {
             switch presentation {
             case .standalone:
-                content
-                    .padding(SpotiglassDesign.spacingL)
-                    .frame(minWidth: 720, minHeight: 520, alignment: .topLeading)
+                ScrollView {
+                    content
+                }
+                .padding(SpotiglassDesign.spacingL)
+                .frame(minWidth: 720, minHeight: 520, alignment: .topLeading)
             case .settingsTabs:
                 content
-                    .padding(SpotiglassDesign.spacingL)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
         }
@@ -37,53 +38,51 @@ struct CommandPaletteSettingsView: View {
     }
 
     private var content: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: SpotiglassDesign.spacingM) {
-                if presentation == .standalone {
-                    Text(SpotiglassL10n.string("palette.settings.title"))
-                        .font(.title2.weight(.semibold))
-                }
-
-                Text(SpotiglassL10n.string("palette.settings.shortcuts"))
-                    .font(presentation == .settingsTabs ? .headline : .title3.weight(.semibold))
-
-                Text(SpotiglassL10n.string("palette.settings.hint"))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
-                    ForEach(CommandPaletteCommandCatalog.editable) { spec in
-                        keybindingRow(spec: spec)
-                            .transition(
-                                .asymmetric(
-                                    insertion: .opacity.combined(with: .move(edge: .top)),
-                                    removal: .opacity.combined(with: .scale(scale: 0.96))
-                                )
-                            )
-                    }
-                }
-                .animation(
-                    .spring(response: 0.34, dampingFraction: 0.86),
-                    value: CommandPaletteCommandCatalog.editable.map(\.commandID)
-                )
-
-                HStack(spacing: SpotiglassDesign.spacingS) {
-                    Button(SpotiglassL10n.string("palette.settings.reset")) {
-                        pendingConflictByCommand = [:]
-                        keymapStore.resetToDefaults()
-                    }
-                }
-
-                Divider()
-                    .padding(.vertical, SpotiglassDesign.spacingXS)
-
-                DisclosureGroup(SpotiglassL10n.string("palette.settings.advanced")) {
-                    advancedJSONSection
-                }
-                .tint(SpotiglassDesign.controlAccent)
+        VStack(alignment: .leading, spacing: SpotiglassDesign.spacingM) {
+            if presentation == .standalone {
+                Text(SpotiglassL10n.string("palette.settings.title"))
+                    .font(.title2.weight(.semibold))
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Text(SpotiglassL10n.string("palette.settings.shortcuts"))
+                .font(presentation == .settingsTabs ? .headline : .title3.weight(.semibold))
+
+            Text(SpotiglassL10n.string("palette.settings.hint"))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
+                ForEach(CommandPaletteCommandCatalog.editable) { spec in
+                    keybindingRow(spec: spec)
+                        .transition(
+                            .asymmetric(
+                                insertion: .opacity.combined(with: .move(edge: .top)),
+                                removal: .opacity.combined(with: .scale(scale: 0.96))
+                            )
+                        )
+                }
+            }
+            .animation(
+                .spring(response: 0.34, dampingFraction: 0.86),
+                value: CommandPaletteCommandCatalog.editable.map(\.commandID)
+            )
+
+            HStack(spacing: SpotiglassDesign.spacingS) {
+                Button(SpotiglassL10n.string("palette.settings.reset")) {
+                    pendingConflictByCommand = [:]
+                    keymapStore.resetToDefaults()
+                }
+            }
+
+            Divider()
+                .padding(.vertical, SpotiglassDesign.spacingXS)
+
+            DisclosureGroup(SpotiglassL10n.string("palette.settings.advanced")) {
+                advancedJSONSection
+            }
+            .tint(SpotiglassDesign.controlAccent)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func keybindingRow(spec: CommandPaletteCommandSpec) -> some View {

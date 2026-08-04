@@ -239,9 +239,15 @@ struct SpotiglassSettingsView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .topLeading)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 16)
+                // Keep every pane's first control the same distance below the
+                // divider. Pane views provide content only; the shell owns the
+                // scroll insets so nested scrolling cannot slide controls under
+                // the fixed header.
+                .padding(.horizontal, SpotiglassDesign.spacingL)
+                .padding(.top, SpotiglassDesign.spacingL)
+                .padding(.bottom, SpotiglassDesign.spacingL)
             }
+            .contentMargins(.top, SpotiglassDesign.spacingS, for: .scrollContent)
         }
     }
 
