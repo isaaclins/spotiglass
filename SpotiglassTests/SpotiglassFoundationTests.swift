@@ -17,6 +17,21 @@ final class SpotiglassFoundationTests: XCTestCase {
         XCTAssertEqual(AppMetadata.bundleIdentifier, "com.isaaclins.spotiglass")
     }
 
+    func testAppMenuKeepsPaletteInStandardApplicationMenu() throws {
+        let testsDirectory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        let sourceURL = testsDirectory
+            .deletingLastPathComponent()
+            .appendingPathComponent("Spotiglass/App/SpotiglassApp.swift")
+        let source = try String(contentsOf: sourceURL, encoding: .utf8)
+        let standardMenuRange = try XCTUnwrap(source.range(of: "CommandGroup(after: .appInfo) {"))
+        let settingsRange = try XCTUnwrap(source.range(of: "\n\n        Settings"))
+        let standardMenuSource = source[standardMenuRange.lowerBound..<settingsRange.lowerBound]
+
+        XCTAssertTrue(standardMenuSource.contains("app.menu.openPalette"))
+        XCTAssertTrue(standardMenuSource.contains(".keyboardShortcut(\"k\", modifiers: [.command])"))
+        XCTAssertFalse(source.contains("CommandMenu(SpotiglassL10n.string(\"app.menu.name\"))"))
+    }
+
     func testSparkleConfigurationFeedAndPublicKey() {
         XCTAssertEqual(
             SparkleConfiguration.feedURL,

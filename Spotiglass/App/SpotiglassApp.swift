@@ -68,8 +68,6 @@ struct SpotiglassApp: App {
         .commands {
             CommandGroup(after: .appInfo) {
                 CheckForUpdatesView(updater: sparkleUpdater.updater)
-            }
-            CommandMenu(SpotiglassL10n.string("app.menu.name")) {
                 Button(SpotiglassL10n.string("app.menu.openPalette")) {
                     commandPaletteManager.execute(commandID: CommandPaletteCommandID.openPalette)
                 }
