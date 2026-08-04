@@ -1594,6 +1594,29 @@
         }
       }
     },
+    "browser.editPlaylistName" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playlistnamen bearbeiten"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit playlist name"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Editar nombre de la playlist"
+          }
+        }
+      }
+    },
     "browser.home" : {
       "extractionState" : "stale",
       "localizations" : {

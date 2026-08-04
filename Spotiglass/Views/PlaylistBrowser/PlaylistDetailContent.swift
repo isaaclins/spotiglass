@@ -22,6 +22,9 @@ struct PlaylistDetailContent: View {
     @State private var isPromptingNewPlaylist = false
     @State private var newPlaylistName = ""
     @State private var newPlaylistInitialRows: [TrackRowViewModel] = []
+    @State private var isEditingPlaylistName = false
+    @State private var editedPlaylistName = ""
+    @FocusState private var isPlaylistNameFocused: Bool
 
     private var tracksSurfaceKey: String { "pl:\(detail.playlist.id)" }
 
@@ -49,6 +52,14 @@ struct PlaylistDetailContent: View {
 
     private var supportsHeaderPinning: Bool {
         detail.playlist.id != SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID
+    }
+
+    private var canRenamePlaylist: Bool {
+        guard detail.playlist.id != SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID,
+              let currentUserID = currentUserSpotifyID,
+              !currentUserID.isEmpty
+        else { return false }
+        return detail.playlist.ownerID == currentUserID
     }
 
     var body: some View {
@@ -168,9 +179,7 @@ struct PlaylistDetailContent: View {
             }
 
             VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
-                Text(detail.playlist.title)
-                    .font(.largeTitle.weight(.semibold))
-                    .lineLimit(2)
+                playlistTitle
 
                 Text(detail.playlist.ownerTracksLine(currentUserID: currentUserSpotifyID))
                     .foregroundStyle(.secondary)
@@ -184,8 +193,52 @@ struct PlaylistDetailContent: View {
             headerPinnedItem: headerPinnedItem,
             tracksSurfaceKey: tracksSurfaceKey,
             isHeaderPinned: isHeaderPinned,
-            pinnedStore: pinnedStore
+            pinnedStore: pinnedStore,
+            canRenamePlaylist: canRenamePlaylist,
+            onEditPlaylistName: beginPlaylistNameEditing
         ))
+    }
+
+    @ViewBuilder
+    private var playlistTitle: some View {
+        if isEditingPlaylistName {
+            TextField("", text: $editedPlaylistName)
+                .font(.largeTitle.weight(.semibold))
+                .textFieldStyle(.plain)
+                .lineLimit(2)
+                .focused($isPlaylistNameFocused)
+                .onSubmit(commitPlaylistName)
+                .onExitCommand(perform: cancelPlaylistNameEditing)
+                .onAppear { isPlaylistNameFocused = true }
+        } else {
+            Text(detail.playlist.title)
+                .font(.largeTitle.weight(.semibold))
+                .lineLimit(2)
+                .onTapGesture(count: 2, perform: beginPlaylistNameEditing)
+        }
+    }
+
+    private func beginPlaylistNameEditing() {
+        guard canRenamePlaylist else { return }
+        editedPlaylistName = detail.playlist.title
+        isEditingPlaylistName = true
+    }
+
+    private func commitPlaylistName() {
+        guard isEditingPlaylistName else { return }
+        let name = editedPlaylistName
+        let playlistID = detail.playlist.id
+        isEditingPlaylistName = false
+        isPlaylistNameFocused = false
+        Task {
+            await browserViewModel.renamePlaylist(id: playlistID, name: name)
+        }
+    }
+
+    private func cancelPlaylistNameEditing() {
+        isEditingPlaylistName = false
+        isPlaylistNameFocused = false
+        editedPlaylistName = ""
     }
 }
 
@@ -261,6 +314,8 @@ struct LibraryHeaderPinningModifier: ViewModifier {
     let tracksSurfaceKey: String
     let isHeaderPinned: Bool
     let pinnedStore: PinnedItemsStore
+    let canRenamePlaylist: Bool
+    let onEditPlaylistName: () -> Void
 
     @ViewBuilder
     func body(content: Content) -> some View {
@@ -270,6 +325,12 @@ struct LibraryHeaderPinningModifier: ViewModifier {
                     PinnedItemDragPill(item: headerPinnedItem)
                 }
                 .contextMenu {
+                    if canRenamePlaylist {
+                        Button(SpotiglassL10n.string("browser.editPlaylistName")) {
+                            onEditPlaylistName()
+                        }
+                        Divider()
+                    }
                     if isHeaderPinned {
                         Button(SpotiglassL10n.string("browser.unpin")) {
                             pinnedStore.unpin(id: headerPinnedItem.id)
