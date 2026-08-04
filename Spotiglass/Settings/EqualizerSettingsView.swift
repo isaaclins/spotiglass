@@ -237,10 +237,6 @@ struct EqualizerSettingsView: View {
                 applyPreset(EqualizerPreset.flat)
             }
 
-            Button(SpotiglassL10n.string("settings.eq.openSettings")) {
-                settingsStore.openFileInDefaultEditor()
-            }
-
             Spacer()
 
             if let storeError = settingsStore.lastError {
