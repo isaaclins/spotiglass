@@ -1,0 +1,41 @@
+# Runtime-built CommandPaletteCommandSpec title and subtitle lookups.
+palette.command.app.openSettings.subtitle
+palette.command.app.openSettings.title
+palette.command.app.signOut.subtitle
+palette.command.app.signOut.title
+palette.command.lyrics.toggle.subtitle
+palette.command.lyrics.toggle.title
+palette.command.palette.enqueue.subtitle
+palette.command.palette.enqueue.title
+palette.command.palette.open.subtitle
+palette.command.palette.open.title
+palette.command.palette.pin.subtitle
+palette.command.palette.pin.title
+palette.command.palette.unpin.subtitle
+palette.command.palette.unpin.title
+palette.command.playback.connect.subtitle
+palette.command.playback.connect.title
+palette.command.playback.next.subtitle
+palette.command.playback.next.title
+palette.command.playback.previous.subtitle
+palette.command.playback.previous.title
+palette.command.playback.toggle.subtitle
+palette.command.playback.toggle.title
+palette.command.playlists.prefetchAll.subtitle
+palette.command.playlists.prefetchAll.title
+palette.command.playlists.refresh.subtitle
+palette.command.playlists.refresh.title
+palette.command.queue.toggle.subtitle
+palette.command.queue.toggle.title
+
+# Runtime-selected AppearanceSettingsView lookup.
+settings.appearance.lyricsOffset.value.earlier
+settings.appearance.lyricsOffset.value.later
+
+# Swift String Catalog keys normalized from interpolated SwiftUI literals.
+%@, %@
+%lld
+%lld dB
+%lld%%
++%lld dB
+Create a new playlist with %lld track%@ added.

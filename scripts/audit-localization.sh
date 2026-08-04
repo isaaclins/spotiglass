@@ -1,19 +1,27 @@
 #!/usr/bin/env bash
 # scripts/audit-localization.sh — verifies Spotiglass's UI is fully localized.
 #
-# Three checks:
+# Four checks:
 #   1. English-leak scan: greps user-visible SwiftUI/AppKit modifier patterns
 #      for hardcoded string literals that aren't routed through SpotiglassL10n.
 #   2. Catalog completeness: every key in Localizable.xcstrings has non-empty
 #      en/es/de values.
 #   3. Referenced-key existence: every key passed to SpotiglassL10n.string,
 #      .string(forKey:), or .format in Swift code is present in the catalog.
+#   4. Orphaned catalog keys: every catalog key is referenced by Swift source or
+#      listed in scripts/localization-orphans.allowlist. The allowlist contains
+#      one exact key per line for legitimate runtime-built or generated keys;
+#      blank lines and lines beginning with # are ignored.
+#
+# Orphans fail the audit. This keeps removed strings from accumulating while
+# retaining an explicit escape hatch for dynamic lookups.
 #
 # Exits 0 if all checks pass. Non-zero on any failure, with a brief report.
 
 set -o pipefail
 
 CATALOG="Spotiglass/Localizable.xcstrings"
+ORPHAN_ALLOWLIST="scripts/localization-orphans.allowlist"
 SOURCE_DIRS=(
   "Spotiglass/App"
   "Spotiglass/Auth"
@@ -41,6 +49,7 @@ fi
 leak_count=0
 missing_count=0
 unknown_key_count=0
+orphan_count=0
 
 # ---- 1. English-leak scan ---------------------------------------------------
 # Match string literals passed to user-visible modifiers/initializers. Anything
@@ -149,6 +158,72 @@ if [[ -n "$unknown_keys" ]]; then
   unknown_key_count=$(printf "%s\n" "$unknown_keys" | wc -l | tr -d ' ')
 fi
 
+# ---- 4. Orphaned catalog keys -----------------------------------------------
+# The existing referenced-key check intentionally scans its established source
+# directories. For the reverse check, include every app Swift file so helpers
+# outside those directories count as references too.
+all_api_keys_in_code=$(
+  {
+    rg --no-heading --no-line-number --no-filename -o \
+      'SpotiglassL10n\.(?:string|format)\(\s*"([^"]+)"' \
+      -r '$1' \
+      Spotiglass --glob '*.swift' 2>/dev/null
+    rg --no-heading --no-line-number --no-filename -o \
+      'SpotiglassL10n\.string\(\s*forKey:\s*"([^"\\]+)"' \
+      -r '$1' \
+      Spotiglass --glob '*.swift' 2>/dev/null
+  } | sort -u
+)
+
+# Swift String Catalog also indexes literal strings and normalizes interpolated
+# literals into format-style keys. Count catalog keys that appear literally in
+# Swift source here; normalized interpolation keys belong in the allowlist.
+source_literal_keys=""
+while IFS= read -r key; do
+  [[ -z "$key" ]] && continue
+  if rg --fixed-strings --quiet --glob '*.swift' -- "\"$key\"" Spotiglass 2>/dev/null; then
+    source_literal_keys+="${key}"$'\n'
+  fi
+done <<< "$catalog_keys"
+
+orphan_allowlist=$(
+  if [[ -f "$ORPHAN_ALLOWLIST" ]]; then
+    sed -e 's/[[:space:]]*#.*$//' \
+        -e '/^[[:space:]]*$/d' \
+        -e 's/^[[:space:]]*//' \
+        -e 's/[[:space:]]*$//' \
+        "$ORPHAN_ALLOWLIST" | sort -u
+  fi
+)
+
+referenced_catalog_keys=$(
+  printf '%s\n%s\n%s' "$all_api_keys_in_code" "$source_literal_keys" "$orphan_allowlist" \
+    | grep -v '^$' | sort -u || true
+)
+
+catalog_key_lines=$(
+  rg --line-number --no-heading '^    "[^"]+"[[:space:]]*:' "$CATALOG" \
+    | sed -E 's/^([0-9]+):    "([^"]+)"[[:space:]]*:.*/\2\t\1/' \
+    | sort -t $'\t' -k1,1
+)
+orphan_keys=$(comm -23 \
+  <(printf '%s\n' "$catalog_keys") \
+  <(printf '%s\n' "$referenced_catalog_keys") \
+  | grep -v '^$' || true
+)
+
+orphan_report=""
+while IFS= read -r key; do
+  [[ -z "$key" ]] && continue
+  line=$(printf '%s\n' "$catalog_key_lines" \
+    | awk -F '\t' -v key="$key" '$1 == key { print $2; exit }')
+  orphan_report+="${key} (catalog line ${line})"$'\n'
+done <<< "$orphan_keys"
+
+if [[ -n "$orphan_report" ]]; then
+  orphan_count=$(printf "%s" "$orphan_report" | grep -c -v '^$' | tr -d ' ')
+fi
+
 # ---- Report -----------------------------------------------------------------
 echo "Spotiglass localization audit"
 echo "============================="
@@ -173,6 +248,13 @@ else
   printf "%s\n" "$unknown_keys" | sed 's/^/    /'
 fi
 
-if (( leak_count + missing_count + unknown_key_count > 0 )); then
+if (( orphan_count == 0 )); then
+  echo "✓ 0 orphaned catalog keys"
+else
+  echo "✗ $orphan_count orphaned catalog keys:"
+  printf "%s" "$orphan_report" | sed 's/^/    /'
+fi
+
+if (( leak_count + missing_count + unknown_key_count + orphan_count > 0 )); then
   exit 1
 fi

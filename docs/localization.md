@@ -58,7 +58,7 @@ restart. Reactive surfaces:
 | Main window (browsing, lyrics, palette, playback) | `.id(language)` on `WindowGroup` root |
 | Settings window (Playback / Appearance / Account / Keyboard) | `.id(language)` on the `Settings` scene root |
 | Command palette commands (titles + subtitles) | `CommandPaletteCommandSpec.title` / `.subtitle` are computed properties that resolve through `SpotiglassL10n` on every read, so a SwiftUI rebuild reads the new locale |
-| macOS menubar `Spotiglass` menu | Driven by `SpotiglassL10n.string("app.menu.name")` (the brand name is the same in every locale, but the lookup goes through the same pipeline) |
+| macOS app menu palette command | Driven by `SpotiglassL10n.string("app.menu.openPalette")` through the standard application menu command group |
 
 ## What is *not* translated
 
