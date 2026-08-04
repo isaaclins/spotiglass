@@ -143,7 +143,7 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
             return XCTFail("Expected stale cached detail")
         }
         XCTAssertEqual(detail.tracks.map(\.title), ["Track cached"])
-        XCTAssertEqual(error?.title, "Access denied")
+        XCTAssertEqual(error?.title, "Track list unavailable")
     }
 
     func testDetailUsesCachedTracksThenSurfacesInvalidLimitError() async {
