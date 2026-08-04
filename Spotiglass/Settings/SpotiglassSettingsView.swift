@@ -70,6 +70,11 @@ struct SpotiglassSettingsView: View {
 
     @State private var section: SpotiglassSettingsSection? = .playback
     @State private var searchText: String = ""
+    /// Opening the window always starts with the navigation list on screen.
+    /// AppKit autosaves the split view's collapsed flag per window identifier,
+    /// so without an explicit binding a single "Hide Sidebar" click keeps the
+    /// navigation list hidden on every later launch.
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
     private var searchQuery: String {
         searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -97,7 +102,7 @@ struct SpotiglassSettingsView: View {
     }
 
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             sidebar
                 .navigationSplitViewColumnWidth(min: 220, ideal: 240, max: 280)
         } detail: {
@@ -105,8 +110,14 @@ struct SpotiglassSettingsView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .navigationSplitViewStyle(.balanced)
-        // Taller default so each pane's primary controls render above the fold (#20).
-        .frame(minWidth: 820, minHeight: 660)
+        .background(SettingsWindowChrome().frame(width: 0, height: 0))
+        // Keep the content proposal stable while switching panes (#23): a fixed
+        // width stops an intrinsically wide pane from resizing the window, and
+        // it also pulls a stale autosaved frame back to the same size. The
+        // Settings scene's window is not user-resizable, so this width is what
+        // every pane shows; only the height grows with the content.
+        .frame(width: 980)
+        .frame(minHeight: 660)
     }
 
     // MARK: - Sidebar (left pane)
@@ -217,7 +228,7 @@ struct SpotiglassSettingsView: View {
                 .padding(.horizontal, 24)
 
             ScrollView {
-                Group {
+                SettingsPaneContainer {
                     switch section ?? .playback {
                     case .playback:
                         PlaybackSettingsView()
@@ -238,10 +249,15 @@ struct SpotiglassSettingsView: View {
                         )
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .topLeading)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 16)
+                // Keep every pane's first control the same distance below the
+                // divider. Pane views provide content only; the shell owns the
+                // scroll insets so nested scrolling cannot slide controls under
+                // the fixed header.
+                .padding(.horizontal, SpotiglassDesign.spacingL)
+                .padding(.top, SpotiglassDesign.spacingL)
+                .padding(.bottom, SpotiglassDesign.spacingL)
             }
+            .contentMargins(.top, SpotiglassDesign.spacingS, for: .scrollContent)
         }
     }
 
@@ -265,6 +281,21 @@ struct SpotiglassSettingsView: View {
         .padding(.horizontal, 24)
         .padding(.top, 18)
         .padding(.bottom, 14)
+    }
+}
+
+/// Gives every settings pane the same finite width proposal and leading
+/// alignment, so switching panes cannot change the window's content width.
+private struct SettingsPaneContainer<Content: View>: View {
+    let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        content
+            .frame(minWidth: 0, maxWidth: .infinity, alignment: .topLeading)
     }
 }
 

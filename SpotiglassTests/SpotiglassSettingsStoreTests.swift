@@ -99,6 +99,23 @@ final class SpotiglassSettingsStoreTests: XCTestCase {
         XCTAssertEqual(onDisk.appearance.colorScheme, .dark)
     }
 
+    func testEqualizerBypassStateReloadsWithoutFlatteningBands() throws {
+        let url = makeTempFileURL()
+        let store = SpotiglassSettingsStore(fileURL: url)
+        let bands = [6.0, 3.5, 1.0, 0, -1.0, -2.5, -4.0, 0, 2.0, 4.5]
+
+        try store.mutate { file in
+            file.equalizer.enabled = false
+            file.equalizer.bands = bands
+            file.equalizer.activePresetName = nil
+        }
+
+        let reloaded = SpotiglassSettingsStore(fileURL: url)
+        XCTAssertFalse(reloaded.settings.equalizer.enabled)
+        XCTAssertEqual(reloaded.settings.equalizer.bands, bands)
+        XCTAssertNil(reloaded.settings.equalizer.activePresetName)
+    }
+
     func testUpdateKeybindsReplacesSliceOnly() throws {
         let url = makeTempFileURL()
         let store = SpotiglassSettingsStore(fileURL: url)

@@ -9971,29 +9971,6 @@
         }
       }
     },
-    "settings.eq.openSettings" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "settings.json öffnen"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Open settings.json"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Abrir settings.json"
-          }
-        }
-      }
-    },
     "settings.eq.preamp" : {
       "extractionState" : "stale",
       "localizations" : {
