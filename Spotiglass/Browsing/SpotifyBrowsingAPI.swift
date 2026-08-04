@@ -38,6 +38,7 @@ protocol SpotifyBrowsingAPI {
 
     // MARK: - Library write ops (mutating)
 
+    func updatePlaylist(playlistID: String, name: String) async throws
     func addTracksToPlaylist(playlistID: String, uris: [String]) async throws
     func removeTracksFromPlaylist(playlistID: String, uris: [String]) async throws
     func createPlaylist(userID: String, name: String, isPublic: Bool) async throws -> SpotifyPlaylistSummary
@@ -61,6 +62,9 @@ extension SpotifyBrowsingAPI {
     // Default no-op implementations for library mutations. Mocks/previews that
     // never exercise the menu can ignore these; the live `SpotifyAPIClient`
     // override hits the Spotify Web API.
+    func updatePlaylist(playlistID: String, name: String) async throws {
+        throw SpotifyAPIError.invalidRequest("Playlist rename is not supported by this API implementation.")
+    }
     func addTracksToPlaylist(playlistID: String, uris: [String]) async throws {
         throw SpotifyAPIError.invalidRequest("Playlist mutation is not supported by this API implementation.")
     }

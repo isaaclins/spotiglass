@@ -22,6 +22,10 @@ struct PlaylistDetailContent: View {
     @State private var isPromptingNewPlaylist = false
     @State private var newPlaylistName = ""
     @State private var newPlaylistInitialRows: [TrackRowViewModel] = []
+    @State private var isEditingPlaylistName = false
+    @State private var editingPlaylistID: String?
+    @State private var editedPlaylistName = ""
+    @FocusState private var isPlaylistNameFocused: Bool
 
     private var tracksSurfaceKey: String { "pl:\(detail.playlist.id)" }
 
@@ -49,6 +53,21 @@ struct PlaylistDetailContent: View {
 
     private var supportsHeaderPinning: Bool {
         detail.playlist.id != SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID
+    }
+
+    private var canRenamePlaylist: Bool {
+        guard detail.playlist.id != SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID,
+              let currentUserID = currentUserSpotifyID,
+              !currentUserID.isEmpty
+        else { return false }
+        return detail.playlist.ownerID == currentUserID
+    }
+
+    private var isEditingDisplayedPlaylistName: Bool {
+        guard isEditingPlaylistName,
+              let editingPlaylistID
+        else { return false }
+        return editingPlaylistID == detail.playlist.id
     }
 
     var body: some View {
@@ -119,6 +138,15 @@ struct PlaylistDetailContent: View {
                  ? "Create an empty playlist in your Spotify library."
                  : "Create a new playlist with \(newPlaylistInitialRows.count) track\(newPlaylistInitialRows.count == 1 ? "" : "s") added.")
         }
+        .onChange(of: detail.playlist.id) { _, _ in
+            cancelPlaylistNameEditing()
+        }
+        // Cancel on focus loss instead of committing on blur. This avoids
+        // saving an unfinished name after focus moves to another surface.
+        .onChange(of: isPlaylistNameFocused) { _, isFocused in
+            guard !isFocused, isEditingPlaylistName else { return }
+            cancelPlaylistNameEditing()
+        }
     }
 
     private var headerBlock: some View {
@@ -168,9 +196,7 @@ struct PlaylistDetailContent: View {
             }
 
             VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
-                Text(detail.playlist.title)
-                    .font(.largeTitle.weight(.semibold))
-                    .lineLimit(2)
+                playlistTitle
 
                 Text(detail.playlist.ownerTracksLine(currentUserID: currentUserSpotifyID))
                     .foregroundStyle(.secondary)
@@ -184,8 +210,86 @@ struct PlaylistDetailContent: View {
             headerPinnedItem: headerPinnedItem,
             tracksSurfaceKey: tracksSurfaceKey,
             isHeaderPinned: isHeaderPinned,
-            pinnedStore: pinnedStore
+            pinnedStore: pinnedStore,
+            canRenamePlaylist: canRenamePlaylist,
+            onEditPlaylistName: beginPlaylistNameEditing
         ))
+    }
+
+    @ViewBuilder
+    private var playlistTitle: some View {
+        if isEditingDisplayedPlaylistName {
+            TextField("", text: $editedPlaylistName)
+                .font(.largeTitle.weight(.semibold))
+                .textFieldStyle(.plain)
+                .lineLimit(2)
+                .focused($isPlaylistNameFocused)
+                .onSubmit(commitPlaylistName)
+                .onExitCommand(perform: cancelPlaylistNameEditing)
+                .onAppear { isPlaylistNameFocused = true }
+        } else {
+            Text(detail.playlist.title)
+                .font(.largeTitle.weight(.semibold))
+                .lineLimit(2)
+                .onTapGesture(count: 2, perform: beginPlaylistNameEditing)
+        }
+    }
+
+    private func beginPlaylistNameEditing() {
+        guard canRenamePlaylist else { return }
+        editingPlaylistID = detail.playlist.id
+        editedPlaylistName = detail.playlist.title
+        isEditingPlaylistName = true
+    }
+
+    private func commitPlaylistName() {
+        guard isEditingPlaylistName,
+              let capturedPlaylistID = PlaylistRenameEditingPolicy.commitTarget(
+                  editingPlaylistID: editingPlaylistID,
+                  displayedPlaylistID: detail.playlist.id
+              )
+        else {
+            cancelPlaylistNameEditing()
+            return
+        }
+        let name = editedPlaylistName
+        isEditingPlaylistName = false
+        editingPlaylistID = nil
+        isPlaylistNameFocused = false
+        Task {
+            await browserViewModel.renamePlaylist(id: capturedPlaylistID, name: name)
+        }
+    }
+
+    private func cancelPlaylistNameEditing() {
+        isEditingPlaylistName = false
+        editingPlaylistID = nil
+        isPlaylistNameFocused = false
+        editedPlaylistName = ""
+    }
+}
+
+/// Validates that a rename still targets the playlist whose editor was opened.
+/// SwiftUI can retain the editor state while the displayed playlist changes.
+enum PlaylistRenameEditingPolicy {
+    static func commitTarget(editingPlaylistID: String?, displayedPlaylistID: String) -> String? {
+        guard let editingPlaylistID,
+              editingPlaylistID == displayedPlaylistID
+        else { return nil }
+        return editingPlaylistID
+    }
+
+    static func commitTarget(
+        editingPlaylistID: String?,
+        rowID: String,
+        visiblePlaylistIDs: [String]
+    ) -> String? {
+        guard let target = commitTarget(
+            editingPlaylistID: editingPlaylistID,
+            displayedPlaylistID: rowID
+        ), visiblePlaylistIDs.contains(target)
+        else { return nil }
+        return target
     }
 }
 
@@ -261,6 +365,8 @@ struct LibraryHeaderPinningModifier: ViewModifier {
     let tracksSurfaceKey: String
     let isHeaderPinned: Bool
     let pinnedStore: PinnedItemsStore
+    let canRenamePlaylist: Bool
+    let onEditPlaylistName: () -> Void
 
     @ViewBuilder
     func body(content: Content) -> some View {
@@ -270,6 +376,12 @@ struct LibraryHeaderPinningModifier: ViewModifier {
                     PinnedItemDragPill(item: headerPinnedItem)
                 }
                 .contextMenu {
+                    if canRenamePlaylist {
+                        Button(SpotiglassL10n.string("browser.editPlaylistName")) {
+                            onEditPlaylistName()
+                        }
+                        Divider()
+                    }
                     if isHeaderPinned {
                         Button(SpotiglassL10n.string("browser.unpin")) {
                             pinnedStore.unpin(id: headerPinnedItem.id)

@@ -127,7 +127,7 @@ extension SpotifyAPIClient {
     }
 
     /// Issues a writing (POST/PUT/DELETE) request that returns no decodable body.
-    private func sendVoidWrite(
+    func sendVoidWrite(
         method: String,
         path: String,
         queryItems: [URLQueryItem],

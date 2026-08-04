@@ -144,6 +144,37 @@ extension PlaylistBrowserViewModel {
         }
     }
 
+    /// Renames an owned playlist and updates the sidebar and detail surfaces before
+    /// the Spotify request completes. A failed request restores the previous name.
+    func renamePlaylist(id: String, name: String) async {
+        guard let previous = playlistsByID[id] else { return }
+        guard let currentUserID = currentUserSpotifyID,
+              !currentUserID.isEmpty,
+              previous.ownerID == currentUserID
+        else { return }
+
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty, trimmedName != previous.name else { return }
+
+        let renamed = SpotifyPlaylistSummary(
+            id: previous.id,
+            name: trimmedName,
+            ownerID: previous.ownerID,
+            ownerName: previous.ownerName,
+            imageURL: previous.imageURL,
+            trackCount: previous.trackCount,
+            snapshotID: previous.snapshotID
+        )
+        applyPlaylistName(renamed)
+
+        do {
+            try await api.updatePlaylist(playlistID: id, name: trimmedName)
+        } catch {
+            applyPlaylistName(previous)
+            trackMutationToast = describeFailure(error)
+        }
+    }
+
     /// User-owned playlists (excluding the virtual liked-songs row) for menu listing.
     func userOwnedPlaylistsForMenu(excludingPlaylistID excluding: String?) -> [SpotifyPlaylistSummary] {
         let me = currentUserSpotifyID ?? ""
@@ -161,6 +192,47 @@ extension PlaylistBrowserViewModel {
             return apiError.localizedDescription
         }
         return error.localizedDescription
+    }
+
+    private func applyPlaylistName(_ playlist: SpotifyPlaylistSummary) {
+        playlistsByID[playlist.id] = playlist
+
+        if let rows = playlistState.currentValue {
+            let renamedRows = rows.map { row in
+                row.id == playlist.id ? PlaylistRowViewModel(playlist) : row
+            }
+            switch playlistState {
+            case .loading, .empty, .error:
+                break
+            case .loaded:
+                playlistState = .loaded(renamedRows)
+            case .refreshing:
+                playlistState = .refreshing(renamedRows)
+            case let .staleCache(_, displayError):
+                playlistState = .staleCache(renamedRows, displayError)
+            }
+        }
+
+        if let content = detailState.currentValue,
+           case let .playlist(detail) = content,
+           detail.playlist.id == playlist.id {
+            let renamedDetail = PlaylistDetailViewModel(
+                playlist: PlaylistRowViewModel(playlist),
+                tracks: detail.tracks
+            )
+            switch detailState {
+            case .loading, .empty, .error:
+                break
+            case .loaded:
+                detailState = .loaded(.playlist(renamedDetail))
+            case .refreshing:
+                detailState = .refreshing(.playlist(renamedDetail))
+            case let .staleCache(_, displayError):
+                detailState = .staleCache(.playlist(renamedDetail), displayError)
+            }
+        }
+
+        try? cache.savePlaylists(Array(playlistsByID.values), cachedAt: now())
     }
 
     private func invalidateTracksCache(playlistID: String) {

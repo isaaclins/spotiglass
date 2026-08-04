@@ -30,6 +30,34 @@ final class SpotifyAPIClientPlaylistSummaryDecodingTests: XCTestCase {
         XCTAssertEqual(playlists.map(\.trackCount), [7])
     }
 
+    func testUpdatePlaylistSendsPUTRequestWithNameOnly() async throws {
+        let httpClient = QueueHTTPClient([
+            .data(Data(), statusCode: 204)
+        ])
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+
+        try await client.updatePlaylist(playlistID: "playlist-1", name: "  Renamed Playlist  ")
+
+        let request = try XCTUnwrap(httpClient.requests.first)
+        XCTAssertEqual(request.httpMethod, "PUT")
+        XCTAssertEqual(request.url?.absoluteString, "https://api.spotify.com/v1/playlists/playlist-1")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
+        let body = try XCTUnwrap(request.httpBody)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: String])
+        XCTAssertEqual(object, ["name": "Renamed Playlist"])
+    }
+
+    func testUpdatePlaylistRejectsWhitespaceOnlyName() async throws {
+        let httpClient = QueueHTTPClient([])
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+
+        await XCTAssertThrowsSpotifyAPIError(
+            try await client.updatePlaylist(playlistID: "playlist-1", name: " \n\t "),
+            .invalidRequest("Playlist name is required.")
+        )
+        XCTAssertTrue(httpClient.requests.isEmpty)
+    }
+
     func testPlaylistDecodingToleratesMissingSpotifyOptionalFields() async throws {
         let httpClient = QueueHTTPClient([
             .json("""

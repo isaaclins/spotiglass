@@ -10,6 +10,8 @@ struct PlaylistListRow: View {
     var isListSelected: Bool = false
     /// Source-side indicator: this row is also pinned in the pinned area.
     var isPinned: Bool = false
+    /// Optional inline title editor supplied by the playlist sidebar.
+    var titleOverride: AnyView? = nil
 
     private var isLikedSongsRow: Bool {
         playlist.id == SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID
@@ -66,9 +68,13 @@ struct PlaylistListRow: View {
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(playlist.title)
-                    .font(.headline)
-                    .lineLimit(1)
+                if let titleOverride {
+                    titleOverride
+                } else {
+                    Text(playlist.title)
+                        .font(.headline)
+                        .lineLimit(1)
+                }
 
                 Text(playlist.ownerTracksLine(currentUserID: currentUserSpotifyID))
                     .font(.caption)

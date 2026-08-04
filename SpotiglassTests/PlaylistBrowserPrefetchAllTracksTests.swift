@@ -178,6 +178,7 @@ private final class ConcurrencyTrackingBrowsingAPI: SpotifyBrowsingAPI, @uncheck
     }
 
     func currentUserPlaylists(limit: Int) async throws -> [SpotifyPlaylistSummary] { playlistsList }
+    func updatePlaylist(playlistID: String, name: String) async throws {}
 
     func playlistTracks(playlistID: String, limit: Int, maxPages: Int) async throws -> [SpotifyPlaylistTrackItem] {
         await counter.enter()
