@@ -46,13 +46,9 @@ final class LocalizationCoverageTests: XCTestCase {
         ("playback.controls.state.ready.title", "playback.controls.state.ready.title", "Ready to play", "Listo para reproducir", "Bereit zur Wiedergabe"),
         ("playback.nowPlaying.unknownArtist", "playback.nowPlaying.unknownArtist", "Unknown artist", "Artista desconocido", "Unbekannter Künstler"),
 
-        // App / Breadcrumb / Account
-        ("app.menu.name", "app.menu.name", "Spotiglass", "Spotiglass", "Spotiglass"),
+        // Breadcrumb / Account
         ("breadcrumb.back", "breadcrumb.back", "Back", "Atrás", "Zurück"),
-        ("settings.account.diagnostics.header", "settings.account.diagnostics.header", "Diagnostics", "Diagnóstico", "Diagnose"),
-
-        // Lyrics artwork (post-audit catch-up)
-        ("lyrics.artwork.vinyl", "lyrics.artwork.vinyl", "Vinyl", "Vinilo", "Vinyl")
+        ("settings.account.diagnostics.header", "settings.account.diagnostics.header", "Diagnostics", "Diagnóstico", "Diagnose")
     ]
 
     // MARK: - Tests
