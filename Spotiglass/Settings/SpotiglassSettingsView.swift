@@ -110,6 +110,7 @@ struct SpotiglassSettingsView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .navigationSplitViewStyle(.balanced)
+        .background(SettingsWindowChrome().frame(width: 0, height: 0))
         // Keep the content proposal stable while switching panes (#23): a fixed
         // width stops an intrinsically wide pane from resizing the window, and
         // it also pulls a stale autosaved frame back to the same size. The
