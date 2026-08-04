@@ -39,6 +39,10 @@ struct PlaylistsSidebarSectionContent: View {
         return false
     }
 
+    private var visiblePlaylistIDs: [String] {
+        playlistState.currentValue?.map(\.id) ?? []
+    }
+
     var body: some View {
         Group {
             likedSongsSidebarRow
@@ -54,6 +58,24 @@ struct PlaylistsSidebarSectionContent: View {
             case let .error(error):
                 ErrorStateView(error: error)
             }
+        }
+        .onChange(of: viewModel.sidebarSelection) { _, newSelection in
+            guard let editingPlaylistID,
+                  newSelection != .playlist(editingPlaylistID)
+            else { return }
+            cancelPlaylistNameEditing()
+        }
+        .onChange(of: visiblePlaylistIDs) { _, playlistIDs in
+            guard let editingPlaylistID,
+                  playlistIDs.contains(editingPlaylistID) == false
+            else { return }
+            cancelPlaylistNameEditing()
+        }
+        // Cancel on focus loss instead of committing on blur. This avoids
+        // saving an unfinished name after focus moves to another surface.
+        .onChange(of: isPlaylistNameFocused) { _, isFocused in
+            guard !isFocused, editingPlaylistID != nil else { return }
+            cancelPlaylistNameEditing()
         }
     }
 
@@ -134,12 +156,20 @@ struct PlaylistsSidebarSectionContent: View {
     }
 
     private func commitPlaylistName(for playlistID: String) {
-        guard editingPlaylistID == playlistID else { return }
+        guard let capturedPlaylistID = PlaylistRenameEditingPolicy.commitTarget(
+            editingPlaylistID: editingPlaylistID,
+            rowID: playlistID,
+            visiblePlaylistIDs: visiblePlaylistIDs
+        )
+        else {
+            cancelPlaylistNameEditing()
+            return
+        }
         let name = editedPlaylistName
         editingPlaylistID = nil
         isPlaylistNameFocused = false
         Task {
-            await viewModel.renamePlaylist(id: playlistID, name: name)
+            await viewModel.renamePlaylist(id: capturedPlaylistID, name: name)
         }
     }
 

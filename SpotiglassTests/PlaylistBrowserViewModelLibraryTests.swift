@@ -314,6 +314,60 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         XCTAssertFalse(error.canRetry)
     }
 
+    func testRenameCommitTargetRejectsChangedSelectionBeforeCallingRename() async {
+        let first = SpotifyPlaylistSummary(
+            id: "first",
+            name: "Playlist A",
+            ownerID: "owner",
+            ownerName: "Owner",
+            imageURL: nil,
+            trackCount: 0,
+            snapshotID: "first-snapshot"
+        )
+        let second = SpotifyPlaylistSummary(
+            id: "second",
+            name: "Playlist B",
+            ownerID: "owner",
+            ownerName: "Owner",
+            imageURL: nil,
+            trackCount: 0,
+            snapshotID: "second-snapshot"
+        )
+        let api = MockBrowsingAPI(playlistResults: [], trackResults: [:])
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+        viewModel.currentUserSpotifyID = "owner"
+        viewModel.playlistsByID = [first.id: first, second.id: second]
+
+        let capturedTarget = PlaylistRenameEditingPolicy.commitTarget(
+            editingPlaylistID: first.id,
+            displayedPlaylistID: second.id
+        )
+        XCTAssertNil(capturedTarget)
+        if let capturedTarget {
+            await viewModel.renamePlaylist(id: capturedTarget, name: "Renamed A")
+        }
+
+        XCTAssertTrue(api.updatePlaylistCalls.isEmpty)
+        XCTAssertEqual(viewModel.playlistsByID[first.id]?.name, "Playlist A")
+        XCTAssertEqual(viewModel.playlistsByID[second.id]?.name, "Playlist B")
+    }
+
+    func testSidebarRenameCommitTargetRejectsMissingEditedRow() {
+        XCTAssertNil(PlaylistRenameEditingPolicy.commitTarget(
+            editingPlaylistID: "missing",
+            rowID: "missing",
+            visiblePlaylistIDs: ["other"]
+        ))
+        XCTAssertEqual(
+            PlaylistRenameEditingPolicy.commitTarget(
+                editingPlaylistID: "present",
+                rowID: "present",
+                visiblePlaylistIDs: ["present", "other"]
+            ),
+            "present"
+        )
+    }
+
     func testRenamePlaylistOptimisticallyUpdatesSidebarAndDetail() async {
         let playlist = SpotifyPlaylistSummary(
             id: "rename-me",

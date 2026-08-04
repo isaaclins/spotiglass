@@ -23,6 +23,7 @@ struct PlaylistDetailContent: View {
     @State private var newPlaylistName = ""
     @State private var newPlaylistInitialRows: [TrackRowViewModel] = []
     @State private var isEditingPlaylistName = false
+    @State private var editingPlaylistID: String?
     @State private var editedPlaylistName = ""
     @FocusState private var isPlaylistNameFocused: Bool
 
@@ -60,6 +61,13 @@ struct PlaylistDetailContent: View {
               !currentUserID.isEmpty
         else { return false }
         return detail.playlist.ownerID == currentUserID
+    }
+
+    private var isEditingDisplayedPlaylistName: Bool {
+        guard isEditingPlaylistName,
+              let editingPlaylistID
+        else { return false }
+        return editingPlaylistID == detail.playlist.id
     }
 
     var body: some View {
@@ -129,6 +137,15 @@ struct PlaylistDetailContent: View {
             Text(newPlaylistInitialRows.isEmpty
                  ? "Create an empty playlist in your Spotify library."
                  : "Create a new playlist with \(newPlaylistInitialRows.count) track\(newPlaylistInitialRows.count == 1 ? "" : "s") added.")
+        }
+        .onChange(of: detail.playlist.id) { _, _ in
+            cancelPlaylistNameEditing()
+        }
+        // Cancel on focus loss instead of committing on blur. This avoids
+        // saving an unfinished name after focus moves to another surface.
+        .onChange(of: isPlaylistNameFocused) { _, isFocused in
+            guard !isFocused, isEditingPlaylistName else { return }
+            cancelPlaylistNameEditing()
         }
     }
 
@@ -201,7 +218,7 @@ struct PlaylistDetailContent: View {
 
     @ViewBuilder
     private var playlistTitle: some View {
-        if isEditingPlaylistName {
+        if isEditingDisplayedPlaylistName {
             TextField("", text: $editedPlaylistName)
                 .font(.largeTitle.weight(.semibold))
                 .textFieldStyle(.plain)
@@ -220,25 +237,59 @@ struct PlaylistDetailContent: View {
 
     private func beginPlaylistNameEditing() {
         guard canRenamePlaylist else { return }
+        editingPlaylistID = detail.playlist.id
         editedPlaylistName = detail.playlist.title
         isEditingPlaylistName = true
     }
 
     private func commitPlaylistName() {
-        guard isEditingPlaylistName else { return }
+        guard isEditingPlaylistName,
+              let capturedPlaylistID = PlaylistRenameEditingPolicy.commitTarget(
+                  editingPlaylistID: editingPlaylistID,
+                  displayedPlaylistID: detail.playlist.id
+              )
+        else {
+            cancelPlaylistNameEditing()
+            return
+        }
         let name = editedPlaylistName
-        let playlistID = detail.playlist.id
         isEditingPlaylistName = false
+        editingPlaylistID = nil
         isPlaylistNameFocused = false
         Task {
-            await browserViewModel.renamePlaylist(id: playlistID, name: name)
+            await browserViewModel.renamePlaylist(id: capturedPlaylistID, name: name)
         }
     }
 
     private func cancelPlaylistNameEditing() {
         isEditingPlaylistName = false
+        editingPlaylistID = nil
         isPlaylistNameFocused = false
         editedPlaylistName = ""
+    }
+}
+
+/// Validates that a rename still targets the playlist whose editor was opened.
+/// SwiftUI can retain the editor state while the displayed playlist changes.
+enum PlaylistRenameEditingPolicy {
+    static func commitTarget(editingPlaylistID: String?, displayedPlaylistID: String) -> String? {
+        guard let editingPlaylistID,
+              editingPlaylistID == displayedPlaylistID
+        else { return nil }
+        return editingPlaylistID
+    }
+
+    static func commitTarget(
+        editingPlaylistID: String?,
+        rowID: String,
+        visiblePlaylistIDs: [String]
+    ) -> String? {
+        guard let target = commitTarget(
+            editingPlaylistID: editingPlaylistID,
+            displayedPlaylistID: rowID
+        ), visiblePlaylistIDs.contains(target)
+        else { return nil }
+        return target
     }
 }
 
