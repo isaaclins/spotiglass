@@ -24,7 +24,7 @@ final class SpotiglassFoundationTests: XCTestCase {
             .appendingPathComponent("Spotiglass/App/SpotiglassApp.swift")
         let source = try String(contentsOf: sourceURL, encoding: .utf8)
         let standardMenuRange = try XCTUnwrap(source.range(of: "CommandGroup(after: .appInfo) {"))
-        let settingsRange = try XCTUnwrap(source.range(of: "\n\n        Settings"))
+        let settingsRange = try XCTUnwrap(source.range(of: "Settings {"))
         let standardMenuSource = source[standardMenuRange.lowerBound..<settingsRange.lowerBound]
 
         XCTAssertTrue(standardMenuSource.contains("app.menu.openPalette"))
