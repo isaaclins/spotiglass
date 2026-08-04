@@ -45,8 +45,42 @@ struct SpotiglassApp: App {
             authVM = AuthViewModel()
         }
         _authViewModel = StateObject(wrappedValue: authVM)
-        _equalizerEngine = StateObject(wrappedValue: AudioEqualizerEngine())
+
+        let equalizer = AudioEqualizerEngine()
+        Self.restoreEqualizerIfEnabled(settingsStore: store, engine: equalizer)
+        _equalizerEngine = StateObject(wrappedValue: equalizer)
         SpotiglassL10n.settingsStore = store
+    }
+
+    /// Re-engage the EQ only when the persisted master switch was on. The
+    /// settings toggle is the source of truth across launches: an off value
+    /// leaves the engine stopped, while an unavailable driver makes the failed
+    /// enable explicit and resets the persisted switch instead of claiming the
+    /// EQ is active.
+    private static func restoreEqualizerIfEnabled(
+        settingsStore: SpotiglassSettingsStore,
+        engine: AudioEqualizerEngine
+    ) {
+        let equalizerSettings = settingsStore.settings.equalizer
+        guard equalizerSettings.enabled else { return }
+
+        engine.apply(settings: equalizerSettings)
+        do {
+            try engine.start(forwardingTargetUID: equalizerSettings.forwardingTargetUID)
+        } catch {
+            do {
+                try settingsStore.mutate { $0.equalizer.enabled = false }
+            } catch {
+                SpotiglassLog.error(
+                    .settings,
+                    "Could not persist the disabled EQ state after startup restore failed: \(error.localizedDescription)"
+                )
+            }
+            SpotiglassLog.error(
+                .settings,
+                "Equalizer startup restore failed: \(error.localizedDescription)"
+            )
+        }
     }
 
     private var preferredColorScheme: ColorScheme? {
