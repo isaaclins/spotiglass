@@ -60,6 +60,8 @@ struct PreviewBrowsingAPI: SpotifyBrowsingAPI {
         SpotifyAPIClient.SpotifyArtistAlbumsPage(items: [], next: nil)
     }
 
+    func updatePlaylist(playlistID: String, name: String) async throws {}
+
     func currentUserPlaylists(limit: Int) async throws -> [SpotifyPlaylistSummary] {
         [
             SpotifyPlaylistSummary(

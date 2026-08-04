@@ -314,6 +314,106 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         XCTAssertFalse(error.canRetry)
     }
 
+    func testRenamePlaylistOptimisticallyUpdatesSidebarAndDetail() async {
+        let playlist = SpotifyPlaylistSummary(
+            id: "rename-me",
+            name: "Before",
+            ownerID: "u",
+            ownerName: "Me",
+            imageURL: nil,
+            trackCount: 0,
+            snapshotID: "snapshot"
+        )
+        let api = MockBrowsingAPI(playlistResults: [], trackResults: [:])
+        let cache = MockBrowsingCache()
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: cache)
+        viewModel.currentUserSpotifyID = "u"
+        viewModel.playlistsByID = [playlist.id: playlist]
+        viewModel.playlistState = .loaded([PlaylistRowViewModel(playlist)])
+        viewModel.detailState = .loaded(.playlist(PlaylistDetailViewModel(
+            playlist: PlaylistRowViewModel(playlist),
+            tracks: []
+        )))
+
+        await viewModel.renamePlaylist(id: playlist.id, name: "  After  ")
+
+        XCTAssertEqual(viewModel.playlistsByID[playlist.id]?.name, "After")
+        XCTAssertEqual(viewModel.playlistState.currentValue?.first?.title, "After")
+        XCTAssertEqual(PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count, 0)
+        if case let .loaded(.playlist(detail)) = viewModel.detailState {
+            XCTAssertEqual(detail.playlist.title, "After")
+        } else {
+            XCTFail("Expected renamed playlist detail")
+        }
+        XCTAssertEqual(api.updatePlaylistCalls.first?.playlistID, playlist.id)
+        XCTAssertEqual(api.updatePlaylistCalls.first?.name, "After")
+        XCTAssertEqual(cache.savedPlaylists?.first?.name, "After")
+    }
+
+    func testRenamePlaylistRevertsOptimisticUpdateAndSurfacesFailure() async {
+        let playlist = SpotifyPlaylistSummary(
+            id: "rename-me",
+            name: "Before",
+            ownerID: "u",
+            ownerName: "Me",
+            imageURL: nil,
+            trackCount: 0,
+            snapshotID: "snapshot"
+        )
+        let api = MockBrowsingAPI(
+            playlistResults: [],
+            trackResults: [:],
+            updatePlaylistHandler: { _, _ in
+                throw SpotifyAPIError.network("Offline")
+            }
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+        viewModel.currentUserSpotifyID = "u"
+        viewModel.playlistsByID = [playlist.id: playlist]
+        viewModel.playlistState = .loaded([PlaylistRowViewModel(playlist)])
+        viewModel.detailState = .loaded(.playlist(PlaylistDetailViewModel(
+            playlist: PlaylistRowViewModel(playlist),
+            tracks: []
+        )))
+
+        await viewModel.renamePlaylist(id: playlist.id, name: "After")
+
+        XCTAssertEqual(viewModel.playlistsByID[playlist.id]?.name, "Before")
+        XCTAssertEqual(viewModel.playlistState.currentValue?.first?.title, "Before")
+        if case let .loaded(.playlist(detail)) = viewModel.detailState {
+            XCTAssertEqual(detail.playlist.title, "Before")
+        } else {
+            XCTFail("Expected reverted playlist detail")
+        }
+        XCTAssertEqual(viewModel.trackMutationToast, "Offline")
+    }
+
+    func testRenamePlaylistRejectsBlankNamesAndNonOwnedPlaylists() async {
+        let playlist = SpotifyPlaylistSummary(
+            id: "rename-me",
+            name: "Before",
+            ownerID: "owner",
+            ownerName: "Owner",
+            imageURL: nil,
+            trackCount: 0,
+            snapshotID: "snapshot"
+        )
+        let api = MockBrowsingAPI(playlistResults: [], trackResults: [:])
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+        viewModel.currentUserSpotifyID = "owner"
+        viewModel.playlistsByID = [playlist.id: playlist]
+        viewModel.playlistState = .loaded([PlaylistRowViewModel(playlist)])
+
+        await viewModel.renamePlaylist(id: playlist.id, name: " \n\t ")
+        XCTAssertEqual(viewModel.playlistsByID[playlist.id]?.name, "Before")
+        XCTAssertTrue(api.updatePlaylistCalls.isEmpty)
+
+        viewModel.currentUserSpotifyID = "another-user"
+        await viewModel.renamePlaylist(id: playlist.id, name: "After")
+        XCTAssertEqual(viewModel.playlistsByID[playlist.id]?.name, "Before")
+        XCTAssertTrue(api.updatePlaylistCalls.isEmpty)
+    }
+
     func testTrackLoadRespectsSpotifyMaxItemsLimit() async {
         let api = LimitCapturingBrowsingAPI(
             playlists: [PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")],

@@ -63,6 +63,8 @@ final class LimitCapturingBrowsingAPI: SpotifyBrowsingAPI {
         return SpotifyAPIClient.SpotifyArtistAlbumsPage(items: [], next: nil)
     }
 
+    func updatePlaylist(playlistID: String, name: String) async throws {}
+
     func currentUserPlaylists(limit: Int) async throws -> [SpotifyPlaylistSummary] {
         playlists
     }
@@ -91,6 +93,7 @@ final class MockBrowsingAPI: SpotifyBrowsingAPI {
     private let savedTracksResult: Result<SpotifySavedTracksResult, Error>?
     private let savedTracksHandler: (() async throws -> SpotifySavedTracksResult)?
     private let playlistsHandler: (() async throws -> [SpotifyPlaylistSummary])?
+    private let updatePlaylistHandler: ((String, String) async throws -> Void)?
     private(set) var savedTracksCallCount = 0
     private(set) var currentUserPlaylistsCallCount = 0
     private(set) var artistTopTracksCallCount = 0
@@ -100,6 +103,7 @@ final class MockBrowsingAPI: SpotifyBrowsingAPI {
     private(set) var albumsBatchedLastIDs: [String]?
     private(set) var artistAlbumsPageCallCount = 0
     private(set) var playlistTracksInvocationCountByID: [String: Int] = [:]
+    private(set) var updatePlaylistCalls: [(playlistID: String, name: String)] = []
     var playlistTracksDelayOnInvocation: UInt64?
 
     init(
@@ -113,7 +117,8 @@ final class MockBrowsingAPI: SpotifyBrowsingAPI {
         albumsHandler: (([String], String?) async throws -> [SpotifyBatchedAlbum])? = nil,
         savedTracksResult: Result<SpotifySavedTracksResult, Error>? = nil,
         savedTracksHandler: (() async throws -> SpotifySavedTracksResult)? = nil,
-        playlistsHandler: (() async throws -> [SpotifyPlaylistSummary])? = nil
+        playlistsHandler: (() async throws -> [SpotifyPlaylistSummary])? = nil,
+        updatePlaylistHandler: ((String, String) async throws -> Void)? = nil
     ) {
         self.playlistResults = playlistResults
         self.trackResults = trackResults
@@ -126,6 +131,12 @@ final class MockBrowsingAPI: SpotifyBrowsingAPI {
         self.savedTracksResult = savedTracksResult
         self.savedTracksHandler = savedTracksHandler
         self.playlistsHandler = playlistsHandler
+        self.updatePlaylistHandler = updatePlaylistHandler
+    }
+
+    func updatePlaylist(playlistID: String, name: String) async throws {
+        updatePlaylistCalls.append((playlistID: playlistID, name: name))
+        try await updatePlaylistHandler?(playlistID, name)
     }
 
     func currentUserPlaylists(limit: Int) async throws -> [SpotifyPlaylistSummary] {
