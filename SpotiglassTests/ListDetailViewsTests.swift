@@ -92,7 +92,7 @@ final class ListDetailViewsTests: XCTestCase {
             surfaceID: "pl:test"
         )
         ViewTestHost.host(view, size: CGSize(width: 640, height: 56))
-        XCTAssertNoThrow(try view.inspect().find(viewWithAccessibilityLabel: "Pinned to sidebar"))
+        XCTAssertNoThrow(try view.inspect().find(text: "Pinned to sidebar"))
     }
 
     // MARK: - Virtualized track list

@@ -37,6 +37,18 @@ struct TrackListRow: View {
         pinnedStore.isPinned(spotifyID: track.id, kind: .track)
     }
 
+    private var showsPinnedBadge: Bool {
+        tracksSurfaceID != nil && isTrackPinned
+    }
+
+    private var accessibilityStatusSuffix: String {
+        var suffix = isCurrent ? SpotiglassL10n.string("browser.trackRow.nowPlaying") : ""
+        if showsPinnedBadge {
+            suffix += ", \(SpotiglassL10n.string("browser.pinned"))"
+        }
+        return suffix
+    }
+
     var body: some View {
         HStack(spacing: SpotiglassDesign.spacingS) {
             leadingColumn
@@ -44,8 +56,9 @@ struct TrackListRow: View {
 
             ArtworkView(url: track.artworkURL, size: 40)
                 .overlay(alignment: .topTrailing) {
-                    if tracksSurfaceID != nil, isTrackPinned {
-                        Image(systemName: "pin.fill")
+                    if showsPinnedBadge {
+                        Label(SpotiglassL10n.string("browser.pinned"), systemImage: "pin.fill")
+                            .labelStyle(.iconOnly)
                             .font(.system(size: 9, weight: .semibold))
                             .foregroundStyle(SpotiglassDesign.mediaBadgeForegroundColor(colorScheme: colorScheme))
                             .padding(3)
@@ -53,6 +66,7 @@ struct TrackListRow: View {
                                 Circle().fill(SpotiglassDesign.mediaBadgeBackgroundColor(colorScheme: colorScheme))
                             )
                             .padding(2)
+                            .accessibilityElement()
                             .accessibilityLabel(SpotiglassL10n.string("browser.pinned"))
                     }
                 }
@@ -150,7 +164,7 @@ struct TrackListRow: View {
                 track.title,
                 track.subtitle,
                 track.durationText,
-                isCurrent ? SpotiglassL10n.string("browser.trackRow.nowPlaying") : ""
+                accessibilityStatusSuffix
             )
         )
     }
