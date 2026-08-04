@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.4.0] - 2026-08-05
+
+### Added
+
+- Playlist owners can rename playlists from the detail header by double-clicking the title or choosing **Edit playlist name** from the context menu.
+- Followed playlists that do not allow track access now show a clear locked state.
+
+### Changed
+
+- Settings panes now share one scroll container with consistent top padding and window width. The traffic lights align with the main window, raw settings JSON has one discoverable entry point, and the sidebar can be hidden and shown again.
+- Library pin reordering now uses the native list interaction.
+- Localization cleanup removes obsolete strings and checks catalogs for stale entries.
+
+### Fixed
+
+- The equalizer master enable and bypass state is restored correctly when the app launches.
+- VoiceOver announces when a track is pinned.
+
+### Removed
+
+- The duplicate **Spotiglass** menu was removed.
+
 ## [0.3.0] - 2026-06-23
 
 ### Added
@@ -49,7 +71,7 @@
 - Playback no longer cuts off when the in-app language is changed.
 - Lyric rows no longer show a press-glow on tappable lines or a horizontal seam between rows.
 - EQ target-device volume IO runs on a worker thread instead of blocking the main thread.
-- HAL driver registers as output-only — no spurious microphone-permission prompt.
+- HAL driver registers as output-only, with no spurious microphone-permission prompt.
 - Driver bundle installs with `cp -pR` so the kernel `cs_mtime != mtime` code-signing check passes.
 - Driver factory symbol is exported so `coreaudiod` can `dlsym` it.
 
