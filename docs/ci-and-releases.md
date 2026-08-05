@@ -28,7 +28,7 @@ No Spotiglass server is required. Updates use:
 
 | Piece | Host |
 |-------|------|
-| Appcast RSS | [GitHub Pages](https://isaaclins.github.io/spotiglass/appcast.xml) — `docs/appcast.xml` on branch `main` |
+| Appcast RSS | [GitHub Pages](https://isaaclins.com/spotiglass/appcast.xml) — `docs/appcast.xml` on branch `main` |
 | Update `.zip` | [GitHub Releases](https://github.com/isaaclins/spotiglass/releases) — used by Sparkle |
 | Installer `.dmg` | [GitHub Releases](https://github.com/isaaclins/spotiglass/releases) — human download, drag-to-Applications |
 | Archive signatures | Sparkle EdDSA (`SUPublicEDKey` in the app; private key in CI only) |
@@ -42,7 +42,19 @@ The app checks the feed automatically about once per day, or via **Spotiglass �
    - Run `bin/generate_keys` and confirm `SUPublicEDKey` in [Spotiglass/App/SparkleInfo.plist](../Spotiglass/App/SparkleInfo.plist) matches the printed public key.
    - Export the private key: `bin/generate_keys -x scripts/sparkle_eddsa_private.key` (do **not** commit this file).
 2. **GitHub Actions secret**: add repository secret `SPARKLE_EDDSA_PRIVATE_KEY` with the **full contents** of `sparkle_eddsa_private.key`.
-3. **GitHub Pages**: repo **Settings → Pages → Build from branch `main` / folder `/docs`**. The feed URL must be `https://isaaclins.github.io/spotiglass/appcast.xml` (matches `SUFeedURL`).
+3. **GitHub Pages**: repo **Settings → Pages → Build from branch `main` / folder `/docs`**. The feed URL must be `https://isaaclins.com/spotiglass/appcast.xml` (matches `SUFeedURL`).
+
+> **`SUFeedURL` must be the final HTTPS URL, never a redirecting alias.** `isaaclins.github.io`
+> is a Pages alias for the `isaaclins.com` custom domain, and it 301s to **`http://`** because
+> GitHub cannot enforce HTTPS while the domain is proxied through Cloudflare rather than pointed
+> at the Pages IPs. App Transport Security cancels that plaintext hop, so Sparkle fails every
+> check with "An error occurred in retrieving update information." (issue #80). Verify with:
+>
+> ```sh
+> curl -sS -o /dev/null -w '%{num_redirects} %{http_code}\n' "$(
+>   /usr/libexec/PlistBuddy -c 'Print :SUFeedURL' Spotiglass/App/SparkleInfo.plist)"
+> # expect: 0 200
+> ```
 
 ### Cutting a release
 
