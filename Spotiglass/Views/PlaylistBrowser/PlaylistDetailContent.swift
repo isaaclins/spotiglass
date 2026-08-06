@@ -13,8 +13,8 @@ struct PlaylistDetailContent: View {
     let addToQueue: (String) async -> Void
     let openArtist: (String) -> Void
     /// View-model passed in so the row context-menu can call the high-level
-    /// mutation helpers (`addRowsToPlaylist`, `favoriteRows`, etc.) and observe
-    /// `selectedDetailTrackIDs` for the shift-click multi-select highlight.
+    /// mutation helpers (`addRowsToPlaylist`, `favoriteRows`, etc.) and so the
+    /// track table can bind `List` selection to `selectedDetailTrackIDs`.
     @ObservedObject var browserViewModel: PlaylistBrowserViewModel
 
     @EnvironmentObject private var pinnedStore: PinnedItemsStore
@@ -79,8 +79,9 @@ struct PlaylistDetailContent: View {
             if detail.tracks.isEmpty {
                 EmptyStateView(title: SpotiglassL10n.string("browser.noTracks.title"), message: SpotiglassL10n.string("browser.noTracks.emptyPlaylist"))
             } else {
-                VirtualizedTrackList(
+                TrackListView(
                     tracks: detail.tracks,
+                    selection: $browserViewModel.selectedDetailTrackIDs,
                     rowBuilder: { track in
                         TrackListRow(
                             trackNumber: track.listPosition,
@@ -93,13 +94,7 @@ struct PlaylistDetailContent: View {
                             addToQueue: addToQueue,
                             openArtist: openArtist,
                             tracksSurfaceID: tracksSurfaceKey,
-                            isSelected: browserViewModel.selectedDetailTrackIDs.contains(track.id),
-                            onShiftSelect: { rowID in
-                                browserViewModel.extendSelection(toRowID: rowID)
-                            },
-                            onPrimarySelect: { rowID in
-                                browserViewModel.setPrimarySelection(trackID: rowID)
-                            },
+                            drawsRowHighlights: false,
                             trackOpsMenuItems: {
                                 AnyView(TrackOpsMenuItems(
                                     rowID: track.id,

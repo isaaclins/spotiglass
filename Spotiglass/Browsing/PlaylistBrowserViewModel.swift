@@ -26,12 +26,11 @@ final class PlaylistBrowserViewModel: ObservableObject {
     /// Spotify user id for the signed-in account; used to hide redundant owner labels on own playlists.
     @Published internal(set) var currentUserSpotifyID: String?
     @Published internal(set) var detailState: BrowsingLoadState<BrowsingDetailContent> = .empty("Select an item in the sidebar or open an artist from search.")
-    /// Track IDs the user has shift-click-selected in the currently visible playlist or
-    /// artist detail. Empty means "no selection — context-menu acts on the row alone".
+    /// Track IDs selected in the currently visible playlist table. Bound to the
+    /// `List` selection, so the table owns click, shift and command behavior and
+    /// this stays the value the context-menu actions read. Empty means "no
+    /// selection, context-menu acts on the row alone".
     @Published var selectedDetailTrackIDs: Set<String> = []
-    /// Most recently clicked track id; used as the anchor for shift-click range selection.
-    /// Cleared whenever the detail surface changes (`scheduleDetailLoad`).
-    @Published var detailSelectionAnchorTrackID: String?
     /// User-facing toast banner published after a successful track-ops mutation
     /// ("Added 4 tracks to My Workout"). Read+set by views; auto-clears.
     @Published var trackMutationToast: String?

@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import ViewInspector
 import XCTest
@@ -95,38 +96,151 @@ final class ListDetailViewsTests: XCTestCase {
         XCTAssertNoThrow(try view.inspect().find(text: "Pinned to sidebar"))
     }
 
-    // MARK: - Virtualized track list
+    // MARK: - Native track list
 
-    func testVirtualizedTrackListMountsRows() throws {
+    func testTrackListViewMountsRows() throws {
         let store = pinnedStore()
         let tracks = (1 ... 24).map { index in
             trackRow(id: "vt\(index)", title: "Track \(index)", explicit: false, listPosition: index)
         }
         var restoreID: String?
-        let view = VirtualizedTrackList(
+        var selection: Set<String> = []
+        let view = trackListView(
             tracks: tracks,
-            rowBuilder: { track in
-                TrackListRow(
-                    trackNumber: track.listPosition,
-                    track: track,
-                    playURI: { _ in },
-                    togglePlayPause: {},
-                    isCurrent: false,
-                    isPlaying: false,
-                    hasPlaybackDevice: true,
-                    addToQueue: { _ in },
-                    openArtist: { _ in }
-                )
-            },
-            pendingScrollRestoreTrackID: Binding(
-                get: { restoreID },
-                set: { restoreID = $0 }
-            ),
+            selection: Binding(get: { selection }, set: { selection = $0 }),
+            pendingScrollRestoreTrackID: Binding(get: { restoreID }, set: { restoreID = $0 }),
             onFirstVisibleTrackChanged: { _ in }
         )
+        .frame(width: 640, height: 400)
         .environmentObject(store)
         ViewTestHost.host(view, size: CGSize(width: 640, height: 400))
         XCTAssertNoThrow(try view.inspect().find(text: "Track 1"))
+    }
+
+    /// The reason the hand written virtualizer existed: a long playlist must not
+    /// instantiate every row. `List` is backed by `NSTableView`, so the stable
+    /// contract to test is how many rows the table draws, not wall-clock time on
+    /// whichever CI runner happens to execute the suite.
+    func testTrackListViewVirtualizesThousandRows() throws {
+        let store = pinnedStore()
+        let tracks = (1 ... 1000).map { index in
+            trackRow(id: "perf\(index)", title: "Track \(index)", explicit: false, listPosition: index)
+        }
+        var restoreID: String?
+        var selection: Set<String> = []
+        let view = trackListView(
+            tracks: tracks,
+            selection: Binding(get: { selection }, set: { selection = $0 }),
+            pendingScrollRestoreTrackID: Binding(get: { restoreID }, set: { restoreID = $0 }),
+            onFirstVisibleTrackChanged: { _ in }
+        )
+        .frame(width: 800, height: 600)
+        .environmentObject(store)
+        let controller = ViewTestHost.host(view, size: CGSize(width: 800, height: 600))
+        AppKitTestSupport.pumpRunLoop(for: 0.4)
+
+        let scrollView = try XCTUnwrap(Self.firstScrollView(in: controller.view))
+        let table = try XCTUnwrap(scrollView.documentView as? NSTableView)
+        let visibleRows = table.rows(in: table.visibleRect)
+        XCTAssertEqual(table.numberOfRows, 1000)
+        XCTAssertGreaterThan(visibleRows.length, 0)
+        XCTAssertLessThan(
+            visibleRows.length,
+            30,
+            "a 600-point viewport must not draw all 1000 rows: \(visibleRows)"
+        )
+    }
+
+    func testTrackListViewReportsTopmostVisibleTrackWhileScrolling() throws {
+        let store = pinnedStore()
+        let tracks = (1 ... 400).map { index in
+            trackRow(id: "sc\(index)", title: "Track \(index)", explicit: false, listPosition: index)
+        }
+        var reported: [String] = []
+        var restoreID: String?
+        var selection: Set<String> = []
+        let view = trackListView(
+            tracks: tracks,
+            selection: Binding(get: { selection }, set: { selection = $0 }),
+            pendingScrollRestoreTrackID: Binding(get: { restoreID }, set: { restoreID = $0 }),
+            onFirstVisibleTrackChanged: { reported.append($0) }
+        )
+        .frame(width: 800, height: 600)
+        .environmentObject(store)
+        let controller = ViewTestHost.host(view, size: CGSize(width: 800, height: 600))
+        let scrollView = try XCTUnwrap(
+            Self.firstScrollView(in: controller.view),
+            "List should be hosted inside an NSScrollView"
+        )
+        XCTAssertGreaterThan(
+            scrollView.contentView.bounds.height,
+            0,
+            "a collapsed clip view would make the scroll assertions meaningless"
+        )
+        XCTAssertEqual(reported.last, "sc1", "an unscrolled list sits on its first track")
+
+        scrollView.contentView.scroll(to: NSPoint(x: 0, y: TrackListRow.listRowHeight * 40))
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+        scrollView.displayIfNeeded()
+        AppKitTestSupport.pumpRunLoop(for: 1.2)
+
+        let table = try XCTUnwrap(scrollView.documentView as? NSTableView)
+        let topmostVisibleRow = table.rows(in: table.visibleRect).location
+        XCTAssertGreaterThan(topmostVisibleRow, 0, "the list should have scrolled off the first row")
+
+        let reportedID = try XCTUnwrap(reported.last)
+        let reportedRow = try XCTUnwrap(tracks.firstIndex { $0.id == reportedID })
+        // NSTableView keeps a row of realization margin above the clip view, so
+        // the reported row is allowed to sit just above the first visible one.
+        // Anything wider than that means the report stopped tracking the table.
+        XCTAssertLessThanOrEqual(
+            abs(reportedRow - topmostVisibleRow),
+            2,
+            "reported row \(reportedRow) drifted from the table's topmost visible row \(topmostVisibleRow)"
+        )
+    }
+
+    func testTrackListViewScrollsToPendingRestoreTrackAndClearsIt() throws {
+        let store = pinnedStore()
+        let tracks = (1 ... 400).map { index in
+            trackRow(id: "rs\(index)", title: "Track \(index)", explicit: false, listPosition: index)
+        }
+        let recorder = ScrollRestoreRecorder()
+        let view = TrackListScrollRestoreHarness(
+            tracks: tracks,
+            targetTrackID: "rs300",
+            recorder: recorder
+        )
+        .frame(width: 800, height: 600)
+        .environmentObject(store)
+        let controller = ViewTestHost.host(view, size: CGSize(width: 800, height: 600))
+        AppKitTestSupport.pumpRunLoop(for: 0.4)
+
+        let scrollView = try XCTUnwrap(
+            Self.firstScrollView(in: controller.view),
+            "List should be hosted inside an NSScrollView"
+        )
+        let table = try XCTUnwrap(scrollView.documentView as? NSTableView)
+        let visibleRows = table.rows(in: table.visibleRect)
+        XCTAssertTrue(
+            NSLocationInRange(299, visibleRows),
+            "restoring track 300 should have brought row 300 on screen, visible rows were \(visibleRows)"
+        )
+        XCTAssertTrue(recorder.wasCleared, "the pending restore binding should be cleared after scrolling")
+    }
+
+    // MARK: - First-visible row selection
+
+    func testFirstVisibleTrackIDPicksTheLowestRowNumber() {
+        XCTAssertEqual(
+            TrackListVisibility.firstVisibleTrackID(in: [12: "l", 9: "a", 10: "b"]),
+            "a"
+        )
+        XCTAssertEqual(TrackListVisibility.firstVisibleTrackID(in: [1: "only"]), "only")
+    }
+
+    func testFirstVisibleTrackIDIsNilWhenNothingIsVisible() {
+        XCTAssertNil(TrackListVisibility.firstVisibleTrackID(in: [:]))
     }
 
     // MARK: - Playlist detail
@@ -393,6 +507,85 @@ private extension ListDetailViewsTests {
             openArtist: { _ in },
             loadMoreAlbums: {}
         )
+    }
+
+    func trackListView(
+        tracks: [TrackRowViewModel],
+        selection: Binding<Set<String>>,
+        pendingScrollRestoreTrackID: Binding<String?>,
+        onFirstVisibleTrackChanged: @escaping (String) -> Void
+    ) -> TrackListView {
+        TrackListView(
+            tracks: tracks,
+            selection: selection,
+            rowBuilder: TrackListTestRows.row(for:),
+            pendingScrollRestoreTrackID: pendingScrollRestoreTrackID,
+            onFirstVisibleTrackChanged: onFirstVisibleTrackChanged
+        )
+    }
+
+    static func firstScrollView(in view: NSView) -> NSScrollView? {
+        if let scrollView = view as? NSScrollView { return scrollView }
+        for subview in view.subviews {
+            if let found = firstScrollView(in: subview) { return found }
+        }
+        return nil
+    }
+}
+
+// MARK: - Track list test harness
+
+enum TrackListTestRows {
+    static func row(for track: TrackRowViewModel) -> TrackListRow {
+        TrackListRow(
+            trackNumber: track.listPosition,
+            track: track,
+            playURI: { _ in },
+            togglePlayPause: {},
+            isCurrent: false,
+            isPlaying: false,
+            hasPlaybackDevice: true,
+            addToQueue: { _ in },
+            openArtist: { _ in },
+            drawsRowHighlights: false
+        )
+    }
+}
+
+@MainActor
+final class ScrollRestoreRecorder: ObservableObject {
+    var wasCleared = false
+}
+
+/// Drives `pendingScrollRestoreTrackID` from inside the view tree, because the
+/// binding has to change *after* the list is on screen for the restore to run.
+private struct TrackListScrollRestoreHarness: View {
+    let tracks: [TrackRowViewModel]
+    let targetTrackID: String
+    let recorder: ScrollRestoreRecorder
+
+    @State private var pending: String?
+    @State private var selection: Set<String> = []
+
+    var body: some View {
+        TrackListView(
+            tracks: tracks,
+            selection: $selection,
+            rowBuilder: TrackListTestRows.row(for:),
+            pendingScrollRestoreTrackID: Binding(
+                get: { pending },
+                set: { newValue in
+                    if newValue == nil, pending != nil { recorder.wasCleared = true }
+                    pending = newValue
+                }
+            ),
+            onFirstVisibleTrackChanged: { _ in }
+        )
+        .frame(width: 800, height: 600)
+        .task {
+            try? await Task.sleep(nanoseconds: 60_000_000)
+            pending = targetTrackID
+        }
     }
 }
 

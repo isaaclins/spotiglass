@@ -68,8 +68,8 @@
 		D40000000000000000000002 /* PlaylistBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000012 /* PlaylistBrowserView.swift */; };
 		D40000000000000000000004 /* QueuePanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000014 /* QueuePanelView.swift */; };
 		D40000000000000000000005 /* TrackListRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000015 /* TrackListRow.swift */; };
+		SRC000000000000000000001B /* TrackListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC000000000000000008001B /* TrackListView.swift */; };
 		D40000000000000000000006 /* ArtistDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000016 /* ArtistDetailView.swift */; };
-		D40000000000000000000007 /* VirtualizedTrackList.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000017 /* VirtualizedTrackList.swift */; };
 		D40000000000000000000008 /* BreadcrumbToolbarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000018 /* BreadcrumbToolbarView.swift */; };
 		D40000000000000000000009 /* NavigationToolbarChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000019 /* NavigationToolbarChrome.swift */; };
 		D4000000000000000000003A /* PlaylistBrowserViewModel+Navigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4000000000000000000002A /* PlaylistBrowserViewModel+Navigation.swift */; };
@@ -417,8 +417,8 @@
 		D40000000000000000000012 /* PlaylistBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserView.swift; sourceTree = "<group>"; };
 		D40000000000000000000014 /* QueuePanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueuePanelView.swift; sourceTree = "<group>"; };
 		D40000000000000000000015 /* TrackListRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackListRow.swift; sourceTree = "<group>"; };
+		SRC000000000000000008001B /* TrackListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackListView.swift; sourceTree = "<group>"; };
 		D40000000000000000000016 /* ArtistDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtistDetailView.swift; sourceTree = "<group>"; };
-		D40000000000000000000017 /* VirtualizedTrackList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VirtualizedTrackList.swift; sourceTree = "<group>"; };
 		D40000000000000000000018 /* BreadcrumbToolbarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BreadcrumbToolbarView.swift; sourceTree = "<group>"; };
 		D40000000000000000000019 /* NavigationToolbarChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationToolbarChrome.swift; sourceTree = "<group>"; };
 		D4000000000000000000002A /* PlaylistBrowserViewModel+Navigation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlaylistBrowserViewModel+Navigation.swift"; sourceTree = "<group>"; };
@@ -762,8 +762,8 @@
 				D40000000000000000000012 /* PlaylistBrowserView.swift */,
 				D40000000000000000000014 /* QueuePanelView.swift */,
 				D40000000000000000000015 /* TrackListRow.swift */,
+				SRC000000000000000008001B /* TrackListView.swift */,
 				D40000000000000000000016 /* ArtistDetailView.swift */,
-				D40000000000000000000017 /* VirtualizedTrackList.swift */,
 				H80000000000000000000011 /* PlayingWaveformIcon.swift */,
 				A10000000000000000000012 /* RootView.swift */,
 				F60000000000000000000011 /* SpotiglassDesignSystem.swift */,
@@ -1472,8 +1472,8 @@
 				E50000000000000000000020 /* LyricsOverlayController.swift in Sources */,
 				D40000000000000000000004 /* QueuePanelView.swift in Sources */,
 				D40000000000000000000005 /* TrackListRow.swift in Sources */,
+				SRC000000000000000000001B /* TrackListView.swift in Sources */,
 				D40000000000000000000006 /* ArtistDetailView.swift in Sources */,
-				D40000000000000000000007 /* VirtualizedTrackList.swift in Sources */,
 				E50000000000000000000001 /* SpotifyPlaybackModels.swift in Sources */,
 				E50000000000000000000002 /* SpotifyPlaybackBridge.swift in Sources */,
 				E50000000000000000000003 /* SpotifyPlaybackAPI.swift in Sources */,
