@@ -100,7 +100,7 @@ enum CommandPaletteCommandCatalog {
             commandID: CommandPaletteCommandID.toggleLyrics,
             iconSystemName: "music.note.list",
             defaultWhen: .signedIn,
-            defaultKeystroke: nil
+            defaultKeystroke: "alt-cmd-l"
         ),
         spec(
             commandID: CommandPaletteCommandID.signOut,
@@ -144,6 +144,7 @@ enum CommandPaletteCommandCatalog {
         CommandPaletteCommandID.nextTrack,
         CommandPaletteCommandID.previousTrack,
         CommandPaletteCommandID.toggleQueue,
+        CommandPaletteCommandID.toggleLyrics,
         CommandPaletteCommandID.openSettings,
         CommandPaletteCommandID.pinSelected,
         CommandPaletteCommandID.enqueueSelected,

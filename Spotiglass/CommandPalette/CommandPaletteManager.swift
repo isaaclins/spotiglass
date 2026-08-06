@@ -22,6 +22,10 @@ final class CommandPaletteManager: ObservableObject {
     var nextTrack: (() async -> Void)?
     var previousTrack: (() async -> Void)?
     var disconnectPlayback: (() async -> Void)?
+    /// Routed through ``QueueViewModel`` rather than the playback session so the
+    /// menu bar reorders **Up next** exactly like the queue panel's shuffle button.
+    var toggleShuffle: (() async -> Void)?
+    var cycleRepeat: (() async -> Void)?
     var playURI: ((String) async -> Void)?
     var openPlaylist: ((String) async -> Void)?
     var openArtist: ((String) async -> Void)?
@@ -191,6 +195,10 @@ final class CommandPaletteManager: ObservableObject {
             Task { await previousTrack?() }
         case CommandPaletteCommandID.disconnectPlayback:
             Task { await disconnectPlayback?() }
+        case CommandPaletteCommandID.toggleShuffle:
+            Task { await toggleShuffle?() }
+        case CommandPaletteCommandID.cycleRepeat:
+            Task { await cycleRepeat?() }
         case "playback.playURI":
             if case let .string(uri)? = args?["uri"] {
                 Task { await playURI?(uri) }

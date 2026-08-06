@@ -1,5 +1,6 @@
 {
   "files": [
+    "Spotiglass/App/SpotiglassMenuCommands.swift",
     "Spotiglass/Browsing/PlaylistBrowserCommandPaletteConfiguration.swift",
     "Spotiglass/Browsing/PlaylistBrowserPlaybackHelpers.swift",
     "Spotiglass/Browsing/PlaylistBrowserSidebarSelectionHandling.swift",

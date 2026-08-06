@@ -9,6 +9,9 @@ struct SpotiglassApp: App {
     @StateObject private var pinnedStore: PinnedItemsStore
     @StateObject private var lyricsOverlayController = LyricsOverlayController()
     @StateObject private var equalizerEngine: AudioEqualizerEngine
+    /// Same storage key ``PlaylistBrowserView`` writes, read here so the View menu
+    /// can say "Show Queue" or "Hide Queue" instead of a stateless "Toggle".
+    @AppStorage("queue.panel.visible") private var isQueueVisible = false
 
     init() {
         SpotiglassLog.boot()
@@ -87,6 +90,17 @@ struct SpotiglassApp: App {
         settingsStore.settings.appearance.colorScheme.preferredColorScheme
     }
 
+    /// Mirrors the sign-in mapping ``RootView`` uses to gate the palette, so menu
+    /// items dim in step with the commands actually being wired up.
+    private var isSignedIn: Bool {
+        switch authViewModel.state {
+        case .signedIn, .refreshing(.some):
+            true
+        case .signedOut, .signingIn, .failed, .refreshing(.none):
+            false
+        }
+    }
+
     var body: some Scene {
         WindowGroup {
             RootView(commandPaletteManager: commandPaletteManager)
@@ -107,6 +121,13 @@ struct SpotiglassApp: App {
                 }
                 .keyboardShortcut("k", modifiers: [.command])
             }
+
+            SpotiglassMenuCommands(
+                commandPaletteManager: commandPaletteManager,
+                isSignedIn: isSignedIn,
+                isQueueVisible: isQueueVisible,
+                isLyricsPresented: lyricsOverlayController.isPresented
+            )
         }
 
         Settings {
