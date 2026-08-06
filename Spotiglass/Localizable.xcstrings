@@ -4639,19 +4639,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "ALS NÄCHSTES IN DER WARTESCHLANGE:"
+            "value": "Als Nächstes in der Warteschlange"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "NEXT IN QUEUE:"
+            "value": "Next in Queue"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "A CONTINUACIÓN EN LA COLA:"
+            "value": "A continuación en la cola"
           }
         }
       }
@@ -6457,19 +6457,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "ALBEN"
+            "value": "Alben"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "ALBUMS"
+            "value": "Albums"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "ÁLBUMES"
+            "value": "Álbumes"
           }
         }
       }
@@ -6480,19 +6480,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "KÜNSTLER"
+            "value": "Künstler"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "ARTISTS"
+            "value": "Artists"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "ARTISTAS"
+            "value": "Artistas"
           }
         }
       }
@@ -6503,19 +6503,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "BEFEHLE"
+            "value": "Befehle"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "COMMANDS"
+            "value": "Commands"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "COMANDOS"
+            "value": "Comandos"
           }
         }
       }
@@ -6526,19 +6526,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "MEINE PLAYLISTS"
+            "value": "Meine Playlists"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "MY PLAYLISTS"
+            "value": "My Playlists"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "MIS LISTAS"
+            "value": "Mis listas"
           }
         }
       }
@@ -6549,19 +6549,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "PLAYLISTS"
+            "value": "Playlists"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "PLAYLISTS"
+            "value": "Playlists"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "LISTAS"
+            "value": "Listas"
           }
         }
       }
@@ -6572,19 +6572,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "HIER"
+            "value": "Hier"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "HERE"
+            "value": "Here"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "AQUÍ"
+            "value": "Aquí"
           }
         }
       }
@@ -6595,19 +6595,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "SONGS"
+            "value": "Songs"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "SONGS"
+            "value": "Songs"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "CANCIONES"
+            "value": "Canciones"
           }
         }
       }

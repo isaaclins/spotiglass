@@ -42,9 +42,11 @@ struct CommandPaletteSectionedListView: View {
                         }
                     } header: {
                         HStack(spacing: 8) {
+                            // Title case, no letter spacing. Tracking existed to
+                            // make shouted all-caps labels readable, and section
+                            // headers no longer render in all caps.
                             Text(chunk.section.displayLabel)
                                 .font(.caption2.weight(.semibold))
-                                .tracking(1.2)
                                 .foregroundStyle(.secondary)
                             Spacer()
                         }
