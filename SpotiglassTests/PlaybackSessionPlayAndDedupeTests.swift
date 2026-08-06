@@ -42,9 +42,12 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
     }
 
     func testReadySyncsPlaybackVolumeToWebPlayer() async {
-        UserDefaults.standard.removeObject(forKey: "spotiglass.playbackVolume")
         let commander = MockWebPlaybackCommander()
-        let viewModel = PlaybackSessionViewModel(playbackAPI: MockPlaybackAPI(), webCommander: commander)
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: MockPlaybackAPI(),
+            webCommander: commander,
+            defaults: makeEphemeralDefaults()
+        )
         viewModel.handle(.ready(deviceID: "device-1"))
         let volumeDeadline = Date().addingTimeInterval(1.0)
         while Date() < volumeDeadline,
@@ -60,7 +63,12 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
 
     func testSetPlaybackVolumePersistsAndSendsBridgeCommand() async {
         let commander = MockWebPlaybackCommander()
-        let viewModel = PlaybackSessionViewModel(playbackAPI: MockPlaybackAPI(), webCommander: commander)
+        let defaults = makeEphemeralDefaults()
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: MockPlaybackAPI(),
+            webCommander: commander,
+            defaults: defaults
+        )
         viewModel.setPlaybackVolume(0.56)
         try? await Task.sleep(nanoseconds: 50_000_000)
         XCTAssertEqual(viewModel.playbackVolume, 0.56, accuracy: 0.000_001)
@@ -68,8 +76,7 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
         let lastVolume = commander.commands.last?.payload["volume"] as? Double
         XCTAssertNotNil(lastVolume)
         XCTAssertEqual(lastVolume!, 0.56, accuracy: 0.000_001)
-        XCTAssertEqual(UserDefaults.standard.double(forKey: "spotiglass.playbackVolume"), 0.56, accuracy: 0.000_001)
-        UserDefaults.standard.removeObject(forKey: "spotiglass.playbackVolume")
+        XCTAssertEqual(defaults.double(forKey: "spotiglass.playbackVolume"), 0.56, accuracy: 0.000_001)
     }
 
     func testPlayURITransfersPlaybackBeforePlayCommand() async {

@@ -79,9 +79,13 @@ final class PlaybackSessionViewModelCoreTests: XCTestCase {
 
     func testLoadStoredPlaybackVolumeFromUserDefaults() {
         let key = "spotiglass.playbackVolume"
-        UserDefaults.standard.set(NSNumber(value: 0.42), forKey: key)
-        let viewModel = PlaybackSessionViewModel(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander())
+        let defaults = makeEphemeralDefaults()
+        defaults.set(NSNumber(value: 0.42), forKey: key)
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: MockPlaybackAPI(),
+            webCommander: MockWebPlaybackCommander(),
+            defaults: defaults
+        )
         XCTAssertEqual(viewModel.playbackVolume, 0.42, accuracy: 0.000_001)
-        UserDefaults.standard.removeObject(forKey: key)
     }
 }

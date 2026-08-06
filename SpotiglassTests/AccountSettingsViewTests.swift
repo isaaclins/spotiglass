@@ -11,6 +11,7 @@ final class AccountSettingsViewTests: XCTestCase {
 
     func testSignedOutShowsConnectionSection() throws {
         let viewModel = AuthViewModel(
+            settings: SpotifyAuthSettings(defaults: makeEphemeralDefaults()),
             refreshTokenStore: MemoryOnlyRefreshTokenStore(),
             initialState: .signedOut
         )

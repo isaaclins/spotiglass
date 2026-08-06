@@ -23,6 +23,7 @@ final class RootViewTests: XCTestCase {
 
     func testSignedOutShowsConnectChrome() throws {
         let auth = AuthViewModel(
+            settings: SpotifyAuthSettings(defaults: makeEphemeralDefaults()),
             refreshTokenStore: MemoryOnlyRefreshTokenStore(),
             initialState: .signedOut
         )
@@ -36,6 +37,7 @@ final class RootViewTests: XCTestCase {
 
     func testOnAppearWiresPaletteManagerCallbacks() throws {
         let auth = AuthViewModel(
+            settings: SpotifyAuthSettings(defaults: makeEphemeralDefaults()),
             refreshTokenStore: MemoryOnlyRefreshTokenStore(),
             initialState: .signedOut
         )
