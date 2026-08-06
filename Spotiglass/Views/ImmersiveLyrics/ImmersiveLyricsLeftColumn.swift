@@ -30,6 +30,7 @@ struct ImmersiveLyricsLeftColumnView: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(!hasPlaybackDeviceForTransportControls)
+                    .help(PlaybackTransportTooltips.repeatTooltip(currentMode: playbackViewModel.repeatMode))
                     .accessibilityLabel(lyricsRepeatAccessibilityLabel)
                     .accessibilityHint(SpotiglassL10n.string("playback.controls.repeat.hint"))
                 }

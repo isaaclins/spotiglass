@@ -151,6 +151,7 @@ struct ScrubberView: View {
         }
         .frame(height: hoverHeight + thumbDiameter)
         .accessibilityElement()
+        .help(SpotiglassL10n.string("tooltip.playback.scrubber"))
         .accessibilityLabel(SpotiglassL10n.string("playback.scrubber.progress"))
         .accessibilityValue("\(Int(displayFraction * 100))%")
     }

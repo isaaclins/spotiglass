@@ -9,6 +9,7 @@ extension PlaylistBrowserView {
         }
         .buttonStyle(.borderless)
         .disabled(isUnifiedRefreshBusy)
+        .help(SpotiglassL10n.string("tooltip.toolbar.refresh"))
         .accessibilityHint(
             SpotiglassL10n.string("browser.toolbar.refreshHelp")
         )

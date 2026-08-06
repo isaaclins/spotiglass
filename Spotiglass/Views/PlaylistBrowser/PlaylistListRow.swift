@@ -63,6 +63,7 @@ struct PlaylistListRow: View {
                             Circle().fill(SpotiglassDesign.mediaBadgeBackgroundColor(colorScheme: colorScheme))
                         )
                         .padding(2)
+                        .help(SpotiglassL10n.string("browser.pinned"))
                         .accessibilityLabel(SpotiglassL10n.string("browser.pinned"))
                 }
             }

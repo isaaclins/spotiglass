@@ -18,6 +18,11 @@ struct BreadcrumbToolbarView: View {
                         ? ""
                         : SpotiglassL10n.string("breadcrumb.home.hint")
                 )
+                .help(
+                    viewModel.breadcrumbPath.isEmpty
+                        ? ""
+                        : SpotiglassL10n.string("tooltip.breadcrumb.home")
+                )
                 .contentShape(Rectangle())
                 .onTapGesture {
                     guard !viewModel.breadcrumbPath.isEmpty else { return }
@@ -58,6 +63,9 @@ struct BreadcrumbToolbarView: View {
         .accessibilityLabel(crumb.label)
         .accessibilityAddTraits(isLeaf ? [] : .isButton)
         .accessibilityHint(isLeaf ? "" : SpotiglassL10n.string("breadcrumb.hint"))
+        // Segments truncate at 220pt, so even the leaf earns a tooltip: it is
+        // the only way to read a long playlist or album name in full.
+        .help(isLeaf ? crumb.label : SpotiglassL10n.format("tooltip.breadcrumb.jump", crumb.label))
         .contentShape(Rectangle())
         .onTapGesture {
             guard !isLeaf else { return }

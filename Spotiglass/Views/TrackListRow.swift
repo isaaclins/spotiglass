@@ -67,6 +67,7 @@ struct TrackListRow: View {
                             )
                             .padding(2)
                             .accessibilityElement()
+                            .help(SpotiglassL10n.string("browser.pinned"))
                             .accessibilityLabel(SpotiglassL10n.string("browser.pinned"))
                     }
                 }
@@ -204,6 +205,8 @@ struct TrackListRow: View {
             Image(systemName: "pause.fill")
                 .foregroundStyle(SpotiglassDesign.controlAccent)
                 .frame(maxWidth: .infinity, alignment: .center)
+                .help(SpotiglassL10n.string("playback.pause"))
+                .accessibilityLabel(SpotiglassL10n.string("playback.pause"))
         } else if isCurrent {
             PlayingWaveformIcon(isPlaying: isPlaying)
                 .frame(maxWidth: .infinity, alignment: .center)
@@ -211,6 +214,8 @@ struct TrackListRow: View {
             Image(systemName: "play.fill")
                 .foregroundStyle(SpotiglassDesign.controlAccent)
                 .frame(maxWidth: .infinity, alignment: .center)
+                .help(SpotiglassL10n.string("playback.play"))
+                .accessibilityLabel(SpotiglassL10n.string("playback.play"))
         } else {
             Text("\(trackNumber)")
                 .font(.callout.monospacedDigit())

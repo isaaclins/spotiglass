@@ -166,6 +166,7 @@ struct CommandPaletteSettingsView: View {
                             }
                             .buttonStyle(.plain)
                             .help(SpotiglassL10n.string("palette.settings.clearShortcut"))
+                            .accessibilityLabel(SpotiglassL10n.string("a11y.palette.clearShortcut"))
                             .transition(.opacity.combined(with: .scale(scale: 0.7)))
                         }
                     }

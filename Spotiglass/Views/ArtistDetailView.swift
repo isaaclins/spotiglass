@@ -93,6 +93,7 @@ struct ArtistDetailContent: View {
                                 Circle().fill(SpotiglassDesign.mediaBadgeBackgroundColor(colorScheme: colorScheme))
                             )
                             .padding(4)
+                            .help(SpotiglassL10n.string("browser.pinned"))
                             .accessibilityLabel(SpotiglassL10n.string("browser.pinned"))
                     }
                 }
@@ -219,6 +220,8 @@ struct ArtistDetailContent: View {
                                 Circle().fill(SpotiglassDesign.mediaBadgeBackgroundColor(colorScheme: colorScheme))
                             )
                             .padding(4)
+                            .help(SpotiglassL10n.string("browser.pinned"))
+                            .accessibilityLabel(SpotiglassL10n.string("browser.pinned"))
                     }
                 }
 

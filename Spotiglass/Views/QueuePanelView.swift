@@ -53,7 +53,7 @@ struct QueuePanelView: View {
                     : SpotiglassL10n.string("queue.shuffle.off")
             )
             .accessibilityHint(SpotiglassL10n.string("queue.shuffle.hint"))
-            .help(SpotiglassL10n.string("queue.help.shuffle"))
+            .help(PlaybackTransportTooltips.shuffleTooltip(isEnabled: playbackViewModel.shuffleEnabled))
         }
         .padding(SpotiglassDesign.spacingM)
     }

@@ -30,6 +30,7 @@ struct PinnedRowView: View {
                         }
                         .buttonStyle(.plain)
                         .offset(x: -6, y: -6)
+                        .help(SpotiglassL10n.string("tooltip.pin.unpin"))
                         .accessibilityLabel(String(format: SpotiglassL10n.string("pin.unpin"), item.title))
                     }
                 }

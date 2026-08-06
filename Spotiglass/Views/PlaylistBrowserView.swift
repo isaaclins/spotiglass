@@ -181,6 +181,7 @@ struct PlaylistBrowserView: View {
                     } label: {
                         Label(SpotiglassL10n.string("browser.closeLyrics"), systemImage: "xmark.circle")
                     }
+                    .help(SpotiglassL10n.string("browser.closeLyrics"))
                     .accessibilityHint(SpotiglassL10n.string("browser.closeLyrics.hint"))
                 }
                 ToolbarItem(placement: .primaryAction) {
@@ -193,6 +194,11 @@ struct PlaylistBrowserView: View {
                     } label: {
                         Label(SpotiglassL10n.string("browser.queue"), systemImage: "list.bullet.indent")
                     }
+                    .help(
+                        isQueueVisible
+                            ? SpotiglassL10n.string("tooltip.toolbar.queue.hide")
+                            : SpotiglassL10n.string("tooltip.toolbar.queue.show")
+                    )
                     .accessibilityHint(SpotiglassL10n.string("browser.queue.hint"))
 
                     Button {
@@ -201,6 +207,7 @@ struct PlaylistBrowserView: View {
                     } label: {
                         Label(SpotiglassL10n.string("browser.disconnect"), systemImage: "xmark.circle")
                     }
+                    .help(SpotiglassL10n.string("browser.disconnect"))
                     .accessibilityHint(SpotiglassL10n.string("browser.disconnect.hint"))
                 }
                 ToolbarItem(placement: .primaryAction) {
