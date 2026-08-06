@@ -5,24 +5,32 @@ struct AppearanceSettingsView: View {
     @ObservedObject var settingsStore: SpotiglassSettingsStore
 
     var body: some View {
-        VStack(alignment: .leading, spacing: SpotiglassDesign.spacingL) {
-            header
-            languageSection
-            colorSchemeSection
-            lyricsTextSizeSection
-            lyricsOffsetSection
-            commandPaletteSection
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
+        // Grouped Form matches System Settings. Each option gets its own group so
+        // its hint can sit in the section footer instead of running as loose body
+        // text between controls.
+        Form {
+            Section {
+                languageSection
+            } footer: {
+                Text(SpotiglassL10n.string("settings.section.appearance.subtitle"))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
-    // The window header already shows the pane name ("Appearance"), so this pane
-    // only carries its subtitle — no duplicated title (#26).
-    private var header: some View {
-        Text(SpotiglassL10n.string("settings.section.appearance.subtitle"))
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            Section {
+                colorSchemeSection
+            }
+
+            Section {
+                lyricsTextSizeSection
+                lyricsOffsetSection
+            }
+
+            Section {
+                commandPaletteSection
+            }
+        }
+        .formStyle(.grouped)
     }
 
     private var languageSection: some View {

@@ -227,7 +227,12 @@ struct SpotiglassSettingsView: View {
             Divider()
                 .padding(.horizontal, 24)
 
-            ScrollView {
+            // No ScrollView here on purpose. Every pane is a grouped Form, which
+            // scrolls itself, and wrapping one in a ScrollView is exactly the
+            // nested-scrolling bug that clipped the top control and desynced pane
+            // padding (#21, #22). The shell owns the header and the divider; the
+            // pane owns its scrolling and its group insets.
+            Group {
                 SettingsPaneContainer {
                     switch section ?? .playback {
                     case .playback:
@@ -249,15 +254,10 @@ struct SpotiglassSettingsView: View {
                         )
                     }
                 }
-                // Keep every pane's first control the same distance below the
-                // divider. Pane views provide content only; the shell owns the
-                // scroll insets so nested scrolling cannot slide controls under
-                // the fixed header.
-                .padding(.horizontal, SpotiglassDesign.spacingL)
-                .padding(.top, SpotiglassDesign.spacingL)
-                .padding(.bottom, SpotiglassDesign.spacingL)
+                // No padding here. A grouped Form supplies its own group insets,
+                // and adding the shell's padding on top would inset every pane
+                // twice and reopen the inconsistent-offset problem from #22.
             }
-            .contentMargins(.top, SpotiglassDesign.spacingS, for: .scrollContent)
         }
     }
 
