@@ -37,13 +37,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Ensure jq is available
+      - name: Ensure jq and ripgrep are available
         run: |
           set -euo pipefail
-          # audit-localization.sh exits 2 without jq, which would look like a
-          # real localization failure rather than a missing tool.
-          command -v jq >/dev/null || (sudo apt-get update && sudo apt-get install -y jq)
+          # Both audits shell out to rg, and audit-localization.sh also needs jq.
+          # Each exits non-zero with a "required" message when the tool is
+          # missing, which would look like a real audit failure rather than a
+          # missing dependency, so install them up front.
+          missing=()
+          command -v jq >/dev/null || missing+=(jq)
+          command -v rg >/dev/null || missing+=(ripgrep)
+          if [ ${#missing[@]} -gt 0 ]; then
+            sudo apt-get update
+            sudo apt-get install -y "${missing[@]}"
+          fi
           jq --version
+          rg --version | head -1
 
       - name: Microphone / process-tap audit
         run: ./scripts/eq-mic-permission-audit.sh
