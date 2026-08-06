@@ -27,8 +27,16 @@ struct CommandPaletteSettingsView: View {
                 .padding(SpotiglassDesign.spacingL)
                 .frame(minWidth: 720, minHeight: 520, alignment: .topLeading)
             case .settingsTabs:
-                content
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                // Grouped Form to match the other settings panes. It also supplies
+                // this pane's scrolling: the settings shell deliberately has no
+                // ScrollView of its own, so a plain stack here would overflow the
+                // window and slide under the titlebar.
+                Form {
+                    Section {
+                        content
+                    }
+                }
+                .formStyle(.grouped)
             }
         }
         .onDisappear {
