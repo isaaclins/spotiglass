@@ -8,6 +8,24 @@
 > Sparkle/Release/Pages steps have been removed from the workflow; what's left is
 > a preview-only build for reviewing a branch.
 
+## Continuous integration
+
+The workflow **CI** lives at [.github/workflows/ci.yml](../.github/workflows/ci.yml) and is what actually guards `main`.
+
+| Aspect | Detail |
+|--------|--------|
+| Trigger | Every pull request, and every push to `main` |
+| `static-checks` job | `ubuntu-latest`: microphone / process-tap audit, then the four-part localization audit |
+| `test` job | `macos-26`: resolve packages, full unit test suite with coverage, per-file coverage gate |
+| On failure | The `.xcresult` bundle is uploaded as an artifact for 14 days |
+| Concurrency | Superseded runs are cancelled per branch, except on `main` |
+
+The static audits run on Linux so an obvious violation fails in about a minute instead of waiting on a macOS runner. The `test` job is pinned to `macos-26` for the same deployment-target reason as the release workflow below.
+
+CI does **not** build or publish a release. It has no access to the signing identity, so releases stay local.
+
+> Before this workflow existed, nothing ran the suite automatically and two tests rotted unnoticed on `main` ([#73](https://github.com/isaaclins/spotiglass/issues/73), [#74](https://github.com/isaaclins/spotiglass/issues/74)). Both were found by hand.
+
 ## Workflow
 
 The workflow **Release artifact** lives at [.github/workflows/release-artifact.yml](../.github/workflows/release-artifact.yml).
