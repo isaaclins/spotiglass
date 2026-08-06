@@ -26,7 +26,11 @@ struct ImmersiveLyricsLeftColumnView: View {
                     } label: {
                         Image(systemName: lyricsRepeatButtonIcon)
                             .font(.title3.weight(.medium))
-                            .foregroundStyle(lyricsRepeatUsesAccent ? SpotiglassDesign.controlAccent : .white.opacity(0.5))
+                            .foregroundStyle(
+                                lyricsRepeatUsesAccent
+                                    ? AnyShapeStyle(SpotiglassAccentStyle())
+                                    : AnyShapeStyle(.white.opacity(0.5))
+                            )
                     }
                     .buttonStyle(.plain)
                     .disabled(!hasPlaybackDeviceForTransportControls)

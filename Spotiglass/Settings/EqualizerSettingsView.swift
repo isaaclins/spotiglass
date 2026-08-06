@@ -466,7 +466,7 @@ private struct CenterOriginGainFader: View {
 
                 // Center-origin fill between the 0 dB line and the current value.
                 Capsule()
-                    .fill(Color.accentColor)
+                    .fill(.spotiglassAccent)
                     .frame(width: trackWidth, height: max(1, abs(valueY - zeroY)))
                     .position(x: centerX, y: (valueY + zeroY) / 2)
 

@@ -82,7 +82,11 @@ struct PinnedRowView: View {
                 .overlay {
                     Image(systemName: isSelected ? "heart.fill" : "heart")
                         .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(isSelected ? SpotiglassDesign.controlAccent : .secondary)
+                        .foregroundStyle(
+                            isSelected
+                                ? AnyShapeStyle(SpotiglassAccentStyle())
+                                : AnyShapeStyle(.secondary)
+                        )
                 }
                 .overlay {
                     RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
@@ -156,7 +160,7 @@ struct PinnedItemDragPill: View {
 
             Image(systemName: kindSymbolName)
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(SpotiglassDesign.controlAccent)
+                .foregroundStyle(.spotiglassAccent)
             VStack(alignment: .leading, spacing: 1) {
                 Text(item.title)
                     .font(.caption.weight(.semibold))
@@ -189,7 +193,7 @@ struct PinnedItemDragPill: View {
                 .overlay {
                     Image(systemName: "heart.fill")
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(SpotiglassDesign.controlAccent)
+                        .foregroundStyle(.spotiglassAccent)
                 }
                 .overlay {
                     RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)

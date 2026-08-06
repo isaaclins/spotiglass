@@ -337,7 +337,11 @@ private struct SettingsSidebarRow: View {
         .padding(.vertical, 6)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(isSelected ? Color.accentColor.opacity(0.16) : Color.clear)
+                .fill(
+                    isSelected
+                        ? AnyShapeStyle(SpotiglassAccentStyle().opacity(0.16))
+                        : AnyShapeStyle(.clear)
+                )
         )
         .contentShape(Rectangle())
     }

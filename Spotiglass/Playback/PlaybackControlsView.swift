@@ -128,7 +128,7 @@ struct PlaybackControlsView: View {
             } else {
                 Image(systemName: stateIcon)
                     .font(.title3)
-                    .foregroundStyle(stateIconColor)
+                    .foregroundStyle(stateIconStyle)
                     .frame(width: 28)
                     .id("state-icon:\(stateIcon)")
                     .transition(.opacity)
@@ -219,7 +219,11 @@ struct PlaybackControlsView: View {
                 Task { await viewModel.cycleRepeat() }
             } label: {
                 Image(systemName: repeatButtonIcon)
-                    .foregroundStyle(repeatButtonUsesAccent ? SpotiglassDesign.controlAccent : Color.secondary)
+                    .foregroundStyle(
+                        repeatButtonUsesAccent
+                            ? AnyShapeStyle(SpotiglassAccentStyle())
+                            : AnyShapeStyle(.secondary)
+                    )
             }
             .disabled(!hasReadyDevice)
             .help(PlaybackTransportTooltips.repeatTooltip(currentMode: viewModel.repeatMode))
@@ -521,14 +525,17 @@ struct PlaybackControlsView: View {
         }
     }
 
-    private var stateIconColor: Color {
+    /// The playing and ready states are an accent, so they grey out with the window.
+    /// Error and unavailable stay orange: that is a status, not an emphasis, and a warning
+    /// that only reads while the window is frontmost is a warning you can miss.
+    private var stateIconStyle: AnyShapeStyle {
         switch viewModel.connectionState {
         case .error, .unavailable:
-            .orange
+            AnyShapeStyle(.orange)
         case .playing, .ready:
-            .accentColor
+            AnyShapeStyle(SpotiglassAccentStyle())
         default:
-            .secondary
+            AnyShapeStyle(.secondary)
         }
     }
 

@@ -159,7 +159,7 @@ struct PlaylistDetailContent: View {
                         .overlay {
                             Image(systemName: "heart.fill")
                                 .font(.system(size: 44, weight: .semibold))
-                                .foregroundStyle(SpotiglassDesign.controlAccent)
+                                .foregroundStyle(.spotiglassAccent)
                                 .symbolRenderingMode(.monochrome)
                         }
                         .overlay {

@@ -110,7 +110,7 @@ struct ScrubberView: View {
                     .frame(height: trackHeight)
 
                 RoundedRectangle(cornerRadius: trackHeight / 2, style: .continuous)
-                    .fill(SpotiglassDesign.controlAccent)
+                    .fill(.spotiglassAccent)
                     .frame(width: max(filledWidth, 0), height: trackHeight)
 
                 Circle()

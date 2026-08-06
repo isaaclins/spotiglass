@@ -14,7 +14,7 @@ struct CommandPaletteSearchCardView: View {
                 scope: viewModel.currentScope,
                 category: viewModel.searchCategoryFilter
             ))
-            .foregroundStyle(CommandPaletteScopePresentation.iconColor(
+            .foregroundStyle(CommandPaletteScopePresentation.iconStyle(
                 scope: viewModel.currentScope,
                 category: viewModel.searchCategoryFilter
             ))
@@ -69,17 +69,17 @@ enum CommandPaletteScopePresentation {
         }
     }
 
-    static func iconColor(
+    static func iconStyle(
         scope: CommandPaletteScope,
         category: CommandPaletteSearchCategory
-    ) -> Color {
+    ) -> AnyShapeStyle {
         switch scope {
         case .commands:
-            .accentColor
+            AnyShapeStyle(SpotiglassAccentStyle())
         case .songs:
             switch category {
             case .all, .tracks, .artists, .thisPlaylist, .myPlaylists:
-                .secondary
+                AnyShapeStyle(.secondary)
             }
         }
     }

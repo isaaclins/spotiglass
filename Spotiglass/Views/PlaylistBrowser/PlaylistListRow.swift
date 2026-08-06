@@ -30,7 +30,11 @@ struct PlaylistListRow: View {
                         .overlay {
                             Image(systemName: isListSelected ? "heart.fill" : "heart")
                                 .font(.system(size: 20, weight: .semibold))
-                                .foregroundStyle(isListSelected ? SpotiglassDesign.controlAccent : .secondary)
+                                .foregroundStyle(
+                                    isListSelected
+                                        ? AnyShapeStyle(SpotiglassAccentStyle())
+                                        : AnyShapeStyle(.secondary)
+                                )
                                 .symbolRenderingMode(.monochrome)
                         }
                         .overlay {

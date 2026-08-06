@@ -203,7 +203,7 @@ struct TrackListRow: View {
     private var leadingColumn: some View {
         if isCurrent && isHovering {
             Image(systemName: "pause.fill")
-                .foregroundStyle(SpotiglassDesign.controlAccent)
+                .foregroundStyle(.spotiglassAccent)
                 .frame(maxWidth: .infinity, alignment: .center)
                 .help(SpotiglassL10n.string("playback.pause"))
                 .accessibilityLabel(SpotiglassL10n.string("playback.pause"))
@@ -212,7 +212,7 @@ struct TrackListRow: View {
                 .frame(maxWidth: .infinity, alignment: .center)
         } else if isHovering {
             Image(systemName: "play.fill")
-                .foregroundStyle(SpotiglassDesign.controlAccent)
+                .foregroundStyle(.spotiglassAccent)
                 .frame(maxWidth: .infinity, alignment: .center)
                 .help(SpotiglassL10n.string("playback.play"))
                 .accessibilityLabel(SpotiglassL10n.string("playback.play"))
@@ -229,10 +229,10 @@ struct TrackListRow: View {
         ZStack {
             if isSelected {
                 RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
-                    .fill(SpotiglassDesign.controlAccent.opacity(0.18))
+                    .fill(SpotiglassAccentStyle().opacity(0.18))
                     .overlay(
                         RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
-                            .strokeBorder(SpotiglassDesign.controlAccent.opacity(0.45), lineWidth: 1)
+                            .strokeBorder(SpotiglassAccentStyle().opacity(0.45), lineWidth: 1)
                     )
             } else if isCurrent {
                 RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)

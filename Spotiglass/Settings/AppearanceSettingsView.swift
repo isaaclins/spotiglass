@@ -271,6 +271,10 @@ struct AppearanceSettingsView: View {
 private struct LyricsTextSizePreview: View {
     let metrics: LyricsTextMetrics
 
+    /// The glow behind the active line is drawn by hand, and `shadow(color:)` wants a
+    /// concrete color, so this is one of the few places that has to ask directly.
+    @Environment(\.appearsActive) private var appearsActive
+
     private let lines: [(text: String, distance: Int)] = [
         (SpotiglassL10n.string("settings.appearance.lyricsPreview.line1"),   -1),
         (SpotiglassL10n.string("settings.appearance.lyricsPreview.line2"),   0),
@@ -289,7 +293,7 @@ private struct LyricsTextSizePreview: View {
                     .blur(radius: line.distance == 0 ? 0 : 0.4)
                     .shadow(
                         color: line.distance == 0
-                            ? Color.accentColor.opacity(0.22)
+                            ? SpotiglassDesign.accent(appearsActive: appearsActive).opacity(0.22)
                             : .clear,
                         radius: line.distance == 0 ? metrics.activeGlowRadius * 0.6 : 0
                     )
