@@ -302,9 +302,11 @@ final class PlaybackChromeViewsTests: XCTestCase {
         )
 
         ViewTestHost.host(view, size: CGSize(width: 420, height: 640))
-        XCTAssertNoThrow(
-            try view.inspect().find(text: "Repeat one — upcoming tracks resume when repeat is off")
-        )
+        // Assert through the catalog rather than a hard-coded English literal.
+        // This test pinned the old copy verbatim, so removing an em dash from the
+        // string broke it for a reason that had nothing to do with the behavior
+        // under test.
+        ViewTestHost.assertFindLocalizedText("queue.subtitle.repeatOne", in: view)
     }
 
     private func makePlayingPlayback(paused: Bool = false) -> PlaybackSessionViewModel {
