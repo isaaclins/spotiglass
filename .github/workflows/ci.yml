@@ -1,0 +1,123 @@
+name: CI
+
+# Runs the checks that guard `main` on every pull request and every push to
+# `main`. Until this existed, nothing ran the test suite automatically: the
+# only workflow was "Release artifact", which is `workflow_dispatch`-only.
+# Two tests rotted unnoticed on `main` as a result (#73, #74), and both were
+# found by hand rather than by CI.
+#
+# This workflow deliberately does NOT build or publish a release. Real
+# releases are still cut locally via ./scripts/sparkle-release.sh, because CI
+# has no access to the maintainer's signing identity. See docs/ci-and-releases.md.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A newer push to the same branch makes an in-flight run obsolete. Cancel it
+# rather than paying for a macOS runner to finish a stale commit. Never cancel
+# runs on `main`, so the history of what passed there stays complete.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+jobs:
+  static-checks:
+    name: Static audits
+    # Cheap grep/jq guards, so a Linux runner is enough. Keeping them off the
+    # macOS runner means an obvious violation fails in under a minute instead
+    # of waiting on a full Xcode build.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ensure jq is available
+        run: |
+          set -euo pipefail
+          # audit-localization.sh exits 2 without jq, which would look like a
+          # real localization failure rather than a missing tool.
+          command -v jq >/dev/null || (sudo apt-get update && sudo apt-get install -y jq)
+          jq --version
+
+      - name: Microphone / process-tap audit
+        run: ./scripts/eq-mic-permission-audit.sh
+
+      - name: Localization audit
+        # Four checks: English leaks, catalog completeness, referenced keys
+        # that are missing, and catalog keys nothing references (#75).
+        run: ./scripts/audit-localization.sh
+
+  test:
+    name: Unit tests and coverage gate
+    # Pinned to macos-26 (Tahoe) because Spotiglass and SpotiglassTests both
+    # have a macOS 26.0 deployment target. The macos-latest label currently
+    # maps to macOS 15, whose host OS is older than the deployment target, so
+    # xcodebuild refuses to launch the test runner with: "My Mac's macOS
+    # 15.7.4 doesn't match SpotiglassTests's macOS 26.0 deployment target."
+    # See: https://github.com/actions/runner-images/issues/13739
+    runs-on: macos-26
+    timeout-minutes: 45
+    env:
+      PROJECT: Spotiglass.xcodeproj
+      SCHEME: Spotiglass
+      DERIVED_DATA: ${{ github.workspace }}/build/DerivedData
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select latest stable Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Show toolchain versions
+        run: |
+          set -euo pipefail
+          sw_vers
+          xcodebuild -version
+          xcrun --show-sdk-version --sdk macosx
+
+      - name: Resolve Swift packages
+        run: |
+          set -euo pipefail
+          xcodebuild -resolvePackageDependencies \
+            -project "$PROJECT" \
+            -scheme "$SCHEME"
+
+      - name: Run unit tests with coverage
+        id: unit_tests
+        run: |
+          set -euo pipefail
+          # -parallel-testing-enabled NO matches `make test`: several suites
+          # touch shared on-disk settings fixtures and are not parallel-safe.
+          xcodebuild \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -destination 'platform=macOS' \
+            -derivedDataPath "$DERIVED_DATA" \
+            -parallel-testing-enabled NO \
+            -enableCodeCoverage YES \
+            -resultBundlePath "$GITHUB_WORKSPACE/build/ci-cov.xcresult" \
+            CODE_SIGNING_ALLOWED=NO \
+            test
+
+      - name: Upload test result bundle on failure
+        if: failure() && steps.unit_tests.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-test-xcresult-${{ github.run_id }}
+          path: build/ci-cov.xcresult
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Per-file coverage gate (allowlisted ramp-up)
+        run: |
+          set -euo pipefail
+          COVERAGE_ALLOWLIST=scripts/coverage-allowlist.json \
+            ./scripts/check-coverage-per-file.sh "$GITHUB_WORKSPACE/build/ci-cov.xcresult"
