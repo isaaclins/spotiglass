@@ -8,13 +8,13 @@ struct AppearanceSettingsView: View {
         // Grouped Form matches System Settings. Each option gets its own group so
         // its hint can sit in the section footer instead of running as loose body
         // text between controls.
+        //
+        // No pane subtitle. The shell header already names the pane, and a footer
+        // restating that sat between the first two groups, where it read as a
+        // footnote to Language rather than a description of the pane.
         Form {
             Section {
                 languageSection
-            } footer: {
-                Text(SpotiglassL10n.string("settings.section.appearance.subtitle"))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Section {

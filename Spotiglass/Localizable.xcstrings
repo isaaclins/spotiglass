@@ -10316,29 +10316,6 @@
         }
       }
     },
-    "settings.section.appearance.subtitle": {
-      "extractionState": "stale",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Visuelle Optionen für Spotiglass-Fenster und Overlays."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Visual options for Spotiglass windows and overlays."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Opciones visuales para ventanas y superposiciones de Spotiglass."
-          }
-        }
-      }
-    },
     "settings.section.equalizer": {
       "extractionState": "stale",
       "localizations": {
