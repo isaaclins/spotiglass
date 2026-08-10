@@ -110,9 +110,9 @@ struct CommandPaletteSettingsView: View {
                         SpotiglassL10n.string("palette.settings.notBindable"),
                         systemImage: "lock.fill"
                     )
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .help(SpotiglassL10n.string("palette.settings.notBindable.hint"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .help(SpotiglassL10n.string("palette.settings.notBindable.hint"))
                 } else {
                     HStack(spacing: SpotiglassDesign.spacingXS) {
                         HotkeyRecorderField(
@@ -184,8 +184,8 @@ struct CommandPaletteSettingsView: View {
                             displayTitle(for: pending.otherCommandID)
                         )
                     )
-                        .font(.caption)
-                        .foregroundStyle(.orange)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
                     Button(SpotiglassL10n.string("palette.settings.replace")) {
                         do {
                             try keymapStore.setBinding(
@@ -232,7 +232,9 @@ struct CommandPaletteSettingsView: View {
                 .font(.system(.body, design: .monospaced))
                 .frame(minHeight: 200)
                 .padding(6)
-                .background(.background, in: RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous))
+                .background(
+                    .background, in: RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
+                )
                 .overlay {
                     RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
                         .strokeBorder(.quaternary, lineWidth: 1)

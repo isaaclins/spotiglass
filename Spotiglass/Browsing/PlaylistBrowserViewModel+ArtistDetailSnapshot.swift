@@ -62,7 +62,8 @@ extension PlaylistBrowserViewModel {
                 nextOffset += limit
                 nextURL = page.next
             } while nextURL != nil && pagesFetched < self.initialArtistAlbumPageCount
-            let resolved = await self.resolveArtistTracks(artistId: id, artist: artistDetail, albums: albumList, market: market)
+            let resolved = await self.resolveArtistTracks(
+                artistId: id, artist: artistDetail, albums: albumList, market: market)
             let paging = ArtistAlbumsPagingState(
                 artistID: id,
                 includeGroups: includeGroups,

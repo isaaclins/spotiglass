@@ -4,8 +4,8 @@ extension PlaylistBrowserViewModel {
     /// When viewing an artist page (no playlist selection), refresh reloads that artist.
     var artistIDForRefreshingDetail: String? {
         switch detailState {
-        case let .loaded(content), let .staleCache(content, _), let .refreshing(content):
-            if case let .artist(vm) = content {
+        case .loaded(let content), .staleCache(let content, _), .refreshing(let content):
+            if case .artist(let vm) = content {
                 return vm.artist.id
             }
             return nil
@@ -29,11 +29,11 @@ extension PlaylistBrowserViewModel {
         }
         currentNavigationTarget = target
         switch target {
-        case let .sidebar(selection):
+        case .sidebar(let selection):
             await selectSidebar(selection, origin: .backStackReplay)
-        case let .artist(id):
+        case .artist(let id):
             await selectArtist(id: id, forceRefresh: false, origin: .backStackReplay, displayName: nil)
-        case let .album(id, title, subtitle, artworkURL):
+        case .album(let id, let title, let subtitle, let artworkURL):
             await selectAlbum(
                 id: id,
                 displayTitle: title,
@@ -65,13 +65,15 @@ extension PlaylistBrowserViewModel {
         isPerformingBackNavigation = true
         defer { isPerformingBackNavigation = false }
         switch crumb.kind {
+        case .search:
+            await selectSidebar(.search, origin: .backStackReplay)
         case .likedSongs:
             await selectSidebar(.likedSongs, origin: .backStackReplay)
-        case let .playlist(id):
+        case .playlist(let id):
             await selectSidebar(.playlist(id), origin: .backStackReplay)
-        case let .artist(id):
+        case .artist(let id):
             await selectArtist(id: id, forceRefresh: false, origin: .backStackReplay, displayName: crumb.label)
-        case let .album(id, title, subtitle, artworkURL):
+        case .album(let id, let title, let subtitle, let artworkURL):
             await selectAlbum(
                 id: id,
                 displayTitle: title,
@@ -125,6 +127,15 @@ extension PlaylistBrowserViewModel {
             return
         case .reset, .extend:
             switch selection {
+            case .search:
+                breadcrumbPath = [
+                    BrowserBreadcrumb(
+                        id: UUID(),
+                        label: SpotiglassL10n.string("browser.search"),
+                        systemImage: "magnifyingglass",
+                        kind: .search
+                    )
+                ]
             case .home:
                 breadcrumbPath = []
             case .likedSongs:
@@ -136,7 +147,7 @@ extension PlaylistBrowserViewModel {
                         kind: .likedSongs
                     )
                 ]
-            case let .playlist(id):
+            case .playlist(let id):
                 let title = playlistsByID[id]?.name ?? SpotiglassL10n.string("browser.breadcrumb.playlistFallback")
                 breadcrumbPath = [
                     BrowserBreadcrumb(
@@ -225,13 +236,15 @@ extension PlaylistBrowserViewModel {
     /// Matches logical destination identity (IDs), not display metadata.
     private func breadcrumbRepresentsSamePage(_ lhs: BrowserBreadcrumb.Kind, _ rhs: BrowserBreadcrumb.Kind) -> Bool {
         switch (lhs, rhs) {
+        case (.search, .search):
+            return true
         case (.likedSongs, .likedSongs):
             return true
-        case let (.playlist(leftID), .playlist(rightID)):
+        case (.playlist(let leftID), .playlist(let rightID)):
             return leftID == rightID
-        case let (.artist(leftID), .artist(rightID)):
+        case (.artist(let leftID), .artist(let rightID)):
             return leftID == rightID
-        case let (.album(leftID, _, _, _), .album(rightID, _, _, _)):
+        case (.album(let leftID, _, _, _), .album(let rightID, _, _, _)):
             return leftID == rightID
         default:
             return false
@@ -251,9 +264,10 @@ extension PlaylistBrowserViewModel {
 
     func refineLastBreadcrumbArtistLabelIfNeeded(artistID: String, resolvedName: String) {
         guard let idx = breadcrumbPath.indices.last,
-              case let .artist(aid) = breadcrumbPath[idx].kind,
-              aid == artistID,
-              breadcrumbPath[idx].label != resolvedName else { return }
+            case .artist(let aid) = breadcrumbPath[idx].kind,
+            aid == artistID,
+            breadcrumbPath[idx].label != resolvedName
+        else { return }
         let old = breadcrumbPath[idx]
         breadcrumbPath[idx] = BrowserBreadcrumb(
             id: old.id,
@@ -268,11 +282,11 @@ extension PlaylistBrowserViewModel {
     private func reconcileBreadcrumbAfterNavigateBack(to target: BrowserNavigationTarget) {
         guard breadcrumbPath.isEmpty else { return }
         switch target {
-        case let .sidebar(selection):
+        case .sidebar(let selection):
             applyBreadcrumbForSidebar(selection, origin: .reset)
-        case let .artist(id):
+        case .artist(let id):
             applyBreadcrumbForArtist(id: id, displayName: nil, origin: .reset)
-        case let .album(id, title, subtitle, artworkURL):
+        case .album(let id, let title, let subtitle, let artworkURL):
             applyBreadcrumbForAlbum(
                 id: id,
                 title: title,
@@ -301,8 +315,9 @@ extension PlaylistBrowserViewModel {
 
     private func albumNavigationTargetFromCurrentDetail() -> BrowserNavigationTarget? {
         guard let content = detailState.currentValue,
-              case let .playlist(detail) = content,
-              detail.playlist.snapshotID.hasPrefix("album-") else {
+            case .playlist(let detail) = content,
+            detail.playlist.snapshotID.hasPrefix("album-")
+        else {
             return nil
         }
         return .album(

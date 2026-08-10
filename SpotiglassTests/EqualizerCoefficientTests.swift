@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 /// Exercises the biquad coefficient math in ``EQCoefficientFrame`` against
@@ -18,7 +19,7 @@ final class EqualizerCoefficientTests: XCTestCase {
                 for kind in [
                     EQCoefficientFrame.BiquadKind.peaking(q: 1.0),
                     .lowShelf,
-                    .highShelf
+                    .highShelf,
                 ] {
                     let coeffs = EQCoefficientFrame.biquad(
                         kind: kind, centerHz: f, gainDb: 0, sampleRateHz: r
@@ -44,8 +45,9 @@ final class EqualizerCoefficientTests: XCTestCase {
             kind: .peaking(q: 1.0), centerHz: 1000, gainDb: 6, sampleRateHz: 48000
         )
         // Peaking-EQ symmetry: b1 == a1 (both are -2 cos w0 / a0).
-        XCTAssertEqual(c.b1, c.a1, accuracy: 1e-9,
-                       "peaking EQ should be symmetric in numerator/denominator middle coefs")
+        XCTAssertEqual(
+            c.b1, c.a1, accuracy: 1e-9,
+            "peaking EQ should be symmetric in numerator/denominator middle coefs")
 
         // Magnitude response at the center frequency.
         let w0 = 2.0 * .pi * 1000.0 / 48000.0
@@ -62,8 +64,9 @@ final class EqualizerCoefficientTests: XCTestCase {
         let denI = -c.a1 * sinw - c.a2 * sin2w
         let mag = sqrt(numR * numR + numI * numI) / sqrt(denR * denR + denI * denI)
         let expected = pow(10.0, 6.0 / 20.0)  // 1.9952623
-        XCTAssertEqual(mag, expected, accuracy: 0.05,
-                       "peaking EQ at +6 dB should boost the center-bin magnitude by ~6 dB")
+        XCTAssertEqual(
+            mag, expected, accuracy: 0.05,
+            "peaking EQ at +6 dB should boost the center-bin magnitude by ~6 dB")
     }
 
     /// Low-shelf gain sign: a positive dB lift must raise the magnitude
@@ -77,8 +80,9 @@ final class EqualizerCoefficientTests: XCTestCase {
         )
         let dcResponse = (c.b0 + c.b1 + c.b2) / (1.0 + c.a1 + c.a2)
         let expected = pow(10.0, 6.0 / 20.0)
-        XCTAssertEqual(dcResponse, expected, accuracy: 0.02,
-                       "low-shelf should boost DC by the requested dB gain")
+        XCTAssertEqual(
+            dcResponse, expected, accuracy: 0.02,
+            "low-shelf should boost DC by the requested dB gain")
     }
 
     /// High-shelf gain at Nyquist: with `z = -1` the biquad evaluates to
@@ -90,8 +94,9 @@ final class EqualizerCoefficientTests: XCTestCase {
         )
         let nyquistResponse = (c.b0 - c.b1 + c.b2) / (1.0 - c.a1 + c.a2)
         let expected = pow(10.0, 6.0 / 20.0)
-        XCTAssertEqual(nyquistResponse, expected, accuracy: 0.05,
-                       "high-shelf should boost Nyquist by the requested dB gain")
+        XCTAssertEqual(
+            nyquistResponse, expected, accuracy: 0.05,
+            "high-shelf should boost Nyquist by the requested dB gain")
     }
 
     /// The Flat preset must produce an entirely passthrough coefficient
@@ -129,7 +134,8 @@ final class EqualizerCoefficientTests: XCTestCase {
                 a1: frame.bands[base + 3],
                 a2: frame.bands[base + 4]
             )
-            let isIdentity = coeffs.b0 == 1 && coeffs.b1 == 0 && coeffs.b2 == 0
+            let isIdentity =
+                coeffs.b0 == 1 && coeffs.b1 == 0 && coeffs.b2 == 0
                 && coeffs.a1 == 0 && coeffs.a2 == 0
             if band <= 3 {
                 XCTAssertFalse(isIdentity, "band \(band) should be lifted by Bass Boost")

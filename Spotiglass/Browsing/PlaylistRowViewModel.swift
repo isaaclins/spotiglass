@@ -15,7 +15,8 @@ struct PlaylistRowViewModel: Equatable, Identifiable {
         self.title = playlist.name
         self.owner = playlist.ownerName
         self.ownerID = playlist.ownerID
-        self.trackCountText = playlist.trackCount == 1
+        self.trackCountText =
+            playlist.trackCount == 1
             ? SpotiglassL10n.string("browser.trackCount.one")
             : SpotiglassL10n.format("browser.trackCount.other", Int64(playlist.trackCount))
         self.artworkURL = playlist.imageURL
@@ -38,7 +39,8 @@ struct PlaylistRowViewModel: Equatable, Identifiable {
         self.owner = likedSongsOwnerDisplay
         self.ownerID = ""
         if let totalTrackCount {
-            self.trackCountText = totalTrackCount == 1
+            self.trackCountText =
+                totalTrackCount == 1
                 ? SpotiglassL10n.string("browser.trackCount.one")
                 : SpotiglassL10n.format("browser.trackCount.other", Int64(totalTrackCount))
         } else {
@@ -57,7 +59,8 @@ struct PlaylistRowViewModel: Equatable, Identifiable {
         self.title = albumDisplayName
         self.owner = artistsDisplay
         self.ownerID = ""
-        self.trackCountText = totalTrackCount == 1
+        self.trackCountText =
+            totalTrackCount == 1
             ? SpotiglassL10n.string("browser.trackCount.one")
             : SpotiglassL10n.format("browser.trackCount.other", Int64(totalTrackCount))
         self.artworkURL = artworkURL
@@ -77,4 +80,5 @@ enum BrowsingDetailContent: Equatable {
     /// `home*` published sections on ``PlaylistBrowserViewModel`` (each loads
     /// independently), so the content payload here is just a routing token.
     case home
+    case search
 }

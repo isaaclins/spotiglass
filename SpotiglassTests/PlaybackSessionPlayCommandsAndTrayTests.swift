@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 @MainActor
@@ -32,20 +33,21 @@ final class PlaybackSessionPlayCommandsAndTrayTests: XCTestCase {
         let commander = MockWebPlaybackCommander()
         let viewModel = PlaybackSessionViewModel(playbackAPI: api, webCommander: commander)
         viewModel.handle(.ready(deviceID: "device-1"))
-        viewModel.handle(.stateChanged(
-            PlaybackNowPlaying(
-                name: "Seed",
-                artists: ["A"],
-                albumName: nil,
-                albumID: nil,
-                albumArtURL: nil,
-                durationMilliseconds: 100_000,
-                positionMilliseconds: 0,
-                uri: "spotify:track:seed"
-            ),
-            isPaused: false,
-            nextTracks: []
-        ))
+        viewModel.handle(
+            .stateChanged(
+                PlaybackNowPlaying(
+                    name: "Seed",
+                    artists: ["A"],
+                    albumName: nil,
+                    albumID: nil,
+                    albumArtURL: nil,
+                    durationMilliseconds: 100_000,
+                    positionMilliseconds: 0,
+                    uri: "spotify:track:seed"
+                ),
+                isPaused: false,
+                nextTracks: []
+            ))
 
         await viewModel.playFromPlaylist(
             clickedURI: "spotify:track:missing",

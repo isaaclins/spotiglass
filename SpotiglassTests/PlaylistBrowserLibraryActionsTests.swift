@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 final class PlaylistBrowserLibraryActionsTests: XCTestCase {
@@ -15,7 +16,7 @@ final class PlaylistBrowserLibraryActionsTests: XCTestCase {
         )
         XCTAssertEqual(rows.count, 2)
         XCTAssertEqual(rows[0], .home)
-        if case let .pinned(item) = rows[1] {
+        if case .pinned(let item) = rows[1] {
             XCTAssertEqual(item.id, pinned.id)
         } else {
             XCTFail("expected pinned row")
@@ -80,7 +81,7 @@ final class PlaylistBrowserLibraryActionsTests: XCTestCase {
             existing: ["pinned:a", LibrarySidebarOrder.homeToken],
             visiblePinnedItemIDs: ["a", "b"]
         )
-        XCTAssertEqual(synced, ["pinned:a", "pinned:b", LibrarySidebarOrder.homeToken])
+        XCTAssertEqual(synced, [LibrarySidebarOrder.searchToken, "pinned:a", "pinned:b", LibrarySidebarOrder.homeToken])
     }
 
     func testLibraryRowOrderStoreRoundTrip() throws {

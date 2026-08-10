@@ -1,19 +1,22 @@
 import XCTest
+
 @testable import Spotiglass
 
 final class SpotifyAPIClientCurrentUserProfileTests: XCTestCase {
     func testCurrentUserDecodingMapsMissingProductToUnknown() async throws {
         let httpClient = QueueHTTPClient([
-            .json("""
-            {
-              "id": "user-1",
-              "display_name": "Isaac",
-              "images": [{ "url": "https://example.com/64.png", "height": 64, "width": 64 }],
-              "country": "NL"
-            }
-            """)
+            .json(
+                """
+                {
+                  "id": "user-1",
+                  "display_name": "Isaac",
+                  "images": [{ "url": "https://example.com/64.png", "height": 64, "width": 64 }],
+                  "country": "NL"
+                }
+                """)
         ])
-        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+        let client = SpotifyAPIClient(
+            tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
 
         let profile = try await client.currentUserProfile()
 
@@ -24,13 +27,15 @@ final class SpotifyAPIClientCurrentUserProfileTests: XCTestCase {
 
     func testCurrentUserDecodingToleratesMissingNullableFields() async throws {
         let httpClient = QueueHTTPClient([
-            .json("""
-            {
-              "id": "user-1"
-            }
-            """)
+            .json(
+                """
+                {
+                  "id": "user-1"
+                }
+                """)
         ])
-        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+        let client = SpotifyAPIClient(
+            tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
 
         let profile = try await client.currentUserProfile()
 

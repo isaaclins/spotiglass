@@ -1,5 +1,6 @@
 import Security
 import XCTest
+
 @testable import Spotiglass
 
 final class SpotifyAuthStepTests: XCTestCase {
@@ -34,9 +35,10 @@ final class SpotifyAuthStepTests: XCTestCase {
         let configuration = try SpotifyAuthConfiguration(clientID: "client-123", redirectURI: redirectURI)
         let url = try configuration.authorizationURL(state: "state", codeChallenge: "challenge")
         let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-        let items = Dictionary(uniqueKeysWithValues: (components?.queryItems ?? []).compactMap { item in
-            item.value.map { (item.name, $0) }
-        })
+        let items = Dictionary(
+            uniqueKeysWithValues: (components?.queryItems ?? []).compactMap { item in
+                item.value.map { (item.name, $0) }
+            })
 
         XCTAssertEqual(components?.scheme, "https")
         XCTAssertEqual(components?.host, "accounts.spotify.com")
@@ -77,7 +79,8 @@ final class SpotifyAuthStepTests: XCTestCase {
     func testCallbackValidatorRejectsStateMismatch() {
         let url = URL(string: "http://127.0.0.1:49152/callback?code=abc123&state=wrong")!
 
-        XCTAssertThrowsError(try LoopbackOAuthCallbackValidator.validate(url: url, expectedState: "expected")) { error in
+        XCTAssertThrowsError(try LoopbackOAuthCallbackValidator.validate(url: url, expectedState: "expected")) {
+            error in
             XCTAssertEqual(error as? LoopbackOAuthCallbackError, .stateMismatch)
         }
     }
@@ -85,7 +88,8 @@ final class SpotifyAuthStepTests: XCTestCase {
     func testCallbackValidatorSurfacesOAuthError() {
         let url = URL(string: "http://127.0.0.1:49152/callback?error=access_denied&error_description=Denied")!
 
-        XCTAssertThrowsError(try LoopbackOAuthCallbackValidator.validate(url: url, expectedState: "expected")) { error in
+        XCTAssertThrowsError(try LoopbackOAuthCallbackValidator.validate(url: url, expectedState: "expected")) {
+            error in
             XCTAssertEqual(error as? LoopbackOAuthCallbackError, .oauthError("access_denied", "Denied"))
         }
     }
@@ -94,14 +98,14 @@ final class SpotifyAuthStepTests: XCTestCase {
         let now = Date(timeIntervalSince1970: 1_000)
         let httpClient = MockHTTPClient(
             data: """
-            {
-              "access_token": "access-token",
-              "token_type": "Bearer",
-              "expires_in": 3600,
-              "refresh_token": "refresh-token",
-              "scope": "playlist-read-private streaming"
-            }
-            """.data(using: .utf8)!,
+                {
+                  "access_token": "access-token",
+                  "token_type": "Bearer",
+                  "expires_in": 3600,
+                  "refresh_token": "refresh-token",
+                  "scope": "playlist-read-private streaming"
+                }
+                """.data(using: .utf8)!,
             statusCode: 200
         )
         let client = SpotifyTokenClient(httpClient: httpClient, now: { now })
@@ -125,12 +129,12 @@ final class SpotifyAuthStepTests: XCTestCase {
         let now = Date(timeIntervalSince1970: 2_000)
         let httpClient = MockHTTPClient(
             data: """
-            {
-              "access_token": "new-access-token",
-              "token_type": "Bearer",
-              "expires_in": 1800
-            }
-            """.data(using: .utf8)!,
+                {
+                  "access_token": "new-access-token",
+                  "token_type": "Bearer",
+                  "expires_in": 1800
+                }
+                """.data(using: .utf8)!,
             statusCode: 200
         )
         let client = SpotifyTokenClient(httpClient: httpClient, now: { now })
@@ -157,20 +161,22 @@ final class SpotifyAuthStepTests: XCTestCase {
         let httpClient = SequencedTokenHTTPClient([
             .json(#"{"error":"temporarily_unavailable","error_description":"Try again"}"#, statusCode: 500),
             .json(#"{"error":"temporarily_unavailable","error_description":"Still retrying"}"#, statusCode: 502),
-            .json("""
-            {
-              "access_token": "recovered-access-token",
-              "token_type": "Bearer",
-              "expires_in": 1800
-            }
-            """, statusCode: 200)
+            .json(
+                """
+                {
+                  "access_token": "recovered-access-token",
+                  "token_type": "Bearer",
+                  "expires_in": 1800
+                }
+                """, statusCode: 200),
         ])
         let client = SpotifyTokenClient(httpClient: httpClient, now: { now }, random: { _ in 0 })
 
         let grant = try await client.refreshAccessToken(clientID: "client-id", refreshToken: "refresh-token")
 
         XCTAssertEqual(grant.accessToken, "recovered-access-token")
-        XCTAssertEqual(httpClient.requestCount, 3, "Refresh should retry transient token endpoint failures with a bounded budget.")
+        XCTAssertEqual(
+            httpClient.requestCount, 3, "Refresh should retry transient token endpoint failures with a bounded budget.")
     }
 
     func testRefreshGrantDoesNotRetryInvalidGrant() async {
@@ -183,7 +189,7 @@ final class SpotifyAuthStepTests: XCTestCase {
             _ = try await client.refreshAccessToken(clientID: "client-id", refreshToken: "refresh-token")
             XCTFail("Expected invalid_grant to fail without retry.")
         } catch let error as SpotifyTokenClientError {
-            guard case let .httpError(status, description, oauthError, _) = error else {
+            guard case .httpError(let status, let description, let oauthError, _) = error else {
                 return XCTFail("Expected HTTP token error, got \(error)")
             }
             XCTAssertEqual(status, 400)
@@ -228,8 +234,8 @@ final class SpotifyAuthStepTests: XCTestCase {
         try store.saveRefreshToken("revoked-refresh-token")
         let httpClient = MockHTTPClient(
             data: """
-            { "error": "invalid_grant", "error_description": "Refresh token revoked" }
-            """.data(using: .utf8)!,
+                { "error": "invalid_grant", "error_description": "Refresh token revoked" }
+                """.data(using: .utf8)!,
             statusCode: 400
         )
         let cleaner = SignOutCacheCleanerSpy()
@@ -242,7 +248,7 @@ final class SpotifyAuthStepTests: XCTestCase {
 
         await viewModel.restoreSessionIfAvailable()
 
-        guard case let .failed(error) = viewModel.state else {
+        guard case .failed(let error) = viewModel.state else {
             return XCTFail("Expected failed auth state after invalid_grant")
         }
         XCTAssertTrue(error.message.contains("Refresh token revoked"))
@@ -268,7 +274,9 @@ final class SpotifyAuthStepTests: XCTestCase {
         guard case .failed = viewModel.state else {
             return XCTFail("Expected failed auth state on transient network error")
         }
-        XCTAssertEqual(try store.loadRefreshToken(), "good-refresh-token", "Transient network failures must not wipe the refresh token.")
+        XCTAssertEqual(
+            try store.loadRefreshToken(), "good-refresh-token",
+            "Transient network failures must not wipe the refresh token.")
         XCTAssertEqual(cleaner.callCount, 0, "Cache must survive a transient refresh failure.")
     }
 
@@ -278,14 +286,15 @@ final class SpotifyAuthStepTests: XCTestCase {
         try store.saveRefreshToken("refresh-token")
         let now = Date(timeIntervalSince1970: 2_000)
         let httpClient = SequencedTokenHTTPClient([
-            .json("""
-            {
-              "access_token": "shared-access-token",
-              "token_type": "Bearer",
-              "expires_in": 1800,
-              "scope": "playlist-read-private playlist-read-collaborative user-library-read streaming"
-            }
-            """, statusCode: 200, delayNanoseconds: 150_000_000)
+            .json(
+                """
+                {
+                  "access_token": "shared-access-token",
+                  "token_type": "Bearer",
+                  "expires_in": 1800,
+                  "scope": "playlist-read-private playlist-read-collaborative user-library-read streaming"
+                }
+                """, statusCode: 200, delayNanoseconds: 150_000_000)
         ])
         let viewModel = AuthViewModel(
             settings: makeSettings(clientID: "client-id"),
@@ -300,7 +309,8 @@ final class SpotifyAuthStepTests: XCTestCase {
 
         XCTAssertEqual(a, "shared-access-token")
         XCTAssertEqual(b, "shared-access-token")
-        XCTAssertEqual(httpClient.requestCount, 1, "Concurrent refresh consumers should share one in-flight token call.")
+        XCTAssertEqual(
+            httpClient.requestCount, 1, "Concurrent refresh consumers should share one in-flight token call.")
     }
 
     @MainActor
@@ -310,7 +320,7 @@ final class SpotifyAuthStepTests: XCTestCase {
         let httpClient = SequencedTokenHTTPClient([
             .json(#"{"error":"temporarily_unavailable","error_description":"Try later"}"#, statusCode: 500),
             .json(#"{"error":"temporarily_unavailable","error_description":"Try later"}"#, statusCode: 500),
-            .json(#"{"error":"temporarily_unavailable","error_description":"Try later"}"#, statusCode: 500)
+            .json(#"{"error":"temporarily_unavailable","error_description":"Try later"}"#, statusCode: 500),
         ])
         let viewModel = AuthViewModel(
             settings: makeSettings(clientID: "client-id"),
@@ -329,7 +339,8 @@ final class SpotifyAuthStepTests: XCTestCase {
             XCTFail("Expected cooldown to block immediate retry.")
         } catch {}
 
-        XCTAssertEqual(httpClient.requestCount, 3, "Cooldown should fail fast without starting a second refresh attempt burst.")
+        XCTAssertEqual(
+            httpClient.requestCount, 3, "Cooldown should fail fast without starting a second refresh attempt burst.")
     }
 
     func testKeychainRefreshTokenStoreErrorDescriptionsAreUserFacing() {
@@ -346,9 +357,11 @@ final class SpotifyAuthStepTests: XCTestCase {
     }
 
     func testLoopbackOAuthCallbackErrorLocalizedDescriptions() {
-        XCTAssertTrue(((LoopbackOAuthCallbackError.timedOut as LocalizedError).errorDescription ?? "").contains("timed out"))
+        XCTAssertTrue(
+            ((LoopbackOAuthCallbackError.timedOut as LocalizedError).errorDescription ?? "").contains("timed out"))
         XCTAssertEqual(
-            (LoopbackOAuthCallbackError.oauthError("access_denied", "User declined") as LocalizedError).errorDescription,
+            (LoopbackOAuthCallbackError.oauthError("access_denied", "User declined") as LocalizedError)
+                .errorDescription,
             "User declined"
         )
     }
@@ -365,7 +378,10 @@ final class SpotifyAuthStepTests: XCTestCase {
         )
 
         async let signInFinishes: Void = viewModel.signIn()
-        await waitUntil { if case .signingIn = viewModel.state { return true }; return false }
+        await waitUntil {
+            if case .signingIn = viewModel.state { return true }
+            return false
+        }
         XCTAssertEqual(viewModel.state, .signingIn)
 
         viewModel.cancelSignIn()
@@ -384,14 +400,14 @@ final class SpotifyAuthStepTests: XCTestCase {
         let now = Date(timeIntervalSince1970: 1_000)
         let httpClient = MockHTTPClient(
             data: """
-            {
-              "access_token": "access-token",
-              "token_type": "Bearer",
-              "expires_in": 3600,
-              "refresh_token": "refresh-token",
-              "scope": "playlist-read-private playlist-read-collaborative user-library-read streaming"
-            }
-            """.data(using: .utf8)!,
+                {
+                  "access_token": "access-token",
+                  "token_type": "Bearer",
+                  "expires_in": 3600,
+                  "refresh_token": "refresh-token",
+                  "scope": "playlist-read-private playlist-read-collaborative user-library-read streaming"
+                }
+                """.data(using: .utf8)!,
             statusCode: 200
         )
         let tokenClient = SpotifyTokenClient(httpClient: httpClient, now: { now })
@@ -404,14 +420,17 @@ final class SpotifyAuthStepTests: XCTestCase {
         )
 
         async let firstAttempt: Void = viewModel.signIn()
-        await waitUntil { if case .signingIn = viewModel.state { return true }; return false }
+        await waitUntil {
+            if case .signingIn = viewModel.state { return true }
+            return false
+        }
         viewModel.cancelSignIn()
         await firstAttempt
         XCTAssertEqual(viewModel.state, .signedOut)
 
         flow.advance()
         await viewModel.signIn()
-        guard case let .signedIn(session) = viewModel.state else {
+        guard case .signedIn(let session) = viewModel.state else {
             return XCTFail("Expected signed-in state after second connect, got \(viewModel.state)")
         }
         XCTAssertEqual(session.accessToken, "access-token")
@@ -437,7 +456,9 @@ final class SpotifyAuthStepTests: XCTestCase {
         await second
         await third
 
-        XCTAssertEqual(flow.recordedRequestCount(), 1, "Concurrent sign-in attempts should reuse the active auth launch instead of restarting it.")
+        XCTAssertEqual(
+            flow.recordedRequestCount(), 1,
+            "Concurrent sign-in attempts should reuse the active auth launch instead of restarting it.")
     }
 
     @MainActor
@@ -586,12 +607,14 @@ private final class MockHTTPClient: HTTPClient {
 
     func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         if let bodyData = request.httpBody,
-           let body = String(data: bodyData, encoding: .utf8) {
+            let body = String(data: bodyData, encoding: .utf8)
+        {
             var components = URLComponents()
             components.percentEncodedQuery = body
-            lastBody = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).compactMap { item in
-                item.value.map { (item.name, $0) }
-            })
+            lastBody = Dictionary(
+                uniqueKeysWithValues: (components.queryItems ?? []).compactMap { item in
+                    item.value.map { (item.name, $0) }
+                })
         }
 
         return (

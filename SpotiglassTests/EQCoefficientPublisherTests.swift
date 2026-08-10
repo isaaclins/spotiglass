@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 /// Verifies the writer side of the GUI → HAL-plugin shared-memory IPC. The

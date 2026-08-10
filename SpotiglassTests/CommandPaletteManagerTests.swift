@@ -1,5 +1,6 @@
 import AppKit
 import XCTest
+
 @testable import Spotiglass
 
 @MainActor
@@ -46,7 +47,7 @@ final class CommandPaletteManagerTests: XCTestCase {
         manager.execute(commandID: CommandPaletteCommandID.openSettings)
         await fulfillment(of: [settings], timeout: 2)
 
-        manager.connectPlayback = { }
+        manager.connectPlayback = {}
         manager.execute(commandID: CommandPaletteCommandID.connectPlayback)
 
         let next = expectation(description: "next")

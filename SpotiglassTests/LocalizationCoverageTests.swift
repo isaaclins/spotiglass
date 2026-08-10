@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 /// Exercises every surface that was localized for the i18n initiative and
@@ -33,22 +34,43 @@ final class LocalizationCoverageTests: XCTestCase {
         // CommandPalette
         ("palette.section.thisPlaylist", "palette.section.thisPlaylist", "HERE", "AQUÍ", "HIER"),
         ("palette.searchCategory.all", "palette.searchCategory.all", "All", "Todo", "Alle"),
-        ("palette.searchPlaceholder.commands", "palette.searchPlaceholder.commands", "Run a command", "Ejecutar un comando", "Befehl ausführen"),
-        ("palette.hotkeyRecorder.clickToRecord", "palette.hotkeyRecorder.clickToRecord", "Click to record", "Haz clic para grabar", "Zum Aufzeichnen klicken"),
+        (
+            "palette.searchPlaceholder.commands", "palette.searchPlaceholder.commands", "Run a command",
+            "Ejecutar un comando", "Befehl ausführen"
+        ),
+        (
+            "palette.hotkeyRecorder.clickToRecord", "palette.hotkeyRecorder.clickToRecord", "Click to record",
+            "Haz clic para grabar", "Zum Aufzeichnen klicken"
+        ),
 
         // Browsing
-        ("browser.likedSongs.title", "browser.likedSongs.title", "Liked Songs", "Canciones que te gustan", "Lieblingssongs"),
-        ("browser.trackBadge.unavailable", "browser.trackBadge.unavailable", "Unavailable", "No disponible", "Nicht verfügbar"),
+        (
+            "browser.likedSongs.title", "browser.likedSongs.title", "Liked Songs", "Canciones que te gustan",
+            "Lieblingssongs"
+        ),
+        (
+            "browser.trackBadge.unavailable", "browser.trackBadge.unavailable", "Unavailable", "No disponible",
+            "Nicht verfügbar"
+        ),
         ("browser.trackBadge.explicit", "browser.trackBadge.explicit", "Explicit", "Explícito", "Explizit"),
         ("browser.breadcrumb.artistFallback", "browser.breadcrumb.artistFallback", "Artist", "Artista", "Künstler"),
 
         // Playback
-        ("playback.controls.state.ready.title", "playback.controls.state.ready.title", "Ready to play", "Listo para reproducir", "Bereit zur Wiedergabe"),
-        ("playback.nowPlaying.unknownArtist", "playback.nowPlaying.unknownArtist", "Unknown artist", "Artista desconocido", "Unbekannter Künstler"),
+        (
+            "playback.controls.state.ready.title", "playback.controls.state.ready.title", "Ready to play",
+            "Listo para reproducir", "Bereit zur Wiedergabe"
+        ),
+        (
+            "playback.nowPlaying.unknownArtist", "playback.nowPlaying.unknownArtist", "Unknown artist",
+            "Artista desconocido", "Unbekannter Künstler"
+        ),
 
         // Breadcrumb / Account
         ("breadcrumb.back", "breadcrumb.back", "Back", "Atrás", "Zurück"),
-        ("settings.account.diagnostics.header", "settings.account.diagnostics.header", "Diagnostics", "Diagnóstico", "Diagnose")
+        (
+            "settings.account.diagnostics.header", "settings.account.diagnostics.header", "Diagnostics", "Diagnóstico",
+            "Diagnose"
+        ),
     ]
 
     // MARK: - Tests
@@ -65,7 +87,7 @@ final class LocalizationCoverageTests: XCTestCase {
                 switch language {
                 case .english: expected = row.en
                 case .spanish: expected = row.es
-                case .german:  expected = row.de
+                case .german: expected = row.de
                 }
                 XCTAssertEqual(actual, expected, "[\(language.rawValue)] \(row.name)")
                 print("  \(row.name) -> \(actual)")
@@ -81,7 +103,7 @@ final class LocalizationCoverageTests: XCTestCase {
         let expected: [AppLanguage: String] = [
             .english: "Open Settings",
             .spanish: "Abrir ajustes",
-            .german:  "Einstellungen öffnen"
+            .german: "Einstellungen öffnen",
         ]
         for language in [AppLanguage.english, .spanish, .german] {
             try store.mutate { $0.appearance.language = language }

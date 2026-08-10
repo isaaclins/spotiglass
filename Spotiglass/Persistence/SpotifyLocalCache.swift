@@ -11,7 +11,9 @@ struct CachedPlaylistTracks: Codable, Equatable {
     let tracks: [SpotifyPlaylistTrackItem]
     let cachedAt: Date
 
-    func isValid(forPlaylist playlistID: String, snapshotID: String, now: Date = Date(), maxAge: TimeInterval = 300) -> Bool {
+    func isValid(forPlaylist playlistID: String, snapshotID: String, now: Date = Date(), maxAge: TimeInterval = 300)
+        -> Bool
+    {
         self.playlistID == playlistID && self.snapshotID == snapshotID && now.timeIntervalSince(cachedAt) <= maxAge
     }
 }
@@ -43,10 +45,12 @@ struct SpotifyLocalCache {
         if let rootDirectory {
             self.rootDirectory = rootDirectory
         } else {
-            guard let supportDirectory = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            guard let supportDirectory = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            else {
                 throw SpotifyLocalCacheError.applicationSupportUnavailable
             }
-            self.rootDirectory = supportDirectory
+            self.rootDirectory =
+                supportDirectory
                 .appendingPathComponent(AppMetadata.displayName, isDirectory: true)
                 .appendingPathComponent("SpotifyCache", isDirectory: true)
         }
@@ -92,7 +96,8 @@ struct SpotifyLocalCache {
         maxAge: TimeInterval = 300
     ) throws -> [SpotifyPlaylistTrackItem]? {
         guard let cached: CachedPlaylistTracks = try read(from: tracksURL(playlistID: playlistID)),
-              cached.isValid(forPlaylist: playlistID, snapshotID: snapshotID, now: now, maxAge: maxAge) else {
+            cached.isValid(forPlaylist: playlistID, snapshotID: snapshotID, now: now, maxAge: maxAge)
+        else {
             return nil
         }
         return cached.tracks
@@ -105,7 +110,8 @@ struct SpotifyLocalCache {
         snapshotID: String
     ) throws -> [SpotifyPlaylistTrackItem]? {
         guard let cached: CachedPlaylistTracks = try read(from: tracksURL(playlistID: playlistID)),
-              cached.snapshotID == snapshotID else {
+            cached.snapshotID == snapshotID
+        else {
             return nil
         }
         return cached.tracks
@@ -229,8 +235,8 @@ struct SpotifyLocalCache {
     }
 }
 
-private extension String {
-    var fileSafeCacheKey: String {
+extension String {
+    fileprivate var fileSafeCacheKey: String {
         unicodeScalars.map { scalar in
             CharacterSet.alphanumerics.contains(scalar) ? String(scalar) : "_"
         }.joined()

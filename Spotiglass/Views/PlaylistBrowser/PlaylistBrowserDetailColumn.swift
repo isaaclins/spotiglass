@@ -72,7 +72,7 @@ struct PlaylistBrowserMainDetailColumn: View {
             case .loading:
                 ProgressView("Loading…")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-            case let .loaded(content), let .refreshing(content), let .staleCache(content, _):
+            case .loaded(let content), .refreshing(let content), .staleCache(let content, _):
                 Group {
                     if lyricsOverlay.isPresented {
                         Color.clear
@@ -80,6 +80,15 @@ struct PlaylistBrowserMainDetailColumn: View {
                             .accessibilityHidden(true)
                     } else {
                         switch content {
+                        case .search:
+                            CatalogSearchView(
+                                viewModel: viewModel,
+                                playbackViewModel: playbackViewModel,
+                                queueViewModel: queueViewModel,
+                                currentPlaybackURI: currentPlaybackURI,
+                                isPlaying: isCurrentlyPlaying,
+                                hasPlaybackDevice: hasPlaybackDevice
+                            )
                         case .home:
                             HomeView(
                                 viewModel: viewModel,
@@ -89,7 +98,7 @@ struct PlaylistBrowserMainDetailColumn: View {
                                 isPlaying: isCurrentlyPlaying,
                                 hasPlaybackDevice: hasPlaybackDevice
                             )
-                        case let .playlist(detail):
+                        case .playlist(let detail):
                             PlaylistDetailContent(
                                 detail: detail,
                                 currentUserSpotifyID: viewModel.currentUserSpotifyID,
@@ -116,11 +125,13 @@ struct PlaylistBrowserMainDetailColumn: View {
                                     await queueViewModel.addToQueue(uri: uri)
                                 },
                                 openArtist: { artistID in
-                                    Task { await viewModel.selectArtist(id: artistID, origin: .extend, displayName: nil) }
+                                    Task {
+                                        await viewModel.selectArtist(id: artistID, origin: .extend, displayName: nil)
+                                    }
                                 },
                                 browserViewModel: viewModel
                             )
-                        case let .artist(detail):
+                        case .artist(let detail):
                             ArtistDetailContent(
                                 detail: detail,
                                 playTrack: { uri in
@@ -157,17 +168,21 @@ struct PlaylistBrowserMainDetailColumn: View {
                                     await queueViewModel.addToQueue(uri: uri)
                                 },
                                 openArtist: { artistID in
-                                    Task { await viewModel.selectArtist(id: artistID, origin: .extend, displayName: nil) }
+                                    Task {
+                                        await viewModel.selectArtist(id: artistID, origin: .extend, displayName: nil)
+                                    }
                                 },
                                 loadMoreAlbums: {
                                     Task { await viewModel.loadMoreArtistAlbums() }
-                                }
+                                },
+                                browserViewModel: viewModel,
+                                playbackViewModel: playbackViewModel
                             )
                         }
                     }
                 }
                 .overlay(alignment: .bottom) {
-                    if case let .staleCache(_, error) = viewModel.detailState {
+                    if case .staleCache(_, let error) = viewModel.detailState {
                         StaleCacheBanner(error: error)
                     } else if case .refreshing = viewModel.detailState {
                         ProgressView(SpotiglassL10n.string("browser.refreshingDetail"))
@@ -194,9 +209,9 @@ struct PlaylistBrowserMainDetailColumn: View {
                             }
                     }
                 }
-            case let .empty(message):
+            case .empty(let message):
                 EmptyStateView(title: SpotiglassL10n.string("browser.noTracks.title"), message: message)
-            case let .error(error):
+            case .error(let error):
                 if let locked = error.lockedPlaylist {
                     FollowedPlaylistLockedView(info: locked, playbackViewModel: playbackViewModel)
                 } else {

@@ -2,24 +2,26 @@ import Foundation
 
 extension PlaylistBrowserViewModel {
     func loadMoreArtistAlbums() async {
-        guard case let .loaded(.artist(detail)) = detailState,
-              var paging = currentArtistAlbumsPaging,
-              !paging.isLoading,
-              let nextURL = paging.nextURL else {
+        guard case .loaded(.artist(let detail)) = detailState,
+            var paging = currentArtistAlbumsPaging,
+            !paging.isLoading,
+            let nextURL = paging.nextURL
+        else {
             return
         }
 
         paging.isLoading = true
         currentArtistAlbumsPaging = paging
-        detailState = .loaded(.artist(
-            ArtistDetailViewModel(
-                artist: detail.artist,
-                tracks: paging.tracks,
-                albums: paging.albums,
-                canLoadMoreAlbums: true,
-                isLoadingMoreAlbums: true
-            )
-        ))
+        detailState = .loaded(
+            .artist(
+                ArtistDetailViewModel(
+                    artist: detail.artist,
+                    tracks: paging.tracks,
+                    albums: paging.albums,
+                    canLoadMoreAlbums: true,
+                    isLoadingMoreAlbums: true
+                )
+            ))
 
         do {
             if paging.seenNextURLs.contains(nextURL.absoluteString) {

@@ -117,7 +117,7 @@ struct HomeSectionNotice: View {
                     .controlSize(.small)
                 Text(SpotiglassL10n.string("home.section.loading"))
                     .foregroundStyle(.secondary)
-            case let .message(icon, text):
+            case .message(let icon, let text):
                 Image(systemName: icon)
                     .foregroundStyle(.secondary)
                 Text(text)

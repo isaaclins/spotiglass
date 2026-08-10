@@ -25,6 +25,7 @@ final class CommandPaletteManager: ObservableObject {
     var playURI: ((String) async -> Void)?
     var openPlaylist: ((String) async -> Void)?
     var openArtist: ((String) async -> Void)?
+    var openSearch: (() -> Void)?
     var spotifySearch: ((String, CommandPaletteSearchCategory) async throws -> CommandPaletteSearchResults)?
     /// Synchronous in-memory matches (open-playlist tracks + library playlists) for the
     /// palette's local-first instant render. Returns empty when no browser context is wired.
@@ -82,24 +83,25 @@ final class CommandPaletteManager: ObservableObject {
             // (e.g. custom bindings) fall through to the keymap
             // dispatch path below so user-rebound shortcuts still fire.
             if event.keyCode == 48,
-               CommandPaletteScope.parse(viewModel.query).scope != .commands,
-               event.modifierFlags.intersection([.control, .option, .command]).isEmpty {
+                CommandPaletteScope.parse(viewModel.query).scope != .commands,
+                event.modifierFlags.intersection([.control, .option, .command]).isEmpty
+            {
                 viewModel.cycleSearchCategory(forward: !event.modifierFlags.contains(.shift))
                 return true
             }
-            if event.keyCode == 53 { // esc
+            if event.keyCode == 53 {  // esc
                 viewModel.hide()
                 return true
             }
-            if event.keyCode == 125 { // down
+            if event.keyCode == 125 {  // down
                 viewModel.moveSelection(delta: 1)
                 return true
             }
-            if event.keyCode == 126 { // up
+            if event.keyCode == 126 {  // up
                 viewModel.moveSelection(delta: -1)
                 return true
             }
-            if event.keyCode == 36 { // return
+            if event.keyCode == 36 {  // return
                 // Plain ↩ runs the highlighted item. Modifier-bearing returns
                 // (most importantly ⌘↩ for `palette.pin`) fall through to the
                 // keymap-matching path below so user-rebound shortcuts work.
@@ -140,7 +142,8 @@ final class CommandPaletteManager: ObservableObject {
             }
         }
 
-        let context: CommandPaletteContext = viewModel.isPresented ? .paletteOpen : (isSignedIn ? .signedIn : .signedOut)
+        let context: CommandPaletteContext =
+            viewModel.isPresented ? .paletteOpen : (isSignedIn ? .signedIn : .signedOut)
         let matched = keymapStore.commandBindings(for: event, context: context)
         guard !matched.isEmpty else { return false }
         let filtered = matched.filter { binding in
@@ -192,21 +195,23 @@ final class CommandPaletteManager: ObservableObject {
         case CommandPaletteCommandID.disconnectPlayback:
             Task { await disconnectPlayback?() }
         case "playback.playURI":
-            if case let .string(uri)? = args?["uri"] {
+            if case .string(let uri)? = args?["uri"] {
                 Task { await playURI?(uri) }
             }
         case "navigation.playlist.open":
-            if case let .string(playlistID)? = args?["playlistID"] {
+            if case .string(let playlistID)? = args?["playlistID"] {
                 Task { await openPlaylist?(playlistID) }
             }
         case CommandPaletteCommandID.openArtist:
-            if case let .string(artistID)? = args?["artistID"] {
+            if case .string(let artistID)? = args?["artistID"] {
                 Task { await openArtist?(artistID) }
             }
         case CommandPaletteCommandID.filterByArtist:
-            if case let .string(name)? = args?["name"] {
+            if case .string(let name)? = args?["name"] {
                 filterByArtist?(name)
             }
+        case CommandPaletteCommandID.openSearch:
+            openSearch?()
         case CommandPaletteCommandID.toggleQueue:
             toggleQueue?()
         case CommandPaletteCommandID.toggleLyrics:

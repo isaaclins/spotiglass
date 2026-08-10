@@ -28,9 +28,10 @@ enum SpotiglassLog {
     private static let subsystem = AppMetadata.bundleIdentifier
 
     private static let osLoggers: [Category: Logger] = {
-        Dictionary(uniqueKeysWithValues: Category.allCases.map { category in
-            (category, Logger(subsystem: subsystem, category: category.rawValue))
-        })
+        Dictionary(
+            uniqueKeysWithValues: Category.allCases.map { category in
+                (category, Logger(subsystem: subsystem, category: category.rawValue))
+            })
     }()
 
     /// File path of the current session's log; `nil` before `boot()` runs or if the file
@@ -103,12 +104,14 @@ private final class FileLogSink {
     }
 
     private static func logDirectory() -> URL? {
-        guard let base = try? FileManager.default.url(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask,
-            appropriateFor: nil,
-            create: true
-        ) else { return nil }
+        guard
+            let base = try? FileManager.default.url(
+                for: .applicationSupportDirectory,
+                in: .userDomainMask,
+                appropriateFor: nil,
+                create: true
+            )
+        else { return nil }
         let logs = base.appendingPathComponent("Spotiglass/Logs", isDirectory: true)
         try? FileManager.default.createDirectory(at: logs, withIntermediateDirectories: true)
         return logs

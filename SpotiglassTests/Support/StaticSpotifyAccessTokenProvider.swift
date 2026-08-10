@@ -1,4 +1,5 @@
 import Foundation
+
 @testable import Spotiglass
 
 struct StaticSpotifyAccessTokenProvider: SpotifyAccessTokenProviding {

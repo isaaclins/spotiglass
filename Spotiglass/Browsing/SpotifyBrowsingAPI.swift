@@ -6,7 +6,8 @@ protocol SpotifyBrowsingAPI {
     func currentUserSavedTracks(limit: Int, maxPages: Int) async throws -> SpotifySavedTracksResult
     func currentUserProfile() async throws -> SpotifyUserProfile
     func artist(id: String, cacheMode: SpotifyRequestCacheMode) async throws -> SpotifyArtistDetail
-    func artistCached(id: String, cacheMode: SpotifyRequestCacheMode) async throws -> SpotifyAPIClient.CachedResponse<SpotifyArtistDetail>
+    func artistCached(id: String, cacheMode: SpotifyRequestCacheMode) async throws
+        -> SpotifyAPIClient.CachedResponse<SpotifyArtistDetail>
     func artistTopTracks(id: String, market: String?) async throws -> [SpotifyTrack]
     func artistAlbumsCached(
         id: String,
@@ -35,6 +36,13 @@ protocol SpotifyBrowsingAPI {
     /// Batched `GET /v1/albums?ids=...` (max 20 IDs). Replaces the per-album loop in the artist
     /// fallback so one HTTP call retrieves up to 20 albums (each with their first 50-track page).
     func albums(ids: [String], market: String?) async throws -> [SpotifyBatchedAlbum]
+    func recommendations(
+        seedTracks: [String],
+        seedArtists: [String],
+        seedArtistName: String?,
+        seedTrackName: String?,
+        limit: Int
+    ) async throws -> [SpotifyTrack]
 
     // MARK: - Library write ops (mutating)
 
@@ -51,6 +59,16 @@ extension SpotifyAPIClient: SpotifyBrowsingAPI {}
 extension SpotifyBrowsingAPI {
     func albumTracksFirstPage(albumID: String, market: String?, limit: Int) async throws -> [SpotifyTrack] {
         try await albumTracks(albumID: albumID, market: market, limit: limit)
+    }
+
+    func recommendations(
+        seedTracks: [String] = [],
+        seedArtists: [String] = [],
+        seedArtistName: String? = nil,
+        seedTrackName: String? = nil,
+        limit: Int = 30
+    ) async throws -> [SpotifyTrack] {
+        []
     }
 
     // Default empty home-feed implementations so preview/test mocks that don't

@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 @MainActor
@@ -11,9 +12,12 @@ final class PlaylistBrowserPinnedItemActivationTests: XCTestCase {
         )
 
         let artist = PinnedItem.artist(
-            SpotifyArtistDetail(id: "a", name: "A", imageURL: nil, followersTotal: nil, genres: [], uri: "spotify:artist:a")
+            SpotifyArtistDetail(
+                id: "a", name: "A", imageURL: nil, followersTotal: nil, genres: [], uri: "spotify:artist:a")
         )
-        if case let .selectArtist(id, name)? = PlaylistBrowserPinnedItemActivation.route(for: artist, previousSelection: nil) {
+        if case .selectArtist(let id, let name)? = PlaylistBrowserPinnedItemActivation.route(
+            for: artist, previousSelection: nil)
+        {
             XCTAssertEqual(id, "a")
             XCTAssertEqual(name, "A")
         } else {
@@ -23,7 +27,9 @@ final class PlaylistBrowserPinnedItemActivationTests: XCTestCase {
         let stale = PinnedItem.playlist(PlaylistBrowsingTestFixtures.playlist(id: "s", name: "S"))
         var copy = stale
         copy.isStale = true
-        if case let .staleRevert(selection)? = PlaylistBrowserPinnedItemActivation.route(for: copy, previousSelection: .home) {
+        if case .staleRevert(let selection)? = PlaylistBrowserPinnedItemActivation.route(
+            for: copy, previousSelection: .home)
+        {
             XCTAssertEqual(selection, .home)
         } else {
             XCTFail("expected stale revert")
@@ -32,10 +38,12 @@ final class PlaylistBrowserPinnedItemActivationTests: XCTestCase {
 
     func testSidebarSelectionAfterActivationWhenLoaded() {
         let item = PinnedItem.artist(
-            SpotifyArtistDetail(id: "a", name: "A", imageURL: nil, followersTotal: nil, genres: [], uri: "spotify:artist:a")
+            SpotifyArtistDetail(
+                id: "a", name: "A", imageURL: nil, followersTotal: nil, genres: [], uri: "spotify:artist:a")
         )
         let detail = ArtistDetailViewModel(
-            artist: SpotifyArtistDetail(id: "a", name: "A", imageURL: nil, followersTotal: nil, genres: [], uri: "spotify:artist:a"),
+            artist: SpotifyArtistDetail(
+                id: "a", name: "A", imageURL: nil, followersTotal: nil, genres: [], uri: "spotify:artist:a"),
             tracks: [],
             albums: [],
             canLoadMoreAlbums: false
@@ -59,7 +67,7 @@ final class PlaylistBrowserPinnedItemActivationTests: XCTestCase {
                 uri: "spotify:album:alb"
             )
         )
-        if case let .selectAlbum(id, title, subtitle, artwork)? = PlaylistBrowserPinnedItemActivation.route(
+        if case .selectAlbum(let id, let title, let subtitle, let artwork)? = PlaylistBrowserPinnedItemActivation.route(
             for: album,
             previousSelection: nil
         ) {
@@ -74,7 +82,7 @@ final class PlaylistBrowserPinnedItemActivationTests: XCTestCase {
         let track = PinnedItem.track(
             PlaylistBrowsingTestFixtures.fallbackTrack(id: "t1", name: "Track", artistId: "a1")
         )
-        if case let .playTrack(uri, revert)? = PlaylistBrowserPinnedItemActivation.route(
+        if case .playTrack(let uri, let revert)? = PlaylistBrowserPinnedItemActivation.route(
             for: track,
             previousSelection: .home
         ) {

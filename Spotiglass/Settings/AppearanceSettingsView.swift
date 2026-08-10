@@ -195,7 +195,8 @@ struct AppearanceSettingsView: View {
             return SpotiglassL10n.string("settings.appearance.lyricsOffset.inSync")
         }
         let seconds = String(format: "%.2f", abs(Double(ms)) / 1_000)
-        let key = ms > 0
+        let key =
+            ms > 0
             ? "settings.appearance.lyricsOffset.value.earlier"
             : "settings.appearance.lyricsOffset.value.later"
         return String(format: SpotiglassL10n.string(key), seconds)
@@ -264,19 +265,21 @@ private struct LyricsTextSizePreview: View {
     let metrics: LyricsTextMetrics
 
     private let lines: [(text: String, distance: Int)] = [
-        (SpotiglassL10n.string("settings.appearance.lyricsPreview.line1"),   -1),
-        (SpotiglassL10n.string("settings.appearance.lyricsPreview.line2"),   0),
-        (SpotiglassL10n.string("settings.appearance.lyricsPreview.line3"),       1)
+        (SpotiglassL10n.string("settings.appearance.lyricsPreview.line1"), -1),
+        (SpotiglassL10n.string("settings.appearance.lyricsPreview.line2"), 0),
+        (SpotiglassL10n.string("settings.appearance.lyricsPreview.line3"), 1),
     ]
 
     var body: some View {
         VStack(alignment: .leading, spacing: max(8, metrics.timedLineSpacing * 0.55)) {
             ForEach(lines, id: \.distance) { line in
                 Text(line.text)
-                    .font(.system(
-                        size: line.distance == 0 ? metrics.activeFontSize : metrics.inactiveFontSize,
-                        weight: line.distance == 0 ? .semibold : .regular
-                    ))
+                    .font(
+                        .system(
+                            size: line.distance == 0 ? metrics.activeFontSize : metrics.inactiveFontSize,
+                            weight: line.distance == 0 ? .semibold : .regular
+                        )
+                    )
                     .foregroundStyle(.primary.opacity(line.distance == 0 ? 1.0 : 0.45))
                     .blur(radius: line.distance == 0 ? 0 : 0.4)
                     .shadow(

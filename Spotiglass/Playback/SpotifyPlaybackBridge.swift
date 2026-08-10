@@ -28,8 +28,9 @@ enum SpotifyPlaybackHost {
 
     static var html: String {
         guard let url = Bundle.main.url(forResource: "SpotifyPlaybackHost", withExtension: "html"),
-              let data = try? Data(contentsOf: url),
-              let text = String(data: data, encoding: .utf8) else {
+            let data = try? Data(contentsOf: url),
+            let text = String(data: data, encoding: .utf8)
+        else {
             SpotiglassLog.error(SpotiglassLog.playback, "Missing bundled SpotifyPlaybackHost.html")
             return "<html><body></body></html>"
         }
@@ -48,7 +49,8 @@ enum SpotifyPlaybackBridgeParser {
 
     static func parse(_ body: Any) throws -> PlaybackBridgeEvent {
         guard let dictionary = body as? [String: Any],
-              let name = dictionary["name"] as? String else {
+            let name = dictionary["name"] as? String
+        else {
             throw PlaybackBridgeMessageError.invalidEnvelope
         }
         let payload = dictionary["payload"] as? [String: Any] ?? [:]
@@ -96,7 +98,9 @@ enum SpotifyPlaybackBridgeParser {
             return nil
         }
         let rawAlbum = track["albumName"] as? String
-        let albumName = rawAlbum.flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.flatMap { $0.isEmpty ? nil : $0 }
+        let albumName = rawAlbum.flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.flatMap {
+            $0.isEmpty ? nil : $0
+        }
         let albumURI = track["albumURI"] as? String
         return PlaybackNowPlaying(
             name: track["name"] as? String ?? "Unknown track",

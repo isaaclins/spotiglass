@@ -1,4 +1,5 @@
 import Foundation
+
 @testable import Spotiglass
 
 @MainActor
@@ -185,9 +186,11 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
         if !transportResponses.isEmpty {
             let transport = transportResponses.removeFirst()
             guard let transport else { return nil }
-            return SpotifyPlayerSnapshot(transport: transport, activeDevice: activeConnectDevice, isPlaying: reportedIsPlaying)
+            return SpotifyPlayerSnapshot(
+                transport: transport, activeDevice: activeConnectDevice, isPlaying: reportedIsPlaying)
         }
-        return SpotifyPlayerSnapshot(transport: reportedTransport, activeDevice: activeConnectDevice, isPlaying: reportedIsPlaying)
+        return SpotifyPlayerSnapshot(
+            transport: reportedTransport, activeDevice: activeConnectDevice, isPlaying: reportedIsPlaying)
     }
 
     func fetchAvailableDevices() async throws -> [SpotifyConnectDevice] {

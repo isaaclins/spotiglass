@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import XCTest
+
 @testable import Spotiglass
 
 /// Shared AppKit helpers for deterministic focus and layout in unit tests.
@@ -117,7 +118,7 @@ enum ViewTestHost {
         let resolved = localizedString(key)
         var lastError: Error?
         for candidate in [resolved, key] {
-            for _ in 0 ..< 10 {
+            for _ in 0..<10 {
                 AppKitTestSupport.pumpRunLoop(for: 0.05)
                 do {
                     _ = try view.inspect().find(text: candidate)
@@ -142,7 +143,7 @@ enum ViewTestHost {
         line: UInt = #line
     ) {
         var lastError: Error?
-        for _ in 0 ..< 10 {
+        for _ in 0..<10 {
             AppKitTestSupport.pumpRunLoop(for: 0.05)
             do {
                 _ = try view.inspect().find(text: text)

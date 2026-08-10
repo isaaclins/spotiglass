@@ -1,5 +1,11 @@
 import SwiftUI
 
+struct LibrarySearchSidebarRow: View {
+    var body: some View {
+        Label(SpotiglassL10n.string("browser.search"), systemImage: "magnifyingglass")
+    }
+}
+
 struct LibraryHomeSidebarRow: View {
     var body: some View {
         Label(SpotiglassL10n.string("browser.home"), systemImage: "house")

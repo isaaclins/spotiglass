@@ -14,15 +14,16 @@ extension PlaylistBrowserViewModel {
                 destination: .likedSongs
             )
         ]
-        cards.append(contentsOf: visiblePlaylists.prefix(11).map { playlist in
-            HomeMediaCard(
-                id: playlist.id,
-                title: playlist.title,
-                subtitle: playlist.owner,
-                artworkURL: playlist.artworkURL,
-                destination: .playlist(id: playlist.id)
-            )
-        })
+        cards.append(
+            contentsOf: visiblePlaylists.prefix(11).map { playlist in
+                HomeMediaCard(
+                    id: playlist.id,
+                    title: playlist.title,
+                    subtitle: playlist.owner,
+                    artworkURL: playlist.artworkURL,
+                    destination: .playlist(id: playlist.id)
+                )
+            })
         return cards
     }
 

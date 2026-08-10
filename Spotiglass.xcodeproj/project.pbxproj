@@ -63,6 +63,10 @@
 		COV0000000000000000000C /* BrowsingPreviewSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = COV0000000000000000001C /* BrowsingPreviewSupport.swift */; };
 		COV0000000000000000000D /* PlaylistBrowserSidebarSelectionHandling.swift in Sources */ = {isa = PBXBuildFile; fileRef = COV0000000000000000001D /* PlaylistBrowserSidebarSelectionHandling.swift */; };
 		COV0000000000000000000E /* PlaylistBrowserCommandPaletteConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = COV0000000000000000001E /* PlaylistBrowserCommandPaletteConfiguration.swift */; };
+		COV0000000000000000000F /* SpotifyAPIClient+Radio.swift in Sources */ = {isa = PBXBuildFile; fileRef = COV0000000000000000001F /* SpotifyAPIClient+Radio.swift */; };
+		COV00000000000000000010 /* PlaylistBrowserViewModel+Radio.swift in Sources */ = {isa = PBXBuildFile; fileRef = COV00000000000000000020 /* PlaylistBrowserViewModel+Radio.swift */; };
+		COV00000000000000000021 /* CatalogSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = COV00000000000000000031 /* CatalogSearchView.swift */; };
+		COV00000000000000000022 /* UniversalTrackOpsMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = COV00000000000000000032 /* UniversalTrackOpsMenu.swift */; };
 		D40000000000000000000001 /* PlaylistBrowserViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000011 /* PlaylistBrowserViewModel.swift */; };
 		D40000000000000000000002 /* PlaylistBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000012 /* PlaylistBrowserView.swift */; };
 		D40000000000000000000004 /* QueuePanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000014 /* QueuePanelView.swift */; };
@@ -407,6 +411,10 @@
 		COV0000000000000000001C /* BrowsingPreviewSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowsingPreviewSupport.swift; sourceTree = "<group>"; };
 		COV0000000000000000001D /* PlaylistBrowserSidebarSelectionHandling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserSidebarSelectionHandling.swift; sourceTree = "<group>"; };
 		COV0000000000000000001E /* PlaylistBrowserCommandPaletteConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserCommandPaletteConfiguration.swift; sourceTree = "<group>"; };
+		COV0000000000000000001F /* SpotifyAPIClient+Radio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SpotifyAPIClient+Radio.swift"; sourceTree = "<group>"; };
+		COV00000000000000000020 /* PlaylistBrowserViewModel+Radio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlaylistBrowserViewModel+Radio.swift"; sourceTree = "<group>"; };
+		COV00000000000000000031 /* CatalogSearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CatalogSearchView.swift"; sourceTree = "<group>"; };
+		COV00000000000000000032 /* UniversalTrackOpsMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UniversalTrackOpsMenu.swift"; sourceTree = "<group>"; };
 		D40000000000000000000011 /* PlaylistBrowserViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserViewModel.swift; sourceTree = "<group>"; };
 		D40000000000000000000012 /* PlaylistBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserView.swift; sourceTree = "<group>"; };
 		D40000000000000000000014 /* QueuePanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueuePanelView.swift; sourceTree = "<group>"; };
@@ -799,6 +807,7 @@
 				E5000000000000000000001B /* LrcLibClient.swift */,
 				728E7A072FEAA69600FB3C01 /* SpotifyDTOs+Home.swift */,
 				728E7A092FEAA69C00FB3C01 /* SpotifyAPIClient+Home.swift */,
+				COV0000000000000000001F /* SpotifyAPIClient+Radio.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -1069,6 +1078,7 @@
 				D4000000000000000000002D /* PlaylistBrowserViewModel+ErrorMapping.swift */,
 				728E7A032FEAA68100FB3C01 /* HomeFeedModels.swift */,
 				728E7A052FEAA68E00FB3C01 /* PlaylistBrowserViewModel+Home.swift */,
+				COV00000000000000000020 /* PlaylistBrowserViewModel+Radio.swift */,
 			);
 			path = Browsing;
 			sourceTree = "<group>";
@@ -1136,6 +1146,8 @@
 				E60000000000000000000064 /* PlaylistBrowserView+SidebarSelection.swift */,
 				E60000000000000000000065 /* PlaylistBrowserView+TapTargets.swift */,
 				E60000000000000000000066 /* PlaylistBrowserView+CommandPalette.swift */,
+				COV00000000000000000031 /* CatalogSearchView.swift */,
+				COV00000000000000000032 /* UniversalTrackOpsMenu.swift */,
 			);
 			path = PlaylistBrowser;
 			sourceTree = "<group>";
@@ -1441,6 +1453,10 @@
 				E60000000000000000000014 /* PlaylistBrowserView+SidebarSelection.swift in Sources */,
 				E60000000000000000000015 /* PlaylistBrowserView+TapTargets.swift in Sources */,
 				E60000000000000000000016 /* PlaylistBrowserView+CommandPalette.swift in Sources */,
+				COV0000000000000000000F /* SpotifyAPIClient+Radio.swift in Sources */,
+				COV00000000000000000010 /* PlaylistBrowserViewModel+Radio.swift in Sources */,
+				COV00000000000000000021 /* CatalogSearchView.swift in Sources */,
+				COV00000000000000000022 /* UniversalTrackOpsMenu.swift in Sources */,
 				D40000000000000000000002 /* PlaylistBrowserView.swift in Sources */,
 				D40000000000000000000008 /* BreadcrumbToolbarView.swift in Sources */,
 				D40000000000000000000009 /* NavigationToolbarChrome.swift in Sources */,

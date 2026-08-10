@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 @MainActor
@@ -16,7 +17,8 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         await viewModel.selectSidebar(.likedSongs)
 
         XCTAssertEqual(viewModel.sidebarSelection, .likedSongs)
-        XCTAssertEqual(PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).map(\.title), ["Track liked-one"])
+        XCTAssertEqual(
+            PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).map(\.title), ["Track liked-one"])
     }
 
     func testInitialLoadLandsOnHomeAndLoadsPlaylistLibrary() async {
@@ -40,12 +42,14 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
             playlistResults: [.failure(SpotifyAPIError.network("Offline"))],
             trackResults: [:]
         )
-        let cache = MockBrowsingCache(cachedPlaylists: [PlaylistBrowsingTestFixtures.playlist(id: "cached", name: "Cached")])
+        let cache = MockBrowsingCache(cachedPlaylists: [
+            PlaylistBrowsingTestFixtures.playlist(id: "cached", name: "Cached")
+        ])
         let viewModel = PlaylistBrowserViewModel(api: api, cache: cache)
 
         await viewModel.load()
 
-        guard case let .staleCache(playlists, error) = viewModel.playlistState else {
+        guard case .staleCache(let playlists, let error) = viewModel.playlistState else {
             return XCTFail("Expected stale cached playlists")
         }
         XCTAssertEqual(playlists.map(\.title), ["Cached"])
@@ -55,12 +59,21 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
     func testRefreshSuccessPreservesSelectionWhenPlaylistStillExists() async {
         let api = MockBrowsingAPI(
             playlistResults: [
-                .success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One"), PlaylistBrowsingTestFixtures.playlist(id: "two", name: "Two")]),
-                .success([PlaylistBrowsingTestFixtures.playlist(id: "two", name: "Two Updated"), PlaylistBrowsingTestFixtures.playlist(id: "three", name: "Three")])
+                .success([
+                    PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One"),
+                    PlaylistBrowsingTestFixtures.playlist(id: "two", name: "Two"),
+                ]),
+                .success([
+                    PlaylistBrowsingTestFixtures.playlist(id: "two", name: "Two Updated"),
+                    PlaylistBrowsingTestFixtures.playlist(id: "three", name: "Three"),
+                ]),
             ],
             trackResults: [
                 "one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])],
-                "two": [.success([PlaylistBrowsingTestFixtures.track(id: "track-two")]), .success([PlaylistBrowsingTestFixtures.track(id: "track-two-updated")])]
+                "two": [
+                    .success([PlaylistBrowsingTestFixtures.track(id: "track-two")]),
+                    .success([PlaylistBrowsingTestFixtures.track(id: "track-two-updated")]),
+                ],
             ]
         )
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
@@ -71,7 +84,9 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
 
         XCTAssertEqual(viewModel.selectedPlaylistID, "two")
         XCTAssertEqual(viewModel.playlistState.currentValue?.map(\.title), ["Two Updated", "Three"])
-        XCTAssertEqual(PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).map(\.title), ["Track track-two-updated"])
+        XCTAssertEqual(
+            PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).map(\.title), ["Track track-two-updated"]
+        )
     }
 
     func testRefreshFailureWithoutCacheShowsErrorState() async {
@@ -83,7 +98,7 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
 
         await viewModel.load()
 
-        guard case let .error(error) = viewModel.playlistState else {
+        guard case .error(let error) = viewModel.playlistState else {
             return XCTFail("Expected error state")
         }
         XCTAssertEqual(error.title, "Spotify is rate limiting requests")
@@ -96,7 +111,7 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
 
         await viewModel.load()
 
-        guard case let .empty(playlistMessage) = viewModel.playlistState else {
+        guard case .empty(let playlistMessage) = viewModel.playlistState else {
             return XCTFail("Expected empty playlist state")
         }
         XCTAssertEqual(playlistMessage, "Your Spotify library has no playlists yet.")
@@ -106,12 +121,18 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
     func testSelectedPlaylistDisappearingIsHandledCleanly() async {
         let api = MockBrowsingAPI(
             playlistResults: [
-                .success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One"), PlaylistBrowsingTestFixtures.playlist(id: "two", name: "Two")]),
-                .success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])
+                .success([
+                    PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One"),
+                    PlaylistBrowsingTestFixtures.playlist(id: "two", name: "Two"),
+                ]),
+                .success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")]),
             ],
             trackResults: [
-                "one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")]), .success([PlaylistBrowsingTestFixtures.track(id: "track-one-new")])],
-                "two": [.success([PlaylistBrowsingTestFixtures.track(id: "track-two")])]
+                "one": [
+                    .success([PlaylistBrowsingTestFixtures.track(id: "track-one")]),
+                    .success([PlaylistBrowsingTestFixtures.track(id: "track-one-new")]),
+                ],
+                "two": [.success([PlaylistBrowsingTestFixtures.track(id: "track-two")])],
             ]
         )
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
@@ -139,7 +160,7 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         await viewModel.load()
         await viewModel.selectPlaylist(id: "one")
 
-        guard case let .staleCache(.playlist(detail), error) = viewModel.detailState else {
+        guard case .staleCache(.playlist(let detail), let error) = viewModel.detailState else {
             return XCTFail("Expected stale cached detail")
         }
         XCTAssertEqual(detail.tracks.map(\.title), ["Track cached"])
@@ -158,7 +179,7 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         await viewModel.load()
         await viewModel.selectPlaylist(id: "one")
 
-        guard case let .staleCache(.playlist(detail), error) = viewModel.detailState else {
+        guard case .staleCache(.playlist(let detail), let error) = viewModel.detailState else {
             return XCTFail("Expected stale cached detail")
         }
         XCTAssertEqual(detail.tracks.map(\.title), ["Track cached"])
@@ -181,7 +202,8 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         await viewModel.load()
         await viewModel.selectPlaylist(id: "one")
 
-        XCTAssertEqual(PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).map(\.title), ["Track fresh-track"])
+        XCTAssertEqual(
+            PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).map(\.title), ["Track fresh-track"])
         XCTAssertEqual(cache.savedTracks["one"]?.map(\.id), ["fresh-track"])
     }
 
@@ -202,7 +224,8 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         await viewModel.load()
         await viewModel.selectSidebar(.likedSongs)
 
-        XCTAssertEqual(PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).map(\.title), ["Track liked-fresh"])
+        XCTAssertEqual(
+            PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).map(\.title), ["Track liked-fresh"])
         XCTAssertEqual(
             cache.savedTracks[SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID]?.map(\.id),
             ["liked-fresh"]
@@ -228,7 +251,9 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         await viewModel.selectSidebar(.home)
         await viewModel.selectSidebar(.likedSongs)
 
-        XCTAssertEqual(api.savedTracksCallCount, 1, "Fresh cache should not immediately trigger a second liked-songs revalidation.")
+        XCTAssertEqual(
+            api.savedTracksCallCount, 1, "Fresh cache should not immediately trigger a second liked-songs revalidation."
+        )
     }
 
     func testLikedSongsConcurrentSelectionsShareSingleRevalidationRequest() async {
@@ -248,7 +273,8 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         async let second: Void = viewModel.selectSidebar(.likedSongs)
         _ = await (first, second)
 
-        XCTAssertEqual(api.savedTracksCallCount, 1, "Concurrent liked-songs refreshes should dedupe into one in-flight request.")
+        XCTAssertEqual(
+            api.savedTracksCallCount, 1, "Concurrent liked-songs refreshes should dedupe into one in-flight request.")
     }
 
     func testConcurrentPlaylistRefreshesShareSingleInFlightRequest() async {
@@ -268,7 +294,9 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         async let second: Void = viewModel.unifiedRefreshMainSurface()
         _ = await (first, second)
 
-        XCTAssertEqual(api.currentUserPlaylistsCallCount, 2, "Initial load + one coalesced home refresh should issue exactly two playlist list requests.")
+        XCTAssertEqual(
+            api.currentUserPlaylistsCallCount, 2,
+            "Initial load + one coalesced home refresh should issue exactly two playlist list requests.")
     }
 
     func testManualHomeRefreshCooldownSkipsImmediateSecondRoundTrip() async {
@@ -287,29 +315,39 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         await viewModel.unifiedRefreshMainSurface()
         await viewModel.unifiedRefreshMainSurface()
 
-        XCTAssertEqual(api.currentUserPlaylistsCallCount, 2, "Second immediate manual Home refresh should reuse current data inside cooldown.")
+        XCTAssertEqual(
+            api.currentUserPlaylistsCallCount, 2,
+            "Second immediate manual Home refresh should reuse current data inside cooldown.")
     }
 
     func testInsufficientScopeMapsToReconnectGuidance() async {
         let playlist = PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One", snapshotID: "snapshot")
         let api = MockBrowsingAPI(
             playlistResults: [.success([playlist])],
-            trackResults: ["one": [.failure(SpotifyAPIError.insufficientScope(
-                requiredScopes: ["playlist-read-private", "playlist-read-collaborative"],
-                message: "Insufficient client scope",
-                details: "status 403 insufficient scope"
-            ))]]
+            trackResults: [
+                "one": [
+                    .failure(
+                        SpotifyAPIError.insufficientScope(
+                            requiredScopes: ["playlist-read-private", "playlist-read-collaborative"],
+                            message: "Insufficient client scope",
+                            details: "status 403 insufficient scope"
+                        ))
+                ]
+            ]
         )
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
 
         await viewModel.load()
         await viewModel.selectPlaylist(id: "one")
 
-        guard case let .error(error) = viewModel.detailState else {
+        guard case .error(let error) = viewModel.detailState else {
             return XCTFail("Expected insufficient-scope error state")
         }
         XCTAssertEqual(error.title, "Reconnect Spotify")
-        XCTAssertEqual(error.message, "Your current Spotify session is missing playlist or Liked Songs permissions. Disconnect and connect again to grant required scopes.")
+        XCTAssertEqual(
+            error.message,
+            "Your current Spotify session is missing playlist or Liked Songs permissions. Disconnect and connect again to grant required scopes."
+        )
         XCTAssertEqual(error.diagnosticDetails, "status 403 insufficient scope")
         XCTAssertFalse(error.canRetry)
     }
@@ -353,11 +391,12 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
     }
 
     func testSidebarRenameCommitTargetRejectsMissingEditedRow() {
-        XCTAssertNil(PlaylistRenameEditingPolicy.commitTarget(
-            editingPlaylistID: "missing",
-            rowID: "missing",
-            visiblePlaylistIDs: ["other"]
-        ))
+        XCTAssertNil(
+            PlaylistRenameEditingPolicy.commitTarget(
+                editingPlaylistID: "missing",
+                rowID: "missing",
+                visiblePlaylistIDs: ["other"]
+            ))
         XCTAssertEqual(
             PlaylistRenameEditingPolicy.commitTarget(
                 editingPlaylistID: "present",
@@ -384,17 +423,19 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         viewModel.currentUserSpotifyID = "u"
         viewModel.playlistsByID = [playlist.id: playlist]
         viewModel.playlistState = .loaded([PlaylistRowViewModel(playlist)])
-        viewModel.detailState = .loaded(.playlist(PlaylistDetailViewModel(
-            playlist: PlaylistRowViewModel(playlist),
-            tracks: []
-        )))
+        viewModel.detailState = .loaded(
+            .playlist(
+                PlaylistDetailViewModel(
+                    playlist: PlaylistRowViewModel(playlist),
+                    tracks: []
+                )))
 
         await viewModel.renamePlaylist(id: playlist.id, name: "  After  ")
 
         XCTAssertEqual(viewModel.playlistsByID[playlist.id]?.name, "After")
         XCTAssertEqual(viewModel.playlistState.currentValue?.first?.title, "After")
         XCTAssertEqual(PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count, 0)
-        if case let .loaded(.playlist(detail)) = viewModel.detailState {
+        if case .loaded(.playlist(let detail)) = viewModel.detailState {
             XCTAssertEqual(detail.playlist.title, "After")
         } else {
             XCTFail("Expected renamed playlist detail")
@@ -425,16 +466,18 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         viewModel.currentUserSpotifyID = "u"
         viewModel.playlistsByID = [playlist.id: playlist]
         viewModel.playlistState = .loaded([PlaylistRowViewModel(playlist)])
-        viewModel.detailState = .loaded(.playlist(PlaylistDetailViewModel(
-            playlist: PlaylistRowViewModel(playlist),
-            tracks: []
-        )))
+        viewModel.detailState = .loaded(
+            .playlist(
+                PlaylistDetailViewModel(
+                    playlist: PlaylistRowViewModel(playlist),
+                    tracks: []
+                )))
 
         await viewModel.renamePlaylist(id: playlist.id, name: "After")
 
         XCTAssertEqual(viewModel.playlistsByID[playlist.id]?.name, "Before")
         XCTAssertEqual(viewModel.playlistState.currentValue?.first?.title, "Before")
-        if case let .loaded(.playlist(detail)) = viewModel.detailState {
+        if case .loaded(.playlist(let detail)) = viewModel.detailState {
             XCTAssertEqual(detail.playlist.title, "Before")
         } else {
             XCTFail("Expected reverted playlist detail")
@@ -478,7 +521,9 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         await viewModel.load()
         await viewModel.selectPlaylist(id: "one")
 
-        XCTAssertEqual(api.lastTracksLimit, 50, "Spotify's /v1/playlists/{id}/items endpoint caps limit at 50; passing more than 50 returns HTTP 400.")
+        XCTAssertEqual(
+            api.lastTracksLimit, 50,
+            "Spotify's /v1/playlists/{id}/items endpoint caps limit at 50; passing more than 50 returns HTTP 400.")
         XCTAssertLessThanOrEqual(api.lastTracksLimit ?? Int.max, 50)
     }
 }

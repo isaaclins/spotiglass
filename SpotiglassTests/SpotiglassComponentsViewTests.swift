@@ -1,6 +1,7 @@
 import SwiftUI
 import ViewInspector
 import XCTest
+
 @testable import Spotiglass
 
 @MainActor
@@ -26,7 +27,7 @@ final class SpotiglassComponentsViewTests: XCTestCase {
         }
         let pressed = Button("Press") {}
             .buttonStyle(SpotiglassPillStyle(variant: .accent))
-            .simultaneousGesture(TapGesture().onEnded { })
+            .simultaneousGesture(TapGesture().onEnded {})
         ViewTestHost.host(pressed)
         XCTAssertNoThrow(try pressed.inspect())
     }

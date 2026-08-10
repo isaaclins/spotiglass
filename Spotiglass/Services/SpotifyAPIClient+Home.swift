@@ -30,7 +30,7 @@ extension SpotifyAPIClient {
             path: "/v1/me/top/tracks",
             queryItems: [
                 URLQueryItem(name: "limit", value: String(pageLimit)),
-                URLQueryItem(name: "time_range", value: timeRange)
+                URLQueryItem(name: "time_range", value: timeRange),
             ],
             cacheMode: .freshOnly
         )

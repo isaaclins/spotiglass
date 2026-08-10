@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 @MainActor
@@ -10,7 +11,7 @@ final class PlaylistBrowserSidebarSelectionHandlingTests: XCTestCase {
             newValue: .pinnedItem(item.id),
             pinnedItems: [item]
         )
-        guard case let .activatePinned(activated) = action else {
+        guard case .activatePinned(let activated) = action else {
             return XCTFail("expected activatePinned, got \(action)")
         }
         XCTAssertEqual(activated.id, item.id)
@@ -46,10 +47,13 @@ final class PlaylistBrowserSidebarSelectionHandlingTests: XCTestCase {
             callbacks: makeCallbacks(
                 selectSidebarPlaylist: { selectedPlaylist = $0 },
                 markStale: { id, stale in markedStale = (id, stale) },
-                detailState: .loaded(.playlist(PlaylistDetailViewModel(
-                    playlist: PlaylistRowViewModel(PlaylistBrowsingTestFixtures.playlist(id: "p1", name: "One")),
-                    tracks: []
-                )))
+                detailState: .loaded(
+                    .playlist(
+                        PlaylistDetailViewModel(
+                            playlist: PlaylistRowViewModel(
+                                PlaylistBrowsingTestFixtures.playlist(id: "p1", name: "One")),
+                            tracks: []
+                        )))
             )
         )
         XCTAssertEqual(selectedPlaylist, "p1")
@@ -90,7 +94,9 @@ final class PlaylistBrowserSidebarSelectionHandlingTests: XCTestCase {
         setSidebarSelection: @escaping (SidebarSelection?) -> Void = { _ in },
         selectSidebarPlaylist: @escaping (String) async -> Void = { _ in },
         selectArtist: @escaping (String, BrowserNavigationOrigin, String?) async -> Void = { _, _, _ in },
-        selectAlbum: @escaping (String, String, String, URL?, BrowserNavigationOrigin) async -> Void = { _, _, _, _, _ in },
+        selectAlbum: @escaping (String, String, String, URL?, BrowserNavigationOrigin) async -> Void = {
+            _, _, _, _, _ in
+        },
         playURI: @escaping (String) async -> Void = { _ in },
         markStale: @escaping (String, Bool) -> Void = { _, _ in },
         detailState: BrowsingLoadState<BrowsingDetailContent> = .loading

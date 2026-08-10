@@ -449,13 +449,13 @@ final class PlaybackSessionViewModel: ObservableObject {
                     message: SpotiglassL10n.string("error.playback.signInAgain.message"),
                     recoveryAction: .reauthenticate
                 )
-            case let .forbidden(message, _):
+            case .forbidden(let message, _):
                 return PlaybackDisplayError(
                     title: SpotiglassL10n.string("error.playback.premium.title"),
                     message: message ?? SpotiglassL10n.string("error.playback.premium.message"),
                     recoveryAction: nil
                 )
-            case let .rateLimited(retryAfter):
+            case .rateLimited(let retryAfter):
                 let clause = SpotifyRateLimitDisplay.retryAfterClause(seconds: retryAfter)
                 return PlaybackDisplayError(
                     title: SpotiglassL10n.string("error.playback.rateLimited.title"),
@@ -465,14 +465,17 @@ final class PlaybackSessionViewModel: ObservableObject {
             default:
                 return PlaybackDisplayError(
                     title: SpotiglassL10n.string("error.playback.commandFailed.title"),
-                    message: String(format: SpotiglassL10n.string("error.playback.commandFailed.message"), String(describing: apiError)),
+                    message: String(
+                        format: SpotiglassL10n.string("error.playback.commandFailed.message"),
+                        String(describing: apiError)),
                     recoveryAction: .retryTransfer
                 )
             }
         }
         return PlaybackDisplayError(
             title: SpotiglassL10n.string("error.playback.commandFailed.title"),
-            message: String(format: SpotiglassL10n.string("error.playback.commandFailed.message"), error.localizedDescription),
+            message: String(
+                format: SpotiglassL10n.string("error.playback.commandFailed.message"), error.localizedDescription),
             recoveryAction: .retryTransfer
         )
     }
@@ -492,9 +495,9 @@ final class PlaybackSessionViewModel: ObservableObject {
 
     var currentNowPlayingURI: String? {
         switch connectionState {
-        case let .playing(nowPlaying):
+        case .playing(let nowPlaying):
             return nowPlaying.uri
-        case let .paused(nowPlaying):
+        case .paused(let nowPlaying):
             return nowPlaying?.uri
         case .disconnected, .connecting, .ready, .transferring, .unavailable, .error:
             return nil
@@ -502,15 +505,15 @@ final class PlaybackSessionViewModel: ObservableObject {
     }
 
     var connectionStateError: PlaybackDisplayError? {
-        guard case let .error(error) = connectionState else { return nil }
+        guard case .error(let error) = connectionState else { return nil }
         return error
     }
 
     var currentNowPlaying: PlaybackNowPlaying? {
         switch connectionState {
-        case let .playing(nowPlaying):
+        case .playing(let nowPlaying):
             return nowPlaying
-        case let .paused(nowPlaying):
+        case .paused(let nowPlaying):
             return nowPlaying
         case .disconnected, .connecting, .ready, .transferring, .unavailable, .error:
             return nil
@@ -528,14 +531,15 @@ final class PlaybackSessionViewModel: ObservableObject {
     }
 
     func updateStableTransportTrackURI(from state: PlaybackConnectionState) {
-        let uri: String? = switch state {
-        case let .playing(nowPlaying):
-            nowPlaying.uri
-        case let .paused(nowPlaying):
-            nowPlaying?.uri
-        default:
-            nil
-        }
+        let uri: String? =
+            switch state {
+            case .playing(let nowPlaying):
+                nowPlaying.uri
+            case .paused(let nowPlaying):
+                nowPlaying?.uri
+            default:
+                nil
+            }
         if let uri, !uri.isEmpty {
             stableTransportTrackURI = uri
         }

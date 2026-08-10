@@ -1,6 +1,7 @@
 import SwiftUI
 import ViewInspector
 import XCTest
+
 @testable import Spotiglass
 
 @MainActor
@@ -19,7 +20,7 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
         let track = sampleTrack()
         let loadTask = Task { await lyrics.load(track: track) }
 
-        for _ in 0 ..< 30 {
+        for _ in 0..<30 {
             if case .loading = lyrics.phase { break }
             try await Task.sleep(nanoseconds: 2_000_000)
         }
@@ -56,7 +57,7 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
     func testLyricsPhaseColumnReadySyncedLines() async throws {
         let lines = [
             SyncedLyricLine(id: 0, startTimeMs: 0, words: "Line one"),
-            SyncedLyricLine(id: 1, startTimeMs: 5_000, words: "Line two")
+            SyncedLyricLine(id: 1, startTimeMs: 5_000, words: "Line two"),
         ]
         let lyrics = ImmersiveLyricsViewModel { _ in .synced(lines) }
         await lyrics.load(track: sampleTrack(spotifyID: "syncedView"))
@@ -216,7 +217,10 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
         let active = ImmersiveLyricsLineText("Active line", distance: 0, size: .medium)
         let inactive = ImmersiveLyricsLineText("Far line", distance: 3, size: .large)
         ViewTestHost.host(
-            VStack { active; inactive },
+            VStack {
+                active
+                inactive
+            },
             size: CGSize(width: 360, height: 120)
         )
         XCTAssertNoThrow(try active.inspect().find(text: "Active line"))
@@ -234,7 +238,7 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
     func testTimedLyricsScrollViewRendersLines() throws {
         let lines = [
             SyncedLyricLine(id: 0, startTimeMs: 0, words: "First"),
-            SyncedLyricLine(id: 1, startTimeMs: 4_000, words: "Second")
+            SyncedLyricLine(id: 1, startTimeMs: 4_000, words: "Second"),
         ]
         let view = ImmersiveLyricsTimedLyricsScrollView(
             lines: lines,
@@ -276,15 +280,16 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
             pollIntervalNanoseconds: 60_000_000_000
         )
         playback.handle(.ready(deviceID: "device-1"))
-        playback.handle(.stateChanged(
-            PlaybackNowPlaying(
-                name: "Current", artists: ["A"], albumName: "Al", albumID: "al-1",
-                albumArtURL: nil, durationMilliseconds: 180_000, positionMilliseconds: 0,
-                uri: "spotify:track:cur"
-            ),
-            isPaused: false,
-            nextTracks: []
-        ))
+        playback.handle(
+            .stateChanged(
+                PlaybackNowPlaying(
+                    name: "Current", artists: ["A"], albumName: "Al", albumID: "al-1",
+                    albumArtURL: nil, durationMilliseconds: 180_000, positionMilliseconds: 0,
+                    uri: "spotify:track:cur"
+                ),
+                isPaused: false,
+                nextTracks: []
+            ))
         playback.repeatMode = .track
 
         let emptySection = ImmersiveLyricsNextInQueueSectionView(
@@ -296,7 +301,8 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
         .frame(width: 320, height: 160)
         ViewTestHost.host(emptySection, size: CGSize(width: 320, height: 160))
         XCTAssertNoThrow(try emptySection.inspect().find(text: "NEXT IN QUEUE:"))
-        XCTAssertNoThrow(try emptySection.inspect().find(text: "This song repeats. Turn repeat off to see what plays next."))
+        XCTAssertNoThrow(
+            try emptySection.inspect().find(text: "This song repeats. Turn repeat off to see what plays next."))
 
         let sdkNext = [
             PlaybackNowPlaying(
@@ -305,15 +311,16 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
                 uri: "spotify:track:next"
             )
         ]
-        playback.handle(.stateChanged(
-            PlaybackNowPlaying(
-                name: "Current", artists: ["A"], albumName: "Al", albumID: "al-1",
-                albumArtURL: nil, durationMilliseconds: 180_000, positionMilliseconds: 0,
-                uri: "spotify:track:cur"
-            ),
-            isPaused: false,
-            nextTracks: sdkNext
-        ))
+        playback.handle(
+            .stateChanged(
+                PlaybackNowPlaying(
+                    name: "Current", artists: ["A"], albumName: "Al", albumID: "al-1",
+                    albumArtURL: nil, durationMilliseconds: 180_000, positionMilliseconds: 0,
+                    uri: "spotify:track:cur"
+                ),
+                isPaused: false,
+                nextTracks: sdkNext
+            ))
         playback.repeatMode = .off
         await queue.refreshQueue()
 

@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 @MainActor
@@ -127,8 +128,12 @@ final class CommandPaletteViewModelActionsTests: XCTestCase {
         let viewModel = CommandPaletteViewModel()
         viewModel.staticItemsProvider = {
             [
-                CommandPaletteItem(id: "match", title: "Play Next", subtitle: nil, iconSystemName: "forward", section: .commands, keywords: ["queue"], action: {}),
-                CommandPaletteItem(id: "other", title: "Settings", subtitle: nil, iconSystemName: "gear", section: .commands, keywords: [], action: {})
+                CommandPaletteItem(
+                    id: "match", title: "Play Next", subtitle: nil, iconSystemName: "forward", section: .commands,
+                    keywords: ["queue"], action: {}),
+                CommandPaletteItem(
+                    id: "other", title: "Settings", subtitle: nil, iconSystemName: "gear", section: .commands,
+                    keywords: [], action: {}),
             ]
         }
         viewModel.show()

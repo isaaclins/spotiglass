@@ -21,7 +21,7 @@ struct ImmersiveLyricsBackgroundLayer: View {
                         colors: [
                             Color.black.opacity(0.5),
                             Color.black.opacity(0.78),
-                            Color.black.opacity(0.88)
+                            Color.black.opacity(0.88),
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
@@ -62,11 +62,12 @@ struct ImmersiveBlurredArtwork: View {
                         .frame(width: blurredTileSize, height: blurredTileSize)
                         .compositingGroup()
                         .blur(radius: blurRadius)
-                        .scaleEffect(Self.coverScaleForBlurredBackdrop(
-                            tile: blurredTileSize,
-                            blurRadius: blurRadius,
-                            target: size
-                        ))
+                        .scaleEffect(
+                            Self.coverScaleForBlurredBackdrop(
+                                tile: blurredTileSize,
+                                blurRadius: blurRadius,
+                                target: size
+                            ))
                 } else {
                     Color.black
                 }

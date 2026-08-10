@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 @MainActor
@@ -36,14 +37,14 @@ final class SpotiglassSettingsStoreTests: XCTestCase {
         // Raw JSON shaped like a settings.json written before lyricsTextScale and
         // seededKeybindCommands existed — neither key present at all.
         let legacyJSON = """
-        {
-          "version" : 1,
-          "keybinds" : [],
-          "appearance" : { "colorScheme" : "dark" },
-          "commandPalette" : { "backdropBlur" : true },
-          "equalizer" : { }
-        }
-        """
+            {
+              "version" : 1,
+              "keybinds" : [],
+              "appearance" : { "colorScheme" : "dark" },
+              "commandPalette" : { "backdropBlur" : true },
+              "equalizer" : { }
+            }
+            """
         let decoded = try JSONDecoder().decode(SpotiglassSettingsFile.self, from: Data(legacyJSON.utf8))
         XCTAssertEqual(decoded.appearance.lyricsTextScale, 1.0)
         XCTAssertEqual(decoded.appearance.colorScheme, .dark)
@@ -52,8 +53,8 @@ final class SpotiglassSettingsStoreTests: XCTestCase {
     func testOutOfRangeLyricsTextScaleClampsOnDecode() throws {
         func decodeScale(_ raw: Double) throws -> Double {
             let json = """
-            { "keybinds" : [], "appearance" : { "lyricsTextScale" : \(raw) } }
-            """
+                { "keybinds" : [], "appearance" : { "lyricsTextScale" : \(raw) } }
+                """
             return try JSONDecoder()
                 .decode(SpotiglassSettingsFile.self, from: Data(json.utf8))
                 .appearance.lyricsTextScale
@@ -127,7 +128,7 @@ final class SpotiglassSettingsStoreTests: XCTestCase {
                 command: CommandPaletteCommandID.openSettings,
                 when: .always,
                 args: nil
-            ),
+            )
         ]
         try store.updateKeybinds(newKeybinds)
 
@@ -163,7 +164,8 @@ final class SpotiglassSettingsStoreTests: XCTestCase {
         let root = makeTempDir()
         let legacy = root.appendingPathComponent("config/spotiglass/settings.json")
         let destination = root.appendingPathComponent("ApplicationSupport/Spotiglass/settings.json")
-        try FileManager.default.createDirectory(at: legacy.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: legacy.deletingLastPathComponent(), withIntermediateDirectories: true)
         let payload = #"{"version":1}"#
         try payload.write(to: legacy, atomically: true, encoding: .utf8)
 
@@ -178,15 +180,18 @@ final class SpotiglassSettingsStoreTests: XCTestCase {
         let root = makeTempDir()
         let legacy = root.appendingPathComponent("config/settings.json")
         let destination = root.appendingPathComponent("dest/settings.json")
-        try FileManager.default.createDirectory(at: legacy.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: legacy.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
         try "legacy".write(to: legacy, atomically: true, encoding: .utf8)
         try "current".write(to: destination, atomically: true, encoding: .utf8)
 
         SpotiglassSettingsStore.migrateLegacyConfigIfNeeded(fileManager: .default, from: legacy, to: destination)
 
         XCTAssertEqual(try String(contentsOf: destination, encoding: .utf8), "current", "Existing settings must win")
-        XCTAssertTrue(FileManager.default.fileExists(atPath: legacy.path), "Legacy file is left intact when not migrating")
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: legacy.path), "Legacy file is left intact when not migrating")
     }
 
     // MARK: - Helpers

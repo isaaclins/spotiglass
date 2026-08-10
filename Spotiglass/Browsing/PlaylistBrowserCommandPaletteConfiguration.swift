@@ -70,6 +70,11 @@ enum PlaylistBrowserCommandPaletteConfiguration {
         manager.openArtist = { [weak viewModel = dependencies.viewModel] artistID in
             await viewModel?.selectArtist(id: artistID, origin: .reset, displayName: nil)
         }
+        manager.openSearch = { [weak viewModel = dependencies.viewModel] in
+            Task { @MainActor in
+                await viewModel?.selectSidebar(.search)
+            }
+        }
         manager.toggleQueue = {
             queueVisible.wrappedValue.toggle()
         }

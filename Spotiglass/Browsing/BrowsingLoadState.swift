@@ -18,7 +18,10 @@ struct BrowsingDisplayError: Equatable, Identifiable {
     let diagnosticDetails: String?
     let lockedPlaylist: LockedPlaylistInfo?
 
-    init(title: String, message: String, canRetry: Bool, diagnosticDetails: String? = nil, lockedPlaylist: LockedPlaylistInfo? = nil) {
+    init(
+        title: String, message: String, canRetry: Bool, diagnosticDetails: String? = nil,
+        lockedPlaylist: LockedPlaylistInfo? = nil
+    ) {
         self.title = title
         self.message = message
         self.canRetry = canRetry
@@ -45,7 +48,7 @@ enum BrowsingLoadState<Value: Equatable>: Equatable {
 
     var currentValue: Value? {
         switch self {
-        case let .loaded(value), let .staleCache(value, _), let .refreshing(value):
+        case .loaded(let value), .staleCache(let value, _), .refreshing(let value):
             value
         case .loading, .empty, .error:
             nil

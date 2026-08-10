@@ -113,10 +113,12 @@ final class SpotifyGETResponseCache: @unchecked Sendable {
         }
 
         guard let diskCache else { return nil }
-        guard let hit = try? diskCache.loadGETResponseRecord(
-            digest: Self.digest(for: key),
-            allowExpired: allowExpired
-        ) else {
+        guard
+            let hit = try? diskCache.loadGETResponseRecord(
+                digest: Self.digest(for: key),
+                allowExpired: allowExpired
+            )
+        else {
             return nil
         }
         memory[key] = (expiry: hit.expiresAt, data: hit.data)
@@ -148,10 +150,12 @@ final class SpotifyGETResponseCache: @unchecked Sendable {
         }
 
         guard let diskCache else { return nil }
-        guard let hit = try? diskCache.loadGETResponseRecord(
-            digest: Self.digest(for: key),
-            allowExpired: true
-        ) else {
+        guard
+            let hit = try? diskCache.loadGETResponseRecord(
+                digest: Self.digest(for: key),
+                allowExpired: true
+            )
+        else {
             return nil
         }
         guard hit.isExpired else { return nil }

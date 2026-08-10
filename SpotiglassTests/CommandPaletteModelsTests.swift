@@ -1,5 +1,6 @@
 import AppKit
 import XCTest
+
 @testable import Spotiglass
 
 @MainActor
@@ -38,17 +39,17 @@ final class CommandPaletteModelsTests: XCTestCase {
 
     func testKeymapDecodingParsesContextAndArgs() throws {
         let json = """
-        {
-          "bindings": [
             {
-              "keystrokes": ["cmd-k"],
-              "command": "palette.open",
-              "when": "always",
-              "args": { "uri": "spotify:track:1" }
+              "bindings": [
+                {
+                  "keystrokes": ["cmd-k"],
+                  "command": "palette.open",
+                  "when": "always",
+                  "args": { "uri": "spotify:track:1" }
+                }
+              ]
             }
-          ]
-        }
-        """
+            """
 
         let file = try JSONDecoder().decode(CommandPaletteKeymapFile.self, from: Data(json.utf8))
         XCTAssertEqual(file.bindings.count, 1)

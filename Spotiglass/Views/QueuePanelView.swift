@@ -92,7 +92,9 @@ struct QueuePanelView: View {
         }
         .padding(SpotiglassDesign.spacingM)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous))
+        .background(
+            Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
+        )
         .padding(.horizontal, SpotiglassDesign.spacingM)
     }
 
@@ -122,7 +124,10 @@ struct QueuePanelView: View {
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(SpotiglassDesign.spacingM)
-                        .background(.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous))
+                        .background(
+                            .secondary.opacity(0.08),
+                            in: RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
+                        )
                         .transition(.opacity)
                 }
             }
@@ -142,7 +147,10 @@ struct QueuePanelView: View {
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(SpotiglassDesign.spacingM)
-                    .background(.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous))
+                    .background(
+                        .secondary.opacity(0.08),
+                        in: RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
+                    )
                     .transition(.opacity)
             } else {
                 VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {

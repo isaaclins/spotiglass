@@ -1,16 +1,19 @@
 import Foundation
+
 @testable import Spotiglass
 
 enum PlaylistBrowsingTestFixtures {
     static func playlistTracks(_ state: BrowsingLoadState<BrowsingDetailContent>) -> [TrackRowViewModel] {
         guard let content = state.currentValue else { return [] }
-        if case let .playlist(detail) = content {
+        if case .playlist(let detail) = content {
             return detail.tracks
         }
         return []
     }
 
-    static func playlist(id: String, name: String, snapshotID: String = "snapshot-\(UUID().uuidString)") -> SpotifyPlaylistSummary {
+    static func playlist(id: String, name: String, snapshotID: String = "snapshot-\(UUID().uuidString)")
+        -> SpotifyPlaylistSummary
+    {
         SpotifyPlaylistSummary(
             id: id,
             name: name,
@@ -40,17 +43,18 @@ enum PlaylistBrowsingTestFixtures {
     static func track(id: String) -> SpotifyPlaylistTrackItem {
         SpotifyPlaylistTrackItem(
             id: id,
-            content: .track(SpotifyTrack(
-                id: id,
-                name: "Track \(id)",
-                artists: ["Artist"],
-                albumArtworkURL: nil,
-                durationMilliseconds: 180_000,
-                isExplicit: false,
-                isPlayable: true,
-                linkedFromID: nil,
-                uri: "spotify:track:\(id)"
-            ))
+            content: .track(
+                SpotifyTrack(
+                    id: id,
+                    name: "Track \(id)",
+                    artists: ["Artist"],
+                    albumArtworkURL: nil,
+                    durationMilliseconds: 180_000,
+                    isExplicit: false,
+                    isPlayable: true,
+                    linkedFromID: nil,
+                    uri: "spotify:track:\(id)"
+                ))
         )
     }
 }

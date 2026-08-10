@@ -5,9 +5,9 @@ import XCTest
 final class LrcParsingTests: XCTestCase {
     func testParsesSimpleLRC() {
         let lrc = """
-        [00:12.00]First line
-        [00:15.50]Second line
-        """
+            [00:12.00]First line
+            [00:15.50]Second line
+            """
         let lines = LrcLineParser.parseSyncedLines(lrc)
         XCTAssertEqual(lines.count, 2)
         XCTAssertEqual(lines[0].startTimeMs, 12_000)
@@ -33,10 +33,10 @@ final class LrcParsingTests: XCTestCase {
 
     func testSkipsMetadataAndEmptyLines() {
         let lrc = """
-        [ar:Artist]
-        [00:05.00]Real lyric
+            [ar:Artist]
+            [00:05.00]Real lyric
 
-        """
+            """
         let lines = LrcLineParser.parseSyncedLines(lrc)
         XCTAssertEqual(lines.count, 1)
         XCTAssertEqual(lines[0].words, "Real lyric")
@@ -46,7 +46,7 @@ final class LrcParsingTests: XCTestCase {
         let lines = [
             SyncedLyricLine(id: 0, startTimeMs: 0, words: "A"),
             SyncedLyricLine(id: 1, startTimeMs: 5_000, words: "B"),
-            SyncedLyricLine(id: 2, startTimeMs: 10_000, words: "C")
+            SyncedLyricLine(id: 2, startTimeMs: 10_000, words: "C"),
         ]
         XCTAssertEqual(LrcLineParser.activeTimedLineIndex(positionMs: 0, lines: lines), 0)
         XCTAssertEqual(LrcLineParser.activeTimedLineIndex(positionMs: 4_999, lines: lines), 0)
@@ -58,7 +58,7 @@ final class LrcParsingTests: XCTestCase {
         let lines = [
             SyncedLyricLine(id: 0, startTimeMs: 0, words: "A"),
             SyncedLyricLine(id: 1, startTimeMs: 5_000, words: "B"),
-            SyncedLyricLine(id: 2, startTimeMs: 10_000, words: "C")
+            SyncedLyricLine(id: 2, startTimeMs: 10_000, words: "C"),
         ]
         // At 4.6s the raw active line is still A; a +0.5s "earlier" nudge crosses into B.
         let raw = 4_600

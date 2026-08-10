@@ -26,7 +26,9 @@ enum PlaylistBrowserPaletteSearchBuilder {
     ) async throws -> CommandPaletteSearchResults {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        func pinUnpinClosures(for pinnedItem: PinnedItem) -> (pin: (@MainActor () -> Void)?, unpin: (@MainActor () -> Void)?) {
+        func pinUnpinClosures(for pinnedItem: PinnedItem) -> (
+            pin: (@MainActor () -> Void)?, unpin: (@MainActor () -> Void)?
+        ) {
             if environment.isPinnedByID(pinnedItem.id) {
                 let id = pinnedItem.id
                 return (nil, { environment.unpin(id) })

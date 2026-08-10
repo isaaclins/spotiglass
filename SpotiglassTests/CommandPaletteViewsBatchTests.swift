@@ -1,6 +1,7 @@
 import SwiftUI
 import ViewInspector
 import XCTest
+
 @testable import Spotiglass
 
 @MainActor
@@ -120,17 +121,20 @@ final class CommandPaletteViewsBatchTests: XCTestCase {
 
         vm.testingReplaceSections([
             (.tracks, [sampleItem()]),
-            (.commands, [
-                CommandPaletteItem(
-                    id: "cmd",
-                    title: "Refresh",
-                    subtitle: nil,
-                    iconSystemName: "arrow.clockwise",
-                    section: .commands,
-                    keywords: [],
-                    action: {}
-                ),
-            ]),
+            (
+                .commands,
+                [
+                    CommandPaletteItem(
+                        id: "cmd",
+                        title: "Refresh",
+                        subtitle: nil,
+                        iconSystemName: "arrow.clockwise",
+                        section: .commands,
+                        keywords: [],
+                        action: {}
+                    )
+                ]
+            ),
         ])
         let body = CommandPaletteResultsBodyView(
             viewModel: vm,

@@ -5,26 +5,33 @@ extension PlaylistBrowserViewModel {
         guard !Task.isCancelled else { return }
         guard session == detailSession else { return }
         guard let playlist = playlistsByID[playlistID] else {
-            detailState = .error(BrowsingDisplayError(
-                title: SpotiglassL10n.string("error.browsing.playlistUnavailable.title"),
-                message: SpotiglassL10n.string("error.browsing.playlistUnavailable.gone"),
-                canRetry: true
-            ))
+            detailState = .error(
+                BrowsingDisplayError(
+                    title: SpotiglassL10n.string("error.browsing.playlistUnavailable.title"),
+                    message: SpotiglassL10n.string("error.browsing.playlistUnavailable.gone"),
+                    canRetry: true
+                ))
             return
         }
 
         let playlistRow = PlaylistRowViewModel(playlist)
 
         if refreshCachedData,
-           let cachedTracks = try? cache.loadTracks(playlistID: playlist.id, snapshotID: playlist.snapshotID, now: now(), maxAge: maxCacheAge) {
+            let cachedTracks = try? cache.loadTracks(
+                playlistID: playlist.id, snapshotID: playlist.snapshotID, now: now(), maxAge: maxCacheAge)
+        {
             if cachedTracks.isEmpty {
                 detailState = .empty("This playlist has no tracks.")
             } else {
-                detailState = .loaded(.playlist(PlaylistDetailViewModel(playlist: playlistRow, tracks: TrackRowViewModel.numberedPlaylistRows(cachedTracks))))
+                detailState = .loaded(
+                    .playlist(
+                        PlaylistDetailViewModel(
+                            playlist: playlistRow, tracks: TrackRowViewModel.numberedPlaylistRows(cachedTracks))))
             }
             if let last = lastTracksRevalidationByID[playlist.id],
-               last.snapshotID == playlist.snapshotID,
-               now().timeIntervalSince(last.at) < tracksRevalidateMinInterval {
+                last.snapshotID == playlist.snapshotID,
+                now().timeIntervalSince(last.at) < tracksRevalidateMinInterval
+            {
                 return
             }
             await revalidatePlaylistTracks(playlist: playlist, playlistRow: playlistRow, session: session)
@@ -32,11 +39,15 @@ extension PlaylistBrowserViewModel {
         }
 
         if refreshCachedData,
-           let staleTracks = try? cache.loadTracksIgnoringAge(playlistID: playlist.id, snapshotID: playlist.snapshotID) {
+            let staleTracks = try? cache.loadTracksIgnoringAge(playlistID: playlist.id, snapshotID: playlist.snapshotID)
+        {
             if staleTracks.isEmpty {
                 detailState = .empty("This playlist has no tracks.")
             } else {
-                detailState = .loaded(.playlist(PlaylistDetailViewModel(playlist: playlistRow, tracks: TrackRowViewModel.numberedPlaylistRows(staleTracks))))
+                detailState = .loaded(
+                    .playlist(
+                        PlaylistDetailViewModel(
+                            playlist: playlistRow, tracks: TrackRowViewModel.numberedPlaylistRows(staleTracks))))
             }
             if let existingDetail = detailState.currentValue {
                 detailState = .refreshing(existingDetail)
@@ -54,7 +65,9 @@ extension PlaylistBrowserViewModel {
         await revalidatePlaylistTracks(playlist: playlist, playlistRow: playlistRow, session: session)
     }
 
-    private func revalidatePlaylistTracks(playlist: SpotifyPlaylistSummary, playlistRow: PlaylistRowViewModel, session: Int) async {
+    private func revalidatePlaylistTracks(
+        playlist: SpotifyPlaylistSummary, playlistRow: PlaylistRowViewModel, session: Int
+    ) async {
         do {
             // Spotify's `/v1/playlists/{id}/items` endpoint accepts a maximum
             // limit of 50 (the February 2026 rename also tightened the cap from
@@ -67,7 +80,10 @@ extension PlaylistBrowserViewModel {
             if tracks.isEmpty {
                 detailState = .empty("This playlist has no tracks.")
             } else {
-                detailState = .loaded(.playlist(PlaylistDetailViewModel(playlist: playlistRow, tracks: TrackRowViewModel.numberedPlaylistRows(tracks))))
+                detailState = .loaded(
+                    .playlist(
+                        PlaylistDetailViewModel(
+                            playlist: playlistRow, tracks: TrackRowViewModel.numberedPlaylistRows(tracks))))
             }
         } catch is CancellationError {
             return

@@ -186,7 +186,8 @@ final class CommandPaletteKeymapStore: ObservableObject {
             let fallback = SpotiglassSettingsStore.defaultKeybinds()
             (try? indexCurrent(fallback)) ?? ()
             editorText = Self.editorTextRepresentation(fallback)
-            lastError = "Keybinds in settings.json were invalid and have been reset to defaults. \(error.localizedDescription)"
+            lastError =
+                "Keybinds in settings.json were invalid and have been reset to defaults. \(error.localizedDescription)"
         }
     }
 
@@ -194,7 +195,9 @@ final class CommandPaletteKeymapStore: ObservableObject {
         bindings = try Self.indexBindings(list)
     }
 
-    private static func indexBindings(_ bindings: [CommandPaletteKeyBinding]) throws -> [CommandShortcut: [CommandPaletteKeyBinding]] {
+    private static func indexBindings(_ bindings: [CommandPaletteKeyBinding]) throws -> [CommandShortcut:
+        [CommandPaletteKeyBinding]]
+    {
         var output: [CommandShortcut: [CommandPaletteKeyBinding]] = [:]
         for binding in bindings {
             try binding.validate()
@@ -213,7 +216,7 @@ final class CommandPaletteKeymapStore: ObservableObject {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .prettyPrinted]
         guard let data = try? encoder.encode(CommandPaletteKeymapFile(bindings: bindings)),
-              let text = String(data: data, encoding: .utf8)
+            let text = String(data: data, encoding: .utf8)
         else {
             return defaultKeymapText
         }

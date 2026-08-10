@@ -1,4 +1,5 @@
 import Foundation
+
 @testable import Spotiglass
 
 final class LimitCapturingBrowsingAPI: SpotifyBrowsingAPI {
@@ -17,10 +18,13 @@ final class LimitCapturingBrowsingAPI: SpotifyBrowsingAPI {
     }
 
     func artist(id: String, cacheMode: SpotifyRequestCacheMode) async throws -> SpotifyArtistDetail {
-        SpotifyArtistDetail(id: id, name: "Artist \(id)", imageURL: nil, followersTotal: nil, genres: [], uri: "spotify:artist:\(id)")
+        SpotifyArtistDetail(
+            id: id, name: "Artist \(id)", imageURL: nil, followersTotal: nil, genres: [], uri: "spotify:artist:\(id)")
     }
 
-    func artistCached(id: String, cacheMode: SpotifyRequestCacheMode) async throws -> SpotifyAPIClient.CachedResponse<SpotifyArtistDetail> {
+    func artistCached(id: String, cacheMode: SpotifyRequestCacheMode) async throws
+        -> SpotifyAPIClient.CachedResponse<SpotifyArtistDetail>
+    {
         SpotifyAPIClient.CachedResponse(
             value: try await artist(id: id, cacheMode: cacheMode),
             isStale: false
@@ -87,7 +91,8 @@ final class MockBrowsingAPI: SpotifyBrowsingAPI {
     private let artistTopTracksHandler: ((String, String?) async throws -> [SpotifyTrack])?
     private let searchHandler: ((String, Int) async throws -> SpotifySearchResults)?
     private let artistAlbumsHandler: ((String, String, Int) async throws -> [SpotifyArtistAlbum])?
-    private let artistAlbumsPageHandler: ((String, String, Int, Int, URL?) async throws -> SpotifyAPIClient.SpotifyArtistAlbumsPage)?
+    private let artistAlbumsPageHandler:
+        ((String, String, Int, Int, URL?) async throws -> SpotifyAPIClient.SpotifyArtistAlbumsPage)?
     private let albumTracksHandler: ((String, String?, Int) async throws -> [SpotifyTrack])?
     private let albumsHandler: (([String], String?) async throws -> [SpotifyBatchedAlbum])?
     private let savedTracksResult: Result<SpotifySavedTracksResult, Error>?
@@ -112,7 +117,9 @@ final class MockBrowsingAPI: SpotifyBrowsingAPI {
         artistTopTracksHandler: ((String, String?) async throws -> [SpotifyTrack])? = nil,
         searchHandler: ((String, Int) async throws -> SpotifySearchResults)? = nil,
         artistAlbumsHandler: ((String, String, Int) async throws -> [SpotifyArtistAlbum])? = nil,
-        artistAlbumsPageHandler: ((String, String, Int, Int, URL?) async throws -> SpotifyAPIClient.SpotifyArtistAlbumsPage)? = nil,
+        artistAlbumsPageHandler: (
+            (String, String, Int, Int, URL?) async throws -> SpotifyAPIClient.SpotifyArtistAlbumsPage
+        )? = nil,
         albumTracksHandler: ((String, String?, Int) async throws -> [SpotifyTrack])? = nil,
         albumsHandler: (([String], String?) async throws -> [SpotifyBatchedAlbum])? = nil,
         savedTracksResult: Result<SpotifySavedTracksResult, Error>? = nil,
@@ -164,10 +171,14 @@ final class MockBrowsingAPI: SpotifyBrowsingAPI {
     }
 
     func artist(id: String, cacheMode: SpotifyRequestCacheMode) async throws -> SpotifyArtistDetail {
-        SpotifyArtistDetail(id: id, name: "Artist \(id)", imageURL: nil, followersTotal: 1_000, genres: ["pop"], uri: "spotify:artist:\(id)")
+        SpotifyArtistDetail(
+            id: id, name: "Artist \(id)", imageURL: nil, followersTotal: 1_000, genres: ["pop"],
+            uri: "spotify:artist:\(id)")
     }
 
-    func artistCached(id: String, cacheMode: SpotifyRequestCacheMode) async throws -> SpotifyAPIClient.CachedResponse<SpotifyArtistDetail> {
+    func artistCached(id: String, cacheMode: SpotifyRequestCacheMode) async throws
+        -> SpotifyAPIClient.CachedResponse<SpotifyArtistDetail>
+    {
         SpotifyAPIClient.CachedResponse(
             value: try await artist(id: id, cacheMode: cacheMode),
             isStale: false
@@ -225,11 +236,12 @@ final class MockBrowsingAPI: SpotifyBrowsingAPI {
             var result: [SpotifyBatchedAlbum] = []
             for id in ids {
                 let tracks = try await albumTracksHandler(id, market, 50)
-                result.append(SpotifyBatchedAlbum(
-                    id: id,
-                    tracks: tracks,
-                    tracksAvailable: true
-                ))
+                result.append(
+                    SpotifyBatchedAlbum(
+                        id: id,
+                        tracks: tracks,
+                        tracksAvailable: true
+                    ))
             }
             return result
         }
@@ -350,7 +362,9 @@ final class MockBrowsingCache: SpotifyBrowsingCache {
         cachedPlaylists = playlists
     }
 
-    func loadTracks(playlistID: String, snapshotID: String, now: Date, maxAge: TimeInterval) throws -> [SpotifyPlaylistTrackItem]? {
+    func loadTracks(playlistID: String, snapshotID: String, now: Date, maxAge: TimeInterval) throws
+        -> [SpotifyPlaylistTrackItem]?
+    {
         if expiredTrackIDs.contains(playlistID) {
             return nil
         }
@@ -368,7 +382,8 @@ final class MockBrowsingCache: SpotifyBrowsingCache {
         return cachedTracks[playlistID]
     }
 
-    func saveTracks(_ tracks: [SpotifyPlaylistTrackItem], playlistID: String, snapshotID: String, cachedAt: Date) throws {
+    func saveTracks(_ tracks: [SpotifyPlaylistTrackItem], playlistID: String, snapshotID: String, cachedAt: Date) throws
+    {
         savedTracks[playlistID] = tracks
         cachedTracks[playlistID] = tracks
         trackSnapshotByPlaylistID[playlistID] = snapshotID

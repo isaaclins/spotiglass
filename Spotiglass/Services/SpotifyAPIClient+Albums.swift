@@ -141,8 +141,8 @@ extension SpotifyAPIClient {
     static let batchedAlbumsStaleOnRateLimitMaxAge: TimeInterval = 3_600
 }
 
-private extension SpotifyAPIClient {
-    func fetchAlbumTracks(
+extension SpotifyAPIClient {
+    fileprivate func fetchAlbumTracks(
         albumID: String,
         market: String?,
         limit: Int,
@@ -161,7 +161,7 @@ private extension SpotifyAPIClient {
             } else {
                 var queryItems: [URLQueryItem] = [
                     URLQueryItem(name: "limit", value: String(limit)),
-                    URLQueryItem(name: "offset", value: "0")
+                    URLQueryItem(name: "offset", value: "0"),
                 ]
                 if let market {
                     queryItems.append(URLQueryItem(name: "market", value: market))
@@ -189,13 +189,13 @@ private extension SpotifyAPIClient {
         return AlbumTrackFetchResult(tracks: results)
     }
 
-    func fetchAlbumsSingleBatch(ids: [String], market: String?) async throws -> [SpotifyBatchedAlbum] {
+    fileprivate func fetchAlbumsSingleBatch(ids: [String], market: String?) async throws -> [SpotifyBatchedAlbum] {
         guard !ids.isEmpty else { return [] }
         // Outbound URL emits the same normalized market value the coalescer/cache key use, so callers
         // that pass `nil`, `""`, or `"from_token"` all collapse onto the same cache entry.
         let queryItems: [URLQueryItem] = [
             URLQueryItem(name: "ids", value: ids.joined(separator: ",")),
-            URLQueryItem(name: "market", value: Self.normalizedMarketForBatchKey(market))
+            URLQueryItem(name: "market", value: Self.normalizedMarketForBatchKey(market)),
         ]
         let accessToken = try await tokenProvider.accessToken()
         let request = try makeRequest(path: "/v1/albums", queryItems: queryItems, accessToken: accessToken)
@@ -212,24 +212,25 @@ private extension SpotifyAPIClient {
                 throw apiError
             }
             if let cache = getResponseCache,
-               let cacheKey = SpotifyGETResponseCachePolicy.normalizedCacheKey(for: request),
-               let stale = cache.staleEntry(
-                   forCacheKey: cacheKey,
-                   maxStaleAge: Self.batchedAlbumsStaleOnRateLimitMaxAge
-               ),
-               let decoded = try? decoder.decode(SpotifyBatchedAlbumsResponseDTO.self, from: stale.data) {
+                let cacheKey = SpotifyGETResponseCachePolicy.normalizedCacheKey(for: request),
+                let stale = cache.staleEntry(
+                    forCacheKey: cacheKey,
+                    maxStaleAge: Self.batchedAlbumsStaleOnRateLimitMaxAge
+                ),
+                let decoded = try? decoder.decode(SpotifyBatchedAlbumsResponseDTO.self, from: stale.data)
+            {
                 return decoded.albums.compactMap { $0?.domainModel() }
             }
             throw apiError
         }
     }
 
-    struct NormalizedAlbumBatchIDs {
+    fileprivate struct NormalizedAlbumBatchIDs {
         let payloadIDs: [String]
         let canonicalIDsKey: String
     }
 
-    static func normalizedAlbumBatchIDs(from ids: [String]) -> NormalizedAlbumBatchIDs {
+    fileprivate static func normalizedAlbumBatchIDs(from ids: [String]) -> NormalizedAlbumBatchIDs {
         var payloadIDs: [String] = []
         payloadIDs.reserveCapacity(ids.count)
         var seen: Set<String> = []
@@ -247,7 +248,7 @@ private extension SpotifyAPIClient {
         )
     }
 
-    static func normalizedMarketForBatchKey(_ market: String?) -> String {
+    fileprivate static func normalizedMarketForBatchKey(_ market: String?) -> String {
         let trimmed = market?.trimmingCharacters(in: .whitespacesAndNewlines)
         return (trimmed?.isEmpty ?? true) ? "from_token" : trimmed!
     }

@@ -35,7 +35,8 @@ struct PlaylistListRow: View {
                         }
                         .overlay {
                             RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
-                                .strokeBorder(SpotiglassDesign.artworkBorderColor(colorScheme: colorScheme), lineWidth: 1)
+                                .strokeBorder(
+                                    SpotiglassDesign.artworkBorderColor(colorScheme: colorScheme), lineWidth: 1)
                         }
                 } else {
                     ArtworkView(url: playlist.artworkURL, size: artworkSize)

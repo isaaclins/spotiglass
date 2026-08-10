@@ -58,9 +58,9 @@ struct ImmersiveLyricsView: View {
 
     private var currentTrack: PlaybackNowPlaying? {
         switch playbackViewModel.connectionState {
-        case let .playing(np):
+        case .playing(let np):
             return np
-        case let .paused(opt):
+        case .paused(let opt):
             return opt
         default:
             return nil
@@ -106,9 +106,9 @@ struct ImmersiveLyricsView: View {
             return anchor.positionMilliseconds
         }
         switch playbackViewModel.connectionState {
-        case let .playing(np):
+        case .playing(let np):
             return np.positionMilliseconds
-        case let .paused(opt):
+        case .paused(let opt):
             return opt?.positionMilliseconds ?? 0
         default:
             return 0

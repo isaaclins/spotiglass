@@ -35,7 +35,7 @@ extension PlaylistBrowserViewModel {
     /// selection of `trackID`. Sets the new anchor to `trackID`.
     func extendSelection(toRowID trackID: String) {
         guard let tracks = loadedContextTracksForPalette,
-              let endIndex = tracks.firstIndex(where: { $0.id == trackID })
+            let endIndex = tracks.firstIndex(where: { $0.id == trackID })
         else {
             selectedDetailTrackIDs = [trackID]
             detailSelectionAnchorTrackID = trackID
@@ -85,7 +85,8 @@ extension PlaylistBrowserViewModel {
         do {
             try await api.addTracksToPlaylist(playlistID: destinationPlaylistID, uris: uris)
             if !sourcePlaylistID.isEmpty,
-               sourcePlaylistID != SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID {
+                sourcePlaylistID != SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID
+            {
                 try await api.removeTracksFromPlaylist(playlistID: sourcePlaylistID, uris: uris)
                 invalidateTracksCache(playlistID: sourcePlaylistID)
                 // Reflect the removal locally so the UI doesn't show ghosts
@@ -136,7 +137,8 @@ extension PlaylistBrowserViewModel {
                 try await api.addTracksToPlaylist(playlistID: created.id, uris: uris)
             }
             insertSidebarPlaylist(created, refreshedTrackCount: uris.count)
-            trackMutationToast = uris.isEmpty
+            trackMutationToast =
+                uris.isEmpty
                 ? "Created \(created.name)"
                 : "Created \(created.name) with \(uris.count) track\(uris.count == 1 ? "" : "s")"
         } catch {
@@ -149,8 +151,8 @@ extension PlaylistBrowserViewModel {
     func renamePlaylist(id: String, name: String) async {
         guard let previous = playlistsByID[id] else { return }
         guard let currentUserID = currentUserSpotifyID,
-              !currentUserID.isEmpty,
-              previous.ownerID == currentUserID
+            !currentUserID.isEmpty,
+            previous.ownerID == currentUserID
         else { return }
 
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -208,14 +210,15 @@ extension PlaylistBrowserViewModel {
                 playlistState = .loaded(renamedRows)
             case .refreshing:
                 playlistState = .refreshing(renamedRows)
-            case let .staleCache(_, displayError):
+            case .staleCache(_, let displayError):
                 playlistState = .staleCache(renamedRows, displayError)
             }
         }
 
         if let content = detailState.currentValue,
-           case let .playlist(detail) = content,
-           detail.playlist.id == playlist.id {
+            case .playlist(let detail) = content,
+            detail.playlist.id == playlist.id
+        {
             let renamedDetail = PlaylistDetailViewModel(
                 playlist: PlaylistRowViewModel(playlist),
                 tracks: detail.tracks
@@ -227,7 +230,7 @@ extension PlaylistBrowserViewModel {
                 detailState = .loaded(.playlist(renamedDetail))
             case .refreshing:
                 detailState = .refreshing(.playlist(renamedDetail))
-            case let .staleCache(_, displayError):
+            case .staleCache(_, let displayError):
                 detailState = .staleCache(.playlist(renamedDetail), displayError)
             }
         }
@@ -237,14 +240,15 @@ extension PlaylistBrowserViewModel {
 
     private func invalidateTracksCache(playlistID: String) {
         guard playlistID != SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID,
-              !playlistID.isEmpty else { return }
+            !playlistID.isEmpty
+        else { return }
         try? cache.invalidateTracks(playlistID: playlistID)
         lastTracksRevalidationByID.removeValue(forKey: playlistID)
     }
 
     private func removeRowsFromLoadedDetail(rowIDs: Set<String>) {
         guard let content = detailState.currentValue,
-              case let .playlist(playlistViewModel) = content
+            case .playlist(let playlistViewModel) = content
         else { return }
         let filtered = playlistViewModel.tracks.filter { !rowIDs.contains($0.id) }
         let renumbered = filtered.enumerated().map { idx, row -> TrackRowViewModel in
@@ -268,9 +272,9 @@ extension PlaylistBrowserViewModel {
             break
         case .loaded:
             detailState = .loaded(.playlist(nextDetail))
-        case let .refreshing(_):
+        case .refreshing(_):
             detailState = .refreshing(.playlist(nextDetail))
-        case let .staleCache(_, displayError):
+        case .staleCache(_, let displayError):
             detailState = .staleCache(.playlist(nextDetail), displayError)
         }
         // Drop selection IDs that no longer exist.
@@ -301,7 +305,7 @@ extension PlaylistBrowserViewModel {
                 playlistState = .loaded(rows)
             case .refreshing:
                 playlistState = .refreshing(rows)
-            case let .staleCache(_, displayError):
+            case .staleCache(_, let displayError):
                 playlistState = .staleCache(rows, displayError)
             }
         }
@@ -309,10 +313,10 @@ extension PlaylistBrowserViewModel {
     }
 }
 
-private extension TrackRowViewModel {
+extension TrackRowViewModel {
     /// Memberwise builder used by `removeRowsFromLoadedDetail` to rebuild rows
     /// with updated `listPosition` after a destructive mutation.
-    init(
+    fileprivate init(
         id: String,
         listPosition: Int,
         title: String,

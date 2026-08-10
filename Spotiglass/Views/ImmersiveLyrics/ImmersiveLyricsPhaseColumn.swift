@@ -25,7 +25,7 @@ struct ImmersiveLyricsLyricsPhaseColumn: View {
                     .tint(.white)
                     .foregroundStyle(.white.opacity(0.85))
                     .frame(maxWidth: .infinity, minHeight: 160, alignment: .center)
-            case let .failed(message):
+            case .failed(let message):
                 VStack(alignment: .leading, spacing: 12) {
                     Text(message)
                         .font(.body)
@@ -38,7 +38,7 @@ struct ImmersiveLyricsLyricsPhaseColumn: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-            case let .ready(lyrics):
+            case .ready(let lyrics):
                 ImmersiveLyricsReadyContentView(
                     lyrics: lyrics,
                     maxHeight: maxHeight,
@@ -71,7 +71,7 @@ struct ImmersiveLyricsReadyContentView: View {
                 .font(.title3.weight(.medium))
                 .foregroundStyle(.white.opacity(0.85))
                 .frame(maxWidth: .infinity, minHeight: 120, alignment: .leading)
-        case let .synced(lines):
+        case .synced(let lines):
             ImmersiveLyricsTimedLyricsScrollView(
                 lines: lines,
                 maxHeight: maxHeight,
@@ -81,7 +81,7 @@ struct ImmersiveLyricsReadyContentView: View {
                 lyricsTextSize: lyricsTextSize,
                 onSeek: onSeek
             )
-        case let .unsyncedPlain(lines):
+        case .unsyncedPlain(let lines):
             ImmersiveLyricsPlainLyricsScrollView(
                 lines: lines,
                 maxHeight: maxHeight,

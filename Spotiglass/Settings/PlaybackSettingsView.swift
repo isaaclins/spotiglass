@@ -22,14 +22,14 @@ struct PlaybackSettingsView: View {
             playbackSection(
                 title: SpotiglassL10n.string("settings.playback.whenDrops.title"),
                 items: [
-                    SpotiglassL10n.string("settings.playback.whenDrops.item"),
+                    SpotiglassL10n.string("settings.playback.whenDrops.item")
                 ]
             )
 
             playbackSection(
                 title: SpotiglassL10n.string("settings.playback.sessions.title"),
                 items: [
-                    SpotiglassL10n.string("settings.playback.sessions.item"),
+                    SpotiglassL10n.string("settings.playback.sessions.item")
                 ]
             )
         }

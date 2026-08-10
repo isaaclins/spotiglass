@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 @MainActor
@@ -30,24 +31,30 @@ final class CommandPaletteViewModelChromeAugmentationTests: XCTestCase {
 
     func testSetAvailableSearchCategoriesCoercesThisPlaylistWhenSegmentRemoved() {
         let viewModel = CommandPaletteViewModel()
-        viewModel.setAvailableSearchCategories(CommandPaletteSearchCategory.footerOrder(includeThisPlaylist: true), refreshIfFilterInvalidated: false)
+        viewModel.setAvailableSearchCategories(
+            CommandPaletteSearchCategory.footerOrder(includeThisPlaylist: true), refreshIfFilterInvalidated: false)
         viewModel.searchCategoryFilter = .thisPlaylist
-        viewModel.setAvailableSearchCategories(CommandPaletteSearchCategory.footerOrder(includeThisPlaylist: false), refreshIfFilterInvalidated: false)
+        viewModel.setAvailableSearchCategories(
+            CommandPaletteSearchCategory.footerOrder(includeThisPlaylist: false), refreshIfFilterInvalidated: false)
         XCTAssertEqual(viewModel.searchCategoryFilter, .all)
     }
 
     func testAugmentationShouldFetchWhenQueryMatchesArtistName() {
         XCTAssertTrue(
-            SpotifyPaletteSearchAugmentation.shouldFetchArtistScopedTracks(trimmedUserQuery: "kanye", topArtistName: "Kanye West", primaryTrackCount: 0)
+            SpotifyPaletteSearchAugmentation.shouldFetchArtistScopedTracks(
+                trimmedUserQuery: "kanye", topArtistName: "Kanye West", primaryTrackCount: 0)
         )
         XCTAssertTrue(
-            SpotifyPaletteSearchAugmentation.shouldFetchArtistScopedTracks(trimmedUserQuery: "kanye west", topArtistName: "Kanye West", primaryTrackCount: 0)
+            SpotifyPaletteSearchAugmentation.shouldFetchArtistScopedTracks(
+                trimmedUserQuery: "kanye west", topArtistName: "Kanye West", primaryTrackCount: 0)
         )
         XCTAssertFalse(
-            SpotifyPaletteSearchAugmentation.shouldFetchArtistScopedTracks(trimmedUserQuery: "love", topArtistName: "The Beatles", primaryTrackCount: 0)
+            SpotifyPaletteSearchAugmentation.shouldFetchArtistScopedTracks(
+                trimmedUserQuery: "love", topArtistName: "The Beatles", primaryTrackCount: 0)
         )
         XCTAssertFalse(
-            SpotifyPaletteSearchAugmentation.shouldFetchArtistScopedTracks(trimmedUserQuery: "kanye", topArtistName: "Kanye West", primaryTrackCount: 6)
+            SpotifyPaletteSearchAugmentation.shouldFetchArtistScopedTracks(
+                trimmedUserQuery: "kanye", topArtistName: "Kanye West", primaryTrackCount: 6)
         )
     }
 

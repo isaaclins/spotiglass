@@ -49,10 +49,12 @@ struct CommandPalettePrefetchProgressHeader: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             if progress.phase == .running, progress.total > 0 {
-                ProgressView(value: Double(progress.completed + progress.skipped + progress.failed),
-                             total: Double(progress.total))
-                    .progressViewStyle(.linear)
-                    .frame(maxWidth: 140)
+                ProgressView(
+                    value: Double(progress.completed + progress.skipped + progress.failed),
+                    total: Double(progress.total)
+                )
+                .progressViewStyle(.linear)
+                .frame(maxWidth: 140)
             }
             Spacer(minLength: 0)
             if progress.phase == .running {

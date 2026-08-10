@@ -18,7 +18,8 @@ enum AppLanguage: String, Codable, CaseIterable, Equatable {
 
     /// macOS preferred language when it is en/es/de; otherwise English.
     static func resolvedDefault() -> AppLanguage {
-        let code = Locale.preferredLanguages.first?
+        let code =
+            Locale.preferredLanguages.first?
             .split(separator: "-")
             .first
             .map(String.init) ?? "en"
@@ -265,7 +266,8 @@ struct SpotiglassSettingsFile: Codable, Equatable {
         keybinds = try container.decodeIfPresent([CommandPaletteKeyBinding].self, forKey: .keybinds) ?? []
         seededKeybindCommands = try container.decodeIfPresent([String].self, forKey: .seededKeybindCommands) ?? []
         appearance = try container.decodeIfPresent(AppearanceSettings.self, forKey: .appearance) ?? AppearanceSettings()
-        commandPalette = try container.decodeIfPresent(CommandPaletteSettings.self, forKey: .commandPalette)
+        commandPalette =
+            try container.decodeIfPresent(CommandPaletteSettings.self, forKey: .commandPalette)
             ?? CommandPaletteSettings()
         equalizer = try container.decodeIfPresent(EqualizerSettings.self, forKey: .equalizer) ?? EqualizerSettings()
     }
@@ -325,7 +327,8 @@ struct EqualizerSettings: Codable, Equatable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? false
         preamp = try container.decodeIfPresent(Double.self, forKey: .preamp) ?? 0
-        let raw = try container.decodeIfPresent([Double].self, forKey: .bands)
+        let raw =
+            try container.decodeIfPresent([Double].self, forKey: .bands)
             ?? Array(repeating: 0, count: EqualizerSettings.bandCount)
         bands = EqualizerSettings.normalizedBands(raw)
         activePresetName = try container.decodeIfPresent(String.self, forKey: .activePresetName)
@@ -381,7 +384,8 @@ struct EqualizerPreset: Codable, Equatable, Identifiable, Hashable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         name = try container.decode(String.self, forKey: .name)
         preamp = try container.decodeIfPresent(Double.self, forKey: .preamp) ?? 0
-        let raw = try container.decodeIfPresent([Double].self, forKey: .bands)
+        let raw =
+            try container.decodeIfPresent([Double].self, forKey: .bands)
             ?? Array(repeating: 0, count: EqualizerSettings.bandCount)
         bands = EqualizerSettings.normalizedBands(raw)
     }

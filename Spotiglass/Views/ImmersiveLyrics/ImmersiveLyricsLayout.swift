@@ -19,7 +19,7 @@ enum ImmersiveLyricsLayout {
             .init(color: .clear, location: 0),
             .init(color: .black, location: 0.07),
             .init(color: .black, location: 0.93),
-            .init(color: .clear, location: 1)
+            .init(color: .clear, location: 1),
         ],
         startPoint: .top,
         endPoint: .bottom

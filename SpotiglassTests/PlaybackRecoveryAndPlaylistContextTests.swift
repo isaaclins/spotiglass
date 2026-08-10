@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 @MainActor
@@ -13,7 +14,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
         await viewModel.retryPlaybackTransfer()
 
         XCTAssertEqual(playbackAPI.actions, ["transfer:device-1:false"])
-        guard case let .ready(id) = viewModel.connectionState else {
+        guard case .ready(let id) = viewModel.connectionState else {
             return XCTFail("Expected ready after retry transfer")
         }
         XCTAssertEqual(id, "device-1")
@@ -43,7 +44,8 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
         await viewModel.retryPlaybackTransfer()
         await viewModel.retryPlaybackTransfer()
 
-        XCTAssertEqual(commander.loadHostCallCount, 1, "Second rapid recovery should be suppressed by host reload cooldown.")
+        XCTAssertEqual(
+            commander.loadHostCallCount, 1, "Second rapid recovery should be suppressed by host reload cooldown.")
         XCTAssertEqual(viewModel.playbackHostReloadAttemptCount, 1)
         XCTAssertEqual(viewModel.playbackHostReloadSuppressedCooldownCount, 1)
     }
@@ -60,21 +62,25 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
         viewModel.handle(.initializationError("SDK init failed"))
         let deadline = Date().addingTimeInterval(1.5)
         while Date() < deadline,
-              viewModel.playbackHostReuseConnectAttemptCount < 1 || commander.loadHostCallCount < 1 {
+            viewModel.playbackHostReuseConnectAttemptCount < 1 || commander.loadHostCallCount < 1
+        {
             try? await Task.sleep(nanoseconds: 25_000_000)
         }
 
         XCTAssertGreaterThanOrEqual(viewModel.playbackHostReuseConnectAttemptCount, 1)
         XCTAssertGreaterThanOrEqual(viewModel.playbackHostReuseSoftResetAttemptCount, 1)
-        XCTAssertEqual(commander.loadHostCallCount, 1, "Transient init recovery should escalate to a single hard reload after reuse attempts.")
+        XCTAssertEqual(
+            commander.loadHostCallCount, 1,
+            "Transient init recovery should escalate to a single hard reload after reuse attempts.")
     }
 
     func testPremiumAccountErrorMapsToClearState() {
-        let viewModel = PlaybackSessionViewModel(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander())
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander())
 
         viewModel.handle(.accountError("Premium required"))
 
-        guard case let .error(error) = viewModel.connectionState else {
+        guard case .error(let error) = viewModel.connectionState else {
             return XCTFail("Expected error")
         }
         XCTAssertEqual(error.title, "Spotify Premium required")
@@ -83,13 +89,14 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
     }
 
     func testUnavailableDeviceStateIsExplicit() {
-        let viewModel = PlaybackSessionViewModel(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander())
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander())
         viewModel.handle(.ready(deviceID: "device-1"))
 
         viewModel.handle(.notReady(deviceID: "device-1"))
 
         XCTAssertNil(viewModel.deviceID)
-        guard case let .unavailable(message) = viewModel.connectionState else {
+        guard case .unavailable(let message) = viewModel.connectionState else {
             return XCTFail("Expected unavailable")
         }
         XCTAssertTrue(message.contains("no longer available"))
@@ -102,7 +109,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
         // Simulate a Play attempt before the SDK reported a device:
         // the view model lands in the "device unavailable" error state.
         await viewModel.play(uri: "spotify:track:1")
-        guard case let .error(displayError) = viewModel.connectionState else {
+        guard case .error(let displayError) = viewModel.connectionState else {
             return XCTFail("Expected error after play without device")
         }
         XCTAssertEqual(displayError.title, "Playback device unavailable")
@@ -131,20 +138,22 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
         let playbackAPI = MockPlaybackAPI()
         let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: commander)
         viewModel.handle(.ready(deviceID: "device-1"))
-        viewModel.handle(.stateChanged(PlaybackNowPlaying(
-            name: "Track",
-            artists: ["Artist"],
-            albumName: nil,
-            albumID: nil,
-            albumArtURL: nil,
-            durationMilliseconds: 180_000,
-            positionMilliseconds: 32_000,
-            uri: "spotify:track:1"
-        ), isPaused: false, nextTracks: []))
+        viewModel.handle(
+            .stateChanged(
+                PlaybackNowPlaying(
+                    name: "Track",
+                    artists: ["Artist"],
+                    albumName: nil,
+                    albumID: nil,
+                    albumArtURL: nil,
+                    durationMilliseconds: 180_000,
+                    positionMilliseconds: 32_000,
+                    uri: "spotify:track:1"
+                ), isPaused: false, nextTracks: []))
 
         await viewModel.play(uri: "spotify:track:1")
 
-        guard case let .playing(nowPlaying) = viewModel.connectionState else {
+        guard case .playing(let nowPlaying) = viewModel.connectionState else {
             return XCTFail("Expected playing state")
         }
         XCTAssertEqual(nowPlaying.positionMilliseconds, 0)
@@ -163,14 +172,16 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
                 "spotify:track:1",
                 "spotify:track:2",
                 "spotify:episode:3",
-                "spotify:track:4"
+                "spotify:track:4",
             ]
         )
 
-        XCTAssertEqual(playbackAPI.actions, [
-            "transfer:device-1:false",
-            "play-list:device-1:spotify:track:2,spotify:episode:3,spotify:track:4"
-        ])
+        XCTAssertEqual(
+            playbackAPI.actions,
+            [
+                "transfer:device-1:false",
+                "play-list:device-1:spotify:track:2,spotify:episode:3,spotify:track:4",
+            ])
         XCTAssertEqual(commander.commands.last?.payload["uri"] as? String, "spotify:track:2")
     }
 
@@ -187,14 +198,16 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
             playableURIs: [
                 "spotify:track:1",
                 "spotify:episode:2",
-                "spotify:track:3"
+                "spotify:track:3",
             ]
         )
 
-        XCTAssertEqual(playbackAPI.actions, [
-            "transfer:device-1:false",
-            "play-list:device-1:spotify:episode:2,spotify:track:3"
-        ])
+        XCTAssertEqual(
+            playbackAPI.actions,
+            [
+                "transfer:device-1:false",
+                "play-list:device-1:spotify:episode:2,spotify:track:3",
+            ])
     }
 
     func testPlayFromPlaylistFallsBackToSingleTrackWhenClickedURIMissing() async {
@@ -210,10 +223,12 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
             playableURIs: ["spotify:track:1", "spotify:track:2"]
         )
 
-        XCTAssertEqual(playbackAPI.actions, [
-            "transfer:device-1:false",
-            "play:device-1:spotify:track:missing"
-        ])
+        XCTAssertEqual(
+            playbackAPI.actions,
+            [
+                "transfer:device-1:false",
+                "play:device-1:spotify:track:missing",
+            ])
     }
 
     func testActivePlaylistIDIsSetByPlayFromPlaylistAndClearedByPlayURI() async {
@@ -255,7 +270,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
             uri: "spotify:track:old"
         )
         viewModel.handle(.stateChanged(oldTrack, isPaused: false, nextTracks: []))
-        guard case let .playing(initial) = viewModel.connectionState else {
+        guard case .playing(let initial) = viewModel.connectionState else {
             return XCTFail("Expected .playing after initial stateChanged")
         }
         XCTAssertEqual(initial.uri, "spotify:track:old")
@@ -267,7 +282,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
 
         let staleOld = oldTrack.with(positionMilliseconds: 51_000)
         viewModel.handle(.stateChanged(staleOld, isPaused: false, nextTracks: []))
-        guard case let .playing(afterStale) = viewModel.connectionState else {
+        guard case .playing(let afterStale) = viewModel.connectionState else {
             return XCTFail("Expected stale event to leave previous state intact")
         }
         XCTAssertEqual(
@@ -294,7 +309,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
             uri: "spotify:track:new"
         )
         viewModel.handle(.stateChanged(newTrack, isPaused: false, nextTracks: []))
-        guard case let .playing(afterNew) = viewModel.connectionState else {
+        guard case .playing(let afterNew) = viewModel.connectionState else {
             return XCTFail("Expected .playing after new track confirmed")
         }
         XCTAssertEqual(afterNew.uri, "spotify:track:new")

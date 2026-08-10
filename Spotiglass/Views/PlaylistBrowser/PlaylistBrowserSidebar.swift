@@ -57,7 +57,7 @@ struct PlaylistBrowserSidebar: View {
                 onLibraryAppear()
             }
             .overlay(alignment: .bottom) {
-                if case let .staleCache(_, error) = viewModel.playlistState {
+                if case .staleCache(_, let error) = viewModel.playlistState {
                     StaleCacheBanner(error: error)
                 } else if case .refreshing = viewModel.playlistState {
                     ProgressView(SpotiglassL10n.string("browser.refreshingPlaylists"))
@@ -75,9 +75,11 @@ struct PlaylistBrowserSidebar: View {
     @ViewBuilder
     private func libraryRow(_ row: LibrarySidebarRow) -> some View {
         switch row {
+        case .search:
+            LibrarySearchSidebarRow()
         case .home:
             LibraryHomeSidebarRow()
-        case let .pinned(item):
+        case .pinned(let item):
             PinnedSidebarLibraryRow(item: item, isSelected: viewModel.sidebarSelection == .pinnedItem(item.id))
         }
     }

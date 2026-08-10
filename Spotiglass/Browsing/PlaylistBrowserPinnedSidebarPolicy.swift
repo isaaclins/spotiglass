@@ -4,9 +4,9 @@ import Foundation
 enum PlaylistBrowserPinnedSidebarPolicy {
     static func itemShouldBeMarkedStale(for detailState: BrowsingLoadState<BrowsingDetailContent>) -> Bool {
         switch detailState {
-        case let .error(error):
+        case .error(let error):
             return isPermanentPinnedLoadError(error)
-        case let .staleCache(_, error):
+        case .staleCache(_, let error):
             if let error {
                 return isPermanentPinnedLoadError(error)
             }

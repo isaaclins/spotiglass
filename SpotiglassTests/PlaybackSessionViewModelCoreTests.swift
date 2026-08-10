@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 @MainActor
@@ -8,7 +9,8 @@ final class PlaybackSessionViewModelCoreTests: XCTestCase {
             PlaybackSessionViewModel.displayError(for: SpotifyAPIError.unauthorized).recoveryAction,
             .reauthenticate
         )
-        let forbidden = PlaybackSessionViewModel.displayError(for: SpotifyAPIError.forbidden(message: "Need Premium", details: nil))
+        let forbidden = PlaybackSessionViewModel.displayError(
+            for: SpotifyAPIError.forbidden(message: "Need Premium", details: nil))
         XCTAssertEqual(forbidden.title, "Spotify Premium required")
         XCTAssertEqual(forbidden.message, "Need Premium")
 
@@ -23,7 +25,8 @@ final class PlaybackSessionViewModelCoreTests: XCTestCase {
     }
 
     func testTransportReadyAndNowPlayingAccessors() {
-        let viewModel = PlaybackSessionViewModel(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander())
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander())
         XCTAssertFalse(viewModel.isPlaybackTransportReady)
 
         let track = PlaybackNowPlaying(
@@ -58,7 +61,8 @@ final class PlaybackSessionViewModelCoreTests: XCTestCase {
     }
 
     func testFallbackNowPlayingAndStableTrackURI() {
-        let viewModel = PlaybackSessionViewModel(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander())
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander())
         XCTAssertEqual(viewModel.fallbackNowPlaying().name, "Spotify playback")
 
         let track = PlaybackNowPlaying(
@@ -80,7 +84,8 @@ final class PlaybackSessionViewModelCoreTests: XCTestCase {
     func testLoadStoredPlaybackVolumeFromUserDefaults() {
         let key = "spotiglass.playbackVolume"
         UserDefaults.standard.set(NSNumber(value: 0.42), forKey: key)
-        let viewModel = PlaybackSessionViewModel(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander())
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander())
         XCTAssertEqual(viewModel.playbackVolume, 0.42, accuracy: 0.000_001)
         UserDefaults.standard.removeObject(forKey: key)
     }

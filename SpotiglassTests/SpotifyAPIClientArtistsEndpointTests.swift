@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 final class SpotifyAPIClientArtistsEndpointTests: XCTestCase {
@@ -32,16 +33,17 @@ final class SpotifyAPIClientArtistsEndpointTests: XCTestCase {
 
     func testArtistCachedDecodesAndReportsStaleFlag() async throws {
         let httpClient = QueueHTTPClient([
-            .json("""
-            {
-              "id": "ar1",
-              "name": "Cached Artist",
-              "images": [],
-              "followers": { "total": 1 },
-              "genres": [],
-              "uri": "spotify:artist:ar1"
-            }
-            """)
+            .json(
+                """
+                {
+                  "id": "ar1",
+                  "name": "Cached Artist",
+                  "images": [],
+                  "followers": { "total": 1 },
+                  "genres": [],
+                  "uri": "spotify:artist:ar1"
+                }
+                """)
         ])
         let client = SpotifyAPIClient(
             tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"),
@@ -57,26 +59,27 @@ final class SpotifyAPIClientArtistsEndpointTests: XCTestCase {
 
     func testArtistAlbumsCachedClampsLimitAndMapsAlbums() async throws {
         let httpClient = QueueHTTPClient([
-            .json("""
-            {
-              "items": [
+            .json(
+                """
                 {
-                  "id": "al1",
-                  "name": "Album",
-                  "release_date": "2020-01-01",
-                  "total_tracks": 1,
-                  "images": [],
-                  "uri": "spotify:album:al1",
-                  "album_group": "album"
+                  "items": [
+                    {
+                      "id": "al1",
+                      "name": "Album",
+                      "release_date": "2020-01-01",
+                      "total_tracks": 1,
+                      "images": [],
+                      "uri": "spotify:album:al1",
+                      "album_group": "album"
+                    }
+                  ],
+                  "total": 1,
+                  "limit": 10,
+                  "offset": 0,
+                  "href": "https://api.spotify.com/v1/artists/ar1/albums",
+                  "next": null
                 }
-              ],
-              "total": 1,
-              "limit": 10,
-              "offset": 0,
-              "href": "https://api.spotify.com/v1/artists/ar1/albums",
-              "next": null
-            }
-            """)
+                """)
         ])
         let client = SpotifyAPIClient(
             tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"),
@@ -94,16 +97,17 @@ final class SpotifyAPIClientArtistsEndpointTests: XCTestCase {
     func testArtistAlbumsPageFollowsNextURL() async throws {
         let next = URL(string: "https://api.spotify.com/v1/artists/ar1/albums?offset=10&limit=10")!
         let httpClient = QueueHTTPClient([
-            .json("""
-            {
-              "items": [],
-              "total": 0,
-              "limit": 10,
-              "offset": 10,
-              "href": "https://api.spotify.com/v1/artists/ar1/albums",
-              "next": null
-            }
-            """)
+            .json(
+                """
+                {
+                  "items": [],
+                  "total": 0,
+                  "limit": 10,
+                  "offset": 10,
+                  "href": "https://api.spotify.com/v1/artists/ar1/albums",
+                  "next": null
+                }
+                """)
         ])
         let client = SpotifyAPIClient(
             tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"),

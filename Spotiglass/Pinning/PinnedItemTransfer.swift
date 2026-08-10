@@ -1,5 +1,5 @@
-import Foundation
 import CoreTransferable
+import Foundation
 import UniformTypeIdentifiers
 
 extension UTType {

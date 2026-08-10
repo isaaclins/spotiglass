@@ -30,7 +30,9 @@ struct PlayingWaveformIcon: View {
         .onChange(of: isPlaying) { _, nowPlaying in
             isAnimating = nowPlaying
         }
-        .accessibilityLabel(isPlaying ? SpotiglassL10n.string("playback.nowPlaying") : SpotiglassL10n.string("playback.paused"))
+        .accessibilityLabel(
+            isPlaying ? SpotiglassL10n.string("playback.nowPlaying") : SpotiglassL10n.string("playback.paused")
+        )
         .accessibilityAddTraits(.isImage)
     }
 

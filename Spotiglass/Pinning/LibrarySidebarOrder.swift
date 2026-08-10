@@ -2,6 +2,7 @@ import Foundation
 
 /// Builds and mutates the visible row order for the Library sidebar section: Home and pinned entries.
 enum LibrarySidebarOrder {
+    static let searchToken = "library.search"
     static let homeToken = "library.home"
     private static let pinnedPrefix = "pinned:"
 
@@ -15,20 +16,26 @@ enum LibrarySidebarOrder {
     }
 
     static func normalizedOrder(existing: [String], pinnedItemIDs: [String]) -> [String] {
-        let allowed = Set([homeToken] + pinnedItemIDs.map(pinnedToken(for:)))
+        let allowed = Set([searchToken, homeToken] + pinnedItemIDs.map(pinnedToken(for:)))
         var filtered = existing.filter { allowed.contains($0) }
         var seen: Set<String> = []
         filtered = filtered.filter { seen.insert($0).inserted }
 
         let hasPinnedAlready = filtered.contains(where: { pinnedItemID(from: $0) != nil })
         if !hasPinnedAlready {
-            // First synthesis after migration: preferred default is pinned first.
-            filtered = pinnedItemIDs.map(pinnedToken(for:)) + [homeToken]
+            // First synthesis after migration: preferred default is search, home, then pinned.
+            filtered = [searchToken, homeToken] + pinnedItemIDs.map(pinnedToken(for:))
             seen = Set(filtered)
         }
 
+        if !seen.contains(searchToken) {
+            filtered.insert(searchToken, at: 0)
+            seen.insert(searchToken)
+        }
+
         if !seen.contains(homeToken) {
-            filtered.append(homeToken)
+            let searchIdx = filtered.firstIndex(of: searchToken) ?? -1
+            filtered.insert(homeToken, at: searchIdx + 1)
             seen.insert(homeToken)
         }
 

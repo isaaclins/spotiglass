@@ -9,17 +9,19 @@ enum PlaylistBrowserPlaybackHelpers {
     ) -> String? {
         guard let content = detailContent else { return detailLastVisibleTrackID }
         switch content {
-        case let .playlist(detail):
+        case .playlist(let detail):
             if let uri = currentPlaybackURI,
-               let row = detail.tracks.first(where: { $0.playableURI == uri }) {
+                let row = detail.tracks.first(where: { $0.playableURI == uri })
+            {
                 return row.id
             }
-        case let .artist(detail):
+        case .artist(let detail):
             if let uri = currentPlaybackURI,
-               let row = detail.tracks.first(where: { $0.playableURI == uri }) {
+                let row = detail.tracks.first(where: { $0.playableURI == uri })
+            {
                 return row.id
             }
-        case .home:
+        case .home, .search:
             break
         }
         return detailLastVisibleTrackID
@@ -27,7 +29,7 @@ enum PlaylistBrowserPlaybackHelpers {
 
     static func lyricsPrefetchTrack(connectionState: PlaybackConnectionState) -> PlaybackNowPlaying? {
         switch connectionState {
-        case let .playing(np):
+        case .playing(let np):
             return np
         case .paused, .disconnected, .connecting, .ready, .transferring, .unavailable, .error:
             return nil
@@ -39,8 +41,8 @@ enum PlaylistBrowserPlaybackHelpers {
         nextQueueURI: String?
     ) -> String? {
         guard let np = prefetchTrack,
-              np.durationMilliseconds > 0,
-              np.spotifyTrackIDForLyrics != nil
+            np.durationMilliseconds > 0,
+            np.spotifyTrackIDForLyrics != nil
         else { return nil }
         let nextURI = nextQueueURI ?? ""
         return "\(np.uri ?? "")|\(np.durationMilliseconds)|\(nextURI)"
@@ -52,28 +54,28 @@ enum PlaylistBrowserPlaybackHelpers {
             "disconnected"
         case .connecting:
             "connecting"
-        case let .ready(deviceID):
+        case .ready(let deviceID):
             "ready:\(deviceID)"
-        case let .transferring(deviceID):
+        case .transferring(let deviceID):
             "transferring:\(deviceID)"
-        case let .playing(item):
+        case .playing(let item):
             "playing:\(item.uri ?? "")"
-        case let .paused(.some(item)):
+        case .paused(.some(let item)):
             "paused:\(item.uri ?? "")"
         case .paused(.none):
             "paused-empty"
-        case let .unavailable(message):
+        case .unavailable(let message):
             "unavailable:\(message)"
-        case let .error(error):
+        case .error(let error):
             "error:\(error.title)"
         }
     }
 
     static func currentPlaybackURI(connectionState: PlaybackConnectionState) -> String? {
         switch connectionState {
-        case let .playing(nowPlaying):
+        case .playing(let nowPlaying):
             nowPlaying.uri
-        case let .paused(nowPlaying):
+        case .paused(let nowPlaying):
             nowPlaying?.uri
         case .disconnected, .connecting, .ready, .transferring, .unavailable, .error:
             nil

@@ -22,11 +22,14 @@ extension PlaylistBrowserViewModel {
     private func loadDetail(for selection: SidebarSelection, refreshCachedData: Bool, session: Int) async {
         guard !Task.isCancelled else { return }
         switch selection {
+        case .search:
+            guard session == detailSession else { return }
+            detailState = .loaded(.search)
         case .home:
             await loadHomeFeed(session: session)
         case .likedSongs:
             await loadLikedSongsTracks(refreshCachedData: refreshCachedData, session: session)
-        case let .playlist(playlistID):
+        case .playlist(let playlistID):
             await loadTracks(for: playlistID, refreshCachedData: refreshCachedData, session: session)
         case .pinnedItem:
             guard session == detailSession else { return }

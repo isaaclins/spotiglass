@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 @MainActor
@@ -18,11 +19,13 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         await viewModel.seek(to: 12_000)
 
         try? await Task.sleep(nanoseconds: 100_000_000)
-        XCTAssertEqual(playbackAPI.actions.filter { $0.hasPrefix("next:") || $0.hasPrefix("previous:") || $0.hasPrefix("seek:") }, [
-            "next:device-1",
-            "previous:device-1",
-            "seek:device-1:12000"
-        ])
+        XCTAssertEqual(
+            playbackAPI.actions.filter { $0.hasPrefix("next:") || $0.hasPrefix("previous:") || $0.hasPrefix("seek:") },
+            [
+                "next:device-1",
+                "previous:device-1",
+                "seek:device-1:12000",
+            ])
         let transportBridgeCommands = commander.commands.filter { $0.command != .setVolume }
         XCTAssertTrue(
             transportBridgeCommands.isEmpty,
@@ -102,13 +105,14 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         await viewModel.seek(to: 92_000)
         viewModel.handle(.stateChanged(initialTrack.with(positionMilliseconds: 7_000), isPaused: false, nextTracks: []))
 
-        guard case let .playing(afterStale) = viewModel.connectionState else {
+        guard case .playing(let afterStale) = viewModel.connectionState else {
             return XCTFail("Expected playing state after stale update")
         }
         XCTAssertEqual(afterStale.positionMilliseconds, 92_000)
 
-        viewModel.handle(.stateChanged(initialTrack.with(positionMilliseconds: 92_300), isPaused: false, nextTracks: []))
-        guard case let .playing(afterMatch) = viewModel.connectionState else {
+        viewModel.handle(
+            .stateChanged(initialTrack.with(positionMilliseconds: 92_300), isPaused: false, nextTracks: []))
+        guard case .playing(let afterMatch) = viewModel.connectionState else {
             return XCTFail("Expected playing state after matching update")
         }
         XCTAssertEqual(afterMatch.positionMilliseconds, 92_300)
@@ -132,7 +136,8 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         while Date() < syncDeadline, !api.actions.contains("fetchPlayerSnapshot") {
             try? await Task.sleep(nanoseconds: 25_000_000)
         }
-        XCTAssertTrue(api.actions.contains("fetchPlayerSnapshot"), "Background transport sync should run after repeat toggle.")
+        XCTAssertTrue(
+            api.actions.contains("fetchPlayerSnapshot"), "Background transport sync should run after repeat toggle.")
     }
 
     func testCycleRepeatRevertsWhenSetRepeatFails() async {
@@ -167,7 +172,9 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         XCTAssertEqual(viewModel.repeatMode, .context)
 
         await viewModel.syncTransportFromSpotify()
-        XCTAssertEqual(viewModel.repeatMode, .context, "Stale transport read should not overwrite optimistic repeat while pending.")
+        XCTAssertEqual(
+            viewModel.repeatMode, .context, "Stale transport read should not overwrite optimistic repeat while pending."
+        )
     }
 
     func testRepeatPendingClearsWhenTransportMatchesExpectedMode() async {
@@ -175,7 +182,7 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         api.transportResponses = [
             SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
             SpotifyPlayerTransport(shuffle: false, repeatMode: .context),
-            SpotifyPlayerTransport(shuffle: false, repeatMode: .off)
+            SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
         ]
         let viewModel = PlaybackSessionViewModel(
             playbackAPI: api,
@@ -192,7 +199,8 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         XCTAssertEqual(viewModel.repeatMode, .context, "First stale read should be suppressed.")
 
         await viewModel.syncTransportFromSpotify()
-        XCTAssertEqual(viewModel.repeatMode, .context, "Matching transport should keep mode and clear pending suppression.")
+        XCTAssertEqual(
+            viewModel.repeatMode, .context, "Matching transport should keep mode and clear pending suppression.")
 
         await viewModel.syncTransportFromSpotify()
         XCTAssertEqual(viewModel.repeatMode, .off, "After pending clears, transport reads apply normally.")
@@ -216,7 +224,8 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
 
         try? await Task.sleep(nanoseconds: 90_000_000)
         await viewModel.syncTransportFromSpotify()
-        XCTAssertEqual(viewModel.repeatMode, .off, "After timeout, transport value should be accepted to avoid long-lived drift.")
+        XCTAssertEqual(
+            viewModel.repeatMode, .off, "After timeout, transport value should be accepted to avoid long-lived drift.")
     }
 
     func testCycleRepeatRapidTapsCoalesceWritesAndConvergeToLatestIntent() async {
@@ -230,9 +239,9 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         )
         viewModel.handle(.ready(deviceID: "device-1"))
 
-        async let tap1: Void = viewModel.cycleRepeat() // off -> context
-        async let tap2: Void = viewModel.cycleRepeat() // context -> track
-        async let tap3: Void = viewModel.cycleRepeat() // track -> off
+        async let tap1: Void = viewModel.cycleRepeat()  // off -> context
+        async let tap2: Void = viewModel.cycleRepeat()  // context -> track
+        async let tap3: Void = viewModel.cycleRepeat()  // track -> off
         _ = await (tap1, tap2, tap3)
 
         let repeatWrites = api.actions.filter { $0.hasPrefix("setRepeat:") }
@@ -253,16 +262,18 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         )
         viewModel.handle(.ready(deviceID: "device-1"))
 
-        async let tap1: Void = viewModel.cycleRepeat() // off -> context
-        async let tap2: Void = viewModel.cycleRepeat() // context -> track
+        async let tap1: Void = viewModel.cycleRepeat()  // off -> context
+        async let tap2: Void = viewModel.cycleRepeat()  // context -> track
         _ = await (tap1, tap2)
 
         let repeatWrites = api.actions.filter { $0.hasPrefix("setRepeat:") }
         XCTAssertEqual(repeatWrites.count, 2)
-        XCTAssertEqual(repeatWrites, [
-            "setRepeat:device-1:context",
-            "setRepeat:device-1:track"
-        ])
+        XCTAssertEqual(
+            repeatWrites,
+            [
+                "setRepeat:device-1:context",
+                "setRepeat:device-1:track",
+            ])
     }
 
     func testToggleShuffleFlipsShuffleEnabled() async {
@@ -312,7 +323,9 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         XCTAssertTrue(viewModel.shuffleEnabled)
 
         await viewModel.syncTransportFromSpotify()
-        XCTAssertTrue(viewModel.shuffleEnabled, "Stale shuffle transport read should not overwrite optimistic local state while pending.")
+        XCTAssertTrue(
+            viewModel.shuffleEnabled,
+            "Stale shuffle transport read should not overwrite optimistic local state while pending.")
     }
 
     func testShufflePendingClearsWhenTransportMatchesExpectedState() async {
@@ -320,7 +333,7 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         api.transportResponses = [
             SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
             SpotifyPlayerTransport(shuffle: true, repeatMode: .off),
-            SpotifyPlayerTransport(shuffle: false, repeatMode: .off)
+            SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
         ]
         let viewModel = PlaybackSessionViewModel(
             playbackAPI: api,

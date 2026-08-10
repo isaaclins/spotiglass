@@ -35,33 +35,36 @@ struct TrackRowViewModel: Equatable, Identifiable {
         self.id = item.id
 
         switch item.content {
-        case let .track(track):
+        case .track(let track):
             self.title = track.name
             self.subtitle = track.artists.joined(separator: ", ")
             self.artworkURL = track.albumArtworkURL
             self.durationText = Self.durationText(milliseconds: track.durationMilliseconds)
-            self.badgeText = track.isPlayable == false
+            self.badgeText =
+                track.isPlayable == false
                 ? SpotiglassL10n.string("browser.trackBadge.unavailable")
                 : (track.isExplicit ? SpotiglassL10n.string("browser.trackBadge.explicit") : nil)
             self.isUnavailable = track.isPlayable == false
             self.isExplicit = track.isExplicit
             self.playableURI = track.isPlayable == false ? nil : track.uri
             self.artistRefs = track.artistRefs
-        case let .episode(episode):
+        case .episode(let episode):
             self.title = episode.name
             self.subtitle = episode.showName ?? SpotiglassL10n.string("browser.trackBadge.podcastEpisode")
             self.artworkURL = episode.artworkURL
             self.durationText = Self.durationText(milliseconds: episode.durationMilliseconds)
-            self.badgeText = episode.isPlayable == false
+            self.badgeText =
+                episode.isPlayable == false
                 ? SpotiglassL10n.string("browser.trackBadge.unavailableEpisode")
                 : SpotiglassL10n.string("browser.trackBadge.episode")
             self.isUnavailable = episode.isPlayable == false
             self.isExplicit = false
             self.playableURI = episode.isPlayable == false ? nil : episode.uri
             self.artistRefs = []
-        case let .localTrack(track):
+        case .localTrack(let track):
             self.title = track.name
-            self.subtitle = track.artists.isEmpty
+            self.subtitle =
+                track.artists.isEmpty
                 ? SpotiglassL10n.string("browser.trackBadge.localTrack")
                 : track.artists.joined(separator: ", ")
             self.artworkURL = nil
@@ -71,7 +74,7 @@ struct TrackRowViewModel: Equatable, Identifiable {
             self.isExplicit = false
             self.playableURI = nil
             self.artistRefs = []
-        case let .unavailable(reason):
+        case .unavailable(let reason):
             self.title = SpotiglassL10n.string("browser.trackBadge.unavailableItem")
             self.subtitle = reason
             self.artworkURL = nil
@@ -91,7 +94,8 @@ struct TrackRowViewModel: Equatable, Identifiable {
         self.subtitle = track.artists.joined(separator: ", ")
         self.artworkURL = track.albumArtworkURL
         self.durationText = Self.durationText(milliseconds: track.durationMilliseconds)
-        self.badgeText = track.isPlayable == false
+        self.badgeText =
+            track.isPlayable == false
             ? SpotiglassL10n.string("browser.trackBadge.unavailable")
             : (track.isExplicit ? SpotiglassL10n.string("browser.trackBadge.explicit") : nil)
         self.isUnavailable = track.isPlayable == false
@@ -109,16 +113,20 @@ struct TrackRowViewModel: Equatable, Identifiable {
     var durationMillisecondsForPinning: Int {
         let parts = durationText.split(separator: ":")
         guard parts.count == 2,
-              let m = Int(parts[0].trimmingCharacters(in: .whitespaces)),
-              let s = Int(parts[1].trimmingCharacters(in: .whitespaces)) else { return 0 }
+            let m = Int(parts[0].trimmingCharacters(in: .whitespaces)),
+            let s = Int(parts[1].trimmingCharacters(in: .whitespaces))
+        else { return 0 }
         return max(0, (m * 60 + s) * 1_000)
     }
 
     /// Domain track for palette pinning and draggable pins; `nil` for episodes, locals, and unavailable rows.
     func spotifyTrackForPinning() -> SpotifyTrack? {
         guard let playableURI, playableURI.hasPrefix("spotify:track:") else { return nil }
-        let names: [String] = artistRefs.map(\.name).isEmpty
-            ? subtitle.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        let names: [String] =
+            artistRefs.map(\.name).isEmpty
+            ? subtitle.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter {
+                !$0.isEmpty
+            }
             : artistRefs.map(\.name)
         return SpotifyTrack(
             id: id,

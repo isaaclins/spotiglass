@@ -10,7 +10,7 @@ enum KeymapValidationError: LocalizedError, Equatable {
         switch self {
         case .emptyKeystroke:
             "Keystroke cannot be empty."
-        case let .unsupportedToken(token):
+        case .unsupportedToken(let token):
             "Unsupported keystroke token '\(token)'."
         case .missingCommand:
             "Key binding command cannot be empty."
@@ -46,15 +46,15 @@ enum JSONValue: Codable, Equatable {
     func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
         switch self {
-        case let .string(value):
+        case .string(let value):
             try container.encode(value)
-        case let .number(value):
+        case .number(let value):
             try container.encode(value)
-        case let .boolean(value):
+        case .boolean(let value):
             try container.encode(value)
-        case let .object(value):
+        case .object(let value):
             try container.encode(value)
-        case let .array(value):
+        case .array(let value):
             try container.encode(value)
         case .null:
             try container.encodeNil()
@@ -99,7 +99,8 @@ struct CommandShortcut: Hashable {
     }
 
     init(keystroke: String) throws {
-        let normalized = keystroke
+        let normalized =
+            keystroke
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
         guard !normalized.isEmpty else {
@@ -209,7 +210,10 @@ struct CommandShortcut: Hashable {
     /// Maps macOS ANSI virtual key codes (same values as Carbon `kVK_ANSI_*`) to recording keys.
     private static func recordingKeyFromANSIKeyCode(_ keyCode: UInt16) -> String? {
         let letters = "abcdefghijklmnopqrstuvwxyz"
-        let letterCodes: [UInt16] = [0, 11, 8, 2, 14, 3, 5, 4, 34, 38, 40, 37, 46, 45, 31, 35, 12, 15, 1, 17, 32, 9, 13, 7, 16, 6, 18, 19, 20, 21, 23]
+        let letterCodes: [UInt16] = [
+            0, 11, 8, 2, 14, 3, 5, 4, 34, 38, 40, 37, 46, 45, 31, 35, 12, 15, 1, 17, 32, 9, 13, 7, 16, 6, 18, 19, 20,
+            21, 23,
+        ]
         if let index = letterCodes.firstIndex(of: keyCode) {
             let i = letters.index(letters.startIndex, offsetBy: index)
             return String(letters[i])
@@ -305,7 +309,7 @@ enum KeymapConflictError: LocalizedError, Equatable {
 
     var errorDescription: String? {
         switch self {
-        case let .conflict(id):
+        case .conflict(let id):
             "That shortcut is already assigned to \"\(id)\"."
         }
     }

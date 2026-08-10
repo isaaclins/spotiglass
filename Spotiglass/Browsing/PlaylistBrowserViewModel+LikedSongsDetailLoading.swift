@@ -8,14 +8,17 @@ extension PlaylistBrowserViewModel {
         let snapshotID = SpotiglassSidebarLibrary.likedSongsCacheSnapshotID
 
         if refreshCachedData,
-           let cachedTracks = try? cache.loadTracks(playlistID: virtualID, snapshotID: snapshotID, now: now(), maxAge: maxCacheAge) {
+            let cachedTracks = try? cache.loadTracks(
+                playlistID: virtualID, snapshotID: snapshotID, now: now(), maxAge: maxCacheAge)
+        {
             await setLikedSongsDetailState(from: cachedTracks)
             if shouldSkipAutomaticLikedSongsRevalidation() {
                 return
             }
             if let last = lastTracksRevalidationByID[virtualID],
-               last.snapshotID == snapshotID,
-               now().timeIntervalSince(last.at) < tracksRevalidateMinInterval {
+                last.snapshotID == snapshotID,
+                now().timeIntervalSince(last.at) < tracksRevalidateMinInterval
+            {
                 return
             }
             await revalidateLikedSongs(session: session)
@@ -23,7 +26,8 @@ extension PlaylistBrowserViewModel {
         }
 
         if refreshCachedData,
-           let staleTracks = try? cache.loadTracksIgnoringAge(playlistID: virtualID, snapshotID: snapshotID) {
+            let staleTracks = try? cache.loadTracksIgnoringAge(playlistID: virtualID, snapshotID: snapshotID)
+        {
             await setLikedSongsDetailState(from: staleTracks)
             if let existingDetail = detailState.currentValue {
                 detailState = .refreshing(existingDetail)
@@ -54,13 +58,14 @@ extension PlaylistBrowserViewModel {
             totalTrackCount: tracks.count,
             artworkURL: firstLikedSongsArtwork(from: tracks)
         )
-        detailState = .loaded(.playlist(PlaylistDetailViewModel(playlist: row, tracks: TrackRowViewModel.numberedPlaylistRows(tracks))))
+        detailState = .loaded(
+            .playlist(PlaylistDetailViewModel(playlist: row, tracks: TrackRowViewModel.numberedPlaylistRows(tracks))))
     }
 
     private func firstLikedSongsArtwork(from tracks: [SpotifyPlaylistTrackItem]) -> URL? {
         for item in tracks.prefix(4) {
-            if case let .track(t) = item.content { return t.albumArtworkURL }
-            if case let .episode(e) = item.content { return e.artworkURL }
+            if case .track(let t) = item.content { return t.albumArtworkURL }
+            if case .episode(let e) = item.content { return e.artworkURL }
         }
         return nil
     }
@@ -91,7 +96,10 @@ extension PlaylistBrowserViewModel {
             if result.tracks.isEmpty {
                 detailState = .empty("You have no liked songs yet.")
             } else {
-                detailState = .loaded(.playlist(PlaylistDetailViewModel(playlist: row, tracks: TrackRowViewModel.numberedPlaylistRows(result.tracks))))
+                detailState = .loaded(
+                    .playlist(
+                        PlaylistDetailViewModel(
+                            playlist: row, tracks: TrackRowViewModel.numberedPlaylistRows(result.tracks))))
             }
         } catch is CancellationError {
             return
@@ -110,7 +118,8 @@ extension PlaylistBrowserViewModel {
 
     private func shouldSkipAutomaticLikedSongsRevalidation() -> Bool {
         guard likedSongsRevalidationTask == nil,
-              let lastRevalidation = lastLikedSongsRevalidationAt else {
+            let lastRevalidation = lastLikedSongsRevalidationAt
+        else {
             return false
         }
         return now().timeIntervalSince(lastRevalidation) < likedSongsAutoRefreshMinInterval

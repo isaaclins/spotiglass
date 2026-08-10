@@ -4,8 +4,11 @@ import Foundation
 extension PlaybackSessionViewModel {
     func handle(_ event: PlaybackBridgeEvent) {
         switch event {
-        case let .ready(deviceID):
-            SpotiglassLog.info(.playback, "SDK ready deviceID=\(deviceID) previousDeviceID=\(self.deviceID ?? "<nil>") autoResumeOnNextReady=\(autoResumeOnNextReady)")
+        case .ready(let deviceID):
+            SpotiglassLog.info(
+                .playback,
+                "SDK ready deviceID=\(deviceID) previousDeviceID=\(self.deviceID ?? "<nil>") autoResumeOnNextReady=\(autoResumeOnNextReady)"
+            )
             if self.deviceID != deviceID {
                 hasTransferredPlaybackToCurrentDevice = false
             }
@@ -20,7 +23,7 @@ extension PlaybackSessionViewModel {
                     await autoResumeFromStaleSpotiglassDeviceIfNeeded(targetDeviceID: deviceID)
                 }
             }
-        case let .notReady(deviceID):
+        case .notReady(let deviceID):
             SpotiglassLog.info(.playback, "SDK not_ready deviceID=\(deviceID)")
             if self.deviceID == deviceID {
                 self.deviceID = nil
@@ -28,13 +31,17 @@ extension PlaybackSessionViewModel {
             hasTransferredPlaybackToCurrentDevice = false
             clearPendingSkipCommand()
             sdkNextTracks = []
-            setConnectionState(.unavailable("Spotify playback device is no longer available. Reconnect playback to continue."))
+            setConnectionState(
+                .unavailable("Spotify playback device is no longer available. Reconnect playback to continue."))
             Task {
                 await attemptPlaybackHostRecovery(cause: .notReady)
             }
-        case let .stateChanged(nowPlaying, isPaused, nextTracks):
+        case .stateChanged(let nowPlaying, let isPaused, let nextTracks):
             let suppressed = shouldSuppressStaleStateChange(nowPlaying: nowPlaying)
-            SpotiglassLog.info(.playback, "SDK state_changed nowPlayingURI=\(nowPlaying?.uri ?? "<nil>") isPaused=\(isPaused) nextCount=\(nextTracks.count) pendingPlayURI=\(pendingPlayURI ?? "<nil>") suppressed=\(suppressed)")
+            SpotiglassLog.info(
+                .playback,
+                "SDK state_changed nowPlayingURI=\(nowPlaying?.uri ?? "<nil>") isPaused=\(isPaused) nextCount=\(nextTracks.count) pendingPlayURI=\(pendingPlayURI ?? "<nil>") suppressed=\(suppressed)"
+            )
             observeSkipAdvance(nowPlayingURI: nowPlaying?.uri)
             if suppressed {
                 return
@@ -44,39 +51,48 @@ extension PlaybackSessionViewModel {
             if effectiveNowPlaying != nil {
                 hasTransferredPlaybackToCurrentDevice = true
             }
-            setConnectionState(isPaused ? .paused(effectiveNowPlaying) : .playing(effectiveNowPlaying ?? fallbackNowPlaying()))
-        case let .playerCommandFinished(command):
+            setConnectionState(
+                isPaused ? .paused(effectiveNowPlaying) : .playing(effectiveNowPlaying ?? fallbackNowPlaying()))
+        case .playerCommandFinished(let command):
             if command == "togglePlay" {
                 clearTogglePlayPauseAckWait()
             }
-        case let .initializationError(message):
-            setConnectionState(.error(PlaybackDisplayError(
-                title: SpotiglassL10n.string("error.playback.couldNotStart.title"),
-                message: message,
-                recoveryAction: .reconnect
-            )))
+        case .initializationError(let message):
+            setConnectionState(
+                .error(
+                    PlaybackDisplayError(
+                        title: SpotiglassL10n.string("error.playback.couldNotStart.title"),
+                        message: message,
+                        recoveryAction: .reconnect
+                    )))
             Task {
                 await attemptPlaybackHostRecovery(cause: .initializationError)
             }
-        case let .authenticationError(message):
-            setConnectionState(.error(PlaybackDisplayError(
-                title: SpotiglassL10n.string("error.playback.signInAgain.title"),
-                message: message,
-                recoveryAction: .reauthenticate
-            )))
-        case let .accountError(message):
-            setConnectionState(.error(PlaybackDisplayError(
-                title: SpotiglassL10n.string("error.playback.premium.title"),
-                message: message,
-                recoveryAction: nil
-            )))
-        case let .playbackError(message):
+        case .authenticationError(let message):
+            setConnectionState(
+                .error(
+                    PlaybackDisplayError(
+                        title: SpotiglassL10n.string("error.playback.signInAgain.title"),
+                        message: message,
+                        recoveryAction: .reauthenticate
+                    )))
+        case .accountError(let message):
+            setConnectionState(
+                .error(
+                    PlaybackDisplayError(
+                        title: SpotiglassL10n.string("error.playback.premium.title"),
+                        message: message,
+                        recoveryAction: nil
+                    )))
+        case .playbackError(let message):
             clearTogglePlayPauseAckWait()
-            setConnectionState(.error(PlaybackDisplayError(
-                title: SpotiglassL10n.string("error.playback.error.title"),
-                message: message,
-                recoveryAction: .retryTransfer
-            )))
+            setConnectionState(
+                .error(
+                    PlaybackDisplayError(
+                        title: SpotiglassL10n.string("error.playback.error.title"),
+                        message: message,
+                        recoveryAction: .retryTransfer
+                    )))
         case .log:
             break
         }

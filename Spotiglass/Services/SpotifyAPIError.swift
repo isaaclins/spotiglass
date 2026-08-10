@@ -17,40 +17,42 @@ enum SpotifyAPIError: Error, Equatable, LocalizedError {
         switch self {
         case .unauthorized:
             return "Spotify rejected this session. Sign in again, then retry."
-        case let .insufficientScope(requiredScopes, message, _):
+        case .insufficientScope(let requiredScopes, let message, _):
             return message
                 ?? "Your current Spotify session is missing required permissions: \(requiredScopes.joined(separator: ", ")). Disconnect and connect again to grant access."
-        case let .forbidden(message, _):
+        case .forbidden(let message, _):
             return message ?? "Spotify denied access to this resource."
-        case let .rateLimited(retryAfter):
+        case .rateLimited(let retryAfter):
             return "Spotify is rate limiting requests. \(SpotifyRateLimitDisplay.retryAfterClause(seconds: retryAfter))"
-        case let .notFound(message):
+        case .notFound(let message):
             return message ?? "This Spotify item is unavailable or was removed."
-        case let .badRequest(message, _):
+        case .badRequest(let message, _):
             if let message, !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 return "Spotify rejected this request: \(message)"
             }
             return "Spotify rejected this request."
-        case let .server(statusCode, message, _):
+        case .server(let statusCode, let message, _):
             let codeHint = "status code \(statusCode)"
             if let message, !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 return "Spotify’s servers had a problem (\(codeHint)): \(message). Please try again in a moment."
             }
             return "Spotify’s servers had a temporary problem (\(codeHint)). Please try again in a moment."
-        case let .decoding(message):
-            return "Spotify returned playlist data in an unexpected shape. Spotiglass can now skip missing optional fields, but this response still could not be decoded. \(message)"
-        case let .network(message):
+        case .decoding(let message):
+            return
+                "Spotify returned playlist data in an unexpected shape. Spotiglass can now skip missing optional fields, but this response still could not be decoded. \(message)"
+        case .network(let message):
             return message
-        case let .invalidRequest(message):
+        case .invalidRequest(let message):
             return message
         }
     }
 
     var diagnosticDetails: String? {
         switch self {
-        case let .insufficientScope(_, _, details), let .forbidden(_, details), let .badRequest(_, details), let .server(_, _, details):
+        case .insufficientScope(_, _, let details), .forbidden(_, let details), .badRequest(_, let details),
+            .server(_, _, let details):
             details
-        case let .rateLimited(retryAfter):
+        case .rateLimited(let retryAfter):
             SpotifyRateLimitDisplay.rawRetryDiagnostic(seconds: retryAfter)
         case .unauthorized, .notFound, .decoding, .network, .invalidRequest:
             nil

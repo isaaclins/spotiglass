@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 @MainActor
@@ -18,7 +19,8 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
         await viewModel.refreshConnectDevices()
 
         let refreshCalls = playbackAPI.actions.filter { $0 == "fetchAvailableDevices" }
-        XCTAssertEqual(refreshCalls.count, 1, "A second refresh inside freshness window should reuse cached device list.")
+        XCTAssertEqual(
+            refreshCalls.count, 1, "A second refresh inside freshness window should reuse cached device list.")
     }
 
     func testRefreshConnectDevicesCoalescesConcurrentRequests() async {
@@ -45,7 +47,8 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
     func testTransferPlaybackForcesDeviceRefreshOutsideFreshnessWindow() async {
         let playbackAPI = MockPlaybackAPI()
         playbackAPI.availableDevices = [
-            SpotifyConnectDevice(deviceID: "target", isActive: false, isRestricted: false, name: "Speaker", type: "speaker")
+            SpotifyConnectDevice(
+                deviceID: "target", isActive: false, isRestricted: false, name: "Speaker", type: "speaker")
         ]
         let viewModel = PlaybackSessionViewModel(
             playbackAPI: playbackAPI,
@@ -143,40 +146,42 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
             skipCommandLockoutTimeout: .seconds(2)
         )
         viewModel.handle(.ready(deviceID: "device-1"))
-        viewModel.handle(.stateChanged(
-            PlaybackNowPlaying(
-                name: "Old",
-                artists: ["Artist"],
-                albumName: nil,
-                albumID: nil,
-                albumArtURL: nil,
-                durationMilliseconds: 180_000,
-                positionMilliseconds: 5_000,
-                uri: "spotify:track:old"
-            ),
-            isPaused: false,
-            nextTracks: []
-        ))
+        viewModel.handle(
+            .stateChanged(
+                PlaybackNowPlaying(
+                    name: "Old",
+                    artists: ["Artist"],
+                    albumName: nil,
+                    albumID: nil,
+                    albumArtURL: nil,
+                    durationMilliseconds: 180_000,
+                    positionMilliseconds: 5_000,
+                    uri: "spotify:track:old"
+                ),
+                isPaused: false,
+                nextTracks: []
+            ))
 
         await viewModel.next()
         await viewModel.next()
         XCTAssertEqual(playbackAPI.actions.filter { $0 == "next:device-1" }.count, 1)
         XCTAssertEqual(viewModel.nextCommandDroppedLockoutCount, 1)
 
-        viewModel.handle(.stateChanged(
-            PlaybackNowPlaying(
-                name: "New",
-                artists: ["Artist"],
-                albumName: nil,
-                albumID: nil,
-                albumArtURL: nil,
-                durationMilliseconds: 180_000,
-                positionMilliseconds: 0,
-                uri: "spotify:track:new"
-            ),
-            isPaused: false,
-            nextTracks: []
-        ))
+        viewModel.handle(
+            .stateChanged(
+                PlaybackNowPlaying(
+                    name: "New",
+                    artists: ["Artist"],
+                    albumName: nil,
+                    albumID: nil,
+                    albumArtURL: nil,
+                    durationMilliseconds: 180_000,
+                    positionMilliseconds: 0,
+                    uri: "spotify:track:new"
+                ),
+                isPaused: false,
+                nextTracks: []
+            ))
         await viewModel.next()
         XCTAssertEqual(playbackAPI.actions.filter { $0 == "next:device-1" }.count, 2)
     }
@@ -190,20 +195,21 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
             skipCommandLockoutTimeout: .milliseconds(40)
         )
         viewModel.handle(.ready(deviceID: "device-1"))
-        viewModel.handle(.stateChanged(
-            PlaybackNowPlaying(
-                name: "Old",
-                artists: ["Artist"],
-                albumName: nil,
-                albumID: nil,
-                albumArtURL: nil,
-                durationMilliseconds: 180_000,
-                positionMilliseconds: 5_000,
-                uri: "spotify:track:old"
-            ),
-            isPaused: false,
-            nextTracks: []
-        ))
+        viewModel.handle(
+            .stateChanged(
+                PlaybackNowPlaying(
+                    name: "Old",
+                    artists: ["Artist"],
+                    albumName: nil,
+                    albumID: nil,
+                    albumArtURL: nil,
+                    durationMilliseconds: 180_000,
+                    positionMilliseconds: 5_000,
+                    uri: "spotify:track:old"
+                ),
+                isPaused: false,
+                nextTracks: []
+            ))
 
         await viewModel.next()
         await viewModel.next()
@@ -236,7 +242,8 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
         )
         let playDeadline = Date().addingTimeInterval(1.5)
         while Date() < playDeadline,
-              playbackAPI.actions.filter({ $0.hasPrefix("play:") }).count < 2 {
+            playbackAPI.actions.filter({ $0.hasPrefix("play:") }).count < 2
+        {
             try? await Task.sleep(nanoseconds: 25_000_000)
         }
         let playActions = playbackAPI.actions.filter { $0.hasPrefix("play:") }
@@ -313,7 +320,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
             ["transfer-error:device-1:false"],
             "Retry within Spotify's Retry-After window must not re-issue PUT /v1/me/player."
         )
-        guard case let .error(displayError) = viewModel.connectionState else {
+        guard case .error(let displayError) = viewModel.connectionState else {
             return XCTFail("Expected .error after rate-limited retry")
         }
         XCTAssertEqual(displayError.recoveryAction, .retryTransfer)
@@ -343,7 +350,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
             transferCount, 2,
             "Automatic ensure-before-play transfers must stop after the rolling-window cap is reached."
         )
-        guard case let .error(displayError) = viewModel.connectionState else {
+        guard case .error(let displayError) = viewModel.connectionState else {
             return XCTFail("Expected .error after the budget rejected the third automatic transfer")
         }
         XCTAssertEqual(displayError.recoveryAction, .retryTransfer)

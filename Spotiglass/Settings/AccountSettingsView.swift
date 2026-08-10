@@ -1,5 +1,5 @@
-import SwiftUI
 import AppKit
+import SwiftUI
 
 struct AccountSettingsView: View {
     @ObservedObject var viewModel: AuthViewModel
@@ -20,7 +20,7 @@ struct AccountSettingsView: View {
                                 )
                             )
                         )
-                            .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondary)
                     }
                 } else {
                     LabeledContent(SpotiglassL10n.string("settings.account.details")) {
@@ -80,9 +80,9 @@ struct AccountSettingsView: View {
 
     private var activeSession: AuthenticatedSession? {
         switch viewModel.state {
-        case let .signedIn(session):
+        case .signedIn(let session):
             session
-        case let .refreshing(.some(session)):
+        case .refreshing(.some(let session)):
             session
         case .signedOut, .signingIn, .failed, .refreshing(.none):
             nil

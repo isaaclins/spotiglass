@@ -74,7 +74,7 @@ enum MacAudioOutputHardware {
         var dataSize: UInt32 = 0
         let systemObject = AudioObjectID(kAudioObjectSystemObject)
         guard AudioObjectGetPropertyDataSize(systemObject, &address, 0, nil, &dataSize) == noErr,
-              dataSize > 0
+            dataSize > 0
         else {
             return []
         }
@@ -93,7 +93,7 @@ enum MacAudioOutputHardware {
         )
         var propertySize: UInt32 = 0
         guard AudioObjectGetPropertyDataSize(deviceID, &address, 0, nil, &propertySize) == noErr,
-              propertySize > 0
+            propertySize > 0
         else {
             return 0
         }

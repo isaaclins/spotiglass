@@ -17,10 +17,12 @@ private final class LRCLIBStubURLProtocol: URLProtocol {
         Self.requestCount += 1
         let endpoint = request.url?.path.split(separator: "/").last.map(String.init) ?? "unknown"
         Self.requestedEndpoints.append(endpoint)
-        let configured = Self.responseByEndpoint[endpoint]
+        let configured =
+            Self.responseByEndpoint[endpoint]
             ?? (statusCode: 200, body: #"{"instrumental":false,"syncedLyrics":"[00:01.00]Test","plainLyrics":null}"#)
         let body = Data(configured.body.utf8)
-        let response = HTTPURLResponse(url: request.url!, statusCode: configured.statusCode, httpVersion: nil, headerFields: nil)!
+        let response = HTTPURLResponse(
+            url: request.url!, statusCode: configured.statusCode, httpVersion: nil, headerFields: nil)!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: body)
         client?.urlProtocolDidFinishLoading(self)
@@ -62,7 +64,7 @@ final class LrcLibClientTests: XCTestCase {
             return XCTFail("fetchLyrics threw: \(error)")
         }
 
-        guard case let .synced(lines) = lyrics else {
+        guard case .synced(let lines) = lyrics else {
             return XCTFail("expected synced lyrics, got \(lyrics)")
         }
         XCTAssertFalse(lines.isEmpty)
@@ -94,7 +96,7 @@ final class LrcLibClientTests: XCTestCase {
         )
 
         let lyrics = try await client.fetchLyrics(for: track)
-        guard case let .synced(lines) = lyrics else {
+        guard case .synced(let lines) = lyrics else {
             return XCTFail("expected synced lyrics fallback, got \(lyrics)")
         }
         XCTAssertEqual(lines.first?.words, "Fallback")
@@ -126,7 +128,7 @@ final class LrcLibClientTests: XCTestCase {
         )
 
         let lyrics = try await client.fetchLyrics(for: track)
-        guard case let .synced(lines) = lyrics else {
+        guard case .synced(let lines) = lyrics else {
             return XCTFail("expected synced lyrics fallback, got \(lyrics)")
         }
         XCTAssertEqual(lines.first?.words, "FromFull")
@@ -174,7 +176,7 @@ final class LrcLibClientTests: XCTestCase {
         let track = sampleTrack()
 
         let lyrics = try await client.fetchLyrics(for: track)
-        guard case let .synced(lines) = lyrics else {
+        guard case .synced(let lines) = lyrics else {
             return XCTFail("expected synced lyrics, got \(lyrics)")
         }
         XCTAssertFalse(lines.isEmpty)
@@ -194,10 +196,12 @@ final class LrcLibClientTests: XCTestCase {
 
         LRCLIBStubURLProtocol.responseByEndpoint = [
             "get-cached": (statusCode: 404, body: ""),
-            "get": (statusCode: 200, body: #"{"instrumental":false,"syncedLyrics":null,"plainLyrics":"Line A\nLine B"}"#),
+            "get": (
+                statusCode: 200, body: #"{"instrumental":false,"syncedLyrics":null,"plainLyrics":"Line A\nLine B"}"#
+            ),
         ]
         let plain = try await client.fetchLyrics(for: sampleTrack())
-        guard case let .unsyncedPlain(lines) = plain else {
+        guard case .unsyncedPlain(let lines) = plain else {
             return XCTFail("expected plain lyrics")
         }
         XCTAssertEqual(lines, ["Line A", "Line B"])
@@ -211,7 +215,7 @@ final class LrcLibClientTests: XCTestCase {
         )
         let client = makeClient()
         let lyrics = try await client.fetchLyrics(for: sampleTrack())
-        guard case let .synced(lines) = lyrics else {
+        guard case .synced(let lines) = lyrics else {
             return XCTFail("expected synced fallback")
         }
         XCTAssertEqual(lines.first?.words, "After503")

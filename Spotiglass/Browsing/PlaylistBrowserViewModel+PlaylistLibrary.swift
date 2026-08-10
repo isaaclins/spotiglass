@@ -9,7 +9,9 @@ extension PlaylistBrowserViewModel {
 
     func load() async {
         if let bundle = try? cache.loadPlaylistsBundle(now: now()), !bundle.playlists.isEmpty {
-            apply(playlists: bundle.playlists, state: .loaded(bundle.playlists.map(PlaylistRowViewModel.init)), preserveSelection: true)
+            apply(
+                playlists: bundle.playlists, state: .loaded(bundle.playlists.map(PlaylistRowViewModel.init)),
+                preserveSelection: true)
             if bundle.age >= playlistListAutoRefreshMinInterval {
                 await refreshPlaylists(trigger: .automatic)
             } else {
@@ -44,23 +46,24 @@ extension PlaylistBrowserViewModel {
             }
             let selectionBefore = sidebarSelection
             let playlistIDBefore: String? = {
-                if case let .playlist(id) = selectionBefore { return id }
+                if case .playlist(let id) = selectionBefore { return id }
                 return nil
             }()
             let snapshotBeforeRefresh = playlistIDBefore.flatMap { playlistsByID[$0]?.snapshotID }
 
-            apply(playlists: playlists, state: .loaded(playlists.map(PlaylistRowViewModel.init)), preserveSelection: true)
+            apply(
+                playlists: playlists, state: .loaded(playlists.map(PlaylistRowViewModel.init)), preserveSelection: true)
 
             guard let selectionAfter = sidebarSelection else { return }
 
             let shouldScheduleDetailReload: Bool = {
                 switch selectionAfter {
-                case .likedSongs:
+                case .likedSongs, .search:
                     return false
                 case .home, .pinnedItem:
                     return selectionBefore != selectionAfter
-                case let .playlist(idAfter):
-                    if case let .playlist(idBefore) = selectionBefore, idBefore == idAfter {
+                case .playlist(let idAfter):
+                    if case .playlist(let idBefore) = selectionBefore, idBefore == idAfter {
                         let newSnap = playlistsByID[idAfter]?.snapshotID
                         return newSnap != snapshotBeforeRefresh
                     }
@@ -91,10 +94,11 @@ extension PlaylistBrowserViewModel {
         }
 
         if trigger == .userInitiated,
-           let lastManualPlaylistRefreshAt,
-           now().timeIntervalSince(lastManualPlaylistRefreshAt) < manualPlaylistRefreshCooldown,
-           let cached = currentPlaylistSummariesFromLoadedState(),
-           !cached.isEmpty {
+            let lastManualPlaylistRefreshAt,
+            now().timeIntervalSince(lastManualPlaylistRefreshAt) < manualPlaylistRefreshCooldown,
+            let cached = currentPlaylistSummariesFromLoadedState(),
+            !cached.isEmpty
+        {
             return cached
         }
 
@@ -141,21 +145,22 @@ extension PlaylistBrowserViewModel {
 
         if preserveSelection, let selection = sidebarSelection {
             switch selection {
-            case let .playlist(id) where playlistsByID[id] != nil:
+            case .playlist(let id) where playlistsByID[id] != nil:
                 return
-            case .likedSongs, .home, .pinnedItem:
+            case .likedSongs, .home, .search, .pinnedItem:
                 return
             case .playlist:
                 break
             }
         }
 
-        if case let .playlist(missingID) = sidebarSelection, playlistsByID[missingID] == nil {
-            detailState = .error(BrowsingDisplayError(
-                title: SpotiglassL10n.string("error.browsing.playlistUnavailable.title"),
-                message: SpotiglassL10n.string("error.browsing.playlistUnavailable.deleted"),
-                canRetry: true
-            ))
+        if case .playlist(let missingID) = sidebarSelection, playlistsByID[missingID] == nil {
+            detailState = .error(
+                BrowsingDisplayError(
+                    title: SpotiglassL10n.string("error.browsing.playlistUnavailable.title"),
+                    message: SpotiglassL10n.string("error.browsing.playlistUnavailable.deleted"),
+                    canRetry: true
+                ))
         }
         // Default landing surface is Home, not the first playlist.
         sidebarSelection = .home

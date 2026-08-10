@@ -1,5 +1,6 @@
 import AppKit
 import XCTest
+
 @testable import Spotiglass
 
 @MainActor
@@ -52,30 +53,32 @@ final class CommandPaletteViewModelPinAndKeyEventsTests: XCTestCase {
         // returns nil and the keymap dispatch is skipped.
         let modifiers: NSEvent.ModifierFlags = [.shift, .command]
         let leftArrowCharacter = String(Character(UnicodeScalar(NSLeftArrowFunctionKey)!))
-        guard let firstPress = NSEvent.keyEvent(
-            with: .keyDown,
-            location: .zero,
-            modifierFlags: modifiers,
-            timestamp: 0,
-            windowNumber: 0,
-            context: nil,
-            characters: leftArrowCharacter,
-            charactersIgnoringModifiers: leftArrowCharacter,
-            isARepeat: false,
-            keyCode: 123
-        ),
-        let repeatedPress = NSEvent.keyEvent(
-            with: .keyDown,
-            location: .zero,
-            modifierFlags: modifiers,
-            timestamp: 0,
-            windowNumber: 0,
-            context: nil,
-            characters: leftArrowCharacter,
-            charactersIgnoringModifiers: leftArrowCharacter,
-            isARepeat: true,
-            keyCode: 123
-        ) else {
+        guard
+            let firstPress = NSEvent.keyEvent(
+                with: .keyDown,
+                location: .zero,
+                modifierFlags: modifiers,
+                timestamp: 0,
+                windowNumber: 0,
+                context: nil,
+                characters: leftArrowCharacter,
+                charactersIgnoringModifiers: leftArrowCharacter,
+                isARepeat: false,
+                keyCode: 123
+            ),
+            let repeatedPress = NSEvent.keyEvent(
+                with: .keyDown,
+                location: .zero,
+                modifierFlags: modifiers,
+                timestamp: 0,
+                windowNumber: 0,
+                context: nil,
+                characters: leftArrowCharacter,
+                charactersIgnoringModifiers: leftArrowCharacter,
+                isARepeat: true,
+                keyCode: 123
+            )
+        else {
             return XCTFail("Could not synthesize NSEvent for shift-cmd-left.")
         }
 
@@ -101,30 +104,32 @@ final class CommandPaletteViewModelPinAndKeyEventsTests: XCTestCase {
         let settingsStore = SpotiglassSettingsStore(fileURL: url)
         let keymapStore = CommandPaletteKeymapStore(settingsStore: settingsStore)
         keymapStore.editorText = """
-        {
-          "bindings": [
-            { "keystrokes": ["cmd-k"], "command": "\(CommandPaletteCommandID.openPalette)", "when": "always" },
-            { "keystrokes": ["cmd-k"], "command": "\(CommandPaletteCommandID.openPalette)", "when": "always" }
-          ]
-        }
-        """
+            {
+              "bindings": [
+                { "keystrokes": ["cmd-k"], "command": "\(CommandPaletteCommandID.openPalette)", "when": "always" },
+                { "keystrokes": ["cmd-k"], "command": "\(CommandPaletteCommandID.openPalette)", "when": "always" }
+              ]
+            }
+            """
         keymapStore.applyEditorText()
 
         let manager = CommandPaletteManager(keymapStore: keymapStore)
         manager.viewModel.hide()
 
-        guard let event = NSEvent.keyEvent(
-            with: .keyDown,
-            location: .zero,
-            modifierFlags: [.command],
-            timestamp: 0,
-            windowNumber: 0,
-            context: nil,
-            characters: "k",
-            charactersIgnoringModifiers: "k",
-            isARepeat: false,
-            keyCode: 40
-        ) else {
+        guard
+            let event = NSEvent.keyEvent(
+                with: .keyDown,
+                location: .zero,
+                modifierFlags: [.command],
+                timestamp: 0,
+                windowNumber: 0,
+                context: nil,
+                characters: "k",
+                charactersIgnoringModifiers: "k",
+                isARepeat: false,
+                keyCode: 40
+            )
+        else {
             return XCTFail("Could not synthesize NSEvent for cmd-k.")
         }
 

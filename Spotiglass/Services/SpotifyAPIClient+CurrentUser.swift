@@ -30,7 +30,8 @@ extension SpotifyAPIClient {
             let page: SpotifyPagingDTO<SpotifyPlaylistTrackItemDTO>
             if let nextURL {
                 if let nextOffset = Self.offset(from: nextURL),
-                   seenOffsets.contains(nextOffset) {
+                    seenOffsets.contains(nextOffset)
+                {
                     break
                 }
                 page = try await send(url: nextURL)
@@ -39,7 +40,7 @@ extension SpotifyAPIClient {
                     path: "/v1/me/tracks",
                     queryItems: [
                         URLQueryItem(name: "limit", value: String(pageLimit)),
-                        URLQueryItem(name: "offset", value: String(offset))
+                        URLQueryItem(name: "offset", value: String(offset)),
                     ]
                 )
             }
@@ -47,9 +48,10 @@ extension SpotifyAPIClient {
                 totalAvailable = page.total
             }
             let startIndex = results.count
-            results.append(contentsOf: page.items.enumerated().map { index, item in
-                item.domainModel(position: startIndex + index)
-            })
+            results.append(
+                contentsOf: page.items.enumerated().map { index, item in
+                    item.domainModel(position: startIndex + index)
+                })
             seenOffsets.insert(page.offset)
             nextURL = page.next
             offset += page.limit
@@ -63,10 +65,11 @@ extension SpotifyAPIClient {
     }
 }
 
-private extension SpotifyAPIClient {
-    static func offset(from url: URL) -> Int? {
+extension SpotifyAPIClient {
+    fileprivate static func offset(from url: URL) -> Int? {
         guard let queryItems = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems,
-              let offsetValue = queryItems.first(where: { $0.name == "offset" })?.value else {
+            let offsetValue = queryItems.first(where: { $0.name == "offset" })?.value
+        else {
             return nil
         }
         return Int(offsetValue)

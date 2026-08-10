@@ -11,17 +11,17 @@ enum TransportPollScheduling {
             "disconnected"
         case .connecting:
             "connecting"
-        case let .ready(deviceID):
+        case .ready(let deviceID):
             "ready:\(deviceID)"
-        case let .transferring(deviceID):
+        case .transferring(let deviceID):
             "transferring:\(deviceID)"
-        case let .playing(nowPlaying), let .paused(.some(nowPlaying)):
+        case .playing(let nowPlaying), .paused(.some(let nowPlaying)):
             "track:\(resolvedTrackURI(nowPlaying.uri))"
         case .paused(.none):
             "paused-empty"
-        case let .unavailable(message):
+        case .unavailable(let message):
             "unavailable:\(message)"
-        case let .error(error):
+        case .error(let error):
             "error:\(error.title)"
         }
     }

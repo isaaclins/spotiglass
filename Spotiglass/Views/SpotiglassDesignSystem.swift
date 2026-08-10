@@ -138,7 +138,6 @@ struct ShellBackground: View {
 
     var body: some View {
         Color(nsColor: reduceTransparency ? .windowBackgroundColor : .underPageBackgroundColor)
-        .ignoresSafeArea()
+            .ignoresSafeArea()
     }
 }
-

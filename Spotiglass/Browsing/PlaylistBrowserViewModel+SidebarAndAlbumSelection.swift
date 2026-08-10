@@ -49,7 +49,8 @@ extension PlaylistBrowserViewModel {
         artworkURL: URL?,
         origin: BrowserNavigationOrigin = .reset
     ) async {
-        registerNavigationTransition(to: .album(id: id, title: displayTitle, subtitle: displaySubtitle, artworkURL: artworkURL))
+        registerNavigationTransition(
+            to: .album(id: id, title: displayTitle, subtitle: displaySubtitle, artworkURL: artworkURL))
         applyBreadcrumbForAlbum(
             id: id,
             title: displayTitle,

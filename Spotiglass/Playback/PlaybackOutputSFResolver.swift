@@ -43,7 +43,7 @@ enum PlaybackOutputSFResolver {
             ("airpods (3rd generation)", ["airpods.gen3", "airpods", "headphones"]),
             ("airpods 4", ["airpods.gen4", "airpods", "headphones"]),
             ("airpods 3", ["airpods.gen3", "airpods", "headphones"]),
-            ("airpods", ["airpods", "headphones"])
+            ("airpods", ["airpods", "headphones"]),
         ]
 
         for (needle, symbols) in airpodsRules where haystack.contains(needle) {
@@ -57,11 +57,15 @@ enum PlaybackOutputSFResolver {
             return ["homepod.fill", "hifispeaker.fill", "headphones"]
         }
 
-        if haystack.contains("beats") || haystack.contains("studio bud") || haystack.contains("powerbeats") || haystack.contains("beats fit") {
+        if haystack.contains("beats") || haystack.contains("studio bud") || haystack.contains("powerbeats")
+            || haystack.contains("beats fit")
+        {
             return ["beats.headphones", "headphones"]
         }
 
-        if haystack.contains("macbook") || haystack.contains("imac") || haystack.contains("mac studio") || haystack.contains("mac pro") || haystack.contains("mac mini") {
+        if haystack.contains("macbook") || haystack.contains("imac") || haystack.contains("mac studio")
+            || haystack.contains("mac pro") || haystack.contains("mac mini")
+        {
             return ["macbook", "laptopcomputer", "headphones"]
         }
 

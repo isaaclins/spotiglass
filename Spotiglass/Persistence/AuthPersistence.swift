@@ -15,14 +15,14 @@ enum KeychainRefreshTokenStoreError: Error, Equatable, LocalizedError {
         switch self {
         case .invalidStoredData:
             "The saved Spotify sign-in data could not be read. Disconnect, then connect again to sign in."
-        case let .unexpectedStatus(status):
+        case .unexpectedStatus(let status):
             Self.message(forUnexpectedStatus: status)
         }
     }
 
     var recoverySuggestion: String? {
         switch self {
-        case let .unexpectedStatus(status):
+        case .unexpectedStatus(let status):
             SecCopyErrorMessageString(status, nil).map { $0 as String }
         case .invalidStoredData:
             nil

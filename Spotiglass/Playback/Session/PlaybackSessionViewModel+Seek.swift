@@ -26,8 +26,9 @@ extension PlaybackSessionViewModel {
             return nil
         }
         if let incomingURI = nowPlaying.uri,
-           let currentURI = currentNowPlaying?.uri,
-           incomingURI != currentURI {
+            let currentURI = currentNowPlaying?.uri,
+            incomingURI != currentURI
+        {
             clearPendingSeek()
             return nowPlaying
         }
@@ -67,7 +68,8 @@ extension PlaybackSessionViewModel {
             queuedSeekPositionMilliseconds = nil
 
             if let lastSentPosition = lastSentSeekPositionMilliseconds,
-               abs(target - lastSentPosition) < seekDeduplicationWindowMilliseconds {
+                abs(target - lastSentPosition) < seekDeduplicationWindowMilliseconds
+            {
                 continue
             }
 
@@ -118,9 +120,9 @@ extension PlaybackSessionViewModel {
 
     private func applyOptimisticSeekPosition(_ milliseconds: Int) {
         switch connectionState {
-        case let .playing(nowPlaying):
+        case .playing(let nowPlaying):
             setConnectionState(.playing(nowPlaying.with(positionMilliseconds: milliseconds)))
-        case let .paused(nowPlaying):
+        case .paused(let nowPlaying):
             if let nowPlaying {
                 setConnectionState(.paused(nowPlaying.with(positionMilliseconds: milliseconds)))
             }

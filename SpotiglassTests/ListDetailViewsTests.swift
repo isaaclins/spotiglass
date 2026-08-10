@@ -1,6 +1,7 @@
 import SwiftUI
 import ViewInspector
 import XCTest
+
 @testable import Spotiglass
 
 @MainActor
@@ -67,7 +68,7 @@ final class ListDetailViewsTests: XCTestCase {
         let track = TrackRowViewModel(
             topTrack: base.withArtistRefs([
                 SpotifyArtistRef(id: "a1", name: "Alpha"),
-                SpotifyArtistRef(id: "a2", name: "Beta")
+                SpotifyArtistRef(id: "a2", name: "Beta"),
             ]),
             listPosition: 4
         )
@@ -99,7 +100,7 @@ final class ListDetailViewsTests: XCTestCase {
 
     func testVirtualizedTrackListMountsRows() throws {
         let store = pinnedStore()
-        let tracks = (1 ... 24).map { index in
+        let tracks = (1...24).map { index in
             trackRow(id: "vt\(index)", title: "Track \(index)", explicit: false, listPosition: index)
         }
         var restoreID: String?
@@ -137,7 +138,7 @@ final class ListDetailViewsTests: XCTestCase {
         )
         let tracks = TrackRowViewModel.numberedPlaylistRows([
             PlaylistBrowsingTestFixtures.track(id: "pt1"),
-            PlaylistBrowsingTestFixtures.track(id: "pt2")
+            PlaylistBrowsingTestFixtures.track(id: "pt2"),
         ])
         let detail = PlaylistDetailViewModel(playlist: playlist, tracks: tracks)
         var restoreID: String?
@@ -293,14 +294,14 @@ final class ListDetailViewsTests: XCTestCase {
 
 // MARK: - Fixtures
 
-private extension ListDetailViewsTests {
-    func pinnedStore() -> PinnedItemsStore {
+extension ListDetailViewsTests {
+    fileprivate func pinnedStore() -> PinnedItemsStore {
         let store = PinnedItemsStore(cache: InMemoryPinnedItemsCache())
         store.bind(userID: "list-detail-tests")
         return store
     }
 
-    func trackRow(
+    fileprivate func trackRow(
         id: String,
         title: String,
         explicit: Bool,
@@ -323,7 +324,7 @@ private extension ListDetailViewsTests {
         )
     }
 
-    func trackListRow(
+    fileprivate func trackListRow(
         track: TrackRowViewModel,
         trackNumber: Int,
         isCurrent: Bool,
@@ -346,7 +347,7 @@ private extension ListDetailViewsTests {
         .environmentObject(store)
     }
 
-    func sampleArtistDetail(canLoadMore: Bool, loadingMore: Bool = false) -> ArtistDetailViewModel {
+    fileprivate func sampleArtistDetail(canLoadMore: Bool, loadingMore: Bool = false) -> ArtistDetailViewModel {
         let artist = SpotifyArtistDetail(
             id: "artist1",
             name: "Sample Artist",
@@ -366,7 +367,7 @@ private extension ListDetailViewsTests {
             SpotifyArtistAlbum(
                 id: "single1", name: "Hit Single", imageURL: nil, releaseYear: "2021",
                 totalTracks: 1, group: .single, uri: "spotify:album:single1"
-            )
+            ),
         ]
         return ArtistDetailViewModel(
             artist: artist,
@@ -377,7 +378,7 @@ private extension ListDetailViewsTests {
         )
     }
 
-    func artistDetailContent(detail: ArtistDetailViewModel) -> ArtistDetailContent {
+    fileprivate func artistDetailContent(detail: ArtistDetailViewModel) -> ArtistDetailContent {
         ArtistDetailContent(
             detail: detail,
             playTrack: { _ in },
@@ -394,8 +395,8 @@ private extension ListDetailViewsTests {
     }
 }
 
-private extension SpotifyTrack {
-    func withArtistRefs(_ refs: [SpotifyArtistRef]) -> SpotifyTrack {
+extension SpotifyTrack {
+    fileprivate func withArtistRefs(_ refs: [SpotifyArtistRef]) -> SpotifyTrack {
         SpotifyTrack(
             id: id,
             name: name,

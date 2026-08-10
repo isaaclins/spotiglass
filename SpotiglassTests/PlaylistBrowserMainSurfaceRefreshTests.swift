@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 @MainActor
@@ -43,7 +44,7 @@ final class PlaylistBrowserMainSurfaceRefreshTests: XCTestCase {
         await vm.load()
         await vm.selectArtist(id: "artist-1")
         await vm.refreshSelectedPlaylist()
-        guard case let .loaded(.artist(detail)) = vm.detailState else {
+        guard case .loaded(.artist(let detail)) = vm.detailState else {
             return XCTFail("expected artist detail")
         }
         XCTAssertEqual(detail.artist.name, "Artist artist-1")

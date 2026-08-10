@@ -58,7 +58,8 @@ struct HotkeyRecorderField: NSViewRepresentable {
             // Local event monitors destabilize the XCTest host on headless CI; key paths are
             // exercised via injected keyDown events in HotkeyRecorderFieldTests instead.
             guard !Self.isRunningUnderXCTest else { return }
-            mouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak view] event in
+            mouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) {
+                [weak view] event in
                 guard let view, view.isRecording else { return event }
                 guard event.window === view.window else { return event }
                 let p = view.convert(event.locationInWindow, from: nil)
@@ -93,7 +94,7 @@ struct HotkeyRecorderField: NSViewRepresentable {
                 return
             }
             let mods = event.modifierFlags.intersection([.command, .control, .option, .shift])
-            if (event.keyCode == 51 || event.keyCode == 117), mods.isEmpty {
+            if event.keyCode == 51 || event.keyCode == 117, mods.isEmpty {
                 do {
                     try parent.keymapStore.clearBinding(commandID: parent.commandID)
                     parent.onApplied()
@@ -113,7 +114,7 @@ struct HotkeyRecorderField: NSViewRepresentable {
                 parent.onApplied()
                 view.finishRecordingAndResign()
             } catch let conflict as KeymapConflictError {
-                if case let .conflict(otherID) = conflict {
+                if case .conflict(let otherID) = conflict {
                     parent.onCaptureConflict(shortcut, otherID)
                 }
                 view.finishRecordingAndResign()

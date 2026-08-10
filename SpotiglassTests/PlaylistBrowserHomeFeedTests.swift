@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 @MainActor
@@ -22,10 +23,12 @@ final class PlaylistBrowserHomeFeedTests: XCTestCase {
 
     func testQuickAccessListsLikedSongsThenPlaylists() async {
         let api = MockBrowsingAPI(
-            playlistResults: [.success([
-                PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One"),
-                PlaylistBrowsingTestFixtures.playlist(id: "two", name: "Two"),
-            ])],
+            playlistResults: [
+                .success([
+                    PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One"),
+                    PlaylistBrowsingTestFixtures.playlist(id: "two", name: "Two"),
+                ])
+            ],
             trackResults: [:]
         )
         let vm = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())

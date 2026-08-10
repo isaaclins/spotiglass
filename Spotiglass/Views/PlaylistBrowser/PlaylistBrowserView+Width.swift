@@ -33,7 +33,8 @@ extension PlaylistBrowserView {
         browserContentWidth = result.committedWidth
 
         if result.crossedIntoNarrow,
-           isQueueVisible, playlistColumnVisibility != .detailOnly {
+            isQueueVisible, playlistColumnVisibility != .detailOnly
+        {
             let lastOpened: BrowserWidthCommitPolicy.SidebarToCloseOnNarrow =
                 lastOpenedSidebar == .queue ? .queue : .playlistColumn
             switch BrowserWidthCommitPolicy.sidebarToCloseOnNarrow(

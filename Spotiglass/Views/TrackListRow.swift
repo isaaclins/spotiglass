@@ -105,10 +105,12 @@ struct TrackListRow: View {
         .onHover { hovering in
             isHovering = hovering
         }
-        .modifier(TrackListPinningModifier(
-            track: track,
-            tracksSurfaceID: tracksSurfaceID
-        ))
+        .modifier(
+            TrackListPinningModifier(
+                track: track,
+                tracksSurfaceID: tracksSurfaceID
+            )
+        )
         .onTapGesture {
             // Shift-click ⇒ extend selection (no playback).
             // Plain click   ⇒ replace selection, then play / toggle.

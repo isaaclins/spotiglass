@@ -31,14 +31,14 @@ enum AppConnectionState: Equatable {
             SpotiglassL10n.string("app.connection.signedOut.message")
         case .signingIn:
             SpotiglassL10n.string("app.connection.signingIn.message")
-        case let .signedIn(session):
+        case .signedIn(let session):
             String(
                 format: SpotiglassL10n.string("app.connection.signedIn.message"),
                 session.expiresAt.formatted(date: .omitted, time: .shortened)
             )
         case .refreshing:
             SpotiglassL10n.string("app.connection.refreshing.message")
-        case let .failed(error):
+        case .failed(let error):
             error.message
         }
     }

@@ -145,8 +145,8 @@ struct PlaylistBrowserView: View {
         }
         .task(id: lyricsHalfwayNextPreloadTaskID) {
             guard let current = lyricsPrefetchTrack,
-                  current.durationMilliseconds > 0,
-                  current.spotifyTrackIDForLyrics != nil
+                current.durationMilliseconds > 0,
+                current.spotifyTrackIDForLyrics != nil
             else { return }
             let halfMs = current.durationMilliseconds / 2
             let waitMs = max(0, halfMs - current.positionMilliseconds)
@@ -157,7 +157,7 @@ struct PlaylistBrowserView: View {
             await Task(priority: .userInitiated) {
                 await queueViewModel.prefetchQueueForLyricsOverlay()
                 guard let nextPlayback = queueViewModel.upcomingItems.first?.playbackNowPlayingForLyricsPrefetch(),
-                      let nextID = nextPlayback.spotifyTrackIDForLyrics
+                    let nextID = nextPlayback.spotifyTrackIDForLyrics
                 else { return }
                 guard nextID != current.spotifyTrackIDForLyrics else { return }
                 await lyricsViewModel.preload(track: nextPlayback)
@@ -230,7 +230,8 @@ struct PlaylistBrowserView: View {
                 },
                 navigateToAlbum: { album, artistSubtitle, artworkURL in
                     lyricsOverlay.dismiss()
-                    openAlbumFromTapTarget(album, artistSubtitle: artistSubtitle, artworkURL: artworkURL, origin: .reset)
+                    openAlbumFromTapTarget(
+                        album, artistSubtitle: artistSubtitle, artworkURL: artworkURL, origin: .reset)
                 }
             )
             bindCommandPalette(queueVisible: $isQueueVisible, lyricsPresented: isLyricsPresentedBinding)

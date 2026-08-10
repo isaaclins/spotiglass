@@ -304,7 +304,7 @@ struct PlaybackControlsView: View {
                 .foregroundStyle(.secondary)
                 .accessibilityHidden(true)
 
-            Slider(value: playbackVolumeBinding, in: 0 ... 1)
+            Slider(value: playbackVolumeBinding, in: 0...1)
                 .controlSize(.small)
                 .frame(minWidth: 100, idealWidth: 120, maxWidth: 140)
                 .disabled(!hasReadyDevice)
@@ -328,7 +328,8 @@ struct PlaybackControlsView: View {
             Button {
                 viewModel.start()
             } label: {
-                Label(SpotiglassL10n.string("playback.controls.reconnect"), systemImage: "dot.radiowaves.left.and.right")
+                Label(
+                    SpotiglassL10n.string("playback.controls.reconnect"), systemImage: "dot.radiowaves.left.and.right")
             }
             .accessibilityLabel(SpotiglassL10n.string("playback.controls.reconnect.label"))
             .accessibilityHint(SpotiglassL10n.string("playback.controls.reconnect.hint"))
@@ -336,13 +337,15 @@ struct PlaybackControlsView: View {
             ProgressView()
                 .controlSize(.small)
                 .accessibilityLabel(SpotiglassL10n.string("playback.controls.connecting"))
-        case let .error(error):
+        case .error(let error):
             switch error.recoveryAction {
             case .reconnect:
                 Button {
                     viewModel.start()
                 } label: {
-                    Label(SpotiglassL10n.string("playback.controls.reconnect"), systemImage: "dot.radiowaves.left.and.right")
+                    Label(
+                        SpotiglassL10n.string("playback.controls.reconnect"),
+                        systemImage: "dot.radiowaves.left.and.right")
                 }
                 .accessibilityLabel(SpotiglassL10n.string("playback.controls.reconnect.label"))
                 .accessibilityHint(SpotiglassL10n.string("playback.controls.reconnect.sdk.hint"))
@@ -372,19 +375,19 @@ struct PlaybackControlsView: View {
             SpotiglassL10n.string("playback.controls.state.ready.title")
         case .transferring:
             SpotiglassL10n.string("playback.controls.state.transferring.title")
-        case let .playing(nowPlaying):
+        case .playing(let nowPlaying):
             nowPlaying.name
-        case let .paused(nowPlaying):
+        case .paused(let nowPlaying):
             nowPlaying?.name ?? SpotiglassL10n.string("playback.controls.state.paused.title")
         case .unavailable:
             SpotiglassL10n.string("playback.controls.state.unavailable.title")
-        case let .error(error):
+        case .error(let error):
             error.title
         }
     }
 
     private var shouldShowPausedIndicator: Bool {
-        if case let .paused(item) = viewModel.connectionState {
+        if case .paused(let item) = viewModel.connectionState {
             return item != nil
         }
         return false
@@ -405,13 +408,13 @@ struct PlaybackControlsView: View {
             SpotiglassL10n.string("playback.controls.state.ready.subtitle")
         case .transferring:
             SpotiglassL10n.string("playback.controls.state.transferring.subtitle")
-        case let .playing(nowPlaying):
+        case .playing(let nowPlaying):
             nowPlaying.artistText
-        case let .paused(nowPlaying):
+        case .paused(let nowPlaying):
             nowPlaying?.artistText ?? SpotiglassL10n.string("playback.controls.state.paused.subtitle")
-        case let .unavailable(message):
+        case .unavailable(let message):
             message
-        case let .error(error):
+        case .error(let error):
             error.message
         }
     }
@@ -447,7 +450,7 @@ struct PlaybackControlsView: View {
         case .disconnected: "disconnected"
         case .unavailable: "unavailable"
         case .connecting: "connecting"
-        case let .error(error):
+        case .error(let error):
             switch error.recoveryAction {
             case .reconnect: "error.reconnect"
             case .retryTransfer: "error.retry"
@@ -498,9 +501,9 @@ struct PlaybackControlsView: View {
 
     private var nowPlaying: PlaybackNowPlaying? {
         switch viewModel.connectionState {
-        case let .playing(item):
+        case .playing(let item):
             item
-        case let .paused(item):
+        case .paused(let item):
             item
         default:
             nil

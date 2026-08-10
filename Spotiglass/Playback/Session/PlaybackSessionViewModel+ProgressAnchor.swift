@@ -17,9 +17,9 @@ extension PlaybackSessionViewModel {
 
     func syncProgressAnchorWithConnectionState() {
         switch connectionState {
-        case let .playing(nowPlaying):
+        case .playing(let nowPlaying):
             reanchorProgress(from: nowPlaying, isAdvancing: true)
-        case let .paused(nowPlaying):
+        case .paused(let nowPlaying):
             reanchorProgress(from: nowPlaying, isAdvancing: false)
         case .disconnected, .connecting, .ready, .transferring, .unavailable, .error:
             progressAnchor = nil

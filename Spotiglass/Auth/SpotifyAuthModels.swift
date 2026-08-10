@@ -17,12 +17,12 @@ struct SpotifyAuthConfiguration: Equatable {
         "user-read-currently-playing",
         "user-top-read",
         "user-read-recently-played",
-        "streaming"
+        "streaming",
     ]
 
     static let requiredBrowsingScopes = [
         "playlist-read-private",
-        "playlist-read-collaborative"
+        "playlist-read-collaborative",
     ]
 
     let clientID: String
@@ -39,8 +39,9 @@ struct SpotifyAuthConfiguration: Equatable {
             throw SpotifyAuthConfigurationError.missingClientID
         }
         guard redirectURI.scheme == "http",
-              redirectURI.host == "127.0.0.1",
-              redirectURI.path == "/callback" else {
+            redirectURI.host == "127.0.0.1",
+            redirectURI.path == "/callback"
+        else {
             throw SpotifyAuthConfigurationError.invalidRedirectURI
         }
 
@@ -58,7 +59,7 @@ struct SpotifyAuthConfiguration: Equatable {
             URLQueryItem(name: "state", value: state),
             URLQueryItem(name: "scope", value: scopes.joined(separator: " ")),
             URLQueryItem(name: "code_challenge_method", value: "S256"),
-            URLQueryItem(name: "code_challenge", value: codeChallenge)
+            URLQueryItem(name: "code_challenge", value: codeChallenge),
         ]
 
         guard let url = components?.url else {
@@ -121,7 +122,9 @@ struct AuthenticatedSession: Equatable {
         Set((scope ?? "").split(separator: " ").map(String.init))
     }
 
-    func includesRequiredBrowsingScopes(_ requiredScopes: [String] = SpotifyAuthConfiguration.requiredBrowsingScopes) -> Bool {
+    func includesRequiredBrowsingScopes(_ requiredScopes: [String] = SpotifyAuthConfiguration.requiredBrowsingScopes)
+        -> Bool
+    {
         let grantedScopes = grantedScopes
         return requiredScopes.allSatisfy { grantedScopes.contains($0) }
     }

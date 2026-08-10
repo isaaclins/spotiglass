@@ -49,25 +49,25 @@ struct PlaylistsSidebarSectionContent: View {
             switch playlistState {
             case .loading:
                 ProgressView(SpotiglassL10n.string("browser.loadingPlaylists"))
-            case let .loaded(playlists), let .refreshing(playlists), let .staleCache(playlists, _):
+            case .loaded(let playlists), .refreshing(let playlists), .staleCache(let playlists, _):
                 ForEach(playlists) { playlist in
                     playlistSidebarRow(playlist: playlist)
                 }
-            case let .empty(message):
+            case .empty(let message):
                 EmptyStateView(title: SpotiglassL10n.string("browser.noPlaylists.title"), message: message)
-            case let .error(error):
+            case .error(let error):
                 ErrorStateView(error: error)
             }
         }
         .onChange(of: viewModel.sidebarSelection) { _, newSelection in
             guard let editingPlaylistID,
-                  newSelection != .playlist(editingPlaylistID)
+                newSelection != .playlist(editingPlaylistID)
             else { return }
             cancelPlaylistNameEditing()
         }
         .onChange(of: visiblePlaylistIDs) { _, playlistIDs in
             guard let editingPlaylistID,
-                  playlistIDs.contains(editingPlaylistID) == false
+                playlistIDs.contains(editingPlaylistID) == false
             else { return }
             cancelPlaylistNameEditing()
         }
@@ -134,7 +134,7 @@ struct PlaylistsSidebarSectionContent: View {
 
     private func canRenamePlaylist(_ summary: SpotifyPlaylistSummary) -> Bool {
         guard let currentUserID = viewModel.currentUserSpotifyID,
-              !currentUserID.isEmpty
+            !currentUserID.isEmpty
         else { return false }
         return summary.ownerID == currentUserID
     }
@@ -156,11 +156,12 @@ struct PlaylistsSidebarSectionContent: View {
     }
 
     private func commitPlaylistName(for playlistID: String) {
-        guard let capturedPlaylistID = PlaylistRenameEditingPolicy.commitTarget(
-            editingPlaylistID: editingPlaylistID,
-            rowID: playlistID,
-            visiblePlaylistIDs: visiblePlaylistIDs
-        )
+        guard
+            let capturedPlaylistID = PlaylistRenameEditingPolicy.commitTarget(
+                editingPlaylistID: editingPlaylistID,
+                rowID: playlistID,
+                visiblePlaylistIDs: visiblePlaylistIDs
+            )
         else {
             cancelPlaylistNameEditing()
             return

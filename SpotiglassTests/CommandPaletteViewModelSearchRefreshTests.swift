@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 @MainActor
@@ -85,9 +86,10 @@ final class CommandPaletteViewModelSearchRefreshTests: XCTestCase {
             return CommandPaletteSearchResults()
         }
         viewModel.show()
-        viewModel.setAvailableSearchCategories(CommandPaletteSearchCategory.footerOrder(includeThisPlaylist: false), refreshIfFilterInvalidated: false)
+        viewModel.setAvailableSearchCategories(
+            CommandPaletteSearchCategory.footerOrder(includeThisPlaylist: false), refreshIfFilterInvalidated: false)
         viewModel.query = "abc"
-        for _ in 0 ..< 5 {
+        for _ in 0..<5 {
             viewModel.cycleSearchCategory(forward: true)
         }
         try? await Task.sleep(for: .milliseconds(450))
@@ -191,7 +193,8 @@ final class CommandPaletteViewModelSearchRefreshTests: XCTestCase {
                 ]
             )
         }
-        viewModel.setAvailableSearchCategories(CommandPaletteSearchCategory.footerOrder(includeThisPlaylist: false), refreshIfFilterInvalidated: false)
+        viewModel.setAvailableSearchCategories(
+            CommandPaletteSearchCategory.footerOrder(includeThisPlaylist: false), refreshIfFilterInvalidated: false)
         viewModel.show()
         viewModel.searchCategoryFilter = .all
         viewModel.query = "midnight"
@@ -236,7 +239,8 @@ final class CommandPaletteViewModelSearchRefreshTests: XCTestCase {
                 ]
             )
         }
-        viewModel.setAvailableSearchCategories(CommandPaletteSearchCategory.footerOrder(includeThisPlaylist: false), refreshIfFilterInvalidated: false)
+        viewModel.setAvailableSearchCategories(
+            CommandPaletteSearchCategory.footerOrder(includeThisPlaylist: false), refreshIfFilterInvalidated: false)
         viewModel.show()
         viewModel.searchCategoryFilter = .all
         viewModel.query = "kanye"

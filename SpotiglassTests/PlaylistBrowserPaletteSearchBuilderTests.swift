@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 @MainActor
@@ -14,7 +15,10 @@ final class PlaylistBrowserPaletteSearchBuilderTests: XCTestCase {
         var playedURIs: [String] = []
         let env = PlaylistBrowserPaletteSearchEnvironment(
             isPinnedByID: { pinnedIDs.contains($0) },
-            pin: { pinnedItems.append($0); pinnedIDs.append($0.id) },
+            pin: {
+                pinnedItems.append($0)
+                pinnedIDs.append($0.id)
+            },
             unpin: { id in pinnedIDs.removeAll { $0 == id } },
             playURI: { playedURIs.append($0) },
             openPlaylist: { _ in },
@@ -67,9 +71,11 @@ final class PlaylistBrowserPaletteSearchBuilderTests: XCTestCase {
             TrackRowViewModel(
                 topTrack: PlaylistBrowsingTestFixtures.fallbackTrack(id: "t1", name: "Local Hit", artistId: "a"),
                 listPosition: 1
-            ),
+            )
         ]
-        let http = QueueHTTPClient([.json(#"{"tracks":{"items":[]},"artists":{"items":[]},"albums":{"items":[]},"playlists":{"items":[]}}"#)])
+        let http = QueueHTTPClient([
+            .json(#"{"tracks":{"items":[]},"artists":{"items":[]},"albums":{"items":[]},"playlists":{"items":[]}}"#)
+        ])
         let client = SpotifyAPIClient(
             tokenProvider: StaticSpotifyAccessTokenProvider(token: "tok"),
             httpClient: http
@@ -91,51 +97,51 @@ final class PlaylistBrowserPaletteSearchBuilderTests: XCTestCase {
     func testAllCategoryMapsSpotifyCatalogHits() async throws {
         let (env, _, _, _) = recordingEnvironment()
         let searchJSON = """
-        {
-          "tracks": {
-            "items": [
-              {
-                "type": "track",
-                "id": "track-1",
-                "name": "Midnight City",
-                "artists": [{ "name": "M83" }],
-                "album": { "images": [] },
-                "duration_ms": 240000,
-                "explicit": true,
-                "uri": "spotify:track:track-1"
+            {
+              "tracks": {
+                "items": [
+                  {
+                    "type": "track",
+                    "id": "track-1",
+                    "name": "Midnight City",
+                    "artists": [{ "name": "M83" }],
+                    "album": { "images": [] },
+                    "duration_ms": 240000,
+                    "explicit": true,
+                    "uri": "spotify:track:track-1"
+                  }
+                ]
+              },
+              "artists": {
+                "items": [
+                  { "id": "artist-1", "name": "M83", "images": [], "uri": "spotify:artist:artist-1" }
+                ]
+              },
+              "albums": {
+                "items": [
+                  {
+                    "id": "album-1",
+                    "name": "Album",
+                    "artists": [{ "name": "M83" }],
+                    "images": [],
+                    "uri": "spotify:album:album-1"
+                  }
+                ]
+              },
+              "playlists": {
+                "items": [
+                  {
+                    "id": "playlist-1",
+                    "name": "Mix",
+                    "owner": { "id": "o1", "display_name": "Me" },
+                    "images": [],
+                    "items": { "total": 2 },
+                    "snapshot_id": "snap"
+                  }
+                ]
               }
-            ]
-          },
-          "artists": {
-            "items": [
-              { "id": "artist-1", "name": "M83", "images": [], "uri": "spotify:artist:artist-1" }
-            ]
-          },
-          "albums": {
-            "items": [
-              {
-                "id": "album-1",
-                "name": "Album",
-                "artists": [{ "name": "M83" }],
-                "images": [],
-                "uri": "spotify:album:album-1"
-              }
-            ]
-          },
-          "playlists": {
-            "items": [
-              {
-                "id": "playlist-1",
-                "name": "Mix",
-                "owner": { "id": "o1", "display_name": "Me" },
-                "images": [],
-                "items": { "total": 2 },
-                "snapshot_id": "snap"
-              }
-            ]
-          }
-        }
-        """
+            }
+            """
         let http = QueueHTTPClient([.json(searchJSON)])
         let client = SpotifyAPIClient(
             tokenProvider: StaticSpotifyAccessTokenProvider(token: "tok"),

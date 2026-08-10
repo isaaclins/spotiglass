@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 final class LibrarySidebarOrderTests: XCTestCase {
@@ -7,13 +8,13 @@ final class LibrarySidebarOrderTests: XCTestCase {
             existing: [LibrarySidebarOrder.homeToken],
             pinnedItemIDs: ["a", "b"]
         )
-        XCTAssertEqual(order, ["pinned:a", "pinned:b", LibrarySidebarOrder.homeToken])
+        XCTAssertEqual(order, [LibrarySidebarOrder.searchToken, LibrarySidebarOrder.homeToken, "pinned:a", "pinned:b"])
     }
 
     func testNormalizedOrderPreservesExistingPinnedAndAppendsHome() {
         let existing = ["pinned:b", LibrarySidebarOrder.homeToken]
         let order = LibrarySidebarOrder.normalizedOrder(existing: existing, pinnedItemIDs: ["a", "b"])
-        XCTAssertEqual(order.first, "pinned:b")
+        XCTAssertEqual(order.first, LibrarySidebarOrder.searchToken)
         XCTAssertTrue(order.contains(LibrarySidebarOrder.homeToken))
         XCTAssertTrue(order.contains("pinned:a"))
     }
@@ -21,19 +22,19 @@ final class LibrarySidebarOrderTests: XCTestCase {
     func testNormalizedOrderInsertsNewPinsBeforeTrailingHome() {
         let existing = ["pinned:a", LibrarySidebarOrder.homeToken]
         let order = LibrarySidebarOrder.normalizedOrder(existing: existing, pinnedItemIDs: ["a", "b", "c"])
-        XCTAssertEqual(order, ["pinned:a", "pinned:b", "pinned:c", LibrarySidebarOrder.homeToken])
+        XCTAssertEqual(order, [LibrarySidebarOrder.searchToken, "pinned:a", "pinned:b", "pinned:c", LibrarySidebarOrder.homeToken])
     }
 
     func testNormalizedOrderInsertsNewPinsAfterLastPinWhenHomeIsFirst() {
         let existing = [LibrarySidebarOrder.homeToken, "pinned:a"]
         let order = LibrarySidebarOrder.normalizedOrder(existing: existing, pinnedItemIDs: ["a", "b"])
-        XCTAssertEqual(order, [LibrarySidebarOrder.homeToken, "pinned:a", "pinned:b"])
+        XCTAssertEqual(order, [LibrarySidebarOrder.searchToken, LibrarySidebarOrder.homeToken, "pinned:a", "pinned:b"])
     }
 
     func testNormalizedOrderDropsStalePinnedTokens() {
         let existing = ["pinned:a", "pinned:removed", LibrarySidebarOrder.homeToken]
         let order = LibrarySidebarOrder.normalizedOrder(existing: existing, pinnedItemIDs: ["a"])
-        XCTAssertEqual(order, ["pinned:a", LibrarySidebarOrder.homeToken])
+        XCTAssertEqual(order, [LibrarySidebarOrder.searchToken, "pinned:a", LibrarySidebarOrder.homeToken])
     }
 
     func testPinnedTokenRoundTrip() {

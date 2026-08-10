@@ -38,8 +38,12 @@ enum SpotiglassSettingsSection: String, CaseIterable, Identifiable {
         case .playback: ["playback", "premium", "web", "device", "reconnect", "sessions", "connect"]
         case .equalizer: ["equalizer", "eq", "bands", "preamp", "gain", "preset", "output", "device"]
         case .appearance:
-            ["appearance", "language", "theme", "color", "scheme", "dark", "light", "lyrics", "text size", "command palette", "blur", "offset"]
-        case .account: ["account", "spotify", "client id", "token", "sign in", "sign out", "disconnect", "log", "diagnostics"]
+            [
+                "appearance", "language", "theme", "color", "scheme", "dark", "light", "lyrics", "text size",
+                "command palette", "blur", "offset",
+            ]
+        case .account:
+            ["account", "spotify", "client id", "token", "sign in", "sign out", "disconnect", "log", "diagnostics"]
         case .keyboard: ["keyboard", "shortcuts", "hotkey", "keymap", "bindings", "command palette"]
         }
     }
@@ -157,7 +161,8 @@ struct SpotiglassSettingsView: View {
         // back on a populated pane instead of an empty detail view.
         .onChange(of: searchText) { _, _ in
             if isSearching, let current = section, !visibleSections.contains(current),
-                let firstMatch = visibleSections.first {
+                let firstMatch = visibleSections.first
+            {
                 section = firstMatch
             }
         }

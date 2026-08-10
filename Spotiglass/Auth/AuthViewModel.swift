@@ -89,7 +89,8 @@ final class AuthViewModel: ObservableObject {
     private func performSignIn() async {
         do {
             let authorizationCode = try await authorizationFlow.requestAuthorizationCode(clientID: clientID)
-            let configuration = try SpotifyAuthConfiguration(clientID: clientID, redirectURI: authorizationCode.redirectURI)
+            let configuration = try SpotifyAuthConfiguration(
+                clientID: clientID, redirectURI: authorizationCode.redirectURI)
             let grant = try await tokenClient.exchangeAuthorizationCode(
                 clientID: configuration.clientID,
                 code: authorizationCode.code,
@@ -140,7 +141,8 @@ final class AuthViewModel: ObservableObject {
             clientID: clientID,
             redirectURI: SpotifyAuthConfiguration.loopbackRedirectURI()
         )
-        let grant = try await tokenClient.refreshAccessToken(clientID: configuration.clientID, refreshToken: refreshToken)
+        let grant = try await tokenClient.refreshAccessToken(
+            clientID: configuration.clientID, refreshToken: refreshToken)
         if let replacementRefreshToken = grant.refreshToken {
             try refreshTokenStore.saveRefreshToken(replacementRefreshToken)
         }
@@ -157,8 +159,9 @@ final class AuthViewModel: ObservableObject {
         previousSession: AuthenticatedSession?
     ) async throws -> String {
         if let cooldownUntil = refreshCooldownUntil,
-           cooldownUntil > Date(),
-           let refreshCooldownError {
+            cooldownUntil > Date(),
+            let refreshCooldownError
+        {
             throw refreshCooldownError
         }
 
@@ -209,8 +212,9 @@ final class AuthViewModel: ObservableObject {
 
     private func isUnrecoverableRefreshError(_ error: Error) -> Bool {
         if let tokenError = error as? SpotifyTokenClientError,
-           case let .httpError(status, _, _, _) = tokenError,
-           (400..<500).contains(status) {
+            case .httpError(let status, _, _, _) = tokenError,
+            (400..<500).contains(status)
+        {
             return true
         }
         return false
@@ -218,7 +222,8 @@ final class AuthViewModel: ObservableObject {
 
     private func isRefreshRetryExhaustedError(_ error: Error) -> Bool {
         guard let tokenError = error as? SpotifyTokenClientError,
-              case let .httpError(status, _, _, _) = tokenError else {
+            case .httpError(let status, _, _, _) = tokenError
+        else {
             return (error as? URLError) != nil
         }
         return status == 429 || (500...599).contains(status)
@@ -282,7 +287,9 @@ final class AuthViewModel: ObservableObject {
             return SpotiglassL10n.string("auth.error.cancelled")
         default:
             let text = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
-            if text.isEmpty || text.localizedCaseInsensitiveContains("couldn’t be completed") || text.localizedCaseInsensitiveContains("couldn't be completed") {
+            if text.isEmpty || text.localizedCaseInsensitiveContains("couldn’t be completed")
+                || text.localizedCaseInsensitiveContains("couldn't be completed")
+            {
                 return genericAuthFailureMessage
             }
             return text

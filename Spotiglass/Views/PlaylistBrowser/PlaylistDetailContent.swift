@@ -57,15 +57,15 @@ struct PlaylistDetailContent: View {
 
     private var canRenamePlaylist: Bool {
         guard detail.playlist.id != SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID,
-              let currentUserID = currentUserSpotifyID,
-              !currentUserID.isEmpty
+            let currentUserID = currentUserSpotifyID,
+            !currentUserID.isEmpty
         else { return false }
         return detail.playlist.ownerID == currentUserID
     }
 
     private var isEditingDisplayedPlaylistName: Bool {
         guard isEditingPlaylistName,
-              let editingPlaylistID
+            let editingPlaylistID
         else { return false }
         return editingPlaylistID == detail.playlist.id
     }
@@ -77,7 +77,9 @@ struct PlaylistDetailContent: View {
             Divider()
 
             if detail.tracks.isEmpty {
-                EmptyStateView(title: SpotiglassL10n.string("browser.noTracks.title"), message: SpotiglassL10n.string("browser.noTracks.emptyPlaylist"))
+                EmptyStateView(
+                    title: SpotiglassL10n.string("browser.noTracks.title"),
+                    message: SpotiglassL10n.string("browser.noTracks.emptyPlaylist"))
             } else {
                 VirtualizedTrackList(
                     tracks: detail.tracks,
@@ -101,16 +103,17 @@ struct PlaylistDetailContent: View {
                                 browserViewModel.setPrimarySelection(trackID: rowID)
                             },
                             trackOpsMenuItems: {
-                                AnyView(TrackOpsMenuItems(
-                                    rowID: track.id,
-                                    browserViewModel: browserViewModel,
-                                    currentPlaylistID: detail.playlist.id,
-                                    onRequestCreatePlaylist: { rows in
-                                        newPlaylistInitialRows = rows
-                                        newPlaylistName = ""
-                                        isPromptingNewPlaylist = true
-                                    }
-                                ))
+                                AnyView(
+                                    TrackOpsMenuItems(
+                                        rowID: track.id,
+                                        browserViewModel: browserViewModel,
+                                        currentPlaylistID: detail.playlist.id,
+                                        onRequestCreatePlaylist: { rows in
+                                            newPlaylistInitialRows = rows
+                                            newPlaylistName = ""
+                                            isPromptingNewPlaylist = true
+                                        }
+                                    ))
                             }
                         )
                     },
@@ -134,9 +137,11 @@ struct PlaylistDetailContent: View {
             }
             .disabled(newPlaylistName.trimmingCharacters(in: .whitespaces).isEmpty)
         } message: {
-            Text(newPlaylistInitialRows.isEmpty
-                 ? "Create an empty playlist in your Spotify library."
-                 : "Create a new playlist with \(newPlaylistInitialRows.count) track\(newPlaylistInitialRows.count == 1 ? "" : "s") added.")
+            Text(
+                newPlaylistInitialRows.isEmpty
+                    ? "Create an empty playlist in your Spotify library."
+                    : "Create a new playlist with \(newPlaylistInitialRows.count) track\(newPlaylistInitialRows.count == 1 ? "" : "s") added."
+            )
         }
         .onChange(of: detail.playlist.id) { _, _ in
             cancelPlaylistNameEditing()
@@ -164,16 +169,20 @@ struct PlaylistDetailContent: View {
                         }
                         .overlay {
                             RoundedRectangle(cornerRadius: SpotiglassDesign.cornerM, style: .continuous)
-                                .strokeBorder(SpotiglassDesign.artworkBorderColor(colorScheme: colorScheme), lineWidth: 1)
+                                .strokeBorder(
+                                    SpotiglassDesign.artworkBorderColor(colorScheme: colorScheme), lineWidth: 1)
                         }
                         .overlay(alignment: .topTrailing) {
                             if isHeaderPinned {
                                 Image(systemName: "pin.fill")
                                     .font(.system(size: 11, weight: .semibold))
-                                    .foregroundStyle(SpotiglassDesign.mediaBadgeForegroundColor(colorScheme: colorScheme))
+                                    .foregroundStyle(
+                                        SpotiglassDesign.mediaBadgeForegroundColor(colorScheme: colorScheme)
+                                    )
                                     .padding(5)
                                     .background(
-                                        Circle().fill(SpotiglassDesign.mediaBadgeBackgroundColor(colorScheme: colorScheme))
+                                        Circle().fill(
+                                            SpotiglassDesign.mediaBadgeBackgroundColor(colorScheme: colorScheme))
                                     )
                                     .padding(4)
                             }
@@ -184,10 +193,13 @@ struct PlaylistDetailContent: View {
                             if isHeaderPinned {
                                 Image(systemName: "pin.fill")
                                     .font(.system(size: 11, weight: .semibold))
-                                    .foregroundStyle(SpotiglassDesign.mediaBadgeForegroundColor(colorScheme: colorScheme))
+                                    .foregroundStyle(
+                                        SpotiglassDesign.mediaBadgeForegroundColor(colorScheme: colorScheme)
+                                    )
                                     .padding(5)
                                     .background(
-                                        Circle().fill(SpotiglassDesign.mediaBadgeBackgroundColor(colorScheme: colorScheme))
+                                        Circle().fill(
+                                            SpotiglassDesign.mediaBadgeBackgroundColor(colorScheme: colorScheme))
                                     )
                                     .padding(4)
                             }
@@ -205,15 +217,16 @@ struct PlaylistDetailContent: View {
             Spacer()
         }
         .padding(SpotiglassDesign.spacingL)
-        .modifier(LibraryHeaderPinningModifier(
-            supportsHeaderPinning: supportsHeaderPinning,
-            headerPinnedItem: headerPinnedItem,
-            tracksSurfaceKey: tracksSurfaceKey,
-            isHeaderPinned: isHeaderPinned,
-            pinnedStore: pinnedStore,
-            canRenamePlaylist: canRenamePlaylist,
-            onEditPlaylistName: beginPlaylistNameEditing
-        ))
+        .modifier(
+            LibraryHeaderPinningModifier(
+                supportsHeaderPinning: supportsHeaderPinning,
+                headerPinnedItem: headerPinnedItem,
+                tracksSurfaceKey: tracksSurfaceKey,
+                isHeaderPinned: isHeaderPinned,
+                pinnedStore: pinnedStore,
+                canRenamePlaylist: canRenamePlaylist,
+                onEditPlaylistName: beginPlaylistNameEditing
+            ))
     }
 
     @ViewBuilder
@@ -244,10 +257,10 @@ struct PlaylistDetailContent: View {
 
     private func commitPlaylistName() {
         guard isEditingPlaylistName,
-              let capturedPlaylistID = PlaylistRenameEditingPolicy.commitTarget(
-                  editingPlaylistID: editingPlaylistID,
-                  displayedPlaylistID: detail.playlist.id
-              )
+            let capturedPlaylistID = PlaylistRenameEditingPolicy.commitTarget(
+                editingPlaylistID: editingPlaylistID,
+                displayedPlaylistID: detail.playlist.id
+            )
         else {
             cancelPlaylistNameEditing()
             return
@@ -274,7 +287,7 @@ struct PlaylistDetailContent: View {
 enum PlaylistRenameEditingPolicy {
     static func commitTarget(editingPlaylistID: String?, displayedPlaylistID: String) -> String? {
         guard let editingPlaylistID,
-              editingPlaylistID == displayedPlaylistID
+            editingPlaylistID == displayedPlaylistID
         else { return nil }
         return editingPlaylistID
     }
@@ -284,10 +297,11 @@ enum PlaylistRenameEditingPolicy {
         rowID: String,
         visiblePlaylistIDs: [String]
     ) -> String? {
-        guard let target = commitTarget(
-            editingPlaylistID: editingPlaylistID,
-            displayedPlaylistID: rowID
-        ), visiblePlaylistIDs.contains(target)
+        guard
+            let target = commitTarget(
+                editingPlaylistID: editingPlaylistID,
+                displayedPlaylistID: rowID
+            ), visiblePlaylistIDs.contains(target)
         else { return nil }
         return target
     }

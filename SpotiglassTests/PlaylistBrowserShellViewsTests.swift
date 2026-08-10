@@ -1,6 +1,7 @@
 import SwiftUI
 import ViewInspector
 import XCTest
+
 @testable import Spotiglass
 
 @MainActor
@@ -188,7 +189,7 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
             playlistSummaryFromRow: { row in
                 SpotifyPlaylistSummary(
                     id: row.id, name: row.title,
-                ownerID: "test-owner", ownerName: row.owner,
+                    ownerID: "test-owner", ownerName: row.owner,
                     imageURL: row.artworkURL, trackCount: 0, snapshotID: row.snapshotID
                 )
             },

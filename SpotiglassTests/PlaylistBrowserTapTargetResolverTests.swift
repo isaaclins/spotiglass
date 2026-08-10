@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 @MainActor
@@ -8,7 +9,7 @@ final class PlaylistBrowserTapTargetResolverTests: XCTestCase {
             tracks: [],
             artists: [
                 SpotifyArtist(id: "a1", name: "Taylor Swift", imageURL: nil, uri: "spotify:artist:a1"),
-                SpotifyArtist(id: "a2", name: "Other", imageURL: nil, uri: "spotify:artist:a2")
+                SpotifyArtist(id: "a2", name: "Other", imageURL: nil, uri: "spotify:artist:a2"),
             ],
             albums: [],
             playlists: []
@@ -38,8 +39,11 @@ final class PlaylistBrowserTapTargetResolverTests: XCTestCase {
 
     func testResolveAlbumIDWithArtistHintBuildsQuery() async throws {
         var capturedQuery = ""
-        let album = SpotifyAlbum(id: "alb1", name: "Midnights", artists: ["Taylor Swift"], imageURL: nil, uri: "spotify:album:alb1")
-        let id = try await PlaylistBrowserTapTargetResolver.resolveAlbumID(name: "Midnights", artistHint: "Taylor Swift") { query, limit in
+        let album = SpotifyAlbum(
+            id: "alb1", name: "Midnights", artists: ["Taylor Swift"], imageURL: nil, uri: "spotify:album:alb1")
+        let id = try await PlaylistBrowserTapTargetResolver.resolveAlbumID(
+            name: "Midnights", artistHint: "Taylor Swift"
+        ) { query, limit in
             capturedQuery = query
             XCTAssertEqual(limit, 10)
             return SpotifySearchResults(tracks: [], artists: [], albums: [album], playlists: [])
@@ -50,7 +54,8 @@ final class PlaylistBrowserTapTargetResolverTests: XCTestCase {
 
     func testResolveAlbumIDWithoutArtistUsesAlbumOnlyQuery() async throws {
         var capturedQuery = ""
-        _ = try await PlaylistBrowserTapTargetResolver.resolveAlbumID(name: "Greatest Hits", artistHint: "") { query, _ in
+        _ = try await PlaylistBrowserTapTargetResolver.resolveAlbumID(name: "Greatest Hits", artistHint: "") {
+            query, _ in
             capturedQuery = query
             return SpotifySearchResults(tracks: [], artists: [], albums: [], playlists: [])
         }

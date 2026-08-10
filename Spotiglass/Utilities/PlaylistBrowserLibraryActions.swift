@@ -10,11 +10,14 @@ enum PlaylistBrowserLibraryActions {
         order: [String],
         pinnedItems: [PinnedItem]
     ) -> [LibrarySidebarRow] {
-        let pinnedByToken = Dictionary(uniqueKeysWithValues: visiblePinnedLibraryItems(from: pinnedItems).map {
-            (LibrarySidebarOrder.pinnedToken(for: $0.id), $0)
-        })
+        let pinnedByToken = Dictionary(
+            uniqueKeysWithValues: visiblePinnedLibraryItems(from: pinnedItems).map {
+                (LibrarySidebarOrder.pinnedToken(for: $0.id), $0)
+            })
         return order.compactMap { token in
             switch token {
+            case LibrarySidebarOrder.searchToken:
+                return .search
             case LibrarySidebarOrder.homeToken:
                 return .home
             default:

@@ -19,23 +19,28 @@ enum SidebarKind {
 }
 
 enum LibrarySidebarRow: Equatable, Identifiable {
+    case search
     case home
     case pinned(PinnedItem)
 
     var id: String {
         switch self {
+        case .search:
+            return LibrarySidebarOrder.searchToken
         case .home:
             return LibrarySidebarOrder.homeToken
-        case let .pinned(item):
+        case .pinned(let item):
             return LibrarySidebarOrder.pinnedToken(for: item.id)
         }
     }
 
     var sidebarSelectionTag: SidebarSelection {
         switch self {
+        case .search:
+            return .search
         case .home:
             return .home
-        case let .pinned(item):
+        case .pinned(let item):
             return .pinnedItem(item.id)
         }
     }

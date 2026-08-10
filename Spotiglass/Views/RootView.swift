@@ -176,11 +176,12 @@ private struct LyricsOverlayLayer: View {
     var body: some View {
         ZStack {
             if immersiveLyricsReady,
-               let playback = lyricsOverlay.playbackViewModel,
-               let queue = lyricsOverlay.queueViewModel,
-               let lyrics = lyricsOverlay.lyricsModel,
-               let navigateArtist = lyricsOverlay.navigateToArtist,
-               let navigateAlbum = lyricsOverlay.navigateToAlbum {
+                let playback = lyricsOverlay.playbackViewModel,
+                let queue = lyricsOverlay.queueViewModel,
+                let lyrics = lyricsOverlay.lyricsModel,
+                let navigateArtist = lyricsOverlay.navigateToArtist,
+                let navigateAlbum = lyricsOverlay.navigateToAlbum
+            {
                 ImmersiveLyricsView(
                     playbackViewModel: playback,
                     queueViewModel: queue,

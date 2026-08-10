@@ -1,6 +1,7 @@
 import Foundation
 
 enum SidebarSelection: Hashable {
+    case search
     case home
     case likedSongs
     case playlist(String)
@@ -19,6 +20,7 @@ enum BrowserNavigationTarget: Equatable {
 /// Logical drill-in path shown in the window toolbar (separate from ``backNavigationStack``).
 struct BrowserBreadcrumb: Equatable, Identifiable {
     enum Kind: Equatable {
+        case search
         case likedSongs
         case playlist(id: String)
         case artist(id: String)

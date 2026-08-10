@@ -21,10 +21,10 @@ private enum SpotifyQueueUnionDTO: Decodable {
 
     var domainModel: SpotifyQueueTrackItem? {
         switch self {
-        case let .track(dto):
+        case .track(let dto):
             guard let track = dto.domainModel() else { return nil }
             return .track(track)
-        case let .episode(dto):
+        case .episode(let dto):
             guard let episode = dto.domainModel() else { return nil }
             return .episode(episode)
         }
@@ -119,8 +119,8 @@ private struct SpotifyQueueResponseDTO: Decodable {
 
     private static func uri(for item: SpotifyQueueTrackItem) -> String {
         switch item {
-        case let .track(t): t.uri
-        case let .episode(e): e.uri
+        case .track(let t): t.uri
+        case .episode(let e): e.uri
         }
     }
 }
@@ -189,12 +189,16 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
         // Without this, Spotify can occasionally resume at the previous
         // playback offset when switching tracks on the same device.
         let body = PlayURIRequest(uris: [uri], positionMilliseconds: 0)
-        try await send(path: "/v1/me/player/play", method: "PUT", body: body, queryItems: [URLQueryItem(name: "device_id", value: deviceID)])
+        try await send(
+            path: "/v1/me/player/play", method: "PUT", body: body,
+            queryItems: [URLQueryItem(name: "device_id", value: deviceID)])
     }
 
     func play(contextURI: String, deviceID: String) async throws {
         let body = PlayContextRequest(contextURI: contextURI)
-        try await send(path: "/v1/me/player/play", method: "PUT", body: body, queryItems: [URLQueryItem(name: "device_id", value: deviceID)])
+        try await send(
+            path: "/v1/me/player/play", method: "PUT", body: body,
+            queryItems: [URLQueryItem(name: "device_id", value: deviceID)])
     }
 
     func play(uris: [String], deviceID: String) async throws {
@@ -203,7 +207,9 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
             throw SpotifyAPIError.invalidRequest("At least one Spotify URI is required to start playback.")
         }
         let body = PlayURIRequest(uris: sanitizedURIs, positionMilliseconds: 0)
-        try await send(path: "/v1/me/player/play", method: "PUT", body: body, queryItems: [URLQueryItem(name: "device_id", value: deviceID)])
+        try await send(
+            path: "/v1/me/player/play", method: "PUT", body: body,
+            queryItems: [URLQueryItem(name: "device_id", value: deviceID)])
     }
 
     func seek(to milliseconds: Int, deviceID: String) async throws {
@@ -213,17 +219,21 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
             body: EmptyBody(),
             queryItems: [
                 URLQueryItem(name: "position_ms", value: String(milliseconds)),
-                URLQueryItem(name: "device_id", value: deviceID)
+                URLQueryItem(name: "device_id", value: deviceID),
             ]
         )
     }
 
     func next(deviceID: String) async throws {
-        try await send(path: "/v1/me/player/next", method: "POST", body: EmptyBody(), queryItems: [URLQueryItem(name: "device_id", value: deviceID)])
+        try await send(
+            path: "/v1/me/player/next", method: "POST", body: EmptyBody(),
+            queryItems: [URLQueryItem(name: "device_id", value: deviceID)])
     }
 
     func previous(deviceID: String) async throws {
-        try await send(path: "/v1/me/player/previous", method: "POST", body: EmptyBody(), queryItems: [URLQueryItem(name: "device_id", value: deviceID)])
+        try await send(
+            path: "/v1/me/player/previous", method: "POST", body: EmptyBody(),
+            queryItems: [URLQueryItem(name: "device_id", value: deviceID)])
     }
 
     func fetchQueue() async throws -> SpotifyQueueResponse {
@@ -235,7 +245,7 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
     func addToQueue(uri: String, deviceID: String) async throws {
         let queryItems: [URLQueryItem] = [
             URLQueryItem(name: "uri", value: uri),
-            URLQueryItem(name: "device_id", value: deviceID)
+            URLQueryItem(name: "device_id", value: deviceID),
         ]
         try await send(path: "/v1/me/player/queue", method: "POST", body: EmptyBody(), queryItems: queryItems)
     }
@@ -271,7 +281,7 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
             body: EmptyBody(),
             queryItems: [
                 URLQueryItem(name: "state", value: enabled ? "true" : "false"),
-                URLQueryItem(name: "device_id", value: deviceID)
+                URLQueryItem(name: "device_id", value: deviceID),
             ]
         )
     }
@@ -283,7 +293,7 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
             body: EmptyBody(),
             queryItems: [
                 URLQueryItem(name: "state", value: mode.rawValue),
-                URLQueryItem(name: "device_id", value: deviceID)
+                URLQueryItem(name: "device_id", value: deviceID),
             ]
         )
     }
@@ -298,7 +308,9 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
 
     private func performGET(path: String, queryItems: [URLQueryItem]) async throws -> (Data, HTTPURLResponse) {
         let accessToken = try await tokenProvider.playbackAccessToken()
-        var components = URLComponents(url: baseURL.appendingPathComponent(path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))), resolvingAgainstBaseURL: false)!
+        var components = URLComponents(
+            url: baseURL.appendingPathComponent(path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))),
+            resolvingAgainstBaseURL: false)!
         components.queryItems = queryItems.isEmpty ? nil : queryItems
         var request = URLRequest(url: components.url!)
         request.httpMethod = "GET"
@@ -341,7 +353,8 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
         guard shouldRetryGETPath(path) else { return false }
         guard let urlError = error as? URLError else { return false }
         switch urlError.code {
-        case .timedOut, .networkConnectionLost, .notConnectedToInternet, .cannotConnectToHost, .cannotFindHost, .dnsLookupFailed:
+        case .timedOut, .networkConnectionLost, .notConnectedToInternet, .cannotConnectToHost, .cannotFindHost,
+            .dnsLookupFailed:
             return true
         default:
             return false
@@ -370,7 +383,9 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
         queryItems: [URLQueryItem]
     ) async throws {
         let accessToken = try await tokenProvider.playbackAccessToken()
-        var components = URLComponents(url: baseURL.appendingPathComponent(path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))), resolvingAgainstBaseURL: false)!
+        var components = URLComponents(
+            url: baseURL.appendingPathComponent(path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))),
+            resolvingAgainstBaseURL: false)!
         components.queryItems = queryItems.isEmpty ? nil : queryItems
         var request = URLRequest(url: components.url!)
         request.httpMethod = method
@@ -384,7 +399,8 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
         }
 
         let queryString = queryItems.map { "\($0.name)=\($0.value ?? "")" }.joined(separator: "&")
-        SpotiglassLog.info(.api, "Spotify \(method) \(path)\(queryString.isEmpty ? "" : "?\(queryString)") body=\(bodyPreview)")
+        SpotiglassLog.info(
+            .api, "Spotify \(method) \(path)\(queryString.isEmpty ? "" : "?\(queryString)") body=\(bodyPreview)")
         let (data, response) = try await httpClient.data(for: request)
         SpotiglassLog.info(.api, "Spotify \(method) \(path) -> status=\(response.statusCode)")
         guard (200..<300).contains(response.statusCode) || response.statusCode == 204 else {
@@ -398,7 +414,8 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
         case 401:
             return .unauthorized
         case 403:
-            return .forbidden(message: message ?? "Spotify Premium is required for Web Playback SDK playback.", details: nil)
+            return .forbidden(
+                message: message ?? "Spotify Premium is required for Web Playback SDK playback.", details: nil)
         case 404:
             return .notFound(message: message)
         case 429:

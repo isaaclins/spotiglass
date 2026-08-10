@@ -33,7 +33,9 @@ struct CommandPaletteSectionedListView: View {
                             CommandPaletteResultRowView(item: row.item)
                                 .id(CommandPaletteRowScrollIDs.id(flatIndex: row.flatIndex))
                                 .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
-                                .listRowBackground(row.flatIndex == viewModel.selectedIndex ? Color.primary.opacity(0.12) : Color.clear)
+                                .listRowBackground(
+                                    row.flatIndex == viewModel.selectedIndex ? Color.primary.opacity(0.12) : Color.clear
+                                )
                                 .contentShape(Rectangle())
                                 .onTapGesture {
                                     viewModel.selectedIndex = row.flatIndex

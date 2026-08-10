@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 @MainActor
@@ -19,23 +20,25 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
         viewModel.start()
         await connectSent.wait()
         viewModel.handle(.ready(deviceID: "device-1"))
-        viewModel.handle(.stateChanged(PlaybackNowPlaying(
-            name: "Track",
-            artists: ["Artist"],
-            albumName: nil,
-            albumID: nil,
-            albumArtURL: nil,
-            durationMilliseconds: 100_000,
-            positionMilliseconds: 5_000,
-            uri: "spotify:track:1"
-        ), isPaused: false, nextTracks: []))
+        viewModel.handle(
+            .stateChanged(
+                PlaybackNowPlaying(
+                    name: "Track",
+                    artists: ["Artist"],
+                    albumName: nil,
+                    albumID: nil,
+                    albumArtURL: nil,
+                    durationMilliseconds: 100_000,
+                    positionMilliseconds: 5_000,
+                    uri: "spotify:track:1"
+                ), isPaused: false, nextTracks: []))
         await volumeSent.wait()
 
         XCTAssertTrue(commander.didLoadHost)
         XCTAssertEqual(commander.commands.first?.command, .connect)
         XCTAssertTrue(commander.commands.contains { $0.command == .setVolume })
         XCTAssertEqual(viewModel.deviceID, "device-1")
-        guard case let .playing(nowPlaying) = viewModel.connectionState else {
+        guard case .playing(let nowPlaying) = viewModel.connectionState else {
             return XCTFail("Expected playing")
         }
         XCTAssertEqual(nowPlaying.name, "Track")
@@ -48,7 +51,8 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
         viewModel.handle(.ready(deviceID: "device-1"))
         let volumeDeadline = Date().addingTimeInterval(1.0)
         while Date() < volumeDeadline,
-              commander.commands.filter({ $0.command == .setVolume }).isEmpty {
+            commander.commands.filter({ $0.command == .setVolume }).isEmpty
+        {
             try? await Task.sleep(nanoseconds: 20_000_000)
         }
         let volumeCommands = commander.commands.filter { $0.command == .setVolume }
@@ -80,10 +84,12 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
 
         await viewModel.play(uri: "spotify:track:1")
 
-        XCTAssertEqual(playbackAPI.actions, [
-            "transfer:device-1:false",
-            "play:device-1:spotify:track:1"
-        ])
+        XCTAssertEqual(
+            playbackAPI.actions,
+            [
+                "transfer:device-1:false",
+                "play:device-1:spotify:track:1",
+            ])
         XCTAssertEqual(commander.commands.last?.command, .playURI)
         XCTAssertEqual(commander.commands.last?.payload["uri"] as? String, "spotify:track:1")
     }
@@ -99,10 +105,12 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
         await viewModel.play(uri: "spotify:track:1")
         await firstPlay
 
-        XCTAssertEqual(playbackAPI.actions, [
-            "transfer:device-1:false",
-            "play:device-1:spotify:track:1"
-        ])
+        XCTAssertEqual(
+            playbackAPI.actions,
+            [
+                "transfer:device-1:false",
+                "play:device-1:spotify:track:1",
+            ])
         XCTAssertEqual(viewModel.playCommandAttemptedCount, 2)
         XCTAssertEqual(viewModel.playCommandDedupedCount, 1)
         XCTAssertEqual(viewModel.playCommandSentCount, 1)
@@ -162,11 +170,13 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
         await viewModel.play(uri: "spotify:track:1")
         await viewModel.play(uri: "spotify:track:2")
 
-        XCTAssertEqual(playbackAPI.actions, [
-            "transfer:device-1:false",
-            "play:device-1:spotify:track:1",
-            "play:device-1:spotify:track:2"
-        ])
+        XCTAssertEqual(
+            playbackAPI.actions,
+            [
+                "transfer:device-1:false",
+                "play:device-1:spotify:track:1",
+                "play:device-1:spotify:track:2",
+            ])
     }
 
     func testPlayURITransfersAgainAfterDeviceBecomesNotReady() async {
@@ -180,12 +190,14 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
         viewModel.handle(.ready(deviceID: "device-1"))
         await viewModel.play(uri: "spotify:track:2")
 
-        XCTAssertEqual(playbackAPI.actions, [
-            "transfer:device-1:false",
-            "play:device-1:spotify:track:1",
-            "transfer:device-1:false",
-            "play:device-1:spotify:track:2"
-        ])
+        XCTAssertEqual(
+            playbackAPI.actions,
+            [
+                "transfer:device-1:false",
+                "play:device-1:spotify:track:1",
+                "transfer:device-1:false",
+                "play:device-1:spotify:track:2",
+            ])
     }
 
 }

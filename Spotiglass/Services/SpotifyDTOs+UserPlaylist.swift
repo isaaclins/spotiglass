@@ -49,7 +49,9 @@ struct SpotifyPlaylistDTO: Decodable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decodeIfPresent(String.self, forKey: .id) ?? "unknown-playlist"
         name = try container.decodeIfPresent(String.self, forKey: .name) ?? "Untitled playlist"
-        owner = try container.decodeIfPresent(SpotifyOwnerDTO.self, forKey: .owner) ?? SpotifyOwnerDTO(id: "unknown-owner", displayName: nil)
+        owner =
+            try container.decodeIfPresent(SpotifyOwnerDTO.self, forKey: .owner)
+            ?? SpotifyOwnerDTO(id: "unknown-owner", displayName: nil)
         images = try container.decodeIfPresent([SpotifyImageDTO].self, forKey: .images) ?? []
         // The February 2026 Web API rename moved playlist track summary from `tracks`
         // to `items`. Legacy responses (Extended Quota Mode apps) still emit `tracks`,
@@ -154,7 +156,7 @@ struct SpotifyPlaylistTrackItemDTO: Decodable {
     func domainModel(position: Int) -> SpotifyPlaylistTrackItem {
         let content: SpotifyPlaylistItemContent
         switch item {
-        case let .track(track):
+        case .track(let track):
             if isLocal == true || track.isLocal == true {
                 content = .localTrack(track.localDomainModel())
             } else if let domainTrack = track.domainModel() {
@@ -162,7 +164,7 @@ struct SpotifyPlaylistTrackItemDTO: Decodable {
             } else {
                 content = .unavailable(reason: "Track is unavailable.")
             }
-        case let .episode(episode):
+        case .episode(let episode):
             if let domainEpisode = episode.domainModel() {
                 content = .episode(domainEpisode)
             } else {
@@ -182,15 +184,14 @@ struct SpotifyPlaylistTrackItemDTO: Decodable {
     /// track or episode can appear multiple times in one playlist, so the Spotify id alone is not unique.
     private func itemID(position: Int, content: SpotifyPlaylistItemContent) -> String {
         switch content {
-        case let .track(track):
+        case .track(let track):
             return "\(track.id):\(position)"
-        case let .episode(episode):
+        case .episode(let episode):
             return "\(episode.id):\(position)"
-        case let .localTrack(track):
+        case .localTrack(let track):
             return "local:\(track.uri):\(position)"
         case .unavailable:
             return "unavailable:\(position)"
         }
     }
 }
-

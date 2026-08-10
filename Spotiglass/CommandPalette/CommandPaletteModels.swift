@@ -15,6 +15,7 @@ enum CommandPaletteCommandID {
     static let previousTrack = "playback.previous"
     static let disconnectPlayback = "playback.disconnect"
     static let filterByArtist = "search.filterByArtist"
+    static let openSearch = "search.open"
     static let toggleQueue = "queue.toggle"
     static let toggleLyrics = "lyrics.toggle"
     static let openArtist = "navigation.artist.open"

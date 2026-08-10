@@ -71,11 +71,11 @@ extension PlaybackSessionViewModel {
             return
         }
         switch apiError {
-        case let .rateLimited(retryAfter):
+        case .rateLimited(let retryAfter):
             let retryDelay = max(1, retryAfter ?? 15)
             transportRateLimitedUntil = clock.now.advanced(by: .seconds(retryDelay))
             transportTransientErrorCount = 0
-        case let .server(statusCode, _, _) where statusCode >= 500:
+        case .server(let statusCode, _, _) where statusCode >= 500:
             transportTransientErrorCount = min(transportTransientErrorCount + 1, 4)
         case .network:
             transportTransientErrorCount = min(transportTransientErrorCount + 1, 4)
@@ -86,8 +86,9 @@ extension PlaybackSessionViewModel {
 
     func refreshConnectDevices(force: Bool = false) async {
         if !force,
-           let lastConnectDevicesRefreshAt,
-           clock.now < lastConnectDevicesRefreshAt.advanced(by: connectDevicesFreshnessWindow) {
+            let lastConnectDevicesRefreshAt,
+            clock.now < lastConnectDevicesRefreshAt.advanced(by: connectDevicesFreshnessWindow)
+        {
             return
         }
 

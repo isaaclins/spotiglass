@@ -25,7 +25,8 @@ final class PlaylistBrowserViewModel: ObservableObject {
     @Published internal(set) var playlistState: BrowsingLoadState<[PlaylistRowViewModel]> = .loading
     /// Spotify user id for the signed-in account; used to hide redundant owner labels on own playlists.
     @Published internal(set) var currentUserSpotifyID: String?
-    @Published internal(set) var detailState: BrowsingLoadState<BrowsingDetailContent> = .empty("Select an item in the sidebar or open an artist from search.")
+    @Published internal(set) var detailState: BrowsingLoadState<BrowsingDetailContent> = .empty(
+        "Select an item in the sidebar or open an artist from search.")
     /// Track IDs the user has shift-click-selected in the currently visible playlist or
     /// artist detail. Empty means "no selection — context-menu acts on the row alone".
     @Published var selectedDetailTrackIDs: Set<String> = []
@@ -46,6 +47,13 @@ final class PlaylistBrowserViewModel: ObservableObject {
     /// Logical drill-in path for the principal toolbar; empty at Home.
     @Published internal(set) var breadcrumbPath: [BrowserBreadcrumb] = []
 
+    /// Search surface: query, results, loading state.
+    @Published var searchCatalogQuery: String = ""
+    @Published var searchCatalogResults: SpotifySearchResults = SpotifySearchResults(
+        tracks: [], artists: [], albums: [], playlists: [])
+    @Published var isSearchingCatalog: Bool = false
+    var searchCatalogTask: Task<Void, Never>?
+
     /// Immersive lyrics cover the window; unified refresh targets the underlying browser surface.
     var refreshRoutingLyricsPresented = false
     /// Playback queue panel visibility; synced from the browser view.
@@ -65,9 +73,9 @@ final class PlaylistBrowserViewModel: ObservableObject {
             guard let selection = sidebarSelection else { return false }
             switch selection {
             case .playlist, .likedSongs: return true
-            case .home, .pinnedItem: return false
+            case .home, .search, .pinnedItem: return false
             }
-        case .home:
+        case .home, .search:
             return false
         }
     }
@@ -76,9 +84,34 @@ final class PlaylistBrowserViewModel: ObservableObject {
     var loadedContextTracksForPalette: [TrackRowViewModel]? {
         guard let content = detailState.currentValue else { return nil }
         switch content {
-        case let .playlist(vm): return vm.tracks
-        case let .artist(vm): return vm.tracks
-        case .home: return nil
+        case .playlist(let vm): return vm.tracks
+        case .artist(let vm): return vm.tracks
+        case .home, .search: return nil
+        }
+    }
+
+    func performCatalogSearch(query: String) {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        searchCatalogQuery = query
+        searchCatalogTask?.cancel()
+        guard !trimmed.isEmpty else {
+            searchCatalogResults = SpotifySearchResults(tracks: [], artists: [], albums: [], playlists: [])
+            isSearchingCatalog = false
+            return
+        }
+        isSearchingCatalog = true
+        searchCatalogTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            guard !Task.isCancelled, let self else { return }
+            do {
+                let results = try await self.api.search(query: trimmed, limit: 10)
+                guard !Task.isCancelled else { return }
+                self.searchCatalogResults = results
+                self.isSearchingCatalog = false
+            } catch {
+                guard !Task.isCancelled else { return }
+                self.isSearchingCatalog = false
+            }
         }
     }
 
@@ -223,8 +256,11 @@ final class PlaylistBrowserViewModel: ObservableObject {
 private struct DisabledSpotifyBrowsingCache: SpotifyBrowsingCache {
     func loadPlaylistsBundle(now: Date) throws -> (playlists: [SpotifyPlaylistSummary], age: TimeInterval)? { nil }
     func savePlaylists(_ playlists: [SpotifyPlaylistSummary], cachedAt: Date) throws {}
-    func loadTracks(playlistID: String, snapshotID: String, now: Date, maxAge: TimeInterval) throws -> [SpotifyPlaylistTrackItem]? { nil }
+    func loadTracks(playlistID: String, snapshotID: String, now: Date, maxAge: TimeInterval) throws
+        -> [SpotifyPlaylistTrackItem]?
+    { nil }
     func loadTracksIgnoringAge(playlistID: String, snapshotID: String) throws -> [SpotifyPlaylistTrackItem]? { nil }
-    func saveTracks(_ tracks: [SpotifyPlaylistTrackItem], playlistID: String, snapshotID: String, cachedAt: Date) throws {}
+    func saveTracks(_ tracks: [SpotifyPlaylistTrackItem], playlistID: String, snapshotID: String, cachedAt: Date) throws
+    {}
     func invalidateTracks(playlistID: String) throws {}
 }

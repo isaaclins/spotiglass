@@ -4,13 +4,15 @@
   "indentation": {
     "spaces": 4
   },
-  "lineBreakBeforeControlFlowKeywords": "never",
+  "lineBreakBeforeControlFlowKeywords": false,
   "lineBreakBeforeEachArgument": false,
   "respectsExistingLineBreaks": true,
   "indentConditionalCompilationBlocks": true,
   "indentSwitchCaseLabels": false,
   "maximumBlankLines": 1,
   "noAssignmentInExpressions": {
-    "allowed": false
+    "allowedFunctions": [
+      "XCTAssertNoThrow"
+    ]
   }
 }

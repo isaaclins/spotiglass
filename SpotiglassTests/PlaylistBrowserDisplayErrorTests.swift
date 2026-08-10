@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 @MainActor
@@ -6,7 +7,10 @@ final class PlaylistBrowserDisplayErrorTests: XCTestCase {
     func testDisplayErrorMapsSpotifyAPIErrors() {
         let cases: [(SpotifyAPIError, String, Bool)] = [
             (.unauthorized, "Sign in again", false),
-            (.insufficientScope(requiredScopes: ["playlist-read-private"], message: nil, details: nil), "Reconnect Spotify", false),
+            (
+                .insufficientScope(requiredScopes: ["playlist-read-private"], message: nil, details: nil),
+                "Reconnect Spotify", false
+            ),
             (.forbidden(message: "Nope", details: nil), "Access denied", false),
             (.rateLimited(retryAfter: 30), "Spotify is rate limiting requests", true),
             (.notFound(message: "gone"), "Not found", true),

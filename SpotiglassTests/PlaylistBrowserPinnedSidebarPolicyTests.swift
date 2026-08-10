@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 @MainActor
@@ -36,16 +37,17 @@ final class PlaylistBrowserPinnedSidebarPolicyTests: XCTestCase {
         let transient = BrowsingDisplayError(title: "Offline", message: "retry", canRetry: true)
         XCTAssertFalse(PlaylistBrowserPinnedSidebarPolicy.itemShouldBeMarkedStale(for: .error(transient)))
 
-        let cachedDetail = BrowsingDetailContent.playlist(PlaylistDetailViewModel(
-            playlist: PlaylistRowViewModel(
-                SpotifyPlaylistSummary(
-                    id: "p", name: "P",
-                ownerID: "test-owner", ownerName: "O",
-                    imageURL: nil, trackCount: 0, snapshotID: "s"
-                )
-            ),
-            tracks: []
-        ))
+        let cachedDetail = BrowsingDetailContent.playlist(
+            PlaylistDetailViewModel(
+                playlist: PlaylistRowViewModel(
+                    SpotifyPlaylistSummary(
+                        id: "p", name: "P",
+                        ownerID: "test-owner", ownerName: "O",
+                        imageURL: nil, trackCount: 0, snapshotID: "s"
+                    )
+                ),
+                tracks: []
+            ))
         XCTAssertTrue(
             PlaylistBrowserPinnedSidebarPolicy.itemShouldBeMarkedStale(
                 for: .staleCache(cachedDetail, err)

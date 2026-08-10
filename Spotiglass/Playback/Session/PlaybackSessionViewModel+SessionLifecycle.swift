@@ -90,7 +90,8 @@ extension PlaybackSessionViewModel {
                 return
             }
             playbackHostReloadAttemptCount += 1
-            bumpCounter(&playbackHostReloadAttemptsByCause, key: PlaybackHostRecoveryCause.missingDeviceRetryTransfer.rawValue)
+            bumpCounter(
+                &playbackHostReloadAttemptsByCause, key: PlaybackHostRecoveryCause.missingDeviceRetryTransfer.rawValue)
             hasTransferredPlaybackToCurrentDevice = false
             autoResumeOnNextReady = true
             transferAttemptInstants.removeAll()
@@ -122,7 +123,8 @@ extension PlaybackSessionViewModel {
         let now = clock.now
         prunePlaybackHostHardReloadWindow(now: now)
         if let last = playbackHostHardReloadInstants.last,
-           now < last.advanced(by: playbackHostHardReloadCooldown) {
+            now < last.advanced(by: playbackHostHardReloadCooldown)
+        {
             playbackHostReloadSuppressedCooldownCount += 1
             bumpCounter(&playbackHostReloadSuppressedCooldownByCause, key: cause.rawValue)
             return false

@@ -33,7 +33,7 @@ struct NavigationToolbarChrome: NSViewRepresentable {
         back.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             back.widthAnchor.constraint(equalToConstant: 32),
-            back.heightAnchor.constraint(equalToConstant: 32)
+            back.heightAnchor.constraint(equalToConstant: 32),
         ])
 
         let hosting = NSHostingView(rootView: BreadcrumbToolbarView(viewModel: viewModel))

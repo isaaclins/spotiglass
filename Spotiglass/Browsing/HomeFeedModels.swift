@@ -54,7 +54,7 @@ enum HomeSectionState<Value: Equatable>: Equatable {
     case failed(String)
 
     var value: Value? {
-        if case let .loaded(value) = self { return value }
+        if case .loaded(let value) = self { return value }
         return nil
     }
 }

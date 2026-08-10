@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 final class SpotifyTokenClientCoverageTests: XCTestCase {
@@ -25,13 +26,14 @@ final class SpotifyTokenClientCoverageTests: XCTestCase {
         let now = Date(timeIntervalSince1970: 5_000)
         let httpClient = SequencedTokenHTTPClientForCoverage([
             .failure(URLError(.networkConnectionLost)),
-            .json("""
-            {
-              "access_token": "after-network",
-              "token_type": "Bearer",
-              "expires_in": 60
-            }
-            """, statusCode: 200)
+            .json(
+                """
+                {
+                  "access_token": "after-network",
+                  "token_type": "Bearer",
+                  "expires_in": 60
+                }
+                """, statusCode: 200),
         ])
         let client = SpotifyTokenClient(httpClient: httpClient, now: { now }, random: { _ in 0 })
         let grant = try await client.refreshAccessToken(clientID: "id", refreshToken: "rt")
@@ -43,13 +45,14 @@ final class SpotifyTokenClientCoverageTests: XCTestCase {
         let now = Date(timeIntervalSince1970: 6_000)
         let httpClient = SequencedTokenHTTPClientForCoverage([
             .json(#"{"error":"rate_limited"}"#, statusCode: 429, headers: ["Retry-After": "1"]),
-            .json("""
-            {
-              "access_token": "after-429",
-              "token_type": "Bearer",
-              "expires_in": 120
-            }
-            """, statusCode: 200)
+            .json(
+                """
+                {
+                  "access_token": "after-429",
+                  "token_type": "Bearer",
+                  "expires_in": 120
+                }
+                """, statusCode: 200),
         ])
         let client = SpotifyTokenClient(httpClient: httpClient, now: { now }, random: { _ in 0 })
         let grant = try await client.refreshAccessToken(clientID: "id", refreshToken: "rt")
@@ -60,14 +63,14 @@ final class SpotifyTokenClientCoverageTests: XCTestCase {
     func testRefreshDoesNotRetryUnauthorizedClientErrors() async {
         let httpClient = SequencedTokenHTTPClientForCoverage([
             .json(#"{"error":"invalid_client"}"#, statusCode: 401),
-            .json(#"{"access_token":"should-not-reach"}"#, statusCode: 200)
+            .json(#"{"access_token":"should-not-reach"}"#, statusCode: 200),
         ])
         let client = SpotifyTokenClient(httpClient: httpClient, random: { _ in 0 })
         do {
             _ = try await client.refreshAccessToken(clientID: "id", refreshToken: "rt")
             XCTFail("Expected failure")
         } catch let error as SpotifyTokenClientError {
-            guard case let .httpError(status, _, oauthError, _) = error else {
+            guard case .httpError(let status, _, let oauthError, _) = error else {
                 return XCTFail("Unexpected \(error)")
             }
             XCTAssertEqual(status, 401)
@@ -94,7 +97,7 @@ final class SpotifyTokenClientCoverageTests: XCTestCase {
             )
             XCTFail("Expected error")
         } catch let error as SpotifyTokenClientError {
-            guard case let .httpError(status, description, oauthError, retryAfter) = error else {
+            guard case .httpError(let status, let description, let oauthError, let retryAfter) = error else {
                 return XCTFail("Unexpected \(error)")
             }
             XCTAssertEqual(status, 400)
@@ -169,9 +172,9 @@ private final class SequencedTokenHTTPClientForCoverage: HTTPClient {
         lock.unlock()
 
         switch step {
-        case let .failure(error):
+        case .failure(let error):
             throw error
-        case let .json(json, statusCode, headers):
+        case .json(let json, let statusCode, let headers):
             return (
                 Data(json.utf8),
                 HTTPURLResponse(

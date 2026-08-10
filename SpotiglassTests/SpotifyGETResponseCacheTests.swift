@@ -1,12 +1,17 @@
 import XCTest
+
 @testable import Spotiglass
 
 final class SpotifyGETResponseCacheTests: XCTestCase {
     func testCachePolicyTTLAndShouldCache() {
-        XCTAssertFalse(SpotifyGETResponseCachePolicy.shouldCache(URLRequest(url: URL(string: "https://api.spotify.com/v1/me/playlists")!)))
-        XCTAssertTrue(SpotifyGETResponseCachePolicy.shouldCache(URLRequest(url: URL(string: "https://api.spotify.com/v1/me")!)))
+        XCTAssertFalse(
+            SpotifyGETResponseCachePolicy.shouldCache(
+                URLRequest(url: URL(string: "https://api.spotify.com/v1/me/playlists")!)))
+        XCTAssertTrue(
+            SpotifyGETResponseCachePolicy.shouldCache(URLRequest(url: URL(string: "https://api.spotify.com/v1/me")!)))
         XCTAssertEqual(SpotifyGETResponseCachePolicy.ttl(for: URL(string: "https://api.spotify.com/v1/me")!), 300)
-        XCTAssertEqual(SpotifyGETResponseCachePolicy.ttl(for: URL(string: "https://api.spotify.com/v1/search?q=x")!), 90)
+        XCTAssertEqual(
+            SpotifyGETResponseCachePolicy.ttl(for: URL(string: "https://api.spotify.com/v1/search?q=x")!), 90)
         XCTAssertEqual(
             SpotifyGETResponseCachePolicy.ttl(for: URL(string: "https://api.spotify.com/v1/artists/ar1")!),
             900

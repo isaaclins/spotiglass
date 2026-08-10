@@ -174,7 +174,8 @@ extension QueueItem {
             albumID: track.albumID,
             durationMilliseconds: track.durationMilliseconds,
             uri: track.uri,
-            artistTapTargets: artistTapTargets(artistRefs: track.artistRefs, fallbackSubtitle: track.artists.joined(separator: ", "))
+            artistTapTargets: artistTapTargets(
+                artistRefs: track.artistRefs, fallbackSubtitle: track.artists.joined(separator: ", "))
         )
     }
 
@@ -190,9 +191,9 @@ extension QueueItem {
 
     static func from(queueItem: SpotifyQueueTrackItem) -> QueueItem {
         switch queueItem {
-        case let .track(track):
+        case .track(let track):
             .from(track: track)
-        case let .episode(episode):
+        case .episode(let episode):
             .from(episode: episode)
         }
     }
@@ -214,7 +215,8 @@ extension QueueItem {
         if !artistRefs.isEmpty {
             return artistRefs.map { ArtistTapTarget(id: $0.id, name: $0.name) }
         }
-        let fallbackNames = fallbackSubtitle
+        let fallbackNames =
+            fallbackSubtitle
             .split(separator: ",")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
@@ -225,7 +227,8 @@ extension QueueItem {
     func playbackNowPlayingForLyricsPrefetch() -> PlaybackNowPlaying? {
         guard let uri, uri.hasPrefix("spotify:track:") else { return nil }
         let trimmed = subtitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        let artistParts = trimmed.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        let artistParts = trimmed.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
         let artists = artistParts.isEmpty ? (trimmed.isEmpty ? ["Unknown artist"] : [trimmed]) : artistParts
         return PlaybackNowPlaying(
             name: name,

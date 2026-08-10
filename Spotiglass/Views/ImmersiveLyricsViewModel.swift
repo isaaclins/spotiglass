@@ -6,7 +6,7 @@ extension LrcLibClient.Failure {
         switch self {
         case .noLyrics:
             return SpotiglassL10n.string("lyrics.error.noLyrics")
-        case let .rateLimited(retryAfter):
+        case .rateLimited(let retryAfter):
             if let retryAfter {
                 return String(
                     format: SpotiglassL10n.string("lyrics.error.rateLimitedSeconds"),
@@ -14,7 +14,7 @@ extension LrcLibClient.Failure {
                 )
             }
             return SpotiglassL10n.string("lyrics.error.rateLimitedShortly")
-        case let .http(code):
+        case .http(let code):
             return String(format: SpotiglassL10n.string("lyrics.error.http"), code)
         case .decoding:
             return SpotiglassL10n.string("lyrics.error.decode")
@@ -154,7 +154,8 @@ final class ImmersiveLyricsViewModel: ObservableObject {
             return true
         }
         if let persistedMetadata = diskCache?.loadTrackBackoffMetadata(spotifyTrackID: trackId),
-           persistedMetadata.nextEligibleFetchAt > now {
+            persistedMetadata.nextEligibleFetchAt > now
+        {
             Self.backoffMetadata[trackId] = persistedMetadata
             return true
         }
@@ -211,16 +212,18 @@ final class ImmersiveLyricsViewModel: ObservableObject {
                 failureCount: nextCount,
                 nextEligibleFetchAt: now.addingTimeInterval(Self.decodingCooldownDuration)
             )
-        case let .rateLimited(retryAfter):
+        case .rateLimited(let retryAfter):
             let cooldown = max(Self.rateLimitedFallbackCooldownDuration, retryAfter ?? 0)
             metadata = LyricsDiskCache.TrackBackoffMetadata(
                 failureClass: .rateLimited,
                 failureCount: nextCount,
                 nextEligibleFetchAt: now.addingTimeInterval(cooldown)
             )
-        case let .http(code):
+        case .http(let code):
             if code >= 500 {
-                let exp = min(Self.transientMaxCooldownDuration, Self.transientBaseCooldownDuration * pow(2, Double(min(nextCount, 5))))
+                let exp = min(
+                    Self.transientMaxCooldownDuration,
+                    Self.transientBaseCooldownDuration * pow(2, Double(min(nextCount, 5))))
                 metadata = LyricsDiskCache.TrackBackoffMetadata(
                     failureClass: .transient,
                     failureCount: nextCount,

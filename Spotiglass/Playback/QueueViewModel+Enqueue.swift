@@ -71,7 +71,8 @@ extension QueueViewModel {
             await refreshQueue()
         } catch {
             if let apiError = error as? SpotifyAPIError,
-               case let .rateLimited(retryAfter) = apiError {
+                case .rateLimited(let retryAfter) = apiError
+            {
                 let retryDelay = Self.retryDelay(
                     retryAfter: retryAfter,
                     minimumDelay: enqueueMinimumRetryDelay.timeInterval
@@ -115,8 +116,8 @@ extension QueueViewModel {
     }
 }
 
-private extension Duration {
-    var timeInterval: TimeInterval {
+extension Duration {
+    fileprivate var timeInterval: TimeInterval {
         TimeInterval(components.seconds) + TimeInterval(components.attoseconds) / 1_000_000_000_000_000_000
     }
 }

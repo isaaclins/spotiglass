@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 /// Exercises ``EqualizerHALPluginController`` against a temp HAL directory so
@@ -18,14 +19,16 @@ final class EqualizerHALPluginTests: XCTestCase {
         // Build a fake .driver bundle in a sibling temp dir so the controller
         // can locate it via Bundle.bundleURL/Contents/Library/Audio/Plug-Ins/HAL.
         let appDir = makeTempDirectory()
-        let halLibrary = appDir
+        let halLibrary =
+            appDir
             .appendingPathComponent("Contents", isDirectory: true)
             .appendingPathComponent("Library", isDirectory: true)
             .appendingPathComponent("Audio", isDirectory: true)
             .appendingPathComponent("Plug-Ins", isDirectory: true)
             .appendingPathComponent("HAL", isDirectory: true)
         try? FileManager.default.createDirectory(at: halLibrary, withIntermediateDirectories: true)
-        fixtureBundle = halLibrary
+        fixtureBundle =
+            halLibrary
             .appendingPathComponent(EqualizerHALPluginController.driverBundleName, isDirectory: true)
         try? FileManager.default.createDirectory(at: fixtureBundle, withIntermediateDirectories: true)
         try? "fake-driver-payload".write(
@@ -54,8 +57,9 @@ final class EqualizerHALPluginTests: XCTestCase {
         // flip the system's real default output device when a Spotiglass EQ
         // is actually loaded on the host running the tests.
         try controller.install()
-        XCTAssertTrue(controller.isInstalled,
-                      "the .driver should be copied even when coreaudiod hasn't picked it up")
+        XCTAssertTrue(
+            controller.isInstalled,
+            "the .driver should be copied even when coreaudiod hasn't picked it up")
         let marker = controller.installedDriverURL.appendingPathComponent("Marker.txt")
         XCTAssertEqual(
             try String(contentsOf: marker, encoding: .utf8),
@@ -135,12 +139,14 @@ final class EqualizerHALPluginTests: XCTestCase {
             settings.apply(preset: preset)
             let frame = EQCoefficientFrame.build(settings: settings, sampleRateHz: 48_000)
             let fingerprint = frame.bands.map { String(format: "%.4f", $0) }.joined(separator: ",")
-            XCTAssertFalse(seen.contains(fingerprint),
-                           "two presets produced identical coefficients: \(preset.name)")
+            XCTAssertFalse(
+                seen.contains(fingerprint),
+                "two presets produced identical coefficients: \(preset.name)")
             seen.insert(fingerprint)
             if preset.name != EqualizerPreset.flatName {
-                XCTAssertNotEqual(frame.bands, bypass.bands,
-                                  "\(preset.name) should differ from bypass")
+                XCTAssertNotEqual(
+                    frame.bands, bypass.bands,
+                    "\(preset.name) should differ from bypass")
             }
         }
     }

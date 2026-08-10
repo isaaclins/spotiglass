@@ -44,6 +44,8 @@ struct ArtistDetailContent: View {
     let addToQueue: (String) async -> Void
     let openArtist: (String) -> Void
     let loadMoreAlbums: () -> Void
+    var browserViewModel: PlaylistBrowserViewModel? = nil
+    var playbackViewModel: PlaybackSessionViewModel? = nil
 
     @EnvironmentObject private var pinnedStore: PinnedItemsStore
     @Environment(\.colorScheme) private var colorScheme
@@ -68,8 +70,11 @@ struct ArtistDetailContent: View {
                 }
                 albumStrip(title: SpotiglassL10n.string("browser.albums"), albums: detail.albums, group: .album)
                 albumStrip(title: SpotiglassL10n.string("browser.singles"), albums: detail.singles, group: .single)
-                albumStrip(title: SpotiglassL10n.string("browser.compilations"), albums: detail.compilations, group: .compilation)
-                albumStrip(title: SpotiglassL10n.string("browser.appearsOn"), albums: detail.appearsOn, group: .appearsOn)
+                albumStrip(
+                    title: SpotiglassL10n.string("browser.compilations"), albums: detail.compilations,
+                    group: .compilation)
+                albumStrip(
+                    title: SpotiglassL10n.string("browser.appearsOn"), albums: detail.appearsOn, group: .appearsOn)
                 if detail.canLoadMoreAlbums || detail.isLoadingMoreAlbums {
                     loadMoreButton
                         .padding(.horizontal, SpotiglassDesign.spacingL)
@@ -103,8 +108,11 @@ struct ArtistDetailContent: View {
                     .lineLimit(2)
 
                 if let followers = detail.artist.followersTotal {
-                    Text(NumberFormatter.localizedString(from: NSNumber(value: followers), number: .decimal) + " followers")
-                        .foregroundStyle(.secondary)
+                    Text(
+                        NumberFormatter.localizedString(from: NSNumber(value: followers), number: .decimal)
+                            + " followers"
+                    )
+                    .foregroundStyle(.secondary)
                 }
 
                 if !detail.artist.genres.isEmpty {
@@ -112,6 +120,23 @@ struct ArtistDetailContent: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
+                }
+
+                if let browserViewModel, let playbackViewModel {
+                    Button {
+                        Task {
+                            await browserViewModel.startArtistRadio(
+                                artistID: artistID,
+                                artistName: detail.artist.name,
+                                playbackViewModel: playbackViewModel
+                            )
+                        }
+                    } label: {
+                        Label(SpotiglassL10n.string("browser.artist.startRadio"), systemImage: "radio")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(SpotiglassDesign.controlAccent)
+                    .controlSize(.small)
                 }
             }
 
@@ -122,6 +147,18 @@ struct ArtistDetailContent: View {
             PinnedItemDragPill(item: .artist(detail.artist))
         }
         .contextMenu {
+            if let browserViewModel, let playbackViewModel {
+                Button(SpotiglassL10n.string("browser.artist.startRadio")) {
+                    Task {
+                        await browserViewModel.startArtistRadio(
+                            artistID: artistID,
+                            artistName: detail.artist.name,
+                            playbackViewModel: playbackViewModel
+                        )
+                    }
+                }
+                Divider()
+            }
             if isArtistPinned {
                 Button(SpotiglassL10n.string("browser.unpin")) {
                     pinnedStore.unpin(id: PinnedItem.id(forKind: .artist, spotifyID: artistID))
@@ -147,7 +184,20 @@ struct ArtistDetailContent: View {
                     hasPlaybackDevice: hasPlaybackDevice,
                     addToQueue: addToQueue,
                     openArtist: openArtist,
-                    tracksSurfaceID: tracksSurfaceID
+                    tracksSurfaceID: tracksSurfaceID,
+                    trackOpsMenuItems: {
+                        if let browserViewModel, let playbackViewModel {
+                            AnyView(
+                                UniversalTrackOpsMenu(
+                                    track: track,
+                                    viewModel: browserViewModel,
+                                    playbackViewModel: playbackViewModel
+                                )
+                            )
+                        } else {
+                            AnyView(EmptyView())
+                        }
+                    }
                 )
             }
         }
@@ -155,7 +205,9 @@ struct ArtistDetailContent: View {
     }
 
     @ViewBuilder
-    private func albumStrip(title: String, albums: [ArtistAlbumRowViewModel], group: SpotifyArtistAlbumGroup) -> some View {
+    private func albumStrip(title: String, albums: [ArtistAlbumRowViewModel], group: SpotifyArtistAlbumGroup)
+        -> some View
+    {
         if albums.isEmpty {
             EmptyView()
         } else {
@@ -181,28 +233,28 @@ struct ArtistDetailContent: View {
         let pinnedItem = album.pinnedAlbum(group: group)
         let pinned = pinnedStore.isPinned(id: pinnedItem.id)
         return albumCard(album, showPinGlyph: pinned)
-        .contentShape(Rectangle())
-        .onTapGesture(count: 2) {
-            albumTapRouter.handleDoubleTap {
-                openAlbum(album)
-                playAlbumContext(album.uri)
+            .contentShape(Rectangle())
+            .onTapGesture(count: 2) {
+                albumTapRouter.handleDoubleTap {
+                    openAlbum(album)
+                    playAlbumContext(album.uri)
+                }
             }
-        }
-        .onTapGesture {
-            albumTapRouter.handleSingleTap(albumID: album.id) {
-                openAlbum(album)
+            .onTapGesture {
+                albumTapRouter.handleSingleTap(albumID: album.id) {
+                    openAlbum(album)
+                }
             }
-        }
-        .draggable(PinnedItemTransfer(item: pinnedItem)) {
-            PinnedItemDragPill(item: pinnedItem)
-        }
-        .contextMenu {
-            if pinned {
-                Button(SpotiglassL10n.string("browser.unpin")) { pinnedStore.unpin(id: pinnedItem.id) }
-            } else {
-                Button(SpotiglassL10n.string("browser.pin")) { pinnedStore.pin(pinnedItem) }
+            .draggable(PinnedItemTransfer(item: pinnedItem)) {
+                PinnedItemDragPill(item: pinnedItem)
             }
-        }
+            .contextMenu {
+                if pinned {
+                    Button(SpotiglassL10n.string("browser.unpin")) { pinnedStore.unpin(id: pinnedItem.id) }
+                } else {
+                    Button(SpotiglassL10n.string("browser.pin")) { pinnedStore.pin(pinnedItem) }
+                }
+            }
     }
 
     private func albumCard(_ album: ArtistAlbumRowViewModel, showPinGlyph: Bool) -> some View {
@@ -247,7 +299,10 @@ struct ArtistDetailContent: View {
                     ProgressView()
                         .controlSize(.small)
                 }
-                Text(detail.isLoadingMoreAlbums ? SpotiglassL10n.string("browser.artist.loadingMore") : SpotiglassL10n.string("browser.artist.loadMore"))
+                Text(
+                    detail.isLoadingMoreAlbums
+                        ? SpotiglassL10n.string("browser.artist.loadingMore")
+                        : SpotiglassL10n.string("browser.artist.loadMore"))
             }
             .frame(maxWidth: .infinity)
         }

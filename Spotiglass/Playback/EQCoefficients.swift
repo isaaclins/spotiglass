@@ -19,7 +19,7 @@ struct EQCoefficientFrame {
 
     var sequence: UInt64
     var preampLinear: Float
-    var bands: [Float]   // length = bandCount * coeffsPerBand
+    var bands: [Float]  // length = bandCount * coeffsPerBand
     var sampleRateHz: UInt32
     var enabledMask: UInt32
 
@@ -128,9 +128,14 @@ struct EQCoefficientFrame {
         let w0 = 2.0 * .pi * centerHz / sampleRateHz
         let cosW0 = cos(w0)
         let sinW0 = sin(w0)
-        let b0: Double, b1: Double, b2: Double, a0: Double, a1: Double, a2: Double
+        let b0: Double
+        let b1: Double
+        let b2: Double
+        let a0: Double
+        let a1: Double
+        let a2: Double
         switch kind {
-        case let .peaking(q):
+        case .peaking(let q):
             let alpha = sinW0 / (2.0 * q)
             b0 = 1 + alpha * A
             b1 = -2 * cosW0

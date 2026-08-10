@@ -43,10 +43,16 @@ enum SpotiglassL10n {
     private static func bundleForCurrentLocale() -> Bundle {
         let loc = locale
         if let path = Bundle.main.path(forResource: loc.identifier, ofType: "lproj"),
-           let bundle = Bundle(path: path) { return bundle }
+            let bundle = Bundle(path: path)
+        {
+            return bundle
+        }
         if let lang = loc.language.languageCode?.identifier,
-           let path = Bundle.main.path(forResource: lang, ofType: "lproj"),
-           let bundle = Bundle(path: path) { return bundle }
+            let path = Bundle.main.path(forResource: lang, ofType: "lproj"),
+            let bundle = Bundle(path: path)
+        {
+            return bundle
+        }
         return .main
     }
 }

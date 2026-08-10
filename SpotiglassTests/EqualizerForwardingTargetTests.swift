@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 /// Round-trip + precedence coverage for the forwarding-target UID that

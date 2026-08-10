@@ -26,7 +26,8 @@ enum BrowserWidthCommitPolicy {
 
     static func evaluate(_ input: CommitInput) -> CommitResult {
         let narrowNew = mutualExclusionWidth(for: input.newWidth, comfortableMinWidth: input.comfortableMinWidth)
-        let narrowCommitted = mutualExclusionWidth(for: input.committedWidth, comfortableMinWidth: input.comfortableMinWidth)
+        let narrowCommitted = mutualExclusionWidth(
+            for: input.committedWidth, comfortableMinWidth: input.comfortableMinWidth)
         let crossedMeaningfulBreakpoint = narrowNew != narrowCommitted
         let throttleElapsed = input.now - input.lastCommitTime >= Double(input.throttleSeconds)
         let largeDrift = abs(input.newWidth - input.committedWidth) > input.largeDriftPoints

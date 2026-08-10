@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 @MainActor
@@ -161,7 +162,8 @@ final class CommandPaletteViewModelSectionsTests: XCTestCase {
 
         XCTAssertEqual(viewModel.sections.count, 5)
         XCTAssertEqual(viewModel.sections.map(\.section), [.thisPlaylist, .tracks, .artists, .albums, .playlists])
-        XCTAssertEqual(viewModel.visibleItems.map(\.id), ["track-local", "track-1", "artist-1", "album-1", "playlist-a"])
+        XCTAssertEqual(
+            viewModel.visibleItems.map(\.id), ["track-local", "track-1", "artist-1", "album-1", "playlist-a"])
     }
 
     func testArtistsCategoryEmitsOnlyArtistsSection() async {
@@ -319,7 +321,7 @@ final class CommandPaletteViewModelSectionsTests: XCTestCase {
                         iconSystemName: "music.note.list",
                         section: .myPlaylists,
                         keywords: []
-                    ) {}
+                    ) {},
                 ]
             )
         }
@@ -354,7 +356,7 @@ final class CommandPaletteViewModelSectionsTests: XCTestCase {
                     iconSystemName: "gearshape",
                     section: .commands,
                     keywords: []
-                ) {}
+                ) {},
             ]
         }
         viewModel.searchProvider = { _, _ in

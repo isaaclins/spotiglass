@@ -26,7 +26,8 @@ enum WebPlaybackCommandScriptBuilder {
             let json = String(data: data, encoding: .utf8) ?? "{}"
             return "window.spotiglassPlayback && window.spotiglassPlayback.playURI(\(json).uri);"
         case .setVolume:
-            let raw = (payload["volume"] as? NSNumber)?.doubleValue
+            let raw =
+                (payload["volume"] as? NSNumber)?.doubleValue
                 ?? (payload["volume"] as? Double)
                 ?? (payload["volume"] as? Int).map(Double.init)
                 ?? 0.8

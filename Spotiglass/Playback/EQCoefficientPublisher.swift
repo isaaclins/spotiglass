@@ -86,9 +86,11 @@ final class EQCoefficientPublisher {
                 let seq = seqData.withUnsafeBytes { $0.load(as: UInt64.self) }
                 let preampData = try fileHandle.read(upToCount: MemoryLayout<Float>.size) ?? Data()
                 let preamp = preampData.withUnsafeBytes { $0.load(as: Float.self) }
-                let bandsBytes = EQCoefficientFrame.bandCount * EQCoefficientFrame.coeffsPerBand * MemoryLayout<Float>.size
+                let bandsBytes =
+                    EQCoefficientFrame.bandCount * EQCoefficientFrame.coeffsPerBand * MemoryLayout<Float>.size
                 let bandsData = try fileHandle.read(upToCount: bandsBytes) ?? Data()
-                var bands = [Float](repeating: 0, count: EQCoefficientFrame.bandCount * EQCoefficientFrame.coeffsPerBand)
+                var bands = [Float](
+                    repeating: 0, count: EQCoefficientFrame.bandCount * EQCoefficientFrame.coeffsPerBand)
                 _ = bands.withUnsafeMutableBytes { dst in
                     bandsData.copyBytes(to: dst)
                 }
@@ -117,7 +119,8 @@ final class EQCoefficientPublisher {
             FileManager.default.createFile(atPath: path, contents: nil)
         }
         let handle = try FileHandle(forUpdating: backingURL)
-        let payloadBytes = MemoryLayout<UInt64>.size
+        let payloadBytes =
+            MemoryLayout<UInt64>.size
             + MemoryLayout<Float>.size
             + EQCoefficientFrame.bandCount * EQCoefficientFrame.coeffsPerBand * MemoryLayout<Float>.size
             + MemoryLayout<UInt32>.size

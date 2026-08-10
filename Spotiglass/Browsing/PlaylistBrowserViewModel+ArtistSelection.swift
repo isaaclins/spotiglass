@@ -17,8 +17,9 @@ extension PlaylistBrowserViewModel {
         detailLoadTask?.cancel()
 
         if !forceRefresh,
-           let cached = cachedArtistSnapshots[id],
-           nowDate.timeIntervalSince(cached.fetchedAt) < artistDetailCacheTTL {
+            let cached = cachedArtistSnapshots[id],
+            nowDate.timeIntervalSince(cached.fetchedAt) < artistDetailCacheTTL
+        {
             currentArtistAlbumsPaging = cached.snapshot.paging
             let cachedVM = ArtistDetailViewModel(
                 artist: cached.snapshot.artistDetail,
@@ -35,8 +36,9 @@ extension PlaylistBrowserViewModel {
             return
         }
         if let lastSelection = lastArtistSelectionAt[id],
-           nowDate.timeIntervalSince(lastSelection) < artistSelectionDebounceWindow,
-           artistDetailLoadTasks[id] != nil {
+            nowDate.timeIntervalSince(lastSelection) < artistSelectionDebounceWindow,
+            artistDetailLoadTasks[id] != nil
+        {
             artistFetchMetrics.coalescedRequests += 1
             return
         }

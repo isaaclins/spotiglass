@@ -9,7 +9,10 @@ extension PlaybackSessionViewModel {
             return
         }
 
-        SpotiglassLog.info(.playback, "play(uri:) entry uri=\(uri) deviceID=\(deviceID) currentURI=\(currentNowPlayingURI ?? "<nil>") hasTransferred=\(hasTransferredPlaybackToCurrentDevice)")
+        SpotiglassLog.info(
+            .playback,
+            "play(uri:) entry uri=\(uri) deviceID=\(deviceID) currentURI=\(currentNowPlayingURI ?? "<nil>") hasTransferred=\(hasTransferredPlaybackToCurrentDevice)"
+        )
 
         activePlaylistID = nil
         let commandKey = PlayCommandKey.singleURI(deviceID: deviceID, uri: uri)
@@ -77,17 +80,24 @@ extension PlaybackSessionViewModel {
             return
         }
 
-        SpotiglassLog.info(.playback, "playFromPlaylist entry clickedURI=\(clickedURI) playlistID=\(playlistID ?? "<nil>") playableCount=\(playableURIs.count) currentURI=\(currentNowPlayingURI ?? "<nil>") hasTransferred=\(hasTransferredPlaybackToCurrentDevice)")
+        SpotiglassLog.info(
+            .playback,
+            "playFromPlaylist entry clickedURI=\(clickedURI) playlistID=\(playlistID ?? "<nil>") playableCount=\(playableURIs.count) currentURI=\(currentNowPlayingURI ?? "<nil>") hasTransferred=\(hasTransferredPlaybackToCurrentDevice)"
+        )
 
         guard let startIndex = playableURIs.firstIndex(of: clickedURI) else {
-            SpotiglassLog.info(.playback, "playFromPlaylist: clicked URI not in list, falling back to single-URI play. clickedURI=\(clickedURI)")
+            SpotiglassLog.info(
+                .playback,
+                "playFromPlaylist: clicked URI not in list, falling back to single-URI play. clickedURI=\(clickedURI)")
             await play(uri: clickedURI)
             return
         }
 
         let queue = Array(playableURIs[startIndex...])
         guard !queue.isEmpty else {
-            SpotiglassLog.info(.playback, "playFromPlaylist: sliced queue is empty, falling back to single-URI play. clickedURI=\(clickedURI)")
+            SpotiglassLog.info(
+                .playback,
+                "playFromPlaylist: sliced queue is empty, falling back to single-URI play. clickedURI=\(clickedURI)")
             await play(uri: clickedURI)
             return
         }
@@ -147,8 +157,7 @@ extension PlaybackSessionViewModel {
             return nil
         }
 
-        if
-            lastDispatchedPlayCommandKey == key,
+        if lastDispatchedPlayCommandKey == key,
             let lastInstant = lastDispatchedPlayCommandInstant,
             clock.now < lastInstant.advanced(by: playCommandDedupeWindow)
         {
@@ -205,7 +214,7 @@ extension PlaybackSessionViewModel {
 
     func optimisticNowPlaying(for uri: String) -> PlaybackNowPlaying? {
         switch connectionState {
-        case let .playing(nowPlaying), let .paused(.some(nowPlaying)):
+        case .playing(let nowPlaying), .paused(.some(let nowPlaying)):
             return nowPlaying.uri == uri ? nowPlaying : nil
         case .paused(.none), .disconnected, .connecting, .ready, .transferring, .unavailable, .error:
             return nil

@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 final class EqualizerPresetsTests: XCTestCase {
@@ -19,7 +20,8 @@ final class EqualizerPresetsTests: XCTestCase {
 
     func testBuiltInPresetsAllUseTenBandsClampedToRange() {
         for preset in EqualizerPreset.builtIns {
-            XCTAssertEqual(preset.bands.count, EqualizerSettings.bandCount, "Preset \(preset.name) should have 10 bands")
+            XCTAssertEqual(
+                preset.bands.count, EqualizerSettings.bandCount, "Preset \(preset.name) should have 10 bands")
             for (index, value) in preset.bands.enumerated() {
                 XCTAssertTrue(
                     EqualizerSettings.gainRangeDB.contains(value),
@@ -66,7 +68,9 @@ final class EqualizerPresetsTests: XCTestCase {
         let padded = EqualizerSettings.normalizedBands([3, 2])
         XCTAssertEqual(padded.count, EqualizerSettings.bandCount)
         XCTAssertEqual(padded.prefix(2).map { $0 }, [3, 2])
-        XCTAssertEqual(padded.suffix(EqualizerSettings.bandCount - 2).map { $0 }, Array(repeating: 0, count: EqualizerSettings.bandCount - 2))
+        XCTAssertEqual(
+            padded.suffix(EqualizerSettings.bandCount - 2).map { $0 },
+            Array(repeating: 0, count: EqualizerSettings.bandCount - 2))
 
         let clamped = EqualizerSettings.normalizedBands([100, -100, 0, 0, 0, 0, 0, 0, 0, 0])
         XCTAssertEqual(clamped[0], EqualizerSettings.gainRangeDB.upperBound)

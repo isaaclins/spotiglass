@@ -3,7 +3,8 @@ import Foundation
 import Security
 
 enum PKCE {
-    private static let allowedVerifierCharacters = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
+    private static let allowedVerifierCharacters = CharacterSet(
+        charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
 
     static func makeCodeVerifier(byteCount: Int = 64) throws -> String {
         precondition(byteCount > 0)
@@ -15,7 +16,9 @@ enum PKCE {
         }
 
         let verifier = Data(bytes).base64URLEncodedString()
-        guard verifier.count >= 43, verifier.count <= 128, verifier.unicodeScalars.allSatisfy({ allowedVerifierCharacters.contains($0) }) else {
+        guard verifier.count >= 43, verifier.count <= 128,
+            verifier.unicodeScalars.allSatisfy({ allowedVerifierCharacters.contains($0) })
+        else {
             throw PKCEError.invalidGeneratedVerifier
         }
 

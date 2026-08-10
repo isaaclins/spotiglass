@@ -45,8 +45,11 @@ struct SpotifyClientIDAndActionsView: View {
                     Button {
                         viewModel.signOut()
                     } label: {
-                        Label(SpotiglassL10n.string("auth.disconnect.button"), systemImage: "rectangle.portrait.and.arrow.right")
-                            .symbolRenderingMode(.hierarchical)
+                        Label(
+                            SpotiglassL10n.string("auth.disconnect.button"),
+                            systemImage: "rectangle.portrait.and.arrow.right"
+                        )
+                        .symbolRenderingMode(.hierarchical)
                     }
                     .buttonStyle(.bordered)
                     .disabled(!viewModel.state.isConnectedOrRefreshing)

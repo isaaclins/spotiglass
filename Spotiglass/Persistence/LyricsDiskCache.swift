@@ -29,7 +29,8 @@ struct LyricsDiskCache: Sendable {
         guard let support = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
             throw LyricsDiskCacheError.applicationSupportUnavailable
         }
-        let root = support
+        let root =
+            support
             .appendingPathComponent(AppMetadata.displayName, isDirectory: true)
             .appendingPathComponent("LyricsCache", isDirectory: true)
         try fileManager.createDirectory(at: root, withIntermediateDirectories: true)

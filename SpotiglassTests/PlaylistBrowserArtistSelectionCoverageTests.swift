@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 @MainActor
@@ -36,7 +37,7 @@ final class PlaylistBrowserArtistSelectionCoverageTests: XCTestCase {
         )
 
         await vm.selectArtist(id: "artist-1")
-        guard case let .loaded(.artist(detail)) = vm.detailState else {
+        guard case .loaded(.artist(let detail)) = vm.detailState else {
             return XCTFail("expected cached artist detail")
         }
         XCTAssertEqual(detail.artist.name, "Cached Artist")
@@ -59,7 +60,7 @@ final class PlaylistBrowserArtistSelectionCoverageTests: XCTestCase {
         await vm.load()
 
         await vm.selectArtist(id: "artist-net")
-        guard case let .loaded(.artist(detail)) = vm.detailState else {
+        guard case .loaded(.artist(let detail)) = vm.detailState else {
             return XCTFail("expected loaded artist")
         }
         XCTAssertEqual(detail.artist.id, "artist-net")
@@ -119,7 +120,7 @@ final class PlaylistBrowserArtistSelectionCoverageTests: XCTestCase {
         )
 
         await vm.selectArtist(id: "force-1", forceRefresh: true)
-        guard case let .loaded(.artist(detail)) = vm.detailState else {
+        guard case .loaded(.artist(let detail)) = vm.detailState else {
             return XCTFail("expected loaded artist after force refresh")
         }
         XCTAssertEqual(detail.artist.id, "force-1")
@@ -177,7 +178,7 @@ final class PlaylistBrowserArtistSelectionCoverageTests: XCTestCase {
         let vm = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
         await vm.load()
         await vm.selectArtist(id: "named", displayName: "Display")
-        guard case let .loaded(.artist(detail)) = vm.detailState else {
+        guard case .loaded(.artist(let detail)) = vm.detailState else {
             return XCTFail("expected artist detail")
         }
         XCTAssertEqual(detail.artist.id, "named")

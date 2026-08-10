@@ -57,7 +57,9 @@ struct SpotifyTrackDTO: Decodable {
         isExplicit = try container.decodeIfPresent(Bool.self, forKey: .isExplicit) ?? false
         isPlayable = try container.decodeIfPresent(Bool.self, forKey: .isPlayable)
         linkedFrom = try container.decodeIfPresent(SpotifyLinkedFromDTO.self, forKey: .linkedFrom)
-        uri = try container.decodeIfPresent(String.self, forKey: .uri) ?? id.map { "spotify:track:\($0)" } ?? "spotify:track:unavailable"
+        uri =
+            try container.decodeIfPresent(String.self, forKey: .uri) ?? id.map { "spotify:track:\($0)" }
+            ?? "spotify:track:unavailable"
         isLocal = try container.decodeIfPresent(Bool.self, forKey: .isLocal)
     }
 
@@ -120,7 +122,9 @@ struct SpotifyEpisodeDTO: Decodable {
         images = try container.decodeIfPresent([SpotifyImageDTO].self, forKey: .images) ?? []
         durationMilliseconds = try container.decodeIfPresent(Int.self, forKey: .durationMilliseconds) ?? 0
         isPlayable = try container.decodeIfPresent(Bool.self, forKey: .isPlayable)
-        uri = try container.decodeIfPresent(String.self, forKey: .uri) ?? id.map { "spotify:episode:\($0)" } ?? "spotify:episode:unavailable"
+        uri =
+            try container.decodeIfPresent(String.self, forKey: .uri) ?? id.map { "spotify:episode:\($0)" }
+            ?? "spotify:episode:unavailable"
     }
 
     func domainModel() -> SpotifyEpisode? {
@@ -197,4 +201,3 @@ struct SpotifyShowDTO: Decodable {
         name = try container.decodeIfPresent(String.self, forKey: .name) ?? "Podcast"
     }
 }
-

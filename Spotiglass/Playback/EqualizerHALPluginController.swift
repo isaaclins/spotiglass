@@ -110,7 +110,8 @@ final class EqualizerHALPluginController: @unchecked Sendable {
             try setDefaultOutputDevice(to: deviceID)
         } else {
             throw EqualizerHALPluginError.driverNotLoadedYet(
-                hint: "The Spotiglass EQ driver is installed at \(installedDriverURL.path) but coreaudiod has not picked it up yet. Log out and back in, OR run `sudo launchctl kickstart -k system/com.apple.audio.coreaudiod` once. This is a one-time CoreAudio activation step; Spotiglass never runs sudo for you."
+                hint:
+                    "The Spotiglass EQ driver is installed at \(installedDriverURL.path) but coreaudiod has not picked it up yet. Log out and back in, OR run `sudo launchctl kickstart -k system/com.apple.audio.coreaudiod` once. This is a one-time CoreAudio activation step; Spotiglass never runs sudo for you."
             )
         }
     }
@@ -190,10 +191,12 @@ final class EqualizerHALPluginController: @unchecked Sendable {
     /// it back from disk (driver's source of truth) so the picker stays
     /// in sync with whatever EQRouter is actually forwarding to.
     func currentForwardingTargetUID() -> String? {
-        guard let data = try? String(
-            contentsOf: Self.forwardingTargetURL,
-            encoding: .utf8
-        ) else { return nil }
+        guard
+            let data = try? String(
+                contentsOf: Self.forwardingTargetURL,
+                encoding: .utf8
+            )
+        else { return nil }
         let trimmed = data.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
     }
@@ -267,7 +270,7 @@ final class EqualizerHALPluginController: @unchecked Sendable {
                 .appendingPathComponent("Contents/Library/Audio/Plug-Ins/HAL", isDirectory: true)
                 .appendingPathComponent(driverBundleName, isDirectory: true),
             bundle.resourceURL?
-                .appendingPathComponent(driverBundleName, isDirectory: true)
+                .appendingPathComponent(driverBundleName, isDirectory: true),
         ].compactMap { $0 }
         return candidates.first { FileManager.default.fileExists(atPath: $0.path) }
     }
@@ -335,11 +338,11 @@ enum EqualizerHALPluginError: LocalizedError {
         switch self {
         case .embeddedDriverMissing:
             return "Spotiglass.app does not contain the embedded SpotiglassEQDriver.driver bundle."
-        case let .driverNotLoadedYet(hint):
+        case .driverNotLoadedYet(let hint):
             return hint
-        case let .coreAudioStatus(status):
+        case .coreAudioStatus(let status):
             return "CoreAudio error \(status) while routing the default output device."
-        case let .requiresSudoInstall(staged, destination):
+        case .requiresSudoInstall(let staged, let destination):
             return """
                 Spotiglass cannot install the EQ driver itself — macOS 26's coreaudiod only loads HAL plugins from /Library/Audio/Plug-Ins/HAL/, which is root-owned. The driver has been staged at:
                   \(staged)

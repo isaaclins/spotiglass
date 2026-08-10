@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 final class TransportPollSchedulingTests: XCTestCase {
@@ -19,7 +20,8 @@ final class TransportPollSchedulingTests: XCTestCase {
             "ready:d"
         )
         XCTAssertEqual(
-            TransportPollScheduling.transportPollingKey(for: .transferring(deviceID: "d"), resolvedTrackURI: { $0 ?? "" }),
+            TransportPollScheduling.transportPollingKey(
+                for: .transferring(deviceID: "d"), resolvedTrackURI: { $0 ?? "" }),
             "transferring:d"
         )
         XCTAssertEqual(
@@ -48,36 +50,41 @@ final class TransportPollSchedulingTests: XCTestCase {
 
     func testShouldRunTransportPollingRespectsAppActiveDeviceAndMutationTicks() {
         let playing = PlaybackConnectionState.playing(sampleTrack(uri: "u"))
-        XCTAssertFalse(TransportPollScheduling.shouldRunTransportPolling(
-            isAppActive: false,
-            deviceID: "d",
-            localMutationSettleTicksRemaining: 0,
-            state: playing
-        ))
-        XCTAssertFalse(TransportPollScheduling.shouldRunTransportPolling(
-            isAppActive: true,
-            deviceID: nil,
-            localMutationSettleTicksRemaining: 0,
-            state: playing
-        ))
-        XCTAssertTrue(TransportPollScheduling.shouldRunTransportPolling(
-            isAppActive: true,
-            deviceID: nil,
-            localMutationSettleTicksRemaining: 1,
-            state: .disconnected
-        ))
-        XCTAssertFalse(TransportPollScheduling.shouldRunTransportPolling(
-            isAppActive: true,
-            deviceID: "d",
-            localMutationSettleTicksRemaining: 0,
-            state: .connecting
-        ))
-        XCTAssertTrue(TransportPollScheduling.shouldRunTransportPolling(
-            isAppActive: true,
-            deviceID: "d",
-            localMutationSettleTicksRemaining: 0,
-            state: playing
-        ))
+        XCTAssertFalse(
+            TransportPollScheduling.shouldRunTransportPolling(
+                isAppActive: false,
+                deviceID: "d",
+                localMutationSettleTicksRemaining: 0,
+                state: playing
+            ))
+        XCTAssertFalse(
+            TransportPollScheduling.shouldRunTransportPolling(
+                isAppActive: true,
+                deviceID: nil,
+                localMutationSettleTicksRemaining: 0,
+                state: playing
+            ))
+        XCTAssertTrue(
+            TransportPollScheduling.shouldRunTransportPolling(
+                isAppActive: true,
+                deviceID: nil,
+                localMutationSettleTicksRemaining: 1,
+                state: .disconnected
+            ))
+        XCTAssertFalse(
+            TransportPollScheduling.shouldRunTransportPolling(
+                isAppActive: true,
+                deviceID: "d",
+                localMutationSettleTicksRemaining: 0,
+                state: .connecting
+            ))
+        XCTAssertTrue(
+            TransportPollScheduling.shouldRunTransportPolling(
+                isAppActive: true,
+                deviceID: "d",
+                localMutationSettleTicksRemaining: 0,
+                state: playing
+            ))
     }
 
     func testPollDelayUsesRateLimitRemainingOrFallbackAfterExpiry() {
@@ -166,11 +173,13 @@ final class TransportPollSchedulingTests: XCTestCase {
         XCTAssertEqual(viewModel.transportTransientErrorCount, 2)
 
         api.fetchPlayerSnapshotError = nil
-        api.snapshotResponses = [SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
-            activeDevice: nil,
-            isPlaying: false
-        )]
+        api.snapshotResponses = [
+            SpotifyPlayerSnapshot(
+                transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+                activeDevice: nil,
+                isPlaying: false
+            )
+        ]
         await viewModel.syncTransportFromSpotify()
         XCTAssertEqual(viewModel.transportTransientErrorCount, 0)
         XCTAssertNil(viewModel.transportRateLimitedUntil)

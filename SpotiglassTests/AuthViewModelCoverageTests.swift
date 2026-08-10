@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 @MainActor
@@ -20,17 +21,17 @@ final class AuthViewModelCoverageTests: XCTestCase {
         )
         let now = Date()
         let grantJSON = """
-        {
-          "access_token": "live-token",
-          "token_type": "Bearer",
-          "expires_in": 3600,
-          "refresh_token": "refresh-token",
-          "scope": "playlist-read-private playlist-read-collaborative user-library-read streaming"
-        }
-        """
+            {
+              "access_token": "live-token",
+              "token_type": "Bearer",
+              "expires_in": 3600,
+              "refresh_token": "refresh-token",
+              "scope": "playlist-read-private playlist-read-collaborative user-library-read streaming"
+            }
+            """
         let httpClient = QueueHTTPClient([
             .json(grantJSON),
-            .json(grantJSON)
+            .json(grantJSON),
         ])
         let viewModel = AuthViewModel(
             settings: makeSettings(clientID: "client-id"),
@@ -59,14 +60,14 @@ final class AuthViewModelCoverageTests: XCTestCase {
         )
         let httpClient = AuthCoverageHTTPClient(
             data: """
-            {
-              "access_token": "access-token",
-              "token_type": "Bearer",
-              "expires_in": 3600,
-              "refresh_token": "refresh-token",
-              "scope": "streaming"
-            }
-            """.data(using: .utf8)!,
+                {
+                  "access_token": "access-token",
+                  "token_type": "Bearer",
+                  "expires_in": 3600,
+                  "refresh_token": "refresh-token",
+                  "scope": "streaming"
+                }
+                """.data(using: .utf8)!,
             statusCode: 200
         )
         let viewModel = AuthViewModel(
@@ -78,7 +79,7 @@ final class AuthViewModelCoverageTests: XCTestCase {
 
         await viewModel.signIn()
 
-        guard case let .failed(error) = viewModel.state else {
+        guard case .failed(let error) = viewModel.state else {
             return XCTFail("Expected failed state for missing browsing scopes")
         }
         XCTAssertTrue(error.message.contains("playlist") || error.message.contains("permissions"))
@@ -92,12 +93,12 @@ final class AuthViewModelCoverageTests: XCTestCase {
         let now = Date()
         let httpClient = AuthCoverageHTTPClient(
             data: """
-            {
-              "access_token": "new-access-token",
-              "token_type": "Bearer",
-              "expires_in": 1800
-            }
-            """.data(using: .utf8)!,
+                {
+                  "access_token": "new-access-token",
+                  "token_type": "Bearer",
+                  "expires_in": 1800
+                }
+                """.data(using: .utf8)!,
             statusCode: 200
         )
         let viewModel = AuthViewModel(
@@ -108,7 +109,7 @@ final class AuthViewModelCoverageTests: XCTestCase {
 
         await viewModel.restoreSessionIfAvailable()
 
-        guard case let .signedIn(session) = viewModel.state else {
+        guard case .signedIn(let session) = viewModel.state else {
             return XCTFail("Expected signed-in after refresh, got \(viewModel.state)")
         }
         XCTAssertEqual(session.accessToken, "new-access-token")
@@ -120,7 +121,7 @@ final class AuthViewModelCoverageTests: XCTestCase {
             (.notConnectedToInternet, "offline"),
             (.timedOut, "timed out"),
             (.cannotFindHost, "reach Spotify"),
-            (.cancelled, "cancelled")
+            (.cancelled, "cancelled"),
         ]
         for (code, marker) in cases {
             let viewModel = AuthViewModel(
@@ -130,7 +131,7 @@ final class AuthViewModelCoverageTests: XCTestCase {
                 refreshTokenStore: InMemoryRefreshTokenStore()
             )
             await viewModel.signIn()
-            guard case let .failed(error) = viewModel.state else {
+            guard case .failed(let error) = viewModel.state else {
                 return XCTFail("Expected failed for \(code)")
             }
             XCTAssertTrue(
@@ -148,7 +149,7 @@ final class AuthViewModelCoverageTests: XCTestCase {
 
         viewModel.signOut()
 
-        guard case let .failed(error) = viewModel.state else {
+        guard case .failed(let error) = viewModel.state else {
             return XCTFail("Expected failed sign-out")
         }
         XCTAssertTrue(error.message.contains("Disconnect"))

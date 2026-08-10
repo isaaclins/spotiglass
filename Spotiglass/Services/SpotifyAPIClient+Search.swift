@@ -13,7 +13,7 @@ extension SpotifyAPIClient {
             queryItems: [
                 URLQueryItem(name: "q", value: trimmed),
                 URLQueryItem(name: "type", value: "track,artist,album,playlist"),
-                URLQueryItem(name: "limit", value: String(cappedLimit))
+                URLQueryItem(name: "limit", value: String(cappedLimit)),
             ]
         )
         return dto.domainModel()
@@ -29,7 +29,7 @@ extension SpotifyAPIClient {
             queryItems: [
                 URLQueryItem(name: "q", value: trimmed),
                 URLQueryItem(name: "type", value: "track"),
-                URLQueryItem(name: "limit", value: String(capped))
+                URLQueryItem(name: "limit", value: String(capped)),
             ]
         )
         return dto.domainModel().tracks

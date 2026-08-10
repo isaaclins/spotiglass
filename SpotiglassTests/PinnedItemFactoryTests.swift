@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 final class PinnedItemFactoryTests: XCTestCase {
@@ -6,7 +7,7 @@ final class PinnedItemFactoryTests: XCTestCase {
     func testPlaylistFactoryUsesPlaylistKindAndStableID() {
         let playlist = SpotifyPlaylistSummary(
             id: "p1", name: "My Mix",
-                ownerID: "test-owner", ownerName: "Bob",
+            ownerID: "test-owner", ownerName: "Bob",
             imageURL: URL(string: "https://x/p.jpg"), trackCount: 12,
             snapshotID: "snap"
         )

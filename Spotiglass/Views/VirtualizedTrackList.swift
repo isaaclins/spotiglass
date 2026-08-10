@@ -24,13 +24,13 @@ struct VirtualizedTrackList: View {
     @State private var lastReportedFirstVisibleTrackID: String?
 
     private var visibleRange: Range<Int> {
-        guard !tracks.isEmpty else { return 0 ..< 0 }
+        guard !tracks.isEmpty else { return 0..<0 }
         guard viewportHeight > 0 else {
-            return 0 ..< min(tracks.count, Self.overscan)
+            return 0..<min(tracks.count, Self.overscan)
         }
         let first = max(0, Int(floor(scrollOffsetY / rowHeight)) - Self.overscan)
         let last = min(tracks.count, Int(ceil((scrollOffsetY + viewportHeight) / rowHeight)) + Self.overscan)
-        return first ..< max(first, last)
+        return first..<max(first, last)
     }
 
     var body: some View {
@@ -56,7 +56,8 @@ struct VirtualizedTrackList: View {
         }
         .onChange(of: pendingScrollRestoreTrackID) { _, newValue in
             guard let id = newValue,
-                  let index = tracks.firstIndex(where: { $0.id == id }) else { return }
+                let index = tracks.firstIndex(where: { $0.id == id })
+            else { return }
             let target = max(0, CGFloat(index) * rowHeight - max(0, (viewportHeight - rowHeight) / 2))
             scrollPosition.scrollTo(point: CGPoint(x: 0, y: target))
             pendingScrollRestoreTrackID = nil

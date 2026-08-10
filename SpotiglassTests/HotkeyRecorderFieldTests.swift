@@ -2,6 +2,7 @@ import AppKit
 import Carbon
 import SwiftUI
 import XCTest
+
 @testable import Spotiglass
 
 /// US QWERTY virtual key codes so key events are layout-independent in tests.
@@ -9,7 +10,10 @@ private enum USKeyboard {
     static func virtualKey(for key: String) -> CGKeyCode? {
         guard key.count == 1, let scalar = key.unicodeScalars.first else { return nil }
         if scalar.value >= 97, scalar.value <= 122 {
-            let codes: [CGKeyCode] = [0, 11, 8, 2, 14, 3, 5, 4, 34, 38, 40, 37, 46, 45, 31, 35, 12, 15, 1, 17, 32, 9, 13, 7, 16, 6, 18, 19, 20, 21, 23]
+            let codes: [CGKeyCode] = [
+                0, 11, 8, 2, 14, 3, 5, 4, 34, 38, 40, 37, 46, 45, 31, 35, 12, 15, 1, 17, 32, 9, 13, 7, 16, 6, 18, 19,
+                20, 21, 23,
+            ]
             return codes[Int(scalar.value - 97)]
         }
         if scalar.value >= 48, scalar.value <= 57 {

@@ -60,7 +60,7 @@ enum LrcLineParser {
         guard line.hasPrefix("["), let close = line.firstIndex(of: "]") else {
             return nil
         }
-        let tag = String(line[line.startIndex ... close])
+        let tag = String(line[line.startIndex...close])
         guard let ms = parseTimestampTag(tag) else {
             return nil
         }
@@ -77,8 +77,8 @@ enum LrcLineParser {
         let inner = tag.dropFirst().dropLast()
         let parts = inner.split(separator: ":", omittingEmptySubsequences: false)
         guard parts.count >= 2,
-              let minutes = Int(parts[0]),
-              let secondsWhole = Int(parts[1].split(separator: ".", omittingEmptySubsequences: false).first ?? "")
+            let minutes = Int(parts[0]),
+            let secondsWhole = Int(parts[1].split(separator: ".", omittingEmptySubsequences: false).first ?? "")
         else {
             return nil
         }

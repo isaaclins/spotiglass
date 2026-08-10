@@ -1,6 +1,97 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "browser.search" : {
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Suchen" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Search" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Buscar" } }
+      }
+    },
+    "browser.search.placeholder" : {
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Titel, Künstler, Alben, Playlists suchen…" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Search tracks, artists, albums, playlists…" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Buscar canciones, artistas, álbumes, listas…" } }
+      }
+    },
+    "browser.search.searching" : {
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Spotify-Katalog wird durchsucht…" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Searching Spotify catalog…" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Buscando en el catálogo de Spotify…" } }
+      }
+    },
+    "browser.search.noResults.title" : {
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Keine Ergebnisse gefunden" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No results found" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "No se encontraron resultados" } }
+      }
+    },
+    "browser.search.noResults.message" : {
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Versuchen Sie, nach einem anderen Titel, Künstler oder Album zu suchen." } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Try searching for a different track, artist, or album." } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Intenta buscar una canción, artista o álbum diferente." } }
+      }
+    },
+    "browser.search.prompt.title" : {
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Spotify durchsuchen" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Search Spotify" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Buscar en Spotify" } }
+      }
+    },
+    "browser.search.prompt.subtitle" : {
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Finden und spielen Sie Titel, durchsuchen Sie Künstler, Alben und Playlists." } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Find and play songs, browse artists, albums, and playlists." } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Encuentra y reproduce canciones, explora artistas, álbumes y listas." } }
+      }
+    },
+    "browser.track.startRadio" : {
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Titel-Radio starten" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Start Track Radio" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Iniciar radio de la canción" } }
+      }
+    },
+    "browser.artist.startRadio" : {
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Künstler-Radio starten" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Start Artist Radio" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Iniciar radio del artista" } }
+      }
+    },
+    "browser.addToPlaylist" : {
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Zur Playlist hinzufügen" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Add to Playlist" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Añadir a la lista" } }
+      }
+    },
+    "browser.album.play" : {
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Album abspielen" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Play Album" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Reproducir álbum" } }
+      }
+    },
+    "browser.likedSongs.add" : {
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Zu Lieblingssongs hinzufügen" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Save to Liked Songs" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Guardar en Canciones que te gustan" } }
+      }
+    },
+    "browser.likedSongs.remove" : {
+      "localizations" : {
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Aus Lieblingssongs entfernen" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Remove from Liked Songs" } },
+        "es" : { "stringUnit" : { "state" : "translated", "value" : "Eliminar de Canciones que te gustan" } }
+      }
+    },
     "%@, %@" : {
       "comment" : "A11y label combining the title and subtitle of a media card.",
       "isCommentAutoGenerated" : true,

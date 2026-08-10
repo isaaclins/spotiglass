@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 @MainActor
@@ -35,7 +36,7 @@ final class SpotifyPlaybackWebViewCoordinatorTests: XCTestCase {
         let event = SpotifyPlaybackWebViewCoordinatorDispatch.playbackEvent(
             body: ["name": "ready", "payload": ["deviceID": "dev-1"]]
         )
-        guard case let .ready(deviceID) = event else {
+        guard case .ready(let deviceID) = event else {
             return XCTFail("expected ready")
         }
         XCTAssertEqual(deviceID, "dev-1")
@@ -43,7 +44,7 @@ final class SpotifyPlaybackWebViewCoordinatorTests: XCTestCase {
 
     func testPlaybackEventInvalidEnvelopeMapsToPlaybackError() {
         let event = SpotifyPlaybackWebViewCoordinatorDispatch.playbackEvent(body: ["bad": true])
-        guard case let .playbackError(message) = event else {
+        guard case .playbackError(let message) = event else {
             return XCTFail("expected playback error")
         }
         XCTAssertTrue(message.contains("Invalid playback bridge message"))

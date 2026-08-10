@@ -54,12 +54,13 @@ struct HomeView: View {
             switch viewModel.homeRecentlyPlayed {
             case .loading:
                 HomeSectionNotice(style: .loading)
-            case let .loaded(cards):
+            case .loaded(let cards):
                 if cards.isEmpty {
-                    HomeSectionNotice(style: .message(
-                        icon: "clock.arrow.circlepath",
-                        text: SpotiglassL10n.string("home.recentlyPlayed.empty")
-                    ))
+                    HomeSectionNotice(
+                        style: .message(
+                            icon: "clock.arrow.circlepath",
+                            text: SpotiglassL10n.string("home.recentlyPlayed.empty")
+                        ))
                 } else {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(alignment: .top, spacing: SpotiglassDesign.spacingM) {
@@ -73,11 +74,12 @@ struct HomeView: View {
                     }
                 }
             case .unavailable:
-                HomeSectionNotice(style: .message(
-                    icon: "lock.fill",
-                    text: SpotiglassL10n.string("home.section.reconnect")
-                ))
-            case let .failed(message):
+                HomeSectionNotice(
+                    style: .message(
+                        icon: "lock.fill",
+                        text: SpotiglassL10n.string("home.section.reconnect")
+                    ))
+            case .failed(let message):
                 HomeSectionNotice(style: .message(icon: "exclamationmark.triangle", text: message))
             }
         }
@@ -92,21 +94,23 @@ struct HomeView: View {
             switch viewModel.homeTopTracks {
             case .loading:
                 HomeSectionNotice(style: .loading)
-            case let .loaded(tracks):
+            case .loaded(let tracks):
                 if tracks.isEmpty {
-                    HomeSectionNotice(style: .message(
-                        icon: "music.note",
-                        text: SpotiglassL10n.string("home.topTracks.empty")
-                    ))
+                    HomeSectionNotice(
+                        style: .message(
+                            icon: "music.note",
+                            text: SpotiglassL10n.string("home.topTracks.empty")
+                        ))
                 } else {
                     topTracksList(tracks)
                 }
             case .unavailable:
-                HomeSectionNotice(style: .message(
-                    icon: "lock.fill",
-                    text: SpotiglassL10n.string("home.section.reconnect")
-                ))
-            case let .failed(message):
+                HomeSectionNotice(
+                    style: .message(
+                        icon: "lock.fill",
+                        text: SpotiglassL10n.string("home.section.reconnect")
+                    ))
+            case .failed(let message):
                 HomeSectionNotice(style: .message(icon: "exclamationmark.triangle", text: message))
             }
         }
@@ -151,9 +155,9 @@ struct HomeView: View {
         switch destination {
         case .likedSongs:
             Task { await viewModel.selectSidebar(.likedSongs) }
-        case let .playlist(id):
+        case .playlist(let id):
             Task { await viewModel.selectSidebar(.playlist(id)) }
-        case let .album(id, title, subtitle, artworkURL):
+        case .album(let id, let title, let subtitle, let artworkURL):
             Task {
                 await viewModel.selectAlbum(
                     id: id,

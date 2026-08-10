@@ -100,7 +100,9 @@ struct PinnedRowView: View {
             }
             .frame(width: artworkSize, height: artworkSize)
             .clipShape(Circle())
-            .overlay { Circle().strokeBorder(SpotiglassDesign.artworkBorderColor(colorScheme: colorScheme), lineWidth: 1) }
+            .overlay {
+                Circle().strokeBorder(SpotiglassDesign.artworkBorderColor(colorScheme: colorScheme), lineWidth: 1)
+            }
         case .playlist, .album, .track:
             ArtworkView(url: item.artworkURL, size: artworkSize)
         }
@@ -129,8 +131,8 @@ private struct CachedCircularArtwork: View {
     }
 }
 
-private extension PinnedItemKind {
-    var accessibilityLabel: String {
+extension PinnedItemKind {
+    fileprivate var accessibilityLabel: String {
         switch self {
         case .playlist: SpotiglassL10n.string("pin.kind.playlist")
         case .artist: SpotiglassL10n.string("pin.kind.artist")
@@ -207,7 +209,9 @@ struct PinnedItemDragPill: View {
             }
             .frame(width: artworkSize, height: artworkSize)
             .clipShape(Circle())
-            .overlay { Circle().strokeBorder(SpotiglassDesign.artworkBorderColor(colorScheme: colorScheme), lineWidth: 1) }
+            .overlay {
+                Circle().strokeBorder(SpotiglassDesign.artworkBorderColor(colorScheme: colorScheme), lineWidth: 1)
+            }
         case .playlist, .album, .track:
             DragPreviewArtwork(url: item.artworkURL, size: artworkSize)
         }

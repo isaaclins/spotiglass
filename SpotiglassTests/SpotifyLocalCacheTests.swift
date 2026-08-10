@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 final class SpotifyLocalCacheTests: XCTestCase {
@@ -106,9 +107,10 @@ final class SpotifyLocalCacheTests: XCTestCase {
     func testLoadGETResponseExpiredReturnsNilWhenNotAllowed() throws {
         let (cache, _) = try makeCache()
         try cache.saveGETResponse(digest: "d", body: Data([1, 2]), ttl: 60, cachedAt: Date(timeIntervalSince1970: 0))
-        XCTAssertNil(try cache.loadGETResponseRecord(
-            digest: "d", now: Date(timeIntervalSince1970: 1_000), allowExpired: false
-        ))
+        XCTAssertNil(
+            try cache.loadGETResponseRecord(
+                digest: "d", now: Date(timeIntervalSince1970: 1_000), allowExpired: false
+            ))
     }
 
     func testLoadGETResponseExpiredReturnedWhenAllowed() throws {
@@ -155,8 +157,10 @@ final class SpotifyLocalCacheTests: XCTestCase {
         let cached = CachedPlaylistTracks(
             playlistID: "P", snapshotID: "S", tracks: [track], cachedAt: Date(timeIntervalSince1970: 0)
         )
-        XCTAssertTrue(cached.isValid(forPlaylist: "P", snapshotID: "S", now: Date(timeIntervalSince1970: 300), maxAge: 300))
-        XCTAssertFalse(cached.isValid(forPlaylist: "P", snapshotID: "S", now: Date(timeIntervalSince1970: 301), maxAge: 300))
+        XCTAssertTrue(
+            cached.isValid(forPlaylist: "P", snapshotID: "S", now: Date(timeIntervalSince1970: 300), maxAge: 300))
+        XCTAssertFalse(
+            cached.isValid(forPlaylist: "P", snapshotID: "S", now: Date(timeIntervalSince1970: 301), maxAge: 300))
         XCTAssertFalse(cached.isValid(forPlaylist: "OTHER", snapshotID: "S"))
         XCTAssertFalse(cached.isValid(forPlaylist: "P", snapshotID: "OTHER"))
     }

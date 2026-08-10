@@ -1,9 +1,12 @@
 import XCTest
+
 @testable import Spotiglass
 
 @MainActor
 final class SpotifyPlaybackAPITests: XCTestCase {
-    private func makeAPI(_ responses: [QueueHTTPClient.Response]) -> (SpotifyPlaybackAPI, QueueHTTPClient, StaticPlaybackTokenProvider) {
+    private func makeAPI(_ responses: [QueueHTTPClient.Response]) -> (
+        SpotifyPlaybackAPI, QueueHTTPClient, StaticPlaybackTokenProvider
+    ) {
         let http = QueueHTTPClient(responses)
         let token = StaticPlaybackTokenProvider(token: "tok")
         let api = SpotifyPlaybackAPI(tokenProvider: token, httpClient: http)
@@ -75,7 +78,7 @@ final class SpotifyPlaybackAPITests: XCTestCase {
             try await api.play(uris: [], deviceID: "d")
             XCTFail("expected throw")
         } catch let error as SpotifyAPIError {
-            if case .invalidRequest = error { /* ok */ } else { XCTFail("got \(error)") }
+            if case .invalidRequest = error { /* ok */  } else { XCTFail("got \(error)") }
         } catch {
             XCTFail("wrong error type \(error)")
         }
@@ -96,7 +99,7 @@ final class SpotifyPlaybackAPITests: XCTestCase {
     func testNextAndPreviousUsePOST() async throws {
         let (api, http, _) = makeAPI([
             .json("", statusCode: 204),
-            .json("", statusCode: 204)
+            .json("", statusCode: 204),
         ])
 
         try await api.next(deviceID: "d")
@@ -124,7 +127,7 @@ final class SpotifyPlaybackAPITests: XCTestCase {
     func testSetShuffleSerializesBoolAsLowercaseString() async throws {
         let (api, http, _) = makeAPI([
             .json("", statusCode: 204),
-            .json("", statusCode: 204)
+            .json("", statusCode: 204),
         ])
 
         try await api.setShuffle(enabled: true, deviceID: "d")
@@ -138,7 +141,7 @@ final class SpotifyPlaybackAPITests: XCTestCase {
         let (api, http, _) = makeAPI([
             .json("", statusCode: 204),
             .json("", statusCode: 204),
-            .json("", statusCode: 204)
+            .json("", statusCode: 204),
         ])
 
         try await api.setRepeat(mode: .off, deviceID: "d")
@@ -153,41 +156,44 @@ final class SpotifyPlaybackAPITests: XCTestCase {
     // MARK: - GET endpoints
 
     func testFetchQueueDecodesTracksAndFiltersCurrentlyPlaying() async throws {
-        let (api, _, _) = makeAPI([.json("""
-        {
-          "currently_playing": {
-            "id": "cur",
-            "name": "Now",
-            "artists": [{"id":"a1","name":"A"}],
-            "duration_ms": 100,
-            "explicit": false,
-            "uri": "spotify:track:cur"
-          },
-          "queue": [
-            {
-              "id": "cur",
-              "name": "Now",
-              "artists": [{"id":"a1","name":"A"}],
-              "duration_ms": 100,
-              "explicit": false,
-              "uri": "spotify:track:cur"
-            },
-            {
-              "id": "next1",
-              "name": "Next",
-              "artists": [{"id":"a2","name":"B"}],
-              "duration_ms": 200,
-              "explicit": true,
-              "uri": "spotify:track:next1"
-            }
-          ]
-        }
-        """)])
+        let (api, _, _) = makeAPI([
+            .json(
+                """
+                {
+                  "currently_playing": {
+                    "id": "cur",
+                    "name": "Now",
+                    "artists": [{"id":"a1","name":"A"}],
+                    "duration_ms": 100,
+                    "explicit": false,
+                    "uri": "spotify:track:cur"
+                  },
+                  "queue": [
+                    {
+                      "id": "cur",
+                      "name": "Now",
+                      "artists": [{"id":"a1","name":"A"}],
+                      "duration_ms": 100,
+                      "explicit": false,
+                      "uri": "spotify:track:cur"
+                    },
+                    {
+                      "id": "next1",
+                      "name": "Next",
+                      "artists": [{"id":"a2","name":"B"}],
+                      "duration_ms": 200,
+                      "explicit": true,
+                      "uri": "spotify:track:next1"
+                    }
+                  ]
+                }
+                """)
+        ])
 
         let response = try await api.fetchQueue()
 
         XCTAssertEqual(response.queue.count, 1, "currently-playing track must be filtered out of queue")
-        if case let .track(t) = response.queue[0] {
+        if case .track(let t) = response.queue[0] {
             XCTAssertEqual(t.id, "next1")
         } else {
             XCTFail("expected track item")
@@ -195,25 +201,28 @@ final class SpotifyPlaybackAPITests: XCTestCase {
     }
 
     func testFetchQueueDecodesEpisodeViaShowDiscriminator() async throws {
-        let (api, _, _) = makeAPI([.json("""
-        {
-          "currently_playing": null,
-          "queue": [
-            {
-              "id": "ep1",
-              "name": "Episode 1",
-              "show": {"id":"s1","name":"Show","images":[]},
-              "duration_ms": 600000,
-              "uri": "spotify:episode:ep1"
-            }
-          ]
-        }
-        """)])
+        let (api, _, _) = makeAPI([
+            .json(
+                """
+                {
+                  "currently_playing": null,
+                  "queue": [
+                    {
+                      "id": "ep1",
+                      "name": "Episode 1",
+                      "show": {"id":"s1","name":"Show","images":[]},
+                      "duration_ms": 600000,
+                      "uri": "spotify:episode:ep1"
+                    }
+                  ]
+                }
+                """)
+        ])
 
         let response = try await api.fetchQueue()
 
         XCTAssertEqual(response.queue.count, 1)
-        if case let .episode(e) = response.queue[0] {
+        if case .episode(let e) = response.queue[0] {
             XCTAssertEqual(e.id, "ep1")
             XCTAssertEqual(e.showName, "Show")
         } else {
@@ -230,20 +239,23 @@ final class SpotifyPlaybackAPITests: XCTestCase {
     }
 
     func testFetchPlayerSnapshotDecodesTransportAndActiveDevice() async throws {
-        let (api, _, _) = makeAPI([.json("""
-        {
-          "shuffle_state": true,
-          "repeat_state": "context",
-          "is_playing": true,
-          "device": {
-            "id": "d1",
-            "is_active": true,
-            "is_restricted": false,
-            "name": "MacBook",
-            "type": "Computer"
-          }
-        }
-        """)])
+        let (api, _, _) = makeAPI([
+            .json(
+                """
+                {
+                  "shuffle_state": true,
+                  "repeat_state": "context",
+                  "is_playing": true,
+                  "device": {
+                    "id": "d1",
+                    "is_active": true,
+                    "is_restricted": false,
+                    "name": "MacBook",
+                    "type": "Computer"
+                  }
+                }
+                """)
+        ])
 
         let snapshot = try await api.fetchPlayerSnapshot()
 
@@ -256,9 +268,12 @@ final class SpotifyPlaybackAPITests: XCTestCase {
     }
 
     func testFetchPlayerSnapshotUnknownRepeatStateFallsBackToOff() async throws {
-        let (api, _, _) = makeAPI([.json("""
-        {"shuffle_state": false, "repeat_state": "bogus", "is_playing": false}
-        """)])
+        let (api, _, _) = makeAPI([
+            .json(
+                """
+                {"shuffle_state": false, "repeat_state": "bogus", "is_playing": false}
+                """)
+        ])
 
         let snapshot = try await api.fetchPlayerSnapshot()
 
@@ -266,12 +281,15 @@ final class SpotifyPlaybackAPITests: XCTestCase {
     }
 
     func testFetchAvailableDevicesDecodesList() async throws {
-        let (api, _, _) = makeAPI([.json("""
-        {"devices":[
-          {"id":"d1","is_active":true,"is_restricted":false,"name":"A","type":"Computer"},
-          {"id":"d2","is_active":false,"is_restricted":true,"name":"B","type":"Speaker"}
-        ]}
-        """)])
+        let (api, _, _) = makeAPI([
+            .json(
+                """
+                {"devices":[
+                  {"id":"d1","is_active":true,"is_restricted":false,"name":"A","type":"Computer"},
+                  {"id":"d2","is_active":false,"is_restricted":true,"name":"B","type":"Speaker"}
+                ]}
+                """)
+        ])
 
         let devices = try await api.fetchAvailableDevices()
 
@@ -288,15 +306,17 @@ final class SpotifyPlaybackAPITests: XCTestCase {
             (401, [:], { if case .unauthorized = $0 { true } else { false } }),
             (403, [:], { if case .forbidden = $0 { true } else { false } }),
             (404, [:], { if case .notFound = $0 { true } else { false } }),
-            (429, ["Retry-After": "3"], { if case let .rateLimited(retry) = $0 { retry == 3 } else { false } }),
-            (500, [:], { if case .server = $0 { true } else { false } })
+            (429, ["Retry-After": "3"], { if case .rateLimited(let retry) = $0 { retry == 3 } else { false } }),
+            (500, [:], { if case .server = $0 { true } else { false } }),
         ]
         for (status, headers, validate) in cases {
-            let (api, _, _) = makeAPI([.json(
-                #"{"error":{"status":\#(status),"message":"oops"}}"#,
-                statusCode: status,
-                headers: headers
-            )])
+            let (api, _, _) = makeAPI([
+                .json(
+                    #"{"error":{"status":\#(status),"message":"oops"}}"#,
+                    statusCode: status,
+                    headers: headers
+                )
+            ])
             do {
                 try await api.next(deviceID: "d")
                 XCTFail("expected throw for \(status)")
@@ -310,11 +330,13 @@ final class SpotifyPlaybackAPITests: XCTestCase {
 
     func testRetryAfterHeaderHTTPDateFormatParsed() async {
         // Sat, 01 Jan 2050 00:00:00 GMT is well in the future relative to test execution.
-        let (api, _, _) = makeAPI([.json(
-            #"{"error":{"status":429,"message":"slow"}}"#,
-            statusCode: 429,
-            headers: ["Retry-After": "Sat, 01 Jan 2050 00:00:00 GMT"]
-        )])
+        let (api, _, _) = makeAPI([
+            .json(
+                #"{"error":{"status":429,"message":"slow"}}"#,
+                statusCode: 429,
+                headers: ["Retry-After": "Sat, 01 Jan 2050 00:00:00 GMT"]
+            )
+        ])
         do {
             try await api.next(deviceID: "d")
             XCTFail("expected throw")
@@ -327,11 +349,13 @@ final class SpotifyPlaybackAPITests: XCTestCase {
     }
 
     func testMalformedRetryAfterHeaderReturnsNilRetry() async {
-        let (api, _, _) = makeAPI([.json(
-            #"{"error":{"status":429,"message":"slow"}}"#,
-            statusCode: 429,
-            headers: ["Retry-After": "not-a-number-or-date"]
-        )])
+        let (api, _, _) = makeAPI([
+            .json(
+                #"{"error":{"status":429,"message":"slow"}}"#,
+                statusCode: 429,
+                headers: ["Retry-After": "not-a-number-or-date"]
+            )
+        ])
         do {
             try await api.next(deviceID: "d")
             XCTFail("expected throw")
@@ -347,7 +371,7 @@ final class SpotifyPlaybackAPITests: XCTestCase {
     func testFetchPlayerSnapshotRetriesOn500ThenSucceeds() async throws {
         let (api, http, _) = makeAPI([
             .json(#"{"error":{"status":500,"message":"boom"}}"#, statusCode: 500),
-            .json(#"{"shuffle_state":false,"repeat_state":"off","is_playing":false}"#)
+            .json(#"{"shuffle_state":false,"repeat_state":"off","is_playing":false}"#),
         ])
 
         let snapshot = try await api.fetchPlayerSnapshot()
@@ -359,7 +383,7 @@ final class SpotifyPlaybackAPITests: XCTestCase {
     func testFetchAvailableDevicesRetriesOn429UsingRetryAfter() async throws {
         let (api, http, _) = makeAPI([
             .json(#"{"error":{"status":429,"message":"slow"}}"#, statusCode: 429, headers: ["Retry-After": "0"]),
-            .json(#"{"devices":[]}"#)
+            .json(#"{"devices":[]}"#),
         ])
 
         _ = try await api.fetchAvailableDevices()
@@ -384,14 +408,14 @@ final class SpotifyPlaybackAPITests: XCTestCase {
         let (api, http, _) = makeAPI([
             .json(#"{"error":{"status":500,"message":"boom"}}"#, statusCode: 500, headers: ["Retry-After": "0"]),
             .json(#"{"error":{"status":500,"message":"boom"}}"#, statusCode: 500, headers: ["Retry-After": "0"]),
-            .json(#"{"error":{"status":500,"message":"boom"}}"#, statusCode: 500, headers: ["Retry-After": "0"])
+            .json(#"{"error":{"status":500,"message":"boom"}}"#, statusCode: 500, headers: ["Retry-After": "0"]),
         ])
 
         do {
             _ = try await api.fetchPlayerSnapshot()
             XCTFail("expected throw")
         } catch let e as SpotifyAPIError {
-            if case .server = e { /* ok */ } else { XCTFail("got \(e)") }
+            if case .server = e { /* ok */  } else { XCTFail("got \(e)") }
             XCTAssertEqual(http.requests.count, 3, "must give up after maxGETRetryAttempts")
         } catch {
             XCTFail("wrong error \(error)")
@@ -421,7 +445,8 @@ final class SpotifyPlaybackAPITests: XCTestCase {
         async let second = api.fetchPlayerSnapshot()
         _ = try await (first, second)
 
-        XCTAssertEqual(http.requestsStarted, 1, "Concurrent fetchPlayerSnapshot calls must share one GET /v1/me/player.")
+        XCTAssertEqual(
+            http.requestsStarted, 1, "Concurrent fetchPlayerSnapshot calls must share one GET /v1/me/player.")
     }
 
     func testFetchPlayerSnapshotPropagatesNonRetryableURLError() async {

@@ -389,11 +389,13 @@ struct LyricsReturnToCurrentLinePill: View {
                 .symbolEffect(.pulse, options: .repeating, value: iconPulse)
                 .foregroundStyle(.white)
         }
-        .buttonStyle(SpotiglassPillStyle(
-            variant: .glass,
-            horizontalPadding: ImmersiveLyricsLayout.resumePillHorizontalPadding,
-            verticalPadding: ImmersiveLyricsLayout.resumePillVerticalPadding
-        ))
+        .buttonStyle(
+            SpotiglassPillStyle(
+                variant: .glass,
+                horizontalPadding: ImmersiveLyricsLayout.resumePillHorizontalPadding,
+                verticalPadding: ImmersiveLyricsLayout.resumePillVerticalPadding
+            )
+        )
         .onAppear { iconPulse.toggle() }
         .accessibilityLabel(SpotiglassL10n.string("lyrics.returnToLine"))
     }

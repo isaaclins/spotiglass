@@ -90,8 +90,9 @@ struct CommandPaletteView: View {
         let parsed = CommandPaletteScope.parse(viewModel.query)
         let stripped = parsed.query.trimmingCharacters(in: .whitespacesAndNewlines)
         if parsed.scope == .songs,
-           !stripped.isEmpty,
-           stripped.count < CommandPaletteViewModel.minimumPaletteSearchQueryCharacters {
+            !stripped.isEmpty,
+            stripped.count < CommandPaletteViewModel.minimumPaletteSearchQueryCharacters
+        {
             return viewModel.isLoading || viewModel.errorText != nil
         }
         return true

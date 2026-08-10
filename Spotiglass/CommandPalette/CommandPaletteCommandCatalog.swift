@@ -61,6 +61,12 @@ enum CommandPaletteCommandCatalog {
             defaultKeystroke: "cmd-k"
         ),
         spec(
+            commandID: CommandPaletteCommandID.openSearch,
+            iconSystemName: "magnifyingglass",
+            defaultWhen: .signedIn,
+            defaultKeystroke: "cmd-f"
+        ),
+        spec(
             commandID: CommandPaletteCommandID.refreshPlaylists,
             iconSystemName: "arrow.clockwise",
             defaultWhen: .signedIn,
@@ -155,10 +161,11 @@ enum CommandPaletteCommandCatalog {
         var entries: [String] = []
         for commandID in defaultKeymapFileOrder {
             guard let spec = editable.first(where: { $0.commandID == commandID }),
-                  let ks = spec.defaultKeystroke
+                let ks = spec.defaultKeystroke
             else { continue }
             let whenRaw = spec.defaultWhen.rawValue
-            entries.append("    { \"keystrokes\": [\"\(ks)\"], \"command\": \"\(spec.commandID)\", \"when\": \"\(whenRaw)\" }")
+            entries.append(
+                "    { \"keystrokes\": [\"\(ks)\"], \"command\": \"\(spec.commandID)\", \"when\": \"\(whenRaw)\" }")
         }
         lines.append(entries.joined(separator: ",\n"))
         lines.append("  ]")

@@ -1,56 +1,59 @@
 import XCTest
+
 @testable import Spotiglass
 
 final class SpotifyAPIClientAlbumsBatchedTests: XCTestCase {
     func testAlbumsBatchedRequestEncodesIDsAndDecodes() async throws {
         let httpClient = QueueHTTPClient([
-            .json("""
-            {
-              "albums": [
+            .json(
+                """
                 {
-                  "id": "al1",
-                  "name": "Album One",
-                  "images": [],
-                  "tracks": {
-                    "href": "x",
-                    "limit": 50,
-                    "next": null,
-                    "offset": 0,
-                    "previous": null,
-                    "total": 1,
-                    "items": [
-                      {
-                        "id": "tr1",
-                        "name": "Song A",
-                        "artists": [{ "id": "ar1", "name": "Artist" }],
-                        "album": { "images": [] },
-                        "duration_ms": 1000,
-                        "explicit": false,
-                        "uri": "spotify:track:tr1"
+                  "albums": [
+                    {
+                      "id": "al1",
+                      "name": "Album One",
+                      "images": [],
+                      "tracks": {
+                        "href": "x",
+                        "limit": 50,
+                        "next": null,
+                        "offset": 0,
+                        "previous": null,
+                        "total": 1,
+                        "items": [
+                          {
+                            "id": "tr1",
+                            "name": "Song A",
+                            "artists": [{ "id": "ar1", "name": "Artist" }],
+                            "album": { "images": [] },
+                            "duration_ms": 1000,
+                            "explicit": false,
+                            "uri": "spotify:track:tr1"
+                          }
+                        ]
                       }
-                    ]
-                  }
-                },
-                null,
-                {
-                  "id": "al3",
-                  "name": "Album Three",
-                  "images": [],
-                  "tracks": {
-                    "href": "x",
-                    "limit": 50,
-                    "next": null,
-                    "offset": 0,
-                    "previous": null,
-                    "total": 0,
-                    "items": []
-                  }
+                    },
+                    null,
+                    {
+                      "id": "al3",
+                      "name": "Album Three",
+                      "images": [],
+                      "tracks": {
+                        "href": "x",
+                        "limit": 50,
+                        "next": null,
+                        "offset": 0,
+                        "previous": null,
+                        "total": 0,
+                        "items": []
+                      }
+                    }
+                  ]
                 }
-              ]
-            }
-            """)
+                """)
         ])
-        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+        let client = SpotifyAPIClient(
+            tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
 
         let albums = try await client.albums(ids: ["al1", "al2", "al3"], market: "US")
 
@@ -68,7 +71,8 @@ final class SpotifyAPIClientAlbumsBatchedTests: XCTestCase {
     }
 
     func testAlbumsBatchedRejectsMoreThan20IDs() async {
-        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: QueueHTTPClient([]))
+        let client = SpotifyAPIClient(
+            tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: QueueHTTPClient([]))
         let ids = (0..<21).map { "id-\($0)" }
         do {
             _ = try await client.albums(ids: ids, market: nil)
@@ -86,7 +90,8 @@ final class SpotifyAPIClientAlbumsBatchedTests: XCTestCase {
         let httpClient = QueueHTTPClient([
             .json(#"{"albums":[]}"#)
         ])
-        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+        let client = SpotifyAPIClient(
+            tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
 
         _ = try await client.albums(ids: [" al1 ", "al1", "", "al2", "al2", "al3 "], market: nil)
 
@@ -97,27 +102,28 @@ final class SpotifyAPIClientAlbumsBatchedTests: XCTestCase {
     func testAlbumsBatchedConcurrentIdenticalNormalizedRequestsCoalesce() async throws {
         let httpClient = DelayedCountingHTTPClient(
             responseJSON: """
-            {
-              "albums": [
                 {
-                  "id": "al1",
-                  "name": "Album One",
-                  "images": [],
-                  "tracks": {
-                    "href": "x",
-                    "limit": 50,
-                    "next": null,
-                    "offset": 0,
-                    "previous": null,
-                    "total": 0,
-                    "items": []
-                  }
+                  "albums": [
+                    {
+                      "id": "al1",
+                      "name": "Album One",
+                      "images": [],
+                      "tracks": {
+                        "href": "x",
+                        "limit": 50,
+                        "next": null,
+                        "offset": 0,
+                        "previous": null,
+                        "total": 0,
+                        "items": []
+                      }
+                    }
+                  ]
                 }
-              ]
-            }
-            """
+                """
         )
-        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+        let client = SpotifyAPIClient(
+            tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
 
         async let first = client.albums(ids: [" al1 ", "al1"], market: "US")
         async let second = client.albums(ids: ["al1"], market: "US")
@@ -126,46 +132,49 @@ final class SpotifyAPIClientAlbumsBatchedTests: XCTestCase {
         XCTAssertEqual(a.map(\.id), ["al1"])
         XCTAssertEqual(b.map(\.id), ["al1"])
         let requestCount = await httpClient.requestCount
-        XCTAssertEqual(requestCount, 1, "Concurrent normalized-equivalent batched album requests should share one in-flight HTTP call.")
+        XCTAssertEqual(
+            requestCount, 1,
+            "Concurrent normalized-equivalent batched album requests should share one in-flight HTTP call.")
     }
 
     func testAlbumsBatchedCacheKeySharesAcrossEquivalentIDOrdering() async throws {
         let cache = SpotifyGETResponseCache(diskCache: nil)
         let httpClient = QueueHTTPClient([
-            .json("""
-            {
-              "albums": [
+            .json(
+                """
                 {
-                  "id": "al1",
-                  "name": "Album One",
-                  "images": [],
-                  "tracks": {
-                    "href": "x",
-                    "limit": 50,
-                    "next": null,
-                    "offset": 0,
-                    "previous": null,
-                    "total": 0,
-                    "items": []
-                  }
-                },
-                {
-                  "id": "al2",
-                  "name": "Album Two",
-                  "images": [],
-                  "tracks": {
-                    "href": "x",
-                    "limit": 50,
-                    "next": null,
-                    "offset": 0,
-                    "previous": null,
-                    "total": 0,
-                    "items": []
-                  }
+                  "albums": [
+                    {
+                      "id": "al1",
+                      "name": "Album One",
+                      "images": [],
+                      "tracks": {
+                        "href": "x",
+                        "limit": 50,
+                        "next": null,
+                        "offset": 0,
+                        "previous": null,
+                        "total": 0,
+                        "items": []
+                      }
+                    },
+                    {
+                      "id": "al2",
+                      "name": "Album Two",
+                      "images": [],
+                      "tracks": {
+                        "href": "x",
+                        "limit": 50,
+                        "next": null,
+                        "offset": 0,
+                        "previous": null,
+                        "total": 0,
+                        "items": []
+                      }
+                    }
+                  ]
                 }
-              ]
-            }
-            """)
+                """)
         ])
         let client = SpotifyAPIClient(
             tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"),
@@ -176,7 +185,9 @@ final class SpotifyAPIClientAlbumsBatchedTests: XCTestCase {
         _ = try await client.albums(ids: ["al1", "al2"], market: "US")
         _ = try await client.albums(ids: ["al2", "al1"], market: "US")
 
-        XCTAssertEqual(httpClient.requests.count, 1, "Equivalent /v1/albums ids sets should share one GET cache key regardless of ordering.")
+        XCTAssertEqual(
+            httpClient.requests.count, 1,
+            "Equivalent /v1/albums ids sets should share one GET cache key regardless of ordering.")
     }
 
     func testAlbumsBatchedSkipsInlineRetryWhenRetryAfterExceedsCap() async throws {
@@ -189,18 +200,21 @@ final class SpotifyAPIClientAlbumsBatchedTests: XCTestCase {
                 headers: ["Retry-After": "30"]
             )
         ])
-        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+        let client = SpotifyAPIClient(
+            tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
 
         do {
             _ = try await client.albums(ids: ["al1"], market: "US")
             XCTFail("Expected rateLimited error to propagate without inline retries.")
         } catch let error as SpotifyAPIError {
-            guard case let .rateLimited(retryAfter) = error else {
+            guard case .rateLimited(let retryAfter) = error else {
                 return XCTFail("Expected SpotifyAPIError.rateLimited, got \(error)")
             }
             XCTAssertEqual(retryAfter, 30, "Original Retry-After value must reach the caller's cooldown layer.")
         }
-        XCTAssertEqual(httpClient.requests.count, 1, "Long Retry-After must short-circuit inline retries to a single outbound /v1/albums call.")
+        XCTAssertEqual(
+            httpClient.requests.count, 1,
+            "Long Retry-After must short-circuit inline retries to a single outbound /v1/albums call.")
     }
 
     func testAlbumsBatchedRetriesShortRetryAfterUpToCap() async throws {
@@ -213,33 +227,37 @@ final class SpotifyAPIClientAlbumsBatchedTests: XCTestCase {
                 statusCode: 429,
                 headers: ["Retry-After": "0.001"]
             ),
-            .json("""
-            {
-              "albums": [
+            .json(
+                """
                 {
-                  "id": "al1",
-                  "name": "Recovered",
-                  "images": [],
-                  "tracks": {
-                    "href": "x",
-                    "limit": 50,
-                    "next": null,
-                    "offset": 0,
-                    "previous": null,
-                    "total": 0,
-                    "items": []
-                  }
+                  "albums": [
+                    {
+                      "id": "al1",
+                      "name": "Recovered",
+                      "images": [],
+                      "tracks": {
+                        "href": "x",
+                        "limit": 50,
+                        "next": null,
+                        "offset": 0,
+                        "previous": null,
+                        "total": 0,
+                        "items": []
+                      }
+                    }
+                  ]
                 }
-              ]
-            }
-            """)
+                """),
         ])
-        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+        let client = SpotifyAPIClient(
+            tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
 
         let albums = try await client.albums(ids: ["al1"], market: "US")
 
         XCTAssertEqual(albums.map(\.id), ["al1"])
-        XCTAssertEqual(httpClient.requests.count, 2, "Short Retry-After (≤ inlineRateLimitRetryCeiling) should retry exactly once and succeed.")
+        XCTAssertEqual(
+            httpClient.requests.count, 2,
+            "Short Retry-After (≤ inlineRateLimitRetryCeiling) should retry exactly once and succeed.")
     }
 
     func testAlbumsBatchedServesStaleCacheOnRateLimitWithinStaleWindow() async throws {
@@ -248,35 +266,35 @@ final class SpotifyAPIClientAlbumsBatchedTests: XCTestCase {
         // issuing additional outbound requests.
         let cache = SpotifyGETResponseCache(diskCache: nil)
         let staleBody = """
-        {
-          "albums": [
             {
-              "id": "al1",
-              "name": "Stale One",
-              "images": [],
-              "tracks": {
-                "href": "x",
-                "limit": 50,
-                "next": null,
-                "offset": 0,
-                "previous": null,
-                "total": 1,
-                "items": [
-                  {
-                    "id": "stale-tr1",
-                    "name": "Stale Track",
-                    "artists": [{ "id": "ar1", "name": "Artist" }],
-                    "album": { "images": [] },
-                    "duration_ms": 1000,
-                    "explicit": false,
-                    "uri": "spotify:track:stale-tr1"
+              "albums": [
+                {
+                  "id": "al1",
+                  "name": "Stale One",
+                  "images": [],
+                  "tracks": {
+                    "href": "x",
+                    "limit": 50,
+                    "next": null,
+                    "offset": 0,
+                    "previous": null,
+                    "total": 1,
+                    "items": [
+                      {
+                        "id": "stale-tr1",
+                        "name": "Stale Track",
+                        "artists": [{ "id": "ar1", "name": "Artist" }],
+                        "album": { "images": [] },
+                        "duration_ms": 1000,
+                        "explicit": false,
+                        "uri": "spotify:track:stale-tr1"
+                      }
+                    ]
                   }
-                ]
-              }
+                }
+              ]
             }
-          ]
-        }
-        """
+            """
         let probeURL = URL(string: "https://api.spotify.com/v1/albums?ids=al1&market=US")!
         var probeRequest = URLRequest(url: probeURL)
         probeRequest.httpMethod = "GET"
@@ -325,7 +343,7 @@ final class SpotifyAPIClientAlbumsBatchedTests: XCTestCase {
             _ = try await client.albums(ids: ["al1"], market: "US")
             XCTFail("Expected rateLimited error when no stale cache entry exists.")
         } catch let error as SpotifyAPIError {
-            guard case let .rateLimited(retryAfter) = error else {
+            guard case .rateLimited(let retryAfter) = error else {
                 return XCTFail("Expected SpotifyAPIError.rateLimited, got \(error)")
             }
             XCTAssertEqual(retryAfter, 30)
@@ -341,7 +359,9 @@ final class SpotifyAPIClientAlbumsBatchedTests: XCTestCase {
         var probeRequest = URLRequest(url: probeURL)
         probeRequest.httpMethod = "GET"
         let cacheKey = try XCTUnwrap(SpotifyGETResponseCachePolicy.normalizedCacheKey(for: probeRequest))
-        cache.store(body: Data(#"{"albums":[]}"#.utf8), cacheKey: cacheKey, ttl: -(SpotifyAPIClient.batchedAlbumsStaleOnRateLimitMaxAge + 60))
+        cache.store(
+            body: Data(#"{"albums":[]}"#.utf8), cacheKey: cacheKey,
+            ttl: -(SpotifyAPIClient.batchedAlbumsStaleOnRateLimitMaxAge + 60))
 
         let httpClient = QueueHTTPClient([
             .json(
@@ -373,7 +393,8 @@ final class SpotifyAPIClientAlbumsBatchedTests: XCTestCase {
         let httpClient = QueueHTTPClient([
             .json(#"{"albums":[]}"#)
         ])
-        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+        let client = SpotifyAPIClient(
+            tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
 
         _ = try await client.albums(ids: ["al1"], market: nil)
 

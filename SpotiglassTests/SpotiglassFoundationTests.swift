@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 final class SpotiglassFoundationTests: XCTestCase {
@@ -19,7 +20,8 @@ final class SpotiglassFoundationTests: XCTestCase {
 
     func testAppMenuKeepsPaletteInStandardApplicationMenu() throws {
         let testsDirectory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-        let sourceURL = testsDirectory
+        let sourceURL =
+            testsDirectory
             .deletingLastPathComponent()
             .appendingPathComponent("Spotiglass/App/SpotiglassApp.swift")
         let source = try String(contentsOf: sourceURL, encoding: .utf8)
@@ -57,7 +59,8 @@ final class SpotiglassFoundationTests: XCTestCase {
     /// so the two sources of truth must not drift apart.
     func testSparkleInfoPlistMatchesSparkleConfiguration() throws {
         let testsDirectory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-        let plistURL = testsDirectory
+        let plistURL =
+            testsDirectory
             .deletingLastPathComponent()
             .appendingPathComponent("Spotiglass/App/SparkleInfo.plist")
         let data = try Data(contentsOf: plistURL)

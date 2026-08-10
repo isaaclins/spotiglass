@@ -1,5 +1,6 @@
 import AppKit
 import XCTest
+
 @testable import Spotiglass
 
 @MainActor
@@ -34,10 +35,17 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
         let manager = CommandPaletteManager()
         manager.viewModel.show()
         manager.viewModel.testingReplaceSections([
-            (.commands, [
-                CommandPaletteItem(id: "a", title: "A", subtitle: nil, iconSystemName: "command", section: .commands, keywords: [], action: {}),
-                CommandPaletteItem(id: "b", title: "B", subtitle: nil, iconSystemName: "command", section: .commands, keywords: [], action: {}),
-            ]),
+            (
+                .commands,
+                [
+                    CommandPaletteItem(
+                        id: "a", title: "A", subtitle: nil, iconSystemName: "command", section: .commands, keywords: [],
+                        action: {}),
+                    CommandPaletteItem(
+                        id: "b", title: "B", subtitle: nil, iconSystemName: "command", section: .commands, keywords: [],
+                        action: {}),
+                ]
+            )
         ])
         let start = manager.viewModel.selectedIndex
         XCTAssertTrue(manager.handleKeyEvent(keyDown(keyCode: 125)))
@@ -144,17 +152,20 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
         let manager = CommandPaletteManager()
         manager.viewModel.show()
         manager.viewModel.testingReplaceSections([
-            (.commands, [
-                CommandPaletteItem(
-                    id: "run",
-                    title: "Run",
-                    subtitle: nil,
-                    iconSystemName: "command",
-                    section: .commands,
-                    keywords: [],
-                    action: {}
-                ),
-            ]),
+            (
+                .commands,
+                [
+                    CommandPaletteItem(
+                        id: "run",
+                        title: "Run",
+                        subtitle: nil,
+                        iconSystemName: "command",
+                        section: .commands,
+                        keywords: [],
+                        action: {}
+                    )
+                ]
+            )
         ])
         XCTAssertTrue(manager.handleKeyEvent(keyDown(keyCode: 36)))
     }
@@ -280,17 +291,20 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
         manager.viewModel.show()
         let executed = expectation(description: "executed")
         manager.viewModel.testingReplaceSections([
-            (.commands, [
-                CommandPaletteItem(
-                    id: "run",
-                    title: "Run",
-                    subtitle: nil,
-                    iconSystemName: "command",
-                    section: .commands,
-                    keywords: [],
-                    action: { executed.fulfill() }
-                ),
-            ]),
+            (
+                .commands,
+                [
+                    CommandPaletteItem(
+                        id: "run",
+                        title: "Run",
+                        subtitle: nil,
+                        iconSystemName: "command",
+                        section: .commands,
+                        keywords: [],
+                        action: { executed.fulfill() }
+                    )
+                ]
+            )
         ])
         XCTAssertTrue(manager.handleKeyEvent(keyDown(keyCode: 36)))
         await fulfillment(of: [executed], timeout: 2)

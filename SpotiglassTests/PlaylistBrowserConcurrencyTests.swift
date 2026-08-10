@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 @MainActor
@@ -6,10 +7,12 @@ final class PlaylistBrowserConcurrencyTests: XCTestCase {
 
     func testConcurrentSelectArtistCoalescesSingleNetworkChain() async {
         let page1 = SpotifyArtistAlbum(
-            id: "alb-1", name: "First", imageURL: nil, releaseYear: "2024", totalTracks: 1, group: .album, uri: "spotify:album:alb-1"
+            id: "alb-1", name: "First", imageURL: nil, releaseYear: "2024", totalTracks: 1, group: .album,
+            uri: "spotify:album:alb-1"
         )
         let page2 = SpotifyArtistAlbum(
-            id: "alb-2", name: "Second", imageURL: nil, releaseYear: "2023", totalTracks: 1, group: .album, uri: "spotify:album:alb-2"
+            id: "alb-2", name: "Second", imageURL: nil, releaseYear: "2023", totalTracks: 1, group: .album,
+            uri: "spotify:album:alb-2"
         )
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
@@ -32,7 +35,8 @@ final class PlaylistBrowserConcurrencyTests: XCTestCase {
         async let second: Void = viewModel.selectArtist(id: "artist-xyz")
         _ = await (first, second)
 
-        XCTAssertEqual(api.artistAlbumsPageCallCount, 2, "Concurrent same-artist opens should share one in-flight artist load.")
+        XCTAssertEqual(
+            api.artistAlbumsPageCallCount, 2, "Concurrent same-artist opens should share one in-flight artist load.")
     }
 
     func testSelectArtistWithinTTLUsesCachedSnapshotWithoutRefetch() async {
@@ -43,14 +47,19 @@ final class PlaylistBrowserConcurrencyTests: XCTestCase {
             artistAlbumsPageHandler: { _, _, _, offset, _ in
                 if offset == 0 {
                     return SpotifyAPIClient.SpotifyArtistAlbumsPage(
-                        items: [SpotifyArtistAlbum(id: "alb-1", name: "First", imageURL: nil, releaseYear: "2024", totalTracks: 1, group: .album, uri: "spotify:album:alb-1")],
+                        items: [
+                            SpotifyArtistAlbum(
+                                id: "alb-1", name: "First", imageURL: nil, releaseYear: "2024", totalTracks: 1,
+                                group: .album, uri: "spotify:album:alb-1")
+                        ],
                         next: nil
                     )
                 }
                 return SpotifyAPIClient.SpotifyArtistAlbumsPage(items: [], next: nil)
             }
         )
-        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache(), now: { now }, artistDetailCacheTTL: 120)
+        let viewModel = PlaylistBrowserViewModel(
+            api: api, cache: MockBrowsingCache(), now: { now }, artistDetailCacheTTL: 120)
 
         await viewModel.load()
         await viewModel.selectArtist(id: "artist-xyz")
@@ -59,7 +68,8 @@ final class PlaylistBrowserConcurrencyTests: XCTestCase {
         await viewModel.selectArtist(id: "artist-xyz")
 
         XCTAssertEqual(firstCount, 1)
-        XCTAssertEqual(api.artistAlbumsPageCallCount, 1, "Reopening same artist within TTL should reuse cached snapshot.")
+        XCTAssertEqual(
+            api.artistAlbumsPageCallCount, 1, "Reopening same artist within TTL should reuse cached snapshot.")
     }
 
     func testLoadMoreArtistAlbumsFetchesOneAdditionalPageOnDemand() async {
@@ -70,13 +80,21 @@ final class PlaylistBrowserConcurrencyTests: XCTestCase {
             artistAlbumsPageHandler: { _, _, _, offset, providedNext in
                 if offset == 0 {
                     return SpotifyAPIClient.SpotifyArtistAlbumsPage(
-                        items: [SpotifyArtistAlbum(id: "alb-1", name: "First", imageURL: nil, releaseYear: "2024", totalTracks: 1, group: .album, uri: "spotify:album:alb-1")],
+                        items: [
+                            SpotifyArtistAlbum(
+                                id: "alb-1", name: "First", imageURL: nil, releaseYear: "2024", totalTracks: 1,
+                                group: .album, uri: "spotify:album:alb-1")
+                        ],
                         next: nextURL
                     )
                 }
                 XCTAssertEqual(providedNext, nextURL)
                 return SpotifyAPIClient.SpotifyArtistAlbumsPage(
-                    items: [SpotifyArtistAlbum(id: "alb-2", name: "Second", imageURL: nil, releaseYear: "2023", totalTracks: 1, group: .single, uri: "spotify:album:alb-2")],
+                    items: [
+                        SpotifyArtistAlbum(
+                            id: "alb-2", name: "Second", imageURL: nil, releaseYear: "2023", totalTracks: 1,
+                            group: .single, uri: "spotify:album:alb-2")
+                    ],
                     next: nil
                 )
             }
@@ -101,7 +119,7 @@ final class PlaylistBrowserConcurrencyTests: XCTestCase {
         viewModel.clearForSignOut()
 
         XCTAssertNil(viewModel.selectedPlaylistID)
-        guard case let .empty(playlistMessage) = viewModel.playlistState else {
+        guard case .empty(let playlistMessage) = viewModel.playlistState else {
             return XCTFail("Expected signed-out empty playlist state")
         }
         XCTAssertEqual(playlistMessage, "Connect Spotify to browse playlists.")

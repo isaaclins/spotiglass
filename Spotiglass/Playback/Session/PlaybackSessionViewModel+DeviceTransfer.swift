@@ -85,9 +85,12 @@ extension PlaybackSessionViewModel {
             // Recovery is the user's explicit ask; never short-circuit it on cached state.
             alreadyActive = false
         }
-        SpotiglassLog.info(.playback, "performTransfer deviceID=\(deviceID) play=\(play) origin=\(origin) alreadyActive=\(alreadyActive) snapshotActive=\(latestPlayerSnapshot?.activeDevice?.deviceID ?? "<nil>")")
+        SpotiglassLog.info(
+            .playback,
+            "performTransfer deviceID=\(deviceID) play=\(play) origin=\(origin) alreadyActive=\(alreadyActive) snapshotActive=\(latestPlayerSnapshot?.activeDevice?.deviceID ?? "<nil>")"
+        )
         if alreadyActive {
-            if (origin == .ensureBeforePlay || origin == .autoResume), deviceID == self.deviceID {
+            if origin == .ensureBeforePlay || origin == .autoResume, deviceID == self.deviceID {
                 hasTransferredPlaybackToCurrentDevice = true
             }
             return false
@@ -108,14 +111,15 @@ extension PlaybackSessionViewModel {
             try await playbackAPI.transferPlayback(to: deviceID, play: play)
             SpotiglassLog.info(.playback, "transferPlayback PUT ok deviceID=\(deviceID) play=\(play)")
         } catch let apiError as SpotifyAPIError {
-            SpotiglassLog.error(.playback, "transferPlayback PUT failed deviceID=\(deviceID) play=\(play) error=\(apiError)")
-            if case let .rateLimited(retryAfter) = apiError {
+            SpotiglassLog.error(
+                .playback, "transferPlayback PUT failed deviceID=\(deviceID) play=\(play) error=\(apiError)")
+            if case .rateLimited(let retryAfter) = apiError {
                 let cooldown = retryAfter ?? Self.durationSeconds(transferDefaultCooldown)
                 transferRetryCooldownUntil = clock.now.advanced(by: .seconds(cooldown))
             }
             throw apiError
         }
-        if (origin == .ensureBeforePlay || origin == .autoResume), deviceID == self.deviceID {
+        if origin == .ensureBeforePlay || origin == .autoResume, deviceID == self.deviceID {
             hasTransferredPlaybackToCurrentDevice = true
         }
         return true
@@ -149,11 +153,13 @@ extension PlaybackSessionViewModel {
         guard !hasTransferredPlaybackToCurrentDevice else { return }
         await refreshConnectDevices(force: true)
         let devices = connectDevices
-        guard let staleSpotiglass = devices.first(where: { device in
-            device.isActive
-                && device.name == SpotifyPlaybackHost.deviceName
-                && device.deviceID != targetDeviceID
-        }) else {
+        guard
+            let staleSpotiglass = devices.first(where: { device in
+                device.isActive
+                    && device.name == SpotifyPlaybackHost.deviceName
+                    && device.deviceID != targetDeviceID
+            })
+        else {
             return
         }
         do {

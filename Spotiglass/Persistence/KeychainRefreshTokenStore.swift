@@ -41,7 +41,7 @@ struct KeychainRefreshTokenStore: RefreshTokenStore {
 
         let attributes: [String: Any] = [
             kSecValueData as String: data,
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
         ]
 
         let status = client.update(query as CFDictionary, attributes as CFDictionary)
@@ -71,7 +71,7 @@ struct KeychainRefreshTokenStore: RefreshTokenStore {
         [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: account
+            kSecAttrAccount as String: account,
         ]
     }
 }

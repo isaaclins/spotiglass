@@ -132,7 +132,8 @@ final class SpotiglassSettingsStore: ObservableObject {
         for spec in CommandPaletteCommandCatalog.editable {
             guard let keystroke = spec.defaultKeystroke, !alreadySeeded.contains(spec.commandID) else { continue }
             if !boundCommands.contains(spec.commandID),
-               !defaultShortcutTaken(keystroke: keystroke, when: spec.defaultWhen, in: file.keybinds) {
+                !defaultShortcutTaken(keystroke: keystroke, when: spec.defaultWhen, in: file.keybinds)
+            {
                 file.keybinds.append(
                     CommandPaletteKeyBinding(
                         keystrokes: [keystroke],
@@ -263,15 +264,18 @@ final class SpotiglassSettingsStore: ObservableObject {
     /// alongside the app's `Spotiglass/Logs` directory, so all app data lives under
     /// the macOS-standard path (#27).
     static func defaultFileURL(fileManager: FileManager) -> URL {
-        let base = (try? fileManager.url(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask,
-            appropriateFor: nil,
-            create: false
-        )) ?? fileManager
+        let base =
+            (try? fileManager.url(
+                for: .applicationSupportDirectory,
+                in: .userDomainMask,
+                appropriateFor: nil,
+                create: false
+            ))
+            ?? fileManager
             .homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support", isDirectory: true)
-        return base
+        return
+            base
             .appendingPathComponent("Spotiglass", isDirectory: true)
             .appendingPathComponent("settings.json", isDirectory: false)
     }
@@ -292,7 +296,7 @@ final class SpotiglassSettingsStore: ObservableObject {
     /// fresh file at the new path instead.
     static func migrateLegacyConfigIfNeeded(fileManager: FileManager, from legacyURL: URL, to newURL: URL) {
         guard !fileManager.fileExists(atPath: newURL.path),
-              fileManager.fileExists(atPath: legacyURL.path)
+            fileManager.fileExists(atPath: legacyURL.path)
         else { return }
         do {
             try fileManager.createDirectory(
@@ -302,7 +306,8 @@ final class SpotiglassSettingsStore: ObservableObject {
             try fileManager.moveItem(at: legacyURL, to: newURL)
             SpotiglassLog.info(.settings, "Migrated settings.json from ~/.config/spotiglass to Application Support.")
         } catch {
-            SpotiglassLog.error(.settings, "Settings migration from legacy location failed: \(error.localizedDescription)")
+            SpotiglassLog.error(
+                .settings, "Settings migration from legacy location failed: \(error.localizedDescription)")
         }
     }
 
@@ -319,7 +324,7 @@ final class SpotiglassSettingsStore: ObservableObject {
     static func defaultKeybinds() -> [CommandPaletteKeyBinding] {
         let json = CommandPaletteCommandCatalog.defaultKeymapJSON
         guard let data = json.data(using: .utf8),
-              let parsed = try? JSONDecoder().decode(CommandPaletteKeymapFile.self, from: data)
+            let parsed = try? JSONDecoder().decode(CommandPaletteKeymapFile.self, from: data)
         else {
             return []
         }

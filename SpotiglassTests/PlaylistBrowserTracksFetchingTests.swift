@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 @MainActor
@@ -12,7 +13,7 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
             playlistResults: [.success([playlistA, playlistB])],
             trackResults: [
                 "a": [.success([PlaylistBrowsingTestFixtures.track(id: "ta")])],
-                "b": [.success([PlaylistBrowsingTestFixtures.track(id: "tb")])]
+                "b": [.success([PlaylistBrowsingTestFixtures.track(id: "tb")])],
             ]
         )
         let cache = MockBrowsingCache(cachedPlaylists: [playlistA, playlistB], playlistListCacheAge: 20_000)
@@ -33,7 +34,9 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         await viewModel.selectPlaylist(id: "b")
         XCTAssertEqual(api.playlistTracksInvocationCountByID["b"], 1)
         await viewModel.selectPlaylist(id: "a")
-        XCTAssertEqual(api.playlistTracksInvocationCountByID["a"], 1, "Cooldown should skip a second `/items` fetch for the same playlist snapshot.")
+        XCTAssertEqual(
+            api.playlistTracksInvocationCountByID["a"], 1,
+            "Cooldown should skip a second `/items` fetch for the same playlist snapshot.")
     }
 
     func testReselectingPlaylistAfterCooldownRefetchesItems() async {
@@ -45,9 +48,9 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
             trackResults: [
                 "a": [
                     .success([PlaylistBrowsingTestFixtures.track(id: "ta")]),
-                    .success([PlaylistBrowsingTestFixtures.track(id: "ta2")])
+                    .success([PlaylistBrowsingTestFixtures.track(id: "ta2")]),
                 ],
-                "b": [.success([PlaylistBrowsingTestFixtures.track(id: "tb")])]
+                "b": [.success([PlaylistBrowsingTestFixtures.track(id: "tb")])],
             ]
         )
         let cache = MockBrowsingCache(cachedPlaylists: [playlistA, playlistB], playlistListCacheAge: 20_000)
@@ -80,11 +83,14 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         let api = MockBrowsingAPI(
             playlistResults: [
                 .success([playlistOneV1, playlistTwo]),
-                .success([playlistOneV2, playlistTwo])
+                .success([playlistOneV2, playlistTwo]),
             ],
             trackResults: [
-                "one": [.success([PlaylistBrowsingTestFixtures.track(id: "t1")]), .success([PlaylistBrowsingTestFixtures.track(id: "t2")])],
-                "two": [.success([PlaylistBrowsingTestFixtures.track(id: "u1")])]
+                "one": [
+                    .success([PlaylistBrowsingTestFixtures.track(id: "t1")]),
+                    .success([PlaylistBrowsingTestFixtures.track(id: "t2")]),
+                ],
+                "two": [.success([PlaylistBrowsingTestFixtures.track(id: "u1")])],
             ]
         )
         let cache = MockBrowsingCache()
@@ -131,7 +137,7 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
             trackResults: [
                 "one": [
                     .success([PlaylistBrowsingTestFixtures.track(id: "a")]),
-                    .success([PlaylistBrowsingTestFixtures.track(id: "b")])
+                    .success([PlaylistBrowsingTestFixtures.track(id: "b")]),
                 ]
             ]
         )
@@ -154,7 +160,7 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
             playlistResults: [.success([playlistA, playlistB])],
             trackResults: [
                 "a": [.success([PlaylistBrowsingTestFixtures.track(id: "ta")])],
-                "b": [.success([PlaylistBrowsingTestFixtures.track(id: "tb")])]
+                "b": [.success([PlaylistBrowsingTestFixtures.track(id: "tb")])],
             ]
         )
         api.playlistTracksDelayOnInvocation = 400_000_000
@@ -176,14 +182,16 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         await viewModel.selectPlaylist(id: "a")
         await firstSwitch.value
 
-        XCTAssertEqual(api.playlistTracksInvocationCountByID["a"], 1, "Cancelled in-flight fetch for B should not complete.")
+        XCTAssertEqual(
+            api.playlistTracksInvocationCountByID["a"], 1, "Cancelled in-flight fetch for B should not complete.")
         XCTAssertEqual(api.playlistTracksInvocationCountByID["b"] ?? 0, 0)
     }
 
     func testForbiddenTracksOnFollowedPlaylistShowsLockedState() async {
         // The mock profile id is "u"; the fixture playlist's ownerID is "owner-id",
         // so the playlist is followed (non-owned) and a 403 must produce the locked state.
-        let followed = PlaylistBrowsingTestFixtures.playlist(id: "followed", name: "Someone Else's Mix", snapshotID: "snap")
+        let followed = PlaylistBrowsingTestFixtures.playlist(
+            id: "followed", name: "Someone Else's Mix", snapshotID: "snap")
         let api = MockBrowsingAPI(
             playlistResults: [.success([followed])],
             trackResults: [
@@ -196,7 +204,7 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         await viewModel.load()
         await viewModel.selectPlaylist(id: "followed")
 
-        guard case let .error(displayError) = viewModel.detailState else {
+        guard case .error(let displayError) = viewModel.detailState else {
             return XCTFail("Expected a terminal error state, got \(viewModel.detailState)")
         }
         XCTAssertNotNil(displayError.lockedPlaylist)
@@ -229,7 +237,7 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         await viewModel.load()
         await viewModel.selectPlaylist(id: "mine")
 
-        guard case let .error(displayError) = viewModel.detailState else {
+        guard case .error(let displayError) = viewModel.detailState else {
             return XCTFail("Expected a terminal error state, got \(viewModel.detailState)")
         }
         XCTAssertNil(displayError.lockedPlaylist)
@@ -245,7 +253,7 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
             trackResults: [
                 "a": [.success([PlaylistBrowsingTestFixtures.track(id: "ta")])],
                 "b": [.success([PlaylistBrowsingTestFixtures.track(id: "tb")])],
-                "c": [.success([PlaylistBrowsingTestFixtures.track(id: "tc")])]
+                "c": [.success([PlaylistBrowsingTestFixtures.track(id: "tc")])],
             ]
         )
         let cache = MockBrowsingCache(cachedPlaylists: [playlistA, playlistB, playlistC], playlistListCacheAge: 20_000)

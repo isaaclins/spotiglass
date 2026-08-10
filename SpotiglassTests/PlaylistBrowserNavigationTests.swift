@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 @MainActor
@@ -17,7 +18,7 @@ final class PlaylistBrowserNavigationTests: XCTestCase {
         await viewModel.selectArtist(id: "artist-xyz")
 
         XCTAssertNil(viewModel.selectedPlaylistID)
-        guard case let .loaded(.artist(detail)) = viewModel.detailState else {
+        guard case .loaded(.artist(let detail)) = viewModel.detailState else {
             return XCTFail("Expected loaded artist detail")
         }
         XCTAssertEqual(detail.artist.id, "artist-xyz")
@@ -28,10 +29,15 @@ final class PlaylistBrowserNavigationTests: XCTestCase {
 
     func testBackNavigationTracksPlaylistHistory() async {
         let api = MockBrowsingAPI(
-            playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One"), PlaylistBrowsingTestFixtures.playlist(id: "two", name: "Two")])],
+            playlistResults: [
+                .success([
+                    PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One"),
+                    PlaylistBrowsingTestFixtures.playlist(id: "two", name: "Two"),
+                ])
+            ],
             trackResults: [
                 "one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])],
-                "two": [.success([PlaylistBrowsingTestFixtures.track(id: "track-two")])]
+                "two": [.success([PlaylistBrowsingTestFixtures.track(id: "track-two")])],
             ]
         )
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
@@ -80,7 +86,7 @@ final class PlaylistBrowserNavigationTests: XCTestCase {
             artworkURL: albumCoverURL
         )
 
-        guard case let .loaded(.playlist(detail)) = viewModel.detailState else {
+        guard case .loaded(.playlist(let detail)) = viewModel.detailState else {
             return XCTFail("Expected album detail to render through playlist-style content.")
         }
         XCTAssertEqual(detail.playlist.id, "album-123")
@@ -88,7 +94,9 @@ final class PlaylistBrowserNavigationTests: XCTestCase {
         XCTAssertEqual(detail.playlist.owner, "Artist Name")
         XCTAssertEqual(detail.tracks.map(\.title), ["Album Track 1"])
         XCTAssertEqual(detail.tracks.first?.artworkURL, albumCoverURL)
-        XCTAssertEqual(api.albumTracksCallCount, 1, "Album detail should reuse the already-fetched album cover locally, without extra Spotify calls.")
+        XCTAssertEqual(
+            api.albumTracksCallCount, 1,
+            "Album detail should reuse the already-fetched album cover locally, without extra Spotify calls.")
         XCTAssertEqual(api.searchCallCount, 0)
         XCTAssertEqual(api.albumsBatchedCallCount, 0)
     }
@@ -121,14 +129,14 @@ final class PlaylistBrowserNavigationTests: XCTestCase {
             artworkURL: URL(string: "https://example.com/cover.png")
         )
         XCTAssertTrue(viewModel.canNavigateBack)
-        guard case let .loaded(.playlist(albumDetail)) = viewModel.detailState else {
+        guard case .loaded(.playlist(let albumDetail)) = viewModel.detailState else {
             return XCTFail("Expected album detail before back navigation.")
         }
         XCTAssertEqual(albumDetail.playlist.id, "album-123")
 
         await viewModel.navigateBack()
         XCTAssertTrue(viewModel.canNavigateBack)
-        guard case let .loaded(.artist(detail)) = viewModel.detailState else {
+        guard case .loaded(.artist(let detail)) = viewModel.detailState else {
             return XCTFail("Expected artist detail after navigating back from album.")
         }
         XCTAssertEqual(detail.artist.id, "artist-xyz")
@@ -154,7 +162,8 @@ final class PlaylistBrowserNavigationTests: XCTestCase {
         }
         try? await Task.sleep(nanoseconds: 35_000_000)
         XCTAssertEqual(openAndPlayCount, 1)
-        XCTAssertEqual(openedIDs.filter { $0 == "album-2" }.count, 1, "Double-tap should cancel pending single-tap open.")
+        XCTAssertEqual(
+            openedIDs.filter { $0 == "album-2" }.count, 1, "Double-tap should cancel pending single-tap open.")
     }
 
     func testCommandPaletteContextEligibleWhenArtistDetailLoaded() async {
@@ -212,7 +221,7 @@ final class PlaylistBrowserNavigationTests: XCTestCase {
         await viewModel.selectPlaylist(id: nil)
 
         XCTAssertNil(viewModel.selectedPlaylistID)
-        guard case let .loaded(.artist(detail)) = viewModel.detailState else {
+        guard case .loaded(.artist(let detail)) = viewModel.detailState else {
             return XCTFail("Expected loaded artist detail after simulated onChange(nil)")
         }
         XCTAssertEqual(detail.artist.id, "artist-xyz")

@@ -68,7 +68,8 @@ final class CommandPaletteViewModel: ObservableObject {
 
     /// Test hook for `@testable import`; replaces visible search rows without running a query (tests only; not indexed by Periphery scan).
     // periphery:ignore
-    internal func testingReplaceSections(_ newSections: [(section: CommandPaletteSection, items: [CommandPaletteItem])]) {
+    internal func testingReplaceSections(_ newSections: [(section: CommandPaletteSection, items: [CommandPaletteItem])])
+    {
         sections = newSections
         if visibleItems.isEmpty {
             selectedIndex = 0
@@ -88,7 +89,9 @@ final class CommandPaletteViewModel: ObservableObject {
     }
 
     /// Call from the host when the browser opens/closes a playlist detail so the footer and active filter stay valid.
-    func setAvailableSearchCategories(_ categories: [CommandPaletteSearchCategory], refreshIfFilterInvalidated: Bool = true) {
+    func setAvailableSearchCategories(
+        _ categories: [CommandPaletteSearchCategory], refreshIfFilterInvalidated: Bool = true
+    ) {
         availableSearchCategories = categories
         if !categories.contains(searchCategoryFilter) {
             searchCategoryFilter = categories.first ?? .all
@@ -152,8 +155,9 @@ final class CommandPaletteViewModel: ObservableObject {
         let trimmed = parsed.query.trimmingCharacters(in: .whitespacesAndNewlines)
         searchTask?.cancel()
         if parsed.scope == .songs,
-           !trimmed.isEmpty,
-           trimmed.count >= Self.minimumPaletteSearchQueryCharacters {
+            !trimmed.isEmpty,
+            trimmed.count >= Self.minimumPaletteSearchQueryCharacters
+        {
             // Local-first: paint in-memory matches immediately so the list never goes
             // blank while the debounced catalog fetch is in flight.
             renderInstantLocalResults(trimmed: trimmed)
@@ -174,9 +178,10 @@ final class CommandPaletteViewModel: ObservableObject {
         searchCategoryFilter = category
         let trimmed = strippedQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty,
-           trimmed.count >= Self.minimumPaletteSearchQueryCharacters,
-           cachedResultsQuery == trimmed,
-           cachedResults != nil {
+            trimmed.count >= Self.minimumPaletteSearchQueryCharacters,
+            cachedResultsQuery == trimmed,
+            cachedResults != nil
+        {
             renderSectionsFromCache(trimmed: trimmed)
         } else {
             refresh()
@@ -277,7 +282,8 @@ final class CommandPaletteViewModel: ObservableObject {
             if trimmed.isEmpty {
                 filtered = staticItems
             } else {
-                filtered = staticItems
+                filtered =
+                    staticItems
                     .map { (item: $0, score: $0.score(for: trimmed)) }
                     .filter { $0.score < 100 }
                     .sorted { lhs, rhs in
@@ -343,7 +349,8 @@ final class CommandPaletteViewModel: ObservableObject {
             // Always fetch the full multi-type result set; the category is a display filter.
             let providerStart = Date()
             let searchResults = try await searchProvider(query, .all)
-            SpotiglassLog.info(.api, "palette search '\(query)' provider \(Int(Date().timeIntervalSince(providerStart) * 1000))ms")
+            SpotiglassLog.info(
+                .api, "palette search '\(query)' provider \(Int(Date().timeIntervalSince(providerStart) * 1000))ms")
             try Task.checkCancellation()
             cachedResults = searchResults
             cachedResultsQuery = query
@@ -354,7 +361,7 @@ final class CommandPaletteViewModel: ObservableObject {
             isLoading = false
         } catch let error as SpotifyAPIError {
             switch error {
-            case let .rateLimited(retryAfter):
+            case .rateLimited(let retryAfter):
                 let seconds = retryAfter ?? 5
                 rateLimitCooldownUntil = Date().addingTimeInterval(seconds)
                 lastSuccessfulSongSearchQuery = nil

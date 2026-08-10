@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 final class ArtworkImageStoreTests: XCTestCase {

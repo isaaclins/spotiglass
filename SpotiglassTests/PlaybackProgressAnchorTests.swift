@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import Spotiglass
 
 final class PlaybackProgressAnchorTests: XCTestCase {
@@ -32,16 +33,18 @@ final class PlaybackProgressAnchorTests: XCTestCase {
             playbackAPI: MockPlaybackAPI(),
             webCommander: MockWebPlaybackCommander()
         )
-        viewModel.handle(.stateChanged(PlaybackNowPlaying(
-            name: "Track",
-            artists: ["Artist"],
-            albumName: nil,
-            albumID: nil,
-            albumArtURL: nil,
-            durationMilliseconds: 180_000,
-            positionMilliseconds: 12_000,
-            uri: "spotify:track:1"
-        ), isPaused: false, nextTracks: []))
+        viewModel.handle(
+            .stateChanged(
+                PlaybackNowPlaying(
+                    name: "Track",
+                    artists: ["Artist"],
+                    albumName: nil,
+                    albumID: nil,
+                    albumArtURL: nil,
+                    durationMilliseconds: 180_000,
+                    positionMilliseconds: 12_000,
+                    uri: "spotify:track:1"
+                ), isPaused: false, nextTracks: []))
 
         guard let anchor = viewModel.progressAnchor else {
             return XCTFail("Expected progress anchor while playing")
@@ -50,16 +53,18 @@ final class PlaybackProgressAnchorTests: XCTestCase {
         XCTAssertEqual(anchor.durationMilliseconds, 180_000)
         XCTAssertTrue(anchor.isAdvancing)
 
-        viewModel.handle(.stateChanged(PlaybackNowPlaying(
-            name: "Track",
-            artists: ["Artist"],
-            albumName: nil,
-            albumID: nil,
-            albumArtURL: nil,
-            durationMilliseconds: 180_000,
-            positionMilliseconds: 45_000,
-            uri: "spotify:track:1"
-        ), isPaused: false, nextTracks: []))
+        viewModel.handle(
+            .stateChanged(
+                PlaybackNowPlaying(
+                    name: "Track",
+                    artists: ["Artist"],
+                    albumName: nil,
+                    albumID: nil,
+                    albumArtURL: nil,
+                    durationMilliseconds: 180_000,
+                    positionMilliseconds: 45_000,
+                    uri: "spotify:track:1"
+                ), isPaused: false, nextTracks: []))
 
         XCTAssertEqual(viewModel.progressAnchor?.positionMilliseconds, 45_000)
     }

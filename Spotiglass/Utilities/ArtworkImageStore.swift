@@ -19,9 +19,11 @@ actor ArtworkImageStore {
     private let maxDiskBytes: Int64 = 50 * 1024 * 1024
 
     private init() {
-        let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+        let base =
+            FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory
-        let disk = base
+        let disk =
+            base
             .appendingPathComponent(AppMetadata.displayName, isDirectory: true)
             .appendingPathComponent("Artwork", isDirectory: true)
         let config = URLSessionConfiguration.default
@@ -69,9 +71,11 @@ actor ArtworkImageStore {
     /// Best-effort synchronous read for views that must render immediately (for
     /// example drag previews). Returns `nil` when artwork has not been cached yet.
     nonisolated static func cachedImageIfAvailable(for url: URL) -> NSImage? {
-        let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+        let base =
+            FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory
-        let diskDirectory = base
+        let diskDirectory =
+            base
             .appendingPathComponent(AppMetadata.displayName, isDirectory: true)
             .appendingPathComponent("Artwork", isDirectory: true)
         let fileURL = cacheFileURL(for: url, diskDirectory: diskDirectory)
@@ -82,14 +86,15 @@ actor ArtworkImageStore {
     private func loadThroughDiskAndNetwork(url: URL, key: String) async -> NSImage? {
         let fileURL = Self.cacheFileURL(for: url, diskDirectory: diskDirectory)
         if let data = try? Data(contentsOf: fileURL),
-           let image = NSImage(data: data) {
+            let image = NSImage(data: data)
+        {
             memoryKeys.setObject(image, forKey: key as NSString)
             return image
         }
 
         do {
             let (data, response) = try await urlSession.data(from: url)
-            guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {
+            guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
                 return nil
             }
             guard let image = NSImage(data: data) else {
@@ -106,14 +111,19 @@ actor ArtworkImageStore {
 
     private func trimDiskCacheIfNeeded() async {
         let fm = FileManager.default
-        guard let files = try? fm.contentsOfDirectory(at: diskDirectory, includingPropertiesForKeys: [.contentModificationDateKey], options: [.skipsHiddenFiles]) else {
+        guard
+            let files = try? fm.contentsOfDirectory(
+                at: diskDirectory, includingPropertiesForKeys: [.contentModificationDateKey],
+                options: [.skipsHiddenFiles])
+        else {
             return
         }
         var total: Int64 = 0
         var entries: [(url: URL, date: Date)] = []
         for url in files {
             guard let vals = try? url.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey]),
-                  let size = vals.fileSize.map(Int64.init) else {
+                let size = vals.fileSize.map(Int64.init)
+            else {
                 continue
             }
             total += size

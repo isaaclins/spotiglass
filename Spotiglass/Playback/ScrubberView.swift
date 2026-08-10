@@ -22,7 +22,8 @@ struct PlaybackProgressScrubberGroup: View {
             } else {
                 let durationMs = max(durationMilliseconds, progressAnchor?.durationMilliseconds ?? 0)
                 let positionMs = staticPositionMs(durationMs: durationMs)
-                let fraction = durationMs > 0
+                let fraction =
+                    durationMs > 0
                     ? min(max(Double(positionMs) / Double(durationMs), 0), 1)
                     : 0
                 scrubberRow(positionMs: positionMs, durationMs: durationMs, displayFraction: fraction)
@@ -61,11 +62,15 @@ struct PlaybackProgressScrubberGroup: View {
             .opacity(isEnabled ? 1 : 0.4)
             .disabled(!isEnabled)
 
-            Text(String(format: SpotiglassL10n.string("playback.scrubber.remaining"), PlaybackNowPlaying.mmss(milliseconds: max(0, durationMs - positionMs))))
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.secondary)
-                .frame(minWidth: 40, alignment: .leading)
-                .monospacedDigit()
+            Text(
+                String(
+                    format: SpotiglassL10n.string("playback.scrubber.remaining"),
+                    PlaybackNowPlaying.mmss(milliseconds: max(0, durationMs - positionMs)))
+            )
+            .font(.caption.monospacedDigit())
+            .foregroundStyle(.secondary)
+            .frame(minWidth: 40, alignment: .leading)
+            .monospacedDigit()
         }
     }
 }

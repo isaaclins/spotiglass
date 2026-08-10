@@ -1,5 +1,6 @@
 import SwiftUI
 import XCTest
+
 @testable import Spotiglass
 
 @MainActor

@@ -88,7 +88,7 @@ extension SpotifyAPIClient {
         }
         let body: [String: Any] = [
             "name": trimmedName,
-            "public": isPublic
+            "public": isPublic,
         ]
         let data = try await sendDataWrite(
             method: "POST",
@@ -207,15 +207,15 @@ extension SpotifyAPIClient {
             case 400: throw SpotifyAPIError.badRequest(message: message, details: nil)
             case 403: throw SpotifyAPIError.forbidden(message: message, details: nil)
             case 404: throw SpotifyAPIError.notFound(message: message)
-            default:  throw SpotifyAPIError.server(statusCode: response.statusCode, message: message, details: nil)
+            default: throw SpotifyAPIError.server(statusCode: response.statusCode, message: message, details: nil)
             }
         }
         return data
     }
 }
 
-private extension Array {
-    func chunked(into size: Int) -> [[Element]] {
+extension Array {
+    fileprivate func chunked(into size: Int) -> [[Element]] {
         guard size > 0 else { return [self] }
         return stride(from: 0, to: count, by: size).map {
             Array(self[$0..<Swift.min($0 + size, count)])

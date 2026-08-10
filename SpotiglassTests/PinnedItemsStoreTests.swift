@@ -1,5 +1,6 @@
-import XCTest
 import UniformTypeIdentifiers
+import XCTest
+
 @testable import Spotiglass
 
 private final class RecordingPinnedCache: PinnedItemsCache {
@@ -41,11 +42,13 @@ final class PinnedItemsStoreTests: XCTestCase {
         let store = PinnedItemsStore(cache: cache)
         store.bind(userID: "u1")
         let a = PinnedItem.playlist(
-            SpotifyPlaylistSummary(id: "a", name: "A",
+            SpotifyPlaylistSummary(
+                id: "a", name: "A",
                 ownerID: "test-owner", ownerName: "o", imageURL: nil, trackCount: 0, snapshotID: "1")
         )
         let b = PinnedItem.playlist(
-            SpotifyPlaylistSummary(id: "b", name: "B",
+            SpotifyPlaylistSummary(
+                id: "b", name: "B",
                 ownerID: "test-owner", ownerName: "o", imageURL: nil, trackCount: 0, snapshotID: "2")
         )
         store.pin(a)
@@ -59,15 +62,18 @@ final class PinnedItemsStoreTests: XCTestCase {
         let store = PinnedItemsStore(cache: cache)
         store.bind(userID: "u1")
         let a = PinnedItem.playlist(
-            SpotifyPlaylistSummary(id: "a", name: "A",
+            SpotifyPlaylistSummary(
+                id: "a", name: "A",
                 ownerID: "test-owner", ownerName: "o", imageURL: nil, trackCount: 0, snapshotID: "1")
         )
         let b = PinnedItem.playlist(
-            SpotifyPlaylistSummary(id: "b", name: "B",
+            SpotifyPlaylistSummary(
+                id: "b", name: "B",
                 ownerID: "test-owner", ownerName: "o", imageURL: nil, trackCount: 0, snapshotID: "2")
         )
         let c = PinnedItem.playlist(
-            SpotifyPlaylistSummary(id: "c", name: "C",
+            SpotifyPlaylistSummary(
+                id: "c", name: "C",
                 ownerID: "test-owner", ownerName: "o", imageURL: nil, trackCount: 0, snapshotID: "3")
         )
 
@@ -82,11 +88,13 @@ final class PinnedItemsStoreTests: XCTestCase {
         let store = PinnedItemsStore(cache: cache)
         store.bind(userID: "u1")
         let a = PinnedItem.playlist(
-            SpotifyPlaylistSummary(id: "a", name: "A",
+            SpotifyPlaylistSummary(
+                id: "a", name: "A",
                 ownerID: "test-owner", ownerName: "o", imageURL: nil, trackCount: 0, snapshotID: "1")
         )
         let b = PinnedItem.playlist(
-            SpotifyPlaylistSummary(id: "b", name: "B",
+            SpotifyPlaylistSummary(
+                id: "b", name: "B",
                 ownerID: "test-owner", ownerName: "o", imageURL: nil, trackCount: 0, snapshotID: "2")
         )
         store.pin(a)
@@ -131,7 +139,8 @@ final class PinnedItemsStoreTests: XCTestCase {
         let store = PinnedItemsStore(cache: cache)
         store.bind(userID: "u")
         let p = PinnedItem.playlist(
-            SpotifyPlaylistSummary(id: "x", name: "X",
+            SpotifyPlaylistSummary(
+                id: "x", name: "X",
                 ownerID: "test-owner", ownerName: "o", imageURL: nil, trackCount: 0, snapshotID: "s")
         )
         store.pin(p)
@@ -144,7 +153,8 @@ final class PinnedItemsStoreTests: XCTestCase {
         let store = PinnedItemsStore(cache: cache)
         store.bind(userID: "u")
         let p = PinnedItem.playlist(
-            SpotifyPlaylistSummary(id: "x", name: "X",
+            SpotifyPlaylistSummary(
+                id: "x", name: "X",
                 ownerID: "test-owner", ownerName: "o", imageURL: nil, trackCount: 0, snapshotID: "s")
         )
         store.pin(p)
@@ -160,7 +170,8 @@ final class PinnedItemsStoreTests: XCTestCase {
         let cache = RecordingPinnedCache()
         let store = PinnedItemsStore(cache: cache)
         let alicePlaylist = PinnedItem.playlist(
-            SpotifyPlaylistSummary(id: "alice-playlist", name: "Alice",
+            SpotifyPlaylistSummary(
+                id: "alice-playlist", name: "Alice",
                 ownerID: "test-owner", ownerName: "Alice", imageURL: nil, trackCount: 0, snapshotID: "a")
         )
         let bobArtist = PinnedItem.artist(
@@ -184,7 +195,7 @@ final class PinnedItemsStoreTests: XCTestCase {
         let existing = [
             LibrarySidebarOrder.pinnedToken(for: "p2"),
             "orphan",
-            LibrarySidebarOrder.homeToken
+            LibrarySidebarOrder.homeToken,
         ]
         let normalized = LibrarySidebarOrder.normalizedOrder(
             existing: existing,
@@ -194,9 +205,10 @@ final class PinnedItemsStoreTests: XCTestCase {
         XCTAssertEqual(
             normalized,
             [
+                LibrarySidebarOrder.searchToken,
                 LibrarySidebarOrder.pinnedToken(for: "p2"),
                 LibrarySidebarOrder.pinnedToken(for: "p1"),
-                LibrarySidebarOrder.homeToken
+                LibrarySidebarOrder.homeToken,
             ]
         )
     }
@@ -210,9 +222,10 @@ final class PinnedItemsStoreTests: XCTestCase {
         XCTAssertEqual(
             normalized,
             [
+                LibrarySidebarOrder.searchToken,
+                LibrarySidebarOrder.homeToken,
                 LibrarySidebarOrder.pinnedToken(for: "p1"),
                 LibrarySidebarOrder.pinnedToken(for: "p2"),
-                LibrarySidebarOrder.homeToken
             ]
         )
     }
@@ -242,7 +255,9 @@ final class PinnedItemsStoreTests: XCTestCase {
         store.pin(b)
 
         store.applyOrder([b.id, "unknown-id"])
-        XCTAssertEqual(store.items.map(\.id), [b.id, a.id], "Unlisted pins keep their relative order at the end; unknown IDs are ignored.")
+        XCTAssertEqual(
+            store.items.map(\.id), [b.id, a.id],
+            "Unlisted pins keep their relative order at the end; unknown IDs are ignored.")
     }
 
     /// Locks the `UTType.spotiglassPinnedItem` JSON wire format used by

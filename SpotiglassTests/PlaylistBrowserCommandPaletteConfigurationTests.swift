@@ -1,5 +1,6 @@
 import SwiftUI
 import XCTest
+
 @testable import Spotiglass
 
 @MainActor
@@ -32,7 +33,9 @@ final class PlaylistBrowserCommandPaletteConfigurationTests: XCTestCase {
                 spotifySearchClient: SpotifyAPIClient(
                     tokenProvider: StaticSpotifyAccessTokenProvider(token: "tok"),
                     httpClient: QueueHTTPClient([
-                        .json(#"{"tracks":{"items":[]},"artists":{"items":[]},"albums":{"items":[]},"playlists":{"items":[]}}"#),
+                        .json(
+                            #"{"tracks":{"items":[]},"artists":{"items":[]},"albums":{"items":[]},"playlists":{"items":[]}}"#
+                        )
                     ])
                 ),
                 signOut: {},
@@ -72,7 +75,7 @@ final class PlaylistBrowserCommandPaletteConfigurationTests: XCTestCase {
         let manager = CommandPaletteManager()
         var pinnedIDs: Set<String> = []
         let http = QueueHTTPClient([
-            .json(#"{"tracks":{"items":[]},"artists":{"items":[]},"albums":{"items":[]},"playlists":{"items":[]}}"#),
+            .json(#"{"tracks":{"items":[]},"artists":{"items":[]},"albums":{"items":[]},"playlists":{"items":[]}}"#)
         ])
         let client = SpotifyAPIClient(
             tokenProvider: StaticSpotifyAccessTokenProvider(token: "tok"),
@@ -92,4 +95,3 @@ final class PlaylistBrowserCommandPaletteConfigurationTests: XCTestCase {
         XCTAssertTrue(results.tracks.isEmpty)
     }
 }
-

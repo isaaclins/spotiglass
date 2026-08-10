@@ -35,7 +35,8 @@ extension QueueViewModel {
                 queueCooldownUntil = nil
             } catch {
                 if let apiError = error as? SpotifyAPIError,
-                   case let .rateLimited(retryAfter) = apiError {
+                    case .rateLimited(let retryAfter) = apiError
+                {
                     let fallback = max(1, min(defaultRateLimitCooldownSeconds, maxRateLimitCooldownSeconds))
                     let effectiveRetry = min(max(retryAfter ?? fallback, 1), maxRateLimitCooldownSeconds)
                     queueCooldownUntil = Date().addingTimeInterval(effectiveRetry)
@@ -100,19 +101,19 @@ extension QueueViewModel {
             "disconnected"
         case .connecting:
             "connecting"
-        case let .ready(deviceID):
+        case .ready(let deviceID):
             "ready:\(deviceID)"
-        case let .transferring(deviceID):
+        case .transferring(let deviceID):
             "transferring:\(deviceID)"
-        case let .playing(item):
+        case .playing(let item):
             "playing:\(item.uri ?? "")"
-        case let .paused(.some(item)):
+        case .paused(.some(let item)):
             "paused:\(item.uri ?? "")"
         case .paused(.none):
             "paused-empty"
-        case let .unavailable(message):
+        case .unavailable(let message):
             "unavailable:\(message)"
-        case let .error(error):
+        case .error(let error):
             "error:\(error.title)"
         }
     }
@@ -241,9 +242,9 @@ extension QueueViewModel {
     private static func nowPlayingQueueItem(from state: PlaybackConnectionState) -> QueueItem? {
         let np: PlaybackNowPlaying?
         switch state {
-        case let .playing(item):
+        case .playing(let item):
             np = item
-        case let .paused(item):
+        case .paused(let item):
             np = item
         default:
             np = nil
@@ -252,7 +253,9 @@ extension QueueViewModel {
         return QueueItem.from(playback: np)
     }
 
-    private static func mergedUpcoming(apiResponse: SpotifyQueueResponse, sdkNext: [PlaybackNowPlaying], limit: Int) -> [QueueItem] {
+    private static func mergedUpcoming(apiResponse: SpotifyQueueResponse, sdkNext: [PlaybackNowPlaying], limit: Int)
+        -> [QueueItem]
+    {
         let apiQueue = apiResponse.queue
         guard !apiQueue.isEmpty else {
             return Array(sdkNext.map { QueueItem.from(playback: $0) }.prefix(limit))
@@ -296,7 +299,7 @@ extension QueueViewModel {
         let seedBasis = items.map(\.id).joined(separator: "|")
         var seed = UInt64(bitPattern: Int64(seedBasis.hashValue))
         for idx in stride(from: output.count - 1, through: 1, by: -1) {
-            seed = 6364136223846793005 &* seed &+ 1442695040888963407
+            seed = 6_364_136_223_846_793_005 &* seed &+ 1_442_695_040_888_963_407
             let swapIndex = Int(seed % UInt64(idx + 1))
             if idx != swapIndex {
                 output.swapAt(idx, swapIndex)
@@ -321,7 +324,7 @@ extension QueueViewModel {
             return nil
         }
         if let apiError = error as? SpotifyAPIError {
-            if case let .network(message) = apiError, message.contains("cancelled") {
+            if case .network(let message) = apiError, message.contains("cancelled") {
                 return nil
             }
             switch apiError {
@@ -331,13 +334,13 @@ extension QueueViewModel {
                     message: SpotiglassL10n.string("error.queue.signInAgain.message"),
                     canRetry: false
                 )
-            case let .forbidden(message, _):
+            case .forbidden(let message, _):
                 return BrowsingDisplayError(
                     title: SpotiglassL10n.string("error.queue.loadFailed.title"),
                     message: message ?? SpotiglassL10n.string("error.queue.loadFailed.message"),
                     canRetry: false
                 )
-            case let .rateLimited(retryAfter):
+            case .rateLimited(let retryAfter):
                 let clause = SpotifyRateLimitDisplay.retryAfterClause(seconds: retryAfter)
                 return BrowsingDisplayError(
                     title: SpotiglassL10n.string("error.queue.rateLimited.title"),
@@ -348,14 +351,16 @@ extension QueueViewModel {
             default:
                 return BrowsingDisplayError(
                     title: SpotiglassL10n.string("error.queue.updateFailed.title"),
-                    message: String(format: SpotiglassL10n.string("error.queue.updateFailed.message"), String(describing: apiError)),
+                    message: String(
+                        format: SpotiglassL10n.string("error.queue.updateFailed.message"), String(describing: apiError)),
                     canRetry: true
                 )
             }
         }
         return BrowsingDisplayError(
             title: SpotiglassL10n.string("error.queue.updateFailed.title"),
-            message: String(format: SpotiglassL10n.string("error.queue.updateFailed.message"), error.localizedDescription),
+            message: String(
+                format: SpotiglassL10n.string("error.queue.updateFailed.message"), error.localizedDescription),
             canRetry: true
         )
     }

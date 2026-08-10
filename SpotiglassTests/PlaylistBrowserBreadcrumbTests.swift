@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 @MainActor
@@ -48,7 +49,8 @@ final class PlaylistBrowserBreadcrumbTests: XCTestCase {
 
         await viewModel.load()
         await viewModel.selectSidebar(SidebarSelection.likedSongs)
-        await viewModel.selectArtist(id: "artist-xyz", origin: BrowserNavigationOrigin.extend, displayName: "Malcolm Todd")
+        await viewModel.selectArtist(
+            id: "artist-xyz", origin: BrowserNavigationOrigin.extend, displayName: "Malcolm Todd")
         await viewModel.selectAlbum(
             id: "album-123",
             displayTitle: "Sweet Boy",
@@ -59,7 +61,9 @@ final class PlaylistBrowserBreadcrumbTests: XCTestCase {
 
         XCTAssertEqual(viewModel.breadcrumbPath.count, 3)
         XCTAssertEqual(viewModel.breadcrumbPath[0].label, "Liked Songs")
-        XCTAssertEqual(viewModel.breadcrumbPath[1].label, "Artist artist-xyz", "Artist load refines the crumb label from the mock API.")
+        XCTAssertEqual(
+            viewModel.breadcrumbPath[1].label, "Artist artist-xyz",
+            "Artist load refines the crumb label from the mock API.")
         XCTAssertEqual(viewModel.breadcrumbPath[2].label, "Sweet Boy")
         XCTAssertEqual(viewModel.breadcrumbPath[2].systemImage, "opticaldisc")
     }
@@ -90,7 +94,9 @@ final class PlaylistBrowserBreadcrumbTests: XCTestCase {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
             trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]],
-            savedTracksResult: .success(SpotifySavedTracksResult(tracks: [PlaylistBrowsingTestFixtures.track(id: "liked-one")], totalAvailable: 1))
+            savedTracksResult: .success(
+                SpotifySavedTracksResult(
+                    tracks: [PlaylistBrowsingTestFixtures.track(id: "liked-one")], totalAvailable: 1))
         )
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
 
@@ -100,8 +106,9 @@ final class PlaylistBrowserBreadcrumbTests: XCTestCase {
         await viewModel.selectArtist(id: "artist-b", origin: .reset, displayName: "Second Artist")
 
         XCTAssertEqual(viewModel.breadcrumbPath.count, 1)
-        XCTAssertEqual(viewModel.breadcrumbPath[0].label, "Artist artist-b", "Mock API artist name replaces the interim label.")
-        guard case let .artist(id) = viewModel.breadcrumbPath[0].kind else {
+        XCTAssertEqual(
+            viewModel.breadcrumbPath[0].label, "Artist artist-b", "Mock API artist name replaces the interim label.")
+        guard case .artist(let id) = viewModel.breadcrumbPath[0].kind else {
             return XCTFail("Expected artist crumb")
         }
         XCTAssertEqual(id, "artist-b")
@@ -132,7 +139,9 @@ final class PlaylistBrowserBreadcrumbTests: XCTestCase {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
             trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]],
-            savedTracksResult: .success(SpotifySavedTracksResult(tracks: [PlaylistBrowsingTestFixtures.track(id: "liked-one")], totalAvailable: 1))
+            savedTracksResult: .success(
+                SpotifySavedTracksResult(
+                    tracks: [PlaylistBrowsingTestFixtures.track(id: "liked-one")], totalAvailable: 1))
         )
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
 
@@ -150,7 +159,9 @@ final class PlaylistBrowserBreadcrumbTests: XCTestCase {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
             trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]],
-            savedTracksResult: .success(SpotifySavedTracksResult(tracks: [PlaylistBrowsingTestFixtures.track(id: "liked-one")], totalAvailable: 1))
+            savedTracksResult: .success(
+                SpotifySavedTracksResult(
+                    tracks: [PlaylistBrowsingTestFixtures.track(id: "liked-one")], totalAvailable: 1))
         )
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
 
@@ -164,10 +175,15 @@ final class PlaylistBrowserBreadcrumbTests: XCTestCase {
 
     func testBreadcrumbAfterPlaylistSwitchBackShowsPriorPlaylistTitle() async {
         let api = MockBrowsingAPI(
-            playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One"), PlaylistBrowsingTestFixtures.playlist(id: "two", name: "Two")])],
+            playlistResults: [
+                .success([
+                    PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One"),
+                    PlaylistBrowsingTestFixtures.playlist(id: "two", name: "Two"),
+                ])
+            ],
             trackResults: [
                 "one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])],
-                "two": [.success([PlaylistBrowsingTestFixtures.track(id: "track-two")])]
+                "two": [.success([PlaylistBrowsingTestFixtures.track(id: "track-two")])],
             ]
         )
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())

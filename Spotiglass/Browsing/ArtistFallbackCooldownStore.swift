@@ -70,7 +70,7 @@ final class ArtistFallbackCooldownStore {
             return true
         }
         switch state {
-        case let .forbidden(until), let .rateLimited(until):
+        case .forbidden(let until), .rateLimited(let until):
             if until > now {
                 return false
             }
@@ -87,7 +87,9 @@ final class ArtistFallbackCooldownStore {
     /// Long-retry 429s map to `.skipped` so the album fallback short-circuits instead of stacking another
     /// outbound call onto an active back-off window.
     @discardableResult
-    func registerTopTracksProbeFailure(_ error: Error, for key: ArtistTopTracksProbeKey, now: Date) -> AlbumFallbackBudgetMode {
+    func registerTopTracksProbeFailure(_ error: Error, for key: ArtistTopTracksProbeKey, now: Date)
+        -> AlbumFallbackBudgetMode
+    {
         guard let apiError = error as? SpotifyAPIError else {
             return .healthy
         }
@@ -95,7 +97,7 @@ final class ArtistFallbackCooldownStore {
         case .forbidden, .insufficientScope:
             topTracksProbeState[key] = .forbidden(until: now.addingTimeInterval(6 * 60 * 60))
             return .healthy
-        case let .rateLimited(retryAfter):
+        case .rateLimited(let retryAfter):
             let cooldown = min(max(retryAfter ?? 12, 6), 60)
             topTracksProbeState[key] = .rateLimited(until: now.addingTimeInterval(cooldown))
             // Longer Retry-After values mean Spotify is actively throttling us; skipping the album fallback
@@ -132,7 +134,8 @@ final class ArtistFallbackCooldownStore {
     }
 
     @discardableResult
-    func registerBatchedAlbumsRateLimit(for key: ArtistTopTracksProbeKey, retryAfter: TimeInterval?, now: Date) -> Date {
+    func registerBatchedAlbumsRateLimit(for key: ArtistTopTracksProbeKey, retryAfter: TimeInterval?, now: Date) -> Date
+    {
         let cooldown = min(max(retryAfter ?? 12, 6), 300)
         let until = now.addingTimeInterval(cooldown)
         batchedAlbumsCooldownUntil[key] = until

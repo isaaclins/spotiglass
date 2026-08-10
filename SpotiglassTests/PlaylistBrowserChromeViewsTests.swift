@@ -1,6 +1,7 @@
 import SwiftUI
 import ViewInspector
 import XCTest
+
 @testable import Spotiglass
 
 @MainActor
@@ -12,9 +13,11 @@ final class PlaylistBrowserChromeViewsTests: XCTestCase {
 
     func testPlaylistsSidebarSectionHeaderStates() throws {
         let refreshing = PlaylistsSidebarSectionHeader(
-            playlistState: .refreshing([PlaylistRowViewModel(
-                PlaylistBrowsingTestFixtures.playlist(id: "p", name: "Mix")
-            )])
+            playlistState: .refreshing([
+                PlaylistRowViewModel(
+                    PlaylistBrowsingTestFixtures.playlist(id: "p", name: "Mix")
+                )
+            ])
         )
         ViewTestHost.host(refreshing)
         XCTAssertNoThrow(try refreshing.inspect().find(text: "Refreshing"))
@@ -62,7 +65,7 @@ final class PlaylistBrowserChromeViewsTests: XCTestCase {
                 SpotifyPlaylistSummary(
                     id: row.id,
                     name: row.title,
-                ownerID: "test-owner",
+                    ownerID: "test-owner",
                     ownerName: row.owner,
                     imageURL: row.artworkURL,
                     trackCount: 0,

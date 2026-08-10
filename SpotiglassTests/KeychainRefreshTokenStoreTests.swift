@@ -1,6 +1,7 @@
 import Foundation
 import Security
 import XCTest
+
 @testable import Spotiglass
 
 final class KeychainRefreshTokenStoreTests: XCTestCase {

@@ -1,5 +1,6 @@
 import AppKit
 import XCTest
+
 @testable import Spotiglass
 
 final class CommandPaletteShortcutCoverageTests: XCTestCase {

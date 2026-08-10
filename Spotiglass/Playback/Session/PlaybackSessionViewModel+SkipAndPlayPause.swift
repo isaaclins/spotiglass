@@ -63,7 +63,8 @@ extension PlaybackSessionViewModel {
         }
         let now = clock.now
         if kind == .next,
-           let deadline = pendingSkipDeadline {
+            let deadline = pendingSkipDeadline
+        {
             if now < deadline {
                 nextCommandDroppedLockoutCount += 1
                 return
@@ -74,7 +75,8 @@ extension PlaybackSessionViewModel {
             nextCommandTimeoutUnlockCount += 1
         }
         if let last = lastSkipDispatchInstant,
-           now < last.advanced(by: skipCommandMinimumSpacing) {
+            now < last.advanced(by: skipCommandMinimumSpacing)
+        {
             if kind == .next {
                 nextCommandDroppedDedupeCount += 1
             }

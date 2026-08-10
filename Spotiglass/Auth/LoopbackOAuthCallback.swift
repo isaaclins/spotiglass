@@ -18,7 +18,7 @@ enum LoopbackOAuthCallbackError: Error, Equatable, LocalizedError {
         switch self {
         case .invalidRequest:
             "Spotify’s redirect didn’t return a usable response. Close extra browser tabs and try Connect again."
-        case let .oauthError(code, description):
+        case .oauthError(let code, let description):
             description ?? "Spotify authorization failed with error: \(code)."
         case .missingState:
             "Spotify’s callback was missing required data. Try Connect again."
@@ -26,7 +26,7 @@ enum LoopbackOAuthCallbackError: Error, Equatable, LocalizedError {
             "Spotify returned an invalid authorization state. Try Connect again."
         case .missingCode:
             "Spotify’s callback did not include an authorization code. Try Connect again."
-        case let .socketSetupFailed(step):
+        case .socketSetupFailed(let step):
             "Could not listen on the local port for Spotify’s redirect (\(step)). Another app may be using it, or macOS blocked the listener. Quit conflicting apps or restart Spotiglass, then try Connect again."
         case .timedOut:
             "Spotify sign-in timed out before the callback was received."
@@ -114,26 +114,31 @@ final class ActiveLoopbackOAuthListener {
                 Darwin.read(client, pointer.baseAddress, bufferCount)
             }
             guard count > 0,
-                  let request = String(bytes: buffer.prefix(count), encoding: .utf8),
-                  let requestLine = request.components(separatedBy: "\r\n").first else {
+                let request = String(bytes: buffer.prefix(count), encoding: .utf8),
+                let requestLine = request.components(separatedBy: "\r\n").first
+            else {
                 self.writeResponse(to: client, status: "400 Bad Request", body: "Invalid Spotify callback.")
                 throw LoopbackOAuthCallbackError.invalidRequest
             }
 
             let parts = requestLine.split(separator: " ")
             guard parts.count >= 2,
-                  parts[0] == "GET",
-                  let callbackURL = URL(string: "http://127.0.0.1\(parts[1])") else {
+                parts[0] == "GET",
+                let callbackURL = URL(string: "http://127.0.0.1\(parts[1])")
+            else {
                 self.writeResponse(to: client, status: "400 Bad Request", body: "Invalid Spotify callback.")
                 throw LoopbackOAuthCallbackError.invalidRequest
             }
 
             do {
-                let callback = try LoopbackOAuthCallbackValidator.validate(url: callbackURL, expectedState: self.expectedState)
-                self.writeResponse(to: client, status: "200 OK", body: "Spotify sign-in is complete. You can return to Spotiglass.")
+                let callback = try LoopbackOAuthCallbackValidator.validate(
+                    url: callbackURL, expectedState: self.expectedState)
+                self.writeResponse(
+                    to: client, status: "200 OK", body: "Spotify sign-in is complete. You can return to Spotiglass.")
                 return callback
             } catch {
-                self.writeResponse(to: client, status: "400 Bad Request", body: "Spotify sign-in could not be completed.")
+                self.writeResponse(
+                    to: client, status: "400 Bad Request", body: "Spotify sign-in could not be completed.")
                 throw error
             }
         }.value
@@ -141,13 +146,13 @@ final class ActiveLoopbackOAuthListener {
 
     private func writeResponse(to client: Int32, status: String, body: String) {
         let response = """
-        HTTP/1.1 \(status)\r
-        Content-Type: text/plain; charset=utf-8\r
-        Content-Length: \(body.utf8.count)\r
-        Connection: close\r
-        \r
-        \(body)
-        """
+            HTTP/1.1 \(status)\r
+            Content-Type: text/plain; charset=utf-8\r
+            Content-Length: \(body.utf8.count)\r
+            Connection: close\r
+            \r
+            \(body)
+            """
         _ = response.withCString { pointer in
             Darwin.write(client, pointer, strlen(pointer))
         }

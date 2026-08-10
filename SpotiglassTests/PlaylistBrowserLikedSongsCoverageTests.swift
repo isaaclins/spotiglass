@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 @MainActor
@@ -51,7 +52,10 @@ final class PlaylistBrowserLikedSongsCoverageTests: XCTestCase {
         guard case .staleCache = viewModel.detailState else {
             return XCTFail("Expected stale cache after revalidation failure, got \(viewModel.detailState)")
         }
-        XCTAssertTrue(PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).contains { $0.title.contains("cached-liked") })
+        XCTAssertTrue(
+            PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).contains {
+                $0.title.contains("cached-liked")
+            })
     }
 
     func testLikedSongsUsesProfileDisplayNameWhenPresent() async {
@@ -64,7 +68,7 @@ final class PlaylistBrowserLikedSongsCoverageTests: XCTestCase {
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
         await viewModel.load()
         await viewModel.selectSidebar(.likedSongs)
-        guard case let .loaded(.playlist(detail)) = viewModel.detailState else {
+        guard case .loaded(.playlist(let detail)) = viewModel.detailState else {
             return XCTFail("Expected loaded playlist detail")
         }
         XCTAssertEqual(detail.playlist.owner, "Taylor")
@@ -74,15 +78,16 @@ final class PlaylistBrowserLikedSongsCoverageTests: XCTestCase {
         let artwork = URL(string: "https://cdn.example/episode.jpg")!
         let episodeItem = SpotifyPlaylistTrackItem(
             id: "ep-1",
-            content: .episode(SpotifyEpisode(
-                id: "ep-1",
-                name: "Episode",
-                showName: "Show",
-                artworkURL: artwork,
-                durationMilliseconds: 60_000,
-                isPlayable: true,
-                uri: "spotify:episode:ep-1"
-            ))
+            content: .episode(
+                SpotifyEpisode(
+                    id: "ep-1",
+                    name: "Episode",
+                    showName: "Show",
+                    artworkURL: artwork,
+                    durationMilliseconds: 60_000,
+                    isPlayable: true,
+                    uri: "spotify:episode:ep-1"
+                ))
         )
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
@@ -92,7 +97,7 @@ final class PlaylistBrowserLikedSongsCoverageTests: XCTestCase {
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
         await viewModel.load()
         await viewModel.selectSidebar(.likedSongs)
-        guard case let .loaded(.playlist(detail)) = viewModel.detailState else {
+        guard case .loaded(.playlist(let detail)) = viewModel.detailState else {
             return XCTFail("Expected loaded detail")
         }
         XCTAssertEqual(detail.playlist.artworkURL, artwork)
@@ -116,9 +121,12 @@ private final class ProfileAwareMockBrowsingAPI: SpotifyBrowsingAPI {
     func playlistTracks(playlistID: String, limit: Int, maxPages: Int) async throws -> [SpotifyPlaylistTrackItem] { [] }
     func currentUserSavedTracks(limit: Int, maxPages: Int) async throws -> SpotifySavedTracksResult { savedTracks }
     func artist(id: String, cacheMode: SpotifyRequestCacheMode) async throws -> SpotifyArtistDetail {
-        SpotifyArtistDetail(id: id, name: id, imageURL: nil, followersTotal: nil, genres: [], uri: "spotify:artist:\(id)")
+        SpotifyArtistDetail(
+            id: id, name: id, imageURL: nil, followersTotal: nil, genres: [], uri: "spotify:artist:\(id)")
     }
-    func artistCached(id: String, cacheMode: SpotifyRequestCacheMode) async throws -> SpotifyAPIClient.CachedResponse<SpotifyArtistDetail> {
+    func artistCached(id: String, cacheMode: SpotifyRequestCacheMode) async throws
+        -> SpotifyAPIClient.CachedResponse<SpotifyArtistDetail>
+    {
         SpotifyAPIClient.CachedResponse(value: try await artist(id: id, cacheMode: cacheMode), isStale: false)
     }
     func artistTopTracks(id: String, market: String?) async throws -> [SpotifyTrack] { [] }
@@ -127,10 +135,14 @@ private final class ProfileAwareMockBrowsingAPI: SpotifyBrowsingAPI {
     }
     func albumTracks(albumID: String, market: String?, limit: Int) async throws -> [SpotifyTrack] { [] }
     func albums(ids: [String], market: String?) async throws -> [SpotifyBatchedAlbum] { [] }
-    func artistAlbumsCached(id: String, includeGroups: String, limit: Int, cacheMode: SpotifyRequestCacheMode) async throws -> SpotifyAPIClient.CachedResponse<[SpotifyArtistAlbum]> {
+    func artistAlbumsCached(id: String, includeGroups: String, limit: Int, cacheMode: SpotifyRequestCacheMode)
+        async throws -> SpotifyAPIClient.CachedResponse<[SpotifyArtistAlbum]>
+    {
         SpotifyAPIClient.CachedResponse(value: [], isStale: false)
     }
-    func artistAlbumsPage(id: String, includeGroups: String, limit: Int, offset: Int, nextURL: URL?, cacheMode: SpotifyRequestCacheMode) async throws -> SpotifyAPIClient.SpotifyArtistAlbumsPage {
+    func artistAlbumsPage(
+        id: String, includeGroups: String, limit: Int, offset: Int, nextURL: URL?, cacheMode: SpotifyRequestCacheMode
+    ) async throws -> SpotifyAPIClient.SpotifyArtistAlbumsPage {
         SpotifyAPIClient.SpotifyArtistAlbumsPage(items: [], next: nil)
     }
 }

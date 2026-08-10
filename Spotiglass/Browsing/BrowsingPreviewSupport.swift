@@ -1,7 +1,7 @@
 import Foundation
 
 #if DEBUG
-import SwiftUI
+    import SwiftUI
 #endif
 
 /// Preview-only browsing API used by ``PlaylistBrowserView`` canvas; exercised in unit tests for coverage.
@@ -14,7 +14,9 @@ struct PreviewBrowsingAPI: SpotifyBrowsingAPI {
         throw SpotifyAPIError.invalidRequest("Preview does not load artists.")
     }
 
-    func artistCached(id: String, cacheMode: SpotifyRequestCacheMode) async throws -> SpotifyAPIClient.CachedResponse<SpotifyArtistDetail> {
+    func artistCached(id: String, cacheMode: SpotifyRequestCacheMode) async throws
+        -> SpotifyAPIClient.CachedResponse<SpotifyArtistDetail>
+    {
         let value = try await artist(id: id, cacheMode: cacheMode)
         return SpotifyAPIClient.CachedResponse(value: value, isStale: false)
     }
@@ -35,7 +37,9 @@ struct PreviewBrowsingAPI: SpotifyBrowsingAPI {
         []
     }
 
-    func artistAlbums(id _: String, includeGroups _: String, limit _: Int, cacheMode _: SpotifyRequestCacheMode) async throws -> [SpotifyArtistAlbum] {
+    func artistAlbums(id _: String, includeGroups _: String, limit _: Int, cacheMode _: SpotifyRequestCacheMode)
+        async throws -> [SpotifyArtistAlbum]
+    {
         []
     }
 
@@ -72,7 +76,7 @@ struct PreviewBrowsingAPI: SpotifyBrowsingAPI {
                 imageURL: nil,
                 trackCount: 2,
                 snapshotID: "snapshot"
-            ),
+            )
         ]
     }
 
@@ -93,7 +97,7 @@ struct PreviewBrowsingAPI: SpotifyBrowsingAPI {
                         uri: "spotify:track:track"
                     )
                 )
-            ),
+            )
         ]
     }
 
@@ -105,9 +109,12 @@ struct PreviewBrowsingAPI: SpotifyBrowsingAPI {
 struct PreviewBrowsingCache: SpotifyBrowsingCache {
     func loadPlaylistsBundle(now: Date) throws -> (playlists: [SpotifyPlaylistSummary], age: TimeInterval)? { nil }
     func savePlaylists(_ playlists: [SpotifyPlaylistSummary], cachedAt: Date) throws {}
-    func loadTracks(playlistID: String, snapshotID: String, now: Date, maxAge: TimeInterval) throws -> [SpotifyPlaylistTrackItem]? { nil }
+    func loadTracks(playlistID: String, snapshotID: String, now: Date, maxAge: TimeInterval) throws
+        -> [SpotifyPlaylistTrackItem]?
+    { nil }
     func loadTracksIgnoringAge(playlistID: String, snapshotID: String) throws -> [SpotifyPlaylistTrackItem]? { nil }
-    func saveTracks(_ tracks: [SpotifyPlaylistTrackItem], playlistID: String, snapshotID: String, cachedAt: Date) throws {}
+    func saveTracks(_ tracks: [SpotifyPlaylistTrackItem], playlistID: String, snapshotID: String, cachedAt: Date) throws
+    {}
     func invalidateTracks(playlistID: String) throws {}
 }
 
@@ -120,18 +127,18 @@ final class PreviewPlaybackTokenProvider: PlaybackAccessTokenProviding, SpotifyA
 }
 
 #if DEBUG
-#Preview {
-    PlaylistBrowserView(
-        viewModel: PlaylistBrowserViewModel(
-            api: PreviewBrowsingAPI(),
-            cache: PreviewBrowsingCache()
-        ),
-        playbackTokenProvider: PreviewPlaybackTokenProvider(),
-        searchTokenProvider: PreviewPlaybackTokenProvider(),
-        commandPaletteManager: CommandPaletteManager(),
-        signOut: {}
-    )
-    .environmentObject(PinnedItemsStore(cache: InMemoryPinnedItemsCache()))
-    .environmentObject(LyricsOverlayController())
-}
+    #Preview {
+        PlaylistBrowserView(
+            viewModel: PlaylistBrowserViewModel(
+                api: PreviewBrowsingAPI(),
+                cache: PreviewBrowsingCache()
+            ),
+            playbackTokenProvider: PreviewPlaybackTokenProvider(),
+            searchTokenProvider: PreviewPlaybackTokenProvider(),
+            commandPaletteManager: CommandPaletteManager(),
+            signOut: {}
+        )
+        .environmentObject(PinnedItemsStore(cache: InMemoryPinnedItemsCache()))
+        .environmentObject(LyricsOverlayController())
+    }
 #endif

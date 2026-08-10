@@ -1,28 +1,31 @@
 import XCTest
+
 @testable import Spotiglass
 
 final class SpotifyAPIClientPlaylistSummaryDecodingTests: XCTestCase {
     func testPlaylistDecodingFallsBackToLegacyTracksField() async throws {
         let httpClient = QueueHTTPClient([
-            .json("""
-            {
-              "limit": 50,
-              "offset": 0,
-              "total": 1,
-              "items": [
+            .json(
+                """
                 {
-                  "id": "legacy-playlist",
-                  "name": "Legacy",
-                  "owner": { "id": "owner-1" },
-                  "images": [],
-                  "tracks": { "total": 7 },
-                  "snapshot_id": "snapshot-legacy"
+                  "limit": 50,
+                  "offset": 0,
+                  "total": 1,
+                  "items": [
+                    {
+                      "id": "legacy-playlist",
+                      "name": "Legacy",
+                      "owner": { "id": "owner-1" },
+                      "images": [],
+                      "tracks": { "total": 7 },
+                      "snapshot_id": "snapshot-legacy"
+                    }
+                  ]
                 }
-              ]
-            }
-            """)
+                """)
         ])
-        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+        let client = SpotifyAPIClient(
+            tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
 
         let playlists = try await client.currentUserPlaylists()
 
@@ -34,7 +37,8 @@ final class SpotifyAPIClientPlaylistSummaryDecodingTests: XCTestCase {
         let httpClient = QueueHTTPClient([
             .data(Data(), statusCode: 204)
         ])
-        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+        let client = SpotifyAPIClient(
+            tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
 
         try await client.updatePlaylist(playlistID: "playlist-1", name: "  Renamed Playlist  ")
 
@@ -49,7 +53,8 @@ final class SpotifyAPIClientPlaylistSummaryDecodingTests: XCTestCase {
 
     func testUpdatePlaylistRejectsWhitespaceOnlyName() async throws {
         let httpClient = QueueHTTPClient([])
-        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+        let client = SpotifyAPIClient(
+            tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
 
         await XCTAssertThrowsSpotifyAPIError(
             try await client.updatePlaylist(playlistID: "playlist-1", name: " \n\t "),
@@ -60,24 +65,26 @@ final class SpotifyAPIClientPlaylistSummaryDecodingTests: XCTestCase {
 
     func testPlaylistDecodingToleratesMissingSpotifyOptionalFields() async throws {
         let httpClient = QueueHTTPClient([
-            .json("""
-            {
-              "limit": 50,
-              "offset": 0,
-              "total": 1,
-              "items": [
+            .json(
+                """
                 {
-                  "id": "playlist-1",
-                  "name": "Sparse Playlist",
-                  "owner": {},
-                  "images": [{ "height": 640, "width": 640 }],
-                  "items": {}
+                  "limit": 50,
+                  "offset": 0,
+                  "total": 1,
+                  "items": [
+                    {
+                      "id": "playlist-1",
+                      "name": "Sparse Playlist",
+                      "owner": {},
+                      "images": [{ "height": 640, "width": 640 }],
+                      "items": {}
+                    }
+                  ]
                 }
-              ]
-            }
-            """)
+                """)
         ])
-        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+        let client = SpotifyAPIClient(
+            tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
 
         let playlists = try await client.currentUserPlaylists()
 

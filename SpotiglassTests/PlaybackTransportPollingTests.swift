@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Spotiglass
 
 @MainActor
@@ -44,11 +45,12 @@ final class PlaybackTransportPollingTests: XCTestCase {
         let baselineFetchCount = playbackAPI.actions.filter { $0 == "fetchPlayerSnapshot" }.count
 
         for offset in stride(from: 1_000, through: 50_000, by: 1_000) {
-            viewModel.handle(.stateChanged(
-                track.with(positionMilliseconds: offset),
-                isPaused: false,
-                nextTracks: []
-            ))
+            viewModel.handle(
+                .stateChanged(
+                    track.with(positionMilliseconds: offset),
+                    isPaused: false,
+                    nextTracks: []
+                ))
         }
         try? await Task.sleep(nanoseconds: 50_000_000)
 

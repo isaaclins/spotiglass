@@ -22,7 +22,8 @@ extension PlaylistBrowserViewModel {
                     return top
                 }
             } catch {
-                fallbackBudgetMode = artistFallbackCooldown.registerTopTracksProbeFailure(error, for: probeKey, now: now())
+                fallbackBudgetMode = artistFallbackCooldown.registerTopTracksProbeFailure(
+                    error, for: probeKey, now: now())
                 // Non-fatal: continue with fallbacks (403 Forbidden on `/top-tracks` is expected for dev-mode apps).
             }
         }
@@ -78,8 +79,9 @@ extension PlaylistBrowserViewModel {
             artistFetchMetrics.albumFallbackBatchedCalls += 1
             batchedAlbums = Dictionary(uniqueKeysWithValues: response.map { ($0.id, $0) })
         } catch {
-            if case let SpotifyAPIError.rateLimited(retryAfter) = error {
-                let until = artistFallbackCooldown.registerBatchedAlbumsRateLimit(for: probeKey, retryAfter: retryAfter, now: now())
+            if case SpotifyAPIError.rateLimited(let retryAfter) = error {
+                let until = artistFallbackCooldown.registerBatchedAlbumsRateLimit(
+                    for: probeKey, retryAfter: retryAfter, now: now())
                 artistFallbackCooldown.recordFailedAlbumBatchCooldown(signature: batchSignature, until: until)
             }
             artistFetchMetrics.albumFallbackBudgetStops += 1
