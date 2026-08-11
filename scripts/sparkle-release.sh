@@ -383,7 +383,10 @@ if [[ -n "$DEVELOPER_ID_IDENTITY" ]]; then
 fi
 
 if [[ -n "$RELEASE_NOTES" && -f "$RELEASE_NOTES" ]]; then
-  cp "$RELEASE_NOTES" "$ARCHIVES_DIR/Spotiglass-${MARKETING_VERSION}.md"
+  # generate_appcast recognizes matching .txt and .html files, not Markdown.
+  # Keep the source notes as Markdown in docs/release-notes, and give Sparkle a
+  # plain-text copy so the update window embeds the release notes.
+  cp "$RELEASE_NOTES" "$ARCHIVES_DIR/Spotiglass-${MARKETING_VERSION}.txt"
 fi
 
 if [[ -z "$GENERATE_APPCAST" ]]; then
@@ -409,8 +412,12 @@ fi
 echo "==> Generating appcast (docs/appcast.xml)"
 # Generated to a temp file, rewritten, checked, and only then moved into place,
 # so a failure never leaves a half-corrected feed in the tracked file.
-APPCAST_TMP="$(mktemp -t spotiglass-appcast)"
-trap 'rm -f "$APPCAST_TMP"' EXIT
+# generate_appcast treats an existing output file as an appcast to update. A
+# plain mktemp creates an empty file, which Sparkle then tries to parse as XML
+# and rejects as "zero length data". Give it a path that does not exist yet.
+APPCAST_TMP_DIR="$(mktemp -d)"
+APPCAST_TMP="$APPCAST_TMP_DIR/appcast.xml"
+trap 'rm -rf "$APPCAST_TMP_DIR"' EXIT
 
 "$GENERATE_APPCAST" \
   "${ED_KEY_ARGS[@]}" \
@@ -421,6 +428,7 @@ trap 'rm -f "$APPCAST_TMP"' EXIT
 
 rewrite_appcast_download_urls "$APPCAST_TMP"
 mv "$APPCAST_TMP" "$ROOT/docs/appcast.xml"
+rm -rf "$APPCAST_TMP_DIR"
 trap - EXIT
 echo "==> Wrote docs/appcast.xml"
 

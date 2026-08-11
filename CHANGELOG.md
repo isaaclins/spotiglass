@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.5.0] - 2026-08-11
+
+### Added
+
+- A native **Playback** menu exposes transport, shuffle, repeat, and connection actions. View and File menus add queue, lyrics, refresh, and library-loading commands, with shortcuts sourced from the editable keymap.
+- Icon-only controls across playback, queue, browsing, breadcrumbs, pinning, lyrics, and shortcut settings now have hover tooltips and VoiceOver labels.
+- Developer ID signing and Apple notarization cover the app, nested Sparkle components, equalizer driver, and disk image.
+
+### Changed
+
+- Equalizer, Playback, Appearance, Keyboard, and Account settings use native grouped forms with consistent sections, label columns, insets, and scrolling.
+- Playlist tracks use the native macOS table, providing system selection, Shift and Command multi-select, arrow-key navigation, double-click playback, and context-menu focus rings while retaining row virtualization.
+- Custom accent controls become neutral when a window is inactive, matching macOS focus conventions.
+- Command palette and queue section headers use locale-appropriate capitalization instead of all caps.
+- Release tooling validates increasing build numbers and keeps historical Sparkle downloads pinned to their original release tags.
+
+### Fixed
+
+- Unit tests can no longer overwrite the real Spotify client ID, playback volume, or app-storage preferences.
+- Release packaging refuses unsigned or unnotarized artifacts instead of producing downloads that Gatekeeper rejects.
+
 ## [0.4.0] - 2026-08-05
 
 ### Added
