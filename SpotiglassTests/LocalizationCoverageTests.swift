@@ -31,7 +31,7 @@ final class LocalizationCoverageTests: XCTestCase {
     /// rendering in each locale. Adding a surface requires adding a row here.
     private static let expectations: [(name: String, key: String, en: String, es: String, de: String)] = [
         // CommandPalette
-        ("palette.section.thisPlaylist", "palette.section.thisPlaylist", "HERE", "AQUÍ", "HIER"),
+        ("palette.section.thisPlaylist", "palette.section.thisPlaylist", "Here", "Aquí", "Hier"),
         ("palette.searchCategory.all", "palette.searchCategory.all", "All", "Todo", "Alle"),
         ("palette.searchPlaceholder.commands", "palette.searchPlaceholder.commands", "Run a command", "Ejecutar un comando", "Befehl ausführen"),
         ("palette.hotkeyRecorder.clickToRecord", "palette.hotkeyRecorder.clickToRecord", "Click to record", "Haz clic para grabar", "Zum Aufzeichnen klicken"),

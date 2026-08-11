@@ -16,7 +16,10 @@ final class CommandPaletteModelsTests: XCTestCase {
     }
 
     func testThisPlaylistSectionUsesHereDisplayLabel() {
-        XCTAssertEqual(CommandPaletteSection.thisPlaylist.displayLabel, "HERE")
+        XCTAssertEqual(
+            CommandPaletteSection.thisPlaylist.displayLabel,
+            SpotiglassL10n.string("palette.section.thisPlaylist")
+        )
     }
 
     func testShortcutParsingSupportsModifiers() throws {
