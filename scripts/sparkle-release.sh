@@ -245,6 +245,7 @@ cp -pR "$ROOT/build/SpotiglassEQDriver.driver" "$DRIVER_DST/"
 DEVELOPER_ID_IDENTITY="${DEVELOPER_ID_IDENTITY:-$(security find-identity -v -p codesigning | awk -F'\"' '/Developer ID Application/ { print $2; exit }')}"
 NOTARY_PROFILE="${NOTARY_PROFILE:-spotiglass}"
 ALLOW_UNSIGNED_RELEASE="${ALLOW_UNSIGNED_RELEASE:-0}"
+ALLOW_UNNOTARIZED_RELEASE="${ALLOW_UNNOTARIZED_RELEASE:-0}"
 
 if [[ -z "$DEVELOPER_ID_IDENTITY" ]]; then
   if [[ "$ALLOW_UNSIGNED_RELEASE" == "1" ]]; then
@@ -319,7 +320,8 @@ ZIP_PATH="$ARCHIVES_DIR/$ZIP_NAME"
 NOTARIZED=0
 if [[ -n "$DEVELOPER_ID_IDENTITY" ]]; then
   if xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1; then
-    NOTARIZE_ZIP="$(mktemp -d)/Spotiglass-notarize.zip"
+    NOTARIZE_DIR="$(mktemp -d)"
+    NOTARIZE_ZIP="$NOTARIZE_DIR/Spotiglass-notarize.zip"
     ditto -c -k --sequesterRsrc --keepParent "$APP_SOURCE" "$NOTARIZE_ZIP"
 
     echo "==> Submitting to Apple for notarization (this can take several minutes)"
@@ -328,18 +330,25 @@ if [[ -n "$DEVELOPER_ID_IDENTITY" ]]; then
     echo "==> Stapling notarization ticket"
     xcrun stapler staple "$APP_SOURCE"
     xcrun stapler validate "$APP_SOURCE"
-    rm -f "$NOTARIZE_ZIP"
+    rm -rf "$NOTARIZE_DIR"
     NOTARIZED=1
 
     # The real question is not whether the signature is valid but whether
-    # Gatekeeper will run it. This is the check that reflects what a user sees.
+    # Gatekeeper will run it. An app is executable code, so assess it with the
+    # execute policy rather than the installer-package policy.
     echo "==> Gatekeeper assessment"
-    spctl --assess --verbose=4 --type install "$APP_SOURCE"
-  else
+    spctl --assess --verbose=4 --type execute "$APP_SOURCE"
+  elif [[ "$ALLOW_UNNOTARIZED_RELEASE" == "1" ]]; then
     echo "WARNING: No notarytool keychain profile named '$NOTARY_PROFILE'." >&2
-    echo "WARNING: The build is signed but NOT notarized, so Gatekeeper will still warn users." >&2
-    echo "WARNING: Create one with:" >&2
-    echo "WARNING:   xcrun notarytool store-credentials \"$NOTARY_PROFILE\" --apple-id <id> --team-id <team> --password <app-specific-password>" >&2
+    echo "WARNING: ALLOW_UNNOTARIZED_RELEASE=1 permits a signed but unnotarized local artifact." >&2
+    echo "WARNING: Gatekeeper will warn users. Never publish this artifact." >&2
+  else
+    echo "ERROR: No notarytool keychain profile named '$NOTARY_PROFILE'." >&2
+    echo "       A published release must be notarized so Gatekeeper accepts it." >&2
+    echo "       Create the profile with:" >&2
+    echo "       xcrun notarytool store-credentials \"$NOTARY_PROFILE\" --apple-id <id> --team-id <team> --password <app-specific-password>" >&2
+    echo "       For local signing tests only, set ALLOW_UNNOTARIZED_RELEASE=1." >&2
+    exit 1
   fi
 fi
 
@@ -368,6 +377,8 @@ if [[ -n "$DEVELOPER_ID_IDENTITY" ]]; then
     echo "==> Notarizing disk image"
     xcrun notarytool submit "$DMG_PATH" --keychain-profile "$NOTARY_PROFILE" --wait
     xcrun stapler staple "$DMG_PATH"
+    xcrun stapler validate "$DMG_PATH"
+    spctl --assess --verbose=4 --type open --context context:primary-signature "$DMG_PATH"
   fi
 fi
 

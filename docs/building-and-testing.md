@@ -110,14 +110,21 @@ xcrun notarytool store-credentials "spotiglass" \
 
 `--password` takes an **app-specific password** generated at [account.apple.com](https://account.apple.com) under Sign-In and Security, not your Apple ID password. Apple rejects the account password here. The credentials are stored in your Keychain, so the secret never needs to appear in a script, a file, or an environment variable.
 
-If the profile is absent the release script still signs the build, but warns clearly that it is not notarized rather than pretending it succeeded.
+If the profile is absent, the release script stops rather than producing an
+artifact that Gatekeeper will reject. For local signing tests only,
+`ALLOW_UNNOTARIZED_RELEASE=1` permits a signed but unnotarized artifact and warns
+that it must never be published.
 
 ### Verifying a build yourself
 
 ```sh
 codesign --verify --strict --verbose=2 path/to/Spotiglass.app
 codesign -dvv path/to/Spotiglass.app 2>&1 | grep -E 'Authority|TeamIdentifier|Runtime'
-spctl --assess --verbose=4 --type install path/to/Spotiglass.app
+xcrun stapler validate path/to/Spotiglass.app
+spctl --assess --verbose=4 --type execute path/to/Spotiglass.app
+
+xcrun stapler validate path/to/Spotiglass.dmg
+spctl --assess --verbose=4 --type open --context context:primary-signature path/to/Spotiglass.dmg
 ```
 
 `spctl` is the check that matters, because it reflects what a user actually experiences:
