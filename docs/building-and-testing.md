@@ -10,7 +10,7 @@ From the repo root, `make` / `make build` runs a Debug build into `build/Derived
 
 Per [Creating your app icon using Icon Composer](https://developer.apple.com/documentation/xcode/creating-your-app-icon-using-icon-composer): add the **`.icon`** file via the **Project navigator** (drag from Finder or **Add Files…**). In the target **General → App Icons**, the **App Icon** field must match the Icon Composer filename **without** the extension.
 
-This project keeps **`Spotiglass/AppIcon.icon`** next to **`Assets.xcassets`** (not nested inside the catalog). In **`project.pbxproj`**, the file reference must use **`lastKnownFileType = folder.iconcomposer.icon`** (not `folder`). If Xcode treats the bundle as a generic folder, you only get a raw copy in **`Contents/Resources`**—no **`Assets.car`** / **`AppIcon.icns`**, empty **`assetcatalog_generated_info.plist`**, and Dock stays generic. The target sets **`ASSETCATALOG_COMPILER_APPICON_NAME`** = **`AppIcon`**, **`INFOPLIST_KEY_CFBundleIconName`** = **`AppIcon`**, and **`ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS`** = **`YES`**.
+This project keeps **`Spotiglass/AppIcon.icon`** next to **`Assets.xcassets`** (not nested inside the catalog). In **`project.pbxproj`**, the file reference must use **`lastKnownFileType = folder.iconcomposer.icon`** (not `folder`). If Xcode treats the bundle as a generic folder, you only get a raw copy in **`Contents/Resources`**, no **`Assets.car`** / **`AppIcon.icns`**, empty **`assetcatalog_generated_info.plist`**, and Dock stays generic. The target sets **`ASSETCATALOG_COMPILER_APPICON_NAME`** = **`AppIcon`**, **`INFOPLIST_KEY_CFBundleIconName`** = **`AppIcon`**, and **`ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS`** = **`YES`**.
 
 **`SpotiglassBrandLogo`** uses **`NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath)`**, not `Image("AppIcon")`: app icons are not a normal catalog **`imageset`**, so named lookups log *No image named 'AppIcon' found in asset catalog* even when the Icon Composer pipeline is correct.
 
@@ -44,7 +44,7 @@ Add `CODE_SIGNING_ALLOWED=NO` if you need to build without signing locally.
 xcodebuild -project Spotiglass.xcodeproj -scheme Spotiglass -destination 'platform=macOS' test
 ```
 
-Because `SpotiglassTests` uses **`TEST_HOST`** (tests run inside `Spotiglass.app`), the app’s normal launch path would call `restoreSessionIfAvailable()` and touch the Spotify refresh token in the **login keychain**—which can trigger a password prompt. When Xcode sets **`XCTestConfigurationFilePath`** (always true for this scheme’s test action), the app uses an in-memory refresh-token store instead so **unit tests do not read or write that Keychain item**.
+Because `SpotiglassTests` uses **`TEST_HOST`** (tests run inside `Spotiglass.app`), the app’s normal launch path would call `restoreSessionIfAvailable()` and touch the Spotify refresh token in the **login keychain**, which can trigger a password prompt. When Xcode sets **`XCTestConfigurationFilePath`** (always true for this scheme’s test action), the app uses an in-memory refresh-token store instead so **unit tests do not read or write that Keychain item**.
 
 If you add UI tests or another host that does not set that variable, expect Keychain behavior to match a normal app launch.
 
@@ -87,4 +87,52 @@ The built app is at:
 
 `build/DerivedData/Build/Products/Release/Spotiglass.app`
 
-This product uses only the ad-hoc linker signature macOS applies automatically. It is **not** Developer ID signed and **not** notarized.
+This product uses only the ad-hoc linker signature macOS applies automatically. It is **not** Developer ID signed and **not** notarized. That is fine for local work, but such a build cannot be published: Gatekeeper refuses it on any other Mac.
+
+## Signed and notarized release
+
+`scripts/sparkle-release.sh` signs and notarizes automatically. Two facts are worth knowing before running it.
+
+**Developer ID is the only certificate that works for distribution.** An `Apple Development` certificate produces a real `TeamIdentifier`, so a build signed with it looks signed, but Apple will not notarize it and Gatekeeper rejects it everywhere except a Mac that already trusts that development certificate. The script requires `Developer ID Application` and fails with an explanation if it is missing. Contributors who only need a local build can set `ALLOW_UNSIGNED_RELEASE=1`, which warns loudly and produces an ad-hoc build that must never be published.
+
+**Nested code is signed explicitly, deepest first.** Signing a bundle seals its contents, so Sparkle's `Downloader.xpc`, `Installer.xpc`, `Autoupdate` and `Updater.app` are signed before `Sparkle.framework`, the audio driver is signed after it is embedded, and the app is signed last. `--deep` is deliberately not used: it is deprecated and applies one identity and entitlement set to nested code that may need different ones, which is a common cause of notarization rejections.
+
+### One time notarization setup
+
+Notarization uploads the signed app to Apple, which scans it and returns a ticket that gets stapled into the bundle. Store the credentials once, under the profile name `spotiglass`:
+
+```sh
+xcrun notarytool store-credentials "spotiglass" \
+  --apple-id <your-apple-id-email> \
+  --team-id <your-team-id> \
+  --password <app-specific-password>
+```
+
+`--password` takes an **app-specific password** generated at [account.apple.com](https://account.apple.com) under Sign-In and Security, not your Apple ID password. Apple rejects the account password here. The credentials are stored in your Keychain, so the secret never needs to appear in a script, a file, or an environment variable.
+
+If the profile is absent, the release script stops rather than producing an
+artifact that Gatekeeper will reject. For local signing tests only,
+`ALLOW_UNNOTARIZED_RELEASE=1` permits a signed but unnotarized artifact and warns
+that it must never be published.
+
+### Verifying a build yourself
+
+```sh
+codesign --verify --strict --verbose=2 path/to/Spotiglass.app
+codesign -dvv path/to/Spotiglass.app 2>&1 | grep -E 'Authority|TeamIdentifier|Runtime'
+xcrun stapler validate path/to/Spotiglass.app
+spctl --assess --verbose=4 --type execute path/to/Spotiglass.app
+
+xcrun stapler validate path/to/Spotiglass.dmg
+spctl --assess --verbose=4 --type open --context context:primary-signature path/to/Spotiglass.dmg
+```
+
+`spctl` is the check that matters, because it reflects what a user actually experiences:
+
+- `accepted` with `source=Notarized Developer ID` is a publishable build.
+- `rejected` with `source=Unnotarized Developer ID` means signing is correct but notarization has not run.
+- Anything mentioning ad-hoc or an unidentified developer means the signing step did not happen at all.
+
+### Known risk: hardened runtime and the audio driver
+
+Notarization requires the hardened runtime (`--options runtime`), and the EQ driver is loaded by `coreaudiod` rather than by the app. Verify that audio still plays through the equalizer on a signed build before publishing a release. A signature that verifies cleanly does not prove the driver still loads.

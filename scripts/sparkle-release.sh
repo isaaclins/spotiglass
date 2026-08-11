@@ -223,35 +223,135 @@ xcodebuild \
   CODE_SIGNING_REQUIRED=NO \
   clean build
 
-# Build, re-sign, and embed the SpotiglassEQDriver into the Release .app.
-# The standalone build-driver.sh leaves the bundle ad-hoc signed, which
-# coreaudiod refuses to load on macOS 26. Re-sign with the local Apple
-# Development identity (same one `make sign-driver` uses) so the embedded
-# .driver has a real TeamIdentifier when shipped to users.
 echo "==> Building SpotiglassEQDriver"
 (cd "$ROOT/SpotiglassEQDriver" && bash build-driver.sh)
 
-CODESIGN_IDENTITY="${CODESIGN_IDENTITY:-$(security find-identity -v -p codesigning | awk '/Apple Development/ { print $2; exit }')}"
-if [[ -z "$CODESIGN_IDENTITY" ]]; then
-  echo "ERROR: No Apple Development identity in keychain: open Xcode -> Settings -> Accounts and sign in, then retry." >&2
-  exit 1
-fi
-echo "==> Re-signing SpotiglassEQDriver with $CODESIGN_IDENTITY"
-codesign --force --sign "$CODESIGN_IDENTITY" "$ROOT/build/SpotiglassEQDriver.driver"
-DRIVER_TEAM=$(codesign -dv "$ROOT/build/SpotiglassEQDriver.driver" 2>&1 | awk -F= '/TeamIdentifier/ { print $2 }')
-if [[ -z "$DRIVER_TEAM" || "$DRIVER_TEAM" == "not set" ]]; then
-  echo "ERROR: Driver signature fell back to ad-hoc (TeamIdentifier=$DRIVER_TEAM). Run scripts/setup-eq-driver-signing.sh to trust Apple Root CA, then retry." >&2
-  exit 1
-fi
-
+# Embed the driver before signing anything. Signing a bundle seals its contents,
+# so every nested item has to be in place first, otherwise adding the driver
+# afterwards invalidates the app signature.
 DRIVER_DST="$APP_SOURCE/Contents/Library/Audio/Plug-Ins/HAL"
-echo "==> Embedding signed driver into $DRIVER_DST"
+echo "==> Embedding driver into $DRIVER_DST"
 mkdir -p "$DRIVER_DST"
 rm -rf "$DRIVER_DST/SpotiglassEQDriver.driver"
 cp -pR "$ROOT/build/SpotiglassEQDriver.driver" "$DRIVER_DST/"
 
+# Developer ID Application is the only certificate class Gatekeeper accepts for
+# software distributed outside the App Store, and the only one Apple will
+# notarize. This script previously signed with Apple Development, which is a
+# local development certificate. That produced a real TeamIdentifier, so a
+# release looked signed, but it cannot be notarized and Gatekeeper rejects it on
+# every Mac except one that already trusts that development certificate. That is
+# why users saw "unidentified developer" on a build that appeared to be signed.
+DEVELOPER_ID_IDENTITY="${DEVELOPER_ID_IDENTITY:-$(security find-identity -v -p codesigning | awk -F'\"' '/Developer ID Application/ { print $2; exit }')}"
+NOTARY_PROFILE="${NOTARY_PROFILE:-spotiglass}"
+ALLOW_UNSIGNED_RELEASE="${ALLOW_UNSIGNED_RELEASE:-0}"
+ALLOW_UNNOTARIZED_RELEASE="${ALLOW_UNNOTARIZED_RELEASE:-0}"
+
+if [[ -z "$DEVELOPER_ID_IDENTITY" ]]; then
+  if [[ "$ALLOW_UNSIGNED_RELEASE" == "1" ]]; then
+    echo "WARNING: No Developer ID Application certificate found, and ALLOW_UNSIGNED_RELEASE=1." >&2
+    echo "WARNING: The resulting build is ad-hoc signed. It will NOT pass Gatekeeper on other Macs." >&2
+    echo "WARNING: Use this only for local testing, never to publish a release." >&2
+  else
+    echo "ERROR: No 'Developer ID Application' certificate in the keychain." >&2
+    echo "       A release must be signed with Developer ID so Gatekeeper accepts it elsewhere." >&2
+    echo "       Install one from https://developer.apple.com/account/resources/certificates" >&2
+    echo "       Contributors who only need a local build can set ALLOW_UNSIGNED_RELEASE=1." >&2
+    exit 1
+  fi
+fi
+
+# Sign one bundle with the hardened runtime and a secure timestamp, both of which
+# notarization requires.
+#
+# --deep is deliberately not used. It is deprecated, and it applies the same
+# identity and entitlements to nested code that may need different ones, which is
+# a common cause of notarization rejections. Every nested bundle is signed
+# explicitly below, deepest first, because signing a container seals whatever is
+# inside it at that moment.
+sign_bundle() {
+  local target="$1"
+  shift
+  [[ -e "$target" ]] || return 0
+  echo "    signing $(basename "$target")"
+  codesign --force --sign "$DEVELOPER_ID_IDENTITY" --options runtime --timestamp "$@" "$target"
+}
+
+if [[ -n "$DEVELOPER_ID_IDENTITY" ]]; then
+  echo "==> Signing with $DEVELOPER_ID_IDENTITY"
+  SPARKLE_FRAMEWORK="$APP_SOURCE/Contents/Frameworks/Sparkle.framework"
+  SPARKLE_VERSIONS="$SPARKLE_FRAMEWORK/Versions/B"
+
+  # Deepest first: the XPC services and the updater app live inside the
+  # framework, so they must be sealed before the framework is signed.
+  sign_bundle "$SPARKLE_VERSIONS/XPCServices/Downloader.xpc"
+  sign_bundle "$SPARKLE_VERSIONS/XPCServices/Installer.xpc"
+  sign_bundle "$SPARKLE_VERSIONS/Autoupdate"
+  sign_bundle "$SPARKLE_VERSIONS/Updater.app"
+  sign_bundle "$SPARKLE_FRAMEWORK"
+
+  # The audio driver is loaded by coreaudiod rather than by the app, so it is
+  # signed as its own bundle. The hardened runtime is required for notarization;
+  # verify audio still works on a signed build before publishing.
+  sign_bundle "$DRIVER_DST/SpotiglassEQDriver.driver"
+
+  # The app last, with its entitlements, so it seals everything above.
+  sign_bundle "$APP_SOURCE" --entitlements "$ROOT/Spotiglass/Spotiglass.entitlements"
+
+  echo "==> Verifying signature"
+  codesign --verify --strict --verbose=2 "$APP_SOURCE"
+
+  APP_TEAM=$(codesign -dv "$APP_SOURCE" 2>&1 | awk -F= '/TeamIdentifier/ { print $2 }')
+  APP_SIGNATURE=$(codesign -dv "$APP_SOURCE" 2>&1 | awk -F= '/Signature/ { print $2 }')
+  if [[ "$APP_SIGNATURE" == "adhoc" || -z "$APP_TEAM" || "$APP_TEAM" == "not set" ]]; then
+    echo "ERROR: App is not Developer ID signed (Signature=$APP_SIGNATURE TeamIdentifier=$APP_TEAM)." >&2
+    exit 1
+  fi
+  echo "==> Signed as team $APP_TEAM"
+fi
+
 mkdir -p "$ARCHIVES_DIR"
 ZIP_PATH="$ARCHIVES_DIR/$ZIP_NAME"
+
+# Notarization: upload the signed app, wait for Apple's verdict, then staple the
+# resulting ticket into the bundle so Gatekeeper can verify it without network
+# access. The archive is rebuilt from the stapled app afterwards, because a zip
+# made before stapling does not contain the ticket.
+NOTARIZED=0
+if [[ -n "$DEVELOPER_ID_IDENTITY" ]]; then
+  if xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1; then
+    NOTARIZE_DIR="$(mktemp -d)"
+    NOTARIZE_ZIP="$NOTARIZE_DIR/Spotiglass-notarize.zip"
+    ditto -c -k --sequesterRsrc --keepParent "$APP_SOURCE" "$NOTARIZE_ZIP"
+
+    echo "==> Submitting to Apple for notarization (this can take several minutes)"
+    xcrun notarytool submit "$NOTARIZE_ZIP" --keychain-profile "$NOTARY_PROFILE" --wait
+
+    echo "==> Stapling notarization ticket"
+    xcrun stapler staple "$APP_SOURCE"
+    xcrun stapler validate "$APP_SOURCE"
+    rm -rf "$NOTARIZE_DIR"
+    NOTARIZED=1
+
+    # The real question is not whether the signature is valid but whether
+    # Gatekeeper will run it. An app is executable code, so assess it with the
+    # execute policy rather than the installer-package policy.
+    echo "==> Gatekeeper assessment"
+    spctl --assess --verbose=4 --type execute "$APP_SOURCE"
+  elif [[ "$ALLOW_UNNOTARIZED_RELEASE" == "1" ]]; then
+    echo "WARNING: No notarytool keychain profile named '$NOTARY_PROFILE'." >&2
+    echo "WARNING: ALLOW_UNNOTARIZED_RELEASE=1 permits a signed but unnotarized local artifact." >&2
+    echo "WARNING: Gatekeeper will warn users. Never publish this artifact." >&2
+  else
+    echo "ERROR: No notarytool keychain profile named '$NOTARY_PROFILE'." >&2
+    echo "       A published release must be notarized so Gatekeeper accepts it." >&2
+    echo "       Create the profile with:" >&2
+    echo "       xcrun notarytool store-credentials \"$NOTARY_PROFILE\" --apple-id <id> --team-id <team> --password <app-specific-password>" >&2
+    echo "       For local signing tests only, set ALLOW_UNNOTARIZED_RELEASE=1." >&2
+    exit 1
+  fi
+fi
+
 rm -f "$ZIP_PATH"
 ditto -c -k --sequesterRsrc --keepParent "$APP_SOURCE" "$ZIP_PATH"
 
@@ -267,6 +367,20 @@ hdiutil create \
   -ov -format UDZO \
   "$DMG_PATH"
 rm -rf "$DMG_STAGE"
+
+# The disk image is a separate distributed artifact, so it carries its own
+# signature and ticket. Without this a user who downloads the .dmg rather than
+# the .zip still sees a Gatekeeper warning on the image itself.
+if [[ -n "$DEVELOPER_ID_IDENTITY" ]]; then
+  codesign --force --sign "$DEVELOPER_ID_IDENTITY" --timestamp "$DMG_PATH"
+  if [[ "$NOTARIZED" == "1" ]]; then
+    echo "==> Notarizing disk image"
+    xcrun notarytool submit "$DMG_PATH" --keychain-profile "$NOTARY_PROFILE" --wait
+    xcrun stapler staple "$DMG_PATH"
+    xcrun stapler validate "$DMG_PATH"
+    spctl --assess --verbose=4 --type open --context context:primary-signature "$DMG_PATH"
+  fi
+fi
 
 if [[ -n "$RELEASE_NOTES" && -f "$RELEASE_NOTES" ]]; then
   cp "$RELEASE_NOTES" "$ARCHIVES_DIR/Spotiglass-${MARKETING_VERSION}.md"

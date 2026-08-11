@@ -1,12 +1,12 @@
 # CI and releases
 
 > **As of v0.2.0, real releases are cut locally** via `./scripts/sparkle-release.sh`,
-> not from CI. The script embeds `SpotiglassEQDriver.driver` and re-signs it with
-> the maintainer's Apple Development identity — CI doesn't have access to that
-> identity, and `coreaudiod` on macOS 26 rejects ad-hoc-signed HAL plugins, so a
-> CI-published Sparkle update would ship a broken EQ to every user. The
-> Sparkle/Release/Pages steps have been removed from the workflow; what's left is
-> a preview-only build for reviewing a branch.
+> not from CI. The script embeds `SpotiglassEQDriver.driver`, signs every shipped
+> bundle with the maintainer's Developer ID Application identity, submits the app
+> and disk image for notarization, and staples Apple's tickets. CI has neither the
+> signing identity nor the notary profile, and `coreaudiod` on macOS 26 rejects
+> ad-hoc-signed HAL plugins. A CI-published Sparkle update would therefore ship a
+> broken EQ and fail Gatekeeper. The workflow only produces a preview artifact.
 
 ## Continuous integration
 
@@ -22,7 +22,8 @@ The workflow **CI** lives at [.github/workflows/ci.yml](../.github/workflows/ci.
 
 The static audits run on Linux so an obvious violation fails in about a minute instead of waiting on a macOS runner. The `test` job is pinned to `macos-26` for the same deployment-target reason as the release workflow below.
 
-CI does **not** build or publish a release. It has no access to the signing identity, so releases stay local.
+CI does **not** publish a release. It has no access to the Developer ID identity,
+the Sparkle private key, or the notary profile, so releases stay local.
 
 > Before this workflow existed, nothing ran the suite automatically and two tests rotted unnoticed on `main` ([#73](https://github.com/isaaclins/spotiglass/issues/73), [#74](https://github.com/isaaclins/spotiglass/issues/74)). Both were found by hand.
 
@@ -32,11 +33,11 @@ The workflow **Release artifact** lives at [.github/workflows/release-artifact.y
 
 | Aspect | Detail |
 |--------|--------|
-| Trigger | `workflow_dispatch` only — not on push or pull request |
+| Trigger | `workflow_dispatch` only, not on push or pull request |
 | Inputs | `marketing_version` (required), `build_number` (optional; defaults to run number) |
 | Steps | Resolve packages → unit tests → coverage gate → unsigned Release build → Actions artifact (preview only) |
 | Artifact name | `Spotiglass-release-app` (14-day retention) |
-| Permanent updates | None — cut releases locally via `scripts/sparkle-release.sh` |
+| Permanent updates | None; cut releases locally via `scripts/sparkle-release.sh` |
 
 Download the short-lived Actions artifact from the workflow run **Summary** page to preview a branch. For end users and Sparkle, use **GitHub Releases** (published by the local script) and the Pages-hosted appcast.
 
@@ -46,10 +47,11 @@ No Spotiglass server is required. Updates use:
 
 | Piece | Host |
 |-------|------|
-| Appcast RSS | [GitHub Pages](https://isaaclins.com/spotiglass/appcast.xml) — `docs/appcast.xml` on branch `main` |
-| Update `.zip` | [GitHub Releases](https://github.com/isaaclins/spotiglass/releases) — used by Sparkle |
-| Installer `.dmg` | [GitHub Releases](https://github.com/isaaclins/spotiglass/releases) — human download, drag-to-Applications |
-| Archive signatures | Sparkle EdDSA (`SUPublicEDKey` in the app; private key in CI only) |
+| Appcast RSS | [GitHub Pages](https://isaaclins.com/spotiglass/appcast.xml), from `docs/appcast.xml` on branch `main` |
+| Update `.zip` | [GitHub Releases](https://github.com/isaaclins/spotiglass/releases), used by Sparkle |
+| Installer `.dmg` | [GitHub Releases](https://github.com/isaaclins/spotiglass/releases), human download, drag-to-Applications |
+| Archive signatures | Sparkle EdDSA (`SUPublicEDKey` in the app; private key stored locally and never committed) |
+| Gatekeeper trust | Developer ID Application, hardened runtime, Apple notarization ticket stapled to the app and disk image |
 
 The app checks the feed automatically about once per day, or via **Spotiglass → Check for Updates…** in the menu bar. Automatic **install** is off by default (`SUAllowsAutomaticUpdates` = false); the user confirms the update.
 
@@ -76,17 +78,28 @@ The app checks the feed automatically about once per day, or via **Spotiglass �
 
 ### Cutting a release
 
-1. Dispatch **Release artifact** with a new `marketing_version` and a **higher** `build_number` than any prior release (`CFBundleVersion` must increase).
-2. Leave `publish_sparkle_update` enabled when the secret is configured.
-3. The workflow will:
-   - Build and test an unsigned Release `Spotiglass.app`
-   - Upload the 14-day Actions artifact
-   - Zip the app for Sparkle, sign the archive with EdDSA, regenerate `docs/appcast.xml`
-   - Package the app into a `Spotiglass-{version}.dmg` (drag-to-Applications) for human downloads
-   - Create a GitHub Release `v{version}` with both the `.dmg` and Sparkle `.zip` attached
-   - Commit `docs/appcast.xml` (and optional `docs/release-notes/`) to `main` for Pages
+1. Confirm `main` is clean, pushed, and green in CI.
+2. Confirm the Developer ID identity and notary profile are available:
+   ```sh
+   security find-identity -v -p codesigning | grep 'Developer ID Application'
+   xcrun notarytool history --keychain-profile spotiglass
+   ```
+3. Validate the version without building or writing files:
+   ```sh
+   SPARKLE_RELEASE_VALIDATE_ONLY=1 ./scripts/sparkle-release.sh 0.5.0 7
+   ```
+4. Run the local release:
+   ```sh
+   ./scripts/sparkle-release.sh 0.5.0 7 docs/release-notes/v0.5.0.md
+   ```
+5. The script builds and embeds the EQ driver, signs nested code from the inside
+   out, notarizes and staples the app, creates and notarizes the disk image,
+   signs the Sparkle archive with EdDSA, regenerates `docs/appcast.xml`, and bumps
+   the project version last. Publish the generated zip and dmg in GitHub Release
+   `v0.5.0`, then commit and push the appcast, release notes, and version bump.
 
-**Local parity:** `./scripts/sparkle-release.sh 0.2.0 42 docs/release-notes/v0.2.0.md` then create the Release and push the appcast commit manually if needed.
+The **Release artifact** workflow remains useful for an unsigned preview build.
+It does not publish an end-user release.
 
 ### Version and build-number rules
 
@@ -110,7 +123,7 @@ SPARKLE_RELEASE_VALIDATE_ONLY=1 ./scripts/sparkle-release.sh 0.5.0 7
 
 ### Testing updates
 
-- Install an older build, then run a newer release workflow (or lower `CURRENT_PROJECT_VERSION` temporarily in Xcode for a dev build).
+- Install an older build, then cut a newer local release (or lower `CURRENT_PROJECT_VERSION` temporarily in Xcode for a development build).
 - Clear Sparkle’s last-check time: `defaults delete com.isaaclins.spotiglass SULastCheckTime`
 - Inspect **Console.app** filtered by `Sparkle` if something fails.
 
@@ -120,11 +133,19 @@ The app and test targets declare **macOS 26** as the deployment minimum. `xcodeb
 
 The workflow pins Xcode explicitly where needed (see the workflow file for the current action steps).
 
-## Unsigned distribution
+## Signing and notarization
 
-The CI artifact and GitHub Release builds are **unsigned** beyond ad-hoc signing. Gatekeeper may block first launch and each Sparkle update.
+Published GitHub Releases are signed with Developer ID Application, use the
+hardened runtime, and carry a stapled Apple notarization ticket. Gatekeeper must
+accept both the app and the disk image without asking users to bypass security.
+The release script verifies the code signature, validates the stapled app ticket,
+and runs `spctl` before packaging. It notarizes and staples the disk image as a
+separate distributed artifact.
 
-- Control-click the app → **Open**, then confirm; or  
-- Remove quarantine: `xattr -dr com.apple.quarantine /path/to/Spotiglass.app`
+The short-lived CI preview artifact remains unsigned because GitHub-hosted
+runners do not have the local signing identity or notary profile. Do not publish
+that artifact as an end-user release.
 
-Sparkle EdDSA verifies that the downloaded zip came from your signing key and feed; it does **not** replace Apple Developer ID notarization. This pipeline intentionally does **not** perform Developer ID signing or notarization.
+Sparkle EdDSA independently verifies that the downloaded zip came from the feed's
+signing key. It complements Developer ID and notarization; it does not replace
+either one.
