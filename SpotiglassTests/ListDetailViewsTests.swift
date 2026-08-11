@@ -250,6 +250,7 @@ final class ListDetailViewsTests: XCTestCase {
 
     func testSpotifyClientIDAndActionsWelcomeLayout() throws {
         let viewModel = AuthViewModel(
+            settings: SpotifyAuthSettings(defaults: makeEphemeralDefaults()),
             refreshTokenStore: MemoryOnlyRefreshTokenStore(),
             initialState: .signedOut
         )
@@ -261,6 +262,7 @@ final class ListDetailViewsTests: XCTestCase {
 
     func testSpotifyClientIDAndActionsSigningInShowsCancel() throws {
         let viewModel = AuthViewModel(
+            settings: SpotifyAuthSettings(defaults: makeEphemeralDefaults()),
             refreshTokenStore: MemoryOnlyRefreshTokenStore(),
             initialState: .signingIn
         )

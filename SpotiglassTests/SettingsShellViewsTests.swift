@@ -13,7 +13,10 @@ final class SettingsShellViewsTests: XCTestCase {
     func testSpotiglassSettingsViewTabs() throws {
         let store = try ViewTestHost.makeSettingsStore()
         let manager = CommandPaletteManager()
-        let auth = AuthViewModel(refreshTokenStore: MemoryOnlyRefreshTokenStore())
+        let auth = AuthViewModel(
+            settings: SpotifyAuthSettings(defaults: makeEphemeralDefaults()),
+            refreshTokenStore: MemoryOnlyRefreshTokenStore()
+        )
         let view = SpotiglassSettingsView(
             commandPaletteManager: manager,
             settingsStore: store,
@@ -39,7 +42,10 @@ final class SettingsShellViewsTests: XCTestCase {
     func testSettingsShellOpensWithTheSidebarVisible() throws {
         let store = try ViewTestHost.makeSettingsStore()
         let manager = CommandPaletteManager()
-        let auth = AuthViewModel(refreshTokenStore: MemoryOnlyRefreshTokenStore())
+        let auth = AuthViewModel(
+            settings: SpotifyAuthSettings(defaults: makeEphemeralDefaults()),
+            refreshTokenStore: MemoryOnlyRefreshTokenStore()
+        )
         let view = SpotiglassSettingsView(
             commandPaletteManager: manager,
             settingsStore: store,

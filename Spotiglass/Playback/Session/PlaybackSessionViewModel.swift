@@ -119,6 +119,10 @@ final class PlaybackSessionViewModel: ObservableObject {
     let playbackAPI: SpotifyPlaybackControlling
     let webCommander: WebPlaybackCommanding
     let macAudioOutput: MacDefaultAudioOutputProviding
+    /// Backing store for the persisted playback volume. Production uses
+    /// `.standard`; tests inject an ephemeral suite so a test run cannot
+    /// overwrite the real user's stored volume.
+    private let defaults: UserDefaults
     /// Core Audio listener; accessed from `deinit` for removal — must be `nonisolated(unsafe)`.
     nonisolated(unsafe) var hardwareDevicesListener: AudioObjectPropertyListenerBlock?
     var latestPlayerSnapshot: SpotifyPlayerSnapshot?
@@ -300,6 +304,7 @@ final class PlaybackSessionViewModel: ObservableObject {
         playbackAPI: SpotifyPlaybackControlling,
         webCommander: WebPlaybackCommanding,
         macAudioOutput: MacDefaultAudioOutputProviding = MacDefaultAudioOutputNameProvider(),
+        defaults: UserDefaults = .standard,
         pendingShuffleTimeout: Duration = .seconds(2),
         pendingRepeatTimeout: Duration = .seconds(2),
         pendingSeekTimeout: Duration = .seconds(2),
@@ -325,6 +330,7 @@ final class PlaybackSessionViewModel: ObservableObject {
         self.playbackAPI = playbackAPI
         self.webCommander = webCommander
         self.macAudioOutput = macAudioOutput
+        self.defaults = defaults
         self.pendingShuffleTimeout = pendingShuffleTimeout
         self.pendingRepeatTimeout = pendingRepeatTimeout
         self.pendingSeekTimeout = pendingSeekTimeout
@@ -346,7 +352,7 @@ final class PlaybackSessionViewModel: ObservableObject {
         self.playbackHostHardReloadWindowMax = playbackHostHardReloadWindowMax
         self.playbackHostRecoveryConnectTimeout = playbackHostRecoveryConnectTimeout
         self.playbackHostRecoverySoftResetTimeout = playbackHostRecoverySoftResetTimeout
-        self.playbackVolume = Self.loadStoredPlaybackVolume()
+        self.playbackVolume = Self.loadStoredPlaybackVolume(from: defaults)
 
         macAudioOutput.startListening { [weak self] in
             Task { @MainActor in
@@ -384,8 +390,8 @@ final class PlaybackSessionViewModel: ObservableObject {
         restartTransportPollingIfNeeded()
     }
 
-    private static func loadStoredPlaybackVolume() -> Double {
-        guard let object = UserDefaults.standard.object(forKey: playbackVolumeUserDefaultsKey) else {
+    private static func loadStoredPlaybackVolume(from defaults: UserDefaults) -> Double {
+        guard let object = defaults.object(forKey: playbackVolumeUserDefaultsKey) else {
             return defaultPlaybackVolume
         }
         if let d = object as? Double {
@@ -400,7 +406,7 @@ final class PlaybackSessionViewModel: ObservableObject {
     func setPlaybackVolume(_ value: Double) {
         let clamped = min(max(value, 0), 1)
         playbackVolume = clamped
-        UserDefaults.standard.set(clamped, forKey: Self.playbackVolumeUserDefaultsKey)
+        defaults.set(clamped, forKey: Self.playbackVolumeUserDefaultsKey)
         Task {
             try? await webCommander.send(.setVolume, payload: ["volume": clamped])
         }

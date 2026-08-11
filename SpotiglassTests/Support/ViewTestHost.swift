@@ -36,13 +36,33 @@ enum ViewTestHost {
     private static var windows: [NSWindow] = []
     private static let hostLock = NSLock()
 
+    static let appStorageSuiteName = "SpotiglassTests-AppStorage"
+
+    /// Store that every hosted view's `@AppStorage` binds to.
+    ///
+    /// `@AppStorage` resolves against `UserDefaults.standard` unless the view
+    /// tree supplies a store, and the test bundle shares the bundle identifier
+    /// `com.isaaclins.spotiglass` with the shipping app. Without this, hosting a
+    /// view that writes `queue.panel.visible` edits the real user's preferences.
+    static let appStorageDefaults: UserDefaults = {
+        guard let defaults = UserDefaults(suiteName: appStorageSuiteName) else {
+            fatalError("Could not create UserDefaults suite \(appStorageSuiteName)")
+        }
+        return defaults
+    }()
+
     @discardableResult
-    static func host<V: View>(_ view: V, size: CGSize = CGSize(width: 640, height: 480)) -> NSHostingController<V> {
+    static func host<V: View>(
+        _ view: V,
+        size: CGSize = CGSize(width: 640, height: 480)
+    ) -> NSHostingController<AnyView> {
         hostLock.lock()
         defer { hostLock.unlock() }
 
         AppKitTestSupport.activateAppIfNeeded()
-        let controller = NSHostingController(rootView: view)
+        let controller = NSHostingController(
+            rootView: AnyView(view.defaultAppStorage(appStorageDefaults))
+        )
         let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: size),
             styleMask: [.titled, .closable],
@@ -61,6 +81,7 @@ enum ViewTestHost {
     static func tearDownAll() {
         windows.forEach { $0.close() }
         windows.removeAll()
+        appStorageDefaults.removePersistentDomain(forName: appStorageSuiteName)
     }
 
     /// Skips a test when running on a toolchain where ViewInspector traps while
