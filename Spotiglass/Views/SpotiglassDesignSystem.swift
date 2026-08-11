@@ -2,9 +2,63 @@ import AppKit
 import SwiftUI
 
 enum SpotiglassDesign {
-    /// System accent used by native controls (sliders, progress, focus)—matches System Settings → Accent color.
+    /// System accent used by native controls (sliders, progress, focus), matching
+    /// the Accent color chosen in System Settings.
     static var controlAccent: Color {
         Color(nsColor: .controlAccentColor)
+    }
+
+    // MARK: - Inactive window appearance
+
+    /// How much of the accent's color survives while its window is not the key window.
+    /// Zero matches AppKit, which paints a background window's controls in grey rather
+    /// than in a washed out tint.
+    static let inactiveWindowAccentSaturation: CGFloat = 0
+
+    /// The accent a custom drawn control should paint with, given whether its window is key.
+    ///
+    /// macOS colors only the key window's controls, so a background window's accents turn
+    /// grey. AppKit does that for its own controls and SwiftUI does it for the standard
+    /// ones; anything this app draws by hand has to opt in, and this is where it opts in.
+    /// Prefer `SpotiglassAccentStyle` at the call site so the environment read stays here.
+    static func accent(appearsActive: Bool) -> Color {
+        appearsActive ? controlAccent : inactiveAccent
+    }
+
+    /// `controlAccent` with the color drained out but the brightness kept, so a subdued
+    /// control still reads at the same visual weight instead of fading off the surface.
+    ///
+    /// Stored rather than computed so repeated reads compare equal: SwiftUI diffs a view's
+    /// colors by value, and a freshly built dynamic color would look like a change on every
+    /// update. The provider still resolves the live accent per appearance, so light and dark
+    /// each get their own grey.
+    static let inactiveAccent = Color(nsColor: NSColor(name: nil) { appearance in
+        var resolved = NSColor.controlAccentColor
+        appearance.performAsCurrentDrawingAppearance {
+            resolved = subduedForInactiveWindow(.controlAccentColor)
+        }
+        return resolved
+    })
+
+    /// Scales the saturation of `nsColor` while keeping its hue, brightness and alpha.
+    /// Split out from `inactiveAccent` because the accent itself is a live system color,
+    /// so this is the part that can be pinned down in a test.
+    static func subduedForInactiveWindow(
+        _ nsColor: NSColor,
+        saturationScale: CGFloat = inactiveWindowAccentSaturation
+    ) -> NSColor {
+        guard let rgb = nsColor.usingColorSpace(.sRGB) else { return nsColor }
+        var hue: CGFloat = 0
+        var saturation: CGFloat = 0
+        var brightness: CGFloat = 0
+        var alpha: CGFloat = 0
+        rgb.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
+        return NSColor(
+            hue: hue,
+            saturation: max(0, min(1, saturation * saturationScale)),
+            brightness: brightness,
+            alpha: alpha
+        )
     }
 
     static let spacingXS: CGFloat = 6
@@ -95,6 +149,27 @@ enum SpotiglassDesign {
             return .black.opacity(0.14)
         }
     }
+}
+
+/// The app's accent as a `ShapeStyle`, greyed automatically while its window is not key.
+///
+/// This is the single place the inactive window decision is made for custom drawn UI.
+/// Because a `ShapeStyle` resolves against the environment it is handed, every call site
+/// gets the behavior without reading `\.appearsActive` itself, which keeps the rule in one
+/// file instead of scattered across two dozen views.
+///
+/// Use it anywhere a `ShapeStyle` is accepted: `.foregroundStyle(.spotiglassAccent)`,
+/// `.fill(.spotiglassAccent)`, or `SpotiglassAccentStyle().opacity(0.18)` when it needs
+/// to be softened.
+struct SpotiglassAccentStyle: ShapeStyle {
+    func resolve(in environment: EnvironmentValues) -> Color {
+        SpotiglassDesign.accent(appearsActive: environment.appearsActive)
+    }
+}
+
+extension ShapeStyle where Self == SpotiglassAccentStyle {
+    /// The system accent, greyed automatically while its window is not the key window.
+    static var spotiglassAccent: SpotiglassAccentStyle { SpotiglassAccentStyle() }
 }
 
 struct GlassPanel<Content: View>: View {

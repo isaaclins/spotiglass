@@ -91,17 +91,30 @@ final class SettingsShellViewsTests: XCTestCase {
         ViewTestHost.assertFindLocalizedText("settings.playback.premium.title", in: view)
     }
 
-    func testSettingsPanesLeaveScrollingToTheShell() throws {
+    /// Settings panes must never contain a bare `ScrollView`.
+    ///
+    /// Originally this held because the shell owned the only scroll container.
+    /// The shell no longer scrolls: each pane is a grouped `Form`, which supplies
+    /// its own scrolling and group insets, matching System Settings. The
+    /// invariant that matters is unchanged and is what #21 and #22 actually
+    /// regressed on: exactly one scrollable container per pane, never a
+    /// hand-rolled `ScrollView` nested inside another one.
+    ///
+    /// The standalone Keyboard window is the deliberate exception. It is not
+    /// hosted in the settings shell and is not a Form, so it brings its own.
+    func testSettingsPanesLeaveScrollingToTheirFormContainer() throws {
         let store = try ViewTestHost.makeSettingsStore()
         let manager = CommandPaletteManager()
 
         let appearance = AppearanceSettingsView(settingsStore: store)
         ViewTestHost.host(appearance)
         XCTAssertThrowsError(try appearance.inspect().find(ViewType.ScrollView.self))
+        XCTAssertNoThrow(try appearance.inspect().find(ViewType.Form.self))
 
         let playback = PlaybackSettingsView()
         ViewTestHost.host(playback)
         XCTAssertThrowsError(try playback.inspect().find(ViewType.ScrollView.self))
+        XCTAssertNoThrow(try playback.inspect().find(ViewType.Form.self))
 
         let keyboard = CommandPaletteSettingsView(
             keymapStore: manager.keymapStore,

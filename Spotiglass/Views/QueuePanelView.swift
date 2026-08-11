@@ -44,7 +44,11 @@ struct QueuePanelView: View {
                 Task { await queueViewModel.toggleShuffle() }
             } label: {
                 Image(systemName: "shuffle")
-                    .foregroundStyle(playbackViewModel.shuffleEnabled ? SpotiglassDesign.controlAccent : Color.primary)
+                    .foregroundStyle(
+                        playbackViewModel.shuffleEnabled
+                            ? AnyShapeStyle(SpotiglassAccentStyle())
+                            : AnyShapeStyle(.primary)
+                    )
             }
             .disabled(playbackViewModel.deviceID == nil)
             .accessibilityLabel(
@@ -53,7 +57,7 @@ struct QueuePanelView: View {
                     : SpotiglassL10n.string("queue.shuffle.off")
             )
             .accessibilityHint(SpotiglassL10n.string("queue.shuffle.hint"))
-            .help(SpotiglassL10n.string("queue.help.shuffle"))
+            .help(PlaybackTransportTooltips.shuffleTooltip(isEnabled: playbackViewModel.shuffleEnabled))
         }
         .padding(SpotiglassDesign.spacingM)
     }

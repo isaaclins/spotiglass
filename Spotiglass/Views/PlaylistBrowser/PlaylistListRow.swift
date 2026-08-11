@@ -30,7 +30,11 @@ struct PlaylistListRow: View {
                         .overlay {
                             Image(systemName: isListSelected ? "heart.fill" : "heart")
                                 .font(.system(size: 20, weight: .semibold))
-                                .foregroundStyle(isListSelected ? SpotiglassDesign.controlAccent : .secondary)
+                                .foregroundStyle(
+                                    isListSelected
+                                        ? AnyShapeStyle(SpotiglassAccentStyle())
+                                        : AnyShapeStyle(.secondary)
+                                )
                                 .symbolRenderingMode(.monochrome)
                         }
                         .overlay {
@@ -63,6 +67,7 @@ struct PlaylistListRow: View {
                             Circle().fill(SpotiglassDesign.mediaBadgeBackgroundColor(colorScheme: colorScheme))
                         )
                         .padding(2)
+                        .help(SpotiglassL10n.string("browser.pinned"))
                         .accessibilityLabel(SpotiglassL10n.string("browser.pinned"))
                 }
             }

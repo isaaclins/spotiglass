@@ -1,7 +1,7 @@
 import Foundation
 
 extension PlaylistBrowserViewModel {
-    /// Track IDs the menu actions should apply to: the active shift-click selection,
+    /// Track IDs the menu actions should apply to: the active table selection,
     /// or just the row the menu was opened on when no selection exists.
     func effectiveTrackTargets(forRowID rowID: String) -> [TrackRowViewModel] {
         guard let tracks = loadedContextTracksForPalette, !tracks.isEmpty else { return [] }
@@ -28,36 +28,12 @@ extension PlaylistBrowserViewModel {
         }
     }
 
-    // MARK: - Selection (shift-click range)
+    // MARK: - Selection
 
-    /// Extends the selection from the previous anchor to `trackID`, inclusive,
-    /// in track-list order. If there is no anchor yet, becomes a single
-    /// selection of `trackID`. Sets the new anchor to `trackID`.
-    func extendSelection(toRowID trackID: String) {
-        guard let tracks = loadedContextTracksForPalette,
-              let endIndex = tracks.firstIndex(where: { $0.id == trackID })
-        else {
-            selectedDetailTrackIDs = [trackID]
-            detailSelectionAnchorTrackID = trackID
-            return
-        }
-        let anchorID = detailSelectionAnchorTrackID ?? trackID
-        let startIndex = tracks.firstIndex(where: { $0.id == anchorID }) ?? endIndex
-        let (lo, hi) = startIndex <= endIndex ? (startIndex, endIndex) : (endIndex, startIndex)
-        selectedDetailTrackIDs = Set(tracks[lo...hi].map(\.id))
-        detailSelectionAnchorTrackID = trackID
-    }
-
-    /// Click without modifiers — replace selection so the row is "primary",
-    /// and reset the anchor for a future shift-extend.
-    func setPrimarySelection(trackID: String) {
-        selectedDetailTrackIDs = [trackID]
-        detailSelectionAnchorTrackID = trackID
-    }
-
+    /// Called when the detail surface changes. The `List` binding owns every
+    /// other write to the selection.
     func clearTrackSelection() {
         selectedDetailTrackIDs = []
-        detailSelectionAnchorTrackID = nil
     }
 
     // MARK: - Spotify Web API round-trips
@@ -275,9 +251,6 @@ extension PlaylistBrowserViewModel {
         }
         // Drop selection IDs that no longer exist.
         selectedDetailTrackIDs.subtract(rowIDs)
-        if let anchor = detailSelectionAnchorTrackID, rowIDs.contains(anchor) {
-            detailSelectionAnchorTrackID = nil
-        }
     }
 
     private func insertSidebarPlaylist(_ summary: SpotifyPlaylistSummary, refreshedTrackCount: Int) {

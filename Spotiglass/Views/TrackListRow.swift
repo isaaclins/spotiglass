@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 
 struct TrackListRow: View {
@@ -19,12 +18,12 @@ struct TrackListRow: View {
     let openArtist: (String) -> Void
     /// When set, the row participates in drag-to-pin for this surface (e.g. `pl:<playlistId>` or `ar:<artistID>`).
     var tracksSurfaceID: String? = nil
-    /// Optional shift-click selection contract. When provided, modifier-aware
-    /// click handling routes through these callbacks; `nil` keeps the legacy
-    /// "click = play" behaviour for surfaces that don't surface multi-select.
-    var isSelected: Bool = false
-    var onShiftSelect: ((String) -> Void)? = nil
-    var onPrimarySelect: ((String) -> Void)? = nil
+    /// Whether the row paints its own now-playing and hover tint. Inside a
+    /// `List` the table owns the row background, and drawing a second fill on
+    /// top of the system selection muddies it, so the playlist table passes
+    /// `false` and lets the waveform glyph mark the playing row the way Music
+    /// does. Surfaces that still stack rows in a plain stack keep it on.
+    var drawsRowHighlights: Bool = true
     /// Spotify-side track-ops menu items appended after the existing menu.
     /// Built lazily so closures don't fire until the menu opens.
     var trackOpsMenuItems: (() -> AnyView)? = nil
@@ -67,6 +66,7 @@ struct TrackListRow: View {
                             )
                             .padding(2)
                             .accessibilityElement()
+                            .help(SpotiglassL10n.string("browser.pinned"))
                             .accessibilityLabel(SpotiglassL10n.string("browser.pinned"))
                     }
                 }
@@ -109,22 +109,10 @@ struct TrackListRow: View {
             track: track,
             tracksSurfaceID: tracksSurfaceID
         ))
-        .onTapGesture {
-            // Shift-click ⇒ extend selection (no playback).
-            // Plain click   ⇒ replace selection, then play / toggle.
-            if NSEvent.modifierFlags.contains(.shift), let onShiftSelect {
-                onShiftSelect(track.id)
-                return
-            }
-            if let onPrimarySelect {
-                onPrimarySelect(track.id)
-            }
-            if isCurrent {
-                togglePlayPause()
-            } else if let playableURI = track.playableURI {
-                playURI(playableURI)
-            }
-        }
+        // Double-click activates, which is what a Mac table does: a single
+        // click belongs to the enclosing `List` so it can select. Attached
+        // simultaneously so the tap recognizer cannot swallow that click.
+        .simultaneousGesture(TapGesture(count: 2).onEnded(activate))
         .contextMenu {
             if !track.artistRefs.isEmpty {
                 Menu(SpotiglassL10n.string("browser.track.openArtist")) {
@@ -198,18 +186,31 @@ struct TrackListRow: View {
         }
     }
 
+    /// Plays the row, or toggles transport when it is already the playing one.
+    private func activate() {
+        if isCurrent {
+            togglePlayPause()
+        } else if let playableURI = track.playableURI {
+            playURI(playableURI)
+        }
+    }
+
     @ViewBuilder
     private var leadingColumn: some View {
-        if isCurrent && isHovering {
-            Image(systemName: "pause.fill")
-                .foregroundStyle(SpotiglassDesign.controlAccent)
-                .frame(maxWidth: .infinity, alignment: .center)
+        if isHovering {
+            // A real button, so a single click still plays even though the row
+            // itself now hands single clicks to the list for selection.
+            Button(action: activate) {
+                Image(systemName: isCurrent ? "pause.fill" : "play.fill")
+                    .foregroundStyle(.spotiglassAccent)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(SpotiglassL10n.string(isCurrent ? "playback.pause" : "playback.play"))
+            .accessibilityLabel(SpotiglassL10n.string(isCurrent ? "playback.pause" : "playback.play"))
         } else if isCurrent {
             PlayingWaveformIcon(isPlaying: isPlaying)
-                .frame(maxWidth: .infinity, alignment: .center)
-        } else if isHovering {
-            Image(systemName: "play.fill")
-                .foregroundStyle(SpotiglassDesign.controlAccent)
                 .frame(maxWidth: .infinity, alignment: .center)
         } else {
             Text("\(trackNumber)")
@@ -221,21 +222,16 @@ struct TrackListRow: View {
 
     @ViewBuilder
     private var rowBackground: some View {
-        ZStack {
-            if isSelected {
-                RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
-                    .fill(SpotiglassDesign.controlAccent.opacity(0.18))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
-                            .strokeBorder(SpotiglassDesign.controlAccent.opacity(0.45), lineWidth: 1)
-                    )
-            } else if isCurrent {
-                RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
-                    .fill(Color.primary.opacity(0.10))
-            }
-            if isHovering && !isSelected {
-                RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
-                    .fill(Color.primary.opacity(0.05))
+        if drawsRowHighlights {
+            ZStack {
+                if isCurrent {
+                    RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
+                        .fill(Color.primary.opacity(0.10))
+                }
+                if isHovering {
+                    RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
+                        .fill(Color.primary.opacity(0.05))
+                }
             }
         }
     }

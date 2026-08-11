@@ -27,8 +27,16 @@ struct CommandPaletteSettingsView: View {
                 .padding(SpotiglassDesign.spacingL)
                 .frame(minWidth: 720, minHeight: 520, alignment: .topLeading)
             case .settingsTabs:
-                content
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                // Grouped Form to match the other settings panes. It also supplies
+                // this pane's scrolling: the settings shell deliberately has no
+                // ScrollView of its own, so a plain stack here would overflow the
+                // window and slide under the titlebar.
+                Form {
+                    Section {
+                        content
+                    }
+                }
+                .formStyle(.grouped)
             }
         }
         .onDisappear {
@@ -158,6 +166,7 @@ struct CommandPaletteSettingsView: View {
                             }
                             .buttonStyle(.plain)
                             .help(SpotiglassL10n.string("palette.settings.clearShortcut"))
+                            .accessibilityLabel(SpotiglassL10n.string("a11y.palette.clearShortcut"))
                             .transition(.opacity.combined(with: .scale(scale: 0.7)))
                         }
                     }

@@ -295,8 +295,10 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
         )
         .frame(width: 320, height: 160)
         ViewTestHost.host(emptySection, size: CGSize(width: 320, height: 160))
-        XCTAssertNoThrow(try emptySection.inspect().find(text: "NEXT IN QUEUE:"))
-        XCTAssertNoThrow(try emptySection.inspect().find(text: "This song repeats. Turn repeat off to see what plays next."))
+        // Assert through the catalog, not the English copy. Pinning the literal
+        // meant a capitalization change failed a test about queue contents.
+        ViewTestHost.assertFindLocalizedText("lyrics.nextInQueue", in: emptySection)
+        ViewTestHost.assertFindLocalizedText("lyrics.next.empty.repeat", in: emptySection)
 
         let sdkNext = [
             PlaybackNowPlaying(

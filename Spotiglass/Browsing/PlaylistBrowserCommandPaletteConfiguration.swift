@@ -61,6 +61,12 @@ enum PlaylistBrowserCommandPaletteConfiguration {
         manager.disconnectPlayback = { [weak playback = dependencies.playbackViewModel] in
             await playback?.disconnect()
         }
+        manager.toggleShuffle = { [weak queue = dependencies.queueViewModel] in
+            await queue?.toggleShuffle()
+        }
+        manager.cycleRepeat = { [weak playback = dependencies.playbackViewModel] in
+            await playback?.cycleRepeat()
+        }
         manager.playURI = { [weak playback = dependencies.playbackViewModel] uri in
             await playback?.play(uri: uri)
         }

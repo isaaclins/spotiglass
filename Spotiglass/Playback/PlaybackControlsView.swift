@@ -1,5 +1,31 @@
 import SwiftUI
 
+/// Tooltip copy for the transport toggles, shared by the now-playing bar, the
+/// queue panel and the immersive lyrics column so the same button never
+/// explains itself two different ways.
+///
+/// The convention: a tooltip names the action the next click performs, not the
+/// state the control is in. The accessibility label keeps naming the state, so
+/// VoiceOver still reports where playback currently stands.
+enum PlaybackTransportTooltips {
+    static func repeatTooltip(currentMode: SpotifyRepeatMode) -> String {
+        switch currentMode.next {
+        case .off:
+            SpotiglassL10n.string("tooltip.playback.repeat.toOff")
+        case .context:
+            SpotiglassL10n.string("tooltip.playback.repeat.toPlaylist")
+        case .track:
+            SpotiglassL10n.string("tooltip.playback.repeat.toTrack")
+        }
+    }
+
+    static func shuffleTooltip(isEnabled: Bool) -> String {
+        isEnabled
+            ? SpotiglassL10n.string("tooltip.playback.shuffle.turnOff")
+            : SpotiglassL10n.string("tooltip.playback.shuffle.turnOn")
+    }
+}
+
 struct PlaybackControlsView: View {
     @ObservedObject var viewModel: PlaybackSessionViewModel
     @Binding var isLyricsPresented: Bool
@@ -48,6 +74,7 @@ struct PlaybackControlsView: View {
                                 .foregroundStyle(.secondary)
                         }
                         .buttonStyle(.plain)
+                        .help(SpotiglassL10n.string("tooltip.playback.lyrics"))
                         .accessibilityLabel(SpotiglassL10n.string("playback.controls.lyrics"))
                         .accessibilityHint(SpotiglassL10n.string("playback.controls.lyrics.hint"))
                     }
@@ -89,6 +116,7 @@ struct PlaybackControlsView: View {
                     .buttonStyle(.plain)
                     .id("artwork:\(item.uri ?? item.name)")
                     .transition(.opacity.combined(with: .scale(scale: 0.94)))
+                    .help(SpotiglassL10n.string("tooltip.playback.lyrics"))
                     .accessibilityLabel(SpotiglassL10n.string("playback.controls.openLyrics"))
                     .accessibilityHint(SpotiglassL10n.string("playback.controls.lyrics.hint"))
                 } else {
@@ -100,7 +128,7 @@ struct PlaybackControlsView: View {
             } else {
                 Image(systemName: stateIcon)
                     .font(.title3)
-                    .foregroundStyle(stateIconColor)
+                    .foregroundStyle(stateIconStyle)
                     .frame(width: 28)
                     .id("state-icon:\(stateIcon)")
                     .transition(.opacity)
@@ -159,6 +187,7 @@ struct PlaybackControlsView: View {
                 Image(systemName: "backward.fill")
             }
             .disabled(!hasReadyDevice || viewModel.isSkipCommandPending)
+            .help(SpotiglassL10n.string("tooltip.playback.previous"))
             .accessibilityLabel(SpotiglassL10n.string("playback.controls.previous"))
             .accessibilityHint(SpotiglassL10n.string("playback.controls.previous.hint"))
 
@@ -170,6 +199,9 @@ struct PlaybackControlsView: View {
                     .animation(.smooth(duration: 0.18), value: playPauseIcon)
             }
             .disabled(!hasReadyDevice)
+            // Label and tooltip agree here: the state and the next action are
+            // the same word, so "Pause" shows while something is playing.
+            .help(playPauseAccessibilityLabel)
             .accessibilityLabel(playPauseAccessibilityLabel)
             .accessibilityHint(SpotiglassL10n.string("playback.controls.playPause.hint"))
 
@@ -179,6 +211,7 @@ struct PlaybackControlsView: View {
                 Image(systemName: "forward.fill")
             }
             .disabled(!hasReadyDevice || viewModel.isSkipCommandPending || viewModel.isNextCommandLockedOut)
+            .help(SpotiglassL10n.string("tooltip.playback.next"))
             .accessibilityLabel(SpotiglassL10n.string("playback.controls.next"))
             .accessibilityHint(SpotiglassL10n.string("playback.controls.next.hint"))
 
@@ -186,9 +219,14 @@ struct PlaybackControlsView: View {
                 Task { await viewModel.cycleRepeat() }
             } label: {
                 Image(systemName: repeatButtonIcon)
-                    .foregroundStyle(repeatButtonUsesAccent ? SpotiglassDesign.controlAccent : Color.secondary)
+                    .foregroundStyle(
+                        repeatButtonUsesAccent
+                            ? AnyShapeStyle(SpotiglassAccentStyle())
+                            : AnyShapeStyle(.secondary)
+                    )
             }
             .disabled(!hasReadyDevice)
+            .help(PlaybackTransportTooltips.repeatTooltip(currentMode: viewModel.repeatMode))
             .accessibilityLabel(repeatAccessibilityLabel)
             .accessibilityHint(SpotiglassL10n.string("playback.controls.repeat.hint"))
         }
@@ -284,6 +322,7 @@ struct PlaybackControlsView: View {
             .menuIndicator(.hidden)
             .disabled(!hasReadyDevice)
             .opacity(hasReadyDevice ? 1 : 0.45)
+            .help(SpotiglassL10n.string("tooltip.playback.device"))
             .accessibilityLabel(SpotiglassL10n.string("playback.controls.device"))
             .accessibilityHint(SpotiglassL10n.string("playback.controls.device.hint"))
         }
@@ -310,6 +349,7 @@ struct PlaybackControlsView: View {
                 .disabled(!hasReadyDevice)
         }
         .accessibilityElement(children: .combine)
+        .help(SpotiglassL10n.string("playback.controls.volume"))
         .accessibilityLabel(SpotiglassL10n.string("playback.controls.volume"))
         .accessibilityHint(SpotiglassL10n.string("playback.controls.volume.hint"))
     }
@@ -485,14 +525,17 @@ struct PlaybackControlsView: View {
         }
     }
 
-    private var stateIconColor: Color {
+    /// The playing and ready states are an accent, so they grey out with the window.
+    /// Error and unavailable stay orange: that is a status, not an emphasis, and a warning
+    /// that only reads while the window is frontmost is a warning you can miss.
+    private var stateIconStyle: AnyShapeStyle {
         switch viewModel.connectionState {
         case .error, .unavailable:
-            .orange
+            AnyShapeStyle(.orange)
         case .playing, .ready:
-            .accentColor
+            AnyShapeStyle(SpotiglassAccentStyle())
         default:
-            .secondary
+            AnyShapeStyle(.secondary)
         }
     }
 

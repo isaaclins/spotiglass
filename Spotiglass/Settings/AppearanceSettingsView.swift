@@ -5,24 +5,32 @@ struct AppearanceSettingsView: View {
     @ObservedObject var settingsStore: SpotiglassSettingsStore
 
     var body: some View {
-        VStack(alignment: .leading, spacing: SpotiglassDesign.spacingL) {
-            header
-            languageSection
-            colorSchemeSection
-            lyricsTextSizeSection
-            lyricsOffsetSection
-            commandPaletteSection
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
+        // Grouped Form matches System Settings. Each option gets its own group so
+        // its hint can sit in the section footer instead of running as loose body
+        // text between controls.
+        //
+        // No pane subtitle. The shell header already names the pane, and a footer
+        // restating that sat between the first two groups, where it read as a
+        // footnote to Language rather than a description of the pane.
+        Form {
+            Section {
+                languageSection
+            }
 
-    // The window header already shows the pane name ("Appearance"), so this pane
-    // only carries its subtitle — no duplicated title (#26).
-    private var header: some View {
-        Text(SpotiglassL10n.string("settings.section.appearance.subtitle"))
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            Section {
+                colorSchemeSection
+            }
+
+            Section {
+                lyricsTextSizeSection
+                lyricsOffsetSection
+            }
+
+            Section {
+                commandPaletteSection
+            }
+        }
+        .formStyle(.grouped)
     }
 
     private var languageSection: some View {
@@ -263,6 +271,10 @@ struct AppearanceSettingsView: View {
 private struct LyricsTextSizePreview: View {
     let metrics: LyricsTextMetrics
 
+    /// The glow behind the active line is drawn by hand, and `shadow(color:)` wants a
+    /// concrete color, so this is one of the few places that has to ask directly.
+    @Environment(\.appearsActive) private var appearsActive
+
     private let lines: [(text: String, distance: Int)] = [
         (SpotiglassL10n.string("settings.appearance.lyricsPreview.line1"),   -1),
         (SpotiglassL10n.string("settings.appearance.lyricsPreview.line2"),   0),
@@ -281,7 +293,7 @@ private struct LyricsTextSizePreview: View {
                     .blur(radius: line.distance == 0 ? 0 : 0.4)
                     .shadow(
                         color: line.distance == 0
-                            ? Color.accentColor.opacity(0.22)
+                            ? SpotiglassDesign.accent(appearsActive: appearsActive).opacity(0.22)
                             : .clear,
                         radius: line.distance == 0 ? metrics.activeGlowRadius * 0.6 : 0
                     )

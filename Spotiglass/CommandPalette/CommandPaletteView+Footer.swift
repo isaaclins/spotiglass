@@ -102,7 +102,7 @@ struct CommandPaletteCategoryPillView: View {
         .background {
             if isSelected {
                 Capsule(style: .continuous)
-                    .fill(SpotiglassDesign.controlAccent)
+                    .fill(.spotiglassAccent)
             }
         }
         .glassEffect(.regular, in: Capsule(style: .continuous))

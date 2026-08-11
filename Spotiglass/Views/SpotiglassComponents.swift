@@ -151,7 +151,7 @@ private func pillFill(variant: SpotiglassPillStyle.Variant, isHovering: Bool) ->
     case .material(let material):
         Capsule(style: .continuous).fill(material)
     case .accent:
-        Capsule(style: .continuous).fill(SpotiglassDesign.controlAccent)
+        Capsule(style: .continuous).fill(.spotiglassAccent)
     }
 }
 

@@ -8,7 +8,9 @@ import SwiftUI
 /// indicate that playback is paused.
 struct PlayingWaveformIcon: View {
     var isPlaying: Bool
-    var color: Color = SpotiglassDesign.controlAccent
+    /// Overrides the bar color. Left nil the bars use the shared accent, which greys
+    /// itself out while the window is not the key window.
+    var color: Color?
 
     private let barCount = 3
     private let barWidth: CGFloat = 3
@@ -30,6 +32,7 @@ struct PlayingWaveformIcon: View {
         .onChange(of: isPlaying) { _, nowPlaying in
             isAnimating = nowPlaying
         }
+        .help(isPlaying ? SpotiglassL10n.string("playback.nowPlaying") : SpotiglassL10n.string("playback.paused"))
         .accessibilityLabel(isPlaying ? SpotiglassL10n.string("playback.nowPlaying") : SpotiglassL10n.string("playback.paused"))
         .accessibilityAddTraits(.isImage)
     }
@@ -39,7 +42,7 @@ struct PlayingWaveformIcon: View {
         let scale: CGFloat = isAnimating ? 1.0 : frozenFraction / baseFraction
 
         return RoundedRectangle(cornerRadius: barWidth / 2, style: .continuous)
-            .fill(color)
+            .fill(color.map { AnyShapeStyle($0) } ?? AnyShapeStyle(SpotiglassAccentStyle()))
             .frame(width: barWidth, height: maxHeight * baseFraction)
             .scaleEffect(y: isAnimating ? animatedScale(index: index) : scale, anchor: .center)
             .animation(

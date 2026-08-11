@@ -12,16 +12,35 @@ struct EqualizerSettingsView: View {
     @State private var saveSheetError: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: SpotiglassDesign.spacingL) {
-            header
-            statusRow
-            forwardingTargetRow
-            presetRow
-            preampRow
-            bandsRow
-            footerActions
+        // Grouped Form matches System Settings: rounded group boxes, one shared
+        // label column, switches trailing, explanatory copy in section footers.
+        Form {
+            Section {
+                statusRow
+            } footer: {
+                Text(SpotiglassL10n.string("settings.eq.description"))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Section {
+                forwardingTargetRow
+                presetRow
+            }
+
+            Section(SpotiglassL10n.string("settings.eq.preamp")) {
+                preampRow
+            }
+
+            Section(SpotiglassL10n.string("settings.eq.bands")) {
+                bandsRow
+            }
+
+            Section {
+                footerActions
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .formStyle(.grouped)
         .sheet(isPresented: $isPresentingSaveSheet) {
             SavePresetSheet(
                 name: $pendingSavePresetName,
@@ -47,22 +66,13 @@ struct EqualizerSettingsView: View {
 
     // MARK: - Sections
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
-            Text(SpotiglassL10n.string("settings.eq.title"))
-                .font(.title3.weight(.semibold))
-            Text(SpotiglassL10n.string("settings.eq.description"))
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
+    /// The pane title already appears in the settings shell header, so this row
+    /// carries only the master switch. Form trails the switch automatically.
     private var statusRow: some View {
         let equalizer = settingsStore.settings.equalizer
-        return HStack(alignment: .center, spacing: SpotiglassDesign.spacingM) {
+        return VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
             Toggle(SpotiglassL10n.string("settings.eq.enableToggle"), isOn: equalizerEnabledBinding)
                 .toggleStyle(.switch)
-                .controlSize(.large)
 
             if let lastError = engine.lastError, !lastError.isEmpty {
                 Label(lastError, systemImage: "exclamationmark.triangle.fill")
@@ -89,27 +99,18 @@ struct EqualizerSettingsView: View {
     private var forwardingTargetRow: some View {
         let equalizer = settingsStore.settings.equalizer
         let devices = engine.availableForwardingTargets()
-        return HStack(alignment: .center, spacing: SpotiglassDesign.spacingS) {
-            Text(SpotiglassL10n.string("settings.eq.target.label"))
-                .font(.subheadline.weight(.semibold))
-
-            Picker(SpotiglassL10n.string("settings.eq.target.label"), selection: forwardingTargetBinding) {
-                Text(SpotiglassL10n.string("settings.eq.target.auto")).tag(Optional<String>.none)
-                ForEach(devices, id: \.id) { device in
-                    Text(device.name).tag(Optional(device.uid))
-                }
-            }
-            .labelsHidden()
-            .frame(maxWidth: 300)
-
-            Spacer()
-
-            if let active = activeForwardingDeviceName(equalizer: equalizer, devices: devices) {
-                Label(active, systemImage: "speaker.wave.2.fill")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+        // Titled Picker rather than a hand-built HStack, so the label sits in the
+        // Form's shared leading column and the control aligns with its siblings.
+        return Picker(
+            SpotiglassL10n.string("settings.eq.target.label"),
+            selection: forwardingTargetBinding
+        ) {
+            Text(SpotiglassL10n.string("settings.eq.target.auto")).tag(Optional<String>.none)
+            ForEach(devices, id: \.id) { device in
+                Text(device.name).tag(Optional(device.uid))
             }
         }
+        .help(activeForwardingDeviceName(equalizer: equalizer, devices: devices) ?? "")
     }
 
     private func activeForwardingDeviceName(
@@ -138,10 +139,7 @@ struct EqualizerSettingsView: View {
 
     private var presetRow: some View {
         let equalizer = settingsStore.settings.equalizer
-        return HStack(alignment: .center, spacing: SpotiglassDesign.spacingS) {
-            Text(SpotiglassL10n.string("settings.eq.preset.label"))
-                .font(.subheadline.weight(.semibold))
-
+        return LabeledContent(SpotiglassL10n.string("settings.eq.preset.label")) {
             Picker(SpotiglassL10n.string("settings.eq.preset.label"), selection: presetBinding) {
                 Section(SpotiglassL10n.string("settings.eq.preset.builtin")) {
                     ForEach(EqualizerPreset.builtIns) { preset in
@@ -161,20 +159,14 @@ struct EqualizerSettingsView: View {
             .labelsHidden()
             .frame(maxWidth: 240)
 
-            Spacer()
-
-            Button {
+            Button(SpotiglassL10n.string("settings.eq.preset.save")) {
                 pendingSavePresetName = ""
                 saveSheetError = nil
                 isPresentingSaveSheet = true
-            } label: {
-                Label(SpotiglassL10n.string("settings.eq.preset.save"), systemImage: "square.and.arrow.down")
             }
 
-            Button(role: .destructive) {
+            Button(SpotiglassL10n.string("settings.eq.preset.delete"), role: .destructive) {
                 deleteActiveUserPreset()
-            } label: {
-                Label(SpotiglassL10n.string("settings.eq.preset.delete"), systemImage: "trash")
             }
             .disabled(!isActivePresetUserDefined)
         }
@@ -185,8 +177,6 @@ struct EqualizerSettingsView: View {
         // Single "Preamp" caption (the slider's own label is hidden) with the live
         // value pinned next to the slider track rather than the far corner.
         return VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
-            Text(SpotiglassL10n.string("settings.eq.preamp"))
-                .font(.subheadline.weight(.semibold))
             HStack(spacing: SpotiglassDesign.spacingS) {
                 Slider(
                     value: preampBinding,
@@ -216,9 +206,6 @@ struct EqualizerSettingsView: View {
 
     private var bandsRow: some View {
         VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
-            Text(SpotiglassL10n.string("settings.eq.bands"))
-                .font(.subheadline.weight(.semibold))
-
             HStack(alignment: .top, spacing: SpotiglassDesign.spacingS) {
                 ForEach(0..<EqualizerSettings.bandCount, id: \.self) { index in
                     EqualizerBandColumn(
@@ -479,7 +466,7 @@ private struct CenterOriginGainFader: View {
 
                 // Center-origin fill between the 0 dB line and the current value.
                 Capsule()
-                    .fill(Color.accentColor)
+                    .fill(.spotiglassAccent)
                     .frame(width: trackWidth, height: max(1, abs(valueY - zeroY)))
                     .position(x: centerX, y: (valueY + zeroY) / 2)
 

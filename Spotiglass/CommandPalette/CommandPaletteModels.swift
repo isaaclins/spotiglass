@@ -14,6 +14,12 @@ enum CommandPaletteCommandID {
     static let nextTrack = "playback.next"
     static let previousTrack = "playback.previous"
     static let disconnectPlayback = "playback.disconnect"
+    /// Menu bar only: flips Spotify shuffle for the active device. Deliberately
+    /// absent from ``CommandPaletteCommandCatalog/editable``, so it has no palette
+    /// row and no rebindable keystroke, and the Playback menu owns its ⌥⌘S chord.
+    static let toggleShuffle = "playback.shuffle"
+    /// Menu bar only, same reasoning as ``toggleShuffle``: cycles off, context, track.
+    static let cycleRepeat = "playback.repeat"
     static let filterByArtist = "search.filterByArtist"
     static let toggleQueue = "queue.toggle"
     static let toggleLyrics = "lyrics.toggle"
