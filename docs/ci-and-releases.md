@@ -88,6 +88,26 @@ The app checks the feed automatically about once per day, or via **Spotiglass â†
 
 **Local parity:** `./scripts/sparkle-release.sh 0.2.0 42 docs/release-notes/v0.2.0.md` then create the Release and push the appcast commit manually if needed.
 
+### Version and build-number rules
+
+The script is the source of truth for versioning and enforces these before it builds anything:
+
+| Rule | Why |
+|------|-----|
+| Marketing version must be `MAJOR.MINOR.PATCH` | The appcast URL rewrite assumes three numeric components, and the value is interpolated into a `sed` replacement |
+| Build number must be a positive integer with no leading zeros | `007` would be written verbatim into `CFBundleVersion` and into delta filenames |
+| Build number must be strictly greater than the one recorded in `project.pbxproj` | `CFBundleVersion` must increase or Sparkle will not offer the update |
+| All build configurations must agree on `CURRENT_PROJECT_VERSION` | Disagreement means a manual edit, a bad merge, or an aborted run |
+| Omitting the build number uses the recorded build plus one | Keeps the sequence contiguous |
+
+On success the script rewrites `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` in `Spotiglass.xcodeproj/project.pbxproj`, so **the release commit carries the bump** and a later `make build` reports the shipped version. That write happens **last**, after the zip, dmg and appcast exist, so a failure part-way through leaves the project file untouched and the same command can simply be retried.
+
+To check the version arguments without building or writing anything:
+
+```bash
+SPARKLE_RELEASE_VALIDATE_ONLY=1 ./scripts/sparkle-release.sh 0.5.0 7
+```
+
 ### Testing updates
 
 - Install an older build, then run a newer release workflow (or lower `CURRENT_PROJECT_VERSION` temporarily in Xcode for a dev build).

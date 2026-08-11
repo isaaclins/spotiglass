@@ -16,8 +16,175 @@ if [[ -z "$MARKETING_VERSION" ]]; then
   exit 1
 fi
 
+PROJECT_FILE="$ROOT/Spotiglass.xcodeproj/project.pbxproj"
+
+# Highest CURRENT_PROJECT_VERSION recorded in the project file. Every build
+# configuration that sets it should agree, so disagreement means a manual Xcode
+# edit, a bad merge, or an aborted release, and is refused rather than silently
+# compared against whichever value happens to come first in the file.
+read_project_build_number() {
+  local values
+  values="$(
+    sed -n -E 's/^[[:space:]]*CURRENT_PROJECT_VERSION = ([^;]*);$/\1/p' "$PROJECT_FILE"
+  )"
+  if [[ -z "$values" ]]; then
+    echo "ERROR: Could not find CURRENT_PROJECT_VERSION in $PROJECT_FILE" >&2
+    return 1
+  fi
+
+  local value
+  while IFS= read -r value; do
+    if [[ ! "$value" =~ ^[0-9]+$ ]]; then
+      echo "ERROR: CURRENT_PROJECT_VERSION in $PROJECT_FILE is not an integer: $value" >&2
+      return 1
+    fi
+  done <<< "$values"
+
+  local distinct
+  distinct="$(printf '%s\n' "$values" | sort -u | wc -l | tr -d ' ')"
+  if [[ "$distinct" -ne 1 ]]; then
+    echo "ERROR: Build configurations disagree on CURRENT_PROJECT_VERSION in $PROJECT_FILE:" >&2
+    printf '%s\n' "$values" | sort -u | sed 's/^/  /' >&2
+    echo "Reconcile them before cutting a release." >&2
+    return 1
+  fi
+
+  printf '%s\n' "$values" | sort -n | tail -1
+}
+
+validate_release_versions() {
+  # #85's URL rewrite assumes exactly three numeric components, and the value is
+  # interpolated into a sed replacement below, where & and / are metacharacters.
+  if [[ ! "$MARKETING_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "ERROR: Marketing version must be MAJOR.MINOR.PATCH: $MARKETING_VERSION" >&2
+    return 1
+  fi
+  # Leading zeros would be written verbatim into CFBundleVersion and into delta
+  # filenames, so reject them instead of silently normalizing.
+  if [[ ! "$BUILD_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
+    echo "ERROR: Release build number must be a positive integer without leading zeros: $BUILD_NUMBER" >&2
+    return 1
+  fi
+
+  local current_project_build
+  current_project_build="$(read_project_build_number)" || return 1
+  if (( BUILD_NUMBER <= current_project_build )); then
+    echo "ERROR: Refusing release build ${BUILD_NUMBER}: $PROJECT_FILE already records CURRENT_PROJECT_VERSION ${current_project_build}. CFBundleVersion must strictly increase or Sparkle will not offer the update." >&2
+    return 1
+  fi
+  echo "==> Validated release ${MARKETING_VERSION} (${BUILD_NUMBER}) against project build ${current_project_build}"
+}
+
+update_project_versions() {
+  local marketing_pattern='^[[:space:]]*MARKETING_VERSION = [^;]*;$'
+  local build_pattern='^[[:space:]]*CURRENT_PROJECT_VERSION = [^;]*;$'
+  local marketing_matches
+  local build_matches
+  marketing_matches="$(grep -E -c "$marketing_pattern" "$PROJECT_FILE" || true)"
+  build_matches="$(grep -E -c "$build_pattern" "$PROJECT_FILE" || true)"
+
+  if [[ "$marketing_matches" -eq 0 ]]; then
+    echo "ERROR: No MARKETING_VERSION entries matched the expected pattern in $PROJECT_FILE" >&2
+    return 1
+  fi
+  if [[ "$build_matches" -eq 0 ]]; then
+    echo "ERROR: No CURRENT_PROJECT_VERSION entries matched the expected pattern in $PROJECT_FILE" >&2
+    return 1
+  fi
+
+  # The left-hand sides are anchored exactly like the counting patterns above, so
+  # the set of rewritten lines is the set that was counted. That makes the
+  # post-check below meaningful: it can detect a missed entry.
+  sed -i '' -E \
+    -e "s/^([[:space:]]*MARKETING_VERSION = )[^;]*;$/\\1${MARKETING_VERSION};/" \
+    -e "s/^([[:space:]]*CURRENT_PROJECT_VERSION = )[^;]*;$/\\1${BUILD_NUMBER};/" \
+    "$PROJECT_FILE"
+
+  local updated_marketing_matches
+  local updated_build_matches
+  updated_marketing_matches="$(grep -E -c "^[[:space:]]*MARKETING_VERSION = ${MARKETING_VERSION};$" "$PROJECT_FILE" || true)"
+  updated_build_matches="$(grep -E -c "^[[:space:]]*CURRENT_PROJECT_VERSION = ${BUILD_NUMBER};$" "$PROJECT_FILE" || true)"
+  if [[ "$updated_marketing_matches" -ne "$marketing_matches" ]]; then
+    echo "ERROR: Updated ${updated_marketing_matches} of ${marketing_matches} MARKETING_VERSION entries in $PROJECT_FILE" >&2
+    return 1
+  fi
+  if [[ "$updated_build_matches" -ne "$build_matches" ]]; then
+    echo "ERROR: Updated ${updated_build_matches} of ${build_matches} CURRENT_PROJECT_VERSION entries in $PROJECT_FILE" >&2
+    return 1
+  fi
+
+  echo "==> Updated $PROJECT_FILE to ${MARKETING_VERSION} (${BUILD_NUMBER}) across ${build_matches} configurations"
+}
+
+# generate_appcast takes exactly one --download-url-prefix and applies it to every
+# item, so each release rewrote historical full-zip enclosures to the tag being
+# published, where those assets do not exist. Each Spotiglass-<version>.zip is
+# attached to the release tagged v<version>, so pin every full-zip URL to the tag
+# matching its own filename. The newest item already agrees and is left alone.
+#
+# The match is anchored on `<enclosure url="` so it cannot touch delta
+# enclosures, the feed URL, or a download link that appears inside embedded
+# release notes.
+rewrite_appcast_download_urls() {
+  local appcast="$1"
+  if [[ ! -f "$appcast" ]]; then
+    echo "ERROR: Appcast not found: $appcast" >&2
+    return 1
+  fi
+
+  local enclosure_zip='<enclosure url="[^"]*/download/[^"/]+/Spotiglass-[^"/]+\.zip"'
+  local before
+  before="$(grep -E -c "$enclosure_zip" "$appcast" || true)"
+  if [[ "$before" -eq 0 ]]; then
+    echo "ERROR: No full-zip enclosure URLs matched the expected pattern in $appcast" >&2
+    return 1
+  fi
+
+  local original
+  original="$(mktemp -t spotiglass-appcast-before)"
+  cp "$appcast" "$original"
+
+  sed -i '' -E \
+    -e 's#(<enclosure url="[^"]*/download/)[^"/]+(/Spotiglass-([0-9]+\.[0-9]+\.[0-9]+)\.zip")#\1v\3\2#g' \
+    "$appcast"
+
+  # Report rewrites actually performed, not merely lines that matched.
+  local changed
+  changed="$(diff <(grep -oE "$enclosure_zip" "$original") <(grep -oE "$enclosure_zip" "$appcast") | grep -c '^>' || true)"
+  rm -f "$original"
+
+  # Every full-zip enclosure must now carry the tag matching its own version. A
+  # version shape the rewrite does not understand would silently keep the wrong
+  # tag, which is the exact bug this closes, so treat any leftover as fatal.
+  local mismatched
+  mismatched="$(
+    grep -oE "$enclosure_zip" "$appcast" \
+      | sed -E 's#.*/download/([^"/]+)/Spotiglass-([^"/]+)\.zip"#\1 v\2#' \
+      | awk '$1 != $2 { print }'
+  )"
+  if [[ -n "$mismatched" ]]; then
+    echo "ERROR: full-zip enclosure URLs still point at a tag that does not match their version:" >&2
+    printf '%s\n' "$mismatched" | sed 's/^/  tag=/' >&2
+    return 1
+  fi
+
+  echo "==> Pinned ${changed} of ${before} full-zip enclosure URLs to their own release tags"
+}
+
+# Default to the next build after the one already recorded. Deriving it from the
+# project file keeps the sequence contiguous; the previous default of
+# `git rev-list --count HEAD` was a commit count in the hundreds, which would be
+# accepted, written into the tree, and then permanently raise the floor for every
+# future release.
 if [[ -z "$BUILD_NUMBER" ]]; then
-  BUILD_NUMBER="$(git rev-list --count HEAD 2>/dev/null || echo "1")"
+  BUILD_NUMBER="$(( $(read_project_build_number) + 1 ))"
+  echo "==> No build number given, using $BUILD_NUMBER (recorded build plus one)"
+fi
+
+validate_release_versions
+if [[ "${SPARKLE_RELEASE_VALIDATE_ONLY:-0}" == "1" ]]; then
+  echo "Validation-only mode: no build or project changes performed."
+  exit 0
 fi
 
 TAG="v${MARKETING_VERSION}"
@@ -66,7 +233,7 @@ echo "==> Building SpotiglassEQDriver"
 
 CODESIGN_IDENTITY="${CODESIGN_IDENTITY:-$(security find-identity -v -p codesigning | awk '/Apple Development/ { print $2; exit }')}"
 if [[ -z "$CODESIGN_IDENTITY" ]]; then
-  echo "ERROR: No Apple Development identity in keychain — open Xcode → Settings → Accounts and sign in, then retry." >&2
+  echo "ERROR: No Apple Development identity in keychain: open Xcode -> Settings -> Accounts and sign in, then retry." >&2
   exit 1
 fi
 echo "==> Re-signing SpotiglassEQDriver with $CODESIGN_IDENTITY"
@@ -126,12 +293,30 @@ elif [[ -f "$ROOT/scripts/sparkle_eddsa_private.key" ]]; then
 fi
 
 echo "==> Generating appcast (docs/appcast.xml)"
+# Generated to a temp file, rewritten, checked, and only then moved into place,
+# so a failure never leaves a half-corrected feed in the tracked file.
+APPCAST_TMP="$(mktemp -t spotiglass-appcast)"
+trap 'rm -f "$APPCAST_TMP"' EXIT
+
 "$GENERATE_APPCAST" \
   "${ED_KEY_ARGS[@]}" \
   --download-url-prefix "$DOWNLOAD_PREFIX" \
   --embed-release-notes \
-  -o "$ROOT/docs/appcast.xml" \
+  -o "$APPCAST_TMP" \
   "$ARCHIVES_DIR"
+
+rewrite_appcast_download_urls "$APPCAST_TMP"
+mv "$APPCAST_TMP" "$ROOT/docs/appcast.xml"
+trap - EXIT
+echo "==> Wrote docs/appcast.xml"
+
+# Deliberately last: everything above can fail (clean build, driver signing, the
+# codesign identity and TeamIdentifier checks, hdiutil, fetching the Sparkle
+# tools), and this is the only step that writes to a tracked file. Mutating the
+# project file earlier meant a transient failure left the new build number
+# recorded, so re-running the same command was refused by the guard and the
+# undocumented recovery was `git checkout -- Spotiglass.xcodeproj/project.pbxproj`.
+update_project_versions
 
 echo ""
 echo "Next steps:"

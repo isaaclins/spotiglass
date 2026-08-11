@@ -26,7 +26,7 @@
             <sparkle:version>5</sparkle:version>
             <sparkle:shortVersionString>0.3.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.4.0/Spotiglass-0.3.0.zip" length="8471463" type="application/octet-stream" sparkle:edSignature="OAkSGYvcLaeyxpy3SKCN+KNEpYdA3ddiTqUUOaSxisMQgvX/YMXQpZ09UO72VDnp/8hSYilbceKCTqS+t9GKAg=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.3.0/Spotiglass-0.3.0.zip" length="8471463" type="application/octet-stream" sparkle:edSignature="OAkSGYvcLaeyxpy3SKCN+KNEpYdA3ddiTqUUOaSxisMQgvX/YMXQpZ09UO72VDnp/8hSYilbceKCTqS+t9GKAg=="/>
             <sparkle:deltas>
                 <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.3.0/Spotiglass5-4.delta" sparkle:deltaFrom="4" length="3856302" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="864640" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,en" sparkle:edSignature="l4UhNABzqBC770/6+Bv1aOdIc9YsxUxwAaExoubjRAKIlJrcW6S/a2pGZWieKSZEgAMvPGPKZps5mOCCGMNMDA=="/>
                 <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.3.0/Spotiglass5-3.delta" sparkle:deltaFrom="3" length="4015642" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="864640" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,en" sparkle:edSignature="3FdIu5AbGgBqB6DA69IuCj6bW7HmKfkxXFf+FKrzZOr+Fxkn7pxIK0+0b0Nls6P8XzgqmWVHU9eIc8DkE9ZsCQ=="/>
@@ -39,7 +39,7 @@
             <sparkle:version>4</sparkle:version>
             <sparkle:shortVersionString>0.2.1</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.4.0/Spotiglass-0.2.1.zip" length="8335418" type="application/octet-stream" sparkle:edSignature="GzTyjnLHrd3wQq+lsVmtLb+s++gV5pbcx1qgAtDyz0hrKkHh+iTTsPPw+JANeisgPpBs0ek6QQafbk3nFKVSCQ=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.2.1/Spotiglass-0.2.1.zip" length="8335418" type="application/octet-stream" sparkle:edSignature="GzTyjnLHrd3wQq+lsVmtLb+s++gV5pbcx1qgAtDyz0hrKkHh+iTTsPPw+JANeisgPpBs0ek6QQafbk3nFKVSCQ=="/>
             <sparkle:deltas>
                 <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.2.1/Spotiglass4-3.delta" sparkle:deltaFrom="3" length="1155090" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="864640" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,en" sparkle:edSignature="kt2F+U2YaKwq6/M330JtJCu2YzXwYHWDuCUgk4WOH7INPfKmfWiW1akh/zf2Z+kBZDuyWhV3P9EkcxL7WsnUAQ=="/>
                 <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.2.1/Spotiglass4-2.delta" sparkle:deltaFrom="2" length="2014214" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="864640" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,en" sparkle:edSignature="tCtcLEqCthgxQlS+q8bIQLMA0o73iUTljN+8JICPrwL4viIDRj6awVBhMHqhmcPO8Z4IU3A1hFPUcUZeJrNkCA=="/>
