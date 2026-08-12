@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.6.0] - 2026-08-12
+
+### Added
+
+- A dedicated **Search** surface for the Spotify catalog. A Search row sits above the library in the sidebar and opens a full-window view covering tracks, albums, artists, and playlists, with category filters and paged results.
+- **Cmd+F** opens Search. It is registered as an ordinary editable command, so it appears in Settings → Keyboard, can be rebound, and takes part in conflict detection.
+- Command palette catalog results end with a **Show all results** row that opens the Search view carrying the current query and category. Cmd+K is unchanged.
+- `/v1/search` gained an offset-paged variant, since the endpoint caps `limit` at 10 per item type.
+
+### Fixed
+
+- Labels on accent-filled controls now derive their color from the fill they sit on. A selected filter pill previously drew a white label on a white capsule in a background window, hiding the active category.
+- The swift-format configuration was invalid, so `make format` and `make lint` had never run successfully. Both work now, and the violations they surfaced are fixed.
+- `SpotiglassComponentsViewTests` was never added to the test target, so its four tests had never compiled or run. They now execute with the rest of the suite.
+
 ## [0.5.0] - 2026-08-11
 
 ### Added
