@@ -24,6 +24,10 @@ extension PlaylistBrowserViewModel {
         switch selection {
         case .home:
             await loadHomeFeed(session: session)
+        case .search:
+            // No network work: the search surface loads on its own query input.
+            guard session == detailSession else { return }
+            detailState = .loaded(.search)
         case .likedSongs:
             await loadLikedSongsTracks(refreshCachedData: refreshCachedData, session: session)
         case let .playlist(playlistID):

@@ -38,6 +38,12 @@ struct SpotiglassMenuCommands: Commands {
         }
 
         CommandGroup(after: .sidebar) {
+            Button(SpotiglassL10n.string("menu.view.search")) {
+                run(CommandPaletteCommandID.openSearch)
+            }
+            .keyboardShortcut(keymapShortcut(for: CommandPaletteCommandID.openSearch))
+            .disabled(!isSignedIn)
+
             Button(queueItemTitle) {
                 run(CommandPaletteCommandID.toggleQueue)
             }

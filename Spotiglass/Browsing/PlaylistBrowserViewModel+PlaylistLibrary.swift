@@ -57,7 +57,7 @@ extension PlaylistBrowserViewModel {
                 switch selectionAfter {
                 case .likedSongs:
                     return false
-                case .home, .pinnedItem:
+                case .home, .search, .pinnedItem:
                     return selectionBefore != selectionAfter
                 case let .playlist(idAfter):
                     if case let .playlist(idBefore) = selectionBefore, idBefore == idAfter {
@@ -143,7 +143,7 @@ extension PlaylistBrowserViewModel {
             switch selection {
             case let .playlist(id) where playlistsByID[id] != nil:
                 return
-            case .likedSongs, .home, .pinnedItem:
+            case .likedSongs, .home, .search, .pinnedItem:
                 return
             case .playlist:
                 break

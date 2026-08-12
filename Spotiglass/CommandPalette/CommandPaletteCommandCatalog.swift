@@ -61,6 +61,12 @@ enum CommandPaletteCommandCatalog {
             defaultKeystroke: "cmd-k"
         ),
         spec(
+            commandID: CommandPaletteCommandID.openSearch,
+            iconSystemName: "magnifyingglass",
+            defaultWhen: .signedIn,
+            defaultKeystroke: "cmd-f"
+        ),
+        spec(
             commandID: CommandPaletteCommandID.refreshPlaylists,
             iconSystemName: "arrow.clockwise",
             defaultWhen: .signedIn,
@@ -138,6 +144,7 @@ enum CommandPaletteCommandCatalog {
     /// Stable on-disk order for default `keymap.json` (matches historical Spotiglass defaults).
     private static let defaultKeymapFileOrder: [String] = [
         CommandPaletteCommandID.openPalette,
+        CommandPaletteCommandID.openSearch,
         CommandPaletteCommandID.refreshPlaylists,
         CommandPaletteCommandID.connectPlayback,
         CommandPaletteCommandID.togglePlayback,

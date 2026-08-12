@@ -89,6 +89,16 @@ struct PlaylistBrowserMainDetailColumn: View {
                                 isPlaying: isCurrentlyPlaying,
                                 hasPlaybackDevice: hasPlaybackDevice
                             )
+                        case .search:
+                            CatalogSearchView(
+                                viewModel: viewModel,
+                                searchViewModel: viewModel.catalogSearch,
+                                playbackViewModel: playbackViewModel,
+                                queueViewModel: queueViewModel,
+                                currentPlaybackURI: currentPlaybackURI,
+                                isPlaying: isCurrentlyPlaying,
+                                hasPlaybackDevice: hasPlaybackDevice
+                            )
                         case let .playlist(detail):
                             PlaylistDetailContent(
                                 detail: detail,

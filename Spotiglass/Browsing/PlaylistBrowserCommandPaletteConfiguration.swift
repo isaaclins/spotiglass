@@ -76,6 +76,27 @@ enum PlaylistBrowserCommandPaletteConfiguration {
         manager.openArtist = { [weak viewModel = dependencies.viewModel] artistID in
             await viewModel?.selectArtist(id: artistID, origin: .reset, displayName: nil)
         }
+        // The Search view owns no API client; it borrows the browser's search
+        // client. `/v1/search` caps `limit` at 10 per type, so depth comes from offset.
+        let searchClient = dependencies.spotifySearchClient
+        browserVM.catalogSearch.searchProvider = { query, offset in
+            try await searchClient.search(query: query, limit: CatalogSearchViewModel.pageSize, offset: offset)
+        }
+        manager.openSearch = { [weak viewModel = dependencies.viewModel] in
+            guard let viewModel else { return }
+            Task { @MainActor in
+                await viewModel.selectSidebar(.search)
+            }
+        }
+        // Palette handoff: the fast keyboard layer passes its query and scope to
+        // the browsable surface instead of competing with it.
+        manager.viewModel.showAllResults = { [weak viewModel = dependencies.viewModel] query, category in
+            guard let viewModel else { return }
+            viewModel.catalogSearch.applyHandoff(query: query, paletteCategory: category)
+            Task { @MainActor in
+                await viewModel.selectSidebar(.search)
+            }
+        }
         manager.toggleQueue = {
             queueVisible.wrappedValue.toggle()
         }

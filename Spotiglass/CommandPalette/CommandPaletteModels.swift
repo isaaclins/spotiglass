@@ -24,6 +24,8 @@ enum CommandPaletteCommandID {
     static let toggleQueue = "queue.toggle"
     static let toggleLyrics = "lyrics.toggle"
     static let openArtist = "navigation.artist.open"
+    /// Opens the dedicated full-window catalog Search view. Default ⌘F.
+    static let openSearch = "navigation.search.open"
     /// Pin the currently-selected palette result. Default ⌘↩ in `.paletteOpen`.
     static let pinSelected = "palette.pin"
     /// Unpin the currently-selected palette result. No default keystroke.
@@ -66,6 +68,8 @@ enum CommandPaletteSection: String {
     case tracks = "Tracks"
     case artists = "Artists"
     case albums = "Albums"
+    /// Single-row footer section holding the "Show all results" handoff into the Search view.
+    case showAll = "Show all"
 
     var displayLabel: String {
         switch self {
@@ -76,6 +80,7 @@ enum CommandPaletteSection: String {
         case .thisPlaylist: SpotiglassL10n.string("palette.section.thisPlaylist")
         case .myPlaylists: SpotiglassL10n.string("palette.section.myPlaylists")
         case .albums: SpotiglassL10n.string("palette.section.albums")
+        case .showAll: SpotiglassL10n.string("palette.section.showAll")
         }
     }
 }

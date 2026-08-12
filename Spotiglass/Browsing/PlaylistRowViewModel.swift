@@ -77,4 +77,7 @@ enum BrowsingDetailContent: Equatable {
     /// `home*` published sections on ``PlaylistBrowserViewModel`` (each loads
     /// independently), so the content payload here is just a routing token.
     case home
+    /// Catalog search surface marker. Results live on ``CatalogSearchViewModel``,
+    /// so like ``home`` this payload is only a routing token.
+    case search
 }

@@ -20,6 +20,13 @@ struct PlaylistBrowserSidebar: View {
     var body: some View {
         ScrollViewReader { proxy in
             List(selection: $viewModel.sidebarSelection) {
+                // Kept out of the Library section (and out of `LibrarySidebarOrder`)
+                // so it always sits at the very top and never joins the
+                // drag-to-reorder group.
+                Section {
+                    Label(SpotiglassL10n.string("browser.search"), systemImage: "magnifyingglass")
+                        .tag(SidebarSelection.search)
+                }
                 Section {
                     ForEach(libraryRows) { row in
                         libraryRow(row)
