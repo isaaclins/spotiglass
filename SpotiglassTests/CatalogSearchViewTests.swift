@@ -65,10 +65,6 @@ final class CatalogSearchViewTests: XCTestCase {
         return viewModel
     }
 
-    private func waitForSearch() async {
-        try? await Task.sleep(for: .milliseconds(450))
-    }
-
     // MARK: - Sidebar routing
 
     func testSidebarSearchSelectionRoutesToSearchSurface() async {
@@ -130,7 +126,7 @@ final class CatalogSearchViewTests: XCTestCase {
         let viewModel = makeSearchViewModel()
         viewModel.query = "found"
         viewModel.queryDidChange()
-        await waitForSearch()
+        await viewModel.waitForSearchCompletion()
 
         let all = viewModel.visibleResults
         XCTAssertFalse(all.tracks.isEmpty)
@@ -139,7 +135,7 @@ final class CatalogSearchViewTests: XCTestCase {
         XCTAssertFalse(all.playlists.isEmpty)
 
         viewModel.selectCategory(.artists)
-        await waitForSearch()
+        await viewModel.waitForSearchCompletion()
 
         let artistsOnly = viewModel.visibleResults
         XCTAssertEqual(viewModel.category, .artists)
@@ -173,7 +169,6 @@ final class CatalogSearchViewTests: XCTestCase {
 
         viewModel.query = "a"
         viewModel.queryDidChange()
-        await waitForSearch()
 
         XCTAssertEqual(callCount, 0, "A one-character query must not reach /v1/search.")
         XCTAssertFalse(viewModel.meetsMinimumQueryLength)
@@ -188,7 +183,7 @@ final class CatalogSearchViewTests: XCTestCase {
 
         viewModel.query = String(repeating: "a", count: CatalogSearchViewModel.minimumQueryCharacters)
         viewModel.queryDidChange()
-        await waitForSearch()
+        await viewModel.waitForSearchCompletion()
 
         XCTAssertEqual(callCount, 1)
     }
@@ -201,7 +196,7 @@ final class CatalogSearchViewTests: XCTestCase {
             viewModel.query = text
             viewModel.queryDidChange()
         }
-        await waitForSearch()
+        await viewModel.waitForSearchCompletion()
 
         XCTAssertEqual(callCount, 1, "Rapid keystrokes must collapse into a single search.")
     }
@@ -234,7 +229,7 @@ final class CatalogSearchViewTests: XCTestCase {
         palette.query = "daft punk"
         palette.searchCategoryFilter = .artists
         palette.refresh()
-        await waitForSearch()
+        await palette.waitForSearchCompletion()
 
         let showAllRow = try? XCTUnwrap(palette.visibleItems.last)
         XCTAssertEqual(showAllRow?.id, "palette.showAllResults")
@@ -268,7 +263,7 @@ final class CatalogSearchViewTests: XCTestCase {
         palette.show()
         palette.query = ">some"
         palette.refresh()
-        await waitForSearch()
+        await palette.waitForSearchCompletion()
 
         XCTAssertFalse(palette.sections.contains { $0.section == .showAll })
     }
@@ -281,7 +276,7 @@ final class CatalogSearchViewTests: XCTestCase {
         palette.show()
         palette.query = "a"
         palette.refresh()
-        await waitForSearch()
+        await palette.waitForSearchCompletion()
 
         XCTAssertFalse(palette.sections.contains { $0.section == .showAll })
     }

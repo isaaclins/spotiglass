@@ -52,28 +52,60 @@ final class MockWebPlaybackCommander: WebPlaybackCommanding {
 final class AsyncSignal: @unchecked Sendable {
     private let lock = NSLock()
     private var signaled = false
-    private var waiters: [CheckedContinuation<Void, Never>] = []
+    private var waiters: [UUID: CheckedContinuation<Void, Never>] = [:]
 
     func signal() {
         lock.lock()
         signaled = true
-        let resumed = waiters
+        let resumed = waiters.values
         waiters.removeAll()
         lock.unlock()
         for continuation in resumed { continuation.resume() }
     }
 
     func wait() async {
-        await withCheckedContinuation { continuation in
-            lock.lock()
-            if signaled {
-                lock.unlock()
-                continuation.resume()
-            } else {
-                waiters.append(continuation)
-                lock.unlock()
+        let waiterID = UUID()
+        await withTaskCancellationHandler(operation: {
+            await withCheckedContinuation { continuation in
+                lock.lock()
+                if signaled || Task.isCancelled {
+                    lock.unlock()
+                    continuation.resume()
+                } else {
+                    waiters[waiterID] = continuation
+                    lock.unlock()
+                }
             }
+        }, onCancel: {
+            cancelWaiter(waiterID)
+        })
+    }
+
+    func wait(timeout: Duration) async -> Bool {
+        await withTaskGroup(of: Bool.self) { group in
+            group.addTask {
+                await self.wait()
+                return true
+            }
+            group.addTask {
+                do {
+                    try await Task.sleep(for: timeout)
+                    return false
+                } catch {
+                    return true
+                }
+            }
+            let result = await group.next() ?? false
+            group.cancelAll()
+            return result
         }
+    }
+
+    private func cancelWaiter(_ waiterID: UUID) {
+        lock.lock()
+        let continuation = waiters.removeValue(forKey: waiterID)
+        lock.unlock()
+        continuation?.resume()
     }
 }
 
