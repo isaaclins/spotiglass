@@ -31,6 +31,7 @@
 		B20000000000000000000008 /* SpotifyAuthStepTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000018 /* SpotifyAuthStepTests.swift */; };
 		BB10000000000000000000001 /* SpotiglassSidebarLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB10000000000000000000011 /* SpotiglassSidebarLibrary.swift */; };
 		BB10000000000000000000002 /* BrowsingSidebarModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB10000000000000000000012 /* BrowsingSidebarModels.swift */; };
+		SRC000000000000000000001C /* CatalogSearchViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC000000000000000008001C /* CatalogSearchViewModel.swift */; };
 		BB10000000000000000000003 /* SpotifyBrowsingAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB10000000000000000000013 /* SpotifyBrowsingAPI.swift */; };
 		BB10000000000000000000004 /* SpotifyBrowsingCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB10000000000000000000014 /* SpotifyBrowsingCache.swift */; };
 		BB10000000000000000000005 /* BrowsingLoadState.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB10000000000000000000015 /* BrowsingLoadState.swift */; };
@@ -131,6 +132,7 @@
 		SRC0000000000000000000016 /* FollowedPlaylistLockedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC0000000000000000080016 /* FollowedPlaylistLockedView.swift */; };
 		E60000000000000000000004 /* PlaylistListRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = E60000000000000000000054 /* PlaylistListRow.swift */; };
 		E60000000000000000000005 /* PlaylistDetailContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = E60000000000000000000055 /* PlaylistDetailContent.swift */; };
+		SRC000000000000000000001D /* CatalogSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC000000000000000008001D /* CatalogSearchView.swift */; };
 		E60000000000000000000006 /* PlaylistsSidebarSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = E60000000000000000000056 /* PlaylistsSidebarSection.swift */; };
 		E60000000000000000000007 /* LibrarySidebarRowViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = E60000000000000000000057 /* LibrarySidebarRowViews.swift */; };
 		E60000000000000000000008 /* PlaylistBrowserSidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = E60000000000000000000058 /* PlaylistBrowserSidebar.swift */; };
@@ -336,6 +338,8 @@
 		TST000000000000000000A3 /* PlaylistBrowserViewModel+Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000000A2 /* PlaylistBrowserViewModel+Tests.swift */; };
 		TST000000000000000000C1 /* PlaybackProgressAnchorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000000C0 /* PlaybackProgressAnchorTests.swift */; };
 		TST000000000000000000C2 /* PlaylistBrowserPrefetchAllTracksTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */; };
+		TST0000000000000000000126 /* CatalogSearchViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010126 /* CatalogSearchViewTests.swift */; };
+		TST0000000000000000000128 /* SpotiglassComponentsViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010128 /* SpotiglassComponentsViewTests.swift */; };
 		TST0000000000000000000125 /* InactiveWindowAppearanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010125 /* InactiveWindowAppearanceTests.swift */; };
 		TST0000000000000000000124 /* MenuKeyEquivalentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010124 /* MenuKeyEquivalentTests.swift */; };
 		TST0000000000000000000123 /* RealUserDefaultsIsolationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010123 /* RealUserDefaultsIsolationTests.swift */; };
@@ -380,6 +384,7 @@
 		B20000000000000000000018 /* SpotifyAuthStepTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyAuthStepTests.swift; sourceTree = "<group>"; };
 		BB10000000000000000000011 /* SpotiglassSidebarLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotiglassSidebarLibrary.swift; sourceTree = "<group>"; };
 		BB10000000000000000000012 /* BrowsingSidebarModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowsingSidebarModels.swift; sourceTree = "<group>"; };
+		SRC000000000000000008001C /* CatalogSearchViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogSearchViewModel.swift; sourceTree = "<group>"; };
 		BB10000000000000000000013 /* SpotifyBrowsingAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyBrowsingAPI.swift; sourceTree = "<group>"; };
 		BB10000000000000000000014 /* SpotifyBrowsingCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyBrowsingCache.swift; sourceTree = "<group>"; };
 		BB10000000000000000000015 /* BrowsingLoadState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowsingLoadState.swift; sourceTree = "<group>"; };
@@ -480,6 +485,7 @@
 		SRC0000000000000000080016 /* FollowedPlaylistLockedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FollowedPlaylistLockedView.swift; sourceTree = "<group>"; };
 		E60000000000000000000054 /* PlaylistListRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistListRow.swift; sourceTree = "<group>"; };
 		E60000000000000000000055 /* PlaylistDetailContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistDetailContent.swift; sourceTree = "<group>"; };
+		SRC000000000000000008001D /* CatalogSearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogSearchView.swift; sourceTree = "<group>"; };
 		E60000000000000000000056 /* PlaylistsSidebarSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistsSidebarSection.swift; sourceTree = "<group>"; };
 		E60000000000000000000057 /* LibrarySidebarRowViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibrarySidebarRowViews.swift; sourceTree = "<group>"; };
 		E60000000000000000000058 /* PlaylistBrowserSidebar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserSidebar.swift; sourceTree = "<group>"; };
@@ -602,6 +608,8 @@
 		TST000000000000000000A2 /* PlaylistBrowserViewModel+Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlaylistBrowserViewModel+Tests.swift"; sourceTree = "<group>"; };
 		TST000000000000000000C0 /* PlaybackProgressAnchorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackProgressAnchorTests.swift; sourceTree = "<group>"; };
 		TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserPrefetchAllTracksTests.swift; sourceTree = "<group>"; };
+		TST0000000000000000010126 /* CatalogSearchViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogSearchViewTests.swift; sourceTree = "<group>"; };
+		TST0000000000000000010128 /* SpotiglassComponentsViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotiglassComponentsViewTests.swift; sourceTree = "<group>"; };
 		TST0000000000000000010125 /* InactiveWindowAppearanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InactiveWindowAppearanceTests.swift; sourceTree = "<group>"; };
 		TST0000000000000000010124 /* MenuKeyEquivalentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuKeyEquivalentTests.swift; sourceTree = "<group>"; };
 		TST0000000000000000010123 /* RealUserDefaultsIsolationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealUserDefaultsIsolationTests.swift; sourceTree = "<group>"; };
@@ -873,6 +881,8 @@
 				TST00000000000000000064 /* PlaylistBrowserNavigationTests.swift */,
 				TST00000000000000000065 /* PlaylistBrowserArtistFallbackTests.swift */,
 				TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */,
+				TST0000000000000000010126 /* CatalogSearchViewTests.swift */,
+				TST0000000000000000010128 /* SpotiglassComponentsViewTests.swift */,
 				TST0000000000000000010125 /* InactiveWindowAppearanceTests.swift */,
 				TST0000000000000000010124 /* MenuKeyEquivalentTests.swift */,
 				TST0000000000000000010123 /* RealUserDefaultsIsolationTests.swift */,
@@ -1047,6 +1057,7 @@
 			children = (
 				BB10000000000000000000011 /* SpotiglassSidebarLibrary.swift */,
 				BB10000000000000000000012 /* BrowsingSidebarModels.swift */,
+				SRC000000000000000008001C /* CatalogSearchViewModel.swift */,
 				BB10000000000000000000013 /* SpotifyBrowsingAPI.swift */,
 				BB10000000000000000000014 /* SpotifyBrowsingCache.swift */,
 				BB10000000000000000000015 /* BrowsingLoadState.swift */,
@@ -1139,6 +1150,7 @@
 				SRC0000000000000000080016 /* FollowedPlaylistLockedView.swift */,
 				E60000000000000000000054 /* PlaylistListRow.swift */,
 				E60000000000000000000055 /* PlaylistDetailContent.swift */,
+				SRC000000000000000008001D /* CatalogSearchView.swift */,
 				E60000000000000000000056 /* PlaylistsSidebarSection.swift */,
 				E60000000000000000000057 /* LibrarySidebarRowViews.swift */,
 				E60000000000000000000058 /* PlaylistBrowserSidebar.swift */,
@@ -1406,6 +1418,7 @@
 				C30000000000000000000005 /* SpotifyLocalCache.swift in Sources */,
 				BB10000000000000000000001 /* SpotiglassSidebarLibrary.swift in Sources */,
 				BB10000000000000000000002 /* BrowsingSidebarModels.swift in Sources */,
+				SRC000000000000000000001C /* CatalogSearchViewModel.swift in Sources */,
 				BB10000000000000000000003 /* SpotifyBrowsingAPI.swift in Sources */,
 				BB10000000000000000000004 /* SpotifyBrowsingCache.swift in Sources */,
 				BB10000000000000000000005 /* BrowsingLoadState.swift in Sources */,
@@ -1446,6 +1459,7 @@
 				SRC0000000000000000000016 /* FollowedPlaylistLockedView.swift in Sources */,
 				E60000000000000000000004 /* PlaylistListRow.swift in Sources */,
 				E60000000000000000000005 /* PlaylistDetailContent.swift in Sources */,
+				SRC000000000000000000001D /* CatalogSearchView.swift in Sources */,
 				E60000000000000000000006 /* PlaylistsSidebarSection.swift in Sources */,
 				E60000000000000000000007 /* LibrarySidebarRowViews.swift in Sources */,
 				E60000000000000000000008 /* PlaylistBrowserSidebar.swift in Sources */,
@@ -1567,6 +1581,8 @@
 				TST00000000000000000014 /* PlaylistBrowserNavigationTests.swift in Sources */,
 				TST00000000000000000015 /* PlaylistBrowserArtistFallbackTests.swift in Sources */,
 				TST000000000000000000C2 /* PlaylistBrowserPrefetchAllTracksTests.swift in Sources */,
+				TST0000000000000000000126 /* CatalogSearchViewTests.swift in Sources */,
+				TST0000000000000000000128 /* SpotiglassComponentsViewTests.swift in Sources */,
 				TST0000000000000000000125 /* InactiveWindowAppearanceTests.swift in Sources */,
 				TST0000000000000000000124 /* MenuKeyEquivalentTests.swift in Sources */,
 				TST0000000000000000000123 /* RealUserDefaultsIsolationTests.swift in Sources */,

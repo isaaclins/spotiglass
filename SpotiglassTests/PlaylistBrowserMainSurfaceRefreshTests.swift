@@ -18,6 +18,25 @@ final class PlaylistBrowserMainSurfaceRefreshTests: XCTestCase {
         XCTAssertEqual(vm.playlistState.currentValue?.map(\.title), ["Two"])
     }
 
+    func testUnifiedRefreshMainSurfaceFromSearchRerunsActiveQuery() async {
+        let vm = PlaylistBrowserViewModel(
+            api: MockBrowsingAPI(playlistResults: [], trackResults: [:]),
+            cache: MockBrowsingCache()
+        )
+        await vm.selectSidebar(.search)
+        vm.catalogSearch.query = "found"
+        defer {
+            vm.catalogSearch.query = ""
+            vm.catalogSearch.scheduleSearch()
+        }
+
+        await vm.unifiedRefreshMainSurface()
+
+        guard case .loading = vm.catalogSearch.state else {
+            return XCTFail("Refreshing the search surface must schedule a fresh search")
+        }
+    }
+
     func testPerformUnifiedRefreshRoutesToQueueWhenFocused() async {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],

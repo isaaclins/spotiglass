@@ -65,6 +65,8 @@ extension PlaylistBrowserViewModel {
         isPerformingBackNavigation = true
         defer { isPerformingBackNavigation = false }
         switch crumb.kind {
+        case .search:
+            await selectSidebar(.search, origin: .backStackReplay)
         case .likedSongs:
             await selectSidebar(.likedSongs, origin: .backStackReplay)
         case let .playlist(id):
@@ -127,6 +129,15 @@ extension PlaylistBrowserViewModel {
             switch selection {
             case .home:
                 breadcrumbPath = []
+            case .search:
+                breadcrumbPath = [
+                    BrowserBreadcrumb(
+                        id: UUID(),
+                        label: SpotiglassL10n.string("browser.search"),
+                        systemImage: "magnifyingglass",
+                        kind: .search
+                    )
+                ]
             case .likedSongs:
                 breadcrumbPath = [
                     BrowserBreadcrumb(
@@ -225,6 +236,8 @@ extension PlaylistBrowserViewModel {
     /// Matches logical destination identity (IDs), not display metadata.
     private func breadcrumbRepresentsSamePage(_ lhs: BrowserBreadcrumb.Kind, _ rhs: BrowserBreadcrumb.Kind) -> Bool {
         switch (lhs, rhs) {
+        case (.search, .search):
+            return true
         case (.likedSongs, .likedSongs):
             return true
         case let (.playlist(leftID), .playlist(rightID)):

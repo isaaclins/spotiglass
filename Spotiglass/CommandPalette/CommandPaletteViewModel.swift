@@ -42,6 +42,9 @@ final class CommandPaletteViewModel: ObservableObject {
     var localResultsProvider: (String) -> CommandPaletteSearchResults = { _ in CommandPaletteSearchResults() }
     /// Invoked when the palette wants to restore key-window focus on close.
     var restoreFocus: (() -> Void)?
+    /// Hands the current catalog query off to the dedicated Search view. When
+    /// `nil` (no browser host wired) the "Show all results" row is omitted.
+    var showAllResults: ((String, CommandPaletteSearchCategory) -> Void)?
 
     private var searchTask: Task<Void, Never>?
     /// Skips the next `queryDidChangeFromTextField` refresh after legacy `@` prefix normalization mutates `query` programmatically.
@@ -392,8 +395,31 @@ final class CommandPaletteViewModel: ObservableObject {
     /// Rebuilds the visible sections from ``cachedResults`` for the active category.
     private func renderSectionsFromCache(trimmed: String) {
         let results = cachedResults ?? CommandPaletteSearchResults()
-        sections = Self.sections(from: results, category: searchCategoryFilter, query: trimmed)
+        var built = Self.sections(from: results, category: searchCategoryFilter, query: trimmed)
+        if let row = showAllResultsItem(trimmed: trimmed) {
+            built.append((.showAll, [row]))
+        }
+        sections = built
         selectedIndex = 0
+    }
+
+    /// Trailing "Show all results for <query>" row that dismisses the palette and
+    /// opens the browsable Search view with the same query and scope. Command
+    /// scope (`>` prefix) never gets one: those results are not catalog searches.
+    private func showAllResultsItem(trimmed: String) -> CommandPaletteItem? {
+        guard let showAllResults else { return nil }
+        guard CommandPaletteScope.parse(query).scope == .songs else { return nil }
+        guard trimmed.count >= Self.minimumPaletteSearchQueryCharacters else { return nil }
+        let category = searchCategoryFilter
+        return CommandPaletteItem(
+            id: "palette.showAllResults",
+            title: SpotiglassL10n.format("palette.showAllResults", trimmed),
+            subtitle: SpotiglassL10n.string("palette.showAllResults.subtitle"),
+            iconSystemName: "magnifyingglass",
+            section: .showAll,
+            keywords: [trimmed],
+            action: { showAllResults(trimmed, category) }
+        )
     }
 
     /// Section relevance for `.all` ordering. Prefers matches on an item's own name (title)

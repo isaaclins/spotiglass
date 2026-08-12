@@ -19,7 +19,7 @@ enum PlaylistBrowserPlaybackHelpers {
                let row = detail.tracks.first(where: { $0.playableURI == uri }) {
                 return row.id
             }
-        case .home:
+        case .home, .search:
             break
         }
         return detailLastVisibleTrackID

@@ -15,7 +15,7 @@ extension PlaylistBrowserViewModel {
             case .likedSongs:
                 try? cache.invalidateTracks(playlistID: SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID)
                 lastTracksRevalidationByID[SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID] = nil
-            case .home, .pinnedItem:
+            case .home, .search, .pinnedItem:
                 break
             }
             await scheduleDetailLoad(for: sidebarSelection, refreshCachedData: false, session: session)
@@ -34,6 +34,9 @@ extension PlaylistBrowserViewModel {
         case .home:
             await refreshPlaylists(trigger: .userInitiated)
             await reloadHomeSections()
+        case .search:
+            // Re-runs the active query rather than reloading a cached surface.
+            catalogSearch.scheduleSearch()
         case .likedSongs, .playlist, .pinnedItem:
             await refreshSelectedPlaylist()
         }

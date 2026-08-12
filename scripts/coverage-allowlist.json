@@ -25,6 +25,7 @@
     "Spotiglass/Views/ImmersiveLyrics/ImmersiveLyricsLeftColumn.swift",
     "Spotiglass/Views/ImmersiveLyrics/ImmersiveLyricsMainLayout.swift",
     "Spotiglass/Views/ImmersiveLyricsView.swift",
+    "Spotiglass/Views/PlaylistBrowser/CatalogSearchView.swift",
     "Spotiglass/Views/PlaylistBrowser/FollowedPlaylistLockedView.swift",
     "Spotiglass/Views/PlaylistBrowser/PlaylistBrowserDetailColumn.swift",
     "Spotiglass/Views/PlaylistBrowser/PlaylistBrowserSidebar.swift",

@@ -35,6 +35,10 @@ final class PlaylistBrowserViewModel: ObservableObject {
     /// ("Added 4 tracks to My Workout"). Read+set by views; auto-clears.
     @Published var trackMutationToast: String?
     @Published var sidebarSelection: SidebarSelection?
+    /// Backing model for the dedicated catalog Search surface. Owned here so the
+    /// sidebar row, the `navigation.search.open` command and the palette's
+    /// "Show all results" handoff all address the same instance.
+    let catalogSearch = CatalogSearchViewModel()
     /// Home surface: "Recently played" carousel cards. Loaded lazily when Home is shown.
     @Published internal(set) var homeRecentlyPlayed: HomeSectionState<[HomeMediaCard]> = .loading
     /// Home surface: "Your top tracks" list rows. Loaded lazily when Home is shown.
@@ -64,9 +68,9 @@ final class PlaylistBrowserViewModel: ObservableObject {
             guard let selection = sidebarSelection else { return false }
             switch selection {
             case .playlist, .likedSongs: return true
-            case .home, .pinnedItem: return false
+            case .home, .search, .pinnedItem: return false
             }
-        case .home:
+        case .home, .search:
             return false
         }
     }
@@ -77,7 +81,7 @@ final class PlaylistBrowserViewModel: ObservableObject {
         switch content {
         case let .playlist(vm): return vm.tracks
         case let .artist(vm): return vm.tracks
-        case .home: return nil
+        case .home, .search: return nil
         }
     }
 

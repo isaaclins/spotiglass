@@ -29,6 +29,8 @@ final class CommandPaletteManager: ObservableObject {
     var playURI: ((String) async -> Void)?
     var openPlaylist: ((String) async -> Void)?
     var openArtist: ((String) async -> Void)?
+    /// Opens the dedicated catalog Search view. Wired by the browser host.
+    var openSearch: (() -> Void)?
     var spotifySearch: ((String, CommandPaletteSearchCategory) async throws -> CommandPaletteSearchResults)?
     /// Synchronous in-memory matches (open-playlist tracks + library playlists) for the
     /// palette's local-first instant render. Returns empty when no browser context is wired.
@@ -211,6 +213,8 @@ final class CommandPaletteManager: ObservableObject {
             if case let .string(artistID)? = args?["artistID"] {
                 Task { await openArtist?(artistID) }
             }
+        case CommandPaletteCommandID.openSearch:
+            openSearch?()
         case CommandPaletteCommandID.filterByArtist:
             if case let .string(name)? = args?["name"] {
                 filterByArtist?(name)
@@ -254,6 +258,8 @@ final class CommandPaletteManager: ObservableObject {
             ["settings", "preferences", "keymap"]
         case CommandPaletteCommandID.openPalette:
             ["palette", "command", "search"]
+        case CommandPaletteCommandID.openSearch:
+            ["search", "find", "catalog", "browse", "tracks", "albums", "artists", "playlists"]
         case CommandPaletteCommandID.refreshPlaylists:
             ["reload", "sync", "playlist", "tracks", "artist", "queue", "refresh"]
         case CommandPaletteCommandID.connectPlayback:

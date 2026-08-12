@@ -2,6 +2,8 @@ import Foundation
 
 enum SidebarSelection: Hashable {
     case home
+    /// Dedicated full-window catalog search surface (sidebar row above Home).
+    case search
     case likedSongs
     case playlist(String)
     /// Pinned-area row identified by ``PinnedItem.id``. The browser view
@@ -19,6 +21,7 @@ enum BrowserNavigationTarget: Equatable {
 /// Logical drill-in path shown in the window toolbar (separate from ``backNavigationStack``).
 struct BrowserBreadcrumb: Equatable, Identifiable {
     enum Kind: Equatable {
+        case search
         case likedSongs
         case playlist(id: String)
         case artist(id: String)

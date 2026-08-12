@@ -42,6 +42,12 @@ final class LocalizationCoverageTests: XCTestCase {
         ("browser.trackBadge.explicit", "browser.trackBadge.explicit", "Explicit", "Explícito", "Explizit"),
         ("browser.breadcrumb.artistFallback", "browser.breadcrumb.artistFallback", "Artist", "Artista", "Künstler"),
 
+        // Catalog search
+        ("browser.search", "browser.search", "Search", "Buscar", "Suchen"),
+        ("search.category.tracks", "search.category.tracks", "Tracks", "Canciones", "Titel"),
+        ("search.field.placeholder", "search.field.placeholder", "Search Spotify", "Buscar en Spotify", "Spotify durchsuchen"),
+        ("palette.showAllResults.subtitle", "palette.showAllResults.subtitle", "Open the Search view", "Abrir la vista de búsqueda", "Suchansicht öffnen"),
+
         // Playback
         ("playback.controls.state.ready.title", "playback.controls.state.ready.title", "Ready to play", "Listo para reproducir", "Bereit zur Wiedergabe"),
         ("playback.nowPlaying.unknownArtist", "playback.nowPlaying.unknownArtist", "Unknown artist", "Artista desconocido", "Unbekannter Künstler"),
