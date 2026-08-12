@@ -180,6 +180,11 @@ final class CatalogSearchViewModel: ObservableObject {
         }
     }
 
+    // periphery:ignore
+    internal func waitForSearchCompletion() async {
+        await searchTask?.value
+    }
+
     private func performSearch(query trimmed: String, pageCount pages: Int) async {
         do {
             try await Task.sleep(for: .milliseconds(Self.debounceMilliseconds))

@@ -169,6 +169,11 @@ final class CommandPaletteViewModel: ObservableObject {
         }
     }
 
+    // periphery:ignore
+    internal func waitForSearchCompletion() async {
+        await searchTask?.value
+    }
+
     /// Re-filters the cached result set for `category` without hitting the network when the
     /// current query's results are already loaded; otherwise falls back to a fresh search.
     /// This is what makes the footer pills (and Tab) switch instantly instead of re-querying.

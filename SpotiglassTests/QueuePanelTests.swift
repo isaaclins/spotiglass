@@ -176,13 +176,8 @@ final class QueuePanelTests: XCTestCase {
 
         await queue.addToQueue(uri: "spotify:track:add-me")
 
-        // `setPanelVisible(true)` schedules a detached refresh Task in addition to
-        // the refresh `addToQueue` triggers; yield a few times so any pending
-        // MainActor task observably appends its `fetchQueue` action before we read.
-        for _ in 0..<10 where api.actions.filter({ $0 == "fetchQueue" }).isEmpty {
-            await Task.yield()
-        }
-
+        let didFetchQueue = await api.fetchQueueSignal.wait(timeout: .seconds(2))
+        XCTAssertTrue(didFetchQueue, "Adding to the queue must trigger a queue refresh.")
         XCTAssertTrue(api.actions.contains("addToQueue:device-42:spotify:track:add-me"))
         XCTAssertTrue(api.actions.filter { $0 == "fetchQueue" }.count >= 1)
     }
@@ -646,6 +641,7 @@ private final class StubWebPlaybackCommander: WebPlaybackCommanding {
 private final class QueueTestPlaybackAPI: SpotifyPlaybackControlling {
     private let lock = NSLock()
     private(set) var actions: [String] = []
+    let fetchQueueSignal = AsyncSignal()
     var queueResponse = SpotifyQueueResponse(queue: [])
     var errorToThrow: Error?
     var setShuffleError: Error?
@@ -683,6 +679,7 @@ private final class QueueTestPlaybackAPI: SpotifyPlaybackControlling {
 
     func fetchQueue() async throws -> SpotifyQueueResponse {
         appendAction("fetchQueue")
+        fetchQueueSignal.signal()
         beginFetch()
         defer { endFetch() }
         if fetchQueueDelayNanoseconds > 0 {
