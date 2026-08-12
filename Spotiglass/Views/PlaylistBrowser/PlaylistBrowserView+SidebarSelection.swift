@@ -52,21 +52,6 @@ extension PlaylistBrowserView {
         )
     }
 
-    func syncPinnedItemStaleState(item: PinnedItem, fallbackSelection: SidebarSelection?) {
-        let shouldMarkStale = itemShouldBeMarkedStale(for: viewModel.detailState)
-        pinnedStore.markStale(id: item.id, shouldMarkStale)
-        guard shouldMarkStale else { return }
-        viewModel.sidebarSelection = fallbackSelection
-    }
-
-    func itemShouldBeMarkedStale(for detailState: BrowsingLoadState<BrowsingDetailContent>) -> Bool {
-        PlaylistBrowserPinnedSidebarPolicy.itemShouldBeMarkedStale(for: detailState)
-    }
-
-    func isPermanentPinnedLoadError(_ error: BrowsingDisplayError) -> Bool {
-        PlaylistBrowserPinnedSidebarPolicy.isPermanentPinnedLoadError(error)
-    }
-
     func bindPinnedStoreToCurrentUser() async {
         let profile = try? await spotifySearchClient.currentUserProfile()
         guard let userID = profile?.id else { return }

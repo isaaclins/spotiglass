@@ -59,12 +59,6 @@ final class SpotiglassSettingsStore: ObservableObject {
         try persist(next)
     }
 
-    func updateEqualizer(_ equalizer: EqualizerSettings) throws {
-        var next = settings
-        next.equalizer = equalizer
-        try persist(next)
-    }
-
     /// Read-modify-write helper. Mutations on the inout copy are persisted atomically.
     func mutate(_ change: (inout SpotiglassSettingsFile) -> Void) throws {
         var next = settings
