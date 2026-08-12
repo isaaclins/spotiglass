@@ -57,10 +57,11 @@ private struct SpotiglassPillStyleBody: View {
     let verticalPadding: CGFloat
 
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.appearsActive) private var appearsActive
     @State private var isHovering = false
 
     var body: some View {
-        configuration.label
+        label
             .padding(.horizontal, horizontalPadding)
             .padding(.vertical, verticalPadding)
             .background {
@@ -76,6 +77,20 @@ private struct SpotiglassPillStyleBody: View {
             .onHover { isHovering = $0 }
             .animation(SpotiglassMotion.controlSpring, value: isHovering)
             .animation(SpotiglassMotion.controlSpring, value: configuration.isPressed)
+    }
+
+    /// Only `.accent` needs an explicit label color: it is the one variant that paints a
+    /// solid fill behind the title, and that fill turns white in a background window.
+    /// `.glass` and `.material` keep the inherited foreground so their call sites can
+    /// still tint their own labels.
+    @ViewBuilder private var label: some View {
+        switch variant {
+        case .accent:
+            configuration.label
+                .foregroundStyle(SpotiglassDesign.onAccent(appearsActive: appearsActive))
+        case .glass, .material:
+            configuration.label
+        }
     }
 
     private var scale: CGFloat {

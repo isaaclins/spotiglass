@@ -61,6 +61,46 @@ enum SpotiglassDesign {
         )
     }
 
+    /// Foreground for label content drawn on top of an ``accent(appearsActive:)`` fill.
+    ///
+    /// A fixed white label is wrong here. ``subduedForInactiveWindow(_:saturationScale:)``
+    /// keeps the accent's brightness while dropping its saturation, so the default bright
+    /// blue accent resolves to plain white in a background window, and white on white is
+    /// invisible. Pick the label from the fill's luminance instead, so the selected control
+    /// stays readable both while the window is key and while it is not.
+    static func onAccent(appearsActive: Bool) -> Color {
+        Color(
+            nsColor: NSColor(name: nil) { appearance in
+                var fill = NSColor.controlAccentColor
+                appearance.performAsCurrentDrawingAppearance {
+                    fill =
+                        appearsActive
+                        ? .controlAccentColor
+                        : subduedForInactiveWindow(.controlAccentColor)
+                }
+                return contrastingLabel(on: fill)
+            })
+    }
+
+    /// A light or dark label, whichever stays legible on `background`.
+    ///
+    /// Deliberately not the raw WCAG crossover at 0.179. macOS paints white on
+    /// `controlAccentColor`, and the default blue sits at luminance 0.21, so the strict
+    /// crossover would flip every accent control to black text and stop looking like a Mac.
+    /// The job here is only to stop the label disappearing, which happens when the drained
+    /// inactive accent turns near white, so the flip waits until the fill is genuinely light.
+    static func contrastingLabel(on background: NSColor) -> NSColor {
+        guard let rgb = background.usingColorSpace(.sRGB) else { return .white }
+        func linear(_ component: CGFloat) -> CGFloat {
+            component <= 0.03928 ? component / 12.92 : pow((component + 0.055) / 1.055, 2.4)
+        }
+        let luminance =
+            0.2126 * linear(rgb.redComponent)
+            + 0.7152 * linear(rgb.greenComponent)
+            + 0.0722 * linear(rgb.blueComponent)
+        return luminance > 0.5 ? .black : .white
+    }
+
     static let spacingXS: CGFloat = 6
     static let spacingS: CGFloat = 10
     static let spacingM: CGFloat = 16
