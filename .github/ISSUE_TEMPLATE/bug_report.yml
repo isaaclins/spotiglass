@@ -5,7 +5,7 @@ labels: ["bug"]
 body:
   - type: markdown
     attributes:
-      value: Thanks for the report! Fill in what you can — a screenshot plus a sentence is already plenty.
+      value: Thanks for the report! Fill in what you can, a screenshot plus a sentence is already plenty.
 
   - type: dropdown
     id: area
@@ -69,4 +69,4 @@ body:
     id: notes
     attributes:
       label: Notes
-      description: Frequency, when it started, guesses at the cause — anything else.
+      description: Frequency, when it started, guesses at the cause, anything else.
