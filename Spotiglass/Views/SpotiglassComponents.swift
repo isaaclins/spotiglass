@@ -135,16 +135,6 @@ private struct SpotiglassPillStyleBody: View {
     }
 }
 
-private struct PillFillModifier: ViewModifier {
-    let variant: SpotiglassPillStyle.Variant
-    let isHovering: Bool
-
-    func body(content: Content) -> some View {
-        // Unused — see free function `pillFill(variant:isHovering:)`.
-        content
-    }
-}
-
 @ViewBuilder
 private func pillFill(variant: SpotiglassPillStyle.Variant, isHovering: Bool) -> some View {
     switch variant {
