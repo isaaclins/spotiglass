@@ -79,7 +79,7 @@ enum ViewTestHost {
     }
 
     static func tearDownAll() {
-        windows.forEach { $0.close() }
+        for window in windows { window.close() }
         windows.removeAll()
         appStorageDefaults.removePersistentDomain(forName: appStorageSuiteName)
     }

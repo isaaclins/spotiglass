@@ -75,7 +75,8 @@ final class SpotifyPlaybackAPITests: XCTestCase {
             try await api.play(uris: [], deviceID: "d")
             XCTFail("expected throw")
         } catch let error as SpotifyAPIError {
-            if case .invalidRequest = error { /* ok */ } else { XCTFail("got \(error)") }
+            // Expected case, nothing to assert beyond the match.
+            if case .invalidRequest = error {} else { XCTFail("got \(error)") }
         } catch {
             XCTFail("wrong error type \(error)")
         }
@@ -391,7 +392,8 @@ final class SpotifyPlaybackAPITests: XCTestCase {
             _ = try await api.fetchPlayerSnapshot()
             XCTFail("expected throw")
         } catch let e as SpotifyAPIError {
-            if case .server = e { /* ok */ } else { XCTFail("got \(e)") }
+            // Expected case, nothing to assert beyond the match.
+            if case .server = e {} else { XCTFail("got \(e)") }
             XCTAssertEqual(http.requests.count, 3, "must give up after maxGETRetryAttempts")
         } catch {
             XCTFail("wrong error \(error)")

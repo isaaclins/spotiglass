@@ -60,7 +60,7 @@ final class AsyncSignal: @unchecked Sendable {
         let resumed = waiters
         waiters.removeAll()
         lock.unlock()
-        resumed.forEach { $0.resume() }
+        for continuation in resumed { continuation.resume() }
     }
 
     func wait() async {

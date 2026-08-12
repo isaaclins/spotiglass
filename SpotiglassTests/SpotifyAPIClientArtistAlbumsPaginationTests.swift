@@ -3,6 +3,8 @@ import XCTest
 
 /// Exercise the same `/v1/artists/{id}/albums` pagination rules as the former in-app
 /// `SpotifyAPIClient.artistAlbums` helper (kept here so production stays Periphery-clean).
+// swift-format-ignore: AlwaysUseLowerCamelCase
+// The `testTarget_` prefix keeps this helper from being collected as an XCTest case.
 private func testTarget_fetchAllArtistAlbums(
     client: SpotifyAPIClient,
     id: String,

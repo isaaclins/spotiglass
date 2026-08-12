@@ -6,7 +6,9 @@
 
 .PHONY: all build run release test coverage coverage-check format lint scan clean list help audit-eq-permission build-driver embed-driver sign-driver install-driver
 
-SWIFT_FORMAT := $(shell command -v swift-format 2>/dev/null)
+# Prefer a standalone install, then fall back to the copy inside the active
+# Xcode toolchain so `make lint` works without `brew install swift-format`.
+SWIFT_FORMAT := $(shell command -v swift-format 2>/dev/null || xcrun --find swift-format 2>/dev/null)
 
 PROJECT       := Spotiglass.xcodeproj
 SCHEME        := Spotiglass

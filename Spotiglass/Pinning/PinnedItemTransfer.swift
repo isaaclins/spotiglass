@@ -15,10 +15,6 @@ extension UTType {
 struct PinnedItemTransfer: Codable, Equatable, Hashable, Transferable {
     let item: PinnedItem
 
-    init(item: PinnedItem) {
-        self.item = item
-    }
-
     static var transferRepresentation: some TransferRepresentation {
         CodableRepresentation(contentType: .spotiglassPinnedItem)
     }

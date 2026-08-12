@@ -2,6 +2,8 @@ import Foundation
 import XCTest
 @testable import Spotiglass
 
+// swift-format-ignore: AlwaysUseLowerCamelCase
+// Named like the XCTAssert family it belongs to, so it reads correctly at call sites.
 func XCTAssertThrowsSpotifyAPIError<T>(
     _ expression: @autoclosure () async throws -> T,
     _ expectedError: SpotifyAPIError,

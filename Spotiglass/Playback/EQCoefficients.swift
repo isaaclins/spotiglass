@@ -124,6 +124,10 @@ struct EQCoefficientFrame {
         if abs(gainDb) < 1e-9 {
             return BiquadCoeffs(b0: 1, b1: 0, b2: 0, a1: 0, a2: 0)
         }
+        // swift-format-ignore: AlwaysUseLowerCamelCase
+        // `A` is the RBJ audio EQ cookbook's own symbol for the shelf/peaking
+        // amplitude term. Renaming it would break the correspondence with the
+        // reference formulas below.
         let A = pow(10.0, gainDb / 40.0)
         let w0 = 2.0 * .pi * centerHz / sampleRateHz
         let cosW0 = cos(w0)
