@@ -191,6 +191,8 @@ final class RecorderKeyContainerView: NSView {
 
     /// Test hook: drive ``HotkeyRecorderField.Coordinator/handleKeyDown(_:in:)`` without key-window
     /// first-responder churn (unreliable on headless CI runners).
+    // swift-format-ignore: AlwaysUseLowerCamelCase
+    // The `testing_` prefix marks this as a test-only seam at the call site.
     func testing_beginKeyCapture() {
         guard !isRecording else { return }
         isRecording = true

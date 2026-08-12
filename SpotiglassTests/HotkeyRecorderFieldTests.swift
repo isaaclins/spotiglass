@@ -35,13 +35,13 @@ final class ZHotkeyRecorderFieldTests: XCTestCase {
     }
 
     override func tearDown() {
-        harnessRoots.compactMap { $0 as? RecorderKeyContainerView }.forEach { view in
-            if view.isRecording {
-                view.cancelRecording()
-            }
+        for view in harnessRoots.compactMap({ $0 as? RecorderKeyContainerView }) where view.isRecording {
+            view.cancelRecording()
         }
-        harnessRoots.compactMap { $0 as? HotkeyRecorderField.Coordinator }.forEach { $0.teardownMonitors() }
-        windows.forEach { window in
+        for coordinator in harnessRoots.compactMap({ $0 as? HotkeyRecorderField.Coordinator }) {
+            coordinator.teardownMonitors()
+        }
+        for window in windows {
             window.makeFirstResponder(nil)
             window.close()
         }
