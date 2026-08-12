@@ -5,6 +5,8 @@ palette.command.app.signOut.subtitle
 palette.command.app.signOut.title
 palette.command.lyrics.toggle.subtitle
 palette.command.lyrics.toggle.title
+palette.command.navigation.search.open.subtitle
+palette.command.navigation.search.open.title
 palette.command.palette.enqueue.subtitle
 palette.command.palette.enqueue.title
 palette.command.palette.open.subtitle
