@@ -26,7 +26,12 @@ final class PlaylistBrowserChromeViewsTests: XCTestCase {
             )
         )
         ViewTestHost.host(stale)
-        XCTAssertNoThrow(try stale.inspect().find(text: "Showing cached data"))
+        XCTAssertNoThrow(try stale.inspect().find(text: "Showing cached data. Cached"))
+
+        XCTAssertEqual(
+            PlaylistsSidebarSectionHeader.cachedDataCaption(for: nil),
+            "Showing cached data"
+        )
     }
 
     func testLibraryHomeSidebarRow() throws {
