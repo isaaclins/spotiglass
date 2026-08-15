@@ -1571,6 +1571,75 @@
         }
       }
     },
+    "browser.disconnect.confirm.cancel": {
+      "extractionState": "stale",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abbrechen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancelar"
+          }
+        }
+      }
+    },
+    "browser.disconnect.confirm.message": {
+      "extractionState": "stale",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass meldet sich ab und kehrt zum Anmeldebildschirm zurück. Die gespeicherte Sitzung wird gelöscht."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass will sign out and return to the sign-in screen. The saved session is cleared."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass cerrará la sesión y volverá a la pantalla de inicio de sesión. Se borrará la sesión guardada."
+          }
+        }
+      }
+    },
+    "browser.disconnect.confirm.title": {
+      "extractionState": "stale",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify trennen?"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disconnect Spotify?"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Desconectar Spotify?"
+          }
+        }
+      }
+    },
     "browser.disconnect.hint": {
       "extractionState": "stale",
       "localizations": {
