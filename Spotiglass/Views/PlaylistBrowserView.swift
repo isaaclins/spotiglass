@@ -15,6 +15,9 @@ struct PlaylistBrowserView: View {
     @State var pendingPlaylistListScrollRestoreID: String?
     /// Drives only the **playlist** sidebar (leading column). Queue visibility is separate — see `PlaylistBrowserDetailWithQueueSplit` below.
     @State var playlistColumnVisibility: NavigationSplitViewVisibility = .doubleColumn
+    /// Disconnecting clears the session and costs a full OAuth round trip to undo, and the
+    /// control sits next to Refresh, so it asks first.
+    @State var isConfirmingDisconnect = false
     /// Drives the narrow-window mutual-exclusion rule: when this drops below
     /// ``SpotiglassDesign/dualSidebarComfortableMinWidth`` the playlist sidebar and queue panel can no
     /// longer coexist (opening one closes the other; resizing wide→narrow auto-closes the LRU one).
@@ -202,8 +205,7 @@ struct PlaylistBrowserView: View {
                     .accessibilityHint(SpotiglassL10n.string("browser.queue.hint"))
 
                     Button {
-                        viewModel.clearForSignOut()
-                        signOut()
+                        isConfirmingDisconnect = true
                     } label: {
                         Label(SpotiglassL10n.string("browser.disconnect"), systemImage: "xmark.circle")
                     }
@@ -214,6 +216,18 @@ struct PlaylistBrowserView: View {
                     unifiedRefreshToolbarButton
                 }
             }
+        }
+        .alert(
+            SpotiglassL10n.string("browser.disconnect.confirm.title"),
+            isPresented: $isConfirmingDisconnect
+        ) {
+            Button(SpotiglassL10n.string("browser.disconnect.confirm.cancel"), role: .cancel) {}
+            Button(SpotiglassL10n.string("browser.disconnect"), role: .destructive) {
+                viewModel.clearForSignOut()
+                signOut()
+            }
+        } message: {
+            Text(SpotiglassL10n.string("browser.disconnect.confirm.message"))
         }
         .task {
             await viewModel.loadIfNeeded()
