@@ -33,13 +33,13 @@ struct PlayingWaveformIcon: View {
         // perpetual motion in a list for someone who asked the system for less
         // of it. The bars hold their frozen state instead (#118).
         .onAppear {
-            isAnimating = isPlaying && !reduceMotion
+            isAnimating = Self.shouldAnimate(isPlaying: isPlaying, reduceMotion: reduceMotion)
         }
         .onChange(of: isPlaying) { _, nowPlaying in
-            isAnimating = nowPlaying && !reduceMotion
+            isAnimating = Self.shouldAnimate(isPlaying: nowPlaying, reduceMotion: reduceMotion)
         }
         .onChange(of: reduceMotion) { _, nowReduced in
-            isAnimating = isPlaying && !nowReduced
+            isAnimating = Self.shouldAnimate(isPlaying: isPlaying, reduceMotion: nowReduced)
         }
         .help(isPlaying ? SpotiglassL10n.string("playback.nowPlaying") : SpotiglassL10n.string("playback.paused"))
         .accessibilityLabel(isPlaying ? SpotiglassL10n.string("playback.nowPlaying") : SpotiglassL10n.string("playback.paused"))
@@ -47,29 +47,53 @@ struct PlayingWaveformIcon: View {
     }
 
     private func bar(index: Int, baseFraction: CGFloat, durationOffset: Double, durationScale: Double) -> some View {
-        let frozenFraction: CGFloat = [0.55, 0.85, 0.40][index % 3]
-        let scale: CGFloat = isAnimating ? 1.0 : frozenFraction / baseFraction
-
-        return RoundedRectangle(cornerRadius: barWidth / 2, style: .continuous)
+        RoundedRectangle(cornerRadius: barWidth / 2, style: .continuous)
             .fill(color.map { AnyShapeStyle($0) } ?? AnyShapeStyle(SpotiglassAccentStyle()))
             .frame(width: barWidth, height: maxHeight * baseFraction)
-            .scaleEffect(y: isAnimating ? animatedScale(index: index) : scale, anchor: .center)
+            .scaleEffect(
+                y: Self.barScale(index: index, baseFraction: baseFraction, isAnimating: isAnimating),
+                anchor: .center
+            )
             .animation(
-                isAnimating
-                    ? .easeInOut(duration: 0.45 * durationScale).repeatForever(autoreverses: true).delay(durationOffset)
-                    : .default,
+                Self.barAnimation(
+                    isAnimating: isAnimating,
+                    durationScale: durationScale,
+                    durationOffset: durationOffset
+                ),
                 value: isAnimating
             )
     }
 
-    /// When animating, each bar oscillates between two scale extremes.
-    /// We toggle the target scale via the `isAnimating` flag; the per-bar
-    /// extremes differ to create the offset waveform effect.
-    private func animatedScale(index: Int) -> CGFloat {
-        // Different bars target different extremes when isAnimating is true,
-        // producing a staggered wave when combined with the per-bar delays.
-        let extremes: [CGFloat] = [1.8, 0.4, 1.6]
-        return extremes[index % extremes.count]
+    /// Whether the bars move at all.
+    ///
+    /// Kept as a named rule rather than an inline condition because three
+    /// separate places have to agree on it, and because the answer depends on a
+    /// system setting that a hosted test cannot write.
+    static func shouldAnimate(isPlaying: Bool, reduceMotion: Bool) -> Bool {
+        isPlaying && !reduceMotion
+    }
+
+    /// The vertical scale of one bar.
+    ///
+    /// While animating, each bar targets a different extreme, which combined
+    /// with the per-bar delays produces the staggered wave. Frozen, each bar
+    /// holds a fixed mid-height so a paused row still reads as a waveform.
+    static func barScale(index: Int, baseFraction: CGFloat, isAnimating: Bool) -> CGFloat {
+        if isAnimating {
+            let extremes: [CGFloat] = [1.8, 0.4, 1.6]
+            return extremes[index % extremes.count]
+        }
+        let frozenFraction: CGFloat = [0.55, 0.85, 0.40][index % 3]
+        return frozenFraction / baseFraction
+    }
+
+    /// The animation applied to one bar. `.default` when frozen, so settling
+    /// into the held state is not itself a jump.
+    static func barAnimation(isAnimating: Bool, durationScale: Double, durationOffset: Double) -> Animation {
+        guard isAnimating else { return .default }
+        return .easeInOut(duration: 0.45 * durationScale)
+            .repeatForever(autoreverses: true)
+            .delay(durationOffset)
     }
 }
 

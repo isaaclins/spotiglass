@@ -78,6 +78,35 @@ final class BrowserChromeViewsTests: XCTestCase {
     /// The icon sits in every playing row, so it must hold still for someone who
     /// asked the system for less motion (#118). Drives the playback and the
     /// Reduce Motion change on a live host, since both decide the frozen state.
+    /// The motion policy is asserted directly, because whether a hosted view
+    /// actually animates depends on the machine's Reduce Motion setting, which a
+    /// test cannot write and CI does not guarantee (#118).
+    func testPlayingWaveformIconMotionPolicy() {
+        XCTAssertTrue(PlayingWaveformIcon.shouldAnimate(isPlaying: true, reduceMotion: false))
+        XCTAssertFalse(PlayingWaveformIcon.shouldAnimate(isPlaying: true, reduceMotion: true))
+        XCTAssertFalse(PlayingWaveformIcon.shouldAnimate(isPlaying: false, reduceMotion: false))
+        XCTAssertFalse(PlayingWaveformIcon.shouldAnimate(isPlaying: false, reduceMotion: true))
+
+        // Animating: each bar targets a different extreme, so the wave is staggered.
+        let animatedScales = (0..<3).map {
+            PlayingWaveformIcon.barScale(index: $0, baseFraction: 0.5, isAnimating: true)
+        }
+        XCTAssertEqual(Set(animatedScales).count, 3)
+
+        // Frozen: bars hold fixed mid-heights, so a paused row still reads as a waveform.
+        let frozen = PlayingWaveformIcon.barScale(index: 0, baseFraction: 0.5, isAnimating: false)
+        XCTAssertEqual(frozen, 0.55 / 0.5, accuracy: 0.0001)
+        XCTAssertNotEqual(frozen, animatedScales[0])
+
+        XCTAssertNotNil(
+            PlayingWaveformIcon.barAnimation(isAnimating: true, durationScale: 1, durationOffset: 0)
+        )
+        XCTAssertEqual(
+            PlayingWaveformIcon.barAnimation(isAnimating: false, durationScale: 1, durationOffset: 0),
+            .default
+        )
+    }
+
     func testPlayingWaveformIconFollowsPlaybackChanges() throws {
         let driver = WaveformMotionDriver(isPlaying: false)
         let view = WaveformMotionDriverView(driver: driver)
