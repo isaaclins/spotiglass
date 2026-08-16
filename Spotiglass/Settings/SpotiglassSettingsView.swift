@@ -124,14 +124,10 @@ struct SpotiglassSettingsView: View {
 
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
-            searchField
-                .padding(.horizontal, 12)
-                .padding(.top, 12)
-                .padding(.bottom, 8)
-
             if showsProfileChip {
                 profileChip
                     .padding(.horizontal, 12)
+                    .padding(.top, 12)
                     .padding(.bottom, 10)
             }
 
@@ -140,17 +136,23 @@ struct SpotiglassSettingsView: View {
             } else {
                 List(selection: $section) {
                     ForEach(navigationSections) { sec in
-                        SettingsSidebarRow(section: sec, isSelected: section == sec)
+                        SettingsSidebarRow(section: sec)
                             .tag(sec)
-                            .listRowInsets(EdgeInsets(top: 2, leading: 4, bottom: 2, trailing: 4))
                             .listRowSeparator(.hidden)
                     }
                 }
                 .listStyle(.sidebar)
-                .scrollContentBackground(.hidden)
             }
         }
-        .background(.regularMaterial)
+        // The search field, the row highlight and the window background all come
+        // from the system here. A settings window is opaque on this platform, and
+        // `List` already de-emphasizes its selection when the window is not key,
+        // which a hand-painted highlight cannot do (#174, #175, #176).
+        .searchable(
+            text: $searchText,
+            placement: .sidebar,
+            prompt: Text(SpotiglassL10n.string("settings.search.placeholder"))
+        )
         // Keep a valid pane selected as the search narrows results (#52): if the
         // active section is filtered out, jump to the first remaining match. When
         // nothing matches, keep the current selection so clearing the search lands
@@ -174,21 +176,6 @@ struct SpotiglassSettingsView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.horizontal, 16)
-    }
-
-    private var searchField: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
-            TextField(SpotiglassL10n.string("settings.section.account"), text: $searchText, prompt: Text("Search"))
-                .textFieldStyle(.plain)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(.quaternary.opacity(0.6))
-        )
     }
 
     private var profileChip: some View {
@@ -303,7 +290,6 @@ private struct SettingsPaneContainer<Content: View>: View {
 /// icon tile, the section title, and an optional pill badge on the right.
 private struct SettingsSidebarRow: View {
     let section: SpotiglassSettingsSection
-    let isSelected: Bool
 
     var body: some View {
         HStack(spacing: 10) {
@@ -333,17 +319,6 @@ private struct SettingsSidebarRow: View {
                     .foregroundStyle(section.iconAccent)
             }
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(
-                    isSelected
-                        ? AnyShapeStyle(SpotiglassAccentStyle().opacity(0.16))
-                        : AnyShapeStyle(.clear)
-                )
-        )
-        .contentShape(Rectangle())
     }
 
     /// Short status badge shown on the right of a sidebar row. Only the
