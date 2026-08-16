@@ -178,7 +178,26 @@ struct SpotiglassSettingsView: View {
         .padding(.horizontal, 16)
     }
 
+    /// Account is deliberately kept out of the navigation list, so this chip is
+    /// its only direct entry point. It has to be a real button, or the pane that
+    /// holds sign-out and the client ID is unreachable without a mouse and reads
+    /// as two unrelated strings to VoiceOver (#120, #125).
     private var profileChip: some View {
+        Button {
+            section = .account
+        } label: {
+            profileChipLabel
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            "\(SpotiglassL10n.string("settings.account.maintainer"))"
+                + SpotiglassL10n.string("common.comma")
+                + SpotiglassL10n.string("settings.account.section")
+        )
+    }
+
+    private var profileChipLabel: some View {
         HStack(spacing: 10) {
             Image(systemName: "person.crop.circle.fill")
                 .resizable()
@@ -200,7 +219,8 @@ struct SpotiglassSettingsView: View {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(.quaternary.opacity(0.35))
         )
-        .onTapGesture { section = .account }
+        // Ahead of the button wrapper, so the whole padded chip is the hit area
+        // rather than just the text and glyph.
         .contentShape(Rectangle())
     }
 
