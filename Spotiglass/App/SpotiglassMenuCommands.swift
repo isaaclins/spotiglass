@@ -143,6 +143,37 @@ struct SpotiglassMenuCommands: Commands {
             .keyboardShortcut(keymapShortcut(for: CommandPaletteCommandID.connectPlayback))
             .disabled(!isSignedIn)
         }
+
+        // The default Help menu ships an item that leads nowhere: the bundle
+        // declares no CFBundleHelpBookName, so choosing it does nothing at all,
+        // not even the "help isn't available" sheet the name implies.
+        //
+        // The "Send Spotiglass Feedback to Apple" item above these is inserted
+        // by the system, not by this app, and replacing the group does not
+        // remove it. It is present in Safari, TextEdit and Finder on this OS
+        // too, so it is not ours to take out. The shape that leaves is the one
+        // Safari has: feedback, the app's own help, then an extra item (#177).
+        CommandGroup(replacing: .help) {
+            Button(SpotiglassL10n.string("menu.help.spotiglassHelp")) {
+                Self.open(Self.readmeURL)
+            }
+            .keyboardShortcut("?", modifiers: .command)
+
+            Divider()
+
+            Button(SpotiglassL10n.string("menu.help.reportIssue")) {
+                Self.open(Self.newIssueURL)
+            }
+        }
+    }
+
+    /// The README is the only real documentation this project has, so it is what
+    /// Help points at rather than a help book that does not exist.
+    static let readmeURL = URL(string: "https://github.com/isaaclins/spotiglass#readme")!
+    static let newIssueURL = URL(string: "https://github.com/isaaclins/spotiglass/issues/new")!
+
+    private static func open(_ url: URL) {
+        NSWorkspace.shared.open(url)
     }
 
     private var queueItemTitle: String {
