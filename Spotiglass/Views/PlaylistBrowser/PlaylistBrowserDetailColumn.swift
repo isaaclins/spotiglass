@@ -70,7 +70,7 @@ struct PlaylistBrowserMainDetailColumn: View {
         VStack(spacing: 0) {
             switch viewModel.detailState {
             case .loading:
-                ProgressView("Loading…")
+                ProgressView(SpotiglassL10n.string("browser.loadingDetail"))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             case let .loaded(content), let .refreshing(content), let .staleCache(content, _):
                 Group {

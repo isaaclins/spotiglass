@@ -43,7 +43,7 @@ extension PlaylistBrowserViewModel {
 
     private func setLikedSongsDetailState(from tracks: [SpotifyPlaylistTrackItem]) async {
         if tracks.isEmpty {
-            detailState = .empty("You have no liked songs yet.")
+            detailState = .empty(SpotiglassL10n.string("browser.empty.noLikedSongs"))
             return
         }
         let profile = try? await api.currentUserProfile()
@@ -89,7 +89,7 @@ extension PlaylistBrowserViewModel {
                 artworkURL: firstLikedSongsArtwork(from: result.tracks)
             )
             if result.tracks.isEmpty {
-                detailState = .empty("You have no liked songs yet.")
+                detailState = .empty(SpotiglassL10n.string("browser.empty.noLikedSongs"))
             } else {
                 detailState = .loaded(.playlist(PlaylistDetailViewModel(playlist: row, tracks: TrackRowViewModel.numberedPlaylistRows(result.tracks))))
             }

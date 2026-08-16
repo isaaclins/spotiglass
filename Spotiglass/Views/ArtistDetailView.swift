@@ -95,8 +95,18 @@ struct ArtistDetailContent: View {
                     .lineLimit(2)
 
                 if let followers = detail.artist.followersTotal {
-                    Text(NumberFormatter.localizedString(from: NSNumber(value: followers), number: .decimal) + " followers")
-                        .foregroundStyle(.secondary)
+                    // The count was localized and then had an English noun glued
+                    // on with +, which also froze the word order (#152).
+                    Text(
+                        SpotiglassL10n.format(
+                            "browser.artist.followers",
+                            NumberFormatter.localizedString(
+                                from: NSNumber(value: followers),
+                                number: .decimal
+                            )
+                        )
+                    )
+                    .foregroundStyle(.secondary)
                 }
 
                 if !detail.artist.genres.isEmpty {

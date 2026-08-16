@@ -24,14 +24,22 @@ set -o pipefail
 
 CATALOG="Spotiglass/Localizable.xcstrings"
 ORPHAN_ALLOWLIST="scripts/localization-orphans.allowlist"
+# Every app source directory. This used to list eight, which silently excluded
+# Services (where the whole Spotify error vocabulary lives), Domain, Utilities,
+# Persistence and Infrastructure, so leaks there could never be reported (#155).
 SOURCE_DIRS=(
   "Spotiglass/App"
   "Spotiglass/Auth"
   "Spotiglass/Browsing"
   "Spotiglass/CommandPalette"
+  "Spotiglass/Domain"
+  "Spotiglass/Infrastructure"
+  "Spotiglass/Persistence"
   "Spotiglass/Pinning"
   "Spotiglass/Playback"
+  "Spotiglass/Services"
   "Spotiglass/Settings"
+  "Spotiglass/Utilities"
   "Spotiglass/Views"
 )
 
@@ -65,10 +73,16 @@ sharp_s_count=0
 #   - Test files (separate target)
 #   - The brand name "Spotiglass" by itself (a constant the brand policy keeps
 #     identical across locales — but ANY wrapper text around it is checked).
-PATTERN='(\bText|\bLabel|\bButton|\bPicker|\bToggle|\bSection|\bTextField|\bLabeledContent|\bnavigationTitle|\.help|\.accessibilityLabel|\.accessibilityHint|toolTip\s*=|CommandMenu|\.searchable\(prompt:|\.confirmationDialog|\.alert|accessibilityDescription:\s*)\(?\s*"[A-Za-z][^"]*"'
+# `ProgressView` and the state payloads `.empty(` / `.failed(` are included
+# because each hid a real leak: an English "Loading…" spinner and thirteen
+# hardcoded empty-state sentences (#153, #150).
+PATTERN='(\bText|\bLabel|\bButton|\bPicker|\bToggle|\bSection|\bTextField|\bLabeledContent|\bProgressView|\bnavigationTitle|\.help|\.accessibilityLabel|\.accessibilityHint|\.empty|\.failed|toolTip\s*=|CommandMenu|\.searchable\(prompt:|\.confirmationDialog|\.alert|accessibilityDescription:\s*)\(?\s*"[A-Za-z][^"]*"'
 
+# `-o` prints only the matched literal, not the whole line. Filtering whole
+# lines used to discard any leak that merely shared a line with a legitimate
+# lookup, which is how a hardcoded search placeholder slipped through (#155).
 leak_hits=$(
-  rg --line-number --no-heading -e "$PATTERN" \
+  rg --line-number --no-heading -o -e "$PATTERN" \
      -g '!*Preview*' -g '!*Tests*' "${SOURCE_DIRS[@]}" 2>/dev/null \
   | rg -v 'SpotiglassL10n' \
   | rg -v 'systemName:\s*"' \

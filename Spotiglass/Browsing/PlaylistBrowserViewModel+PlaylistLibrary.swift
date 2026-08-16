@@ -38,8 +38,8 @@ extension PlaylistBrowserViewModel {
             if playlists.isEmpty {
                 playlistsByID = [:]
                 sidebarSelection = nil
-                playlistState = .empty("Your Spotify library has no playlists yet.")
-                detailState = .empty("Create or follow a playlist in Spotify, then refresh.")
+                playlistState = .empty(SpotiglassL10n.string("browser.empty.noPlaylists"))
+                detailState = .empty(SpotiglassL10n.string("browser.empty.noPlaylistsHint"))
                 return
             }
             let selectionBefore = sidebarSelection
