@@ -145,6 +145,7 @@
 		E60000000000000000000015 /* PlaylistBrowserView+TapTargets.swift in Sources */ = {isa = PBXBuildFile; fileRef = E60000000000000000000065 /* PlaylistBrowserView+TapTargets.swift */; };
 		E60000000000000000000016 /* PlaylistBrowserView+CommandPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = E60000000000000000000066 /* PlaylistBrowserView+CommandPalette.swift */; };
 		EFT000000000000000000001 /* EqualizerForwardingTargetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFT000000000000000000002 /* EqualizerForwardingTargetTests.swift */; };
+		EQR000000000000000000001 /* EqualizerSettingsRowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EQR000000000000000000002 /* EqualizerSettingsRowTests.swift */; };
 		F60000000000000000000001 /* SpotiglassDesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60000000000000000000011 /* SpotiglassDesignSystem.swift */; };
 		F60000000000000000000002 /* SpotiglassComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60000000000000000000012 /* SpotiglassComponents.swift */; };
 		SRC000000000000000000001E /* MediaBadges.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC000000000000000008001E /* MediaBadges.swift */; };
@@ -500,6 +501,7 @@
 		E60000000000000000000065 /* PlaylistBrowserView+TapTargets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlaylistBrowserView+TapTargets.swift"; sourceTree = "<group>"; };
 		E60000000000000000000066 /* PlaylistBrowserView+CommandPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlaylistBrowserView+CommandPalette.swift"; sourceTree = "<group>"; };
 		EFT000000000000000000002 /* EqualizerForwardingTargetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EqualizerForwardingTargetTests.swift; sourceTree = "<group>"; };
+		EQR000000000000000000002 /* EqualizerSettingsRowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EqualizerSettingsRowTests.swift; sourceTree = "<group>"; };
 		F60000000000000000000011 /* SpotiglassDesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotiglassDesignSystem.swift; sourceTree = "<group>"; };
 		F60000000000000000000012 /* SpotiglassComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotiglassComponents.swift; sourceTree = "<group>"; };
 		SRC000000000000000008001E /* MediaBadges.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaBadges.swift; sourceTree = "<group>"; };
@@ -896,6 +898,7 @@
 				TST0000000000000000010122 /* EqualizerABRMSTests.swift */,
 				TST0000000000000000010121 /* EqualizerHALPluginTests.swift */,
 				EFT000000000000000000002 /* EqualizerForwardingTargetTests.swift */,
+				EQR000000000000000000002 /* EqualizerSettingsRowTests.swift */,
 				TST000000000000000001011C /* EQCoefficientPublisherTests.swift */,
 				TST000000000000000001011A /* EqualizerCoefficientTests.swift */,
 				TST0000000000000000010119 /* EqualizerPresetsTests.swift */,
@@ -1598,6 +1601,7 @@
 				TST0000000000000000000122 /* EqualizerABRMSTests.swift in Sources */,
 				TST0000000000000000000121 /* EqualizerHALPluginTests.swift in Sources */,
 				EFT000000000000000000001 /* EqualizerForwardingTargetTests.swift in Sources */,
+				EQR000000000000000000001 /* EqualizerSettingsRowTests.swift in Sources */,
 				TST000000000000000000011C /* EQCoefficientPublisherTests.swift in Sources */,
 				TST000000000000000000011A /* EqualizerCoefficientTests.swift in Sources */,
 				TST0000000000000000000119 /* EqualizerPresetsTests.swift in Sources */,
