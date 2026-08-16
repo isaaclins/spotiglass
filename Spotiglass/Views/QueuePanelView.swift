@@ -6,6 +6,11 @@ struct QueuePanelView: View {
     @ObservedObject var playbackViewModel: PlaybackSessionViewModel
     let openArtist: (ArtistTapTarget) -> Void
 
+    /// Drives the list's own selection, which is what makes the rows reachable
+    /// with the arrow keys and gives them a de-emphasized highlight when the
+    /// panel is not focused. Return plays whatever is selected (#123).
+    @State private var selectedItemID: QueueItem.ID?
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
@@ -17,13 +22,7 @@ struct QueuePanelView: View {
                     )
             }
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: SpotiglassDesign.spacingM) {
-                    nowPlayingSection
-                    upNextSection
-                }
-                .padding(SpotiglassDesign.spacingM)
-            }
+            queueList
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(.background)
@@ -100,12 +99,29 @@ struct QueuePanelView: View {
         .padding(.horizontal, SpotiglassDesign.spacingM)
     }
 
+    /// One list owns the whole queue, so it also owns the scrolling. The panel
+    /// used to be a `ScrollView` wrapping plain stacks, which meant the rows had
+    /// no selection, no keyboard traversal and no row semantics for VoiceOver
+    /// (#112, #123).
+    private var queueList: some View {
+        List(selection: $selectedItemID) {
+            nowPlayingSection
+            upNextSection
+        }
+        .listStyle(.inset)
+        .onKeyPress(.return) {
+            guard let selectedItemID,
+                let item = queueViewModel.upcomingItems.first(where: { $0.id == selectedItemID })
+                    ?? queueViewModel.nowPlayingItem.flatMap({ $0.id == selectedItemID ? $0 : nil })
+            else { return .ignored }
+            Task { await queueViewModel.playItem(item) }
+            return .handled
+        }
+    }
+
     @ViewBuilder
     private var nowPlayingSection: some View {
-        VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
-            Text(SpotiglassL10n.string("queue.nowPlaying"))
-                .font(.headline)
-
+        Section(SpotiglassL10n.string("queue.nowPlaying")) {
             ZStack {
                 if let item = queueViewModel.nowPlayingItem {
                     QueueRowView(
@@ -119,6 +135,7 @@ struct QueuePanelView: View {
                         onCopyURI: { copyURI(item.uri) }
                     )
                     .id("now-playing-row:\(item.id)")
+                    .tag(item.id)
                     .transition(.opacity.combined(with: .scale(scale: 0.98)))
                 } else {
                     Text(SpotiglassL10n.string("queue.nothingPlaying"))
@@ -136,10 +153,7 @@ struct QueuePanelView: View {
 
     @ViewBuilder
     private var upNextSection: some View {
-        VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
-            Text(SpotiglassL10n.string("queue.upNext"))
-                .font(.headline)
-
+        Section(SpotiglassL10n.string("queue.upNext")) {
             if queueViewModel.upcomingItems.isEmpty {
                 Text(upNextEmptyMessage)
                     .font(.subheadline)
@@ -149,25 +163,24 @@ struct QueuePanelView: View {
                     .background(.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous))
                     .transition(.opacity)
             } else {
-                VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
-                    ForEach(queueViewModel.upcomingItems) { item in
-                        QueueRowView(
-                            item: item,
-                            isCurrent: false,
-                            isPlaying: false,
-                            onSelect: {
-                                Task { await queueViewModel.playItem(item) }
-                            },
-                            openArtist: openArtist,
-                            onCopyURI: { copyURI(item.uri) }
+                ForEach(queueViewModel.upcomingItems) { item in
+                    QueueRowView(
+                        item: item,
+                        isCurrent: false,
+                        isPlaying: false,
+                        onSelect: {
+                            Task { await queueViewModel.playItem(item) }
+                        },
+                        openArtist: openArtist,
+                        onCopyURI: { copyURI(item.uri) }
+                    )
+                    .tag(item.id)
+                    .transition(
+                        .asymmetric(
+                            insertion: .opacity.combined(with: .move(edge: .top)),
+                            removal: .opacity.combined(with: .scale(scale: 0.96))
                         )
-                        .transition(
-                            .asymmetric(
-                                insertion: .opacity.combined(with: .move(edge: .top)),
-                                removal: .opacity.combined(with: .scale(scale: 0.96))
-                            )
-                        )
-                    }
+                    )
                 }
             }
         }
@@ -219,10 +232,12 @@ private struct QueueRowView: View {
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
         }
-        .padding(SpotiglassDesign.spacingS)
+        .padding(.vertical, SpotiglassDesign.spacingXS)
         .background(rowBackground, in: RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous))
         .contentShape(Rectangle())
-        .onTapGesture(perform: onSelect)
+        // Single click selects, the way a Mac list row does; playing is the
+        // double click, Return on the selection, or the VoiceOver action below.
+        .onTapGesture(count: 2, perform: onSelect)
         .contextMenu {
             Button(SpotiglassL10n.string("queue.playNow"), action: onSelect)
             if item.uri != nil {
@@ -233,6 +248,11 @@ private struct QueueRowView: View {
         .accessibilityLabel(
             String(format: SpotiglassL10n.string("queue.item.accessibility"), item.name, item.subtitle)
         )
+        // The row announces its length and offers the play action directly, so a
+        // VoiceOver user does not have to find the context menu to start a track.
+        .accessibilityValue(item.durationLabel)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction(named: Text(SpotiglassL10n.string("queue.playNow")), onSelect)
     }
 
     @ViewBuilder
@@ -269,7 +289,10 @@ private struct QueueRowView: View {
         }
     }
 
+    /// Only the currently playing row paints a background. Every other row now
+    /// takes its highlight from the list's own selection, which also means it
+    /// de-emphasizes when the panel is not the focused control.
     private var rowBackground: Color {
-        isCurrent ? Color.primary.opacity(0.10) : Color.primary.opacity(0.04)
+        isCurrent ? Color.primary.opacity(0.10) : Color.clear
     }
 }
