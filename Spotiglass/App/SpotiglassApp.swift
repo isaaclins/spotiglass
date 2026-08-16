@@ -119,7 +119,14 @@ struct SpotiglassApp: App {
                 Button(SpotiglassL10n.string("app.menu.openPalette")) {
                     commandPaletteManager.execute(commandID: CommandPaletteCommandID.openPalette)
                 }
-                .keyboardShortcut("k", modifiers: [.command])
+                // Derived from the keymap like every other menu item, so a
+                // rebind moves the chord instead of leaving Command-K alive as
+                // a second, undisclosed trigger (#131).
+                .keyboardShortcut(
+                    commandPaletteManager.keymapStore.menuShortcut(
+                        for: CommandPaletteCommandID.openPalette
+                    )
+                )
             }
 
             SpotiglassMenuCommands(

@@ -53,6 +53,12 @@ final class CommandPaletteKeymapStore: ObservableObject {
             return
         }
         var list = try decodedBindingsFromEditor()
+        // Menu-owned chords are checked first: the key monitor consumes a match
+        // before AppKit reaches the menu, so this binding would silently kill a
+        // menu item that still shows the chord (#129).
+        if let menuItem = CommandPaletteReservedShortcuts.reservingMenuItem(for: shortcut) {
+            throw KeymapConflictError.reservedByMenuItem(menuItemTitle: menuItem)
+        }
         if let other = Self.conflictingCommandID(
             for: shortcut,
             excludingCommand: commandID,

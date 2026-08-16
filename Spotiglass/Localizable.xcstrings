@@ -4955,6 +4955,52 @@
         }
       }
     },
+    "keymap.conflict.command": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That shortcut is already assigned to “%@”."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieses Tastaturkürzel ist bereits „%@“ zugewiesen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ese atajo ya está asignado a «%@»."
+          }
+        }
+      }
+    },
+    "keymap.conflict.menuItem": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That shortcut belongs to the “%@” menu item."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieses Tastaturkürzel gehört zum Menübefehl „%@“."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ese atajo pertenece al elemento de menú «%@»."
+          }
+        }
+      }
+    },
     "lyrics.error.decode": {
       "extractionState": "stale",
       "localizations": {

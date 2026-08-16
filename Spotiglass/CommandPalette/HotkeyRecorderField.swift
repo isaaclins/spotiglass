@@ -93,6 +93,14 @@ struct HotkeyRecorderField: NSViewRepresentable {
                 return
             }
             let mods = event.modifierFlags.intersection([.command, .control, .option, .shift])
+            // Plain Tab leaves the field. Recording swallows every other key, so
+            // without this the control is a focus trap: Tab would be assigned to
+            // the command rather than moving on (#128).
+            if event.keyCode == 48, mods.subtracting(.shift).isEmpty {
+                view.cancelRecording()
+                view.moveFocus(backwards: mods.contains(.shift))
+                return
+            }
             if (event.keyCode == 51 || event.keyCode == 117), mods.isEmpty {
                 do {
                     try parent.keymapStore.clearBinding(commandID: parent.commandID)
@@ -159,21 +167,43 @@ final class RecorderKeyContainerView: NSView {
 
     @objc private func clicked() {
         _ = window?.makeFirstResponder(self)
+        beginRecordingFromUser()
     }
 
     override func mouseDown(with event: NSEvent) {
         super.mouseDown(with: event)
         _ = window?.makeFirstResponder(self)
+        beginRecordingFromUser()
     }
 
+    // Focus alone does not record. Arriving here by Tab used to start capture,
+    // so a keyboard user could not pass through the field without binding a key
+    // to the command (#128). Recording starts on a click or on Space/Return,
+    // which is how a control this destructive should be armed.
     override func becomeFirstResponder() -> Bool {
         let ok = super.becomeFirstResponder()
         if ok {
-            isRecording = true
-            updateLiveModifierChips(NSEvent.modifierFlags)
-            coordinator?.recordingBegan(in: self)
+            syncFromStore()
         }
         return ok
+    }
+
+    /// Hands focus to the next (or previous) control, so Tab behaves the way it
+    /// does everywhere else in the window.
+    func moveFocus(backwards: Bool) {
+        guard let window else { return }
+        if backwards {
+            window.selectPreviousKeyView(self)
+        } else {
+            window.selectNextKeyView(self)
+        }
+    }
+
+    private func beginRecordingFromUser() {
+        guard !isRecording else { return }
+        isRecording = true
+        updateLiveModifierChips(NSEvent.modifierFlags)
+        coordinator?.recordingBegan(in: self)
     }
 
     override func resignFirstResponder() -> Bool {
@@ -220,9 +250,17 @@ final class RecorderKeyContainerView: NSView {
     override func keyDown(with event: NSEvent) {
         if isRecording {
             coordinator?.handleKeyDown(event, in: self)
-        } else {
-            super.keyDown(with: event)
+            return
         }
+        // Focused but not recording: Space or Return arms the field, the way
+        // Space activates a focused button. Everything else, Tab included, is
+        // left to AppKit so focus can move on.
+        let mods = event.modifierFlags.intersection([.command, .control, .option, .shift])
+        if mods.isEmpty, event.keyCode == 49 || event.keyCode == 36 || event.keyCode == 76 {
+            beginRecordingFromUser()
+            return
+        }
+        super.keyDown(with: event)
     }
 
     func updateLiveModifierChips(_ flags: NSEvent.ModifierFlags) {
