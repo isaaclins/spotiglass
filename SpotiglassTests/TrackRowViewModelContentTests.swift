@@ -88,7 +88,24 @@ final class TrackRowViewModelContentTests: XCTestCase {
         )
         XCTAssertEqual(missing.title, "Unavailable item")
         XCTAssertEqual(missing.subtitle, "Region locked")
-        XCTAssertEqual(missing.durationText, "--:--")
+        // The placeholder comes from the catalog now, not a literal (#159).
+        XCTAssertEqual(missing.durationText, SpotiglassL10n.string("browser.duration.unknown"))
+        XCTAssertEqual(missing.durationMilliseconds, 0)
+    }
+
+    /// The length used to be recovered by splitting its own display text, which
+    /// breaks as soon as a locale presents it differently (#159).
+    func testDurationIsCarriedAsANumberNotReparsedFromText() {
+        let row = TrackRowViewModel(PlaylistBrowsingTestFixtures.track(id: "t"), listPosition: 1)
+        XCTAssertEqual(row.durationMilliseconds, 180_000)
+        XCTAssertEqual(row.durationText, TrackDuration.text(milliseconds: 180_000))
+
+        // The shared formatter agrees with the playback model's entry point.
+        XCTAssertEqual(
+            PlaybackNowPlaying.durationText(milliseconds: 180_000),
+            TrackDuration.text(milliseconds: 180_000)
+        )
+        XCTAssertEqual(TrackDuration.text(milliseconds: -5), TrackDuration.text(seconds: 0))
     }
 
     func testNumberedFactoriesPreserveOrder() {
