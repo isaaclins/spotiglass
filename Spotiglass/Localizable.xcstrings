@@ -11033,19 +11033,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bandverstärkung"
+            "value": "Verstärkung Band %@"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Band gain"
+            "value": "%@ band gain"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ganancia de banda"
+            "value": "Ganancia de la banda %@"
           }
         }
       }
@@ -11506,6 +11506,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "Dispositivo de salida"
+          }
+        }
+      }
+    },
+    "settings.eq.target.unavailable": {
+      "extractionState": "stale",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saved device (not connected)"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gespeichertes Gerät (nicht verbunden)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dispositivo guardado (no conectado)"
           }
         }
       }

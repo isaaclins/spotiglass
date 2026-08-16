@@ -101,6 +101,11 @@ struct EqualizerSettingsView: View {
         let devices = engine.availableForwardingTargets()
         // Titled Picker rather than a hand-built HStack, so the label sits in the
         // Form's shared leading column and the control aligns with its siblings.
+        // A saved device that is not currently connected matches no tag, and
+        // SwiftUI then draws the popup with no label at all. Offering the saved
+        // UID as an explicit entry keeps the row readable and keeps the choice,
+        // instead of silently reverting to System default (#166).
+        let unavailableSavedUID = unavailableSavedForwardingUID(equalizer: equalizer, devices: devices)
         return Picker(
             SpotiglassL10n.string("settings.eq.target.label"),
             selection: forwardingTargetBinding
@@ -109,8 +114,43 @@ struct EqualizerSettingsView: View {
             ForEach(devices, id: \.id) { device in
                 Text(device.name).tag(Optional(device.uid))
             }
+            if let unavailableSavedUID {
+                Text(SpotiglassL10n.string("settings.eq.target.unavailable"))
+                    .tag(Optional(unavailableSavedUID))
+            }
         }
         .help(activeForwardingDeviceName(equalizer: equalizer, devices: devices) ?? "")
+    }
+
+    /// A band named in full with its unit, e.g. "32 Hz" or "1 kHz", for the
+    /// fader's accessibility label. The visible caption stays compact so ten
+    /// columns still fit across the pane.
+    static func spokenFrequency(hz: Double) -> String {
+        if hz >= 1000 {
+            return String(format: "%.0f kHz", hz / 1000)
+        }
+        return String(format: "%.0f Hz", hz)
+    }
+
+    /// The saved forwarding target when it is not among the connected devices.
+    ///
+    /// Static so the rule can be asserted without building the view.
+    static func unavailableSavedForwardingUID(
+        savedUID: String?,
+        deviceUIDs: [String]
+    ) -> String? {
+        guard let savedUID, !savedUID.isEmpty else { return nil }
+        return deviceUIDs.contains(savedUID) ? nil : savedUID
+    }
+
+    private func unavailableSavedForwardingUID(
+        equalizer: EqualizerSettings,
+        devices: [AudioDeviceEnumerator.Device]
+    ) -> String? {
+        Self.unavailableSavedForwardingUID(
+            savedUID: equalizer.forwardingTargetUID,
+            deviceUIDs: devices.map(\.uid)
+        )
     }
 
     private func activeForwardingDeviceName(
@@ -393,13 +433,17 @@ private struct EqualizerBandColumn: View {
 
     var body: some View {
         VStack(spacing: SpotiglassDesign.spacingXS) {
+            // The font is a relative text style, so a fixed 14 point box clipped
+            // the readout as soon as the system text size grew (#143).
             Text(formattedGain)
                 .font(.system(.caption2, design: .monospaced))
                 .foregroundStyle(gain == 0 ? .secondary : .primary)
-                .frame(height: 14)
+                .fixedSize()
+                .frame(minHeight: 14)
 
-            CenterOriginGainFader(value: $gain)
-                .frame(width: 28, height: 200)
+            // The fader sizes itself; pinning it again here meant two places had
+            // to be kept in agreement.
+            CenterOriginGainFader(value: $gain, bandLabel: spokenFrequency)
 
             Text(formattedFrequency)
                 .font(.caption2)
@@ -423,6 +467,13 @@ private struct EqualizerBandColumn: View {
         }
         return String(format: "%.0f", frequencyHz)
     }
+
+    /// The band named in full, with its unit. The visible caption stays compact
+    /// so ten columns still fit, but every fader used to announce the identical
+    /// "Band gain", which made the set unusable by ear (#115).
+    private var spokenFrequency: String {
+        EqualizerSettingsView.spokenFrequency(hz: frequencyHz)
+    }
 }
 
 /// Vertical band fader whose fill grows from a centered 0 dB reference line —
@@ -431,6 +482,8 @@ private struct EqualizerBandColumn: View {
 /// bottom and rendered a redundant "Band gain" caption ten times.
 private struct CenterOriginGainFader: View {
     @Binding var value: Double
+    /// The band this fader belongs to, named with its unit, e.g. "1 kHz".
+    let bandLabel: String
 
     private let range = EqualizerSettings.gainRangeDB
     private let step = 0.5
@@ -491,7 +544,7 @@ private struct CenterOriginGainFader: View {
         }
         .frame(width: 28, height: 200)
         .accessibilityElement()
-        .accessibilityLabel(Text(SpotiglassL10n.string("settings.eq.bandGain.accessibility")))
+        .accessibilityLabel(Text(SpotiglassL10n.format("settings.eq.bandGain.accessibility", bandLabel)))
         .accessibilityValue(Text(String(format: "%.1f dB", value)))
         .accessibilityAdjustableAction { direction in
             switch direction {
