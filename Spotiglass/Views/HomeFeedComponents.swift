@@ -49,20 +49,10 @@ struct HomeQuickAccessTile: View {
     private var artwork: some View {
         switch card.destination {
         case .likedSongs:
-            RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [Color(red: 0.30, green: 0.20, blue: 0.85), Color(red: 0.45, green: 0.70, blue: 0.95)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .frame(width: 56, height: 56)
-                .overlay {
-                    Image(systemName: "heart.fill")
-                        .font(.title3)
-                        .foregroundStyle(.white)
-                }
+            // Was the only Liked Songs tile in the app painted from fixed sRGB
+            // values, so it ignored light mode, the accent color and increased
+            // contrast while the sidebar and header versions honored all three.
+            LikedSongsArtwork(size: 56, isEmphasized: true)
         default:
             ArtworkView(url: card.artworkURL, size: 56)
         }

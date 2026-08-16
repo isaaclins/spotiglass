@@ -24,23 +24,7 @@ struct PlaylistListRow: View {
         HStack(spacing: SpotiglassDesign.spacingS) {
             Group {
                 if isLikedSongsRow {
-                    RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
-                        .fill(.secondary.opacity(0.16))
-                        .frame(width: artworkSize, height: artworkSize)
-                        .overlay {
-                            Image(systemName: isListSelected ? "heart.fill" : "heart")
-                                .font(.system(size: 20, weight: .semibold))
-                                .foregroundStyle(
-                                    isListSelected
-                                        ? AnyShapeStyle(SpotiglassAccentStyle())
-                                        : AnyShapeStyle(.secondary)
-                                )
-                                .symbolRenderingMode(.monochrome)
-                        }
-                        .overlay {
-                            RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
-                                .strokeBorder(SpotiglassDesign.artworkBorderColor(colorScheme: colorScheme), lineWidth: 1)
-                        }
+                    LikedSongsArtwork(size: artworkSize, isEmphasized: isListSelected)
                 } else {
                     ArtworkView(url: playlist.artworkURL, size: artworkSize)
                 }
@@ -59,16 +43,7 @@ struct PlaylistListRow: View {
             }
             .overlay(alignment: .topTrailing) {
                 if isPinned {
-                    Image(systemName: "pin.fill")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(SpotiglassDesign.mediaBadgeForegroundColor(colorScheme: colorScheme))
-                        .padding(3)
-                        .background(
-                            Circle().fill(SpotiglassDesign.mediaBadgeBackgroundColor(colorScheme: colorScheme))
-                        )
-                        .padding(2)
-                        .help(SpotiglassL10n.string("browser.pinned"))
-                        .accessibilityLabel(SpotiglassL10n.string("browser.pinned"))
+                    PinnedBadge(scale: .compact)
                 }
             }
 

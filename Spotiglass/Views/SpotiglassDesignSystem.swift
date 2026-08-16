@@ -107,6 +107,9 @@ enum SpotiglassDesign {
     static let spacingL: CGFloat = 24
     static let spacingXL: CGFloat = 36
 
+    /// Artwork size for the playlist, Liked Songs and artist detail headers.
+    /// One value so equivalent headers cannot drift apart (#145).
+    static let detailHeaderArtworkSize: CGFloat = 120
     static let cornerS: CGFloat = 8
     static let cornerM: CGFloat = 14
     static let cornerL: CGFloat = 22
@@ -169,6 +172,20 @@ enum SpotiglassDesign {
             return .black.opacity(0.55)
         default:
             return .black.opacity(0.48)
+        }
+    }
+
+    /// Unplayed portion of the scrubber. This used to be a fixed 35% neutral
+    /// gray, the only one in the view layer: very low contrast on the light-mode
+    /// control background, and blind to increased contrast, while the thumb
+    /// right next to it already branched on both.
+    static func scrubberTrackColor(colorScheme: ColorScheme, contrast: ColorSchemeContrast) -> Color {
+        let opacity: Double = contrast == .increased ? 0.55 : 0.30
+        switch colorScheme {
+        case .dark:
+            return .white.opacity(opacity)
+        default:
+            return .black.opacity(opacity)
         }
     }
 

@@ -81,20 +81,11 @@ struct ArtistDetailContent: View {
 
     private var header: some View {
         HStack(alignment: .center, spacing: SpotiglassDesign.spacingL) {
-            ArtworkView(url: detail.artist.imageURL, size: 120)
+            ArtworkView(url: detail.artist.imageURL, size: SpotiglassDesign.detailHeaderArtworkSize)
                 .clipShape(RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous))
                 .overlay(alignment: .topTrailing) {
                     if isArtistPinned {
-                        Image(systemName: "pin.fill")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(SpotiglassDesign.mediaBadgeForegroundColor(colorScheme: colorScheme))
-                            .padding(4)
-                            .background(
-                                Circle().fill(SpotiglassDesign.mediaBadgeBackgroundColor(colorScheme: colorScheme))
-                            )
-                            .padding(4)
-                            .help(SpotiglassL10n.string("browser.pinned"))
-                            .accessibilityLabel(SpotiglassL10n.string("browser.pinned"))
+                        PinnedBadge(scale: .prominent)
                     }
                 }
 
@@ -233,16 +224,7 @@ struct ArtistDetailContent: View {
                 .clipShape(RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous))
                 .overlay(alignment: .topTrailing) {
                     if showPinGlyph {
-                        Image(systemName: "pin.fill")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(SpotiglassDesign.mediaBadgeForegroundColor(colorScheme: colorScheme))
-                            .padding(4)
-                            .background(
-                                Circle().fill(SpotiglassDesign.mediaBadgeBackgroundColor(colorScheme: colorScheme))
-                            )
-                            .padding(4)
-                            .help(SpotiglassL10n.string("browser.pinned"))
-                            .accessibilityLabel(SpotiglassL10n.string("browser.pinned"))
+                        PinnedBadge(scale: .prominent)
                     }
                 }
 
