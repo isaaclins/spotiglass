@@ -95,6 +95,7 @@ struct PlaylistDetailContent: View {
                             openArtist: openArtist,
                             tracksSurfaceID: tracksSurfaceKey,
                             drawsRowHighlights: false,
+                            isKeyboardFocusable: false,
                             trackOpsMenuItems: {
                                 AnyView(TrackOpsMenuItems(
                                     rowID: track.id,

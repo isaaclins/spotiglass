@@ -2541,6 +2541,29 @@
         }
       }
     },
+    "browser.track.play": {
+      "extractionState": "stale",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abspielen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Play"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reproducir"
+          }
+        }
+      }
+    },
     "browser.trackBadge.episode": {
       "extractionState": "stale",
       "localizations": {
