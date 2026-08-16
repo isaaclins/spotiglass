@@ -75,6 +75,22 @@ final class BrowserChromeViewsTests: XCTestCase {
         XCTAssertNoThrow(try paused.inspect())
     }
 
+    /// The icon sits in every playing row, so it must hold still for someone who
+    /// asked the system for less motion (#118). Drives the playback and the
+    /// Reduce Motion change on a live host, since both decide the frozen state.
+    func testPlayingWaveformIconFollowsPlaybackChanges() throws {
+        let driver = WaveformMotionDriver(isPlaying: false)
+        let view = WaveformMotionDriverView(driver: driver)
+        ViewTestHost.host(view, size: CGSize(width: 48, height: 32))
+
+        driver.isPlaying = true
+        AppKitTestSupport.pumpRunLoop()
+        driver.isPlaying = false
+        AppKitTestSupport.pumpRunLoop()
+
+        XCTAssertNoThrow(try view.inspect())
+    }
+
     func testNavigationToolbarChromeHidesBackWhenCannotNavigate() async throws {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
@@ -88,5 +104,25 @@ final class BrowserChromeViewsTests: XCTestCase {
         ViewTestHost.host(chrome, size: CGSize(width: 480, height: 44))
         XCTAssertNoThrow(try chrome.inspect())
         XCTAssertFalse(viewModel.canNavigateBack)
+    }
+}
+
+/// Drives `PlayingWaveformIcon` through playback and Reduce Motion changes on a
+/// hosted view, so the icon keeps the same identity and its `onChange` handlers
+/// actually run.
+private final class WaveformMotionDriver: ObservableObject {
+    @Published var isPlaying: Bool
+
+    init(isPlaying: Bool) {
+        self.isPlaying = isPlaying
+    }
+}
+
+private struct WaveformMotionDriverView: View {
+    @ObservedObject var driver: WaveformMotionDriver
+
+    var body: some View {
+        PlayingWaveformIcon(isPlaying: driver.isPlaying)
+            .frame(width: 24, height: 16)
     }
 }
