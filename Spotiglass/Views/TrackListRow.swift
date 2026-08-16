@@ -1,5 +1,23 @@
 import SwiftUI
 
+/// Geometry every row that renders a track shares.
+///
+/// The playlist row and the queue row had drifted into two designs of the same
+/// thing: 40 against 44 point artwork, one against two title lines, different
+/// padding, and hover tints a hundredth of an alpha apart, which reads as a
+/// rendering bug rather than a state. The playlist row is the reference,
+/// because it is the one backed by a real Mac table (#140).
+enum TrackRowMetrics {
+    static let artworkSize: CGFloat = 40
+    static let verticalPadding: CGFloat = SpotiglassDesign.spacingXS
+    static let horizontalPadding: CGFloat = SpotiglassDesign.spacingXS
+    static let titleLineLimit: Int = 1
+    /// The row that is playing right now.
+    static let currentTintOpacity: Double = 0.10
+    /// Pointer feedback, only on surfaces that draw their own highlights.
+    static let hoverTintOpacity: Double = 0.05
+}
+
 struct TrackListRow: View {
     /// Width for `m:ss` / `mm:ss` monospaced durations so resize does not reflow every row’s trailing edge.
     private static let durationColumnWidth: CGFloat = 48
@@ -67,7 +85,7 @@ struct TrackListRow: View {
             leadingColumn
                 .frame(width: 40, alignment: .trailing)
 
-            ArtworkView(url: track.artworkURL, size: 40)
+            ArtworkView(url: track.artworkURL, size: TrackRowMetrics.artworkSize)
                 .overlay(alignment: .topTrailing) {
                     if showsPinnedBadge {
                         PinnedBadge(scale: .compact)
@@ -80,7 +98,7 @@ struct TrackListRow: View {
                     Text(track.title)
                         .font(.headline)
                         .foregroundStyle(track.isUnavailable ? .secondary : .primary)
-                        .lineLimit(1)
+                        .lineLimit(TrackRowMetrics.titleLineLimit)
 
                     if let badgeText = track.badgeText {
                         Text(badgeText)
@@ -102,8 +120,8 @@ struct TrackListRow: View {
                 .frame(width: Self.durationColumnWidth, alignment: .trailing)
                 .fixedSize(horizontal: true, vertical: false)
         }
-        .padding(.vertical, SpotiglassDesign.spacingXS)
-        .padding(.horizontal, SpotiglassDesign.spacingXS)
+        .padding(.vertical, TrackRowMetrics.verticalPadding)
+        .padding(.horizontal, TrackRowMetrics.horizontalPadding)
         .background(rowBackground)
         .contentShape(Rectangle())
         .onHover { hovering in
@@ -247,11 +265,11 @@ struct TrackListRow: View {
             ZStack {
                 if isCurrent {
                     RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
-                        .fill(Color.primary.opacity(0.10))
+                        .fill(Color.primary.opacity(TrackRowMetrics.currentTintOpacity))
                 }
                 if isHovering {
                     RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
-                        .fill(Color.primary.opacity(0.05))
+                        .fill(Color.primary.opacity(TrackRowMetrics.hoverTintOpacity))
                 }
             }
         }
