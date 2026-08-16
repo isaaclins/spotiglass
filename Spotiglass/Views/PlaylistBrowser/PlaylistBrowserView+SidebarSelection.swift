@@ -1,6 +1,11 @@
 import SwiftUI
 
 extension PlaylistBrowserView {
+    /// A cold launch can race the network, so the account lookup gets a few
+    /// tries before the sidebar admits defeat.
+    static let pinnedBindingAttempts = 3
+    static let pinnedBindingRetryDelaySeconds: Double = 2
+
     func handleSidebarSelectionChange(oldValue: SidebarSelection?, newValue: SidebarSelection?) {
         Task { @MainActor in
             switch PlaylistBrowserSidebarSelectionHandling.selectionChangeAction(
@@ -52,10 +57,29 @@ extension PlaylistBrowserView {
         )
     }
 
+    /// Binds the pinned store to the signed-in account, retrying a failed
+    /// profile lookup.
+    ///
+    /// This used to be a single `try?` in a `.task` that never re-ran, so one
+    /// failed profile call at launch left the pinned sidebar empty for the whole
+    /// session, with no error and no way back short of relaunching (#133).
     func bindPinnedStoreToCurrentUser() async {
-        let profile = try? await spotifySearchClient.currentUserProfile()
-        guard let userID = profile?.id else { return }
-        if pinnedStore.boundUserID == userID { return }
-        pinnedStore.bind(userID: userID)
+        for attempt in 0..<Self.pinnedBindingAttempts {
+            do {
+                let profile = try await spotifySearchClient.currentUserProfile()
+                guard let userID = profile.id as String? else { return }
+                if pinnedStore.boundUserID == userID { return }
+                pinnedStore.bind(userID: userID)
+                return
+            } catch {
+                SpotiglassLog.error(
+                    SpotiglassLog.pinning,
+                    "Current-user lookup failed (attempt \(attempt + 1)): \(error.localizedDescription)"
+                )
+                guard attempt + 1 < Self.pinnedBindingAttempts else { break }
+                try? await Task.sleep(for: .seconds(Self.pinnedBindingRetryDelaySeconds))
+            }
+        }
+        pinnedStore.reportBindingFailure()
     }
 }

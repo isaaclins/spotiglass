@@ -1390,6 +1390,52 @@
         }
       }
     },
+    "browser.artist.empty.message": {
+      "extractionState": "stale",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify hat für diesen Künstler weder Top-Titel noch Veröffentlichungen zurückgegeben."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify returned no top tracks and no releases for this artist."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify no devolvió canciones destacadas ni lanzamientos de este artista."
+          }
+        }
+      }
+    },
+    "browser.artist.empty.title": {
+      "extractionState": "stale",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Für diesen Künstler gibt es nichts anzuzeigen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing to show for this artist"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay nada que mostrar de este artista"
+          }
+        }
+      }
+    },
     "browser.artist.followers": {
       "extractionState": "stale",
       "localizations": {
@@ -2333,6 +2379,29 @@
         }
       }
     },
+    "browser.pinned.loadFailed": {
+      "extractionState": "stale",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ihre angehefteten Einträge konnten nicht geladen werden."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not load your pinned items."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudieron cargar tus elementos anclados."
+          }
+        }
+      }
+    },
     "browser.playPlaylist": {
       "extractionState": "manual",
       "localizations": {
@@ -2628,6 +2697,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "Actualizando listas..."
+          }
+        }
+      }
+    },
+    "browser.retry": {
+      "extractionState": "stale",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erneut versuchen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retry"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reintentar"
           }
         }
       }
@@ -9735,6 +9827,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "Canciones"
+          }
+        }
+      }
+    },
+    "search.empty.category": {
+      "extractionState": "stale",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Treffer in dieser Kategorie für Ihre Suche."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No results in this category for your search."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay resultados en esta categoría para tu búsqueda."
           }
         }
       }

@@ -5,6 +5,11 @@ struct PlaylistBrowserSidebar: View {
     @ObservedObject var playbackViewModel: PlaybackSessionViewModel
 
     let libraryRows: [LibrarySidebarRow]
+    /// Set when the account lookup behind the pinned list failed, so the empty
+    /// Library section can say so and offer a retry instead of looking like an
+    /// account with no pins (#133).
+    var pinnedBindingFailed: Bool = false
+    var retryPinnedBinding: (() -> Void)? = nil
 
     let likedSongsStubRow: PlaylistRowViewModel
     let playlistSummaryFromRow: (PlaylistRowViewModel) -> SpotifyPlaylistSummary
@@ -34,6 +39,19 @@ struct PlaylistBrowserSidebar: View {
                     }
                     .onMove { source, destination in
                         moveLibraryRows(source, destination)
+                    }
+                    if pinnedBindingFailed {
+                        HStack(spacing: SpotiglassDesign.spacingXS) {
+                            Text(SpotiglassL10n.string("browser.pinned.loadFailed"))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Spacer(minLength: 0)
+                            Button(SpotiglassL10n.string("browser.retry")) {
+                                retryPinnedBinding?()
+                            }
+                            .buttonStyle(.link)
+                            .font(.caption)
+                        }
                     }
                 } header: {
                     Text(SpotiglassL10n.string("browser.library"))

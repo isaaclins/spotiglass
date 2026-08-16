@@ -8,6 +8,11 @@ import Foundation
 @MainActor
 final class PinnedItemsStore: ObservableObject {
     @Published private(set) var items: [PinnedItem] = []
+    /// True when the account lookup that the pinned list depends on failed, so
+    /// an empty list means "could not load" rather than "no pins". The sidebar
+    /// uses this to offer a retry instead of rendering as if the user had never
+    /// pinned anything (#133).
+    @Published private(set) var didFailToBind = false
 
     private let cache: PinnedItemsCache?
     private(set) var boundUserID: String?
@@ -20,6 +25,7 @@ final class PinnedItemsStore: ObservableObject {
     /// from disk; passing `nil` clears the in-memory list (used at sign-out).
     func bind(userID: String?) {
         boundUserID = userID
+        didFailToBind = false
         guard let userID, let cache else {
             items = []
             return
@@ -30,6 +36,13 @@ final class PinnedItemsStore: ObservableObject {
             items = []
             SpotiglassLog.error(SpotiglassLog.pinning, "Failed to load pinned items for user")
         }
+    }
+
+    /// Records that the account could not be resolved, after the caller has
+    /// exhausted its retries.
+    func reportBindingFailure() {
+        guard boundUserID == nil else { return }
+        didFailToBind = true
     }
 
     /// Returns `true` if the item was newly pinned, `false` if it was already
