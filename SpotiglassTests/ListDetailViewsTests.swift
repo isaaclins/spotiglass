@@ -44,6 +44,27 @@ final class ListDetailViewsTests: XCTestCase {
         XCTAssertLessThan(TrackRowMetrics.hoverTintOpacity, TrackRowMetrics.currentTintOpacity)
     }
 
+    /// The dump used to present itself from onAppear. It is a request line, a
+    /// status, a header dump and a raw JSON body, which is bug-report material,
+    /// not something to open over someone who wanted a playlist (#148).
+    func testDiagnosticDetailsStayBehindAButton() throws {
+        let error = BrowsingDisplayError(
+            title: "Load failed",
+            message: "Spotify could not be reached.",
+            canRetry: true,
+            diagnosticDetails: "GET https://api.spotify.com/v1/me/playlists\nHTTP 403\n{\"error\":{}}"
+        )
+        let view = ErrorStateView(error: error)
+        ViewTestHost.host(view)
+
+        // The sentence is on screen; the dump is not.
+        XCTAssertNoThrow(try view.inspect().find(text: "Spotify could not be reached."))
+        XCTAssertThrowsError(try view.inspect().find(text: error.diagnosticDetails ?? ""))
+        XCTAssertNoThrow(
+            try view.inspect().find(button: SpotiglassL10n.string("browser.showDetails"))
+        )
+    }
+
     func testStaleCacheBanner() throws {
         let view = StaleCacheBanner(
             error: BrowsingDisplayError(title: "Stale", message: "Cached playlists", canRetry: false)

@@ -69,6 +69,18 @@ enum LyricsTextSize: String, Codable, CaseIterable, Equatable {
         }
     }
 
+    /// The preset whose active line size is nearest an effective size.
+    ///
+    /// The preset and the continuous scale multiply, so the preset alone does
+    /// not describe what is on screen: a segmented control reading Small beside
+    /// a slider reading 300% gave one question three answers. Deriving the
+    /// selection from the effective size keeps the picker honest (#165).
+    static func nearest(activeFontSize: CGFloat) -> LyricsTextSize {
+        allCases.min {
+            abs($0.activeFontSize - activeFontSize) < abs($1.activeFontSize - activeFontSize)
+        } ?? .medium
+    }
+
     /// Point size for the active (currently playing) line.
     var activeFontSize: CGFloat {
         switch self {
