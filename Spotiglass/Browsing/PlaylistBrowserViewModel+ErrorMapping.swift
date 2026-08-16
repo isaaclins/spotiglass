@@ -1,6 +1,18 @@
 import Foundation
 
 extension PlaylistBrowserViewModel {
+    /// Spotify answers a 403 with the bare HTTP reason phrase "Forbidden": untranslated, and
+    /// meaningless to a listener. It is folded into the details disclosure so the localized
+    /// sentence is what reaches the screen. Other cases still prefer the server text, where it
+    /// is genuinely descriptive ("Invalid limit") rather than a bare reason phrase.
+    static func serverDiagnostics(_ serverMessage: String?, _ details: String?) -> String? {
+        let parts = [serverMessage, details]
+            .compactMap { $0 }
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return parts.isEmpty ? nil : parts.joined(separator: "\n")
+    }
+
     static func displayError(for error: Error) -> BrowsingDisplayError {
         if let apiError = error as? SpotifyAPIError {
             switch apiError {
@@ -17,12 +29,12 @@ extension PlaylistBrowserViewModel {
                     canRetry: false,
                     diagnosticDetails: apiError.diagnosticDetails
                 )
-            case let .forbidden(message, _):
+            case let .forbidden(message, details):
                 return BrowsingDisplayError(
                     title: SpotiglassL10n.string("error.browsing.accessDenied.title"),
-                    message: message ?? SpotiglassL10n.string("error.browsing.accessDenied.message"),
+                    message: SpotiglassL10n.string("error.browsing.accessDenied.message"),
                     canRetry: false,
-                    diagnosticDetails: apiError.diagnosticDetails
+                    diagnosticDetails: serverDiagnostics(message, details)
                 )
             case let .rateLimited(retryAfter):
                 let clause = SpotifyRateLimitDisplay.retryAfterClause(seconds: retryAfter)

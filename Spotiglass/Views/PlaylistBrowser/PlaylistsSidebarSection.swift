@@ -8,10 +8,11 @@ struct PlaylistsSidebarSectionHeader: View {
             Text(SpotiglassL10n.string("browser.playlists"))
                 .font(.title3.weight(.semibold))
             switch playlistState {
-            case .staleCache:
-                Text(SpotiglassL10n.string("browser.cachedData"))
+            case let .staleCache(_, error):
+                Text(Self.cachedDataCaption(for: error))
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             case .refreshing:
                 Text(SpotiglassL10n.string("browser.refreshing"))
                     .font(.caption)
@@ -20,6 +21,15 @@ struct PlaylistsSidebarSectionHeader: View {
                 EmptyView()
             }
         }
+    }
+
+    /// Stale data without a reason is just a shrug. When the refresh failed for a known
+    /// reason, say so here rather than leaving the user to guess why the list is old.
+    static func cachedDataCaption(for error: BrowsingDisplayError?) -> String {
+        guard let reason = error?.message, reason.isEmpty == false else {
+            return SpotiglassL10n.string("browser.cachedData")
+        }
+        return String(format: SpotiglassL10n.string("browser.cachedData.reason"), reason)
     }
 }
 

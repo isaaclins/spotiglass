@@ -23,6 +23,38 @@ final class PlaylistBrowserDisplayErrorTests: XCTestCase {
         }
     }
 
+    /// Spotify answers a 403 with the bare reason phrase "Forbidden". It must never reach the
+    /// screen as user copy, but it must still be recoverable from the diagnostics disclosure.
+    func testForbiddenKeepsServerTextOutOfUserCopyAndInDiagnostics() {
+        let apiError = SpotifyAPIError.forbidden(message: "Forbidden", details: "GET /v1/me/playlists")
+        let display = PlaylistBrowserViewModel.displayError(for: apiError)
+        XCTAssertEqual(display.message, "Spotify denied access to this resource.")
+        XCTAssertFalse(display.message.contains("Forbidden"))
+        XCTAssertEqual(display.diagnosticDetails, "Forbidden\nGET /v1/me/playlists")
+    }
+
+    /// Descriptive server text on other cases is still worth showing, so the narrowing is
+    /// deliberately limited to the 403 reason phrase.
+    func testDescriptiveServerTextIsStillShownOnOtherCases() {
+        let badRequest = SpotifyAPIError.badRequest(message: "Invalid limit", details: nil)
+        XCTAssertEqual(PlaylistBrowserViewModel.displayError(for: badRequest).message, "Invalid limit")
+
+        let notFound = SpotifyAPIError.notFound(message: "No such playlist")
+        XCTAssertEqual(PlaylistBrowserViewModel.displayError(for: notFound).message, "No such playlist")
+    }
+
+    func testCachedDataCaptionStatesTheReasonWhenThereIsOne() {
+        let plain = SpotiglassL10n.string("browser.cachedData")
+        XCTAssertEqual(PlaylistsSidebarSectionHeader.cachedDataCaption(for: nil), plain)
+
+        let apiError = SpotifyAPIError.forbidden(message: "Forbidden", details: nil)
+        let error = PlaylistBrowserViewModel.displayError(for: apiError)
+        let caption = PlaylistsSidebarSectionHeader.cachedDataCaption(for: error)
+        XCTAssertNotEqual(caption, plain)
+        XCTAssertTrue(caption.contains(error.message))
+        XCTAssertFalse(caption.contains("Forbidden"))
+    }
+
     func testDisplayErrorFallsBackForGenericError() {
         struct Sample: Error {}
         let display = PlaylistBrowserViewModel.displayError(for: Sample())

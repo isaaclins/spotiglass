@@ -1433,6 +1433,29 @@
         }
       }
     },
+    "browser.cachedData.reason": {
+      "extractionState": "stale",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zwischengespeicherte Daten werden angezeigt. %@"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Showing cached data. %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrando datos en caché. %@"
+          }
+        }
+      }
+    },
     "browser.cachedFallback": {
       "extractionState": "stale",
       "localizations": {
