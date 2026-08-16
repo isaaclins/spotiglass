@@ -24,6 +24,12 @@ struct TrackListRow: View {
     /// `false` and lets the waveform glyph mark the playing row the way Music
     /// does. Surfaces that still stack rows in a plain stack keep it on.
     var drawsRowHighlights: Bool = true
+    /// Whether the row takes keyboard focus itself. Inside the playlist table the
+    /// `List` owns focus and arrow-key traversal, so it passes `false`. The
+    /// surfaces that stack rows in a plain `VStack` (Home, Artist, Search) have
+    /// no selection model at all, so the row has to be focusable or those rows
+    /// cannot be reached without a mouse (#121).
+    var isKeyboardFocusable: Bool = true
     /// Spotify-side track-ops menu items appended after the existing menu.
     /// Built lazily so closures don't fire until the menu opens.
     var trackOpsMenuItems: (() -> AnyView)? = nil
@@ -113,7 +119,18 @@ struct TrackListRow: View {
         // click belongs to the enclosing `List` so it can select. Attached
         // simultaneously so the tap recognizer cannot swallow that click.
         .simultaneousGesture(TapGesture(count: 2).onEnded(activate))
+        .focusable(isKeyboardFocusable)
+        // Return activates the focused row. Space is deliberately left alone: it
+        // is the global play/pause binding, and swallowing it here would change
+        // what that key does depending on which row happens to hold focus.
+        .onKeyPress(.return) {
+            activate()
+            return .handled
+        }
         .contextMenu {
+            Button(SpotiglassL10n.string("browser.track.play"), action: activate)
+                .disabled(track.playableURI == nil)
+            Divider()
             if !track.artistRefs.isEmpty {
                 Menu(SpotiglassL10n.string("browser.track.openArtist")) {
                     ForEach(track.artistRefs) { ref in
@@ -145,6 +162,12 @@ struct TrackListRow: View {
             }
         }
         .accessibilityElement(children: .combine)
+        // The only activation used to be a raw double-tap gesture, which SwiftUI
+        // never surfaces to assistive technology, and the play button existed
+        // only while the pointer hovered. So VoiceOver could read a track but
+        // never start one (#109).
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction(named: Text(SpotiglassL10n.string("browser.track.play")), activate)
         .accessibilityLabel(
             String(
                 format: SpotiglassL10n.string("browser.trackRow.accessibility"),
