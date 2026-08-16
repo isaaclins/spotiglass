@@ -49,6 +49,45 @@ final class SpotiglassSettingsStoreTests: XCTestCase {
         XCTAssertEqual(decoded.appearance.colorScheme, .dark)
     }
 
+    /// A saved binding names its command by string, so renaming the constant
+    /// left the old row holding the chord while the real command answered to
+    /// nothing, and ⌘F silently stopped opening Search (#198).
+    func testRenamedCommandIDsKeepTheirSavedShortcut() throws {
+        var file = SpotiglassSettingsFile(keybinds: [
+            CommandPaletteKeyBinding(keystrokes: ["cmd-f"], command: "search.open", when: .signedIn),
+            CommandPaletteKeyBinding(keystrokes: ["cmd-r"], command: CommandPaletteCommandID.refreshPlaylists, when: .signedIn),
+        ])
+
+        XCTAssertTrue(SpotiglassSettingsStore.migrateRenamedCommandIDs(into: &file))
+        XCTAssertEqual(
+            file.keybinds.first { $0.keystrokes == ["cmd-f"] }?.command,
+            CommandPaletteCommandID.openSearch
+        )
+        XCTAssertFalse(file.keybinds.contains { $0.command == "search.open" })
+        XCTAssertEqual(file.keybinds.count, 2, "migration renames rows, it does not add or drop them")
+        XCTAssertEqual(
+            file.keybinds.first { $0.command == CommandPaletteCommandID.openSearch }?.when,
+            .signedIn,
+            "the context travels with the binding"
+        )
+
+        // Nothing to do on a file that already uses current IDs.
+        XCTAssertFalse(SpotiglassSettingsStore.migrateRenamedCommandIDs(into: &file))
+    }
+
+    /// If the user has already bound the renamed command themselves, their
+    /// choice wins and the stale row is dropped rather than duplicating it.
+    func testRenameDropsTheStaleRowWhenTheCurrentCommandIsAlreadyBound() throws {
+        var file = SpotiglassSettingsFile(keybinds: [
+            CommandPaletteKeyBinding(keystrokes: ["cmd-f"], command: "search.open", when: .signedIn),
+            CommandPaletteKeyBinding(keystrokes: ["alt-cmd-f"], command: CommandPaletteCommandID.openSearch, when: .signedIn),
+        ])
+
+        XCTAssertTrue(SpotiglassSettingsStore.migrateRenamedCommandIDs(into: &file))
+        XCTAssertEqual(file.keybinds.count, 1)
+        XCTAssertEqual(file.keybinds.first?.keystrokes, ["alt-cmd-f"])
+    }
+
     func testOutOfRangeLyricsTextScaleClampsOnDecode() throws {
         func decodeScale(_ raw: Double) throws -> Double {
             let json = """

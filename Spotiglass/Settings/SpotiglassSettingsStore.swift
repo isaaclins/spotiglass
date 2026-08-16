@@ -105,6 +105,12 @@ final class SpotiglassSettingsStore: ObservableObject {
             next.keybinds = sanitized
             changed = true
         }
+        // Renames run before seeding: a stale row still holding the chord makes
+        // the new command's default look taken, so it is skipped and the
+        // shortcut dies on every existing install (#198).
+        if Self.migrateRenamedCommandIDs(into: &next) {
+            changed = true
+        }
         if Self.seedNewDefaultKeybinds(into: &next) {
             changed = true
         }
@@ -113,6 +119,41 @@ final class SpotiglassSettingsStore: ObservableObject {
         } else {
             settings = next
         }
+    }
+
+    /// Command IDs whose spelling changed after installs already had bindings
+    /// saved under the old one.
+    ///
+    /// A saved binding names its command by string, so renaming the constant
+    /// leaves the old row pointing at a command that no longer exists while the
+    /// real command answers to nothing. Add an entry here whenever a
+    /// ``CommandPaletteCommandID`` value changes.
+    static let renamedCommandIDs: [String: String] = [
+        "search.open": CommandPaletteCommandID.openSearch,
+    ]
+
+    /// Repoints saved bindings at the current command IDs. A row whose new ID is
+    /// already bound is dropped rather than duplicated, so the user's own choice
+    /// wins over the stale one. Returns true when the file needs persisting.
+    static func migrateRenamedCommandIDs(into file: inout SpotiglassSettingsFile) -> Bool {
+        guard file.keybinds.contains(where: { renamedCommandIDs[$0.command] != nil }) else {
+            return false
+        }
+        var claimed = Set(file.keybinds.filter { renamedCommandIDs[$0.command] == nil }.map(\.command))
+        var migrated: [CommandPaletteKeyBinding] = []
+        for binding in file.keybinds {
+            guard let currentID = renamedCommandIDs[binding.command] else {
+                migrated.append(binding)
+                continue
+            }
+            guard !claimed.contains(currentID) else { continue }
+            claimed.insert(currentID)
+            var renamed = binding
+            renamed.command = currentID
+            migrated.append(renamed)
+        }
+        file.keybinds = migrated
+        return true
     }
 
     /// Adds the default binding for every catalog command that has one but is not yet
