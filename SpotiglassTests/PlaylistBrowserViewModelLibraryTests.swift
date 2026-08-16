@@ -309,7 +309,8 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
             return XCTFail("Expected insufficient-scope error state")
         }
         XCTAssertEqual(error.title, "Reconnect Spotify")
-        XCTAssertEqual(error.message, "Your current Spotify session is missing playlist or Liked Songs permissions. Disconnect and connect again to grant required scopes.")
+        // "scopes" is a developer word; the sentence says what to do (#157).
+        XCTAssertEqual(error.message, "Your current Spotify session is missing playlist or Liked Songs permissions. Disconnect and connect again to restore them.")
         // The scope names moved out of the sentence and into diagnostics, so the
         // blob now carries them alongside the server's own text.
         XCTAssertEqual(error.diagnosticDetails?.contains("status 403 insufficient scope"), true)
