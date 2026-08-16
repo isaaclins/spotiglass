@@ -21,7 +21,9 @@ struct NavigationToolbarChrome: NSViewRepresentable {
         let back = NSButton()
         back.bezelStyle = .shadowlessSquare
         back.isBordered = false
-        back.focusRingType = .none
+        // Keep the focus ring. Removing it hid the only indication that the
+        // control had keyboard focus, which is the whole point of Tab (#127).
+        back.focusRingType = .default
         let backSymbol = NSImage.SymbolConfiguration(pointSize: 15, weight: .semibold)
         let backLabel = SpotiglassL10n.string("breadcrumb.back")
         back.image = NSImage(systemSymbolName: "chevron.left", accessibilityDescription: backLabel)?

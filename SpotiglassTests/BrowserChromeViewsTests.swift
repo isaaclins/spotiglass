@@ -52,7 +52,9 @@ final class BrowserChromeViewsTests: XCTestCase {
 
         let view = BreadcrumbToolbarView(viewModel: viewModel)
         ViewTestHost.host(view, size: CGSize(width: 520, height: 44))
-        try view.inspect().find(text: AppMetadata.displayName).callOnTapGesture()
+        // The home crumb is a real Button now, not a tap gesture, so that the
+        // trait it advertises matches a working action (#113).
+        try view.inspect().find(button: AppMetadata.displayName).tap()
         try await Task.sleep(nanoseconds: 50_000_000)
 
         XCTAssertTrue(viewModel.breadcrumbPath.isEmpty)

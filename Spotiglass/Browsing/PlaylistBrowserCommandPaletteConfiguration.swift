@@ -67,6 +67,9 @@ enum PlaylistBrowserCommandPaletteConfiguration {
         manager.cycleRepeat = { [weak playback = dependencies.playbackViewModel] in
             await playback?.cycleRepeat()
         }
+        manager.navigateBack = { [weak browser = dependencies.viewModel] in
+            await browser?.navigateBack()
+        }
         manager.playURI = { [weak playback = dependencies.playbackViewModel] uri in
             await playback?.play(uri: uri)
         }

@@ -20,6 +20,9 @@ struct SpotiglassMenuCommands: Commands {
     let isQueueVisible: Bool
     /// Drives the "Show Lyrics" / "Hide Lyrics" title, read from ``LyricsOverlayController``.
     let isLyricsPresented: Bool
+    /// Back dims when the browser's navigation stack is empty, so the menu item
+    /// reflects the same state the toolbar button does.
+    let canNavigateBack: Bool
 
     var body: some Commands {
         CommandGroup(after: .appSettings) {
@@ -38,6 +41,17 @@ struct SpotiglassMenuCommands: Commands {
         }
 
         CommandGroup(after: .sidebar) {
+            // ⌘[ is the Mac key equivalent for Back. It is hardcoded rather than
+            // read from the keymap because `navigateBack` is menu-bar only and
+            // therefore cannot be rebound to shadow it.
+            Button(SpotiglassL10n.string("menu.view.back")) {
+                run(CommandPaletteCommandID.navigateBack)
+            }
+            .keyboardShortcut("[", modifiers: .command)
+            .disabled(!isSignedIn || !canNavigateBack)
+
+            Divider()
+
             Button(SpotiglassL10n.string("menu.view.search")) {
                 run(CommandPaletteCommandID.openSearch)
             }

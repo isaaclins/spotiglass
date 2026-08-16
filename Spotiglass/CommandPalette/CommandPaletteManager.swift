@@ -9,6 +9,10 @@ final class CommandPaletteManager: ObservableObject {
 
     /// While a Settings hotkey field is recording, global shortcut matching is suspended so the same chord is not executed as a command.
     @Published var isRecordingHotkey = false
+    /// Mirrors the browser's back stack so the View menu's Back item can dim
+    /// when there is nowhere to go. The app scene does not own the browser view
+    /// model, and this manager is already the seam between the two.
+    @Published var canNavigateBack = false
 
     var isSignedIn = false
     var signOut: (() -> Void)?
@@ -26,6 +30,7 @@ final class CommandPaletteManager: ObservableObject {
     /// menu bar reorders **Up next** exactly like the queue panel's shuffle button.
     var toggleShuffle: (() async -> Void)?
     var cycleRepeat: (() async -> Void)?
+    var navigateBack: (() async -> Void)?
     var playURI: ((String) async -> Void)?
     var openPlaylist: ((String) async -> Void)?
     var openArtist: ((String) async -> Void)?
@@ -201,6 +206,8 @@ final class CommandPaletteManager: ObservableObject {
             Task { await toggleShuffle?() }
         case CommandPaletteCommandID.cycleRepeat:
             Task { await cycleRepeat?() }
+        case CommandPaletteCommandID.navigateBack:
+            Task { await navigateBack?() }
         case "playback.playURI":
             if case let .string(uri)? = args?["uri"] {
                 Task { await playURI?(uri) }

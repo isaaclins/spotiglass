@@ -20,6 +20,10 @@ enum CommandPaletteCommandID {
     static let toggleShuffle = "playback.shuffle"
     /// Menu bar only, same reasoning as ``toggleShuffle``: cycles off, context, track.
     static let cycleRepeat = "playback.repeat"
+    /// Menu bar only: pops the browser's navigation stack. Absent from
+    /// ``CommandPaletteCommandCatalog/editable`` so no keymap entry can shadow
+    /// the View menu's ⌘[ , which is the standard Mac key equivalent for Back.
+    static let navigateBack = "navigation.back"
     static let filterByArtist = "search.filterByArtist"
     static let toggleQueue = "queue.toggle"
     static let toggleLyrics = "lyrics.toggle"

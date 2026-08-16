@@ -8,26 +8,7 @@ struct BreadcrumbToolbarView: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Text(AppMetadata.displayName)
-                .font(Self.segmentFont)
-                .foregroundStyle(viewModel.breadcrumbPath.isEmpty ? Color.secondary : Color.primary)
-                .lineLimit(1)
-                .accessibilityLabel(AppMetadata.displayName)
-                .accessibilityHint(
-                    viewModel.breadcrumbPath.isEmpty
-                        ? ""
-                        : SpotiglassL10n.string("breadcrumb.home.hint")
-                )
-                .help(
-                    viewModel.breadcrumbPath.isEmpty
-                        ? ""
-                        : SpotiglassL10n.string("tooltip.breadcrumb.home")
-                )
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    guard !viewModel.breadcrumbPath.isEmpty else { return }
-                    Task { await viewModel.jumpToHome() }
-                }
+            homeCrumb
 
             ForEach(Array(viewModel.breadcrumbPath.enumerated()), id: \.element.id) { index, crumb in
                 Image(systemName: "chevron.right")
@@ -47,7 +28,60 @@ struct BreadcrumbToolbarView: View {
         .fixedSize(horizontal: true, vertical: false)
     }
 
+    /// At the root there is nowhere to go, so the app name is plain text. Once a
+    /// path exists it becomes a real button: previously it advertised a hint but
+    /// navigated from a tap gesture, which VoiceOver and the keyboard cannot
+    /// reach (#113, #127).
+    @ViewBuilder
+    private var homeCrumb: some View {
+        if viewModel.breadcrumbPath.isEmpty {
+            Text(AppMetadata.displayName)
+                .font(Self.segmentFont)
+                .foregroundStyle(Color.secondary)
+                .lineLimit(1)
+                .accessibilityLabel(AppMetadata.displayName)
+        } else {
+            Button {
+                Task { await viewModel.jumpToHome() }
+            } label: {
+                Text(AppMetadata.displayName)
+                    .font(Self.segmentFont)
+                    .foregroundStyle(Color.primary)
+                    .lineLimit(1)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(AppMetadata.displayName)
+            .accessibilityHint(SpotiglassL10n.string("breadcrumb.home.hint"))
+            .help(SpotiglassL10n.string("tooltip.breadcrumb.home"))
+        }
+    }
+
+    @ViewBuilder
     private func crumbRow(crumb: BrowserBreadcrumb, isLeaf: Bool, breadcrumbIndex index: Int) -> some View {
+        if isLeaf {
+            crumbLabel(crumb: crumb, isLeaf: true)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(crumb.label)
+                // Without this the hosted leaf reports AXUnknown, which reads as
+                // an anonymous element rather than the current location.
+                .accessibilityAddTraits(.isStaticText)
+                // Segments truncate at 220pt, so even the leaf earns a tooltip: it
+                // is the only way to read a long playlist or album name in full.
+                .help(crumb.label)
+        } else {
+            Button {
+                Task { await viewModel.jumpToBreadcrumb(at: index) }
+            } label: {
+                crumbLabel(crumb: crumb, isLeaf: false)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(crumb.label)
+            .accessibilityHint(SpotiglassL10n.string("breadcrumb.hint"))
+            .help(SpotiglassL10n.format("tooltip.breadcrumb.jump", crumb.label))
+        }
+    }
+
+    private func crumbLabel(crumb: BrowserBreadcrumb, isLeaf: Bool) -> some View {
         HStack(spacing: 5) {
             Image(systemName: crumb.systemImage)
                 .font(Self.segmentFont)
@@ -59,17 +93,6 @@ struct BreadcrumbToolbarView: View {
         }
         .frame(maxWidth: 220, alignment: .leading)
         .foregroundStyle(isLeaf ? Color.primary : Color.secondary)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(crumb.label)
-        .accessibilityAddTraits(isLeaf ? [] : .isButton)
-        .accessibilityHint(isLeaf ? "" : SpotiglassL10n.string("breadcrumb.hint"))
-        // Segments truncate at 220pt, so even the leaf earns a tooltip: it is
-        // the only way to read a long playlist or album name in full.
-        .help(isLeaf ? crumb.label : SpotiglassL10n.format("tooltip.breadcrumb.jump", crumb.label))
         .contentShape(Rectangle())
-        .onTapGesture {
-            guard !isLeaf else { return }
-            Task { await viewModel.jumpToBreadcrumb(at: index) }
-        }
     }
 }
