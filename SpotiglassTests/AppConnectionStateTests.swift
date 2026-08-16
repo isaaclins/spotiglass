@@ -26,7 +26,10 @@ final class AppConnectionStateTests: XCTestCase {
         )
         let state = AppConnectionState.signedIn(session)
         XCTAssertEqual(state.title, "Spotify is connected")
-        XCTAssertTrue(state.message.contains("valid until"))
+        // The token expiry refreshes silently, so it is a diagnostic, not an
+        // account fact the user should read here (#163).
+        XCTAssertEqual(state.message, "Spotiglass is connected to your Spotify account.")
+        XCTAssertFalse(state.message.lowercased().contains("token"))
         XCTAssertTrue(state.isConnectedOrRefreshing)
     }
 

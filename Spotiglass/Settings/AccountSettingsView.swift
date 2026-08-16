@@ -10,19 +10,11 @@ struct AccountSettingsView: View {
                 LabeledContent(SpotiglassL10n.string("settings.account.status")) {
                     Text(viewModel.state.title)
                 }
-                if let session = activeSession {
-                    LabeledContent(SpotiglassL10n.string("settings.account.accessToken")) {
-                        Text(
-                            String(
-                                format: SpotiglassL10n.string("settings.account.validUntil"),
-                                session.expiresAt.formatted(
-                                    .dateTime.year().month().day().hour().minute().timeZone()
-                                )
-                            )
-                        )
-                            .foregroundStyle(.secondary)
-                    }
-                } else {
+                // When signed in, Status already says so. The token expiry that
+                // used to sit here told the user nothing they could act on and
+                // made a silent refresh look like an expiry; it lives in
+                // Diagnostics now (#163).
+                if activeSession == nil {
                     LabeledContent(SpotiglassL10n.string("settings.account.details")) {
                         Text(viewModel.state.message)
                             .foregroundStyle(.secondary)
@@ -43,6 +35,20 @@ struct AccountSettingsView: View {
             }
 
             Section {
+                if let session = activeSession {
+                    LabeledContent(SpotiglassL10n.string("settings.account.accessToken")) {
+                        Text(
+                            String(
+                                format: SpotiglassL10n.string("settings.account.validUntil"),
+                                session.expiresAt.formatted(
+                                    .dateTime.year().month().day().hour().minute().timeZone()
+                                )
+                            )
+                        )
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                    }
+                }
                 LabeledContent(SpotiglassL10n.string("settings.account.diagnostics.logFileLabel")) {
                     if let url = SpotiglassLog.logFileURL {
                         HStack(spacing: SpotiglassDesign.spacingS) {

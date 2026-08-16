@@ -14,8 +14,10 @@ extension LrcLibClient.Failure {
                 )
             }
             return SpotiglassL10n.string("lyrics.error.rateLimitedShortly")
-        case let .http(code):
-            return String(format: SpotiglassL10n.string("lyrics.error.http"), code)
+        // The status code is a developer fact and is already in the log; the
+        // reader only needs to know lyrics did not arrive (#157).
+        case .http:
+            return SpotiglassL10n.string("lyrics.error.http")
         case .decoding:
             return SpotiglassL10n.string("lyrics.error.decode")
         case .invalidURL:
@@ -102,7 +104,10 @@ final class ImmersiveLyricsViewModel: ObservableObject {
             phase = .failed(failure.userFacingMessage)
         } catch {
             registerFailureBackoff(trackId: tid, failure: nil)
-            phase = .failed(error.localizedDescription)
+            // localizedDescription here is an URLError or decoding dump, which
+            // is not a sentence for a reader waiting on lyrics (#157).
+            SpotiglassLog.error(.api, "lyrics fetch failed: \(error)")
+            phase = .failed(SpotiglassL10n.string("lyrics.error.http"))
         }
     }
 
