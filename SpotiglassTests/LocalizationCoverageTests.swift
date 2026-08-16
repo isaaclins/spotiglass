@@ -187,4 +187,42 @@ final class LocalizationCoverageTests: XCTestCase {
             }
         }
     }
+
+    /// The equalizer exposes one gain fader per fixed centre frequency and no
+    /// control over Q or centre frequency, which is a graphic equalizer. The
+    /// AVAudioUnitEQ bands underneath are parametric filters, but that is an
+    /// implementation detail: to a user the word promises knobs that are not
+    /// there. This is the acceptance criterion from #169 as a guard, so the
+    /// claim cannot come back through any locale.
+    func testNoLocaleClaimsParametricEqualizerControl() throws {
+        let catalogURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Spotiglass/Localizable.xcstrings")
+        let data = try Data(contentsOf: catalogURL)
+        let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let strings = try XCTUnwrap(root["strings"] as? [String: Any])
+
+        // "parametric" is spelled the same in en, and is "parametrisch" /
+        // "paramétrico" in the two translations, so one stem covers all three.
+        let forbidden = "parametr"
+        var offenders: [String] = []
+        for (key, entry) in strings {
+            guard let entry = entry as? [String: Any],
+                  let localizations = entry["localizations"] as? [String: Any] else { continue }
+            for (locale, localization) in localizations {
+                guard let localization = localization as? [String: Any],
+                      let unit = localization["stringUnit"] as? [String: Any],
+                      let value = unit["value"] as? String else { continue }
+                if value.lowercased().contains(forbidden) {
+                    offenders.append("\(key) [\(locale)]: \(value)")
+                }
+            }
+        }
+        XCTAssertEqual(
+            offenders, [],
+            "these strings promise parametric control the equalizer does not offer"
+        )
+    }
+
 }
