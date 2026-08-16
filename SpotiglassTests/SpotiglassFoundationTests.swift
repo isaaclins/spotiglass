@@ -28,7 +28,10 @@ final class SpotiglassFoundationTests: XCTestCase {
         let standardMenuSource = source[standardMenuRange.lowerBound..<settingsRange.lowerBound]
 
         XCTAssertTrue(standardMenuSource.contains("app.menu.openPalette"))
-        XCTAssertTrue(standardMenuSource.contains(".keyboardShortcut(\"k\", modifiers: [.command])"))
+        // The item derives its key equivalent from the keymap, so a rebind moves
+        // the chord instead of leaving Command-K alive beside it (#131).
+        XCTAssertTrue(standardMenuSource.contains("menuShortcut("))
+        XCTAssertFalse(source.contains(".keyboardShortcut(\"k\", modifiers: [.command])"))
         XCTAssertFalse(source.contains("CommandMenu(SpotiglassL10n.string(\"app.menu.name\"))"))
     }
 
