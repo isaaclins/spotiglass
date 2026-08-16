@@ -56,18 +56,8 @@ struct TrackListRow: View {
             ArtworkView(url: track.artworkURL, size: 40)
                 .overlay(alignment: .topTrailing) {
                     if showsPinnedBadge {
-                        Label(SpotiglassL10n.string("browser.pinned"), systemImage: "pin.fill")
-                            .labelStyle(.iconOnly)
-                            .font(.system(size: 9, weight: .semibold))
-                            .foregroundStyle(SpotiglassDesign.mediaBadgeForegroundColor(colorScheme: colorScheme))
-                            .padding(3)
-                            .background(
-                                Circle().fill(SpotiglassDesign.mediaBadgeBackgroundColor(colorScheme: colorScheme))
-                            )
-                            .padding(2)
+                        PinnedBadge(scale: .compact)
                             .accessibilityElement()
-                            .help(SpotiglassL10n.string("browser.pinned"))
-                            .accessibilityLabel(SpotiglassL10n.string("browser.pinned"))
                     }
                 }
 

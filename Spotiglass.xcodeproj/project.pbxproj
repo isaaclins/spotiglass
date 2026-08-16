@@ -147,6 +147,7 @@
 		EFT000000000000000000001 /* EqualizerForwardingTargetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFT000000000000000000002 /* EqualizerForwardingTargetTests.swift */; };
 		F60000000000000000000001 /* SpotiglassDesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60000000000000000000011 /* SpotiglassDesignSystem.swift */; };
 		F60000000000000000000002 /* SpotiglassComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60000000000000000000012 /* SpotiglassComponents.swift */; };
+		SRC000000000000000000001E /* MediaBadges.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC000000000000000008001E /* MediaBadges.swift */; };
 		FA00000000000000000000001 /* ArtworkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA00000000000000000000011 /* ArtworkView.swift */; };
 		FC00000000000000000000001 /* ArtworkImageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC00000000000000000000011 /* ArtworkImageStore.swift */; };
 		G70000000000000000000001 /* CommandPaletteModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = G70000000000000000000011 /* CommandPaletteModels.swift */; };
@@ -500,6 +501,7 @@
 		EFT000000000000000000002 /* EqualizerForwardingTargetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EqualizerForwardingTargetTests.swift; sourceTree = "<group>"; };
 		F60000000000000000000011 /* SpotiglassDesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotiglassDesignSystem.swift; sourceTree = "<group>"; };
 		F60000000000000000000012 /* SpotiglassComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotiglassComponents.swift; sourceTree = "<group>"; };
+		SRC000000000000000008001E /* MediaBadges.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaBadges.swift; sourceTree = "<group>"; };
 		FA00000000000000000000011 /* ArtworkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkView.swift; sourceTree = "<group>"; };
 		FC00000000000000000000011 /* ArtworkImageStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkImageStore.swift; sourceTree = "<group>"; };
 		G70000000000000000000011 /* CommandPaletteModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteModels.swift; sourceTree = "<group>"; };
@@ -776,6 +778,7 @@
 				A10000000000000000000012 /* RootView.swift */,
 				F60000000000000000000011 /* SpotiglassDesignSystem.swift */,
 				F60000000000000000000012 /* SpotiglassComponents.swift */,
+				SRC000000000000000008001E /* MediaBadges.swift */,
 				FA00000000000000000000011 /* ArtworkView.swift */,
 				E5000000000000000000007F /* ImmersiveLyrics */,
 				E5000000000000000000001C /* ImmersiveLyricsView.swift */,
@@ -1517,6 +1520,7 @@
 				E50000000000000000000048 /* MacAudioOutputHardware.swift in Sources */,
 				F60000000000000000000001 /* SpotiglassDesignSystem.swift in Sources */,
 				F60000000000000000000002 /* SpotiglassComponents.swift in Sources */,
+				SRC000000000000000000001E /* MediaBadges.swift in Sources */,
 				FA00000000000000000000001 /* ArtworkView.swift in Sources */,
 				G70000000000000000000001 /* CommandPaletteModels.swift in Sources */,
 				G70000000000000000000002 /* CommandPaletteKeymap.swift in Sources */,

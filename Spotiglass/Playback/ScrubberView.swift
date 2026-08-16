@@ -83,6 +83,7 @@ struct ScrubberView: View {
     var onDragUpdate: (Double?) -> Void
 
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
     private let restingHeight: CGFloat = 4
     private let hoverHeight: CGFloat = 6
@@ -106,7 +107,12 @@ struct ScrubberView: View {
 
             ZStack(alignment: .leading) {
                 RoundedRectangle(cornerRadius: trackHeight / 2, style: .continuous)
-                    .fill(Color.gray.opacity(0.35))
+                    .fill(
+                        SpotiglassDesign.scrubberTrackColor(
+                            colorScheme: colorScheme,
+                            contrast: colorSchemeContrast
+                        )
+                    )
                     .frame(height: trackHeight)
 
                 RoundedRectangle(cornerRadius: trackHeight / 2, style: .continuous)

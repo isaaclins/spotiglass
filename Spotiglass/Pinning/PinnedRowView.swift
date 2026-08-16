@@ -76,22 +76,7 @@ struct PinnedRowView: View {
     private var artwork: some View {
         switch item.kind {
         case .likedSongs:
-            RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
-                .fill(.secondary.opacity(0.16))
-                .frame(width: artworkSize, height: artworkSize)
-                .overlay {
-                    Image(systemName: isSelected ? "heart.fill" : "heart")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(
-                            isSelected
-                                ? AnyShapeStyle(SpotiglassAccentStyle())
-                                : AnyShapeStyle(.secondary)
-                        )
-                }
-                .overlay {
-                    RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
-                        .strokeBorder(SpotiglassDesign.artworkBorderColor(colorScheme: colorScheme), lineWidth: 1)
-                }
+            LikedSongsArtwork(size: artworkSize, isEmphasized: isSelected)
         case .artist:
             ZStack {
                 Circle().fill(.secondary.opacity(0.16))

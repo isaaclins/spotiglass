@@ -148,47 +148,20 @@ struct PlaylistDetailContent: View {
         HStack(alignment: .center, spacing: SpotiglassDesign.spacingL) {
             Group {
                 if detail.playlist.id == SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID {
-                    RoundedRectangle(cornerRadius: SpotiglassDesign.cornerM, style: .continuous)
-                        .fill(.secondary.opacity(0.16))
-                        .frame(width: 104, height: 104)
-                        .overlay {
-                            Image(systemName: "heart.fill")
-                                .font(.system(size: 44, weight: .semibold))
-                                .foregroundStyle(.spotiglassAccent)
-                                .symbolRenderingMode(.monochrome)
-                        }
-                        .overlay {
-                            RoundedRectangle(cornerRadius: SpotiglassDesign.cornerM, style: .continuous)
-                                .strokeBorder(SpotiglassDesign.artworkBorderColor(colorScheme: colorScheme), lineWidth: 1)
-                        }
+                    LikedSongsArtwork(
+                        size: SpotiglassDesign.detailHeaderArtworkSize,
+                        isEmphasized: true
+                    )
                         .overlay(alignment: .topTrailing) {
                             if isHeaderPinned {
-                                Image(systemName: "pin.fill")
-                                    .font(.system(size: 11, weight: .semibold))
-                                    .foregroundStyle(SpotiglassDesign.mediaBadgeForegroundColor(colorScheme: colorScheme))
-                                    .padding(5)
-                                    .background(
-                                        Circle().fill(SpotiglassDesign.mediaBadgeBackgroundColor(colorScheme: colorScheme))
-                                    )
-                                    .padding(4)
-                                    .help(SpotiglassL10n.string("browser.pinned"))
-                                    .accessibilityLabel(SpotiglassL10n.string("browser.pinned"))
+                                PinnedBadge(scale: .prominent)
                             }
                         }
                 } else {
-                    ArtworkView(url: detail.playlist.artworkURL, size: 104)
+                    ArtworkView(url: detail.playlist.artworkURL, size: SpotiglassDesign.detailHeaderArtworkSize)
                         .overlay(alignment: .topTrailing) {
                             if isHeaderPinned {
-                                Image(systemName: "pin.fill")
-                                    .font(.system(size: 11, weight: .semibold))
-                                    .foregroundStyle(SpotiglassDesign.mediaBadgeForegroundColor(colorScheme: colorScheme))
-                                    .padding(5)
-                                    .background(
-                                        Circle().fill(SpotiglassDesign.mediaBadgeBackgroundColor(colorScheme: colorScheme))
-                                    )
-                                    .padding(4)
-                                    .help(SpotiglassL10n.string("browser.pinned"))
-                                    .accessibilityLabel(SpotiglassL10n.string("browser.pinned"))
+                                PinnedBadge(scale: .prominent)
                             }
                         }
                 }
