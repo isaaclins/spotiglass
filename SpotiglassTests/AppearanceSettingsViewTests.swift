@@ -23,4 +23,34 @@ final class AppearanceSettingsViewTests: XCTestCase {
         ViewTestHost.assertFindLocalizedText("settings.appearance.colorScheme", in: view)
         ViewTestHost.assertFindLocalizedText("settings.appearance.commandPalette", in: view)
     }
+
+    /// One heading owned two controls that never agreed, so the running build
+    /// showed Small selected beside a slider reading 300% (#165). The preset
+    /// reported is now the one nearest the size actually in use.
+    func testLyricsPresetReflectsTheEffectiveSize() {
+        // Small at 300% is 51 points, which is nowhere near Small.
+        let stretched = AppearanceSettings(lyricsTextSize: .small, lyricsTextScale: 3.0)
+        XCTAssertEqual(stretched.lyricsTextMetrics.activeFontSize, 17 * 3.0, accuracy: 0.001)
+        XCTAssertEqual(
+            LyricsTextSize.nearest(activeFontSize: stretched.lyricsTextMetrics.activeFontSize),
+            .large,
+            "Small at 300% must not report itself as Small"
+        )
+
+        // At scale 1 every preset reports itself.
+        for size in LyricsTextSize.allCases {
+            let plain = AppearanceSettings(lyricsTextSize: size, lyricsTextScale: 1.0)
+            XCTAssertEqual(
+                LyricsTextSize.nearest(activeFontSize: plain.lyricsTextMetrics.activeFontSize),
+                size
+            )
+        }
+
+        // Shrinking large reports the smaller preset it now resembles.
+        let shrunk = AppearanceSettings(lyricsTextSize: .large, lyricsTextScale: 0.7)
+        XCTAssertEqual(
+            LyricsTextSize.nearest(activeFontSize: shrunk.lyricsTextMetrics.activeFontSize),
+            .medium
+        )
+    }
 }
