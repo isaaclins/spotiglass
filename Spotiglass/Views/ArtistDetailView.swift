@@ -56,6 +56,16 @@ struct ArtistDetailContent: View {
         pinnedStore.isPinned(spotifyID: artistID, kind: .artist)
     }
 
+    private var hasNothingToShow: Bool {
+        detail.tracks.isEmpty
+            && detail.albums.isEmpty
+            && detail.singles.isEmpty
+            && detail.compilations.isEmpty
+            && detail.appearsOn.isEmpty
+            && !detail.canLoadMoreAlbums
+            && !detail.isLoadingMoreAlbums
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: SpotiglassDesign.spacingL) {
@@ -73,6 +83,16 @@ struct ArtistDetailContent: View {
                 if detail.canLoadMoreAlbums || detail.isLoadingMoreAlbums {
                     loadMoreButton
                         .padding(.horizontal, SpotiglassDesign.spacingL)
+                }
+                if hasNothingToShow {
+                    // Every section above is guarded and albumStrip returns
+                    // EmptyView for an empty array, so an artist with no tracks
+                    // and no releases used to render a header over a void, while
+                    // the sibling playlist screen explains itself (#135).
+                    EmptyStateView(
+                        title: SpotiglassL10n.string("browser.artist.empty.title"),
+                        message: SpotiglassL10n.string("browser.artist.empty.message")
+                    )
                 }
             }
             .padding(.vertical, SpotiglassDesign.spacingM)

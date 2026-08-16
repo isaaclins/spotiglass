@@ -87,6 +87,10 @@ struct PlaylistBrowserView: View {
                     viewModel: viewModel,
                     playbackViewModel: playbackViewModel,
                     libraryRows: libraryRows,
+                    pinnedBindingFailed: pinnedStore.didFailToBind,
+                    retryPinnedBinding: {
+                        Task { await bindPinnedStoreToCurrentUser() }
+                    },
                     likedSongsStubRow: likedSongsStubRow,
                     playlistSummaryFromRow: playlistSummaryFromRow,
                     onLibraryAppear: { syncLibraryRowOrder() },
