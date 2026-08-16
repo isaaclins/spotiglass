@@ -64,6 +64,13 @@ final class AudioEqualizerEngine: ObservableObject {
             lastError = nil
             publishCoefficients()
         } catch {
+            // The OSStatus, the bundle name and the staged paths are kept off
+            // the settings pane, so the log is where a bug report picks them up
+            // (#186).
+            if let pluginError = error as? EqualizerHALPluginError,
+               let details = pluginError.diagnosticDetails {
+                SpotiglassLog.error(.playback, details)
+            }
             lastError = error.localizedDescription
             isRunning = false
             throw error

@@ -247,6 +247,14 @@ final class AuthViewModel: ObservableObject {
     }
 
     private func displayMessage(for error: Error) -> String {
+        // The sentence stays free of OAuth codes and socket steps, but they must
+        // not be dropped either: the log is where a bug report picks them up.
+        // Every auth failure routes through here, so this is the one place that
+        // has to remember (#186).
+        if let callbackError = error as? LoopbackOAuthCallbackError,
+           let details = callbackError.diagnosticDetails {
+            SpotiglassLog.error(.auth, details)
+        }
         if let localized = error as? LocalizedError, let description = localized.errorDescription {
             return description
         }

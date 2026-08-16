@@ -1,0 +1,306 @@
+[
+  {
+    "file": "Spotiglass/Browsing/BrowsingLoadState.swift",
+    "kind": "var.instance",
+    "name": "name",
+    "hints": [
+      "assignOnlyProperty"
+    ]
+  },
+  {
+    "file": "Spotiglass/Browsing/CatalogSearchViewModel.swift",
+    "kind": "var.instance",
+    "name": "meetsMinimumQueryLength",
+    "hints": [
+      "unused"
+    ]
+  },
+  {
+    "file": "Spotiglass/Browsing/CatalogSearchViewModel.swift",
+    "kind": "var.instance",
+    "name": "visibleResults",
+    "hints": [
+      "unused"
+    ]
+  },
+  {
+    "file": "Spotiglass/Browsing/HomeFeedModels.swift",
+    "kind": "var.instance",
+    "name": "value",
+    "hints": [
+      "unused"
+    ]
+  },
+  {
+    "file": "Spotiglass/Browsing/PlaylistBrowserCommandPaletteConfiguration.swift",
+    "kind": "var.instance",
+    "name": "commandPaletteManager",
+    "hints": [
+      "assignOnlyProperty"
+    ]
+  },
+  {
+    "file": "Spotiglass/Browsing/SpotifyPaletteSearchAugmentation.swift",
+    "kind": "enum",
+    "name": "SpotifyPaletteSearchAugmentation",
+    "hints": [
+      "unused"
+    ]
+  },
+  {
+    "file": "Spotiglass/CommandPalette/HotkeyRecorderField.swift",
+    "kind": "function.method.instance",
+    "name": "testing_beginKeyCapture()",
+    "hints": [
+      "unused"
+    ]
+  },
+  {
+    "file": "Spotiglass/Infrastructure/SparkleConfiguration.swift",
+    "kind": "enum",
+    "name": "SparkleConfiguration",
+    "hints": [
+      "unused"
+    ]
+  },
+  {
+    "file": "Spotiglass/Infrastructure/SpotiglassLog.swift",
+    "kind": "var.static",
+    "name": "api",
+    "hints": [
+      "unused"
+    ]
+  },
+  {
+    "file": "Spotiglass/Infrastructure/SpotiglassLog.swift",
+    "kind": "var.static",
+    "name": "auth",
+    "hints": [
+      "unused"
+    ]
+  },
+  {
+    "file": "Spotiglass/Infrastructure/SpotiglassLog.swift",
+    "kind": "var.static",
+    "name": "browsing",
+    "hints": [
+      "unused"
+    ]
+  },
+  {
+    "file": "Spotiglass/Pinning/PinnedItemsStore.swift",
+    "kind": "function.method.instance",
+    "name": "reorder(itemID:toInsertionIndex:)",
+    "hints": [
+      "unused"
+    ]
+  },
+  {
+    "file": "Spotiglass/Playback/EQCoefficientPublisher.swift",
+    "kind": "function.method.instance",
+    "name": "readForTesting()",
+    "hints": [
+      "unused"
+    ]
+  },
+  {
+    "file": "Spotiglass/Playback/EQCoefficients.swift",
+    "kind": "function.method.static",
+    "name": "bypass(sampleRateHz:)",
+    "hints": [
+      "unused"
+    ]
+  },
+  {
+    "file": "Spotiglass/Playback/EQCoefficients.swift",
+    "kind": "var.instance",
+    "name": "sequence",
+    "hints": [
+      "assignOnlyProperty"
+    ]
+  },
+  {
+    "file": "Spotiglass/Playback/EqualizerHALPluginController.swift",
+    "kind": "function.method.instance",
+    "name": "install()",
+    "hints": [
+      "unused"
+    ]
+  },
+  {
+    "file": "Spotiglass/Playback/EqualizerHALPluginController.swift",
+    "kind": "function.method.instance",
+    "name": "uninstall()",
+    "hints": [
+      "unused"
+    ]
+  },
+  {
+    "file": "Spotiglass/Playback/EqualizerHALPluginController.swift",
+    "kind": "var.instance",
+    "name": "isInstalled",
+    "hints": [
+      "unused"
+    ]
+  },
+  {
+    "file": "Spotiglass/Playback/EqualizerHALPluginController.swift",
+    "kind": "var.static",
+    "name": "driverBundleID",
+    "hints": [
+      "unused"
+    ]
+  },
+  {
+    "file": "Spotiglass/Playback/PlaybackControlsView.swift",
+    "kind": "var.instance",
+    "name": "dragFraction",
+    "hints": [
+      "unused"
+    ]
+  },
+  {
+    "file": "Spotiglass/Playback/Session/PlaybackSessionViewModel+Timers.swift",
+    "kind": "function.method.instance",
+    "name": "resolvedTransportTrackURI(_:)",
+    "hints": [
+      "unused"
+    ]
+  },
+  {
+    "file": "Spotiglass/Playback/Session/PlaybackSessionViewModel+Timers.swift",
+    "kind": "function.method.instance",
+    "name": "transportPollingKey(for:)",
+    "hints": [
+      "unused"
+    ]
+  },
+  {
+    "file": "Spotiglass/Playback/SpotifyPlaybackBridge.swift",
+    "kind": "var.parameter",
+    "name": "body",
+    "hints": [
+      "unused"
+    ]
+  },
+  {
+    "file": "Spotiglass/Services/SpotifyAPIClient+Search.swift",
+    "kind": "function.method.instance",
+    "name": "searchTracks(query:limit:)",
+    "hints": [
+      "unused"
+    ]
+  },
+  {
+    "file": "Spotiglass/Settings/SpotiglassSettingsModel.swift",
+    "kind": "var.static",
+    "name": "large",
+    "hints": [
+      "unused"
+    ]
+  },
+  {
+    "file": "Spotiglass/Settings/SpotiglassSettingsModel.swift",
+    "kind": "var.static",
+    "name": "medium",
+    "hints": [
+      "unused"
+    ]
+  },
+  {
+    "file": "Spotiglass/Settings/SpotiglassSettingsModel.swift",
+    "kind": "var.static",
+    "name": "small",
+    "hints": [
+      "unused"
+    ]
+  },
+  {
+    "file": "Spotiglass/Settings/SpotiglassSettingsView.swift",
+    "kind": "var.instance",
+    "name": "columnVisibility",
+    "hints": [
+      "unused"
+    ]
+  },
+  {
+    "file": "Spotiglass/Utilities/TransportPollScheduling.swift",
+    "kind": "function.method.static",
+    "name": "transportPollingKey(for:resolvedTrackURI:)",
+    "hints": [
+      "unused"
+    ]
+  },
+  {
+    "file": "Spotiglass/Views/ArtistDetailView.swift",
+    "kind": "var.instance",
+    "name": "colorScheme",
+    "hints": [
+      "unused"
+    ]
+  },
+  {
+    "file": "Spotiglass/Views/HomeFeedComponents.swift",
+    "kind": "var.instance",
+    "name": "colorScheme",
+    "hints": [
+      "unused"
+    ]
+  },
+  {
+    "file": "Spotiglass/Views/ImmersiveLyrics/ImmersiveLyricsLayout.swift",
+    "kind": "var.static",
+    "name": "resumePillCornerRadius",
+    "hints": [
+      "unused"
+    ]
+  },
+  {
+    "file": "Spotiglass/Views/ImmersiveLyrics/ImmersiveLyricsScrollViews.swift",
+    "kind": "var.static",
+    "name": "pillSpring",
+    "hints": [
+      "unused"
+    ]
+  },
+  {
+    "file": "Spotiglass/Views/PlaylistBrowser/PlaylistDetailContent.swift",
+    "kind": "var.instance",
+    "name": "colorScheme",
+    "hints": [
+      "unused"
+    ]
+  },
+  {
+    "file": "Spotiglass/Views/PlaylistBrowser/PlaylistDetailContent.swift",
+    "kind": "var.instance",
+    "name": "tracksSurfaceKey",
+    "hints": [
+      "assignOnlyProperty"
+    ]
+  },
+  {
+    "file": "Spotiglass/Views/SpotiglassComponents.swift",
+    "kind": "var.static",
+    "name": "transitionSpring",
+    "hints": [
+      "unused"
+    ]
+  },
+  {
+    "file": "Spotiglass/Views/SpotiglassDesignSystem.swift",
+    "kind": "var.parameter",
+    "name": "colorScheme",
+    "hints": [
+      "unused"
+    ]
+  },
+  {
+    "file": "Spotiglass/Views/TrackListRow.swift",
+    "kind": "var.instance",
+    "name": "colorScheme",
+    "hints": [
+      "unused"
+    ]
+  }
+]
