@@ -120,4 +120,71 @@ final class LocalizationCoverageTests: XCTestCase {
             XCTAssertEqual(row.badgeText, expected[language], "badge in \(language.rawValue)")
         }
     }
+
+    /// One word per concept per language (#158).
+    ///
+    /// German said Song in one key and Titel in another, Spanish said canción
+    /// and pista, and these render side by side: the queue panel sits next to
+    /// the sidebar rows in the same window. Reading the catalog directly is what
+    /// keeps the glossary from drifting back one string at a time.
+    func testCatalogUsesOneNounPerConceptPerLanguage() throws {
+        let catalogURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Spotiglass/Localizable.xcstrings")
+        let data = try Data(contentsOf: catalogURL)
+        let root = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        )
+        let strings = try XCTUnwrap(root["strings"] as? [String: Any])
+
+        /// Every translated value for a locale, including each plural case.
+        func values(_ entry: Any, _ locale: String) -> [String] {
+            guard let entry = entry as? [String: Any],
+                  let localizations = entry["localizations"] as? [String: Any],
+                  let localization = localizations[locale] as? [String: Any] else { return [] }
+            var out: [String] = []
+            if let unit = localization["stringUnit"] as? [String: Any],
+               let value = unit["value"] as? String {
+                out.append(value)
+            }
+            if let variations = localization["variations"] as? [String: Any],
+               let plural = variations["plural"] as? [String: Any] {
+                for case let form as [String: Any] in plural.values {
+                    if let unit = form["stringUnit"] as? [String: Any],
+                       let value = unit["value"] as? String {
+                        out.append(value)
+                    }
+                }
+            }
+            return out
+        }
+
+        // "Liked Songs" is Spotify's own name for the library section, in both
+        // English and the German "Lieblingssongs", and "Songtext" is the German
+        // word for lyrics. None of those are the track noun.
+        let germanExemptKeys: Set<String> = ["pin.likedSongs"]
+        let banned: [(locale: String, pattern: String, use: String)] = [
+            ("de", #"\bSongs?\b"#, "Titel"),
+            ("es", #"\bpistas?\b"#, "canción/canciones"),
+            ("es", #"\bplaylists?\b"#, "lista/listas"),
+        ]
+
+        for (locale, pattern, use) in banned {
+            let regex = try NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
+            for (key, entry) in strings {
+                if locale == "de", germanExemptKeys.contains(key) { continue }
+                for value in values(entry, locale) {
+                    if locale == "de", value.contains("Songtext") || value.contains("Lieblingssong") {
+                        continue
+                    }
+                    let range = NSRange(value.startIndex..., in: value)
+                    XCTAssertNil(
+                        regex.firstMatch(in: value, range: range),
+                        "\(locale) \(key) uses a second noun for the concept; use \(use). Value: \(value)"
+                    )
+                }
+            }
+        }
+    }
 }
