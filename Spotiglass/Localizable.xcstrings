@@ -431,7 +431,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Schließe die Autorisierung im Browserfenster ab. Spotiglass lauscht auf 127.0.0.1 auf den Callback."
+            "value": "Schliesse die Autorisierung im Browserfenster ab. Spotiglass lauscht auf 127.0.0.1 auf den Callback."
           }
         },
         "en": {
@@ -914,7 +914,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nicht genug Speicher für den Schlüsselbund. Schließe andere Apps und versuche es erneut."
+            "value": "Nicht genug Speicher für den Schlüsselbund. Schliesse andere Apps und versuche es erneut."
           }
         },
         "en": {
@@ -1581,7 +1581,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Songtexte schließen"
+            "value": "Songtexte schliessen"
           }
         },
         "en": {
@@ -1604,7 +1604,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Schließt das immersive Songtext-Overlay."
+            "value": "Schliesst das immersive Songtext-Overlay."
           }
         },
         "en": {
@@ -5514,7 +5514,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Stellt den hervorgehobenen Titel in die Warteschlange, ohne die Palette zu schließen"
+            "value": "Stellt den hervorgehobenen Titel in die Warteschlange, ohne die Palette zu schliessen"
           }
         },
         "en": {
@@ -6043,7 +6043,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "esc schließen"
+            "value": "esc schliessen"
           }
         },
         "en": {
@@ -8803,7 +8803,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Schließen"
+            "value": "Schliessen"
           }
         },
         "en": {
@@ -10160,7 +10160,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vorschau der Songtext-Textgröße"
+            "value": "Vorschau der Songtext-Textgrösse"
           }
         },
         "en": {
@@ -10252,7 +10252,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Groß"
+            "value": "Gross"
           }
         },
         "en": {
@@ -10321,7 +10321,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Songtext-Größe feinjustieren"
+            "value": "Songtext-Grösse feinjustieren"
           }
         },
         "en": {
@@ -10344,7 +10344,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Textgröße der Songtexte"
+            "value": "Textgrösse der Songtexte"
           }
         },
         "en": {
@@ -10367,7 +10367,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Steuert Schriftgröße und Zeilenabstand in der immersiven Songtext-Ansicht."
+            "value": "Steuert Schriftgrösse und Zeilenabstand in der immersiven Songtext-Ansicht."
           }
         },
         "en": {

@@ -81,6 +81,10 @@ exempt class means editing `scripts/audit-localization.sh`.
 - **German**: formal Sie register in multi-clause subtitles ("Verwenden Sie …",
   "Wählen Sie …"). Short labels stay in the impersonal infinitive ("Spotify
   verbinden", "Trennen"), matching Apple's HIG German tone.
+- **German never uses the sharp-s.** Write `ss`: "schliessen", not "schließen";
+  "Gross", not "Groß". Umlauts are unaffected, so "Zurück" and "Wählen" keep
+  their diacritics. `scripts/audit-localization.sh` fails if a sharp-s appears
+  in a German value.
 - Sentence case for sentences; title case (or German noun capitalization) for
   short labels.
 - Track / artist / album names are user-content and never touched.
