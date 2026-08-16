@@ -90,4 +90,27 @@ final class MenuKeyEquivalentTests: XCTestCase {
         XCTAssertEqual(shuffled, 1)
         XCTAssertEqual(repeated, 1)
     }
+
+    // MARK: - Help menu (#177)
+
+    /// The default Help item was a silent no-op: the bundle declares no
+    /// CFBundleHelpBookName, so choosing it did nothing at all. These are the
+    /// destinations that replaced it, and a typo in either one would ship a
+    /// Help menu that fails exactly as quietly as the old one did.
+    @MainActor
+    func testHelpMenuPointsAtRealDestinations() {
+        XCTAssertEqual(
+            SpotiglassMenuCommands.readmeURL.absoluteString,
+            "https://github.com/isaaclins/spotiglass#readme"
+        )
+        XCTAssertEqual(
+            SpotiglassMenuCommands.newIssueURL.absoluteString,
+            "https://github.com/isaaclins/spotiglass/issues/new"
+        )
+        for url in [SpotiglassMenuCommands.readmeURL, SpotiglassMenuCommands.newIssueURL] {
+            XCTAssertEqual(url.scheme, "https", "help destinations must not be plain http")
+            XCTAssertNotNil(url.host, "a hostless URL opens nothing")
+        }
+    }
+
 }
