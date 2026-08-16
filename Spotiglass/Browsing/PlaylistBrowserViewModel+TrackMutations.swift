@@ -13,6 +13,19 @@ extension PlaylistBrowserViewModel {
         return tracks.first(where: { $0.id == rowID }).map { [$0] } ?? []
     }
 
+    /// Rows for the current table selection, in list order.
+    ///
+    /// The context menu uses ``effectiveTrackTargets(forRowID:)`` because it has
+    /// a row to fall back on. A menu bar item has no row, only the selection, so
+    /// an empty selection means there is nothing to act on (#132).
+    var selectedTrackRows: [TrackRowViewModel] {
+        let selection = selectedDetailTrackIDs
+        guard !selection.isEmpty,
+              let tracks = loadedContextTracksForPalette,
+              !tracks.isEmpty else { return [] }
+        return tracks.filter { selection.contains($0.id) }
+    }
+
     /// Spotify catalog URIs (`spotify:track:...`) for playlist-mutation calls. Skips
     /// rows without a playable catalog URI (episodes, local files, unavailable).
     func playableURIs(for rows: [TrackRowViewModel]) -> [String] {

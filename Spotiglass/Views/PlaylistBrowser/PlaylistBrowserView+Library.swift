@@ -13,6 +13,44 @@ extension PlaylistBrowserView {
         PlaylistBrowserLibraryActions.libraryRows(order: libraryRowOrder, pinnedItems: pinnedStore.items)
     }
 
+    /// Mirrors the track table's selection into the command palette manager so
+    /// the menu bar can enable and re-title its selection items (#132).
+    func syncTrackSelectionMenuState() {
+        let rows = viewModel.selectedTrackRows
+        commandPaletteManager.canEnqueueTrackSelection = Self.canEnqueueTrackSelection(
+            rows: rows,
+            hasPlaybackDevice: hasPlaybackDevice
+        )
+        commandPaletteManager.trackSelectionPinState = Self.trackSelectionPinState(
+            for: rows.compactMap { $0.pinnedTrackItem() },
+            isPinned: { pinnedStore.isPinned(id: $0) }
+        )
+    }
+
+    /// Queueing needs both a row that can be played and somewhere to play it.
+    /// Episodes and local files have no playable URI, and with no active device
+    /// there is nothing to queue onto, which is what the row context menu has
+    /// always checked.
+    static func canEnqueueTrackSelection(
+        rows: [TrackRowViewModel],
+        hasPlaybackDevice: Bool
+    ) -> Bool {
+        hasPlaybackDevice && rows.contains { $0.playableURI != nil }
+    }
+
+    /// Unpin only when every pinnable row is already pinned. A mixed selection
+    /// offers Pin, so one command cannot both pin and unpin in a single press.
+    ///
+    /// Extracted as a static function because the rule is what matters and a
+    /// SwiftUI view body is not a thing tests can ask questions of.
+    static func trackSelectionPinState(
+        for items: [PinnedItem],
+        isPinned: (String) -> Bool
+    ) -> TrackSelectionPinState {
+        guard !items.isEmpty else { return .unavailable }
+        return items.allSatisfy { isPinned($0.id) } ? .unpin : .pin
+    }
+
     func syncLibraryRowOrder() {
         if pinnedStore.isPinned(id: PinnedItem.likedSongsID) {
             pinnedStore.unpin(id: PinnedItem.likedSongsID)

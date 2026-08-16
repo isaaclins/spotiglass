@@ -23,6 +23,12 @@ struct SpotiglassMenuCommands: Commands {
     /// Back dims when the browser's navigation stack is empty, so the menu item
     /// reflects the same state the toolbar button does.
     let canNavigateBack: Bool
+    /// Whether the selection can be queued at all. Dims the item when nothing is
+    /// selected, when no selected row is playable, or when there is no device to
+    /// queue onto, matching the row context menu (#132).
+    let canEnqueueTrackSelection: Bool
+    /// Whether the selection offers Pin, Unpin, or neither.
+    let trackSelectionPinState: TrackSelectionPinState
 
     var body: some Commands {
         CommandGroup(after: .appSettings) {
@@ -121,6 +127,23 @@ struct SpotiglassMenuCommands: Commands {
 
             Divider()
 
+            // Add to Queue and Pin existed only in the row context menu, so they
+            // were unreachable without a right-click. These act on the table
+            // selection, so a keyboard user can select a row and use them (#132).
+            Button(SpotiglassL10n.string("browser.addToQueue")) {
+                run(CommandPaletteCommandID.enqueueTrackSelection)
+            }
+            .keyboardShortcut("e", modifiers: [.option, .command])
+            .disabled(!isSignedIn || !canEnqueueTrackSelection)
+
+            Button(pinItemTitle) {
+                run(CommandPaletteCommandID.pinTrackSelection)
+            }
+            .keyboardShortcut("p", modifiers: [.option, .command])
+            .disabled(!isSignedIn || trackSelectionPinState == .unavailable)
+
+            Divider()
+
             // Seeking had no keyboard path at all: the scrubber is drag-only and
             // no seek command existed anywhere (#126).
             Button(SpotiglassL10n.string("menu.playback.seekForward")) {
@@ -180,6 +203,14 @@ struct SpotiglassMenuCommands: Commands {
         isQueueVisible
             ? SpotiglassL10n.string("menu.view.hideQueue")
             : SpotiglassL10n.string("menu.view.showQueue")
+    }
+
+    /// Unpin only when every selected row is already pinned, matching what the
+    /// command actually does.
+    private var pinItemTitle: String {
+        trackSelectionPinState == .unpin
+            ? SpotiglassL10n.string("browser.unpin")
+            : SpotiglassL10n.string("browser.pin")
     }
 
     private var lyricsItemTitle: String {

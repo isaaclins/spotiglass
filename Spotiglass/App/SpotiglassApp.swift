@@ -134,7 +134,9 @@ struct SpotiglassApp: App {
                 isSignedIn: isSignedIn,
                 isQueueVisible: isQueueVisible,
                 isLyricsPresented: lyricsOverlayController.isPresented,
-                canNavigateBack: commandPaletteManager.canNavigateBack
+                canNavigateBack: commandPaletteManager.canNavigateBack,
+                canEnqueueTrackSelection: commandPaletteManager.canEnqueueTrackSelection,
+                trackSelectionPinState: commandPaletteManager.trackSelectionPinState
             )
         }
 

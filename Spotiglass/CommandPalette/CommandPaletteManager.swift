@@ -12,6 +12,15 @@ final class CommandPaletteManager: ObservableObject {
     /// Mirrors the browser's back stack so the View menu's Back item can dim
     /// when there is nowhere to go. The app scene does not own the browser view
     /// model, and this manager is already the seam between the two.
+    /// Whether the track table's selection can be queued: at least one selected
+    /// row has a playable URI and there is a device to queue onto. The row
+    /// context menu has always checked both, so the menu bar item does too (#132).
+    @Published var canEnqueueTrackSelection = false
+    /// Whether the selection can be pinned, unpinned, or neither. Drives both
+    /// the enabled state and the Pin/Unpin title, the same way the queue item
+    /// flips between Show and Hide.
+    @Published var trackSelectionPinState: TrackSelectionPinState = .unavailable
+
     @Published var canNavigateBack = false
 
     var isSignedIn = false
@@ -30,6 +39,10 @@ final class CommandPaletteManager: ObservableObject {
     /// menu bar reorders **Up next** exactly like the queue panel's shuffle button.
     var toggleShuffle: (() async -> Void)?
     var cycleRepeat: (() async -> Void)?
+    /// Menu bar equivalents of the row context menu, acting on the track
+    /// table's selection (#132).
+    var enqueueTrackSelection: (() async -> Void)?
+    var pinTrackSelection: (() -> Void)?
     var navigateBack: (() async -> Void)?
     var seekBy: ((Int) async -> Void)?
     var playURI: ((String) async -> Void)?
@@ -235,6 +248,10 @@ final class CommandPaletteManager: ObservableObject {
             toggleQueue?()
         case CommandPaletteCommandID.toggleLyrics:
             toggleLyrics?()
+        case CommandPaletteCommandID.enqueueTrackSelection:
+            Task { await enqueueTrackSelection?() }
+        case CommandPaletteCommandID.pinTrackSelection:
+            pinTrackSelection?()
         case CommandPaletteCommandID.pinSelected:
             Task { await viewModel.executeSelectionPinning() }
         case CommandPaletteCommandID.unpinSelected:

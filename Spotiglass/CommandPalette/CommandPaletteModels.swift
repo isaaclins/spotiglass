@@ -17,6 +17,11 @@ enum CommandPaletteCommandID {
     /// Menu bar only: flips Spotify shuffle for the active device. Deliberately
     /// absent from ``CommandPaletteCommandCatalog/editable``, so it has no palette
     /// row and no rebindable keystroke, and the Playback menu owns its ⌥⌘S chord.
+    /// Menu bar only. Acts on the track table's selection, unlike
+    /// ``enqueueSelected`` and ``pinSelected``, which are scoped to the palette
+    /// and act on its own highlighted row (#132).
+    static let enqueueTrackSelection = "browser.selection.enqueue"
+    static let pinTrackSelection = "browser.selection.pin"
     static let toggleShuffle = "playback.shuffle"
     /// Menu bar only, same reasoning as ``toggleShuffle``: cycles off, context, track.
     static let cycleRepeat = "playback.repeat"
@@ -265,4 +270,15 @@ struct CommandPaletteSearchResults {
         guard id.hasPrefix("playlist-") else { return nil }
         return String(id.dropFirst("playlist-".count))
     }
+}
+
+/// Whether the current track selection offers Pin, Unpin, or neither.
+///
+/// `unavailable` covers both an empty selection and rows that cannot be pinned
+/// at all, such as episodes and local files, so the menu item dims instead of
+/// pretending it will work (#132).
+enum TrackSelectionPinState {
+    case unavailable
+    case pin
+    case unpin
 }
