@@ -8,7 +8,9 @@
 #      en/es/de values.
 #   3. Referenced-key existence: every key passed to SpotiglassL10n.string,
 #      .string(forKey:), or .format in Swift code is present in the catalog.
-#   4. Orphaned catalog keys: every catalog key is referenced by Swift source or
+#   4. German sharp-s: German values spell it "ss". The project writes German
+#      without ß, so the audit fails if one is reintroduced.
+#   5. Orphaned catalog keys: every catalog key is referenced by Swift source or
 #      listed in scripts/localization-orphans.allowlist. The allowlist contains
 #      one exact key per line for legitimate runtime-built or generated keys;
 #      blank lines and lines beginning with # are ignored.
@@ -50,6 +52,7 @@ leak_count=0
 missing_count=0
 unknown_key_count=0
 orphan_count=0
+sharp_s_count=0
 
 # ---- 1. English-leak scan ---------------------------------------------------
 # Match string literals passed to user-visible modifiers/initializers. Anything
@@ -78,6 +81,20 @@ leak_hits=$(
 
 if [[ -n "$leak_hits" ]]; then
   leak_count=$(printf "%s\n" "$leak_hits" | wc -l | tr -d ' ')
+fi
+
+# ---- 1b. German sharp-s -----------------------------------------------------
+# The project writes German without ß. Catching it here keeps the convention
+# from depending on whoever reviews the diff.
+sharp_s_report=$(
+  jq -r '
+    .strings | to_entries[] |
+    select((.value.localizations.de.stringUnit.value // "") | test("ß")) |
+    [.key, .value.localizations.de.stringUnit.value] | @tsv
+  ' "$CATALOG"
+)
+if [[ -n "$sharp_s_report" ]]; then
+  sharp_s_count=$(printf "%s\n" "$sharp_s_report" | wc -l | tr -d ' ')
 fi
 
 # ---- 2. Catalog completeness ------------------------------------------------
@@ -255,6 +272,13 @@ else
   printf "%s" "$orphan_report" | sed 's/^/    /'
 fi
 
-if (( leak_count + missing_count + unknown_key_count + orphan_count > 0 )); then
+if (( sharp_s_count == 0 )); then
+  echo "✓ 0 German values using the sharp-s"
+else
+  echo "✗ $sharp_s_count German values use the sharp-s (write ss):"
+  printf "%s\n" "$sharp_s_report" | sed 's/^/    /'
+fi
+
+if (( leak_count + missing_count + unknown_key_count + orphan_count + sharp_s_count > 0 )); then
   exit 1
 fi
