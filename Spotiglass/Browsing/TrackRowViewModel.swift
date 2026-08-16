@@ -8,6 +8,9 @@ struct TrackRowViewModel: Equatable, Identifiable {
     let subtitle: String
     let artworkURL: URL?
     let durationText: String
+    /// Carried as a number so nothing has to read the length back out of its own
+    /// display text (#159).
+    let durationMilliseconds: Int
     let badgeText: String?
     let isUnavailable: Bool
     /// Tracked alongside ``badgeText`` so pin/queue paths can recognise explicit
@@ -39,7 +42,8 @@ struct TrackRowViewModel: Equatable, Identifiable {
             self.title = track.name
             self.subtitle = track.artists.joined(separator: ", ")
             self.artworkURL = track.albumArtworkURL
-            self.durationText = Self.durationText(milliseconds: track.durationMilliseconds)
+            self.durationText = TrackDuration.text(milliseconds: track.durationMilliseconds)
+            self.durationMilliseconds = max(0, track.durationMilliseconds)
             self.badgeText = track.isPlayable == false
                 ? SpotiglassL10n.string("browser.trackBadge.unavailable")
                 : (track.isExplicit ? SpotiglassL10n.string("browser.trackBadge.explicit") : nil)
@@ -51,7 +55,8 @@ struct TrackRowViewModel: Equatable, Identifiable {
             self.title = episode.name
             self.subtitle = episode.showName ?? SpotiglassL10n.string("browser.trackBadge.podcastEpisode")
             self.artworkURL = episode.artworkURL
-            self.durationText = Self.durationText(milliseconds: episode.durationMilliseconds)
+            self.durationText = TrackDuration.text(milliseconds: episode.durationMilliseconds)
+            self.durationMilliseconds = max(0, episode.durationMilliseconds)
             self.badgeText = episode.isPlayable == false
                 ? SpotiglassL10n.string("browser.trackBadge.unavailableEpisode")
                 : SpotiglassL10n.string("browser.trackBadge.episode")
@@ -65,7 +70,8 @@ struct TrackRowViewModel: Equatable, Identifiable {
                 ? SpotiglassL10n.string("browser.trackBadge.localTrack")
                 : track.artists.joined(separator: ", ")
             self.artworkURL = nil
-            self.durationText = Self.durationText(milliseconds: track.durationMilliseconds)
+            self.durationText = TrackDuration.text(milliseconds: track.durationMilliseconds)
+            self.durationMilliseconds = max(0, track.durationMilliseconds)
             self.badgeText = SpotiglassL10n.string("browser.trackBadge.local")
             self.isUnavailable = false
             self.isExplicit = false
@@ -75,7 +81,8 @@ struct TrackRowViewModel: Equatable, Identifiable {
             self.title = SpotiglassL10n.string("browser.trackBadge.unavailableItem")
             self.subtitle = reason
             self.artworkURL = nil
-            self.durationText = "--:--"
+            self.durationText = TrackDuration.unknownText
+            self.durationMilliseconds = 0
             self.badgeText = SpotiglassL10n.string("browser.trackBadge.unavailable")
             self.isUnavailable = true
             self.isExplicit = false
@@ -90,7 +97,8 @@ struct TrackRowViewModel: Equatable, Identifiable {
         self.title = track.name
         self.subtitle = track.artists.joined(separator: ", ")
         self.artworkURL = track.albumArtworkURL
-        self.durationText = Self.durationText(milliseconds: track.durationMilliseconds)
+        self.durationText = TrackDuration.text(milliseconds: track.durationMilliseconds)
+        self.durationMilliseconds = max(0, track.durationMilliseconds)
         self.badgeText = track.isPlayable == false
             ? SpotiglassL10n.string("browser.trackBadge.unavailable")
             : (track.isExplicit ? SpotiglassL10n.string("browser.trackBadge.explicit") : nil)
@@ -100,19 +108,7 @@ struct TrackRowViewModel: Equatable, Identifiable {
         self.artistRefs = track.artistRefs
     }
 
-    private static func durationText(milliseconds: Int) -> String {
-        let totalSeconds = max(0, milliseconds / 1_000)
-        return "\(totalSeconds / 60):\(String(format: "%02d", totalSeconds % 60))"
-    }
 
-    /// Milliseconds parsed from ``durationText`` (`m:ss`); `0` when unparsable.
-    var durationMillisecondsForPinning: Int {
-        let parts = durationText.split(separator: ":")
-        guard parts.count == 2,
-              let m = Int(parts[0].trimmingCharacters(in: .whitespaces)),
-              let s = Int(parts[1].trimmingCharacters(in: .whitespaces)) else { return 0 }
-        return max(0, (m * 60 + s) * 1_000)
-    }
 
     /// Domain track for palette pinning and draggable pins; `nil` for episodes, locals, and unavailable rows.
     func spotifyTrackForPinning() -> SpotifyTrack? {
@@ -126,7 +122,7 @@ struct TrackRowViewModel: Equatable, Identifiable {
             artists: names,
             artistRefs: artistRefs,
             albumArtworkURL: artworkURL,
-            durationMilliseconds: durationMillisecondsForPinning,
+            durationMilliseconds: durationMilliseconds,
             isExplicit: isExplicit,
             isPlayable: !isUnavailable,
             linkedFromID: nil,

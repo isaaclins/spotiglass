@@ -154,6 +154,7 @@
 		G70000000000000000000001 /* CommandPaletteModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = G70000000000000000000011 /* CommandPaletteModels.swift */; };
 		G70000000000000000000002 /* CommandPaletteKeymap.swift in Sources */ = {isa = PBXBuildFile; fileRef = G70000000000000000000012 /* CommandPaletteKeymap.swift */; };
 		G70000000000000000000003 /* CommandPaletteKeymapStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = G70000000000000000000013 /* CommandPaletteKeymapStore.swift */; };
+		TDU000000000000000000001 /* TrackDuration.swift in Sources */ = {isa = PBXBuildFile; fileRef = TDU000000000000000000002 /* TrackDuration.swift */; };
 		RSV000000000000000000001 /* CommandPaletteReservedShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = RSV000000000000000000002 /* CommandPaletteReservedShortcuts.swift */; };
 		G70000000000000000000004 /* CommandPaletteViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = G70000000000000000000014 /* CommandPaletteViewModel.swift */; };
 		G70000000000000000000005 /* CommandPaletteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = G70000000000000000000015 /* CommandPaletteView.swift */; };
@@ -511,6 +512,7 @@
 		G70000000000000000000011 /* CommandPaletteModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteModels.swift; sourceTree = "<group>"; };
 		G70000000000000000000012 /* CommandPaletteKeymap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteKeymap.swift; sourceTree = "<group>"; };
 		G70000000000000000000013 /* CommandPaletteKeymapStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteKeymapStore.swift; sourceTree = "<group>"; };
+		TDU000000000000000000002 /* TrackDuration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackDuration.swift; sourceTree = "<group>"; };
 		RSV000000000000000000002 /* CommandPaletteReservedShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteReservedShortcuts.swift; sourceTree = "<group>"; };
 		G70000000000000000000014 /* CommandPaletteViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteViewModel.swift; sourceTree = "<group>"; };
 		G70000000000000000000015 /* CommandPaletteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteView.swift; sourceTree = "<group>"; };
@@ -1042,6 +1044,7 @@
 				COV00000000000000000016 /* TransportPollScheduling.swift */,
 				COV00000000000000000017 /* WebPlaybackCommandScriptBuilder.swift */,
 				FC00000000000000000000011 /* ArtworkImageStore.swift */,
+				TDU000000000000000000002 /* TrackDuration.swift */,
 				C30000000000000000000018 /* SpotifyRateLimitDisplay.swift */,
 			);
 			path = Utilities;
@@ -1390,6 +1393,7 @@
 				A10000000000000000000004 /* AppMetadata.swift in Sources */,
 				A1000000000000000000000B /* SpotifyPaletteSearchAugmentation.swift in Sources */,
 				FC00000000000000000000001 /* ArtworkImageStore.swift in Sources */,
+				TDU000000000000000000001 /* TrackDuration.swift in Sources */,
 				COV00000000000000000001 /* BrowserWidthCommitPolicy.swift in Sources */,
 				COV00000000000000000002 /* PlaylistBrowserPlaybackHelpers.swift in Sources */,
 				COV00000000000000000003 /* PlaylistBrowserPaletteSearchBuilder.swift in Sources */,

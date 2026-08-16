@@ -34,8 +34,7 @@ struct PlaybackNowPlaying: Equatable {
     }
 
     static func durationText(milliseconds: Int) -> String {
-        let totalSeconds = max(0, milliseconds / 1_000)
-        return "\(totalSeconds / 60):\(String(format: "%02d", totalSeconds % 60))"
+        TrackDuration.text(milliseconds: milliseconds)
     }
 
     /// Formats a duration as `M:SS` (no leading zero on minutes), used by the

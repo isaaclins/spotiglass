@@ -6,6 +6,9 @@ struct ArtistAlbumRowViewModel: Equatable, Identifiable {
     let artworkURL: URL?
     let yearText: String?
     let trackCountText: String
+    /// Kept as a number so nothing has to scrape digits off the localized
+    /// ``trackCountText`` to recover it (#159).
+    let totalTrackCount: Int
     let uri: String
 
     init(_ album: SpotifyArtistAlbum) {
@@ -13,6 +16,7 @@ struct ArtistAlbumRowViewModel: Equatable, Identifiable {
         title = album.name
         artworkURL = album.imageURL
         yearText = album.releaseYear
+        totalTrackCount = max(0, album.totalTracks)
         trackCountText = album.totalTracks == 1
             ? SpotiglassL10n.string("browser.trackCount.one")
             : SpotiglassL10n.format("browser.trackCount.other", Int64(album.totalTracks))
@@ -53,10 +57,6 @@ struct ArtistDetailViewModel: Equatable {
 }
 
 extension ArtistAlbumRowViewModel {
-    private var parsedTotalTrackCount: Int {
-        let digits = trackCountText.prefix { $0.isNumber }
-        return Int(digits) ?? 1
-    }
 
     func spotifyArtistAlbum(group: SpotifyArtistAlbumGroup) -> SpotifyArtistAlbum {
         SpotifyArtistAlbum(
@@ -64,7 +64,7 @@ extension ArtistAlbumRowViewModel {
             name: title,
             imageURL: artworkURL,
             releaseYear: yearText,
-            totalTracks: parsedTotalTrackCount,
+            totalTracks: totalTrackCount,
             group: group,
             uri: uri
         )

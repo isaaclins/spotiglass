@@ -292,6 +292,7 @@ private extension TrackRowViewModel {
         subtitle: String,
         artworkURL: URL?,
         durationText: String,
+        durationMilliseconds: Int = 0,
         badgeText: String?,
         isUnavailable: Bool,
         isExplicit: Bool,
@@ -304,6 +305,7 @@ private extension TrackRowViewModel {
         self.subtitle = subtitle
         self.artworkURL = artworkURL
         self.durationText = durationText
+        self.durationMilliseconds = max(0, durationMilliseconds)
         self.badgeText = badgeText
         self.isUnavailable = isUnavailable
         self.isExplicit = isExplicit
