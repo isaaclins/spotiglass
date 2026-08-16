@@ -224,6 +224,7 @@
 		TST00000000000000000000D1 /* LoopbackOAuthCallbackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100D1 /* LoopbackOAuthCallbackTests.swift */; };
 		TST00000000000000000000D2 /* SpotifyLocalCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100D2 /* SpotifyLocalCacheTests.swift */; };
 		TST00000000000000000000D3 /* PinnedItemFactoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100D3 /* PinnedItemFactoryTests.swift */; };
+		TST0000000000000000000900 /* TrackSelectionMenuStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000009100 /* TrackSelectionMenuStateTests.swift */; };
 		TST00000000000000000000D4 /* AuthPersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100D4 /* AuthPersistenceTests.swift */; };
 		TST00000000000000000000D5 /* PlaybackTransportPollingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100D5 /* PlaybackTransportPollingTests.swift */; };
 		TST00000000000000000000D6 /* ArtworkImageStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100D6 /* ArtworkImageStoreTests.swift */; };
@@ -628,6 +629,7 @@
 		TST00000000000000000100D1 /* LoopbackOAuthCallbackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoopbackOAuthCallbackTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000100D2 /* SpotifyLocalCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyLocalCacheTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000100D3 /* PinnedItemFactoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinnedItemFactoryTests.swift; sourceTree = "<group>"; };
+		TST0000000000000000009100 /* TrackSelectionMenuStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackSelectionMenuStateTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000100D4 /* AuthPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthPersistenceTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000100D5 /* PlaybackTransportPollingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackTransportPollingTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000100D6 /* ArtworkImageStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkImageStoreTests.swift; sourceTree = "<group>"; };
@@ -980,6 +982,7 @@
 				TST00000000000000000100D5 /* PlaybackTransportPollingTests.swift */,
 				TST00000000000000000100D4 /* AuthPersistenceTests.swift */,
 				TST00000000000000000100D3 /* PinnedItemFactoryTests.swift */,
+				TST0000000000000000009100 /* TrackSelectionMenuStateTests.swift */,
 				TST00000000000000000100D2 /* SpotifyLocalCacheTests.swift */,
 				TST00000000000000000100D1 /* LoopbackOAuthCallbackTests.swift */,
 				TST00000000000000000100D0 /* SpotifyPlaybackAPITests.swift */,
@@ -1689,6 +1692,7 @@
 				TST00000000000000000000D5 /* PlaybackTransportPollingTests.swift in Sources */,
 				TST00000000000000000000D4 /* AuthPersistenceTests.swift in Sources */,
 				TST00000000000000000000D3 /* PinnedItemFactoryTests.swift in Sources */,
+				TST0000000000000000000900 /* TrackSelectionMenuStateTests.swift in Sources */,
 				TST00000000000000000000D2 /* SpotifyLocalCacheTests.swift in Sources */,
 				TST00000000000000000000D1 /* LoopbackOAuthCallbackTests.swift in Sources */,
 				TST00000000000000000000D0 /* SpotifyPlaybackAPITests.swift in Sources */,

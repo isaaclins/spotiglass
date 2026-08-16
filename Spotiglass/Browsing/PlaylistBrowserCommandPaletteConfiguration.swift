@@ -67,6 +67,36 @@ enum PlaylistBrowserCommandPaletteConfiguration {
         manager.cycleRepeat = { [weak playback = dependencies.playbackViewModel] in
             await playback?.cycleRepeat()
         }
+        // The palette's enqueue and pin act on its own highlighted row. These act
+        // on the track table's selection, so the same actions have a keyboard and
+        // menu bar path without a right-click (#132).
+        manager.enqueueTrackSelection = { [
+            weak browser = dependencies.viewModel,
+            weak queue = dependencies.queueViewModel
+        ] in
+            guard let browser, let queue else { return }
+            for row in browser.selectedTrackRows {
+                guard let uri = row.playableURI else { continue }
+                await queue.addToQueue(uri: uri)
+            }
+        }
+        manager.pinTrackSelection = { [
+            weak browser = dependencies.viewModel,
+            weak store = dependencies.pinnedStore
+        ] in
+            guard let browser, let store else { return }
+            let items = browser.selectedTrackRows.compactMap { $0.pinnedTrackItem() }
+            guard !items.isEmpty else { return }
+            // Unpin only when every selected row is already pinned, which is the
+            // same rule that decides whether the menu says Pin or Unpin.
+            if items.allSatisfy({ store.isPinned(id: $0.id) }) {
+                for item in items { store.unpin(id: item.id) }
+            } else {
+                for item in items where !store.isPinned(id: item.id) {
+                    _ = store.pin(item)
+                }
+            }
+        }
         manager.navigateBack = { [weak browser = dependencies.viewModel] in
             await browser?.navigateBack()
         }

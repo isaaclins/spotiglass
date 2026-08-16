@@ -24,6 +24,8 @@ enum CommandPaletteReservedShortcuts {
         Reservation(keystroke: "alt-cmd-r", menuTitleKey: "menu.playback.repeat"),
         Reservation(keystroke: "cmd-right", menuTitleKey: "menu.playback.seekForward"),
         Reservation(keystroke: "cmd-left", menuTitleKey: "menu.playback.seekBackward"),
+        Reservation(keystroke: "alt-cmd-e", menuTitleKey: "browser.addToQueue"),
+        Reservation(keystroke: "alt-cmd-p", menuTitleKey: "browser.pin"),
     ]
 
     /// The menu item that already owns this chord, named for a person to read.

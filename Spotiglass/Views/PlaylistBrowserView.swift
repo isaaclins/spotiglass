@@ -281,6 +281,7 @@ struct PlaylistBrowserView: View {
             queueViewModel.setAppActive(NSApplication.shared.isActive)
             queueViewModel.setPanelVisible(isQueueVisible)
             commandPaletteManager.canNavigateBack = viewModel.canNavigateBack
+            syncTrackSelectionMenuState()
         }
         .onDisappear {
             commandPaletteManager.dismissLyricsOverlayIfPresented = nil
@@ -298,7 +299,16 @@ struct PlaylistBrowserView: View {
         .onChange(of: viewModel.canNavigateBack) { _, newValue in
             commandPaletteManager.canNavigateBack = newValue
         }
+        // The menu bar dims and re-titles its selection items from this, so it
+        // has to follow both the selection and the pinned set (#132).
+        .onChange(of: viewModel.selectedDetailTrackIDs) { _, _ in
+            syncTrackSelectionMenuState()
+        }
+        .onChange(of: playbackViewModel.deviceID) { _, _ in
+            syncTrackSelectionMenuState()
+        }
         .onChange(of: pinnedStore.items) { _, _ in
+            syncTrackSelectionMenuState()
             syncLibraryRowOrder()
             bindCommandPalette(queueVisible: $isQueueVisible, lyricsPresented: isLyricsPresentedBinding)
         }
