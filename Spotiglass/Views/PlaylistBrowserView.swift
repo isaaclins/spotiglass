@@ -262,6 +262,7 @@ struct PlaylistBrowserView: View {
             }
             queueViewModel.setAppActive(NSApplication.shared.isActive)
             queueViewModel.setPanelVisible(isQueueVisible)
+            commandPaletteManager.canNavigateBack = viewModel.canNavigateBack
         }
         .onDisappear {
             commandPaletteManager.dismissLyricsOverlayIfPresented = nil
@@ -275,6 +276,9 @@ struct PlaylistBrowserView: View {
         }
         .onChange(of: viewModel.prefetchAllPlaylistsProgress) { _, newValue in
             commandPaletteManager.viewModel.prefetchProgress = newValue
+        }
+        .onChange(of: viewModel.canNavigateBack) { _, newValue in
+            commandPaletteManager.canNavigateBack = newValue
         }
         .onChange(of: pinnedStore.items) { _, _ in
             syncLibraryRowOrder()
