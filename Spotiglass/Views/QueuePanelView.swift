@@ -73,11 +73,9 @@ struct QueuePanelView: View {
     }
 
     private var upcomingCountLine: String {
-        let count = queueViewModel.upcomingItems.count
-        if count == 1 {
-            return SpotiglassL10n.string("queue.subtitle.oneTrackUpNext")
-        }
-        return String(format: SpotiglassL10n.string("queue.subtitle.tracksUpNext"), count)
+        // The catalog owns the plural rule now, so this passes the count and
+        // stops encoding a two-form model in Swift control flow (#156).
+        SpotiglassL10n.format("queue.subtitle.upNext", Int64(queueViewModel.upcomingItems.count))
     }
 
     private func errorBanner(_ error: BrowsingDisplayError) -> some View {

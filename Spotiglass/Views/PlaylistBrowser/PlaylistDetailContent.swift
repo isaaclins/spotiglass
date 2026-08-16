@@ -138,9 +138,15 @@ struct PlaylistDetailContent: View {
             }
             .disabled(newPlaylistName.trimmingCharacters(in: .whitespaces).isEmpty)
         } message: {
+            // Two catalog keys with a real plural rule. The old literal passed
+            // an English "s" as a format argument, which Spanish rendered as
+            // the non-word "canciónes" (#151).
             Text(newPlaylistInitialRows.isEmpty
-                 ? "Create an empty playlist in your Spotify library."
-                 : "Create a new playlist with \(newPlaylistInitialRows.count) track\(newPlaylistInitialRows.count == 1 ? "" : "s") added.")
+                 ? SpotiglassL10n.string("playlist.detail.newPlaylist.empty")
+                 : SpotiglassL10n.format(
+                     "playlist.detail.newPlaylist.withTracks",
+                     Int64(newPlaylistInitialRows.count)
+                   ))
         }
         .onChange(of: detail.playlist.id) { _, _ in
             cancelPlaylistNameEditing()
