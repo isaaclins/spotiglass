@@ -24,6 +24,10 @@ enum CommandPaletteCommandID {
     /// ``CommandPaletteCommandCatalog/editable`` so no keymap entry can shadow
     /// the View menu's ⌘[ , which is the standard Mac key equivalent for Back.
     static let navigateBack = "navigation.back"
+    /// Menu bar only, like shuffle and repeat: nudges playback position by a
+    /// fixed step so seeking has a keyboard path at all.
+    static let seekForward = "playback.seekForward"
+    static let seekBackward = "playback.seekBackward"
     static let filterByArtist = "search.filterByArtist"
     static let toggleQueue = "queue.toggle"
     static let toggleLyrics = "lyrics.toggle"

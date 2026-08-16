@@ -5438,6 +5438,52 @@
         }
       }
     },
+    "menu.playback.seekBackward": {
+      "extractionState": "stale",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zurückspulen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seek Backward"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retroceder"
+          }
+        }
+      }
+    },
+    "menu.playback.seekForward": {
+      "extractionState": "stale",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorspulen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seek Forward"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Avanzar"
+          }
+        }
+      }
+    },
     "menu.playback.shuffle": {
       "extractionState": "manual",
       "localizations": {
@@ -8930,6 +8976,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "Repetir lista"
+          }
+        }
+      }
+    },
+    "playback.scrubber.accessibilityValue": {
+      "extractionState": "stale",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ von %@"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ of %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ de %@"
           }
         }
       }
