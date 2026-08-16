@@ -216,13 +216,14 @@ private struct QueueRowView: View {
                     .frame(width: 28, alignment: .center)
             }
 
-            ArtworkView(url: item.albumArtURL, size: 44)
+            // Shared with the playlist row so the two cannot drift apart again (#140).
+            ArtworkView(url: item.albumArtURL, size: TrackRowMetrics.artworkSize)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.name)
                     .font(.headline)
                     .foregroundStyle(.primary)
-                    .lineLimit(2)
+                    .lineLimit(TrackRowMetrics.titleLineLimit)
                 subtitleLine
             }
 
@@ -232,7 +233,8 @@ private struct QueueRowView: View {
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
         }
-        .padding(.vertical, SpotiglassDesign.spacingXS)
+        .padding(.vertical, TrackRowMetrics.verticalPadding)
+        .padding(.horizontal, TrackRowMetrics.horizontalPadding)
         .background(rowBackground, in: RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous))
         .contentShape(Rectangle())
         // Single click selects, the way a Mac list row does; playing is the
@@ -293,6 +295,6 @@ private struct QueueRowView: View {
     /// takes its highlight from the list's own selection, which also means it
     /// de-emphasizes when the panel is not the focused control.
     private var rowBackground: Color {
-        isCurrent ? Color.primary.opacity(0.10) : Color.clear
+        isCurrent ? Color.primary.opacity(TrackRowMetrics.currentTintOpacity) : Color.clear
     }
 }

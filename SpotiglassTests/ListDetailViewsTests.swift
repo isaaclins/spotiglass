@@ -28,6 +28,22 @@ final class ListDetailViewsTests: XCTestCase {
         XCTAssertNoThrow(try view.inspect().find(text: "Network error"))
     }
 
+    /// The playlist row and the queue row are the same design, so the numbers
+    /// that define it live in one place instead of drifting apart (#140).
+    func testTrackRowGeometryIsSharedAndConsistent() {
+        // The documented row height is derived from these, so they must agree.
+        XCTAssertEqual(
+            TrackListRow.listRowHeight,
+            TrackRowMetrics.artworkSize + TrackRowMetrics.verticalPadding * 2 + 4,
+            accuracy: 0.001,
+            "listRowHeight is artwork plus vertical padding plus headroom"
+        )
+        XCTAssertEqual(TrackRowMetrics.titleLineLimit, 1)
+        XCTAssertEqual(TrackRowMetrics.artworkSize, 40)
+        // A hover tint below the current-row tint, not a hundredth apart from it.
+        XCTAssertLessThan(TrackRowMetrics.hoverTintOpacity, TrackRowMetrics.currentTintOpacity)
+    }
+
     func testStaleCacheBanner() throws {
         let view = StaleCacheBanner(
             error: BrowsingDisplayError(title: "Stale", message: "Cached playlists", canRetry: false)
