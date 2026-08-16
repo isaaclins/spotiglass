@@ -43,4 +43,69 @@ final class CommandPaletteKeymapStoreTests: XCTestCase {
         XCTAssertNil(store.primaryShortcut(for: CommandPaletteCommandID.openPalette))
     }
 
+    /// The key monitor consumes a matched event before AppKit reaches the menu,
+    /// so binding a menu-owned chord would kill a menu item that keeps showing
+    /// it. Those chords are refused, not silently accepted (#129).
+    func testSetBindingRefusesChordsOwnedByMenuItems() throws {
+        let url = makeCommandPaletteTestsTempSettingsURL()
+        let settingsStore = SpotiglassSettingsStore(fileURL: url)
+        let store = CommandPaletteKeymapStore(settingsStore: settingsStore)
+
+        let original = store.primaryShortcut(for: CommandPaletteCommandID.openSettings)
+        for reservation in CommandPaletteReservedShortcuts.all {
+            let shortcut = try CommandShortcut(keystroke: reservation.keystroke)
+            XCTAssertThrowsError(
+                try store.setBinding(
+                    commandID: CommandPaletteCommandID.openSettings,
+                    shortcut: shortcut,
+                    replaceConflicting: false
+                ),
+                "\(reservation.keystroke) is owned by a menu item and must be refused"
+            ) { error in
+                XCTAssertEqual(
+                    error as? KeymapConflictError,
+                    .reservedByMenuItem(
+                        menuItemTitle: SpotiglassL10n.string(reservation.menuTitleKey)
+                    )
+                )
+            }
+            XCTAssertEqual(
+                store.primaryShortcut(for: CommandPaletteCommandID.openSettings),
+                original,
+                "a refused binding must leave the existing one alone"
+            )
+        }
+
+        // Replacing does not get to override a menu item either.
+        let shuffle = try CommandShortcut(keystroke: "alt-cmd-s")
+        XCTAssertThrowsError(
+            try store.setBinding(
+                commandID: CommandPaletteCommandID.openSettings,
+                shortcut: shuffle,
+                replaceConflicting: true
+            )
+        )
+    }
+
+    /// Command-K is a rebindable keymap default, so it must not also be listed
+    /// as menu-owned: the palette's menu item derives its key equivalent from
+    /// the keymap now (#131).
+    func testCommandKIsNotReservedBecauseThePaletteItemFollowsTheKeymap() throws {
+        let commandK = try CommandShortcut(keystroke: "cmd-k")
+        XCTAssertNil(CommandPaletteReservedShortcuts.reservingMenuItem(for: commandK))
+
+        let url = makeCommandPaletteTestsTempSettingsURL()
+        let settingsStore = SpotiglassSettingsStore(fileURL: url)
+        let store = CommandPaletteKeymapStore(settingsStore: settingsStore)
+        XCTAssertNotNil(store.menuShortcut(for: CommandPaletteCommandID.openPalette))
+
+        let rebound = try CommandShortcut(keystroke: "ctrl-shift-p")
+        try store.setBinding(
+            commandID: CommandPaletteCommandID.openPalette,
+            shortcut: rebound,
+            replaceConflicting: true
+        )
+        XCTAssertEqual(store.primaryShortcut(for: CommandPaletteCommandID.openPalette), rebound)
+    }
+
 }

@@ -181,6 +181,45 @@ final class ZHotkeyRecorderFieldTests: XCTestCase {
         XCTAssertFalse(recording)
     }
 
+    /// Focus alone used to start capture, so Tab into the field then Tab again
+    /// bound Tab to the command instead of moving on (#128).
+    func testFocusDoesNotRecordAndTabLeavesTheField() throws {
+        var recording = false
+        var applied = 0
+        // No real key window here: this suite drives the field through its test
+        // seam because first-responder churn destabilizes the XCTest host.
+        let (_, keymap, view, _, _) = try makeHarness(
+            onRecordingChange: { recording = $0 },
+            onApplied: { applied += 1 }
+        )
+
+        let original = keymap.primaryShortcut(for: CommandPaletteCommandID.openSettings)
+        _ = view.becomeFirstResponder()
+        XCTAssertFalse(view.isRecording, "focus alone must not arm the recorder")
+        XCTAssertFalse(recording)
+
+        // Tab while focused but not recording is left to AppKit.
+        view.keyDown(with: keyEvent(virtualKey: 48))
+        XCTAssertFalse(view.isRecording)
+        XCTAssertEqual(
+            keymap.primaryShortcut(for: CommandPaletteCommandID.openSettings),
+            original,
+            "tabbing through must not change the binding"
+        )
+        XCTAssertEqual(applied, 0, "tabbing through must not write a binding")
+
+        // Space arms it, the way Space activates a focused button.
+        view.keyDown(with: keyEvent(virtualKey: 49))
+        XCTAssertTrue(view.isRecording, "Space must arm the recorder")
+        XCTAssertTrue(recording)
+
+        // Tab while recording leaves rather than binding Tab.
+        view.keyDown(with: keyEvent(virtualKey: 48))
+        XCTAssertFalse(view.isRecording)
+        XCTAssertEqual(keymap.primaryShortcut(for: CommandPaletteCommandID.openSettings), original)
+        XCTAssertEqual(applied, 0)
+    }
+
     func testHostedRepresentableUpdateAndTeardown() throws {
         let url = makeCommandPaletteTestsTempSettingsURL()
         let settings = SpotiglassSettingsStore(fileURL: url)

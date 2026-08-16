@@ -97,7 +97,7 @@ struct HotkeyRecorderField: NSViewRepresentable {
             // without this the control is a focus trap: Tab would be assigned to
             // the command rather than moving on (#128).
             if event.keyCode == 48, mods.subtracting(.shift).isEmpty {
-                view.cancelRecording()
+                view.endRecordingKeepingFocus()
                 view.moveFocus(backwards: mods.contains(.shift))
                 return
             }
@@ -189,14 +189,25 @@ final class RecorderKeyContainerView: NSView {
     }
 
     /// Hands focus to the next (or previous) control, so Tab behaves the way it
-    /// does everywhere else in the window.
+    /// does everywhere else in the window. A window with no other key view has
+    /// nowhere to send focus, and asking anyway is not worth a crash.
     func moveFocus(backwards: Bool) {
-        guard let window else { return }
+        guard let window, window.firstResponder === self else { return }
+        guard nextValidKeyView != nil || previousValidKeyView != nil else { return }
         if backwards {
             window.selectPreviousKeyView(self)
         } else {
             window.selectNextKeyView(self)
         }
+    }
+
+    /// Stops capture but stays focused, so the key-view loop can move focus
+    /// itself rather than having it dropped first.
+    func endRecordingKeepingFocus() {
+        guard isRecording else { return }
+        isRecording = false
+        coordinator?.recordingEnded()
+        syncFromStore()
     }
 
     private func beginRecordingFromUser() {
