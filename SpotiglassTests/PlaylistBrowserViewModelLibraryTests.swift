@@ -310,7 +310,10 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         }
         XCTAssertEqual(error.title, "Reconnect Spotify")
         XCTAssertEqual(error.message, "Your current Spotify session is missing playlist or Liked Songs permissions. Disconnect and connect again to grant required scopes.")
-        XCTAssertEqual(error.diagnosticDetails, "status 403 insufficient scope")
+        // The scope names moved out of the sentence and into diagnostics, so the
+        // blob now carries them alongside the server's own text.
+        XCTAssertEqual(error.diagnosticDetails?.contains("status 403 insufficient scope"), true)
+        XCTAssertEqual(error.diagnosticDetails?.contains("playlist-read-private"), true)
         XCTAssertFalse(error.canRetry)
     }
 

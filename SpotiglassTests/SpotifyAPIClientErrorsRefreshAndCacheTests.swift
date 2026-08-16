@@ -233,15 +233,21 @@ final class SpotifyAPIClientErrorsRefreshAndCacheTests: XCTestCase {
         XCTAssertNil(try cache.loadTracks(playlistID: "playlist-1", snapshotID: "snapshot-1", now: Date(timeIntervalSince1970: 1_100), maxAge: 300))
     }
 
+    /// The message stays plain language; the status code and the server's own
+    /// text are developer facts and now live in the diagnostics disclosure
+    /// rather than in the sentence the listener reads.
     func testServerErrorUsesPlainLanguageNotNSErrorCaseIndex() {
         let withoutMessage = SpotifyAPIError.server(statusCode: 502, message: nil, details: nil)
-        XCTAssertTrue(withoutMessage.localizedDescription.contains("502"))
         XCTAssertTrue(withoutMessage.localizedDescription.lowercased().contains("try again"))
         XCTAssertFalse(withoutMessage.localizedDescription.contains("error 5"))
+        XCTAssertFalse(withoutMessage.localizedDescription.contains("502"))
         XCTAssertEqual(withoutMessage.errorDescription, withoutMessage.userMessage)
+        XCTAssertEqual(withoutMessage.diagnosticDetails?.contains("502"), true)
 
         let withMessage = SpotifyAPIError.server(statusCode: 500, message: "Upstream timeout", details: nil)
-        XCTAssertTrue(withMessage.localizedDescription.contains("500"))
-        XCTAssertTrue(withMessage.localizedDescription.contains("Upstream timeout"))
+        XCTAssertFalse(withMessage.localizedDescription.contains("500"))
+        XCTAssertFalse(withMessage.localizedDescription.contains("Upstream timeout"))
+        XCTAssertEqual(withMessage.diagnosticDetails?.contains("500"), true)
+        XCTAssertEqual(withMessage.diagnosticDetails?.contains("Upstream timeout"), true)
     }
 }
