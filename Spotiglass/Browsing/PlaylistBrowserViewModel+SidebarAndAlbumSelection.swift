@@ -17,7 +17,7 @@ extension PlaylistBrowserViewModel {
             currentNavigationTarget = nil
             syncCanNavigateBack()
             detailSession += 1
-            detailState = .empty("Select an item in the sidebar or open an artist from search.")
+            detailState = .empty(SpotiglassL10n.string("browser.empty.pickSomething"))
             return
         }
 
@@ -129,7 +129,7 @@ extension PlaylistBrowserViewModel {
             )
             let trackRows = TrackRowViewModel.numberedTopTracks(tracks)
             if trackRows.isEmpty {
-                detailState = .empty("This album has no tracks available.")
+                detailState = .empty(SpotiglassL10n.string("browser.empty.albumNoTracks"))
             } else {
                 detailState = .loaded(.playlist(PlaylistDetailViewModel(playlist: header, tracks: trackRows)))
             }

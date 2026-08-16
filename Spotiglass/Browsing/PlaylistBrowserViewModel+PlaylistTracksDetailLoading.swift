@@ -18,7 +18,7 @@ extension PlaylistBrowserViewModel {
         if refreshCachedData,
            let cachedTracks = try? cache.loadTracks(playlistID: playlist.id, snapshotID: playlist.snapshotID, now: now(), maxAge: maxCacheAge) {
             if cachedTracks.isEmpty {
-                detailState = .empty("This playlist has no tracks.")
+                detailState = .empty(SpotiglassL10n.string("browser.noTracks.emptyPlaylist"))
             } else {
                 detailState = .loaded(.playlist(PlaylistDetailViewModel(playlist: playlistRow, tracks: TrackRowViewModel.numberedPlaylistRows(cachedTracks))))
             }
@@ -34,7 +34,7 @@ extension PlaylistBrowserViewModel {
         if refreshCachedData,
            let staleTracks = try? cache.loadTracksIgnoringAge(playlistID: playlist.id, snapshotID: playlist.snapshotID) {
             if staleTracks.isEmpty {
-                detailState = .empty("This playlist has no tracks.")
+                detailState = .empty(SpotiglassL10n.string("browser.noTracks.emptyPlaylist"))
             } else {
                 detailState = .loaded(.playlist(PlaylistDetailViewModel(playlist: playlistRow, tracks: TrackRowViewModel.numberedPlaylistRows(staleTracks))))
             }
@@ -65,7 +65,7 @@ extension PlaylistBrowserViewModel {
             lastTracksRevalidationByID[playlist.id] = (playlist.snapshotID, now())
             guard session == detailSession else { return }
             if tracks.isEmpty {
-                detailState = .empty("This playlist has no tracks.")
+                detailState = .empty(SpotiglassL10n.string("browser.noTracks.emptyPlaylist"))
             } else {
                 detailState = .loaded(.playlist(PlaylistDetailViewModel(playlist: playlistRow, tracks: TrackRowViewModel.numberedPlaylistRows(tracks))))
             }

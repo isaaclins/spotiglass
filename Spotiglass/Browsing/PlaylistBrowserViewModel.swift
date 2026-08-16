@@ -25,7 +25,7 @@ final class PlaylistBrowserViewModel: ObservableObject {
     @Published internal(set) var playlistState: BrowsingLoadState<[PlaylistRowViewModel]> = .loading
     /// Spotify user id for the signed-in account; used to hide redundant owner labels on own playlists.
     @Published internal(set) var currentUserSpotifyID: String?
-    @Published internal(set) var detailState: BrowsingLoadState<BrowsingDetailContent> = .empty("Select an item in the sidebar or open an artist from search.")
+    @Published internal(set) var detailState: BrowsingLoadState<BrowsingDetailContent> = .empty(SpotiglassL10n.string("browser.empty.pickSomething"))
     /// Track IDs selected in the currently visible playlist table. Bound to the
     /// `List` selection, so the table owns click, shift and command behavior and
     /// this stays the value the context-menu actions read. Empty means "no
@@ -218,8 +218,8 @@ final class PlaylistBrowserViewModel: ObservableObject {
         homeFeedGeneration += 1
         homeRecentlyPlayed = .loading
         homeTopTracks = .loading
-        playlistState = .empty("Connect Spotify to browse playlists.")
-        detailState = .empty("Sign in to Spotify to browse playlists and artists.")
+        playlistState = .empty(SpotiglassL10n.string("browser.empty.connectToBrowse"))
+        detailState = .empty(SpotiglassL10n.string("browser.empty.signInToBrowse"))
     }
 }
 
