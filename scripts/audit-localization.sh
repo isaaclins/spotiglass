@@ -102,9 +102,18 @@ fi
 # from depending on whoever reviews the diff.
 sharp_s_report=$(
   jq -r '
+    # A locale is either a plain stringUnit or a set of plural variations, and
+    # both carry translated text that this audit has to see (#201).
+    def units($loc):
+      [ $loc.stringUnit ] + [ ($loc.variations.plural // {}) | .[] | .stringUnit ]
+      | map(select(. != null));
+
     .strings | to_entries[] |
-    select((.value.localizations.de.stringUnit.value // "") | test("ß")) |
-    [.key, .value.localizations.de.stringUnit.value] | @tsv
+    . as $entry |
+    units(.value.localizations.de // {}) |
+    map(select((.value // "") | test("ß"))) |
+    if length > 0 then [$entry.key, (.[0].value)] else empty end |
+    @tsv
   ' "$CATALOG"
 )
 if [[ -n "$sharp_s_report" ]]; then
@@ -117,15 +126,33 @@ fi
 # value with state "new"/"needs_review".
 catalog_report=$(
   jq -r '
+    # A pluralized locale has no top-level stringUnit; its text lives under
+    # variations.plural.<case>.stringUnit. Every case has to be present and
+    # translated, so an empty or unreviewed plural case still fails (#201).
+    def units($loc):
+      [ $loc.stringUnit ] + [ ($loc.variations.plural // {}) | .[] | .stringUnit ]
+      | map(select(. != null));
+
     .strings | to_entries[] |
     . as $entry |
     ["en", "es", "de"] |
-    map({
-      locale: .,
-      value: ($entry.value.localizations[.].stringUnit.value // ""),
-      state: ($entry.value.localizations[.].stringUnit.state // "missing")
-    }) |
-    map(select(.value == "" or .state == "missing" or .state == "new" or .state == "needs_review")) |
+    map(
+      . as $locale |
+      units($entry.value.localizations[$locale] // {}) as $units |
+      {
+        locale: $locale,
+        incomplete: (
+          ($units | length) == 0
+          or ($units | any(
+            (.value // "") == ""
+            or (.state // "missing") == "missing"
+            or (.state // "") == "new"
+            or (.state // "") == "needs_review"
+          ))
+        )
+      }
+    ) |
+    map(select(.incomplete)) |
     if length > 0 then [$entry.key, ([.[] | .locale] | join(","))] else empty end |
     @tsv
   ' "$CATALOG"
