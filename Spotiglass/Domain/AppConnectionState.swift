@@ -31,11 +31,11 @@ enum AppConnectionState: Equatable {
             SpotiglassL10n.string("app.connection.signedOut.message")
         case .signingIn:
             SpotiglassL10n.string("app.connection.signingIn.message")
-        case let .signedIn(session):
-            String(
-                format: SpotiglassL10n.string("app.connection.signedIn.message"),
-                session.expiresAt.formatted(date: .omitted, time: .shortened)
-            )
+        // The expiry of the access token is a developer fact: it refreshes
+        // silently, so a time close to now only made people think their
+        // account was about to break (#163).
+        case .signedIn:
+            SpotiglassL10n.string("app.connection.signedIn.message")
         case .refreshing:
             SpotiglassL10n.string("app.connection.refreshing.message")
         case let .failed(error):

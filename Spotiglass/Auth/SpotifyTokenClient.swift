@@ -25,22 +25,16 @@ enum SpotifyTokenClientError: Error, Equatable, LocalizedError {
         switch self {
         case .invalidResponse:
             return SpotiglassL10n.string("auth.token.invalidResponse")
-        case let .httpError(status, description, oauthError, _):
+        // The HTTP status is a developer fact and stays on the error case for
+        // the log; the sentence says what happened and what to do (#157).
+        case let .httpError(_, description, oauthError, _):
             if let description, !description.isEmpty {
-                return String(
-                    format: SpotiglassL10n.string("auth.token.rejectedWithDescription"),
-                    status,
-                    description
-                )
+                return SpotiglassL10n.format("auth.token.rejectedWithDescription", description)
             }
             if let oauthError, !oauthError.isEmpty {
-                return String(
-                    format: SpotiglassL10n.string("auth.token.rejectedWithOAuth"),
-                    status,
-                    oauthError
-                )
+                return SpotiglassL10n.format("auth.token.rejectedWithDescription", oauthError)
             }
-            return String(format: SpotiglassL10n.string("auth.token.rejected"), status)
+            return SpotiglassL10n.string("auth.token.rejected")
         }
     }
 }

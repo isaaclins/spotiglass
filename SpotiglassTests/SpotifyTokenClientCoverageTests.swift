@@ -7,17 +7,19 @@ final class SpotifyTokenClientCoverageTests: XCTestCase {
             SpotifyTokenClientError.invalidResponse.errorDescription,
             "Spotify returned a response Spotiglass could not interpret."
         )
+        // The status code is a developer fact and stays on the error case for
+        // the log, out of the sentence the user reads (#157).
         XCTAssertEqual(
             SpotifyTokenClientError.httpError(400, "Bad request", "invalid_grant", nil).errorDescription,
-            "Spotify rejected the token request (HTTP 400): Bad request"
+            "Spotify refused the sign-in: Bad request"
         )
         XCTAssertEqual(
             SpotifyTokenClientError.httpError(401, nil, "invalid_client", nil).errorDescription,
-            "Spotify rejected the token request (HTTP 401): invalid_client"
+            "Spotify refused the sign-in: invalid_client"
         )
         XCTAssertEqual(
             SpotifyTokenClientError.httpError(500, nil, nil, nil).errorDescription,
-            "Spotify rejected the token request (HTTP 500)."
+            "Spotify refused the sign-in. Try connecting again."
         )
     }
 

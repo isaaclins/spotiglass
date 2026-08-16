@@ -315,19 +315,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Das Zugriffstoken ist gültig bis %@."
+            "value": "Spotiglass ist mit Ihrem Spotify-Konto verbunden."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Access token is valid until %@."
+            "value": "Spotiglass is connected to your Spotify account."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "El token de acceso es válido hasta %@."
+            "value": "Spotiglass está conectado a tu cuenta de Spotify."
           }
         }
       }
@@ -867,19 +867,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Deiner aktuellen Spotify-Sitzung fehlen Berechtigungen für Playlists oder Liked Songs. Trenne die Verbindung und verbinde dich erneut, um die erforderlichen Bereiche zu gewähren."
+            "value": "Ihrer aktuellen Spotify-Sitzung fehlen Berechtigungen für Playlists oder Lieblingssongs. Trennen Sie die Verbindung und verbinden Sie sich erneut, um sie wiederherzustellen."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Your current Spotify session is missing playlist or Liked Songs permissions. Disconnect and connect again to grant required scopes."
+            "value": "Your current Spotify session is missing playlist or Liked Songs permissions. Disconnect and connect again to restore them."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tu sesión actual de Spotify no tiene permisos de listas o Canciones que te gustan. Desconéctate y vuelve a conectar para conceder los permisos necesarios."
+            "value": "A tu sesión de Spotify actual le faltan permisos de listas o de Tus me gusta. Desconecta y vuelve a conectar para restaurarlos."
           }
         }
       }
@@ -1189,19 +1189,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotify hat die Token-Anfrage abgelehnt (HTTP %lld)."
+            "value": "Spotify hat die Anmeldung abgelehnt. Versuchen Sie, sich erneut zu verbinden."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotify rejected the token request (HTTP %lld)."
+            "value": "Spotify refused the sign-in. Try connecting again."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotify rechazó la solicitud de token (HTTP %lld)."
+            "value": "Spotify rechazó el inicio de sesión. Intenta conectarte de nuevo."
           }
         }
       }
@@ -1212,42 +1212,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotify hat die Token-Anfrage abgelehnt (HTTP %lld): %@"
+            "value": "Spotify hat die Anmeldung abgelehnt: %@"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotify rejected the token request (HTTP %lld): %@"
+            "value": "Spotify refused the sign-in: %@"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotify rechazó la solicitud de token (HTTP %lld): %@"
-          }
-        }
-      }
-    },
-    "auth.token.rejectedWithOAuth": {
-      "extractionState": "stale",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Spotify hat die Token-Anfrage abgelehnt (HTTP %lld): %@"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Spotify rejected the token request (HTTP %lld): %@"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Spotify rechazó la solicitud de token (HTTP %lld): %@"
+            "value": "Spotify rechazó el inicio de sesión: %@"
           }
         }
       }
@@ -3604,19 +3581,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Deiner aktuellen Spotify-Sitzung fehlen Berechtigungen für Playlists oder Liked Songs. Trenne die Verbindung und verbinde dich erneut, um die erforderlichen Bereiche zu gewähren."
+            "value": "Ihrer aktuellen Spotify-Sitzung fehlen Berechtigungen für Playlists oder Lieblingssongs. Trennen Sie die Verbindung und verbinden Sie sich erneut, um sie wiederherzustellen."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Your current Spotify session is missing playlist or Liked Songs permissions. Disconnect and connect again to grant required scopes."
+            "value": "Your current Spotify session is missing playlist or Liked Songs permissions. Disconnect and connect again to restore them."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tu sesión actual de Spotify no tiene permisos de listas o Canciones que te gustan. Desconéctate y vuelve a conectar para conceder los permisos necesarios."
+            "value": "A tu sesión de Spotify actual le faltan permisos de listas o de Tus me gusta. Desconecta y vuelve a conectar para restaurarlos."
           }
         }
       }
@@ -3811,19 +3788,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Das Spotify-Web-Playback-SDK hat noch kein bereites Gerät gemeldet."
+            "value": "Dieser Mac ist noch nicht bereit zum Abspielen. Warten Sie einen Moment und versuchen Sie es erneut."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The Spotify Web Playback SDK has not reported a ready device yet."
+            "value": "This Mac is not ready to play yet. Wait a moment and try again."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "El Web Playback SDK de Spotify aún no ha informado de un dispositivo listo."
+            "value": "Este Mac aún no está listo para reproducir. Espera un momento e inténtalo de nuevo."
           }
         }
       }
@@ -3903,19 +3880,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotify-Web-Playback-SDK-Wiedergabe erfordert ein Premium-Konto."
+            "value": "Zum Abspielen von Musik in Spotiglass ist Spotify Premium erforderlich."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotify Web Playback SDK playback requires a Premium account."
+            "value": "Playing music in Spotiglass requires Spotify Premium."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "La reproducción con el Web Playback SDK de Spotify requiere una cuenta Premium."
+            "value": "Reproducir música en Spotiglass requiere Spotify Premium."
           }
         }
       }
@@ -3995,19 +3972,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotify hat das für die Wiedergabe verwendete Zugriffstoken abgelehnt."
+            "value": "Ihre Spotify-Sitzung ist abgelaufen. Verbinden Sie sich erneut, um weiter abzuspielen."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotify rejected the access token used for playback."
+            "value": "Your Spotify session has expired. Connect again to keep playing."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotify rechazó el token de acceso usado para la reproducción."
+            "value": "Tu sesión de Spotify ha caducado. Vuelve a conectarte para seguir reproduciendo."
           }
         }
       }
@@ -4271,19 +4248,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotify hat das Zugriffstoken abgelehnt."
+            "value": "Ihre Spotify-Sitzung ist abgelaufen. Verbinden Sie sich erneut."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotify rejected the access token."
+            "value": "Your Spotify session has expired. Connect again."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotify rechazó el token de acceso."
+            "value": "Tu sesión de Spotify ha caducado. Vuelve a conectarte."
           }
         }
       }
@@ -4984,19 +4961,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Songtext-Dienstfehler (HTTP %lld)."
+            "value": "Der Songtext konnte nicht geladen werden. Versuchen Sie es später erneut."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lyrics service error (HTTP %lld)."
+            "value": "Lyrics could not be loaded. Try again later."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Error del servicio de letras (HTTP %lld)."
+            "value": "No se pudo cargar la letra. Inténtalo más tarde."
           }
         }
       }
