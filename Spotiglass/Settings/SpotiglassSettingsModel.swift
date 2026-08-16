@@ -303,7 +303,7 @@ struct EqualizerSettings: Codable, Equatable {
     static let preampRangeDB: ClosedRange<Double> = -12.0...12.0
 
     var enabled: Bool
-    /// Global pre-amp in dB applied before the parametric bands.
+    /// Global pre-amp in dB applied before the band gains.
     var preamp: Double
     /// Per-band gain in dB. Always exactly ``EqualizerSettings/bandCount`` long.
     var bands: [Double]

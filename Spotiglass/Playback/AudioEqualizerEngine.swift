@@ -1,7 +1,7 @@
 import Combine
 import Foundation
 
-/// Orchestrates the realtime 10-band parametric equalizer that filters Spotify
+/// Orchestrates the realtime 10-band graphic equalizer that filters Spotify
 /// Web Playback SDK audio through a bundled CoreAudio HAL plugin virtual
 /// output device (``SpotiglassEQDriver.driver``).
 ///

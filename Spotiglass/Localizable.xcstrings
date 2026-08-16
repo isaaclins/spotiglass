@@ -11829,19 +11829,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ein parametrischer 10-Band-Equalizer in Echtzeit für die Spotiglass-Wiedergabe. Verschiebe einen Regler während ein Titel läuft, Änderungen wirken sofort."
+            "value": "Ein grafischer 10-Band-Equalizer in Echtzeit für die Spotiglass-Wiedergabe. Verschiebe einen Regler während ein Titel läuft, Änderungen wirken sofort."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "A live 10-band parametric equalizer applied to Spotiglass playback. Drag any slider while a song is playing, changes apply immediately."
+            "value": "A live 10-band graphic equalizer applied to Spotiglass playback. Drag any slider while a song is playing, changes apply immediately."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Un ecualizador paramétrico de 10 bandas en vivo aplicado a la reproducción de Spotiglass. Arrastra cualquier deslizador mientras suena una canción, los cambios se aplican al instante."
+            "value": "Un ecualizador gráfico de 10 bandas en vivo aplicado a la reproducción de Spotiglass. Arrastra cualquier deslizador mientras suena una canción, los cambios se aplican al instante."
           }
         }
       }
