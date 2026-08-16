@@ -118,8 +118,18 @@ struct CatalogSearchView: View {
             )
         case let .error(error):
             ErrorStateView(error: error)
-        case let .loaded(results), let .refreshing(results), let .staleCache(results, _):
+        case let .loaded(results):
             resultSections(results.filtered(to: searchViewModel.category))
+        case let .refreshing(results):
+            resultSections(results.filtered(to: searchViewModel.category))
+        case let .staleCache(results, error):
+            // Search used to fold staleCache into loaded and discard the error,
+            // so cached results looked live here while the sidebar and the
+            // detail column both showed a banner for the same state (#136).
+            VStack(spacing: 0) {
+                StaleCacheBanner(error: error)
+                resultSections(results.filtered(to: searchViewModel.category))
+            }
         }
     }
 
@@ -127,6 +137,15 @@ struct CatalogSearchView: View {
     private func resultSections(_ results: CatalogSearchResults) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: SpotiglassDesign.spacingL) {
+                if results.isEmpty {
+                    // Selecting a category with no matches used to render an
+                    // empty ScrollView, because the .empty state is derived from
+                    // the unfiltered set and these four guards had no else (#134).
+                    EmptyStateView(
+                        title: SpotiglassL10n.string("search.empty.title"),
+                        message: SpotiglassL10n.string("search.empty.category")
+                    )
+                }
                 if !results.tracks.isEmpty {
                     trackSection(results.tracks)
                 }

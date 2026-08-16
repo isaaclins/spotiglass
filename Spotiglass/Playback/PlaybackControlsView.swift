@@ -351,7 +351,23 @@ struct PlaybackControlsView: View {
         .accessibilityElement(children: .combine)
         .help(SpotiglassL10n.string("playback.controls.volume"))
         .accessibilityLabel(SpotiglassL10n.string("playback.controls.volume"))
+        // Combining the group swallowed the Slider's own value, so VoiceOver
+        // named the control but never said how loud it was (#116).
+        .accessibilityValue(
+            (viewModel.playbackVolume).formatted(.percent.precision(.fractionLength(0)))
+        )
         .accessibilityHint(SpotiglassL10n.string("playback.controls.volume.hint"))
+        .accessibilityAdjustableAction { direction in
+            let step = 0.05
+            switch direction {
+            case .increment:
+                viewModel.setPlaybackVolume(min(viewModel.playbackVolume + step, 1))
+            case .decrement:
+                viewModel.setPlaybackVolume(max(viewModel.playbackVolume - step, 0))
+            @unknown default:
+                break
+            }
+        }
     }
 
     private var playbackVolumeBinding: Binding<Double> {

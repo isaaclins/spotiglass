@@ -111,7 +111,15 @@ struct PlaylistDetailContent: View {
                         )
                     },
                     pendingScrollRestoreTrackID: $pendingScrollRestoreTrackID,
-                    onFirstVisibleTrackChanged: onTrackEnteredViewportApproximation
+                    onFirstVisibleTrackChanged: onTrackEnteredViewportApproximation,
+                    playSelection: { selectedIDs in
+                        // Play the first selected row in list order, so a
+                        // multi-row selection has a defined result.
+                        guard let track = detail.tracks.first(where: { selectedIDs.contains($0.id) }),
+                            let uri = track.playableURI
+                        else { return }
+                        playURI(uri)
+                    }
                 )
             }
         }

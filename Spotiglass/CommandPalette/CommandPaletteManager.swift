@@ -31,6 +31,7 @@ final class CommandPaletteManager: ObservableObject {
     var toggleShuffle: (() async -> Void)?
     var cycleRepeat: (() async -> Void)?
     var navigateBack: (() async -> Void)?
+    var seekBy: ((Int) async -> Void)?
     var playURI: ((String) async -> Void)?
     var openPlaylist: ((String) async -> Void)?
     var openArtist: ((String) async -> Void)?
@@ -208,6 +209,10 @@ final class CommandPaletteManager: ObservableObject {
             Task { await cycleRepeat?() }
         case CommandPaletteCommandID.navigateBack:
             Task { await navigateBack?() }
+        case CommandPaletteCommandID.seekForward:
+            Task { await seekBy?(PlaybackSeekStep.milliseconds) }
+        case CommandPaletteCommandID.seekBackward:
+            Task { await seekBy?(-PlaybackSeekStep.milliseconds) }
         case "playback.playURI":
             if case let .string(uri)? = args?["uri"] {
                 Task { await playURI?(uri) }

@@ -22,6 +22,10 @@ struct TrackListView: View {
     /// Fires with the id of the topmost visible row whenever it changes; powers
     /// the "remember last visible track" behavior used for scroll restore.
     let onFirstVisibleTrackChanged: (String) -> Void
+    /// Plays the selected rows. Arrow keys already moved the selection, but
+    /// nothing consumed Return, so a keyboard user could highlight a track and
+    /// never start it (#122).
+    var playSelection: ((Set<String>) -> Void)? = nil
 
     /// Deliberately a reference type rather than stored-in-state values. Rows
     /// report every time the table realizes or drops one, and keeping that in
@@ -53,6 +57,11 @@ struct TrackListView: View {
                     .onDisappear { setRowRealized(false, track: track) }
             }
             .listStyle(.inset)
+            .onKeyPress(.return) {
+                guard let playSelection, !selection.isEmpty else { return .ignored }
+                playSelection(selection)
+                return .handled
+            }
             .onChange(of: pendingScrollRestoreTrackID) { _, newValue in
                 guard let id = newValue else { return }
                 if tracks.contains(where: { $0.id == id }) {

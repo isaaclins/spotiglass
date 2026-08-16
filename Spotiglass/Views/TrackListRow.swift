@@ -51,6 +51,14 @@ struct TrackListRow: View {
         if showsPinnedBadge {
             suffix += ", \(SpotiglassL10n.string("browser.pinned"))"
         }
+        // The badge ("Explicit", "Unavailable", "Episode", "Local") was drawn as
+        // a capsule and the unplayable state was carried by dimmed text alone,
+        // and the explicit row label replaced the combined children, so both
+        // were lost to VoiceOver: colour was the only carrier of "you cannot
+        // play this" (#114).
+        if let badge = track.badgeText, !badge.isEmpty {
+            suffix += ", \(badge)"
+        }
         return suffix
     }
 

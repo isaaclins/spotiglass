@@ -5,7 +5,9 @@ import SwiftUI
 ///
 /// When `isPlaying` is true the bars animate continuously up and down with
 /// staggered phases. When false, the bars freeze at fixed mid-heights to
-/// indicate that playback is paused.
+/// indicate that playback is paused. Reduce Motion also freezes them, since the
+/// icon appears in every playing row and would otherwise be permanent motion in
+/// a list.
 struct PlayingWaveformIcon: View {
     var isPlaying: Bool
     /// Overrides the bar color. Left nil the bars use the shared accent, which greys
@@ -18,6 +20,7 @@ struct PlayingWaveformIcon: View {
     private let maxHeight: CGFloat = 14
 
     @State private var isAnimating: Bool = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(alignment: .center, spacing: barSpacing) {
@@ -26,11 +29,17 @@ struct PlayingWaveformIcon: View {
             bar(index: 2, baseFraction: 0.35, durationOffset: 0.30, durationScale: 1.10)
         }
         .frame(width: CGFloat(barCount) * barWidth + CGFloat(barCount - 1) * barSpacing, height: maxHeight)
+        // This icon sits in every playing row, so a repeatForever animation is
+        // perpetual motion in a list for someone who asked the system for less
+        // of it. The bars hold their frozen state instead (#118).
         .onAppear {
-            isAnimating = isPlaying
+            isAnimating = isPlaying && !reduceMotion
         }
         .onChange(of: isPlaying) { _, nowPlaying in
-            isAnimating = nowPlaying
+            isAnimating = nowPlaying && !reduceMotion
+        }
+        .onChange(of: reduceMotion) { _, nowReduced in
+            isAnimating = isPlaying && !nowReduced
         }
         .help(isPlaying ? SpotiglassL10n.string("playback.nowPlaying") : SpotiglassL10n.string("playback.paused"))
         .accessibilityLabel(isPlaying ? SpotiglassL10n.string("playback.nowPlaying") : SpotiglassL10n.string("playback.paused"))

@@ -70,6 +70,12 @@ enum PlaylistBrowserCommandPaletteConfiguration {
         manager.navigateBack = { [weak browser = dependencies.viewModel] in
             await browser?.navigateBack()
         }
+        manager.seekBy = { [weak playback = dependencies.playbackViewModel] delta in
+            guard let playback, let anchor = playback.progressAnchor else { return }
+            let current = anchor.interpolatedPositionMs(at: Date())
+            let target = min(max(current + delta, 0), anchor.durationMilliseconds)
+            await playback.seek(to: target)
+        }
         manager.playURI = { [weak playback = dependencies.playbackViewModel] uri in
             await playback?.play(uri: uri)
         }
