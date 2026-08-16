@@ -83,8 +83,17 @@ final class LoopbackOAuthCallbackTests: XCTestCase {
             LoopbackOAuthCallbackError.oauthError("e", "desc").errorDescription,
             LoopbackOAuthCallbackError.oauthError("e", nil).errorDescription
         )
-        // socketSetupFailed should embed the step.
-        XCTAssertTrue(LoopbackOAuthCallbackError.socketSetupFailed("bind").errorDescription!.contains("bind"))
+        // The failing step is a developer fact: it belongs in diagnostics, not
+        // in the sentence on the connect screen (#186, #187).
+        XCTAssertFalse(LoopbackOAuthCallbackError.socketSetupFailed("bind").errorDescription!.contains("bind"))
+        XCTAssertTrue(
+            LoopbackOAuthCallbackError.socketSetupFailed("bind").diagnosticDetails!.contains("bind"),
+            "the step must still be recoverable for a bug report"
+        )
+        XCTAssertTrue(
+            LoopbackOAuthCallbackError.oauthError("access_denied", nil).diagnosticDetails!
+                .contains("access_denied")
+        )
     }
 
     // MARK: - LoopbackOAuthListenerFactory (real loopback socket)

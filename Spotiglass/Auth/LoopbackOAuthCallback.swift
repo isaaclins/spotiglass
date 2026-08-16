@@ -35,6 +35,19 @@ enum LoopbackOAuthCallbackError: Error, Equatable, LocalizedError {
             SpotiglassL10n.string("auth.callback.timedOut")
         }
     }
+
+    /// The OAuth error code and the socket step that failed. Both are for a bug
+    /// report, so they stay off the connect screen but are not thrown away.
+    var diagnosticDetails: String? {
+        switch self {
+        case let .oauthError(code, description):
+            return description.map { "oauth error: \(code) (\($0))" } ?? "oauth error: \(code)"
+        case let .socketSetupFailed(step):
+            return "loopback listener failed at step: \(step)"
+        case .invalidRequest, .missingState, .stateMismatch, .missingCode, .timedOut:
+            return nil
+        }
+    }
 }
 
 enum LoopbackOAuthCallbackValidator {
