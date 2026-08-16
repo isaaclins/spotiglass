@@ -311,6 +311,26 @@ final class CatalogSearchViewTests: XCTestCase {
         )
     }
 
+    /// Pin shipped bound and unpin shipped unbound, so the reversible half of
+    /// one pair was keyboard-only in one direction (#168).
+    func testPinAndUnpinBothShipWithDefaults() throws {
+        let pin = try XCTUnwrap(
+            CommandPaletteCommandCatalog.editable.first { $0.commandID == CommandPaletteCommandID.pinSelected }
+        )
+        let unpin = try XCTUnwrap(
+            CommandPaletteCommandCatalog.editable.first { $0.commandID == CommandPaletteCommandID.unpinSelected }
+        )
+
+        XCTAssertEqual(pin.defaultKeystroke, "cmd-return")
+        XCTAssertEqual(unpin.defaultKeystroke, "shift-cmd-return")
+        XCTAssertEqual(pin.defaultWhen, unpin.defaultWhen, "a pair should apply in the same context")
+
+        // The paired chord has to be free, and a real shortcut.
+        let chords = CommandPaletteCommandCatalog.editable.compactMap(\.defaultKeystroke)
+        XCTAssertEqual(chords.count, Set(chords).count, "no two commands may ship the same default")
+        XCTAssertNoThrow(try CommandShortcut(keystroke: try XCTUnwrap(unpin.defaultKeystroke)))
+    }
+
     /// Being in `editable` is what makes the command rebindable in Settings >
     /// Keyboard; this exercises the same store calls that screen makes.
     func testOpenSearchShortcutIsRebindableWithConflictAndReplace() throws {

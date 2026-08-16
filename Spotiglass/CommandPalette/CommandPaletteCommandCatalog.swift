@@ -125,7 +125,9 @@ enum CommandPaletteCommandCatalog {
             commandID: CommandPaletteCommandID.unpinSelected,
             iconSystemName: "pin.slash",
             defaultWhen: .paletteOpen,
-            defaultKeystroke: nil
+            // Paired with pin's Command-Return, so the reversible half of the
+            // pair is not keyboard-only in one direction (#168).
+            defaultKeystroke: "shift-cmd-return"
         ),
         spec(
             commandID: CommandPaletteCommandID.enqueueSelected,

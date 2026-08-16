@@ -35,7 +35,20 @@ struct CatalogSearchView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(.background)
         .onAppear {
+            scheduleQueryFieldFocus()
+        }
+    }
+
+    /// SwiftUI on macOS often ignores an immediate `@FocusState` update in
+    /// `onAppear`, so Command-F could open Search with no caret in the field and
+    /// the first keystrokes went to the global key monitor instead. This is the
+    /// same deferred assignment the command palette already relies on (#130).
+    private func scheduleQueryFieldFocus() {
+        DispatchQueue.main.async {
             isQueryFieldFocused = true
+            DispatchQueue.main.async {
+                isQueryFieldFocused = true
+            }
         }
     }
 
