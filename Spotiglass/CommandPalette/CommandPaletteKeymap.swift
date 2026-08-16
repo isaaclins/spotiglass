@@ -302,11 +302,16 @@ struct CommandShortcut: Hashable {
 
 enum KeymapConflictError: LocalizedError, Equatable {
     case conflict(existingCommandID: String)
+    /// The chord belongs to a menu item that claims it outside the keymap, so
+    /// binding it here would shadow a menu item that keeps advertising it (#129).
+    case reservedByMenuItem(menuItemTitle: String)
 
     var errorDescription: String? {
         switch self {
         case let .conflict(id):
-            "That shortcut is already assigned to \"\(id)\"."
+            SpotiglassL10n.format("keymap.conflict.command", id)
+        case let .reservedByMenuItem(title):
+            SpotiglassL10n.format("keymap.conflict.menuItem", title)
         }
     }
 }

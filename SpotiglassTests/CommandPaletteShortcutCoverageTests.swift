@@ -10,9 +10,15 @@ final class CommandPaletteShortcutCoverageTests: XCTestCase {
             "Unsupported keystroke token 'foo'."
         )
         XCTAssertEqual(KeymapValidationError.missingCommand.errorDescription, "Key binding command cannot be empty.")
+        // Conflict copy is localized now, so assert against the catalog rather
+        // than pinning one language's punctuation here.
         XCTAssertEqual(
             KeymapConflictError.conflict(existingCommandID: "palette.open").errorDescription,
-            "That shortcut is already assigned to \"palette.open\"."
+            SpotiglassL10n.format("keymap.conflict.command", "palette.open")
+        )
+        XCTAssertEqual(
+            KeymapConflictError.reservedByMenuItem(menuItemTitle: "Shuffle").errorDescription,
+            SpotiglassL10n.format("keymap.conflict.menuItem", "Shuffle")
         )
     }
 
