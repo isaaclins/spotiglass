@@ -1889,7 +1889,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Editar nombre de la playlist"
+            "value": "Editar nombre de la lista"
           }
         }
       }
@@ -2107,7 +2107,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Gespeicherte Songs"
+            "value": "Gespeicherte Titel"
           }
         },
         "en": {
@@ -2257,7 +2257,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sin pistas"
+            "value": "Sin canciones"
           }
         }
       }
@@ -3004,7 +3004,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lokaler Song"
+            "value": "Lokaler Titel"
           }
         },
         "en": {
@@ -3016,7 +3016,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pista local"
+            "value": "Canción local"
           }
         }
       }
@@ -3236,7 +3236,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pistas"
+            "value": "Canciones"
           }
         }
       }
@@ -3431,7 +3431,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotify erlaubt Spotiglass nicht mehr, die Songs in Playlists aufzulisten, die dir nicht gehören. Du kannst die ganze Playlist trotzdem abspielen oder sie in Spotify öffnen."
+            "value": "Spotify erlaubt Spotiglass nicht mehr, die Titel in Playlists aufzulisten, die dir nicht gehören. Du kannst die ganze Playlist trotzdem abspielen oder sie in Spotify öffnen."
           }
         },
         "en": {
@@ -4156,7 +4156,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Esa pista ya se está añadiendo."
+            "value": "Esa canción ya se está añadiendo."
           }
         }
       }
@@ -4202,7 +4202,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Esa pista se acaba de encolar."
+            "value": "Esa canción se acaba de encolar."
           }
         }
       }
@@ -5191,7 +5191,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Las letras solo están disponibles para pistas musicales."
+            "value": "Las letras solo están disponibles para canciones."
           }
         }
       }
@@ -5214,7 +5214,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "No se encontraron letras para esta pista."
+            "value": "No se encontraron letras para esta canción."
           }
         }
       }
@@ -5283,7 +5283,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Las letras no están disponibles temporalmente para esta pista. Inténtalo más tarde."
+            "value": "Las letras no están disponibles temporalmente para esta canción. Inténtalo más tarde."
           }
         }
       }
@@ -5306,7 +5306,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Esta pista es instrumental."
+            "value": "Esta canción es instrumental."
           }
         }
       }
@@ -5375,7 +5375,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "No hay pistas siguientes."
+            "value": "No hay canciones siguientes."
           }
         }
       }
@@ -5386,7 +5386,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dieser Song wiederholt sich. Schalte die Wiederholung aus, um zu sehen, was als Nächstes spielt."
+            "value": "Dieser Titel wiederholt sich. Schalte die Wiederholung aus, um zu sehen, was als Nächstes spielt."
           }
         },
         "en": {
@@ -5547,7 +5547,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Alle deine Songs laden"
+            "value": "Alle deine Titel laden"
           }
         },
         "en": {
@@ -5605,7 +5605,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pista siguiente"
+            "value": "Canción siguiente"
           }
         }
       }
@@ -5651,7 +5651,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pista anterior"
+            "value": "Canción anterior"
           }
         }
       }
@@ -5938,7 +5938,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Laden aller Playlist-Songs abbrechen"
+            "value": "Laden aller Playlist-Titel abbrechen"
           }
         },
         "en": {
@@ -6180,7 +6180,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Encola la pista resaltada sin cerrar la paleta"
+            "value": "Encola la canción resaltada sin cerrar la paleta"
           }
         }
       }
@@ -6226,7 +6226,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Busca pistas, listas y comandos"
+            "value": "Busca canciones, listas y comandos"
           }
         }
       }
@@ -6410,7 +6410,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Saltar a la pista siguiente"
+            "value": "Saltar a la canción siguiente"
           }
         }
       }
@@ -6433,7 +6433,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pista siguiente"
+            "value": "Canción siguiente"
           }
         }
       }
@@ -6456,7 +6456,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Volver a la pista anterior"
+            "value": "Volver a la canción anterior"
           }
         }
       }
@@ -6479,7 +6479,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pista anterior"
+            "value": "Canción anterior"
           }
         }
       }
@@ -6548,7 +6548,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Guarda en caché las pistas de cada lista para abrirlas al instante"
+            "value": "Guarda en caché las canciones de cada lista para abrirlas al instante"
           }
         }
       }
@@ -6559,7 +6559,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Alle deine Songs in Spotiglass laden"
+            "value": "Alle deine Titel in Spotiglass laden"
           }
         },
         "en": {
@@ -7157,7 +7157,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Songs"
+            "value": "Titel"
           }
         },
         "en": {
@@ -7295,7 +7295,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Songs durchsuchen"
+            "value": "Titel durchsuchen"
           }
         },
         "en": {
@@ -7502,7 +7502,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Songs"
+            "value": "Titel"
           }
         },
         "en": {
@@ -8089,7 +8089,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "pista"
+            "value": "canción"
           }
         }
       }
@@ -8319,7 +8319,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Abre las letras sincronizadas de la pista actual."
+            "value": "Abre las letras sincronizadas de la canción actual."
           }
         }
       }
@@ -8342,7 +8342,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pista siguiente"
+            "value": "Canción siguiente"
           }
         }
       }
@@ -8365,7 +8365,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Salta a la pista siguiente de Spotify cuando la reproducción está conectada."
+            "value": "Salta a la canción siguiente de Spotify cuando la reproducción está conectada."
           }
         }
       }
@@ -8457,7 +8457,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pista anterior"
+            "value": "Canción anterior"
           }
         }
       }
@@ -8480,7 +8480,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Salta a la pista anterior de Spotify cuando la reproducción está conectada."
+            "value": "Salta a la canción anterior de Spotify cuando la reproducción está conectada."
           }
         }
       }
@@ -8595,7 +8595,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Alterna repetición: desactivada, repetir lista, repetir una pista."
+            "value": "Alterna repetición: desactivada, repetir lista, repetir una canción."
           }
         }
       }
@@ -8813,7 +8813,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Wählen Sie einen Song oder drücken Sie auf „Wiedergabe“."
+            "value": "Wählen Sie einen Titel oder drücken Sie auf „Wiedergabe“."
           }
         },
         "en": {
@@ -9423,7 +9423,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nombre de la playlist"
+            "value": "Nombre de la lista"
           }
         }
       }
@@ -9446,7 +9446,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nueva playlist…"
+            "value": "Nueva lista…"
           }
         }
       }
@@ -9469,7 +9469,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nueva playlist"
+            "value": "Nueva lista"
           }
         }
       }
@@ -9781,7 +9781,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Repetir una, las pistas siguientes continúan cuando se desactiva la repetición"
+            "value": "Repetir una, las canciones siguientes continúan cuando se desactiva la repetición"
           }
         }
       }
@@ -9932,7 +9932,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "No hay pistas siguientes. Inicia una lista o añade pistas a la cola."
+            "value": "No hay canciones siguientes. Inicia una lista o añade canciones a la cola."
           }
         }
       }
@@ -9943,7 +9943,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dieser Song wiederholt sich, bis du die Wiederholung ausschaltest. Danach kehrt die vollständige Warteschlange unter Als Nächstes zurück."
+            "value": "Dieser Titel wiederholt sich, bis du die Wiederholung ausschaltest. Danach kehrt die vollständige Warteschlange unter Als Nächstes zurück."
           }
         },
         "en": {
@@ -11323,7 +11323,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ein parametrischer 10-Band-Equalizer in Echtzeit für die Spotiglass-Wiedergabe. Verschiebe einen Regler während ein Song läuft, Änderungen wirken sofort."
+            "value": "Ein parametrischer 10-Band-Equalizer in Echtzeit für die Spotiglass-Wiedergabe. Verschiebe einen Regler während ein Titel läuft, Änderungen wirken sofort."
           }
         },
         "en": {
@@ -12255,7 +12255,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ir a la pista siguiente"
+            "value": "Ir a la canción siguiente"
           }
         }
       }
@@ -12278,7 +12278,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ir a la pista anterior"
+            "value": "Ir a la canción anterior"
           }
         }
       }
@@ -12347,7 +12347,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Repetir esta pista"
+            "value": "Repetir esta canción"
           }
         }
       }
