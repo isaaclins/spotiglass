@@ -62,6 +62,12 @@ jobs:
         # that are missing, and catalog keys nothing references (#75).
         run: ./scripts/audit-localization.sh
 
+      - name: Orphaned-source audit
+        # A Swift file absent from project.pbxproj is in no target, so it never
+        # compiles and never runs. Periphery cannot see these by definition,
+        # and two test files already shipped that way (#107).
+        run: ./scripts/audit-orphaned-sources.sh
+
   test:
     name: Unit tests and coverage gate
     # Pinned to macos-26 (Tahoe) because Spotiglass and SpotiglassTests both
@@ -115,6 +121,18 @@ jobs:
             -resultBundlePath "$GITHUB_WORKSPACE/build/ci-cov.xcresult" \
             CODE_SIGNING_ALLOWED=NO \
             test
+
+      - name: Dead-code scan
+        # `make scan` existed for a long time and CI never ran it, so dead
+        # declarations were found by hand instead. Gates on new findings only;
+        # the existing backlog lives in scripts/periphery-baseline.json (#107).
+        # Runs after the tests because it needs the same Xcode index, and is
+        # not allowed to mask a test failure.
+        if: always() && steps.unit_tests.outcome == 'success'
+        run: |
+          set -euo pipefail
+          brew install peripheryapp/periphery/periphery
+          ./scripts/check-periphery.sh
 
       - name: Upload test result bundle on failure
         if: failure() && steps.unit_tests.outcome == 'failure'
