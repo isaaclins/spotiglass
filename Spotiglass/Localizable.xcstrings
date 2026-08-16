@@ -9854,6 +9854,29 @@
         }
       }
     },
+    "search.empty.guidance": {
+      "extractionState": "stale",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Durchsuchen Sie Spotify nach Titeln, Künstlern, Alben und Playlists."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search Spotify for tracks, artists, albums and playlists."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Busca en Spotify canciones, artistas, álbumes y listas."
+          }
+        }
+      }
+    },
     "search.empty.keepTyping": {
       "extractionState": "stale",
       "localizations": {

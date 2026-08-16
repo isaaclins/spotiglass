@@ -80,6 +80,11 @@ struct PlaylistBrowserView: View {
         self.signOut = signOut
     }
 
+    /// Where you are, falling back to the app name at the root.
+    private var windowTitle: String {
+        viewModel.breadcrumbPath.last?.label ?? AppMetadata.displayName
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             NavigationSplitView(columnVisibility: $playlistColumnVisibility) {
@@ -176,10 +181,19 @@ struct PlaylistBrowserView: View {
                 .frame(width: 1, height: 1)
                 .opacity(0.01)
         }
-        .navigationTitle("")
+        // An empty title left the window untitled: blank in the Window menu, in
+        // Mission Control and to assistive tech, while the Settings window was
+        // correctly named (#161). The title is the current location rather than
+        // the app name, because the breadcrumb's home crumb already says
+        // "Spotiglass" and repeating it in the titlebar reads as a mistake.
+        .navigationTitle(windowTitle)
         .toolbar {
-            ToolbarItem(placement: .navigation) {
-                NavigationToolbarChrome(viewModel: viewModel)
+            // At the root there is no trail and nothing to go back to, so the
+            // item would render as an empty capsule beside the window title.
+            if viewModel.canNavigateBack || !viewModel.breadcrumbPath.isEmpty {
+                ToolbarItem(placement: .navigation) {
+                    NavigationToolbarChrome(viewModel: viewModel)
+                }
             }
             if lyricsOverlay.isPresented {
                 ToolbarItemGroup(placement: .automatic) {

@@ -5,7 +5,9 @@ import SwiftUI
 ///
 /// When `isPlaying` is true the bars animate continuously up and down with
 /// staggered phases. When false, the bars freeze at fixed mid-heights to
-/// indicate that playback is paused.
+/// indicate that playback is paused. Reduce Motion also freezes them, since the
+/// icon appears in every playing row and would otherwise be permanent motion in
+/// a list.
 struct PlayingWaveformIcon: View {
     var isPlaying: Bool
     /// Overrides the bar color. Left nil the bars use the shared accent, which greys
@@ -18,6 +20,7 @@ struct PlayingWaveformIcon: View {
     private let maxHeight: CGFloat = 14
 
     @State private var isAnimating: Bool = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(alignment: .center, spacing: barSpacing) {
@@ -26,11 +29,17 @@ struct PlayingWaveformIcon: View {
             bar(index: 2, baseFraction: 0.35, durationOffset: 0.30, durationScale: 1.10)
         }
         .frame(width: CGFloat(barCount) * barWidth + CGFloat(barCount - 1) * barSpacing, height: maxHeight)
+        // This icon sits in every playing row, so a repeatForever animation is
+        // perpetual motion in a list for someone who asked the system for less
+        // of it. The bars hold their frozen state instead (#118).
         .onAppear {
-            isAnimating = isPlaying
+            isAnimating = Self.shouldAnimate(isPlaying: isPlaying, reduceMotion: reduceMotion)
         }
         .onChange(of: isPlaying) { _, nowPlaying in
-            isAnimating = nowPlaying
+            isAnimating = Self.shouldAnimate(isPlaying: nowPlaying, reduceMotion: reduceMotion)
+        }
+        .onChange(of: reduceMotion) { _, nowReduced in
+            isAnimating = Self.shouldAnimate(isPlaying: isPlaying, reduceMotion: nowReduced)
         }
         .help(isPlaying ? SpotiglassL10n.string("playback.nowPlaying") : SpotiglassL10n.string("playback.paused"))
         .accessibilityLabel(isPlaying ? SpotiglassL10n.string("playback.nowPlaying") : SpotiglassL10n.string("playback.paused"))
@@ -38,29 +47,53 @@ struct PlayingWaveformIcon: View {
     }
 
     private func bar(index: Int, baseFraction: CGFloat, durationOffset: Double, durationScale: Double) -> some View {
-        let frozenFraction: CGFloat = [0.55, 0.85, 0.40][index % 3]
-        let scale: CGFloat = isAnimating ? 1.0 : frozenFraction / baseFraction
-
-        return RoundedRectangle(cornerRadius: barWidth / 2, style: .continuous)
+        RoundedRectangle(cornerRadius: barWidth / 2, style: .continuous)
             .fill(color.map { AnyShapeStyle($0) } ?? AnyShapeStyle(SpotiglassAccentStyle()))
             .frame(width: barWidth, height: maxHeight * baseFraction)
-            .scaleEffect(y: isAnimating ? animatedScale(index: index) : scale, anchor: .center)
+            .scaleEffect(
+                y: Self.barScale(index: index, baseFraction: baseFraction, isAnimating: isAnimating),
+                anchor: .center
+            )
             .animation(
-                isAnimating
-                    ? .easeInOut(duration: 0.45 * durationScale).repeatForever(autoreverses: true).delay(durationOffset)
-                    : .default,
+                Self.barAnimation(
+                    isAnimating: isAnimating,
+                    durationScale: durationScale,
+                    durationOffset: durationOffset
+                ),
                 value: isAnimating
             )
     }
 
-    /// When animating, each bar oscillates between two scale extremes.
-    /// We toggle the target scale via the `isAnimating` flag; the per-bar
-    /// extremes differ to create the offset waveform effect.
-    private func animatedScale(index: Int) -> CGFloat {
-        // Different bars target different extremes when isAnimating is true,
-        // producing a staggered wave when combined with the per-bar delays.
-        let extremes: [CGFloat] = [1.8, 0.4, 1.6]
-        return extremes[index % extremes.count]
+    /// Whether the bars move at all.
+    ///
+    /// Kept as a named rule rather than an inline condition because three
+    /// separate places have to agree on it, and because the answer depends on a
+    /// system setting that a hosted test cannot write.
+    static func shouldAnimate(isPlaying: Bool, reduceMotion: Bool) -> Bool {
+        isPlaying && !reduceMotion
+    }
+
+    /// The vertical scale of one bar.
+    ///
+    /// While animating, each bar targets a different extreme, which combined
+    /// with the per-bar delays produces the staggered wave. Frozen, each bar
+    /// holds a fixed mid-height so a paused row still reads as a waveform.
+    static func barScale(index: Int, baseFraction: CGFloat, isAnimating: Bool) -> CGFloat {
+        if isAnimating {
+            let extremes: [CGFloat] = [1.8, 0.4, 1.6]
+            return extremes[index % extremes.count]
+        }
+        let frozenFraction: CGFloat = [0.55, 0.85, 0.40][index % 3]
+        return frozenFraction / baseFraction
+    }
+
+    /// The animation applied to one bar. `.default` when frozen, so settling
+    /// into the held state is not itself a jump.
+    static func barAnimation(isAnimating: Bool, durationScale: Double, durationOffset: Double) -> Animation {
+        guard isAnimating else { return .default }
+        return .easeInOut(duration: 0.45 * durationScale)
+            .repeatForever(autoreverses: true)
+            .delay(durationOffset)
     }
 }
 

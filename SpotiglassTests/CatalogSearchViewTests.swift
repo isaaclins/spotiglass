@@ -93,6 +93,10 @@ final class CatalogSearchViewTests: XCTestCase {
     func testSearchSurfaceRendersTheCatalogSearchView() async {
         let viewModel = makeBrowserViewModel()
         await viewModel.selectSidebar(.search)
+        // The pills only exist once there is a query to filter: with an empty
+        // query they were presenting themselves as active filters over nothing
+        // (#164).
+        viewModel.catalogSearch.query = "daft punk"
 
         let view = CatalogSearchView(
             viewModel: viewModel,

@@ -10,7 +10,9 @@ final class BrowserChromeViewsTests: XCTestCase {
         super.tearDown()
     }
 
-    func testBreadcrumbToolbarEmptyPathShowsAppName() throws {
+    /// At the root the window title already names the app, so the breadcrumb
+    /// renders nothing rather than repeating it as an inert second copy (#161).
+    func testBreadcrumbToolbarEmptyPathShowsNothing() throws {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
             trackResults: [:]
@@ -19,7 +21,7 @@ final class BrowserChromeViewsTests: XCTestCase {
         let view = BreadcrumbToolbarView(viewModel: viewModel)
 
         ViewTestHost.host(view, size: CGSize(width: 400, height: 44))
-        XCTAssertNoThrow(try view.inspect().find(text: AppMetadata.displayName))
+        XCTAssertThrowsError(try view.inspect().find(text: AppMetadata.displayName))
     }
 
     func testBreadcrumbToolbarShowsCrumbLabels() async throws {
@@ -73,6 +75,51 @@ final class BrowserChromeViewsTests: XCTestCase {
         XCTAssertNoThrow(try paused.inspect())
     }
 
+    /// The icon sits in every playing row, so it must hold still for someone who
+    /// asked the system for less motion (#118). Drives the playback and the
+    /// Reduce Motion change on a live host, since both decide the frozen state.
+    /// The motion policy is asserted directly, because whether a hosted view
+    /// actually animates depends on the machine's Reduce Motion setting, which a
+    /// test cannot write and CI does not guarantee (#118).
+    func testPlayingWaveformIconMotionPolicy() {
+        XCTAssertTrue(PlayingWaveformIcon.shouldAnimate(isPlaying: true, reduceMotion: false))
+        XCTAssertFalse(PlayingWaveformIcon.shouldAnimate(isPlaying: true, reduceMotion: true))
+        XCTAssertFalse(PlayingWaveformIcon.shouldAnimate(isPlaying: false, reduceMotion: false))
+        XCTAssertFalse(PlayingWaveformIcon.shouldAnimate(isPlaying: false, reduceMotion: true))
+
+        // Animating: each bar targets a different extreme, so the wave is staggered.
+        let animatedScales = (0..<3).map {
+            PlayingWaveformIcon.barScale(index: $0, baseFraction: 0.5, isAnimating: true)
+        }
+        XCTAssertEqual(Set(animatedScales).count, 3)
+
+        // Frozen: bars hold fixed mid-heights, so a paused row still reads as a waveform.
+        let frozen = PlayingWaveformIcon.barScale(index: 0, baseFraction: 0.5, isAnimating: false)
+        XCTAssertEqual(frozen, 0.55 / 0.5, accuracy: 0.0001)
+        XCTAssertNotEqual(frozen, animatedScales[0])
+
+        XCTAssertNotNil(
+            PlayingWaveformIcon.barAnimation(isAnimating: true, durationScale: 1, durationOffset: 0)
+        )
+        XCTAssertEqual(
+            PlayingWaveformIcon.barAnimation(isAnimating: false, durationScale: 1, durationOffset: 0),
+            .default
+        )
+    }
+
+    func testPlayingWaveformIconFollowsPlaybackChanges() throws {
+        let driver = WaveformMotionDriver(isPlaying: false)
+        let view = WaveformMotionDriverView(driver: driver)
+        ViewTestHost.host(view, size: CGSize(width: 48, height: 32))
+
+        driver.isPlaying = true
+        AppKitTestSupport.pumpRunLoop()
+        driver.isPlaying = false
+        AppKitTestSupport.pumpRunLoop()
+
+        XCTAssertNoThrow(try view.inspect())
+    }
+
     func testNavigationToolbarChromeHidesBackWhenCannotNavigate() async throws {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
@@ -86,5 +133,25 @@ final class BrowserChromeViewsTests: XCTestCase {
         ViewTestHost.host(chrome, size: CGSize(width: 480, height: 44))
         XCTAssertNoThrow(try chrome.inspect())
         XCTAssertFalse(viewModel.canNavigateBack)
+    }
+}
+
+/// Drives `PlayingWaveformIcon` through playback and Reduce Motion changes on a
+/// hosted view, so the icon keeps the same identity and its `onChange` handlers
+/// actually run.
+private final class WaveformMotionDriver: ObservableObject {
+    @Published var isPlaying: Bool
+
+    init(isPlaying: Bool) {
+        self.isPlaying = isPlaying
+    }
+}
+
+private struct WaveformMotionDriverView: View {
+    @ObservedObject var driver: WaveformMotionDriver
+
+    var body: some View {
+        PlayingWaveformIcon(isPlaying: driver.isPlaying)
+            .frame(width: 24, height: 16)
     }
 }

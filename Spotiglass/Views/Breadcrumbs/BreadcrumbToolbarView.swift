@@ -7,6 +7,17 @@ struct BreadcrumbToolbarView: View {
     @ObservedObject var viewModel: PlaylistBrowserViewModel
 
     var body: some View {
+        if viewModel.breadcrumbPath.isEmpty {
+            // Nothing to show at the root: the window title already names the
+            // app, and an empty padded container leaves a stray capsule in the
+            // toolbar.
+            EmptyView()
+        } else {
+            trail
+        }
+    }
+
+    private var trail: some View {
         HStack(spacing: 8) {
             homeCrumb
 
@@ -32,28 +43,20 @@ struct BreadcrumbToolbarView: View {
     /// path exists it becomes a real button: previously it advertised a hint but
     /// navigated from a tap gesture, which VoiceOver and the keyboard cannot
     /// reach (#113, #127).
-    @ViewBuilder
+    /// Only rendered when there is a trail, so it is always actionable.
     private var homeCrumb: some View {
-        if viewModel.breadcrumbPath.isEmpty {
+        Button {
+            Task { await viewModel.jumpToHome() }
+        } label: {
             Text(AppMetadata.displayName)
                 .font(Self.segmentFont)
-                .foregroundStyle(Color.secondary)
+                .foregroundStyle(Color.primary)
                 .lineLimit(1)
-                .accessibilityLabel(AppMetadata.displayName)
-        } else {
-            Button {
-                Task { await viewModel.jumpToHome() }
-            } label: {
-                Text(AppMetadata.displayName)
-                    .font(Self.segmentFont)
-                    .foregroundStyle(Color.primary)
-                    .lineLimit(1)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(AppMetadata.displayName)
-            .accessibilityHint(SpotiglassL10n.string("breadcrumb.home.hint"))
-            .help(SpotiglassL10n.string("tooltip.breadcrumb.home"))
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel(AppMetadata.displayName)
+        .accessibilityHint(SpotiglassL10n.string("breadcrumb.home.hint"))
+        .help(SpotiglassL10n.string("tooltip.breadcrumb.home"))
     }
 
     @ViewBuilder
