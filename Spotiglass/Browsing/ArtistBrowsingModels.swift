@@ -17,9 +17,7 @@ struct ArtistAlbumRowViewModel: Equatable, Identifiable {
         artworkURL = album.imageURL
         yearText = album.releaseYear
         totalTrackCount = max(0, album.totalTracks)
-        trackCountText = album.totalTracks == 1
-            ? SpotiglassL10n.string("browser.trackCount.one")
-            : SpotiglassL10n.format("browser.trackCount.other", Int64(album.totalTracks))
+        trackCountText = SpotiglassL10n.format("browser.trackCount", Int64(album.totalTracks))
         uri = album.uri
     }
 }

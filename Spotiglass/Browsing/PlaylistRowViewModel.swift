@@ -15,9 +15,7 @@ struct PlaylistRowViewModel: Equatable, Identifiable {
         self.title = playlist.name
         self.owner = playlist.ownerName
         self.ownerID = playlist.ownerID
-        self.trackCountText = playlist.trackCount == 1
-            ? SpotiglassL10n.string("browser.trackCount.one")
-            : SpotiglassL10n.format("browser.trackCount.other", Int64(playlist.trackCount))
+        self.trackCountText = SpotiglassL10n.format("browser.trackCount", Int64(playlist.trackCount))
         self.artworkURL = playlist.imageURL
         self.snapshotID = playlist.snapshotID
     }
@@ -38,9 +36,7 @@ struct PlaylistRowViewModel: Equatable, Identifiable {
         self.owner = likedSongsOwnerDisplay
         self.ownerID = ""
         if let totalTrackCount {
-            self.trackCountText = totalTrackCount == 1
-                ? SpotiglassL10n.string("browser.trackCount.one")
-                : SpotiglassL10n.format("browser.trackCount.other", Int64(totalTrackCount))
+            self.trackCountText = SpotiglassL10n.format("browser.trackCount", Int64(totalTrackCount))
         } else {
             self.trackCountText = SpotiglassL10n.string("browser.likedSongs.savedTracks")
         }
@@ -57,9 +53,7 @@ struct PlaylistRowViewModel: Equatable, Identifiable {
         self.title = albumDisplayName
         self.owner = artistsDisplay
         self.ownerID = ""
-        self.trackCountText = totalTrackCount == 1
-            ? SpotiglassL10n.string("browser.trackCount.one")
-            : SpotiglassL10n.format("browser.trackCount.other", Int64(totalTrackCount))
+        self.trackCountText = SpotiglassL10n.format("browser.trackCount", Int64(totalTrackCount))
         self.artworkURL = artworkURL
         self.snapshotID = "album-\(albumID)"
     }
