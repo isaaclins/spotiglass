@@ -3,6 +3,65 @@
     <channel>
         <title>Spotiglass</title>
         <item>
+            <title>0.7.0</title>
+            <pubDate>Sun, 16 Aug 2026 19:32:07 +0200</pubDate>
+            <sparkle:version>9</sparkle:version>
+            <sparkle:shortVersionString>0.7.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <description sparkle:format="plain-text"><![CDATA[The accessibility and translation release. Spotiglass can now be driven entirely from the keyboard, read aloud by VoiceOver, and used in German or Spanish without falling back to English, and the errors it shows are written for people rather than for the network log.
+
+## Everything is reachable from the keyboard
+
+Track rows on Home, Artist and Search only responded to a mouse double-click, and a track selected with the arrow keys in the playlist table could not be played at all, because Return was not handled anywhere. Album cards on an artist page and rows in the queue panel had the same problem. All of those activate from the keyboard now.
+
+Add to Queue and Pin used to exist only in a right-click menu. They are in the Playback menu, acting on the table's selection, with ⌥⌘E and ⌥⌘P.
+
+Help > Spotiglass Help used to do nothing whatsoever, silently. It opens the documentation, and a second item opens the issue tracker.
+
+## VoiceOver
+
+The seek bar announced a percentage but offered no way to change it. The volume slider never said how loud playback was. All ten equalizer faders introduced themselves with the identical label "Band gain", so there was no way to tell 32 Hz from 16 kHz. Explicit and Unavailable badges were never spoken. Breadcrumbs claimed to be buttons but exposed no action. Each of those is fixed, along with command palette rows, queue rows and the Settings profile chip.
+
+## German and Spanish
+
+The app shipped an in-app language picker while large parts of the interface ignored it. The entire Spotify error vocabulary, every empty state in the browser, the loading spinner, the artist header's "followers", and the equalizer's error messages were all hardcoded English.
+
+The audit that was supposed to catch this reported a clean bill of health throughout, because it only looked at string literals handed directly to a UI construct. It now also reads the bodies of `errorDescription`, `userMessage`, `failureReason` and `recoverySuggestion`, and it can see plural entries, which it previously reported as untranslated in every locale. Turning each of those on found leaks that had been invisible: fifteen in the error vocabulary alone.
+
+Counts are pluralized by the catalog now rather than by hand, which is why the Spanish alert no longer reads "canciónes". One concept is named one way per language across every surface.
+
+## Errors written for people
+
+Error copy used to expose HTTP status codes, OAuth scope names and SDK identifiers as if they were ordinary English, and an alert containing a raw HTTP request and response dump could open on you unprompted. The sidebar printed the raw reason phrase "Forbidden". The Connection section reported an OAuth token expiry timestamp.
+
+Developer facts now live in a diagnostics section, next to the message rather than inside it.
+
+## Settings and visual consistency
+
+The Settings window was translucent, which no Mac settings window is. Its sidebar painted its own selection highlight over the one `List` already draws, so the selection stayed bright when the window lost focus. Its search field was hand-drawn, with no clear button, no focus ring and no ⌘F, and it announced itself to VoiceOver as "Account".
+
+The same pinned badge was drawn five different ways, Liked Songs artwork four different ways, and the queue row and track row had drifted into two visibly different copies of the same design. The Recently played shelf cut its last card in half. The scrubber's unplayed track was the app's only `Color.gray` and washed out in light mode.
+
+## Equalizer
+
+It is a graphic equalizer, not a parametric one: ten fixed frequencies with a gain fader each, and the caption said so incorrectly since the feature shipped. The Output device picker rendered blank when the saved device was not connected. The gain readout was boxed to 14 points and would clip at larger text sizes.
+
+## Under the hood
+
+⌘F opened nothing on any existing install: a command was renamed without migrating saved keymaps, which no test could see because tests start from fresh settings. Rebinding "Open command palette" left ⌘K alive as a second, undisclosed trigger.
+
+CI now runs the dead-code detector the repository already had in its Makefile and never invoked, gating on new findings, plus a check for Swift files that are in the repo but in no Xcode target. Two test files had shipped that way, and one of them had stopped compiling entirely.
+]]></description>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.7.0/Spotiglass-0.7.0.zip" length="8971585" type="application/octet-stream" sparkle:edSignature="Gc5r9afT+FDTg29yQJoxlZYjOXtGDZmMVI9eTa476zJ3XP1kytMz6clFpsGW1oPW5uZPWH6uR/FYHw5H2I5uAg=="/>
+            <sparkle:deltas>
+                <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.7.0/Spotiglass9-8.delta" sparkle:deltaFrom="8" length="1772006" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="862496" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,en" sparkle:edSignature="xOiwXg7g/oLhHB8+RUUIZ5KnJFjY+WNRK1j6Yg6pKBdFAxQHF4WQfh2sel9VlEdLC+uieUvKlCEKZTLzTcbnBQ=="/>
+                <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.7.0/Spotiglass9-7.delta" sparkle:deltaFrom="7" length="4376366" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="862496" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,en" sparkle:edSignature="zd/dCnvbgDRoffQKZ7XfPxc6bx2tDHzGLJ7leaZuL3xdY1gg4NkWDyUtNuHMur5h2ZDpyG91Huay45lo4GVwDQ=="/>
+                <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.7.0/Spotiglass9-6.delta" sparkle:deltaFrom="6" length="2182922" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="864640" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,en" sparkle:edSignature="Shq9w4tzO2M7hbbntiEDc5wHS/C8zV79OKz6dZyRlrZT4CAtcB6c9ETNPkYcGwie2Jb0vN/EcLxANFuZxqdxBA=="/>
+                <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.7.0/Spotiglass9-5.delta" sparkle:deltaFrom="5" length="2364010" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="864640" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,en" sparkle:edSignature="fPurfcWOART7zG27mHfmtkXf4B5AHIP8jiVtiYGu03USxn9MRjIt7VhH5IiHCU31ehqblCD1+sYh/eFXPxn6Dg=="/>
+                <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.7.0/Spotiglass9-4.delta" sparkle:deltaFrom="4" length="4675194" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="864640" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,en" sparkle:edSignature="HufYSCogZ994XLn5YzF69BdtXeHlFPFfn8IZFSrbs22yIM3NRnjMlizawTICsaB9QZpgwNNPSb2MjePERcIYAg=="/>
+            </sparkle:deltas>
+        </item>
+        <item>
             <title>0.6.0</title>
             <pubDate>Wed, 12 Aug 2026 15:00:59 +0200</pubDate>
             <sparkle:version>8</sparkle:version>
@@ -41,13 +100,6 @@ Tips fund fixes and future releases: <https://buymeacoffee.com/isaaclins>
 Full change list in [CHANGELOG.md](https://github.com/isaaclins/spotiglass/blob/main/CHANGELOG.md).
 ]]></description>
             <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.6.0/Spotiglass-0.6.0.zip" length="8834061" type="application/octet-stream" sparkle:edSignature="mcUMeInLFS+Vcxx7cl4SxeDiT72v6OAveqX/4WdAD2+aU4hqijya1Dcrl7umdyD0WsMpKxWZC726pjplvR1uDw=="/>
-            <sparkle:deltas>
-                <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.6.0/Spotiglass8-7.delta" sparkle:deltaFrom="7" length="4016090" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="862496" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,en" sparkle:edSignature="w6zOsNQI8Y2CWDgPX68XhDUcyyu7m0RJ43PgEGudwY2enenxrMZm4rHk6AIximQIVWB1M/a6WtbM6nbPRTscDA=="/>
-                <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.6.0/Spotiglass8-6.delta" sparkle:deltaFrom="6" length="1772194" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="864640" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,en" sparkle:edSignature="lGyQHZZwIbj4QoeopcKSYq5tBURIk2c7/fn1qX6P6gveOmnLnbBrVyR5iQh+0Ux9h2OiLAEkWXGmBcZKyqVpAQ=="/>
-                <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.6.0/Spotiglass8-5.delta" sparkle:deltaFrom="5" length="2016618" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="864640" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,en" sparkle:edSignature="V9+WZBuTZJb5FfxwqBCfKsyoPesOCn/tf00uvSlyqNfYLKxX5w49w3N9BJ7JSV5NVdje/VBiuu/wAWbE3oqsAQ=="/>
-                <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.6.0/Spotiglass8-4.delta" sparkle:deltaFrom="4" length="4461122" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="864640" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,en" sparkle:edSignature="kMcrxFLXjaU4mbW05UYetzZfJ/Xkuvz1mBZV5Xn51fThQtLPt+qqcXnLsJ/w9951JlLL0NT20q+5YPCbAZH/CA=="/>
-                <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.6.0/Spotiglass8-3.delta" sparkle:deltaFrom="3" length="4575934" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="864640" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,en" sparkle:edSignature="2JdoMWAETG3BCVbXQpTqpLKnbToqkN9lNwESwwaIlsiUx2srVF4SY7h1u+ZdhbvJK06SyIrEfhC0H99F+H0+BA=="/>
-            </sparkle:deltas>
         </item>
         <item>
             <title>0.5.0</title>
@@ -91,14 +143,6 @@ Tips fund fixes and future releases: <https://buymeacoffee.com/isaaclins>
 Full change list in [CHANGELOG.md](https://github.com/isaaclins/spotiglass/blob/main/CHANGELOG.md).
 ]]></description>
             <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.5.0/Spotiglass-0.5.0.zip" length="8685887" type="application/octet-stream" sparkle:edSignature="B5uumpT3f/ytN/oHvDbKtkSU+akzS9VU02/YmdEL/iRGbUimdoxtRh5OEumWfzppoOmbIjfmHn7XUtjolij6DQ=="/>
-        </item>
-        <item>
-            <title>0.4.0</title>
-            <pubDate>Wed, 05 Aug 2026 00:56:41 +0200</pubDate>
-            <sparkle:version>6</sparkle:version>
-            <sparkle:shortVersionString>0.4.0</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.4.0/Spotiglass-0.4.0.zip" length="8458476" type="application/octet-stream" sparkle:edSignature="rieobuNiMW1OAlzjvgTulNSEhUs6e7o72DOMapcsB6zACTnptUmMwTPaMZvj/gxIrMRC8Hd2kLJwNQUdCTrmBg=="/>
         </item>
     </channel>
 </rss>
