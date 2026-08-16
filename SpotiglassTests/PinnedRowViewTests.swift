@@ -45,12 +45,35 @@ final class PinnedRowViewTests: XCTestCase {
         ViewTestHost.host(liked)
         XCTAssertNoThrow(try liked.inspect().find(text: "Liked Songs"))
 
+        // Unselected liked songs takes the other branch of the heart glyph.
+        let likedUnselected = PinnedRowView(
+            item: .likedSongs(ownerDisplay: "You", artworkURL: nil),
+            isSelected: false,
+            onUnpin: {}
+        )
+        ViewTestHost.host(likedUnselected)
+        XCTAssertNoThrow(try likedUnselected.inspect().find(text: "Liked Songs"))
+
         let artist = PinnedRowView(
             item: .artist(SpotifyArtist(id: "a1", name: "M83", imageURL: nil, uri: "spotify:artist:a1")),
             onUnpin: {}
         )
         ViewTestHost.host(artist)
         XCTAssertNoThrow(try artist.inspect().find(text: "M83"))
+
+        // With an image URL the row renders CachedCircularArtwork instead of the
+        // person glyph, which is the branch the other cases never reach.
+        let artistWithArtwork = PinnedRowView(
+            item: .artist(SpotifyArtist(
+                id: "a2",
+                name: "Air",
+                imageURL: URL(string: "https://example.com/artist.jpg"),
+                uri: "spotify:artist:a2"
+            )),
+            onUnpin: {}
+        )
+        ViewTestHost.host(artistWithArtwork)
+        XCTAssertNoThrow(try artistWithArtwork.inspect().find(text: "Air"))
     }
 
     func testAlbumAndTrackPins() throws {
