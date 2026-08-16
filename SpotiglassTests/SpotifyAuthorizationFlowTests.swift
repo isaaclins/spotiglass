@@ -5,7 +5,9 @@ final class SpotifyAuthorizationFlowTests: XCTestCase {
 
     func testBrowserOpenFailedDescription() {
         let err = SpotifyAuthorizationFlowError.browserOpenFailed
-        XCTAssertEqual(err.errorDescription, "Could not open Spotify sign-in in the system browser.")
+        // Localized now, so assert against the catalog rather than pinning
+        // one language's wording here (#186).
+        XCTAssertEqual(err.errorDescription, SpotiglassL10n.string("auth.flow.browserOpenFailed"))
     }
 
     func testDefaultTimeoutExtensionUses120Seconds() async throws {

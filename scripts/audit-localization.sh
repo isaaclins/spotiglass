@@ -61,6 +61,7 @@ missing_count=0
 unknown_key_count=0
 orphan_count=0
 sharp_s_count=0
+message_leak_count=0
 
 # ---- 1. English-leak scan ---------------------------------------------------
 # Match string literals passed to user-visible modifiers/initializers. Anything
@@ -95,6 +96,59 @@ leak_hits=$(
 
 if [[ -n "$leak_hits" ]]; then
   leak_count=$(printf "%s\n" "$leak_hits" | wc -l | tr -d ' ')
+fi
+
+# ---- 1c. Prose returned bare from a message property ------------------------
+# The scan above only sees a literal handed to a UI construct. An error type
+# that returns its sentence from `errorDescription` hands it to nothing, so a
+# whole error vocabulary could sit in Swift literals and be reported as clean,
+# which is exactly how the Spotify (#157) and equalizer (#186) messages hid.
+# Diagnostics are developer-facing on purpose and are exempt by name, or with
+# an explicit `l10n-exempt` comment, so the silence is chosen rather than
+# accidental (#187).
+message_leak_hits=$(
+  python3 - "${SOURCE_DIRS[@]}" <<'PY'
+import pathlib, re, sys
+
+USER_FACING = {"errorDescription", "userMessage", "failureReason", "recoverySuggestion"}
+EXEMPT = {"diagnosticDetails", "debugDescription", "description"}
+PROP = re.compile(r'\bvar\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*String\??\s*\{')
+LITERAL = re.compile(r'"((?:[^"\\]|\\.)*)"')
+
+hits = []
+for root in sys.argv[1:]:
+    for path in sorted(pathlib.Path(root).rglob("*.swift")):
+        if "Preview" in path.name or "Tests" in path.name:
+            continue
+        lines = path.read_text(encoding="utf-8").splitlines()
+        prop, depth, exempt = None, 0, False
+        for number, line in enumerate(lines, 1):
+            if prop is None:
+                match = PROP.search(line)
+                if match:
+                    prop = match.group(1)
+                    exempt = prop in EXEMPT or "l10n-exempt" in line
+                    depth = line.count("{") - line.count("}")
+                    if depth <= 0:
+                        prop = None
+                continue
+            depth += line.count("{") - line.count("}")
+            code = line.split("//", 1)[0]
+            if prop in USER_FACING and not exempt and "SpotiglassL10n" not in code:
+                for literal in LITERAL.findall(code):
+                    # Prose, not a key or a punctuation fragment: several words,
+                    # or a single word ending a sentence.
+                    words = [w for w in re.split(r"\s+", literal) if w]
+                    if len(words) >= 3 or (literal.endswith(".") and len(words) >= 2):
+                        hits.append(f"{path}:{number}: {prop} returns prose: \"{literal[:60]}\"")
+            if depth <= 0:
+                prop = None
+print("\n".join(hits))
+PY
+)
+message_leak_hits=$(printf "%s" "$message_leak_hits" | sed '/^$/d')
+if [[ -n "$message_leak_hits" ]]; then
+  message_leak_count=$(printf "%s\n" "$message_leak_hits" | wc -l | tr -d ' ')
 fi
 
 # ---- 1b. German sharp-s -----------------------------------------------------
@@ -292,6 +346,13 @@ else
   printf "%s\n" "$leak_hits" | sed 's/^/    /'
 fi
 
+if (( message_leak_count == 0 )); then
+  echo "✓ 0 message properties returning English prose"
+else
+  echo "✗ $message_leak_count message properties return English prose:"
+  printf "%s\n" "$message_leak_hits" | sed 's/^/    /'
+fi
+
 if (( missing_count == 0 )); then
   echo "✓ 0 missing translations"
 else
@@ -320,6 +381,6 @@ else
   printf "%s\n" "$sharp_s_report" | sed 's/^/    /'
 fi
 
-if (( leak_count + missing_count + unknown_key_count + orphan_count + sharp_s_count > 0 )); then
+if (( leak_count + message_leak_count + missing_count + unknown_key_count + orphan_count + sharp_s_count > 0 )); then
   exit 1
 fi

@@ -9,11 +9,11 @@ enum KeymapValidationError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .emptyKeystroke:
-            "Keystroke cannot be empty."
+            SpotiglassL10n.string("keymap.error.emptyKeystroke")
         case let .unsupportedToken(token):
-            "Unsupported keystroke token '\(token)'."
+            SpotiglassL10n.format("keymap.error.unsupportedToken", token)
         case .missingCommand:
-            "Key binding command cannot be empty."
+            SpotiglassL10n.string("keymap.error.missingCommand")
         }
     }
 }

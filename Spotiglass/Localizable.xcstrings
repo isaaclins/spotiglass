@@ -514,6 +514,167 @@
         }
       }
     },
+    "auth.callback.invalidRequest": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Weiterleitung von Spotify hat keine brauchbare Antwort geliefert. Schliessen Sie zusätzliche Browser-Tabs und versuchen Sie es erneut mit Verbinden."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify’s redirect didn’t return a usable response. Close extra browser tabs and try Connect again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La redirección de Spotify no devolvió una respuesta utilizable. Cierra las pestañas adicionales del navegador y vuelve a pulsar Conectar."
+          }
+        }
+      }
+    },
+    "auth.callback.missingCode": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Rückruf von Spotify enthielt keinen Autorisierungscode. Versuchen Sie es erneut mit Verbinden."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify’s callback did not include an authorization code. Try Connect again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La respuesta de Spotify no incluyó un código de autorización. Vuelve a pulsar Conectar."
+          }
+        }
+      }
+    },
+    "auth.callback.missingState": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Im Rückruf von Spotify fehlten erforderliche Daten. Versuchen Sie es erneut mit Verbinden."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify’s callback was missing required data. Try Connect again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A la respuesta de Spotify le faltaban datos necesarios. Vuelve a pulsar Conectar."
+          }
+        }
+      }
+    },
+    "auth.callback.oauthError": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify hat die Anmeldung abgelehnt (%@). Versuchen Sie es erneut mit Verbinden."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify refused the sign-in (%@). Try Connect again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify rechazó el inicio de sesión (%@). Vuelve a pulsar Conectar."
+          }
+        }
+      }
+    },
+    "auth.callback.socketSetupFailed": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass konnte die Weiterleitung von Spotify nicht empfangen. Möglicherweise belegt eine andere App den Port oder macOS hat ihn blockiert. Beenden Sie andere Apps oder starten Sie Spotiglass neu und versuchen Sie es erneut mit Verbinden."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass could not listen for Spotify’s redirect. Another app may be using that port, or macOS blocked it. Quit conflicting apps or restart Spotiglass, then try Connect again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass no pudo recibir la redirección de Spotify. Puede que otra app esté usando ese puerto o que macOS lo haya bloqueado. Cierra las apps en conflicto o reinicia Spotiglass y vuelve a pulsar Conectar."
+          }
+        }
+      }
+    },
+    "auth.callback.stateMismatch": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify hat einen ungültigen Autorisierungsstatus zurückgegeben. Versuchen Sie es erneut mit Verbinden."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify returned an invalid authorization state. Try Connect again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify devolvió un estado de autorización no válido. Vuelve a pulsar Conectar."
+          }
+        }
+      }
+    },
+    "auth.callback.timedOut": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Anmeldung bei Spotify ist vor dem Abschluss abgelaufen. Versuchen Sie es erneut mit Verbinden."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify sign-in timed out before it completed. Try Connect again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El inicio de sesión de Spotify caducó antes de completarse. Vuelve a pulsar Conectar."
+          }
+        }
+      }
+    },
     "auth.cancel.button": {
       "extractionState": "stale",
       "localizations": {
@@ -882,6 +1043,29 @@
         }
       }
     },
+    "auth.flow.browserOpenFailed": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass konnte die Spotify-Anmeldung nicht im Browser öffnen."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass could not open Spotify sign-in in your browser."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass no pudo abrir el inicio de sesión de Spotify en tu navegador."
+          }
+        }
+      }
+    },
     "auth.insufficientScope.message": {
       "extractionState": "stale",
       "localizations": {
@@ -1158,6 +1342,29 @@
         }
       }
     },
+    "auth.persistence.invalidStoredData": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die gespeicherte Spotify-Anmeldung konnte nicht gelesen werden. Trennen Sie die Verbindung und verbinden Sie sich erneut."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The saved Spotify sign-in could not be read. Disconnect, then connect again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo leer el inicio de sesión de Spotify guardado. Desconecta y vuelve a conectar."
+          }
+        }
+      }
+    },
     "auth.reconnect.button": {
       "extractionState": "stale",
       "localizations": {
@@ -1177,6 +1384,75 @@
           "stringUnit": {
             "state": "translated",
             "value": "Reconectar"
+          }
+        }
+      }
+    },
+    "auth.settings.invalidAuthorizationURL": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass konnte die Anmeldeadresse für Spotify nicht erstellen. Prüfen Sie die Client-ID in den Einstellungen."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass could not build the Spotify sign-in address. Check the client ID in Settings."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass no pudo crear la dirección de inicio de sesión de Spotify. Revisa el ID de cliente en Ajustes."
+          }
+        }
+      }
+    },
+    "auth.settings.invalidRedirectURI": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Spotify-Weiterleitungsadresse muss http://127.0.0.1:<port>/callback verwenden."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The Spotify redirect address must use http://127.0.0.1:<port>/callback."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La dirección de redirección de Spotify debe usar http://127.0.0.1:<port>/callback."
+          }
+        }
+      }
+    },
+    "auth.settings.missingClientID": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geben Sie eine Spotify-Client-ID ein, bevor Sie sich anmelden."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter a Spotify client ID before signing in."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Introduce un ID de cliente de Spotify antes de iniciar sesión."
           }
         }
       }
@@ -3310,6 +3586,98 @@
         }
       }
     },
+    "eq.error.coreAudioStatus": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Ausgabegerät konnte nicht gewechselt werden. Versuchen Sie es erneut und starten Sie Spotiglass neu, falls es weiterhin fehlschlägt."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The output device could not be switched. Try again, and restart Spotiglass if it keeps failing."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo cambiar el dispositivo de salida. Inténtalo de nuevo y reinicia Spotiglass si sigue fallando."
+          }
+        }
+      }
+    },
+    "eq.error.driverNotLoadedYet": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS hat den Spotiglass-Audiotreiber noch nicht aktiviert. Melden Sie sich ab und wieder an und schalten Sie den Equalizer erneut ein."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS has not activated the Spotiglass audio driver yet. Log out and back in, then turn the equalizer on again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS todavía no ha activado el controlador de audio de Spotiglass. Cierra sesión y vuelve a entrar, y activa el ecualizador de nuevo."
+          }
+        }
+      }
+    },
+    "eq.error.embeddedDriverMissing": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass fehlt der Audiotreiber. Installieren Sie Spotiglass neu, um ihn wiederherzustellen."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass is missing its audio driver. Reinstall Spotiglass to restore it."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A Spotiglass le falta su controlador de audio. Reinstala Spotiglass para restaurarlo."
+          }
+        }
+      }
+    },
+    "eq.error.requiresSudoInstall": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass kann den Audiotreiber nicht selbst installieren, da macOS Audio-Plug-ins nur aus einem Systemordner lädt. Führen Sie zum Abschluss diese beiden Befehle im Terminal aus und schalten Sie den Equalizer danach erneut ein:\n\n%@"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass cannot install the audio driver itself, because macOS only loads audio plug-ins from a system folder. To finish, run these two commands in Terminal and then turn the equalizer on again:\n\n%@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass no puede instalar el controlador de audio por sí mismo, porque macOS solo carga complementos de audio desde una carpeta del sistema. Para terminar, ejecuta estos dos comandos en Terminal y activa el ecualizador de nuevo:\n\n%@"
+          }
+        }
+      }
+    },
     "error.browsing.accessDenied.message": {
       "extractionState": "stale",
       "localizations": {
@@ -4736,6 +5104,29 @@
         }
       }
     },
+    "error.spotify.rateLimited": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify begrenzt derzeit die Anfragen. %@"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify is limiting requests right now. %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify está limitando las solicitudes ahora mismo. %@"
+          }
+        }
+      }
+    },
     "error.spotify.rejectedRequest": {
       "extractionState": "stale",
       "localizations": {
@@ -5100,6 +5491,75 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ese atajo pertenece al elemento de menú «%@»."
+          }
+        }
+      }
+    },
+    "keymap.error.emptyKeystroke": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ein Tastaturkürzel darf nicht leer sein."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A shortcut cannot be empty."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un atajo no puede estar vacío."
+          }
+        }
+      }
+    },
+    "keymap.error.missingCommand": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ein Tastaturkürzel muss den Befehl benennen, den es ausführt."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A shortcut must name the command it runs."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un atajo debe indicar el comando que ejecuta."
+          }
+        }
+      }
+    },
+    "keymap.error.unsupportedToken": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass kennt die Taste „%@“ nicht."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass does not recognize the key “%@”."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass no reconoce la tecla «%@»."
           }
         }
       }
@@ -11474,6 +11934,52 @@
           "stringUnit": {
             "state": "translated",
             "value": "Eliminar"
+          }
+        }
+      }
+    },
+    "settings.eq.preset.error.emptyName": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Name der Voreinstellung darf nicht leer sein."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preset name cannot be empty."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El nombre del ajuste no puede estar vacío."
+          }
+        }
+      }
+    },
+    "settings.eq.preset.error.reservedName": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Name ist für eine integrierte Voreinstellung reserviert."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That name is reserved for a built-in preset."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ese nombre está reservado para un ajuste integrado."
           }
         }
       }

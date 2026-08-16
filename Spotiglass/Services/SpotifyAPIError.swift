@@ -36,7 +36,10 @@ enum SpotifyAPIError: Error, Equatable, LocalizedError {
             // one always wins. The server text stays in diagnosticDetails.
             return SpotiglassL10n.string("error.spotify.forbidden")
         case let .rateLimited(retryAfter):
-            return "Spotify is rate limiting requests. \(SpotifyRateLimitDisplay.retryAfterClause(seconds: retryAfter))"
+            return SpotiglassL10n.format(
+                "error.spotify.rateLimited",
+                SpotifyRateLimitDisplay.retryAfterClause(seconds: retryAfter)
+            )
         case let .notFound(message):
             return message ?? SpotiglassL10n.string("error.spotify.notFound")
         case let .badRequest(message, _):

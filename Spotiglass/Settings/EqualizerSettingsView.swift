@@ -419,10 +419,12 @@ private enum SavePresetError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
+        // Shown in the save sheet, so it belongs in the catalog like the rest
+        // of the equalizer's vocabulary (#186).
         case .emptyName:
-            "Preset name cannot be empty."
+            SpotiglassL10n.string("settings.eq.preset.error.emptyName")
         case .reservedName:
-            "That name is reserved for a built-in preset."
+            SpotiglassL10n.string("settings.eq.preset.error.reservedName")
         }
     }
 }

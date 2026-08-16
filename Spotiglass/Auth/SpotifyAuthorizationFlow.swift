@@ -25,7 +25,7 @@ enum SpotifyAuthorizationFlowError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .browserOpenFailed:
-            "Could not open Spotify sign-in in the system browser."
+            SpotiglassL10n.string("auth.flow.browserOpenFailed")
         }
     }
 }
