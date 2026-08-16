@@ -1758,6 +1758,29 @@
         }
       }
     },
+    "browser.diagnostics.message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "These details describe the failed request. Copy them into a bug report."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Details beschreiben die fehlgeschlagene Anfrage. Kopieren Sie sie in einen Fehlerbericht."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estos detalles describen la solicitud fallida. Cópialos en un informe de error."
+          }
+        }
+      }
+    },
     "browser.disconnect": {
       "extractionState": "stale",
       "localizations": {
@@ -2789,6 +2812,52 @@
           "stringUnit": {
             "state": "translated",
             "value": "Buscar"
+          }
+        }
+      }
+    },
+    "browser.showDetails": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show details"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Details anzeigen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar detalles"
+          }
+        }
+      }
+    },
+    "browser.showDetails.hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Technical details for a bug report"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Technische Details für einen Fehlerbericht"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Detalles técnicos para un informe de error"
           }
         }
       }

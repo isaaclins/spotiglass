@@ -39,27 +39,31 @@ struct ErrorStateView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 360)
+
+            // The details are a request line, a status, a header dump and a raw
+            // JSON body. That is for a bug report, not for someone who wanted a
+            // playlist, so it waits behind a button instead of opening itself
+            // over the window (#148).
+            if let diagnosticDetails = error.diagnosticDetails {
+                Button(SpotiglassL10n.string("browser.showDetails")) {
+                    isShowingDiagnosticAlert = true
+                }
+                .buttonStyle(.link)
+                .help(SpotiglassL10n.string("browser.showDetails.hint"))
+                .alert(error.title, isPresented: $isShowingDiagnosticAlert) {
+                    Button(SpotiglassL10n.string("browser.copyError")) {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(diagnosticDetails, forType: .string)
+                    }
+                    Button(SpotiglassL10n.string("browser.ok"), role: .cancel) {}
+                } message: {
+                    Text(SpotiglassL10n.string("browser.diagnostics.message"))
+                }
+            }
         }
         .padding(SpotiglassDesign.spacingL)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityElement(children: .contain)
-        .onAppear {
-            isShowingDiagnosticAlert = error.diagnosticDetails != nil
-        }
-        .onChange(of: error.id) { _, _ in
-            isShowingDiagnosticAlert = error.diagnosticDetails != nil
-        }
-        .alert(error.title, isPresented: $isShowingDiagnosticAlert) {
-            if let diagnosticDetails = error.diagnosticDetails {
-                Button(SpotiglassL10n.string("browser.copyError")) {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(diagnosticDetails, forType: .string)
-                }
-            }
-            Button(SpotiglassL10n.string("browser.ok"), role: .cancel) {}
-        } message: {
-            Text(error.diagnosticDetails ?? error.message)
-        }
     }
 }
 

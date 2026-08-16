@@ -137,12 +137,23 @@ struct AppearanceSettingsView: View {
         }
     }
 
+    /// The picker reports the size actually in use, not the preset that was last
+    /// tapped, and picking a preset means exactly that preset. Otherwise the two
+    /// controls under this one heading can disagree, which is how the segmented
+    /// control came to read Small beside a slider reading 300% (#165).
     private var lyricsTextSizeBinding: Binding<LyricsTextSize> {
         Binding(
-            get: { settingsStore.settings.appearance.lyricsTextSize },
+            get: {
+                LyricsTextSize.nearest(
+                    activeFontSize: settingsStore.settings.appearance.lyricsTextMetrics.activeFontSize
+                )
+            },
             set: { newValue in
                 withAnimation(.spring(response: 0.42, dampingFraction: 0.78)) {
-                    try? settingsStore.mutate { $0.appearance.lyricsTextSize = newValue }
+                    try? settingsStore.mutate {
+                        $0.appearance.lyricsTextSize = newValue
+                        $0.appearance.lyricsTextScale = 1.0
+                    }
                 }
             }
         )
