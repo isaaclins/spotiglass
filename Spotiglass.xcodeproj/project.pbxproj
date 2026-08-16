@@ -169,6 +169,7 @@
 		G70000000000000000000010 /* CommandPaletteView+RowArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = G70000000000000000000021 /* CommandPaletteView+RowArtwork.swift */; };
 		H80000000000000000000001 /* PlayingWaveformIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = H80000000000000000000011 /* PlayingWaveformIcon.swift */; };
 		H80000000000000000000002 /* ScrubberView.swift in Sources */ = {isa = PBXBuildFile; fileRef = H80000000000000000000012 /* ScrubberView.swift */; };
+		SRC000000000000000000001F /* PlaybackSeekStep.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC000000000000000008001F /* PlaybackSeekStep.swift */; };
 		J90000000000000000000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = J90000000000000000000010 /* Assets.xcassets */; };
 		J90000000000000000000002 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = J90000000000000000000012 /* AppIcon.icon */; };
 		J90000000000000000000101 /* SpotiglassSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = J90000000000000000000151 /* SpotiglassSettingsView.swift */; };
@@ -523,6 +524,7 @@
 		G70000000000000000000021 /* CommandPaletteView+RowArtwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CommandPaletteView+RowArtwork.swift"; sourceTree = "<group>"; };
 		H80000000000000000000011 /* PlayingWaveformIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayingWaveformIcon.swift; sourceTree = "<group>"; };
 		H80000000000000000000012 /* ScrubberView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrubberView.swift; sourceTree = "<group>"; };
+		SRC000000000000000008001F /* PlaybackSeekStep.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackSeekStep.swift; sourceTree = "<group>"; };
 		J90000000000000000000010 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		J90000000000000000000012 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		J90000000000000000000151 /* SpotiglassSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotiglassSettingsView.swift; sourceTree = "<group>"; };
@@ -841,6 +843,7 @@
 				PRO00000000000000000000FC /* QueueViewModel+Shuffle.swift */,
 				E50000000000000000000050 /* Session */,
 				H80000000000000000000012 /* ScrubberView.swift */,
+				SRC000000000000000008001F /* PlaybackSeekStep.swift */,
 				E50000000000000000000013 /* SpotifyPlaybackAPI.swift */,
 				E50000000000000000000012 /* SpotifyPlaybackBridge.swift */,
 				E50000000000000000000041 /* PlaybackOutputSFResolver.swift */,
@@ -1544,6 +1547,7 @@
 				G7000000000000000000000B /* HotkeyRecorderField.swift in Sources */,
 				H80000000000000000000001 /* PlayingWaveformIcon.swift in Sources */,
 				H80000000000000000000002 /* ScrubberView.swift in Sources */,
+				SRC000000000000000000001F /* PlaybackSeekStep.swift in Sources */,
 				J90000000000000000000101 /* SpotiglassSettingsView.swift in Sources */,
 				SRC0000000000000000000018 /* SettingsWindowChrome.swift in Sources */,
 				J90000000000000000000102 /* PlaybackSettingsView.swift in Sources */,

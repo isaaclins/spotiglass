@@ -159,7 +159,36 @@ struct ScrubberView: View {
         .accessibilityElement()
         .help(SpotiglassL10n.string("tooltip.playback.scrubber"))
         .accessibilityLabel(SpotiglassL10n.string("playback.scrubber.progress"))
-        .accessibilityValue("\(Int(displayFraction * 100))%")
+        // Elapsed of total, not a bare percentage: "1:24 of 4:00" is what a
+        // listener needs, and it matches the sighted labels either side of the
+        // bar, which already use mmss (#110).
+        .accessibilityValue(
+            SpotiglassL10n.format(
+                "playback.scrubber.accessibilityValue",
+                PlaybackNowPlaying.mmss(milliseconds: currentPositionMilliseconds),
+                PlaybackNowPlaying.mmss(milliseconds: max(durationMilliseconds, 0))
+            )
+        )
+        // Without this the element is inert to VoiceOver: it reads a value it
+        // cannot change. The EQ fader in this same codebase already pairs
+        // .accessibilityElement() with an adjustable action (#110, #126).
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment: seekBy(PlaybackSeekStep.milliseconds)
+            case .decrement: seekBy(-PlaybackSeekStep.milliseconds)
+            @unknown default: break
+            }
+        }
+    }
+
+    private var currentPositionMilliseconds: Int {
+        Int((displayFraction * Double(max(durationMilliseconds, 0))).rounded())
+    }
+
+    private func seekBy(_ deltaMilliseconds: Int) {
+        guard durationMilliseconds > 0 else { return }
+        let target = currentPositionMilliseconds + deltaMilliseconds
+        onSeek(min(max(target, 0), durationMilliseconds))
     }
 }
 

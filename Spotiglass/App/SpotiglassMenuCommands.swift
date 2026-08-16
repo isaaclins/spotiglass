@@ -121,6 +121,22 @@ struct SpotiglassMenuCommands: Commands {
 
             Divider()
 
+            // Seeking had no keyboard path at all: the scrubber is drag-only and
+            // no seek command existed anywhere (#126).
+            Button(SpotiglassL10n.string("menu.playback.seekForward")) {
+                run(CommandPaletteCommandID.seekForward)
+            }
+            .keyboardShortcut(.rightArrow, modifiers: .command)
+            .disabled(!isSignedIn)
+
+            Button(SpotiglassL10n.string("menu.playback.seekBackward")) {
+                run(CommandPaletteCommandID.seekBackward)
+            }
+            .keyboardShortcut(.leftArrow, modifiers: .command)
+            .disabled(!isSignedIn)
+
+            Divider()
+
             Button(SpotiglassL10n.string("menu.playback.connect")) {
                 run(CommandPaletteCommandID.connectPlayback)
             }
