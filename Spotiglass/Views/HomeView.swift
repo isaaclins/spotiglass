@@ -61,7 +61,11 @@ struct HomeView: View {
                         text: SpotiglassL10n.string("home.recentlyPlayed.empty")
                     ))
                 } else {
-                    ScrollView(.horizontal, showsIndicators: false) {
+                    // The shelf hid its indicator and cut the last card in half,
+                    // so nothing said it scrolled (#162). The indicator is back,
+                    // and snapping to card boundaries means a card is never left
+                    // bisected at rest, whatever the window width.
+                    ScrollView(.horizontal, showsIndicators: true) {
                         HStack(alignment: .top, spacing: SpotiglassDesign.spacingM) {
                             ForEach(cards) { card in
                                 HomeMediaCardView(card: card) {
@@ -69,8 +73,10 @@ struct HomeView: View {
                                 }
                             }
                         }
+                        .scrollTargetLayout()
                         .padding(.vertical, SpotiglassDesign.spacingXS)
                     }
+                    .scrollTargetBehavior(.viewAligned)
                 }
             case .unavailable:
                 HomeSectionNotice(style: .message(

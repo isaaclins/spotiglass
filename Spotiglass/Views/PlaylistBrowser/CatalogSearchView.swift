@@ -24,7 +24,11 @@ struct CatalogSearchView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: SpotiglassDesign.spacingM) {
             queryField
-            categoryPills
+            // With no query there is nothing to filter, so presenting the pills
+            // as active filters was a lie about the state (#164).
+            if !searchViewModel.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                categoryPills
+            }
             resultsBody
         }
         .padding(SpotiglassDesign.spacingL)
@@ -106,7 +110,11 @@ struct CatalogSearchView: View {
         case let .empty(message):
             EmptyStateView(
                 title: SpotiglassL10n.string("search.empty.title"),
-                message: message
+                // The initial state carries no message, which rendered the pane
+                // as the single word "Search" with nothing under it (#164).
+                message: message.isEmpty
+                    ? SpotiglassL10n.string("search.empty.guidance")
+                    : message
             )
         case let .error(error):
             ErrorStateView(error: error)

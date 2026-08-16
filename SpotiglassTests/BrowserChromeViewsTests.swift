@@ -10,7 +10,9 @@ final class BrowserChromeViewsTests: XCTestCase {
         super.tearDown()
     }
 
-    func testBreadcrumbToolbarEmptyPathShowsAppName() throws {
+    /// At the root the window title already names the app, so the breadcrumb
+    /// renders nothing rather than repeating it as an inert second copy (#161).
+    func testBreadcrumbToolbarEmptyPathShowsNothing() throws {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
             trackResults: [:]
@@ -19,7 +21,7 @@ final class BrowserChromeViewsTests: XCTestCase {
         let view = BreadcrumbToolbarView(viewModel: viewModel)
 
         ViewTestHost.host(view, size: CGSize(width: 400, height: 44))
-        XCTAssertNoThrow(try view.inspect().find(text: AppMetadata.displayName))
+        XCTAssertThrowsError(try view.inspect().find(text: AppMetadata.displayName))
     }
 
     func testBreadcrumbToolbarShowsCrumbLabels() async throws {
