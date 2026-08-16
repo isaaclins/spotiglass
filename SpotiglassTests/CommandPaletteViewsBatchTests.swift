@@ -79,6 +79,26 @@ final class CommandPaletteViewsBatchTests: XCTestCase {
         XCTAssertFalse(dismissed)
     }
 
+    /// Selection was carried by a list row background only, and the row broke
+    /// into icon plus title plus "Explicit" plus subtitle fragments, so nothing
+    /// about the current result was available to assistive technology (#119).
+    func testResultRowIsOneLabelledElementThatReportsSelection() throws {
+        let item = sampleItem()
+        let label = CommandPaletteResultRowView.accessibilityLabel(for: item)
+        XCTAssertTrue(label.contains("Midnight City"), "expected the title in the label, got \(label)")
+        XCTAssertTrue(label.contains("Explicit"), "expected the badge in the label, got \(label)")
+        XCTAssertTrue(label.contains(try XCTUnwrap(item.subtitle)), "expected the subtitle, got \(label)")
+
+        // Selection changes the trait, not the words.
+        let selected = CommandPaletteResultRowView(item: item, isSelected: true)
+        ViewTestHost.host(selected)
+        XCTAssertNoThrow(try selected.inspect())
+
+        let unselected = CommandPaletteResultRowView(item: item, isSelected: false)
+        ViewTestHost.host(unselected)
+        XCTAssertNoThrow(try unselected.inspect())
+    }
+
     func testResultRowArtistAndTrackArtwork() throws {
         let trackRow = CommandPaletteResultRowView(item: sampleItem())
         ViewTestHost.host(trackRow)
