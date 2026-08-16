@@ -30,7 +30,10 @@ struct CommandPaletteSectionedListView: View {
                 ForEach(Array(sectionChunks.enumerated()), id: \.offset) { sectionIndex, chunk in
                     Section {
                         ForEach(chunk.rows, id: \.flatIndex) { row in
-                            CommandPaletteResultRowView(item: row.item)
+                            CommandPaletteResultRowView(
+                                item: row.item,
+                                isSelected: row.flatIndex == viewModel.selectedIndex
+                            )
                                 .id(CommandPaletteRowScrollIDs.id(flatIndex: row.flatIndex))
                                 .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
                                 .listRowBackground(row.flatIndex == viewModel.selectedIndex ? Color.primary.opacity(0.12) : Color.clear)
@@ -100,6 +103,9 @@ enum CommandPaletteRowScrollIDs {
 
 struct CommandPaletteResultRowView: View {
     let item: CommandPaletteItem
+    /// The arrow keys move a background colour today. Assistive technology reads
+    /// no colour, so the selection has to be stated as a trait (#119).
+    var isSelected: Bool = false
 
     var body: some View {
         HStack(spacing: SpotiglassDesign.spacingS) {
@@ -127,6 +133,23 @@ struct CommandPaletteResultRowView: View {
             Spacer()
         }
         .padding(.vertical, 4)
+        // One element per result instead of icon plus title plus "Explicit" plus
+        // subtitle as separate fragments (#119).
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Self.accessibilityLabel(for: item))
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+    }
+
+    /// One sentence per result: title, the explicit badge, then the subtitle.
+    static func accessibilityLabel(for item: CommandPaletteItem) -> String {
+        var parts = [item.title]
+        if item.isExplicit {
+            parts.append(SpotiglassL10n.string("palette.explicit"))
+        }
+        if let subtitle = item.subtitle, !subtitle.isEmpty {
+            parts.append(subtitle)
+        }
+        return parts.joined(separator: SpotiglassL10n.string("common.comma"))
     }
 }
 

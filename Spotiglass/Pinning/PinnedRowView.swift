@@ -42,11 +42,14 @@ struct PinnedRowView: View {
                         .foregroundStyle(item.isStale ? Color.secondary : Color.primary)
                         .lineLimit(1)
                     if item.isStale {
+                        // The badge explains the state, so it must be the most
+                        // legible thing in the row, not the least (#144).
                         Text(SpotiglassL10n.string("pin.unavailable"))
                             .font(.caption2.weight(.medium))
+                            .foregroundStyle(Color.primary)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(.secondary.opacity(0.18), in: Capsule())
+                            .background(.quaternary, in: Capsule())
                     }
                 }
                 Text(item.subtitle)
@@ -57,7 +60,10 @@ struct PinnedRowView: View {
             Spacer(minLength: 0)
         }
         .padding(.vertical, SpotiglassDesign.spacingXS)
-        .opacity(item.isStale ? 0.55 : 1.0)
+        // Staleness is carried by the badge and the demoted title. Fading the
+        // whole row multiplied 55% onto text that is already secondary, which
+        // put the subtitle near 30% effective opacity and made the badge that
+        // explains the state the hardest thing in the row to read (#144).
         .contentShape(Rectangle())
         .onHover { isHovering = $0 }
         .accessibilityElement(children: .combine)
