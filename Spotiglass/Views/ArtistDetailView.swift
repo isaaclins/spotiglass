@@ -181,19 +181,30 @@ struct ArtistDetailContent: View {
     private func albumCardButton(_ album: ArtistAlbumRowViewModel, group: SpotifyArtistAlbumGroup) -> some View {
         let pinnedItem = album.pinnedAlbum(group: group)
         let pinned = pinnedStore.isPinned(id: pinnedItem.id)
-        return albumCard(album, showPinGlyph: pinned)
-        .contentShape(Rectangle())
-        .onTapGesture(count: 2) {
-            albumTapRouter.handleDoubleTap {
-                openAlbum(album)
-                playAlbumContext(album.uri)
-            }
-        }
-        .onTapGesture {
+        // A real Button, like the Home and Search cards, so the card is reachable
+        // with Tab, activates on Return and reports the button trait (#111, #124).
+        // The double click still opens and plays: it runs as a simultaneous
+        // gesture and cancels the router's pending single-tap open, which is the
+        // same arbitration the two tap gestures used to do between themselves.
+        return Button {
             albumTapRouter.handleSingleTap(albumID: album.id) {
                 openAlbum(album)
             }
+        } label: {
+            albumCard(album, showPinGlyph: pinned)
+                .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .simultaneousGesture(
+            TapGesture(count: 2).onEnded {
+                albumTapRouter.handleDoubleTap {
+                    openAlbum(album)
+                    playAlbumContext(album.uri)
+                }
+            }
+        )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(albumAccessibilityLabel(album, pinned: pinned))
         .draggable(PinnedItemTransfer(item: pinnedItem)) {
             PinnedItemDragPill(item: pinnedItem)
         }
@@ -204,6 +215,16 @@ struct ArtistDetailContent: View {
                 Button(SpotiglassL10n.string("browser.pin")) { pinnedStore.pin(pinnedItem) }
             }
         }
+    }
+
+    /// One sentence per card. VoiceOver used to walk the artwork, title, year and
+    /// track count as three or four separate fragments (#111).
+    private func albumAccessibilityLabel(_ album: ArtistAlbumRowViewModel, pinned: Bool) -> String {
+        var parts = [album.title]
+        if let year = album.yearText { parts.append(year) }
+        parts.append(album.trackCountText)
+        if pinned { parts.append(SpotiglassL10n.string("browser.pinned")) }
+        return parts.joined(separator: SpotiglassL10n.string("common.comma"))
     }
 
     private func albumCard(_ album: ArtistAlbumRowViewModel, showPinGlyph: Bool) -> some View {
