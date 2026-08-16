@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.7.0] - 2026-08-16
+
+### Added
+
+- **Add to Queue** and **Pin** are menu bar items acting on the track table's selection (⌥⌘E, ⌥⌘P). They previously existed only in a right-click menu.
+- The **Help** menu opens the documentation and the issue tracker. Its single item used to do nothing at all: the bundle declares no help book, so choosing it was a silent no-op.
+- Plural rules in the string catalog, so counts are pluralized per language instead of by appending an English "s".
+- A **diagnostics** section on errors, carrying the status codes, scope names and paths that used to sit inside the sentence.
+- CI runs the dead-code detector the Makefile already had and never invoked, gating on new findings against a recorded baseline, plus a check for Swift files present in the repo but in no Xcode target.
+
+### Fixed
+
+- Tracks on Home, Artist and Search could not be activated from the keyboard, and a track selected with the arrow keys in the playlist table could not be played at all, because Return was not handled. Album cards and queue rows had the same gap.
+- ⌘F opened nothing on any existing install. A command ID was renamed without migrating saved keymaps, so every upgraded install had a dead binding. Tests could not see it because they start from fresh settings.
+- Rebinding "Open command palette" left ⌘K alive as a second, undisclosed trigger.
+- VoiceOver could not change playback position, was never told the volume level, and heard the identical label "Band gain" from all ten equalizer faders. Explicit and Unavailable badges were not spoken. Breadcrumbs claimed to be buttons but exposed no action.
+- The Spotify error vocabulary, browser empty states, the loading spinner, the artist header's "followers" and the equalizer's errors were hardcoded English and ignored the in-app language picker.
+- The localization audit reported a clean bill of health while at least six leaks existed. It could not see prose returned from a message property, nor plural entries, which it reported as untranslated in every locale.
+- Error copy exposed HTTP status codes, OAuth scopes and SDK names. An alert containing a raw HTTP request and response dump could open unprompted. The sidebar printed the reason phrase "Forbidden" verbatim.
+- The Settings window was translucent, its sidebar painted a selection highlight that stayed bright when the window lost focus, and its search field had no clear button, no focus ring, no ⌘F, and announced itself as "Account".
+- The pinned badge was drawn five different ways and Liked Songs artwork four. The queue row and the track row had drifted into two different copies of one design. The Recently played shelf cut its last card in half.
+- The equalizer's Output device picker rendered blank when the saved device was not connected, and its gain readout would clip at larger text sizes.
+- A failed profile fetch at launch silently emptied the pinned sidebar for the whole session, with no error and no retry.
+
+### Changed
+
+- The equalizer is described as a **graphic** equalizer. It exposes gain on ten fixed frequencies and no control over Q or centre frequency, so the previous "parametric" was wrong about the software.
+- One concept is named one way per language across every surface.
+- Track durations go through a formatter rather than being assembled by hand.
+- Disconnecting asks for confirmation instead of acting on a single unlabelled click.
+
 ## [0.6.0] - 2026-08-12
 
 ### Added
