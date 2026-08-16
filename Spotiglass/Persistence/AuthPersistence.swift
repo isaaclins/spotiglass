@@ -14,7 +14,7 @@ enum KeychainRefreshTokenStoreError: Error, Equatable, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidStoredData:
-            "The saved Spotify sign-in data could not be read. Disconnect, then connect again to sign in."
+            SpotiglassL10n.string("auth.persistence.invalidStoredData")
         case let .unexpectedStatus(status):
             Self.message(forUnexpectedStatus: status)
         }

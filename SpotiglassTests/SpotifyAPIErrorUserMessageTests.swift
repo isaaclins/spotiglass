@@ -34,8 +34,14 @@ final class SpotifyAPIErrorUserMessageTests: XCTestCase {
             SpotifyAPIError.forbidden(message: "Nope", details: nil).userMessage,
             SpotiglassL10n.string("error.spotify.forbidden")
         )
-        XCTAssertTrue(
-            SpotifyAPIError.rateLimited(retryAfter: 5).userMessage.localizedCaseInsensitiveContains("rate")
+        // Asserting the catalog rather than the word "rate": the sentence is
+        // localized now and should not have to carry an English keyword (#187).
+        XCTAssertEqual(
+            SpotifyAPIError.rateLimited(retryAfter: 5).userMessage,
+            SpotiglassL10n.format(
+                "error.spotify.rateLimited",
+                SpotifyRateLimitDisplay.retryAfterClause(seconds: 5)
+            )
         )
         // notFound keeps a descriptive server message when there is one.
         XCTAssertEqual(SpotifyAPIError.notFound(message: "gone").userMessage, "gone")

@@ -16,20 +16,36 @@ enum LoopbackOAuthCallbackError: Error, Equatable, LocalizedError {
 
     var errorDescription: String? {
         switch self {
+        // These reach the connect screen, so they come from the catalog. The
+        // OAuth code and the failing socket step are developer facts and live
+        // in diagnosticDetails instead (#186, #187).
         case .invalidRequest:
-            "Spotify’s redirect didn’t return a usable response. Close extra browser tabs and try Connect again."
+            SpotiglassL10n.string("auth.callback.invalidRequest")
         case let .oauthError(code, description):
-            description ?? "Spotify authorization failed with error: \(code)."
+            description ?? SpotiglassL10n.format("auth.callback.oauthError", code)
         case .missingState:
-            "Spotify’s callback was missing required data. Try Connect again."
+            SpotiglassL10n.string("auth.callback.missingState")
         case .stateMismatch:
-            "Spotify returned an invalid authorization state. Try Connect again."
+            SpotiglassL10n.string("auth.callback.stateMismatch")
         case .missingCode:
-            "Spotify’s callback did not include an authorization code. Try Connect again."
-        case let .socketSetupFailed(step):
-            "Could not listen on the local port for Spotify’s redirect (\(step)). Another app may be using it, or macOS blocked the listener. Quit conflicting apps or restart Spotiglass, then try Connect again."
+            SpotiglassL10n.string("auth.callback.missingCode")
+        case .socketSetupFailed:
+            SpotiglassL10n.string("auth.callback.socketSetupFailed")
         case .timedOut:
-            "Spotify sign-in timed out before the callback was received."
+            SpotiglassL10n.string("auth.callback.timedOut")
+        }
+    }
+
+    /// The OAuth error code and the socket step that failed. Both are for a bug
+    /// report, so they stay off the connect screen but are not thrown away.
+    var diagnosticDetails: String? {
+        switch self {
+        case let .oauthError(code, description):
+            return description.map { "oauth error: \(code) (\($0))" } ?? "oauth error: \(code)"
+        case let .socketSetupFailed(step):
+            return "loopback listener failed at step: \(step)"
+        case .invalidRequest, .missingState, .stateMismatch, .missingCode, .timedOut:
+            return nil
         }
     }
 }

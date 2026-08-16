@@ -110,7 +110,7 @@ final class EqualizerHALPluginController: @unchecked Sendable {
             try setDefaultOutputDevice(to: deviceID)
         } else {
             throw EqualizerHALPluginError.driverNotLoadedYet(
-                hint: "The Spotiglass EQ driver is installed at \(installedDriverURL.path) but coreaudiod has not picked it up yet. Log out and back in, OR run `sudo launchctl kickstart -k system/com.apple.audio.coreaudiod` once. This is a one-time CoreAudio activation step; Spotiglass never runs sudo for you."
+                installedPath: installedDriverURL.path
             )
         }
     }
@@ -327,28 +327,61 @@ final class EqualizerHALPluginController: @unchecked Sendable {
 
 enum EqualizerHALPluginError: LocalizedError {
     case embeddedDriverMissing
-    case driverNotLoadedYet(hint: String)
+    case driverNotLoadedYet(installedPath: String)
     case coreAudioStatus(OSStatus)
     case requiresSudoInstall(stagedPath: String, destinationPath: String)
 
+    // These reach the user: EqualizerSettingsView assigns localizedDescription
+    // to lastError and to the save sheet. So they are sentences from the
+    // catalog, and the OSStatus, the bundle name and the paths live in
+    // diagnosticDetails instead (#186).
     var errorDescription: String? {
         switch self {
         case .embeddedDriverMissing:
-            return "Spotiglass.app does not contain the embedded SpotiglassEQDriver.driver bundle."
-        case let .driverNotLoadedYet(hint):
-            return hint
-        case let .coreAudioStatus(status):
-            return "CoreAudio error \(status) while routing the default output device."
+            return SpotiglassL10n.string("eq.error.embeddedDriverMissing")
+        case .driverNotLoadedYet:
+            return SpotiglassL10n.string("eq.error.driverNotLoadedYet")
+        case .coreAudioStatus:
+            return SpotiglassL10n.string("eq.error.coreAudioStatus")
         case let .requiresSudoInstall(staged, destination):
-            return """
-                Spotiglass cannot install the EQ driver itself — macOS 26's coreaudiod only loads HAL plugins from /Library/Audio/Plug-Ins/HAL/, which is root-owned. The driver has been staged at:
-                  \(staged)
-                To finish the install, open Terminal and run:
-                  sudo cp -pR "\(staged)" "\(destination.replacingOccurrences(of: "/SpotiglassEQDriver.driver", with: "/"))"
-                  sudo killall coreaudiod
-                Then re-enable the EQ.
-                """
+            // The commands stay in the sentence, because running them is the
+            // action being asked for.
+            return SpotiglassL10n.format(
+                "eq.error.requiresSudoInstall",
+                Self.installCommands(staged: staged, destination: destination)
+            )
         }
+    }
+
+    /// Paths, status codes and bundle names, for a bug report rather than for
+    /// the sentence a listener reads.
+    var diagnosticDetails: String? {
+        switch self {
+        case .embeddedDriverMissing:
+            return "missing bundle: SpotiglassEQDriver.driver"
+        case let .driverNotLoadedYet(installedPath):
+            return """
+                installed driver: \(installedPath)
+                coreaudiod has not picked it up yet; a one-time activation, which \
+                Spotiglass never performs for you:
+                  sudo launchctl kickstart -k system/com.apple.audio.coreaudiod
+                """
+        case let .coreAudioStatus(status):
+            return "CoreAudio OSStatus \(status) while routing the default output device"
+        case let .requiresSudoInstall(staged, destination):
+            return "staged: \(staged)\ndestination: \(destination)"
+        }
+    }
+
+    private static func installCommands(staged: String, destination: String) -> String {
+        let folder = destination.replacingOccurrences(
+            of: "/SpotiglassEQDriver.driver",
+            with: "/"
+        )
+        return """
+              sudo cp -pR "\(staged)" "\(folder)"
+              sudo killall coreaudiod
+            """
     }
 }
 

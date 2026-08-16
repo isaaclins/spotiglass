@@ -4,12 +4,18 @@ import XCTest
 
 final class CommandPaletteShortcutCoverageTests: XCTestCase {
     func testValidationErrorsDescribeFailures() {
-        XCTAssertEqual(KeymapValidationError.emptyKeystroke.errorDescription, "Keystroke cannot be empty.")
+        XCTAssertEqual(
+            KeymapValidationError.emptyKeystroke.errorDescription,
+            SpotiglassL10n.string("keymap.error.emptyKeystroke")
+        )
         XCTAssertEqual(
             KeymapValidationError.unsupportedToken("foo").errorDescription,
-            "Unsupported keystroke token 'foo'."
+            SpotiglassL10n.format("keymap.error.unsupportedToken", "foo")
         )
-        XCTAssertEqual(KeymapValidationError.missingCommand.errorDescription, "Key binding command cannot be empty.")
+        XCTAssertEqual(
+            KeymapValidationError.missingCommand.errorDescription,
+            SpotiglassL10n.string("keymap.error.missingCommand")
+        )
         // Conflict copy is localized now, so assert against the catalog rather
         // than pinning one language's punctuation here.
         XCTAssertEqual(

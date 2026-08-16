@@ -76,11 +76,11 @@ enum SpotifyAuthConfigurationError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .missingClientID:
-            "Enter a Spotify client ID before signing in."
+            SpotiglassL10n.string("auth.settings.missingClientID")
         case .invalidRedirectURI:
-            "The Spotify redirect URI must use http://127.0.0.1:<port>/callback."
+            SpotiglassL10n.string("auth.settings.invalidRedirectURI")
         case .invalidAuthorizationURL:
-            "Could not build the Spotify authorization URL."
+            SpotiglassL10n.string("auth.settings.invalidAuthorizationURL")
         }
     }
 }
