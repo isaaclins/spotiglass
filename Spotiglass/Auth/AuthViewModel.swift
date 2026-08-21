@@ -1,5 +1,7 @@
 import Foundation
 
+private struct AuthTransitionInvalidatedError: Error {}
+
 @MainActor
 final class AuthViewModel: ObservableObject {
     @Published var clientID: String {
@@ -13,11 +15,13 @@ final class AuthViewModel: ObservableObject {
     private var settings: SpotifyAuthSettings
     private let authorizationFlow: any SpotifyAuthorizationFlowing
     private var signInTask: Task<Void, Never>?
+    private var signInOwnerGeneration: Int?
     private var signInRetryCooldownUntil: Date?
     private let tokenClient: SpotifyTokenClient
     private let refreshTokenStore: RefreshTokenStore
     private let signOutDataCleaner: () -> Void
     private var inFlightRefreshTask: Task<String, Error>?
+    private var authTransitionGeneration = 0
     private var refreshCooldownUntil: Date?
     private var refreshCooldownError: Error?
 
@@ -39,43 +43,67 @@ final class AuthViewModel: ObservableObject {
     }
 
     static let defaultSignOutDataCleaner: () -> Void = {
-        // Wipe the on-disk Spotify cache (playlist names, track titles,
-        // selected playlist, last user ID) so that signing out — or signing
-        // out and signing back in as a different Spotify account — does not
-        // leak the previous account's library through the cache layer.
+        // Wipe account-bound library data so signing out, or signing out
+        // and signing back in as a different Spotify account, cannot leak
+        // the previous account's library through the cache layer. Public GET
+        // catalog responses and per-account pins have separate ownership.
         guard let cache = try? SpotifyLocalCache() else { return }
-        try? cache.clear()
+        try? cache.clearPrivateAccountData()
         Task { await ArtworkImageStore.shared.clearAllCachedImages() }
     }
 
     func restoreSessionIfAvailable() async {
         guard currentSession == nil else { return }
+        let generation = authTransitionGeneration
         do {
             guard let refreshToken = try refreshTokenStore.loadRefreshToken(), !settings.clientID.isEmpty else {
+                guard generation == authTransitionGeneration else { return }
                 state = .signedOut
                 return
             }
-            _ = try await refreshAccessTokenSingleFlight(refreshToken: refreshToken, previousSession: nil)
+            _ = try await refreshAccessTokenSingleFlight(
+                refreshToken: refreshToken,
+                previousSession: nil,
+                generation: generation
+            )
         } catch {
+            guard generation == authTransitionGeneration else { return }
             handleRefreshFailure(error: error)
         }
     }
 
     func signIn() async {
         guard signInTask == nil, !isSignInRetryCoolingDown else { return }
+        let isReconnect = state.isConnectedOrRefreshing || currentSession != nil
+        let generation = invalidateAuthOperations()
+        currentSession = nil
+        do {
+            try refreshTokenStore.deleteRefreshToken()
+            if isReconnect {
+                signOutDataCleaner()
+            }
+        } catch {
+            state = .failed(AuthDisplayError(message: displayMessage(for: error)))
+            return
+        }
         state = .signingIn
         let task = Task { @MainActor [weak self] in
             guard let self else { return }
-            await self.performSignIn()
+            await self.performSignIn(generation: generation)
         }
         signInTask = task
+        signInOwnerGeneration = generation
         await task.value
-        signInTask = nil
+        if signInOwnerGeneration == generation {
+            signInTask = nil
+            signInOwnerGeneration = nil
+        }
     }
 
     /// Stops an in-progress browser sign-in and closes the loopback listener. Safe to call when not signing in.
     func cancelSignIn() {
-        signInTask?.cancel()
+        guard signInTask != nil else { return }
+        _ = invalidateAuthOperations()
         if case .signingIn = state {
             state = .signedOut
         }
@@ -86,9 +114,11 @@ final class AuthViewModel: ObservableObject {
         return signInRetryCooldownUntil > Date()
     }
 
-    private func performSignIn() async {
+    private func performSignIn(generation: Int) async {
         do {
+            try ensureAuthTransitionIsCurrent(generation)
             let authorizationCode = try await authorizationFlow.requestAuthorizationCode(clientID: clientID)
+            try ensureAuthTransitionIsCurrent(generation)
             let configuration = try SpotifyAuthConfiguration(clientID: clientID, redirectURI: authorizationCode.redirectURI)
             let grant = try await tokenClient.exchangeAuthorizationCode(
                 clientID: configuration.clientID,
@@ -96,6 +126,7 @@ final class AuthViewModel: ObservableObject {
                 codeVerifier: authorizationCode.codeVerifier,
                 redirectURI: configuration.redirectURI
             )
+            try ensureAuthTransitionIsCurrent(generation)
 
             if let refreshToken = grant.refreshToken {
                 try refreshTokenStore.saveRefreshToken(refreshToken)
@@ -106,12 +137,16 @@ final class AuthViewModel: ObservableObject {
             currentSession = session
             signInRetryCooldownUntil = nil
             state = .signedIn(session)
+        } catch is AuthTransitionInvalidatedError {
+            return
         } catch is CancellationError {
+            guard generation == authTransitionGeneration else { return }
             signInRetryCooldownUntil = nil
             if case .signingIn = state {
                 state = .signedOut
             }
         } catch {
+            guard generation == authTransitionGeneration else { return }
             if Task.isCancelled {
                 signInRetryCooldownUntil = nil
                 state = .signedOut
@@ -123,6 +158,7 @@ final class AuthViewModel: ObservableObject {
     }
 
     func signOut() {
+        _ = invalidateAuthOperations()
         do {
             try refreshTokenStore.deleteRefreshToken()
             settings.grantedScope = nil
@@ -134,13 +170,19 @@ final class AuthViewModel: ObservableObject {
         }
     }
 
-    private func refreshAccessToken(refreshToken: String, previousSession: AuthenticatedSession?) async throws {
+    private func refreshAccessToken(
+        refreshToken: String,
+        previousSession: AuthenticatedSession?,
+        generation: Int
+    ) async throws {
+        try ensureAuthTransitionIsCurrent(generation)
         state = .refreshing(previousSession)
         let configuration = try SpotifyAuthConfiguration(
             clientID: clientID,
             redirectURI: SpotifyAuthConfiguration.loopbackRedirectURI()
         )
         let grant = try await tokenClient.refreshAccessToken(clientID: configuration.clientID, refreshToken: refreshToken)
+        try ensureAuthTransitionIsCurrent(generation)
         if let replacementRefreshToken = grant.refreshToken {
             try refreshTokenStore.saveRefreshToken(replacementRefreshToken)
         }
@@ -154,8 +196,10 @@ final class AuthViewModel: ObservableObject {
 
     private func refreshAccessTokenSingleFlight(
         refreshToken: String,
-        previousSession: AuthenticatedSession?
+        previousSession: AuthenticatedSession?,
+        generation: Int
     ) async throws -> String {
+        try ensureAuthTransitionIsCurrent(generation)
         if let cooldownUntil = refreshCooldownUntil,
            cooldownUntil > Date(),
            let refreshCooldownError {
@@ -169,7 +213,12 @@ final class AuthViewModel: ObservableObject {
         let task = Task<String, Error> { @MainActor [weak self] in
             guard let self else { throw SpotifyAPIError.unauthorized }
             do {
-                try await self.refreshAccessToken(refreshToken: refreshToken, previousSession: previousSession)
+                try await self.refreshAccessToken(
+                    refreshToken: refreshToken,
+                    previousSession: previousSession,
+                    generation: generation
+                )
+                try self.ensureAuthTransitionIsCurrent(generation)
                 self.refreshCooldownUntil = nil
                 self.refreshCooldownError = nil
                 guard let token = self.currentSession?.accessToken else {
@@ -177,6 +226,9 @@ final class AuthViewModel: ObservableObject {
                 }
                 return token
             } catch {
+                guard generation == self.authTransitionGeneration else {
+                    throw AuthTransitionInvalidatedError()
+                }
                 if self.isRefreshRetryExhaustedError(error) {
                     self.refreshCooldownUntil = Date().addingTimeInterval(30)
                     self.refreshCooldownError = error
@@ -189,8 +241,27 @@ final class AuthViewModel: ObservableObject {
         }
 
         inFlightRefreshTask = task
-        defer { inFlightRefreshTask = nil }
+        defer {
+            if authTransitionGeneration == generation {
+                inFlightRefreshTask = nil
+            }
+        }
         return try await task.value
+    }
+
+    private func invalidateAuthOperations() -> Int {
+        authTransitionGeneration &+= 1
+        signInTask?.cancel()
+        inFlightRefreshTask?.cancel()
+        inFlightRefreshTask = nil
+        return authTransitionGeneration
+    }
+
+    private func ensureAuthTransitionIsCurrent(_ generation: Int) throws {
+        guard generation == authTransitionGeneration else {
+            throw AuthTransitionInvalidatedError()
+        }
+        try Task.checkCancellation()
     }
 
     private func handleRefreshFailure(error: Error) {
@@ -311,12 +382,17 @@ extension AuthViewModel: PlaybackAccessTokenProviding {
             throw SpotifyAPIError.unauthorized
         }
         let previousSession = currentSession
+        let generation = authTransitionGeneration
         do {
             return try await refreshAccessTokenSingleFlight(
                 refreshToken: refreshToken,
-                previousSession: previousSession
+                previousSession: previousSession,
+                generation: generation
             )
         } catch {
+            guard generation == authTransitionGeneration else {
+                throw CancellationError()
+            }
             // Mirror the same Keychain wipe + state reset used by
             // restoreSessionIfAvailable / refreshAccessTokenIfNeeded so the
             // browsing and playback sides stay in agreement when a refresh

@@ -160,13 +160,25 @@ struct SpotifyLocalCache {
         return try decoder.decode([PinnedItem].self, from: data)
     }
 
+    /// Clears account-bound library data while retaining public catalog GET
+    /// responses and the separately persisted per-account pins.
     func clear() throws {
+        try clearPrivateAccountData()
+    }
+
+    func clearPrivateAccountData() throws {
         try removeIfPresent(playlistsURL)
         try removeIfPresent(settingsURL)
         let tracksDirectory = self.tracksDirectory
         if fileManager.fileExists(atPath: tracksDirectory.path) {
             try fileManager.removeItem(at: tracksDirectory)
         }
+    }
+
+    /// Explicit destructive reset for callers that intend to remove every
+    /// Spotify cache, including public catalog responses and saved pins.
+    func clearAllData() throws {
+        try clearPrivateAccountData()
         if fileManager.fileExists(atPath: getResponsesDirectory.path) {
             try fileManager.removeItem(at: getResponsesDirectory)
         }

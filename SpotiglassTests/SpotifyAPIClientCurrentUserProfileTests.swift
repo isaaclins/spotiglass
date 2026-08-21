@@ -38,4 +38,32 @@ final class SpotifyAPIClientCurrentUserProfileTests: XCTestCase {
         XCTAssertNil(profile.displayName)
         XCTAssertNil(profile.country)
     }
+
+    func testCurrentUserProfileBypassesSharedCacheAfterAccountTransition() async throws {
+        let cache = SpotifyGETResponseCache(diskCache: nil)
+        let request = URLRequest(url: URL(string: "https://api.spotify.com/v1/me")!)
+        let key = try XCTUnwrap(SpotifyGETResponseCachePolicy.normalizedCacheKey(for: request))
+        cache.store(body: Data("""
+        { "id": "account-a", "display_name": "Account A", "images": [] }
+        """.utf8), cacheKey: key, ttl: 300)
+        let httpClient = QueueHTTPClient([
+            .json("""
+            {
+              "id": "account-b",
+              "display_name": "Account B",
+              "images": []
+            }
+            """)
+        ])
+        let client = SpotifyAPIClient(
+            tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"),
+            httpClient: httpClient,
+            getResponseCache: cache
+        )
+
+        let profile = try await client.currentUserProfile()
+
+        XCTAssertEqual(profile.id, "account-b")
+        XCTAssertEqual(httpClient.requests.count, 1)
+    }
 }

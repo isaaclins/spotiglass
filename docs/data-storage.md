@@ -11,8 +11,8 @@ Spotiglass keeps minimal state on disk. Refresh tokens never leave the Keychain 
 | Client ID and granted OAuth scope | `UserDefaults` for `com.isaaclins.spotiglass`                                                                                           | Granted scope cleared on Disconnect; client ID kept so the next sign-in does not require re-pasting |
 | User settings (keybinds + appearance) | `~/.config/spotiglass/settings.json` — single dotfile holding keybinds, app appearance (color scheme), and command palette backdrop | Delete the file (Spotiglass rewrites defaults on next launch)                                       |
 | Cached playlists / tracks         | `~/Library/Application Support/Spotiglass/SpotifyCache/` (sandbox is disabled, so this is the user-visible Application Support folder)  | Disconnect; same auth failures as above                                                             |
-| Sidebar pins (per Spotify user)   | `~/Library/Application Support/Spotiglass/SpotifyCache/pinned/<userID>.json` — one JSON array per account (`userID` is the Spotify user id) | **Disconnect** removes the whole `SpotifyCache` tree (pins included). In-memory pins are cleared on disconnect before the next session. |
-| Cached Web API GET bodies        | `~/Library/Application Support/Spotiglass/SpotifyCache/get_responses/` (SHA256-named JSON; search, artist, profile, album-track pages — short TTL) | Same as playlist cache; cleared with **Disconnect** |
+| Sidebar pins (per Spotify user)   | `~/Library/Application Support/Spotiglass/SpotifyCache/pinned/<userID>.json` - one JSON array per account (`userID` is the Spotify user id) | **Disconnect** clears the in-memory pins but preserves these per-account files. A later bind restores the same account's pins. |
+| Cached Web API GET bodies        | `~/Library/Application Support/Spotiglass/SpotifyCache/get_responses/` (SHA256-named JSON; public search, artist and album-track pages - short TTL) | Public catalog responses survive **Disconnect**. Private `/v1/me` responses are not cached. |
 | Artwork image blobs               | `~/Library/Caches/Spotiglass/Artwork/` (SHA256-named files); HTTP layer also uses `~/Library/Caches/Spotiglass/ArtworkURLCache/`       | Disconnect (cleared with Spotify cache); eviction trims disk blobs when the artwork folder exceeds ~50 MB                           |
 | LRCLIB lyrics (per track id)        | `~/Library/Application Support/Spotiglass/LyricsCache/<trackId>.json` (resolved ``FetchedLyrics`` from LRCLIB)                        | Delete files in that folder, or remove the whole `LyricsCache` directory, to drop on-disk lyrics only (does not affect playlist cache) |
 | Web Playback SDK web data         | Non-persistent `WKWebView` data store (in-memory for that session)                                                                      | Quitting Spotiglass                                                                                 |
@@ -50,7 +50,7 @@ Hand-edits to the file are picked up live by Spotiglass via a file-system watche
 
 ### Web API GET response cache (`get_responses/`)
 
-- In-memory plus optional on-disk JSON for **read-only** Spotify Web API GETs that are safe to reuse briefly (e.g. search, artist metadata, `GET /v1/me`, album track pages). **Not** used for playlist list or playlist items (those use the snapshot-aware caches above).
+- In-memory plus optional on-disk JSON for **read-only public** Spotify Web API GETs that are safe to reuse briefly (e.g. search, artist metadata and album track pages). Private `/v1/me` responses are never cached. **Not** used for playlist list or playlist items (those use the snapshot-aware caches above).
 - TTLs are short (on the order of **90s–15m** depending on endpoint) to reduce rate limiting while keeping results reasonably fresh.
 
 ### Artwork (CDN images)

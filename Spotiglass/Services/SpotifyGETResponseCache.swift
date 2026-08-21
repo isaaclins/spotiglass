@@ -41,10 +41,11 @@ enum SpotifyGETResponseCachePolicy {
 
     static func ttl(for url: URL) -> TimeInterval? {
         let path = url.path
-        if path.hasPrefix("/v1/me/playlists") { return nil }
-        if path.hasPrefix("/v1/me/tracks") { return nil }
+        // Responses below /v1/me are private to the authenticated account.
+        // Do not put them in the URL-only cache, because a direct Reconnect
+        // can change the account while the process and cache files survive.
+        if path.hasPrefix("/v1/me") { return nil }
         if path.contains("/v1/playlists/") { return nil }
-        if path == "/v1/me" { return 300 }
         if path.hasPrefix("/v1/search") { return 90 }
         if path.hasPrefix("/v1/artists/") { return 900 }
         if path.contains("/v1/albums/"), path.hasSuffix("/tracks") { return 600 }

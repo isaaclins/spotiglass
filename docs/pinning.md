@@ -20,4 +20,4 @@ Already-pinned source rows show a small `pin.fill` glyph on their artwork so you
 
 ## Sign out
 
-**Disconnect** clears the Spotify cache directory, including pinned JSON for that machine. The in-memory pin list is cleared as soon as you disconnect so the UI does not show another account’s pins before the next bind.
+**Disconnect** clears account-bound library caches but preserves the per-account pinned JSON files. The in-memory pin list is cleared as soon as you disconnect so the UI does not show another account's pins before the next bind; binding the same user later restores its pins.

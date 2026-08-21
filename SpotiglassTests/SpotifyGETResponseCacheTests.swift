@@ -4,8 +4,8 @@ import XCTest
 final class SpotifyGETResponseCacheTests: XCTestCase {
     func testCachePolicyTTLAndShouldCache() {
         XCTAssertFalse(SpotifyGETResponseCachePolicy.shouldCache(URLRequest(url: URL(string: "https://api.spotify.com/v1/me/playlists")!)))
-        XCTAssertTrue(SpotifyGETResponseCachePolicy.shouldCache(URLRequest(url: URL(string: "https://api.spotify.com/v1/me")!)))
-        XCTAssertEqual(SpotifyGETResponseCachePolicy.ttl(for: URL(string: "https://api.spotify.com/v1/me")!), 300)
+        XCTAssertFalse(SpotifyGETResponseCachePolicy.shouldCache(URLRequest(url: URL(string: "https://api.spotify.com/v1/me")!)))
+        XCTAssertNil(SpotifyGETResponseCachePolicy.ttl(for: URL(string: "https://api.spotify.com/v1/me")!))
         XCTAssertEqual(SpotifyGETResponseCachePolicy.ttl(for: URL(string: "https://api.spotify.com/v1/search?q=x")!), 90)
         XCTAssertEqual(
             SpotifyGETResponseCachePolicy.ttl(for: URL(string: "https://api.spotify.com/v1/artists/ar1")!),
@@ -19,6 +19,13 @@ final class SpotifyGETResponseCacheTests: XCTestCase {
             SpotifyGETResponseCachePolicy.ttl(for: URL(string: "https://api.spotify.com/v1/foo")!),
             120
         )
+    }
+
+    func testCurrentUserProfileIsNeverReusedAcrossAccountTransitions() {
+        let request = URLRequest(url: URL(string: "https://api.spotify.com/v1/me")!)
+
+        XCTAssertFalse(SpotifyGETResponseCachePolicy.shouldCache(request))
+        XCTAssertNil(SpotifyGETResponseCachePolicy.ttl(for: request.url!))
     }
 
     func testNormalizedCacheKeyNormalizesSearchAndSortsQueryItems() {

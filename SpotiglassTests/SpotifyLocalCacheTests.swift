@@ -129,21 +129,41 @@ final class SpotifyLocalCacheTests: XCTestCase {
 
     // MARK: - clear()
 
-    func testClearRemovesEverything() throws {
+    func testClearRemovesPrivateAccountDataButPreservesCatalogResponsesAndPins() throws {
+        let (cache, _) = try makeCache()
+        let playlist = PlaylistBrowsingTestFixtures.playlist(id: "P", name: "Private")
+        let pin = PinnedItem.playlist(playlist)
+        try cache.savePlaylists([playlist], cachedAt: Date())
+        try cache.saveTracks([], playlistID: "P", snapshotID: "S")
+        try cache.saveGETResponse(digest: "catalog", body: Data([1]), ttl: 60)
+        try cache.savePinnedItems([pin], userID: "u")
+
+        try cache.clear()
+
+        XCTAssertNil(try cache.loadPlaylistsBundle())
+        XCTAssertNil(try cache.loadTracksIgnoringAge(playlistID: "P", snapshotID: "S"))
+        XCTAssertEqual(
+            try cache.loadGETResponseRecord(digest: "catalog", allowExpired: true)?.data,
+            Data([1])
+        )
+        XCTAssertEqual(try cache.loadPinnedItems(userID: "u"), [pin])
+    }
+
+    func testClearAllDataRemovesEverything() throws {
         let (cache, root) = try makeCache()
         try cache.savePlaylists([], cachedAt: Date())
         try cache.saveTracks([], playlistID: "P", snapshotID: "S")
         try cache.saveGETResponse(digest: "d", body: Data([0]), ttl: 60)
         try cache.savePinnedItems([], userID: "u")
 
-        try cache.clear()
+        try cache.clearAllData()
         XCTAssertNil(try cache.loadPlaylistsBundle())
         XCTAssertNil(try cache.loadTracksIgnoringAge(playlistID: "P", snapshotID: "S"))
         XCTAssertNil(try cache.loadGETResponseRecord(digest: "d", allowExpired: true))
         XCTAssertEqual(try cache.loadPinnedItems(userID: "u"), [])
 
-        // clear() is safe to call again on empty state.
-        XCTAssertNoThrow(try cache.clear())
+        // clearAllData() is safe to call again on empty state.
+        XCTAssertNoThrow(try cache.clearAllData())
         // Root directory either gone or empty.
         _ = root
     }

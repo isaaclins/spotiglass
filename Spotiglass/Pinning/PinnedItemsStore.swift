@@ -16,6 +16,8 @@ final class PinnedItemsStore: ObservableObject {
 
     private let cache: PinnedItemsCache?
     private(set) var boundUserID: String?
+    /// Invalidates profile lookups that started before a sign-out or reconnect.
+    private(set) var bindingGeneration = 0
 
     init(cache: PinnedItemsCache?) {
         self.cache = cache
@@ -23,7 +25,11 @@ final class PinnedItemsStore: ObservableObject {
 
     /// Bind the store to a Spotify user ID. Loads that account's pinned list
     /// from disk; passing `nil` clears the in-memory list (used at sign-out).
-    func bind(userID: String?) {
+    /// An optional generation rejects a result from an older account lookup.
+    func bind(userID: String?, bindingGeneration: Int? = nil) {
+        if let bindingGeneration, bindingGeneration != self.bindingGeneration {
+            return
+        }
         boundUserID = userID
         didFailToBind = false
         guard let userID, let cache else {
@@ -120,6 +126,7 @@ final class PinnedItemsStore: ObservableObject {
     /// that signing back into the same account restores the pins, while
     /// signing into a different account swaps to that account's list cleanly.
     func clearForSignOut() {
+        bindingGeneration &+= 1
         items = []
         boundUserID = nil
     }

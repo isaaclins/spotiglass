@@ -64,12 +64,17 @@ extension PlaylistBrowserView {
     /// failed profile call at launch left the pinned sidebar empty for the whole
     /// session, with no error and no way back short of relaunching (#133).
     func bindPinnedStoreToCurrentUser() async {
+        let bindingGeneration = pinnedStore.bindingGeneration
         for attempt in 0..<Self.pinnedBindingAttempts {
+            guard !Task.isCancelled else { return }
             do {
                 let profile = try await spotifySearchClient.currentUserProfile()
+                guard !Task.isCancelled else { return }
                 guard let userID = profile.id as String? else { return }
                 if pinnedStore.boundUserID == userID { return }
-                pinnedStore.bind(userID: userID)
+                pinnedStore.bind(userID: userID, bindingGeneration: bindingGeneration)
+                return
+            } catch is CancellationError {
                 return
             } catch {
                 SpotiglassLog.error(
@@ -80,6 +85,7 @@ extension PlaylistBrowserView {
                 try? await Task.sleep(for: .seconds(Self.pinnedBindingRetryDelaySeconds))
             }
         }
+        guard !Task.isCancelled else { return }
         pinnedStore.reportBindingFailure()
     }
 }

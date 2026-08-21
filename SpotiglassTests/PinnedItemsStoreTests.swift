@@ -180,6 +180,24 @@ final class PinnedItemsStoreTests: XCTestCase {
         XCTAssertEqual(store.items.map(\.id), [alicePlaylist.id])
     }
 
+    func testStaleBindingCannotReinstallPinsAfterAccountTransition() {
+        let cache = RecordingPinnedCache()
+        let store = PinnedItemsStore(cache: cache)
+        let alicePlaylist = PinnedItem.playlist(
+            SpotifyPlaylistSummary(id: "alice-playlist", name: "Alice",
+                ownerID: "test-owner", ownerName: "Alice", imageURL: nil, trackCount: 0, snapshotID: "a")
+        )
+        store.bind(userID: "alice")
+        store.pin(alicePlaylist)
+        let staleGeneration = store.bindingGeneration
+
+        store.clearForSignOut()
+        store.bind(userID: "alice", bindingGeneration: staleGeneration)
+
+        XCTAssertTrue(store.items.isEmpty)
+        XCTAssertNil(store.boundUserID)
+    }
+
     func testLibrarySidebarOrderNormalizesMissingSpecialRowsAndDropsUnknownPins() {
         let existing = [
             LibrarySidebarOrder.pinnedToken(for: "p2"),
