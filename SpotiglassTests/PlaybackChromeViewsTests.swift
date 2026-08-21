@@ -173,6 +173,26 @@ final class PlaybackChromeViewsTests: XCTestCase {
         XCTAssertNoThrow(try view.inspect().find(viewWithAccessibilityLabel: "Repeat playlist"))
     }
 
+    func testPlaybackControlsDisablesPlayPauseForRemotePlayback() throws {
+        try ViewTestHost.skipIfViewInspectorGeometryUnsupported()
+        let playback = PlaybackSessionViewModel(
+            playbackAPI: MockPlaybackAPI(),
+            webCommander: MockWebPlaybackCommander()
+        )
+        playback.deviceID = "local-device"
+        playback.setConnectionState(.ready(deviceID: "local-device"))
+        playback.setActivePlaybackDeviceID("remote-device")
+        let view = PlaybackControlsView(
+            viewModel: playback,
+            isLyricsPresented: .constant(false),
+            openArtist: { _ in }
+        )
+
+        ViewTestHost.host(view, size: CGSize(width: 900, height: 120))
+        let playButton = try view.inspect().find(viewWithAccessibilityLabel: SpotiglassL10n.string("playback.play"))
+        XCTAssertTrue(playButton.isDisabled())
+    }
+
     func testPlaybackControlsArtistLineRendersOpenArtistButtons() throws {
         try ViewTestHost.skipIfViewInspectorGeometryUnsupported()
         let playback = makePlayingPlayback()

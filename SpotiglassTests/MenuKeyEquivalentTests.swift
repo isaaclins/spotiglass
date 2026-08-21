@@ -92,6 +92,23 @@ final class MenuKeyEquivalentTests: XCTestCase {
         XCTAssertEqual(repeated, 1)
     }
 
+    func testPlaybackMenuUsesEffectiveToggleReadiness() {
+        let manager = CommandPaletteManager(keymapStore: makeStore())
+        let commands = SpotiglassMenuCommands(
+            commandPaletteManager: manager,
+            isSignedIn: true,
+            isQueueVisible: false,
+            isLyricsPresented: false,
+            canNavigateBack: false,
+            canEnqueueTrackSelection: false,
+            trackSelectionPinState: .unavailable
+        )
+        XCTAssertFalse(commands.isPlaybackToggleEnabled)
+
+        manager.setPlaybackToggleAvailability(true)
+        XCTAssertTrue(commands.isPlaybackToggleEnabled)
+    }
+
     // MARK: - Help menu (#177)
 
     /// The default Help item was a silent no-op: the bundle declares no

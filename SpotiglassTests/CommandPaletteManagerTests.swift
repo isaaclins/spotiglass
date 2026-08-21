@@ -82,4 +82,96 @@ final class CommandPaletteManagerTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(signedInCount, signedOutCount)
     }
 
+    func testPlaybackTogglePaletteItemTracksReadiness() async {
+        let manager = CommandPaletteManager()
+        manager.isSignedIn = true
+        manager.setPlaybackToggleAvailability(true)
+        manager.viewModel.show()
+        manager.viewModel.query = ">"
+        manager.viewModel.refresh()
+        await manager.viewModel.waitForSearchCompletion()
+        XCTAssertTrue(manager.viewModel.visibleItems.contains { $0.id == CommandPaletteCommandID.togglePlayback })
+
+        manager.setPlaybackToggleAvailability(false)
+        await manager.viewModel.waitForSearchCompletion()
+        XCTAssertFalse(manager.viewModel.visibleItems.contains { $0.id == CommandPaletteCommandID.togglePlayback })
+    }
+
+    func testUnavailablePlaybackToggleSelectionDoesNotDismissOrDispatch() async {
+        let manager = CommandPaletteManager()
+        manager.isSignedIn = true
+        manager.setPlaybackToggleAvailability(true)
+        var prerequisite = true
+        manager.playbackTogglePrerequisite = { prerequisite }
+        var dispatchCount = 0
+        manager.togglePlayback = { dispatchCount += 1 }
+        manager.viewModel.show()
+        manager.viewModel.query = ">play"
+        manager.viewModel.refresh()
+        await manager.viewModel.waitForSearchCompletion()
+        prerequisite = false
+
+        await manager.viewModel.executeSelection()
+
+        XCTAssertTrue(manager.viewModel.isPresented)
+        XCTAssertEqual(dispatchCount, 0)
+    }
+
+    func testPlaybackToggleAvailabilityFollowsPlaybackLifecycleAndRemoteRouting() {
+        let manager = CommandPaletteManager()
+        let playback = PlaybackSessionViewModel(
+            playbackAPI: MockPlaybackAPI(),
+            webCommander: MockWebPlaybackCommander()
+        )
+        manager.bindPlaybackReadiness(to: playback)
+        XCTAssertFalse(manager.canTogglePlayback)
+
+        playback.deviceID = "local-device"
+        playback.setConnectionState(.ready(deviceID: "local-device"))
+        XCTAssertTrue(manager.canTogglePlayback)
+
+        playback.setActivePlaybackDeviceID("remote-device")
+        XCTAssertFalse(manager.canTogglePlayback)
+        playback.setActivePlaybackDeviceID("local-device")
+        XCTAssertTrue(manager.canTogglePlayback)
+
+        playback.setConnectionState(.unavailable("offline"))
+        XCTAssertFalse(manager.canTogglePlayback)
+    }
+
+    func testPlaybackToggleDispatchesForReadyPausedAndPlayingLocalStates() async {
+        let manager = CommandPaletteManager()
+        let playback = PlaybackSessionViewModel(
+            playbackAPI: MockPlaybackAPI(),
+            webCommander: MockWebPlaybackCommander()
+        )
+        playback.deviceID = "local-device"
+        manager.bindPlaybackReadiness(to: playback)
+        manager.playbackTogglePrerequisite = { playback.isPlaybackToggleReady }
+        let dispatched = expectation(description: "local playback toggles")
+        dispatched.expectedFulfillmentCount = 3
+        manager.togglePlayback = { dispatched.fulfill() }
+        let track = PlaybackNowPlaying(
+            name: "Song",
+            artists: ["A"],
+            albumName: nil,
+            albumID: nil,
+            albumArtURL: nil,
+            durationMilliseconds: 100,
+            positionMilliseconds: 0,
+            uri: "spotify:track:1"
+        )
+
+        for state in [
+            PlaybackConnectionState.ready(deviceID: "local-device"),
+            .paused(track),
+            .playing(track)
+        ] {
+            playback.setConnectionState(state)
+            manager.execute(commandID: CommandPaletteCommandID.togglePlayback)
+        }
+
+        await fulfillment(of: [dispatched], timeout: 2)
+    }
+
 }

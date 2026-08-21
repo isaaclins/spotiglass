@@ -18,6 +18,58 @@ enum TrackRowMetrics {
     static let hoverTintOpacity: Double = 0.05
 }
 
+enum TrackRowPlaybackAction: Equatable {
+    case play
+    case pause
+
+    var label: String {
+        switch self {
+        case .play:
+            SpotiglassL10n.string("browser.track.play")
+        case .pause:
+            SpotiglassL10n.string("playback.pause")
+        }
+    }
+
+    var iconSystemName: String {
+        switch self {
+        case .play:
+            "play.fill"
+        case .pause:
+            "pause.fill"
+        }
+    }
+}
+
+enum TrackRowPlaybackInvocation: Equatable {
+    case toggle(action: TrackRowPlaybackAction)
+    case play(uri: String)
+    case unavailable
+
+    var isAvailable: Bool {
+        self != .unavailable
+    }
+
+    var action: TrackRowPlaybackAction {
+        switch self {
+        case let .toggle(action):
+            action
+        case .play:
+            .play
+        case .unavailable:
+            .play
+        }
+    }
+
+    var label: String {
+        action.label
+    }
+
+    var iconSystemName: String {
+        action.iconSystemName
+    }
+}
+
 struct TrackListRow: View {
     /// Width for `m:ss` / `mm:ss` monospaced durations so resize does not reflow every row’s trailing edge.
     private static let durationColumnWidth: CGFloat = 48
@@ -55,6 +107,37 @@ struct TrackListRow: View {
     @EnvironmentObject private var pinnedStore: PinnedItemsStore
     @Environment(\.colorScheme) private var colorScheme
     @State private var isHovering: Bool = false
+
+    static func playbackAction(isCurrent: Bool, isPlaying: Bool) -> TrackRowPlaybackAction {
+        isCurrent && isPlaying ? .pause : .play
+    }
+
+    static func playbackInvocation(
+        isCurrent: Bool,
+        isPlaying: Bool,
+        playableURI: String?
+    ) -> TrackRowPlaybackInvocation {
+        switch Self.playbackAction(isCurrent: isCurrent, isPlaying: isPlaying) {
+        case .pause:
+            return .toggle(action: .pause)
+        case .play:
+            if isCurrent {
+                return .toggle(action: .play)
+            }
+            guard let playableURI = SpotifyPlayableURI.canonical(playableURI) else {
+                return .unavailable
+            }
+            return .play(uri: playableURI)
+        }
+    }
+
+    private var rowPlaybackInvocation: TrackRowPlaybackInvocation {
+        Self.playbackInvocation(
+            isCurrent: isCurrent,
+            isPlaying: isPlaying,
+            playableURI: track.playableURI
+        )
+    }
 
     private var isTrackPinned: Bool {
         pinnedStore.isPinned(spotifyID: track.id, kind: .track)
@@ -134,19 +217,26 @@ struct TrackListRow: View {
         // Double-click activates, which is what a Mac table does: a single
         // click belongs to the enclosing `List` so it can select. Attached
         // simultaneously so the tap recognizer cannot swallow that click.
-        .simultaneousGesture(TapGesture(count: 2).onEnded(activate))
+        .simultaneousGesture(
+            TapGesture(count: 2).onEnded {
+                guard rowPlaybackInvocation.isAvailable else { return }
+                activate()
+            }
+        )
         .focusable(isKeyboardFocusable)
         // Return activates the focused row. Space is deliberately left alone: it
         // is the global play/pause binding, and swallowing it here would change
         // what that key does depending on which row happens to hold focus.
         .onKeyPress(.return) {
+            guard rowPlaybackInvocation.isAvailable else { return .ignored }
             activate()
             return .handled
         }
         .contextMenu {
-            Button(SpotiglassL10n.string("browser.track.play"), action: activate)
-                .disabled(track.playableURI == nil)
-            Divider()
+            if rowPlaybackInvocation.isAvailable {
+                Button(rowPlaybackInvocation.label, action: activate)
+                Divider()
+            }
             if !track.artistRefs.isEmpty {
                 Menu(SpotiglassL10n.string("browser.track.openArtist")) {
                     ForEach(track.artistRefs) { ref in
@@ -182,8 +272,10 @@ struct TrackListRow: View {
         // never surfaces to assistive technology, and the play button existed
         // only while the pointer hovered. So VoiceOver could read a track but
         // never start one (#109).
-        .accessibilityAddTraits(.isButton)
-        .accessibilityAction(named: Text(SpotiglassL10n.string("browser.track.play")), activate)
+        .modifier(TrackListRowActivationAccessibilityModifier(
+            invocation: rowPlaybackInvocation,
+            action: activate
+        ))
         .accessibilityLabel(
             String(
                 format: SpotiglassL10n.string("browser.trackRow.accessibility"),
@@ -225,29 +317,32 @@ struct TrackListRow: View {
         }
     }
 
-    /// Plays the row, or toggles transport when it is already the playing one.
+    /// Routes the same named action used by the context menu and hover control.
     private func activate() {
-        if isCurrent {
+        switch rowPlaybackInvocation {
+        case .toggle:
             togglePlayPause()
-        } else if let playableURI = track.playableURI {
-            playURI(playableURI)
+        case let .play(uri):
+            playURI(uri)
+        case .unavailable:
+            break
         }
     }
 
     @ViewBuilder
     private var leadingColumn: some View {
-        if isHovering {
-            // A real button, so a single click still plays even though the row
-            // itself now hands single clicks to the list for selection.
+        if isHovering, rowPlaybackInvocation.isAvailable {
+            // A real button, so a single click still activates even though the
+            // row itself now hands single clicks to the list for selection.
             Button(action: activate) {
-                Image(systemName: isCurrent ? "pause.fill" : "play.fill")
+                Image(systemName: rowPlaybackInvocation.iconSystemName)
                     .foregroundStyle(.spotiglassAccent)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help(SpotiglassL10n.string(isCurrent ? "playback.pause" : "playback.play"))
-            .accessibilityLabel(SpotiglassL10n.string(isCurrent ? "playback.pause" : "playback.play"))
+            .help(rowPlaybackInvocation.label)
+            .accessibilityLabel(rowPlaybackInvocation.label)
         } else if isCurrent {
             PlayingWaveformIcon(isPlaying: isPlaying)
                 .frame(maxWidth: .infinity, alignment: .center)
@@ -272,6 +367,22 @@ struct TrackListRow: View {
                         .fill(Color.primary.opacity(TrackRowMetrics.hoverTintOpacity))
                 }
             }
+        }
+    }
+}
+
+private struct TrackListRowActivationAccessibilityModifier: ViewModifier {
+    let invocation: TrackRowPlaybackInvocation
+    let action: () -> Void
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if invocation.isAvailable {
+            content
+                .accessibilityAddTraits(.isButton)
+                .accessibilityAction(named: Text(invocation.label), action)
+        } else {
+            content
         }
     }
 }

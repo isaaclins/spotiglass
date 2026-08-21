@@ -294,12 +294,37 @@ final class PlaybackSessionViewModel: ObservableObject {
 
     /// True when the Web Playback path is far enough along for transport actions (mirrors transport button enablement).
     var isPlaybackTransportReady: Bool {
-        switch connectionState {
+        Self.isPlaybackTransportReady(for: connectionState)
+    }
+
+    static func isPlaybackTransportReady(for state: PlaybackConnectionState) -> Bool {
+        switch state {
         case .ready, .transferring, .playing, .paused:
             true
         case .disconnected, .connecting, .unavailable, .error:
             false
         }
+    }
+
+    /// Whether the local Play/Pause transport control can issue its command.
+    /// Remote Spotify Connect playback leaves the embedded SDK transport visible,
+    /// but local control is intentionally unavailable in that state.
+    var isPlaybackToggleReady: Bool {
+        Self.isPlaybackToggleReady(
+            connectionState: connectionState,
+            deviceID: deviceID,
+            activePlaybackDeviceID: activePlaybackDeviceID
+        )
+    }
+
+    static func isPlaybackToggleReady(
+        connectionState: PlaybackConnectionState,
+        deviceID: String?,
+        activePlaybackDeviceID: String?
+    ) -> Bool {
+        guard Self.isPlaybackTransportReady(for: connectionState) else { return false }
+        guard let deviceID, let activePlaybackDeviceID else { return true }
+        return deviceID == activePlaybackDeviceID
     }
 
     /// Whether shuffle/repeat commands have both a ready target and a confirmed

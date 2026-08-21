@@ -50,6 +50,26 @@ final class CommandPaletteViewModelActionsTests: XCTestCase {
         XCTAssertEqual(viewModel.selectedIndex, 0)
     }
 
+    func testExecuteSelectionDoesNotDismissForUnavailableItem() async {
+        let viewModel = CommandPaletteViewModel()
+        viewModel.show()
+        var didExecute = false
+        let unavailable = CommandPaletteItem(
+            id: "unavailable",
+            title: "Play/Pause",
+            subtitle: nil,
+            iconSystemName: "playpause",
+            section: .commands,
+            keywords: [],
+            canExecute: { false },
+            action: { didExecute = true }
+        )
+        viewModel.testingReplaceSections([(.commands, [unavailable])])
+        await viewModel.executeSelection()
+        XCTAssertTrue(viewModel.isPresented)
+        XCTAssertFalse(didExecute)
+    }
+
     func testExecuteSelectionHidesUnlessKeepsPaletteOpen() async {
         let viewModel = CommandPaletteViewModel()
         viewModel.show()

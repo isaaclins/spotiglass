@@ -22,6 +22,47 @@ final class PlaybackSessionViewModelCoreTests: XCTestCase {
         XCTAssertEqual(generic.title, "Playback command failed")
     }
 
+    func testPlaybackToggleReadinessMatchesLocalTransportStates() {
+        let viewModel = PlaybackSessionViewModel(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander())
+        XCTAssertFalse(viewModel.isPlaybackToggleReady)
+
+        viewModel.deviceID = "local-device"
+        let track = PlaybackNowPlaying(
+            name: "Song",
+            artists: ["A"],
+            albumName: nil,
+            albumID: nil,
+            albumArtURL: nil,
+            durationMilliseconds: 100,
+            positionMilliseconds: 0,
+            uri: "spotify:track:1"
+        )
+        for state in [
+            PlaybackConnectionState.ready(deviceID: "local-device"),
+            .transferring(deviceID: "local-device"),
+            .playing(track),
+            .paused(track)
+        ] {
+            viewModel.setConnectionState(state)
+            XCTAssertTrue(viewModel.isPlaybackToggleReady, "expected local state to be toggle-ready: \\(state)")
+        }
+
+        viewModel.setActivePlaybackDeviceID("remote-device")
+        XCTAssertFalse(viewModel.isPlaybackToggleReady)
+        viewModel.setActivePlaybackDeviceID("local-device")
+        XCTAssertTrue(viewModel.isPlaybackToggleReady)
+
+        for state in [
+            PlaybackConnectionState.disconnected,
+            .connecting,
+            .unavailable("offline"),
+            .error(PlaybackDisplayError(title: "Error", message: "Failed", recoveryAction: nil))
+        ] {
+            viewModel.setConnectionState(state)
+            XCTAssertFalse(viewModel.isPlaybackToggleReady, "expected unavailable state to be gated: \\(state)")
+        }
+    }
+
     func testTransportReadyAndNowPlayingAccessors() {
         let viewModel = PlaybackSessionViewModel(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander())
         XCTAssertFalse(viewModel.isPlaybackTransportReady)

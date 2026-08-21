@@ -217,6 +217,7 @@ final class CommandPaletteViewModel: ObservableObject {
         let items = visibleItems
         guard items.indices.contains(selectedIndex) else { return }
         let item = items[selectedIndex]
+        guard item.canExecute?() ?? true else { return }
         await item.action()
         if !item.keepsPaletteOpen {
             hide()

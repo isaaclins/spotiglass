@@ -30,6 +30,10 @@ struct SpotiglassMenuCommands: Commands {
     /// Whether the selection offers Pin, Unpin, or neither.
     let trackSelectionPinState: TrackSelectionPinState
 
+    var isPlaybackToggleEnabled: Bool {
+        isSignedIn && commandPaletteManager.canTogglePlayback
+    }
+
     var body: some Commands {
         CommandGroup(after: .appSettings) {
             Button(SpotiglassL10n.string("menu.app.signOut")) {
@@ -94,7 +98,7 @@ struct SpotiglassMenuCommands: Commands {
             Button(SpotiglassL10n.string("menu.playback.playPause")) {
                 run(CommandPaletteCommandID.togglePlayback)
             }
-            .disabled(!isSignedIn)
+            .disabled(!isPlaybackToggleEnabled)
 
             Button(SpotiglassL10n.string("menu.playback.next")) {
                 run(CommandPaletteCommandID.nextTrack)

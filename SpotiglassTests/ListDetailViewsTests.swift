@@ -28,6 +28,70 @@ final class ListDetailViewsTests: XCTestCase {
         XCTAssertNoThrow(try view.inspect().find(text: "Network error"))
     }
 
+    func testTrackRowPlaybackActionUsesCurrentTransportState() {
+        XCTAssertEqual(
+            TrackListRow.playbackAction(isCurrent: true, isPlaying: true),
+            .pause
+        )
+        XCTAssertEqual(
+            TrackListRow.playbackAction(isCurrent: true, isPlaying: false),
+            .play
+        )
+        XCTAssertEqual(
+            TrackListRow.playbackAction(isCurrent: false, isPlaying: true),
+            .play
+        )
+        XCTAssertEqual(
+            TrackListRow.playbackAction(isCurrent: true, isPlaying: true).label,
+            SpotiglassL10n.string("playback.pause")
+        )
+        XCTAssertEqual(
+            TrackListRow.playbackAction(isCurrent: true, isPlaying: false).label,
+            SpotiglassL10n.string("browser.track.play")
+        )
+    }
+
+    func testTrackRowPlaybackInvocationRoutesEachSurfaceAction() {
+        XCTAssertEqual(
+            TrackListRow.playbackInvocation(
+                isCurrent: true,
+                isPlaying: true,
+                playableURI: nil
+            ),
+            .toggle(action: .pause)
+        )
+        XCTAssertTrue(
+            TrackListRow.playbackInvocation(
+                isCurrent: true,
+                isPlaying: true,
+                playableURI: nil
+            ).isAvailable
+        )
+        XCTAssertEqual(
+            TrackListRow.playbackInvocation(
+                isCurrent: true,
+                isPlaying: false,
+                playableURI: nil
+            ),
+            .toggle(action: .play)
+        )
+        XCTAssertEqual(
+            TrackListRow.playbackInvocation(
+                isCurrent: false,
+                isPlaying: true,
+                playableURI: "spotify:track:other"
+            ),
+            .play(uri: "spotify:track:other")
+        )
+        let unavailable = TrackListRow.playbackInvocation(
+            isCurrent: false,
+            isPlaying: false,
+            playableURI: " \n\t"
+        )
+        XCTAssertEqual(unavailable, .unavailable)
+        XCTAssertFalse(unavailable.isAvailable)
+    }
+
     /// The playlist row and the queue row are the same design, so the numbers
     /// that define it live in one place instead of drifting apart (#140).
     func testTrackRowGeometryIsSharedAndConsistent() {

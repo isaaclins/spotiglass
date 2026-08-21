@@ -64,12 +64,17 @@ final class CommandPaletteManager: ObservableObject {
     var dismissLyricsOverlayIfPresented: (() -> Bool)?
     /// When set, Toggle Play/Pause only runs if this returns true (e.g. Web Playback transport ready).
     var playbackTogglePrerequisite: (() -> Bool)?
+    /// Mirrors the session's effective local Play/Pause readiness for the menu bar
+    /// and command palette. The playback session owns the predicate; this published
+    /// projection keeps both surfaces observable from the app scene.
+    @Published private(set) var canTogglePlayback = false
     /// Mirrors the session's confirmed shuffle/repeat readiness for the menu bar.
     @Published var canMutatePlaybackTransport = false
     /// Guards shuffle/repeat commands from the command palette and menu key equivalents.
     var playbackTransportMutationPrerequisite: (() -> Bool)?
 
     private var cancellables: Set<AnyCancellable> = []
+    private var playbackReadinessCancellables: Set<AnyCancellable> = []
 
     init(keymapStore: CommandPaletteKeymapStore? = nil) {
         self.keymapStore = keymapStore ?? CommandPaletteKeymapStore()
@@ -102,6 +107,34 @@ final class CommandPaletteManager: ObservableObject {
                 self?.objectWillChange.send()
             }
             .store(in: &cancellables)
+    }
+
+    func setPlaybackToggleAvailability(_ available: Bool) {
+        guard canTogglePlayback != available else { return }
+        canTogglePlayback = available
+        guard viewModel.isPresented, viewModel.currentScope == .commands else { return }
+        viewModel.refresh()
+    }
+
+    func bindPlaybackReadiness(to playback: PlaybackSessionViewModel) {
+        playbackReadinessCancellables.removeAll()
+        setPlaybackToggleAvailability(playback.isPlaybackToggleReady)
+
+        Publishers.CombineLatest3(
+            playback.$connectionState,
+            playback.$deviceID,
+            playback.$activePlaybackDeviceID
+        )
+        .sink { [weak self] connectionState, deviceID, activePlaybackDeviceID in
+            self?.setPlaybackToggleAvailability(
+                PlaybackSessionViewModel.isPlaybackToggleReady(
+                    connectionState: connectionState,
+                    deviceID: deviceID,
+                    activePlaybackDeviceID: activePlaybackDeviceID
+                )
+            )
+        }
+        .store(in: &playbackReadinessCancellables)
     }
 
     func handleKeyEvent(_ event: NSEvent) -> Bool {
@@ -274,13 +307,24 @@ final class CommandPaletteManager: ObservableObject {
     private func baseItems() -> [CommandPaletteItem] {
         CommandPaletteCommandCatalog.editable.compactMap { spec in
             guard !spec.requiresSignInForPalette || isSignedIn else { return nil }
+            guard spec.commandID != CommandPaletteCommandID.togglePlayback || canTogglePlayback else { return nil }
+            let canExecute: (@MainActor () -> Bool)?
+            if spec.commandID == CommandPaletteCommandID.togglePlayback {
+                canExecute = { [weak self] in
+                    guard let self else { return false }
+                    return self.playbackTogglePrerequisite?() ?? self.canTogglePlayback
+                }
+            } else {
+                canExecute = nil
+            }
             return CommandPaletteItem(
                 id: spec.commandID,
                 title: spec.title,
                 subtitle: spec.subtitle,
                 iconSystemName: spec.iconSystemName,
                 section: .commands,
-                keywords: defaultKeywords(for: spec.commandID)
+                keywords: defaultKeywords(for: spec.commandID),
+                canExecute: canExecute
             ) { [weak self] in
                 self?.execute(commandID: spec.commandID)
             }

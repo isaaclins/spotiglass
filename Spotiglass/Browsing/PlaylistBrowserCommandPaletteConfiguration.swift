@@ -28,6 +28,7 @@ enum PlaylistBrowserCommandPaletteConfiguration {
         )
 
         manager.isSignedIn = true
+        manager.bindPlaybackReadiness(to: dependencies.playbackViewModel)
         manager.signOut = dependencies.signOut
         let browserVM = dependencies.viewModel
         let queueVM = dependencies.queueViewModel
@@ -48,7 +49,7 @@ enum PlaylistBrowserCommandPaletteConfiguration {
         }
         manager.playbackTogglePrerequisite = { [weak playback = dependencies.playbackViewModel] in
             guard let playback else { return false }
-            return playback.isPlaybackTransportReady && !playback.isRemotePlaybackActive
+            return playback.isPlaybackToggleReady
         }
         manager.canMutatePlaybackTransport = dependencies.playbackViewModel.isTransportMutationReady
         manager.playbackTransportMutationPrerequisite = { [weak playback = dependencies.playbackViewModel] in

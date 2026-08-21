@@ -194,6 +194,9 @@ struct CommandPaletteItem: Identifiable {
     /// When `true`, the palette renders an "Explicit" capsule next to the title,
     /// mirroring the badge shown in `TrackListRow`. Only meaningful for track rows.
     let isExplicit: Bool
+    /// Dynamic guard for actions whose readiness can change while the palette is open.
+    /// A failed guard leaves the palette visible instead of claiming the action ran.
+    let canExecute: (@MainActor () -> Bool)?
 
     init(
         id: String,
@@ -209,6 +212,7 @@ struct CommandPaletteItem: Identifiable {
         unpinAction: (@MainActor () -> Void)? = nil,
         queueAction: (@MainActor () async -> Void)? = nil,
         isExplicit: Bool = false,
+        canExecute: (@MainActor () -> Bool)? = nil,
         action: @escaping @MainActor () async -> Void
     ) {
         self.id = id
@@ -224,6 +228,7 @@ struct CommandPaletteItem: Identifiable {
         self.unpinAction = unpinAction
         self.queueAction = queueAction
         self.isExplicit = isExplicit
+        self.canExecute = canExecute
         self.action = action
     }
 

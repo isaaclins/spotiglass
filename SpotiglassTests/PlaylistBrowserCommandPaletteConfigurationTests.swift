@@ -43,6 +43,10 @@ final class PlaylistBrowserCommandPaletteConfigurationTests: XCTestCase {
         )
 
         XCTAssertTrue(manager.isSignedIn)
+        XCTAssertFalse(manager.canTogglePlayback)
+        playback.deviceID = "device-1"
+        playback.setConnectionState(.ready(deviceID: "device-1"))
+        XCTAssertTrue(manager.canTogglePlayback)
         manager.toggleQueue?()
         XCTAssertTrue(queueVisible)
         manager.toggleLyrics?()
