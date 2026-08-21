@@ -6,7 +6,7 @@ import XCTest
 final class WebPlaybackViewCommanderTests: XCTestCase {
     func testLoadHostBeforeAttachDefersUntilWebViewAttached() {
         let commander = WebPlaybackViewCommander()
-        commander.loadHost()
+        commander.loadHost(generation: .initial)
 
         let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 4, height: 4))
         commander.attach(webView: webView)
@@ -24,7 +24,7 @@ final class WebPlaybackViewCommanderTests: XCTestCase {
         let commander = WebPlaybackViewCommander()
         let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 4, height: 4))
         commander.attach(webView: webView)
-        commander.loadHost()
+        commander.loadHost(generation: .initial)
 
         let expectation = expectation(description: "loaded")
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
@@ -42,7 +42,7 @@ final class WebPlaybackViewCommanderTests: XCTestCase {
         let commander = WebPlaybackViewCommander()
         let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 4, height: 4))
         commander.attach(webView: webView)
-        commander.loadHost()
+        commander.loadHost(generation: .initial)
         try await commander.send(.togglePlay)
     }
 }

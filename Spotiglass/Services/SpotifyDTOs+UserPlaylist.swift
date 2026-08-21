@@ -80,10 +80,6 @@ struct SpotifyPlaylistTracksReferenceDTO: Decodable {
         case total
     }
 
-    init(total: Int) {
-        self.total = total
-    }
-
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         total = try container.decodeIfPresent(Int.self, forKey: .total) ?? 0

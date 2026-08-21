@@ -341,6 +341,7 @@
 		TST00000000000000000037 /* CommandPaletteViewModelPinAndKeyEventsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000082 /* CommandPaletteViewModelPinAndKeyEventsTests.swift */; };
 		TST000000000000000000A1 /* StaticSpotifyAccessTokenProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000000A0 /* StaticSpotifyAccessTokenProvider.swift */; };
 		TST000000000000000000A3 /* PlaylistBrowserViewModel+Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000000A2 /* PlaylistBrowserViewModel+Tests.swift */; };
+		TST0000000000000000009101 /* TestOnlyConvenienceAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010129 /* TestOnlyConvenienceAPI.swift */; };
 		TST000000000000000000C1 /* PlaybackProgressAnchorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000000C0 /* PlaybackProgressAnchorTests.swift */; };
 		TST000000000000000000C2 /* PlaylistBrowserPrefetchAllTracksTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */; };
 		TST0000000000000000000126 /* CatalogSearchViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010126 /* CatalogSearchViewTests.swift */; };
@@ -615,6 +616,7 @@
 		TST00000000000000000082 /* CommandPaletteViewModelPinAndKeyEventsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteViewModelPinAndKeyEventsTests.swift; sourceTree = "<group>"; };
 		TST000000000000000000A0 /* StaticSpotifyAccessTokenProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StaticSpotifyAccessTokenProvider.swift; sourceTree = "<group>"; };
 		TST000000000000000000A2 /* PlaylistBrowserViewModel+Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlaylistBrowserViewModel+Tests.swift"; sourceTree = "<group>"; };
+		TST0000000000000000010129 /* TestOnlyConvenienceAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestOnlyConvenienceAPI.swift; sourceTree = "<group>"; };
 		TST000000000000000000C0 /* PlaybackProgressAnchorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackProgressAnchorTests.swift; sourceTree = "<group>"; };
 		TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserPrefetchAllTracksTests.swift; sourceTree = "<group>"; };
 		TST0000000000000000010126 /* CatalogSearchViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogSearchViewTests.swift; sourceTree = "<group>"; };
@@ -1060,6 +1062,7 @@
 				TST00000000000000000054 /* SpotifyAPIClientTestHTTP.swift */,
 				TST000000000000000000A0 /* StaticSpotifyAccessTokenProvider.swift */,
 				TST000000000000000000A2 /* PlaylistBrowserViewModel+Tests.swift */,
+				TST0000000000000000010129 /* TestOnlyConvenienceAPI.swift */,
 				TST00000000000000000055 /* MockPlaybackDependencies.swift */,
 				TST00000000000000000056 /* MockBrowsingDependencies.swift */,
 			);
@@ -1583,6 +1586,7 @@
 				TST00000000000000000004 /* SpotifyAPIClientTestHTTP.swift in Sources */,
 				TST000000000000000000A1 /* StaticSpotifyAccessTokenProvider.swift in Sources */,
 				TST000000000000000000A3 /* PlaylistBrowserViewModel+Tests.swift in Sources */,
+				TST0000000000000000009101 /* TestOnlyConvenienceAPI.swift in Sources */,
 				TST00000000000000000005 /* MockPlaybackDependencies.swift in Sources */,
 				TST00000000000000000006 /* MockBrowsingDependencies.swift in Sources */,
 				TST00000000000000000028 /* SpotifyAPIClientSearchAndHTTPTests.swift in Sources */,

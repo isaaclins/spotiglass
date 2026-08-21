@@ -94,9 +94,9 @@ final class SpotifyGETResponseCache: @unchecked Sendable {
                 touchLRU(key)
                 return SpotifyGETCacheHit(data: entry.data, isExpired: isExpired)
             }
-            // Keep the expired body in memory so `staleEntry(...)` can serve it as a stale-on-failure
-            // fallback. LRU still bounds total memory; a successful re-fetch
-            // overwrites this entry via `store(...)`.
+            // Keep the expired body in memory so a later `allowExpired` read can
+            // serve it as a stale-on-failure fallback. LRU still bounds total
+            // memory; a successful re-fetch overwrites this entry via `store(...)`.
         }
 
         guard let diskCache else { return nil }
@@ -111,43 +111,6 @@ final class SpotifyGETResponseCache: @unchecked Sendable {
         return SpotifyGETCacheHit(data: hit.data, isExpired: hit.isExpired)
     }
 
-    /// Returns an **expired** cache entry only when its age (now - expiry) is within `maxStaleAge`.
-    /// Fresh entries are not returned here, because they are already served by
-    /// `cachedEntry(forCacheKey:allowExpired:)`
-    /// in the regular send path, so the stale-only contract keeps the two call sites distinct.
-    func staleEntry(forCacheKey key: String, maxStaleAge: TimeInterval) -> SpotifyGETCacheHit? {
-        guard maxStaleAge > 0 else { return nil }
-        lock.lock()
-        defer { lock.unlock() }
-
-        let nowDate = Date()
-        if let entry = memory[key] {
-            let age = nowDate.timeIntervalSince(entry.expiry)
-            if age > 0, age <= maxStaleAge {
-                touchLRU(key)
-                return SpotifyGETCacheHit(data: entry.data, isExpired: true)
-            }
-            if age > maxStaleAge {
-                memory.removeValue(forKey: key)
-                removeKeyFromLRU(key)
-            }
-        }
-
-        guard let diskCache else { return nil }
-        guard let hit = try? diskCache.loadGETResponseRecord(
-            digest: Self.digest(for: key),
-            allowExpired: true
-        ) else {
-            return nil
-        }
-        guard hit.isExpired else { return nil }
-        let age = nowDate.timeIntervalSince(hit.expiresAt)
-        guard age > 0, age <= maxStaleAge else { return nil }
-        memory[key] = (expiry: hit.expiresAt, data: hit.data)
-        touchLRU(key)
-        return SpotifyGETCacheHit(data: hit.data, isExpired: true)
-    }
-
     func beginWrite(forCacheKey key: String) -> SpotifyGETResponseCacheWriteOwnership {
         lock.lock()
         defer { lock.unlock() }
@@ -155,15 +118,6 @@ final class SpotifyGETResponseCache: @unchecked Sendable {
         nextWriteGeneration &+= 1
         currentWriteGenerationByKey[key] = nextWriteGeneration
         return SpotifyGETResponseCacheWriteOwnership(cacheKey: key, generation: nextWriteGeneration)
-    }
-
-    func store(body: Data, cacheKey key: String, ttl: TimeInterval) {
-        lock.lock()
-        defer { lock.unlock() }
-
-        nextWriteGeneration &+= 1
-        currentWriteGenerationByKey[key] = nextWriteGeneration
-        storeLocked(body: body, cacheKey: key, ttl: ttl)
     }
 
     @discardableResult
@@ -197,10 +151,6 @@ final class SpotifyGETResponseCache: @unchecked Sendable {
     private func touchLRU(_ key: String) {
         lruKeys.removeAll { $0 == key }
         lruKeys.append(key)
-    }
-
-    private func removeKeyFromLRU(_ key: String) {
-        lruKeys.removeAll { $0 == key }
     }
 
     private func evictMemoryIfNeeded() {

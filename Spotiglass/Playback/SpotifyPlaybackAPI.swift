@@ -93,17 +93,17 @@ private struct SpotifyDevicesListDTO: Decodable {
 }
 
 private struct SpotifyQueueResponseDTO: Decodable {
-    let currentlyPlaying: SpotifyQueueUnionDTO?
+    // `currently_playing` is deliberately not decoded: the now-playing track
+    // comes from the Web Playback SDK, and the queue endpoint's copy of it was
+    // only ever stored, never read.
     let queue: [SpotifyQueueUnionDTO]
 
     enum CodingKeys: String, CodingKey {
-        case currentlyPlaying = "currently_playing"
         case queue
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        currentlyPlaying = try container.decodeIfPresent(SpotifyQueueUnionDTO.self, forKey: .currentlyPlaying)
         queue = try container.decodeIfPresent([SpotifyQueueUnionDTO].self, forKey: .queue) ?? []
     }
 

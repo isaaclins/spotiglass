@@ -56,28 +56,6 @@ final class SpotifyGETResponseCacheTests: XCTestCase {
         XCTAssertEqual(hit?.isExpired, false)
     }
 
-    func testStaleEntryServesRecentlyExpiredBody() {
-        let cache = SpotifyGETResponseCache(diskCache: nil)
-        cache.store(body: Data([7]), cacheKey: "rate-limit-fallback", ttl: 0.05)
-        Thread.sleep(forTimeInterval: 0.08)
-
-        let stale = cache.staleEntry(forCacheKey: "rate-limit-fallback", maxStaleAge: 30)
-        XCTAssertEqual(stale?.data, Data([7]))
-        XCTAssertEqual(stale?.isExpired, true)
-    }
-
-    func testStaleEntryPurgesWhenBeyondMaxStaleAge() {
-        let cache = SpotifyGETResponseCache(diskCache: nil, maxMemoryEntries: 10)
-        let past = Date().addingTimeInterval(-120)
-        // Seed memory with an already-expired entry by storing with negative ttl offset via short ttl + sleep alternative:
-        // Use allowExpired load path: store with ttl 0.01, wait, then staleEntry with tiny maxStaleAge should purge.
-        cache.store(body: Data([1]), cacheKey: "old", ttl: 0.01)
-        Thread.sleep(forTimeInterval: 0.05)
-        _ = cache.cachedEntry(forCacheKey: "old", allowExpired: true)
-        XCTAssertNil(cache.staleEntry(forCacheKey: "old", maxStaleAge: 0.001))
-        XCTAssertNil(cache.cachedEntry(forCacheKey: "old", allowExpired: true))
-    }
-
     func testExpiredEntryHiddenUnlessAllowed() {
         let cache = SpotifyGETResponseCache(diskCache: nil)
         cache.store(body: Data([0]), cacheKey: "exp", ttl: 0.01)

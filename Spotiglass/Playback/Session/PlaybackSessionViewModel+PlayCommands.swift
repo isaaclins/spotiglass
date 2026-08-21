@@ -149,13 +149,6 @@ extension PlaybackSessionViewModel {
         }
     }
 
-    func beginPendingPlay(uri: String) {
-        beginPendingPlayTransition(
-            ownerID: nil,
-            kind: .uri(expectedURI: uri)
-        )
-    }
-
     private func beginPendingPlay(uri: String, dispatch: PlayCommandDispatch) {
         beginPendingPlayTransition(
             ownerID: dispatch.id,

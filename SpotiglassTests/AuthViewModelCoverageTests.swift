@@ -260,7 +260,7 @@ final class AuthViewModelCoverageTests: XCTestCase {
             authorizationFlow: flow,
             tokenClient: SpotifyTokenClient(httpClient: httpClient),
             refreshTokenStore: store,
-            signOutDataCleaner: { try? cache.clear() },
+            signOutDataCleaner: { try? cache.clearPrivateAccountData() },
             artworkCacheClearer: {},
             initialState: .signedIn(AuthenticatedSession(
                 accessToken: "account-a-access-token",
@@ -291,7 +291,7 @@ final class AuthViewModelCoverageTests: XCTestCase {
         let viewModel = AuthViewModel(
             settings: makeSettings(clientID: "client-id"),
             refreshTokenStore: tokenStore,
-            signOutDataCleaner: { try? cache.clear() },
+            signOutDataCleaner: { try? cache.clearPrivateAccountData() },
             artworkCacheClearer: {}
         )
 

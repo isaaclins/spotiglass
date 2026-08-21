@@ -62,7 +62,12 @@ final class PlaybackSessionPlayCommandsAndTrayTests: XCTestCase {
             webCommander: MockWebPlaybackCommander(),
             pendingShuffleTimeout: .seconds(2)
         )
-        viewModel.beginPendingPlay(uri: "spotify:track:pending")
+        viewModel.pendingPlayTransition = PlaybackSessionViewModel.PendingPlayTransition(
+            ownerID: nil,
+            hostGeneration: viewModel.playbackHostGeneration,
+            kind: .uri(expectedURI: "spotify:track:pending"),
+            deadline: ContinuousClock().now.advanced(by: .seconds(30))
+        )
         let stale = PlaybackNowPlaying(
             name: "Old",
             artists: [],

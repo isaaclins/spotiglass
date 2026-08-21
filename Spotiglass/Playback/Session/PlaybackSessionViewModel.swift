@@ -16,7 +16,6 @@ struct PlaybackSeekIntent: Equatable, Sendable {
 @MainActor
 final class PlaybackSessionViewModel: ObservableObject {
     struct PendingVolumeMutation: Equatable, Sendable {
-        let version: UInt64
         let target: Double
         let deadline: ContinuousClock.Instant
     }
@@ -313,15 +312,12 @@ final class PlaybackSessionViewModel: ObservableObject {
     }
 
     var pendingPlayTransition: PendingPlayTransition?
-    /// Compatibility projections for diagnostics and existing tests. The
+    /// Compatibility projection for diagnostics and existing tests. The
     /// transition itself is the only stored play-fence state.
     var pendingPlayURI: String? {
         guard let transition = pendingPlayTransition else { return nil }
         guard case let .uri(expectedURI) = transition.kind else { return nil }
         return expectedURI
-    }
-    var pendingPlayURIDeadline: ContinuousClock.Instant? {
-        pendingPlayTransition?.deadline
     }
     /// Maximum time we'll suppress mismatched events while waiting for the
     /// Spotify SDK to confirm the requested URI. After this window we fall
@@ -368,14 +364,8 @@ final class PlaybackSessionViewModel: ObservableObject {
     /// the previous request.
     var pendingNextSkipLockout: SkipCommandDispatch?
     var skipCommandSequence: UInt64 = 0
-    /// Compatibility projections. The dispatch records above are the only
+    /// Compatibility projection. The dispatch records above are the only
     /// stored skip transition state.
-    var pendingSkipExpectedPreviousURI: String? {
-        if let pendingSkipDispatch, pendingSkipDispatch.kind == .next {
-            return pendingSkipDispatch.expectedPreviousURI
-        }
-        return pendingNextSkipLockout?.expectedPreviousURI
-    }
     var pendingSkipDeadline: ContinuousClock.Instant? {
         if let pendingSkipDispatch, pendingSkipDispatch.kind == .next {
             return pendingSkipDispatch.lockoutDeadline
@@ -602,7 +592,6 @@ final class PlaybackSessionViewModel: ObservableObject {
         let clamped = min(max(target, 0), 1)
         volumeMutationVersion &+= 1
         pendingVolumeMutation = PendingVolumeMutation(
-            version: volumeMutationVersion,
             target: clamped,
             deadline: clock.now.advanced(by: pendingVolumeTimeout)
         )
@@ -746,11 +735,6 @@ final class PlaybackSessionViewModel: ObservableObject {
         case .disconnected, .connecting, .ready, .transferring, .unavailable, .error:
             return nil
         }
-    }
-
-    var connectionStateError: PlaybackDisplayError? {
-        guard case let .error(error) = connectionState else { return nil }
-        return error
     }
 
     var currentNowPlaying: PlaybackNowPlaying? {

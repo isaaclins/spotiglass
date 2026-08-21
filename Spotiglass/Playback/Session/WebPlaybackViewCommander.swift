@@ -12,10 +12,6 @@ protocol WebPlaybackCommanding {
 }
 
 extension WebPlaybackCommanding {
-    func loadHost() {
-        loadHost(generation: .initial)
-    }
-
     func send(
         _ command: PlaybackBridgeCommand,
         payload: [String: Any],
@@ -43,10 +39,6 @@ final class WebPlaybackViewCommander: WebPlaybackCommanding {
                 baseURL: URL(string: "https://spotiglass.local")
             )
         }
-    }
-
-    func loadHost() {
-        loadHost(generation: .initial)
     }
 
     func loadHost(generation: PlaybackHostGeneration) {

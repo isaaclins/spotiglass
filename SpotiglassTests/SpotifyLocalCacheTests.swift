@@ -138,7 +138,7 @@ final class SpotifyLocalCacheTests: XCTestCase {
         try cache.saveGETResponse(digest: "catalog", body: Data([1]), ttl: 60)
         try cache.savePinnedItems([pin], userID: "u")
 
-        try cache.clear()
+        try cache.clearPrivateAccountData()
 
         XCTAssertNil(try cache.loadPlaylistsBundle())
         XCTAssertNil(try cache.loadTracksIgnoringAge(playlistID: "P", snapshotID: "S"))
@@ -147,25 +147,6 @@ final class SpotifyLocalCacheTests: XCTestCase {
             Data([1])
         )
         XCTAssertEqual(try cache.loadPinnedItems(userID: "u"), [pin])
-    }
-
-    func testClearAllDataRemovesEverything() throws {
-        let (cache, root) = try makeCache()
-        try cache.savePlaylists([], cachedAt: Date())
-        try cache.saveTracks([], playlistID: "P", snapshotID: "S")
-        try cache.saveGETResponse(digest: "d", body: Data([0]), ttl: 60)
-        try cache.savePinnedItems([], userID: "u")
-
-        try cache.clearAllData()
-        XCTAssertNil(try cache.loadPlaylistsBundle())
-        XCTAssertNil(try cache.loadTracksIgnoringAge(playlistID: "P", snapshotID: "S"))
-        XCTAssertNil(try cache.loadGETResponseRecord(digest: "d", allowExpired: true))
-        XCTAssertEqual(try cache.loadPinnedItems(userID: "u"), [])
-
-        // clearAllData() is safe to call again on empty state.
-        XCTAssertNoThrow(try cache.clearAllData())
-        // Root directory either gone or empty.
-        _ = root
     }
 
     // MARK: - CachedPlaylistTracks.isValid TTL boundary

@@ -10,10 +10,6 @@ extension PlaybackSessionViewModel {
         handleCurrentPlaybackEvent(envelope.event)
     }
 
-    func handle(_ event: PlaybackBridgeEvent) {
-        handle(PlaybackBridgeEventEnvelope(event: event, hostGeneration: playbackHostGeneration))
-    }
-
     private func handleCurrentPlaybackEvent(_ event: PlaybackBridgeEvent) {
         switch event {
         case let .ready(deviceID):
