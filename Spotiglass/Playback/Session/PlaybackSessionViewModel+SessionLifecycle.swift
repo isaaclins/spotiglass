@@ -35,6 +35,13 @@ extension PlaybackSessionViewModel {
         inflightTransferGeneration = nil
         activeInflightTransferSerial = nil
         inflightTransferSerial &+= 1
+        clearPendingSkipCommand()
+        lastSkipDispatchInstant = nil
+        pendingPlayTransition = nil
+        inFlightPlayCommandID = nil
+        inFlightPlayCommandKey = nil
+        lastDispatchedPlayCommandKey = nil
+        lastDispatchedPlayCommandInstant = nil
         playbackHostGeneration = playbackHostGeneration.advanced()
         cancelSeekDispatch()
         clearPendingSeek()

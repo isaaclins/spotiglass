@@ -270,13 +270,47 @@ final class PlaybackSessionViewModel: ObservableObject {
     let playbackHostRecoverySoftResetTimeout: Duration
     var playbackHostHardReloadInstants: [ContinuousClock.Instant] = []
 
-    /// URI the user most recently asked to play. While set, any incoming
-    /// Web Playback SDK `state_changed` event whose track URI does not match
-    /// this URI is ignored as stale. The Spotify SDK can briefly emit a final
-    /// event for the previous track during a transition, which would otherwise
-    /// cause the now-playing display to flash back to the old song name.
-    var pendingPlayURI: String?
-    var pendingPlayURIDeadline: ContinuousClock.Instant?
+    /// Owns the SDK state-change fence for one accepted play command. The
+    /// command ID makes a late completion unable to clear a newer transition;
+    /// the context form also remembers the last identity that the superseded
+    /// transition owned because Spotify does not tell us a context's first URI.
+    struct PendingPlayTransition {
+        enum Kind {
+            case uri(expectedURI: String)
+            case context(staleURIs: Set<String>)
+        }
+
+        let ownerID: UInt64?
+        let hostGeneration: PlaybackHostGeneration
+        let kind: Kind
+        let deadline: ContinuousClock.Instant
+        var firstContextURI: String?
+
+        var supersededURIs: Set<String> {
+            switch kind {
+            case let .uri(expectedURI):
+                return Set([expectedURI])
+            case let .context(staleURIs):
+                var identities = staleURIs
+                if let firstContextURI {
+                    identities.insert(firstContextURI)
+                }
+                return identities
+            }
+        }
+    }
+
+    var pendingPlayTransition: PendingPlayTransition?
+    /// Compatibility projections for diagnostics and existing tests. The
+    /// transition itself is the only stored play-fence state.
+    var pendingPlayURI: String? {
+        guard let transition = pendingPlayTransition else { return nil }
+        guard case let .uri(expectedURI) = transition.kind else { return nil }
+        return expectedURI
+    }
+    var pendingPlayURIDeadline: ContinuousClock.Instant? {
+        pendingPlayTransition?.deadline
+    }
     /// Maximum time we'll suppress mismatched events while waiting for the
     /// Spotify SDK to confirm the requested URI. After this window we fall
     /// back to whatever the SDK reports so the UI cannot deadlock on a track
@@ -297,8 +331,45 @@ final class PlaybackSessionViewModel: ObservableObject {
     /// this so unit tests do not have to sleep the production cooldown.
     let skipCommandMinimumSpacing: Duration
     let skipCommandLockoutTimeout: Duration
-    var pendingSkipExpectedPreviousURI: String?
-    var pendingSkipDeadline: ContinuousClock.Instant?
+    /// One identity owns a skip from dispatch start through REST completion and
+    /// the optional post-success timeout. SDK advance observations attach to
+    /// this same identity, so an event cannot be lost while the POST is held.
+    struct SkipCommandDispatch {
+        enum Kind: Equatable {
+            case previous
+            case next
+        }
+
+        let id: UInt64
+        let hostGeneration: PlaybackHostGeneration
+        let kind: Kind
+        let expectedPreviousURI: String?
+        let startedAt: ContinuousClock.Instant
+        var observedAdvance = false
+        var lockoutDeadline: ContinuousClock.Instant?
+    }
+
+    var pendingSkipDispatch: SkipCommandDispatch?
+    /// A previous request may run while a completed next request is still
+    /// waiting for its URI advance. Both records use the same dispatch type so
+    /// the next lockout keeps its owner identity instead of being erased by
+    /// the previous request.
+    var pendingNextSkipLockout: SkipCommandDispatch?
+    var skipCommandSequence: UInt64 = 0
+    /// Compatibility projections. The dispatch records above are the only
+    /// stored skip transition state.
+    var pendingSkipExpectedPreviousURI: String? {
+        if let pendingSkipDispatch, pendingSkipDispatch.kind == .next {
+            return pendingSkipDispatch.expectedPreviousURI
+        }
+        return pendingNextSkipLockout?.expectedPreviousURI
+    }
+    var pendingSkipDeadline: ContinuousClock.Instant? {
+        if let pendingSkipDispatch, pendingSkipDispatch.kind == .next {
+            return pendingSkipDispatch.lockoutDeadline
+        }
+        return pendingNextSkipLockout?.lockoutDeadline
+    }
     let playCommandDedupeWindow: Duration
     var inFlightPlayCommandKey: PlayCommandKey?
     var inFlightPlayCommandID: UInt64?

@@ -150,6 +150,7 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
     /// URI / context URI / first list URI. Suspending here keeps that play in flight
     /// from the view model's perspective until the closure returns.
     var onPlay: ((String) async -> Void)?
+    var onNext: (() async -> Void)?
     var onSeek: ((Int) async -> Void)?
     var onSeekAttempt: ((Int) async -> Void)?
     private(set) var seekCallTimestamps: [Date] = []
@@ -170,8 +171,10 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
     var setRepeatError: Error?
     var fetchPlayerSnapshotError: Error?
     var playDelayNanoseconds: UInt64 = 0
+    var playErrors: [Error] = []
     var seekDelayNanoseconds: UInt64 = 0
     var seekError: Error?
+    var nextError: Error?
     var setRepeatDelayNanoseconds: UInt64 = 0
     var setShuffleDelayNanoseconds: UInt64 = 0
     /// Runs at the top of `transferPlayback`, before any optional delay. Tests can use it
@@ -201,6 +204,9 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
         if playDelayNanoseconds > 0 {
             try? await Task.sleep(nanoseconds: playDelayNanoseconds)
         }
+        if !playErrors.isEmpty {
+            throw playErrors.removeFirst()
+        }
         actionRecorder.append("play:\(deviceID):\(uri)")
     }
 
@@ -209,6 +215,9 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
         if playDelayNanoseconds > 0 {
             try? await Task.sleep(nanoseconds: playDelayNanoseconds)
         }
+        if !playErrors.isEmpty {
+            throw playErrors.removeFirst()
+        }
         actionRecorder.append("play-context:\(deviceID):\(contextURI)")
     }
 
@@ -216,6 +225,9 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
         await onPlay?(uris.first ?? "")
         if playDelayNanoseconds > 0 {
             try? await Task.sleep(nanoseconds: playDelayNanoseconds)
+        }
+        if !playErrors.isEmpty {
+            throw playErrors.removeFirst()
         }
         actionRecorder.append("play-list:\(deviceID):\(uris.joined(separator: ","))")
     }
@@ -235,6 +247,10 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
     }
 
     func next(deviceID: String) async throws {
+        await onNext?()
+        if let nextError {
+            throw nextError
+        }
         actionRecorder.append("next:\(deviceID)")
     }
 

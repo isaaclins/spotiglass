@@ -13,13 +13,13 @@ extension PlaybackSessionViewModel {
         guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
         SpotiglassLog.info(.playback, "play(uri:) entry uri=\(uri) deviceID=\(commandDeviceID) currentURI=\(currentNowPlayingURI ?? "<nil>") hasTransferred=\(hasTransferredPlaybackToCurrentDevice)")
 
-        activePlaylistID = nil
         let commandKey = PlayCommandKey.singleURI(deviceID: commandDeviceID, uri: uri)
         guard let dispatch = beginPlayCommandDispatchIfNeeded(for: commandKey) else {
             SpotiglassLog.info(.playback, "play(uri:) deduped uri=\(uri)")
             return
         }
-        beginPendingPlay(uri: uri)
+        activePlaylistID = nil
+        beginPendingPlay(uri: uri, dispatch: dispatch)
 
         do {
             try await performPrioritizedControlCommand {
@@ -44,7 +44,7 @@ extension PlaybackSessionViewModel {
             SpotiglassLog.error(.playback, "play(uri:) failed uri=\(uri) error=\(error)")
             guard ownsPlaybackHostGeneration(generation), !Task.isCancelled,
                   isPlayCommandDispatchCurrent(dispatch) else { return }
-            clearPendingPlay()
+            clearPendingPlay(ifOwnedBy: dispatch.id)
             setConnectionState(.error(Self.displayError(for: error)))
             finalizePlayCommandDispatchIfCurrent(dispatch)
         }
@@ -58,9 +58,10 @@ extension PlaybackSessionViewModel {
 
         let generation = playbackHostGeneration
         guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
-        activePlaylistID = nil
         let commandKey = PlayCommandKey.contextURI(deviceID: commandDeviceID, contextURI: contextURI)
         guard let dispatch = beginPlayCommandDispatchIfNeeded(for: commandKey) else { return }
+        activePlaylistID = nil
+        beginPendingContextPlay(dispatch: dispatch)
 
         do {
             try await performPrioritizedControlCommand {
@@ -77,6 +78,7 @@ extension PlaybackSessionViewModel {
         } catch {
             guard ownsPlaybackHostGeneration(generation), !Task.isCancelled,
                   isPlayCommandDispatchCurrent(dispatch) else { return }
+            clearPendingPlay(ifOwnedBy: dispatch.id)
             setConnectionState(.error(Self.displayError(for: error)))
             finalizePlayCommandDispatchIfCurrent(dispatch)
         }
@@ -106,7 +108,6 @@ extension PlaybackSessionViewModel {
             return
         }
 
-        activePlaylistID = playlistID
         let commandKey = PlayCommandKey.uriQueue(
             deviceID: commandDeviceID,
             headURI: clickedURI,
@@ -116,7 +117,8 @@ extension PlaybackSessionViewModel {
             SpotiglassLog.info(.playback, "playFromPlaylist deduped clickedURI=\(clickedURI) queueCount=\(queue.count)")
             return
         }
-        beginPendingPlay(uri: clickedURI)
+        activePlaylistID = playlistID
+        beginPendingPlay(uri: clickedURI, dispatch: dispatch)
 
         do {
             try await performPrioritizedControlCommand {
@@ -141,20 +143,57 @@ extension PlaybackSessionViewModel {
             SpotiglassLog.error(.playback, "playFromPlaylist failed clickedURI=\(clickedURI) error=\(error)")
             guard ownsPlaybackHostGeneration(generation), !Task.isCancelled,
                   isPlayCommandDispatchCurrent(dispatch) else { return }
-            clearPendingPlay()
+            clearPendingPlay(ifOwnedBy: dispatch.id)
             setConnectionState(.error(Self.displayError(for: error)))
             finalizePlayCommandDispatchIfCurrent(dispatch)
         }
     }
 
     func beginPendingPlay(uri: String) {
-        pendingPlayURI = uri
-        pendingPlayURIDeadline = clock.now.advanced(by: pendingPlayURITimeout)
+        beginPendingPlayTransition(
+            ownerID: nil,
+            kind: .uri(expectedURI: uri)
+        )
+    }
+
+    private func beginPendingPlay(uri: String, dispatch: PlayCommandDispatch) {
+        beginPendingPlayTransition(
+            ownerID: dispatch.id,
+            kind: .uri(expectedURI: uri)
+        )
+    }
+
+    private func beginPendingContextPlay(dispatch: PlayCommandDispatch) {
+        var staleURIs = pendingPlayTransition?.supersededURIs ?? []
+        if let currentNowPlayingURI {
+            staleURIs.insert(currentNowPlayingURI)
+        }
+        beginPendingPlayTransition(
+            ownerID: dispatch.id,
+            kind: .context(staleURIs: staleURIs)
+        )
+    }
+
+    private func beginPendingPlayTransition(
+        ownerID: UInt64?,
+        kind: PendingPlayTransition.Kind
+    ) {
+        pendingPlayTransition = PendingPlayTransition(
+            ownerID: ownerID,
+            hostGeneration: playbackHostGeneration,
+            kind: kind,
+            deadline: clock.now.advanced(by: pendingPlayURITimeout),
+            firstContextURI: nil
+        )
     }
 
     func clearPendingPlay() {
-        pendingPlayURI = nil
-        pendingPlayURIDeadline = nil
+        pendingPlayTransition = nil
+    }
+
+    func clearPendingPlay(ifOwnedBy ownerID: UInt64) {
+        guard pendingPlayTransition?.ownerID == ownerID else { return }
+        pendingPlayTransition = nil
     }
 
     func beginPlayCommandDispatchIfNeeded(for key: PlayCommandKey) -> PlayCommandDispatch? {
@@ -204,21 +243,43 @@ extension PlaybackSessionViewModel {
     /// fall back gracefully, and lets nil-track teardown events through so
     /// the SDK can still report errors / device loss while a play is pending.
     func shouldSuppressStaleStateChange(nowPlaying: PlaybackNowPlaying?) -> Bool {
-        guard let pending = pendingPlayURI else {
+        guard var transition = pendingPlayTransition else {
             return false
         }
-        if let deadline = pendingPlayURIDeadline, clock.now >= deadline {
-            clearPendingPlay()
+        guard transition.hostGeneration == playbackHostGeneration else {
+            pendingPlayTransition = nil
+            return false
+        }
+        if clock.now >= transition.deadline {
+            pendingPlayTransition = nil
             return false
         }
         guard let eventURI = nowPlaying?.uri else {
             return false
         }
-        if eventURI == pending {
-            clearPendingPlay()
+
+        switch transition.kind {
+        case let .uri(expectedURI):
+            if eventURI == expectedURI {
+                pendingPlayTransition = nil
+                return false
+            }
+            return true
+        case let .context(staleURIs):
+            // A context play has no first-track URI or command ID in its SDK
+            // event. Reject identities already known to belong to a
+            // superseded transition, then admit the first URI that cannot be
+            // ruled out. A context supersession before the predecessor emitted
+            // a URI remains ambiguous because the SDK supplies no command ID.
+            if staleURIs.contains(eventURI) {
+                return true
+            }
+            if transition.firstContextURI == nil {
+                transition.firstContextURI = eventURI
+                pendingPlayTransition = transition
+            }
             return false
         }
-        return true
     }
 
     func optimisticNowPlaying(for uri: String) -> PlaybackNowPlaying? {

@@ -476,6 +476,249 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
         )
     }
 
+    func testNextUsesLiveURIWhenStateChangedByAnotherAuthoritativePath() async {
+        let playbackAPI = MockPlaybackAPI()
+        let nextStarted = AsyncSignal()
+        let releaseNext = AsyncSignal()
+        playbackAPI.onNext = {
+            nextStarted.signal()
+            await releaseNext.wait()
+        }
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: playbackAPI,
+            webCommander: MockWebPlaybackCommander(),
+            skipCommandMinimumSpacing: .zero,
+            skipCommandLockoutTimeout: .seconds(2)
+        )
+        viewModel.handle(.ready(deviceID: "device-1"))
+        let oldTrack = PlaybackNowPlaying(
+            name: "Old",
+            artists: ["Artist"],
+            albumName: nil,
+            albumID: nil,
+            albumArtURL: nil,
+            durationMilliseconds: 180_000,
+            positionMilliseconds: 5_000,
+            uri: "spotify:track:old"
+        )
+        let newTrack = PlaybackNowPlaying(
+            name: "New",
+            artists: ["Artist"],
+            albumName: nil,
+            albumID: nil,
+            albumArtURL: nil,
+            durationMilliseconds: 180_000,
+            positionMilliseconds: 0,
+            uri: "spotify:track:new"
+        )
+        viewModel.handle(.stateChanged(oldTrack, isPaused: false, nextTracks: []))
+
+        let firstNext = Task { await viewModel.next() }
+        await nextStarted.wait()
+        // This path updates the live now-playing URI without calling
+        // observeSkipAdvance(_:), so completion must compare the dispatch's
+        // captured URI against currentNowPlayingURI as a secondary fence.
+        viewModel.setConnectionState(.playing(newTrack))
+        releaseNext.signal()
+        await firstNext.value
+
+        await viewModel.next()
+
+        XCTAssertEqual(playbackAPI.actions.filter { $0 == "next:device-1" }.count, 2)
+    }
+
+    func testNextDoesNotRearmLockAfterSDKAdvanceDuringREST() async {
+        let playbackAPI = MockPlaybackAPI()
+        let nextStarted = AsyncSignal()
+        let releaseNext = AsyncSignal()
+        playbackAPI.onNext = {
+            nextStarted.signal()
+            await releaseNext.wait()
+        }
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: playbackAPI,
+            webCommander: MockWebPlaybackCommander(),
+            skipCommandMinimumSpacing: .zero,
+            skipCommandLockoutTimeout: .seconds(2)
+        )
+        viewModel.handle(.ready(deviceID: "device-1"))
+        let oldTrack = PlaybackNowPlaying(
+            name: "Old",
+            artists: ["Artist"],
+            albumName: nil,
+            albumID: nil,
+            albumArtURL: nil,
+            durationMilliseconds: 180_000,
+            positionMilliseconds: 5_000,
+            uri: "spotify:track:old"
+        )
+        viewModel.handle(.stateChanged(oldTrack, isPaused: false, nextTracks: []))
+
+        let firstNext = Task { await viewModel.next() }
+        await nextStarted.wait()
+        viewModel.handle(.stateChanged(
+            oldTrack.with(positionMilliseconds: 0),
+            isPaused: false,
+            nextTracks: []
+        ))
+        viewModel.handle(.stateChanged(
+            PlaybackNowPlaying(
+                name: "New",
+                artists: ["Artist"],
+                albumName: nil,
+                albumID: nil,
+                albumArtURL: nil,
+                durationMilliseconds: 180_000,
+                positionMilliseconds: 0,
+                uri: "spotify:track:new"
+            ),
+            isPaused: false,
+            nextTracks: []
+        ))
+        releaseNext.signal()
+        await firstNext.value
+
+        await viewModel.next()
+
+        XCTAssertEqual(playbackAPI.actions.filter { $0 == "next:device-1" }.count, 2)
+        XCTAssertTrue(viewModel.isNextCommandLockedOut)
+    }
+
+    func testFailedNextClearsDispatchWithoutLeavingLockState() async {
+        let playbackAPI = MockPlaybackAPI()
+        playbackAPI.nextError = URLError(.notConnectedToInternet)
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: playbackAPI,
+            webCommander: MockWebPlaybackCommander(),
+            skipCommandMinimumSpacing: .zero
+        )
+        viewModel.handle(.ready(deviceID: "device-1"))
+
+        await viewModel.next()
+
+        XCTAssertFalse(viewModel.isSkipCommandPending)
+        XCTAssertFalse(viewModel.isNextCommandLockedOut)
+        XCTAssertNil(viewModel.pendingSkipDispatch)
+        guard case .error = viewModel.connectionState else {
+            return XCTFail("A failed skip should publish its playback error")
+        }
+    }
+
+    func testDisconnectDuringInFlightNextClearsLateLockState() async {
+        let playbackAPI = MockPlaybackAPI()
+        let nextStarted = AsyncSignal()
+        let releaseNext = AsyncSignal()
+        playbackAPI.onNext = {
+            nextStarted.signal()
+            await releaseNext.wait()
+        }
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: playbackAPI,
+            webCommander: MockWebPlaybackCommander(),
+            skipCommandMinimumSpacing: .zero,
+            skipCommandLockoutTimeout: .seconds(2)
+        )
+        viewModel.handle(.ready(deviceID: "device-1"))
+        viewModel.handle(.stateChanged(
+            PlaybackNowPlaying(
+                name: "Old",
+                artists: ["Artist"],
+                albumName: nil,
+                albumID: nil,
+                albumArtURL: nil,
+                durationMilliseconds: 180_000,
+                positionMilliseconds: 0,
+                uri: "spotify:track:old"
+            ),
+            isPaused: false,
+            nextTracks: []
+        ))
+
+        let nextTask = Task { await viewModel.next() }
+        await nextStarted.wait()
+        await viewModel.disconnect()
+        releaseNext.signal()
+        await nextTask.value
+
+        XCTAssertEqual(viewModel.connectionState, .disconnected)
+        XCTAssertFalse(viewModel.isSkipCommandPending)
+        XCTAssertFalse(viewModel.isNextCommandLockedOut)
+        XCTAssertNil(viewModel.pendingSkipDispatch)
+    }
+
+    func testNextTracksAdvanceWhenThereWasNoPreRequestURI() async {
+        let playbackAPI = MockPlaybackAPI()
+        let nextStarted = AsyncSignal()
+        let releaseNext = AsyncSignal()
+        playbackAPI.onNext = {
+            nextStarted.signal()
+            await releaseNext.wait()
+        }
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: playbackAPI,
+            webCommander: MockWebPlaybackCommander(),
+            skipCommandMinimumSpacing: .zero,
+            skipCommandLockoutTimeout: .seconds(2)
+        )
+        viewModel.handle(.ready(deviceID: "device-1"))
+
+        let firstNext = Task { await viewModel.next() }
+        await nextStarted.wait()
+        viewModel.handle(.stateChanged(
+            PlaybackNowPlaying(
+                name: "New",
+                artists: ["Artist"],
+                albumName: nil,
+                albumID: nil,
+                albumArtURL: nil,
+                durationMilliseconds: 180_000,
+                positionMilliseconds: 0,
+                uri: "spotify:track:new"
+            ),
+            isPaused: false,
+            nextTracks: []
+        ))
+        releaseNext.signal()
+        await firstNext.value
+
+        await viewModel.next()
+
+        XCTAssertEqual(playbackAPI.actions.filter { $0 == "next:device-1" }.count, 2)
+    }
+
+    func testPreviousPreservesAnUnresolvedNextLockout() async {
+        let playbackAPI = MockPlaybackAPI()
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: playbackAPI,
+            webCommander: MockWebPlaybackCommander(),
+            skipCommandMinimumSpacing: .zero,
+            skipCommandLockoutTimeout: .seconds(2)
+        )
+        viewModel.handle(.ready(deviceID: "device-1"))
+        viewModel.handle(.stateChanged(
+            PlaybackNowPlaying(
+                name: "Old",
+                artists: ["Artist"],
+                albumName: nil,
+                albumID: nil,
+                albumArtURL: nil,
+                durationMilliseconds: 180_000,
+                positionMilliseconds: 0,
+                uri: "spotify:track:old"
+            ),
+            isPaused: false,
+            nextTracks: []
+        ))
+
+        await viewModel.next()
+        await viewModel.previous()
+        await viewModel.next()
+
+        XCTAssertEqual(playbackAPI.actions.filter { $0 == "next:device-1" }.count, 1)
+        XCTAssertEqual(playbackAPI.actions.filter { $0 == "previous:device-1" }.count, 1)
+        XCTAssertTrue(viewModel.isNextCommandLockedOut)
+    }
+
     func testNextLocksOutUntilPlaybackURIAdvances() async {
         let playbackAPI = MockPlaybackAPI()
         let viewModel = PlaybackSessionViewModel(
