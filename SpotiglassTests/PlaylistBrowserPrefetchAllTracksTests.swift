@@ -83,6 +83,78 @@ final class PlaylistBrowserPrefetchAllTracksTests: XCTestCase {
                                     "With 8 items + Liked Songs and concurrency=3, peak should reach at least 2")
     }
 
+    // MARK: - Rate-limit retry
+    //
+    // These two exercise the 429 branch, which sleeps for a `Retry-After`
+    // clamped into `prefetchAllPlaylistsRetryAfterBounds`. The lower bound is
+    // one second, so each of these costs roughly that much wall clock; that is
+    // the price of covering the retry path deterministically.
+
+    func testPlaylistPrefetchRetriesOnceAfterRateLimit() async throws {
+        let playlist = PlaylistBrowsingTestFixtures.playlist(id: "p1", name: "Rate limited", snapshotID: "snap-1")
+        let cache = MockBrowsingCache(cachedPlaylists: [playlist], cachedTracks: [:], playlistListCacheAge: 5)
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([playlist])],
+            trackResults: [
+                "p1": [
+                    .failure(SpotifyAPIError.rateLimited(retryAfter: 0.2)),
+                    .success([PlaylistBrowsingTestFixtures.track(id: "p1-fetched")])
+                ]
+            ],
+            savedTracksResult: .success(SpotifySavedTracksResult(tracks: [], totalAvailable: 0))
+        )
+
+        let vm = PlaylistBrowserViewModel(api: api, cache: cache)
+        seed(vm, with: [playlist])
+        await vm.runBulkPlaylistTrackPrefetch()
+
+        XCTAssertEqual(api.playlistTracksInvocationCountByID["p1"], 2, "A 429 should be retried exactly once.")
+        XCTAssertEqual(cache.savedTracks["p1"]?.first?.id, "p1-fetched", "The retry result should be cached.")
+        let progress = try XCTUnwrap(vm.prefetchAllPlaylistsProgress)
+        XCTAssertEqual(progress.failed, 0, "A successful retry must not be reported as a failure.")
+    }
+
+    func testLikedSongsPrefetchRetriesOnceAfterRateLimit() async throws {
+        let cache = MockBrowsingCache(cachedPlaylists: [], cachedTracks: [:], playlistListCacheAge: 5)
+        let attempts = Counter()
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([])],
+            trackResults: [:],
+            savedTracksHandler: {
+                if await attempts.next() == 1 {
+                    throw SpotifyAPIError.rateLimited(retryAfter: 0.2)
+                }
+                return SpotifySavedTracksResult(
+                    tracks: [PlaylistBrowsingTestFixtures.track(id: "liked-1")],
+                    totalAvailable: 1
+                )
+            }
+        )
+
+        let vm = PlaylistBrowserViewModel(api: api, cache: cache)
+        seed(vm, with: [])
+        await vm.runBulkPlaylistTrackPrefetch()
+
+        let total = await attempts.value
+        XCTAssertEqual(total, 2, "A 429 on Liked Songs should be retried exactly once.")
+        XCTAssertEqual(
+            cache.savedTracks[SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID]?.first?.id,
+            "liked-1",
+            "The retry result should warm the Liked Songs cache."
+        )
+        let progress = try XCTUnwrap(vm.prefetchAllPlaylistsProgress)
+        XCTAssertEqual(progress.failed, 0)
+    }
+
+    private actor Counter {
+        private(set) var value = 0
+
+        func next() -> Int {
+            value += 1
+            return value
+        }
+    }
+
     func testEmptyLibraryStillFinalizesWithLikedSongsOnlyWork() async throws {
         let cache = MockBrowsingCache(cachedPlaylists: [], cachedTracks: [:], playlistListCacheAge: 5)
         let api = MockBrowsingAPI(
