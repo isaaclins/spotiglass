@@ -7,7 +7,15 @@ final class PlaylistBrowserNavigationTests: XCTestCase {
     func testSelectArtistClearsPlaylistSelectionAndShowsArtistDetail() async {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
-            trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]]
+            trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]],
+            searchHandler: { _, _ in
+                SpotifySearchResults(
+                    tracks: [PlaylistBrowsingTestFixtures.fallbackTrack(id: "hit", name: "Hit", artistId: "artist-xyz")],
+                    artists: [],
+                    albums: [],
+                    playlists: []
+                )
+            }
         )
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
 
@@ -90,7 +98,6 @@ final class PlaylistBrowserNavigationTests: XCTestCase {
         XCTAssertEqual(detail.tracks.first?.artworkURL, albumCoverURL)
         XCTAssertEqual(api.albumTracksCallCount, 1, "Album detail should reuse the already-fetched album cover locally, without extra Spotify calls.")
         XCTAssertEqual(api.searchCallCount, 0)
-        XCTAssertEqual(api.albumsBatchedCallCount, 0)
     }
 
     func testBackNavigationReturnsFromAlbumToArtist() async {
@@ -160,7 +167,15 @@ final class PlaylistBrowserNavigationTests: XCTestCase {
     func testCommandPaletteContextEligibleWhenArtistDetailLoaded() async {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
-            trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]]
+            trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]],
+            searchHandler: { _, _ in
+                SpotifySearchResults(
+                    tracks: [PlaylistBrowsingTestFixtures.fallbackTrack(id: "hit", name: "Hit", artistId: "artist-xyz")],
+                    artists: [],
+                    albums: [],
+                    playlists: []
+                )
+            }
         )
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
 

@@ -312,7 +312,6 @@
 		TST00000000000000000006 /* MockBrowsingDependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000056 /* MockBrowsingDependencies.swift */; };
 		TST00000000000000000008 /* SpotifyAPIClientSearchRateLimitAndGETRetryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000058 /* SpotifyAPIClientSearchRateLimitAndGETRetryTests.swift */; };
 		TST00000000000000000009 /* SpotifyAPIClientArtistAndAlbumTracksTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000059 /* SpotifyAPIClientArtistAndAlbumTracksTests.swift */; };
-		TST00000000000000000010 /* SpotifyAPIClientAlbumsBatchedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000060 /* SpotifyAPIClientAlbumsBatchedTests.swift */; };
 		TST00000000000000000011 /* SpotifyAPIClientArtistAlbumsPaginationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000061 /* SpotifyAPIClientArtistAlbumsPaginationTests.swift */; };
 		TST00000000000000000012 /* SpotifyAPIClientErrorsRefreshAndCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000062 /* SpotifyAPIClientErrorsRefreshAndCacheTests.swift */; };
 		TST00000000000000000013 /* PlaylistBrowserViewModelLibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000063 /* PlaylistBrowserViewModelLibraryTests.swift */; };
@@ -587,7 +586,6 @@
 		TST00000000000000000056 /* MockBrowsingDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockBrowsingDependencies.swift; sourceTree = "<group>"; };
 		TST00000000000000000058 /* SpotifyAPIClientSearchRateLimitAndGETRetryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyAPIClientSearchRateLimitAndGETRetryTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000059 /* SpotifyAPIClientArtistAndAlbumTracksTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyAPIClientArtistAndAlbumTracksTests.swift; sourceTree = "<group>"; };
-		TST00000000000000000060 /* SpotifyAPIClientAlbumsBatchedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyAPIClientAlbumsBatchedTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000061 /* SpotifyAPIClientArtistAlbumsPaginationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyAPIClientArtistAlbumsPaginationTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000062 /* SpotifyAPIClientErrorsRefreshAndCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyAPIClientErrorsRefreshAndCacheTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000063 /* PlaylistBrowserViewModelLibraryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserViewModelLibraryTests.swift; sourceTree = "<group>"; };
@@ -888,7 +886,6 @@
 				TST0000000000000000007D /* SpotifyAPIClientSavedTracksPaginationTests.swift */,
 				TST00000000000000000058 /* SpotifyAPIClientSearchRateLimitAndGETRetryTests.swift */,
 				TST00000000000000000059 /* SpotifyAPIClientArtistAndAlbumTracksTests.swift */,
-				TST00000000000000000060 /* SpotifyAPIClientAlbumsBatchedTests.swift */,
 				TST00000000000000000061 /* SpotifyAPIClientArtistAlbumsPaginationTests.swift */,
 				TST00000000000000000062 /* SpotifyAPIClientErrorsRefreshAndCacheTests.swift */,
 				TST00000000000000000063 /* PlaylistBrowserViewModelLibraryTests.swift */,
@@ -1596,7 +1593,6 @@
 				TST0000000000000000002D /* SpotifyAPIClientSavedTracksPaginationTests.swift in Sources */,
 				TST00000000000000000008 /* SpotifyAPIClientSearchRateLimitAndGETRetryTests.swift in Sources */,
 				TST00000000000000000009 /* SpotifyAPIClientArtistAndAlbumTracksTests.swift in Sources */,
-				TST00000000000000000010 /* SpotifyAPIClientAlbumsBatchedTests.swift in Sources */,
 				TST00000000000000000011 /* SpotifyAPIClientArtistAlbumsPaginationTests.swift in Sources */,
 				TST00000000000000000012 /* SpotifyAPIClientErrorsRefreshAndCacheTests.swift in Sources */,
 				TST00000000000000000013 /* PlaylistBrowserViewModelLibraryTests.swift in Sources */,

@@ -1,7 +1,7 @@
 import Foundation
 
 extension SpotifyAPIClient {
-    /// Spotify caps `POST /v1/playlists/{id}/tracks` and `DELETE` at 100 URIs per request.
+    /// Spotify caps playlist item mutations at 100 URIs per request.
     static let playlistTracksMutationBatchSize = 100
     /// `PUT/DELETE /v1/me/tracks` accepts up to 50 IDs per call (query-string mode).
     static let savedTracksMutationBatchSize = 50
@@ -46,7 +46,7 @@ extension SpotifyAPIClient {
             let body: [String: Any] = ["uris": chunk]
             try await sendVoidWrite(
                 method: "POST",
-                path: "/v1/playlists/\(playlistID)/tracks",
+                path: "/v1/playlists/\(playlistID)/items",
                 queryItems: [],
                 jsonBody: body
             )
@@ -59,11 +59,11 @@ extension SpotifyAPIClient {
         guard !unique.isEmpty, !playlistID.isEmpty else { return }
         for chunk in unique.chunked(into: Self.playlistTracksMutationBatchSize) {
             let body: [String: Any] = [
-                "tracks": chunk.map { ["uri": $0] }
+                "items": chunk.map { ["uri": $0] }
             ]
             try await sendVoidWrite(
                 method: "DELETE",
-                path: "/v1/playlists/\(playlistID)/tracks",
+                path: "/v1/playlists/\(playlistID)/items",
                 queryItems: [],
                 jsonBody: body
             )
@@ -92,7 +92,7 @@ extension SpotifyAPIClient {
         ]
         let data = try await sendDataWrite(
             method: "POST",
-            path: "/v1/users/\(userID)/playlists",
+            path: "/v1/me/playlists",
             queryItems: [],
             jsonBody: body
         )

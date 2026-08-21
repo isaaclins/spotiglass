@@ -19,7 +19,7 @@ extension PlaylistBrowserViewModel {
                     cacheMode: .allowStale
                 )
                 let (detailHit, albumsHit) = try await (cachedDetail, cachedAlbums)
-                let tracks = await self.resolveArtistTracks(
+                let tracks = try await self.resolveArtistTracks(
                     artistId: id,
                     artist: detailHit.value,
                     albums: albumsHit.value,
@@ -62,7 +62,7 @@ extension PlaylistBrowserViewModel {
                 nextOffset += limit
                 nextURL = page.next
             } while nextURL != nil && pagesFetched < self.initialArtistAlbumPageCount
-            let resolved = await self.resolveArtistTracks(artistId: id, artist: artistDetail, albums: albumList, market: market)
+            let resolved = try await self.resolveArtistTracks(artistId: id, artist: artistDetail, albums: albumList, market: market)
             let paging = ArtistAlbumsPagingState(
                 artistID: id,
                 includeGroups: includeGroups,

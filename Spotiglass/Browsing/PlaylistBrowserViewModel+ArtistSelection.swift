@@ -85,6 +85,8 @@ extension PlaylistBrowserViewModel {
             cachedArtistSnapshots[id] = CachedArtistSnapshot(snapshot: snapshot, fetchedAt: now())
             detailState = .loaded(.artist(vm))
             refineLastBreadcrumbArtistLabelIfNeeded(artistID: id, resolvedName: snapshot.artistDetail.name)
+        } catch is CancellationError {
+            return
         } catch {
             guard session == detailSession else { return }
             detailState = .error(Self.displayError(for: error))

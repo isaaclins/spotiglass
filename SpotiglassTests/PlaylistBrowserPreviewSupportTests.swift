@@ -49,8 +49,6 @@ final class PlaylistBrowserPreviewSupportTests: XCTestCase {
         let api = PreviewBrowsingAPI()
         _ = try await api.search(query: "q", limit: 5)
         _ = try await api.albumTracks(albumID: "a", market: "US", limit: 10)
-        _ = try await api.albums(ids: ["a"], market: "US")
-        _ = try await api.artistTopTracks(id: "a", market: "US")
         _ = try await api.artistAlbums(id: "a", includeGroups: "album", limit: 5, cacheMode: .freshOnly)
         _ = try await api.artistAlbumsCached(id: "a", includeGroups: "album", limit: 5, cacheMode: .freshOnly)
         _ = try await api.artistAlbumsPage(

@@ -30,6 +30,75 @@ final class SpotifyAPIClientPlaylistSummaryDecodingTests: XCTestCase {
         XCTAssertEqual(playlists.map(\.trackCount), [7])
     }
 
+    func testAddTracksToPlaylistUsesItemsRouteAndKeepsHundredURIRequestsBatched() async throws {
+        let httpClient = QueueHTTPClient([
+            .data(Data(), statusCode: 201),
+            .data(Data(), statusCode: 201)
+        ])
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+        let uris = (0..<101).map { "spotify:track:track-\($0)" }
+
+        try await client.addTracksToPlaylist(playlistID: "playlist-1", uris: uris)
+
+        XCTAssertEqual(httpClient.requests.count, 2)
+        XCTAssertEqual(httpClient.requests[0].httpMethod, "POST")
+        XCTAssertEqual(httpClient.requests[0].url?.absoluteString, "https://api.spotify.com/v1/playlists/playlist-1/items")
+        let firstBody = try XCTUnwrap(httpClient.requests[0].httpBody)
+        let firstObject = try XCTUnwrap(JSONSerialization.jsonObject(with: firstBody) as? [String: [String]])
+        XCTAssertEqual(firstObject["uris"], Array(uris.prefix(100)))
+        let secondBody = try XCTUnwrap(httpClient.requests[1].httpBody)
+        let secondObject = try XCTUnwrap(JSONSerialization.jsonObject(with: secondBody) as? [String: [String]])
+        XCTAssertEqual(secondObject["uris"], Array(uris.suffix(1)))
+    }
+
+    func testRemoveTracksFromPlaylistUsesItemsRouteAndPreservesURIOrderInBatches() async throws {
+        let httpClient = QueueHTTPClient([
+            .data(Data(), statusCode: 200),
+            .data(Data(), statusCode: 200)
+        ])
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+        let uris = (0..<101).map { "spotify:track:track-\($0)" }
+
+        try await client.removeTracksFromPlaylist(playlistID: "playlist-1", uris: uris)
+
+        XCTAssertEqual(httpClient.requests.count, 2)
+        XCTAssertEqual(httpClient.requests[0].httpMethod, "DELETE")
+        XCTAssertEqual(httpClient.requests[0].url?.absoluteString, "https://api.spotify.com/v1/playlists/playlist-1/items")
+        let firstBody = try XCTUnwrap(httpClient.requests[0].httpBody)
+        let firstObject = try XCTUnwrap(JSONSerialization.jsonObject(with: firstBody) as? [String: [[String: String]]])
+        XCTAssertEqual(firstObject["items"]?.compactMap { $0["uri"] }, Array(uris.prefix(100)))
+        let secondBody = try XCTUnwrap(httpClient.requests[1].httpBody)
+        let secondObject = try XCTUnwrap(JSONSerialization.jsonObject(with: secondBody) as? [String: [[String: String]]])
+        XCTAssertEqual(secondObject["items"]?.compactMap { $0["uri"] }, Array(uris.suffix(1)))
+    }
+
+    func testCreatePlaylistUsesCurrentUserRouteAndPreservesBody() async throws {
+        let httpClient = QueueHTTPClient([
+            .json("""
+            {
+              "id": "playlist-1",
+              "name": "New Playlist",
+              "owner": { "id": "user-1", "display_name": "User" },
+              "images": [],
+              "items": { "total": 0 },
+              "snapshot_id": "snapshot-1"
+            }
+            """, statusCode: 201)
+        ])
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+
+        let created = try await client.createPlaylist(userID: "user-1", name: "  New Playlist  ", isPublic: true)
+
+        let request = try XCTUnwrap(httpClient.requests.first)
+        XCTAssertEqual(request.httpMethod, "POST")
+        XCTAssertEqual(request.url?.absoluteString, "https://api.spotify.com/v1/me/playlists")
+        let body = try XCTUnwrap(request.httpBody)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        XCTAssertEqual(object["name"] as? String, "New Playlist")
+        XCTAssertEqual(object["public"] as? Bool, true)
+        XCTAssertEqual(created.id, "playlist-1")
+    }
+
     func testUpdatePlaylistSendsPUTRequestWithNameOnly() async throws {
         let httpClient = QueueHTTPClient([
             .data(Data(), statusCode: 204)

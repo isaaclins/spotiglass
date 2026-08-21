@@ -9,16 +9,12 @@ final class PlaylistBrowserViewModel: ObservableObject {
         var forcedRefreshRuns = 0
         var albumFallbackAlbumAttempts = 0
         var albumFallbackUniqueAlbums = 0
-        /// Number of album-track pages requested via `albumTracksFirstPage` recoveries (formerly counted
-        /// per-album page requests in the legacy N+1 loop; now bounded to at most one per artist load).
+        /// Number of supported single-album track pages requested by the artist fallback.
         var albumFallbackPagesFetched = 0
-        /// Incremented when fallback bails out: budget exhausted, batched call failed, or 429-skip applied.
-        /// At most one increment per artist load (no longer multi-incremented per album iteration).
+        /// Number of supported single-album track requests made by the artist fallback.
+        var albumFallbackTrackRequests = 0
+        /// Incremented when a supported album-track fallback request fails.
         var albumFallbackBudgetStops = 0
-        /// Number of batched `GET /v1/albums?ids=...` calls made for this artist load (0 or 1).
-        var albumFallbackBatchedCalls = 0
-        /// Number of single-album `albumTracks` recovery calls (0 or 1, gated by strategy).
-        var albumFallbackRecoveryCalls = 0
     }
 
     /// `internal(set)` so split extensions in other files can update state (`private(set)` is file-private).
@@ -135,8 +131,6 @@ final class PlaylistBrowserViewModel: ObservableObject {
     var isPerformingBackNavigation = false
     let maxBackNavigationDepth = 40
 
-    let artistFallbackCooldown = ArtistFallbackCooldownStore()
-
     struct ArtistDetailSnapshot {
         let artistDetail: SpotifyArtistDetail
         let albums: [SpotifyArtistAlbum]
@@ -210,7 +204,6 @@ final class PlaylistBrowserViewModel: ObservableObject {
         lastTracksRevalidationByID = [:]
         cachedArtistSnapshots = [:]
         currentArtistAlbumsPaging = nil
-        artistFallbackCooldown.reset()
         backNavigationStack = []
         currentNavigationTarget = nil
         canNavigateBack = false

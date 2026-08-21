@@ -7,7 +7,6 @@ protocol SpotifyBrowsingAPI {
     func currentUserProfile() async throws -> SpotifyUserProfile
     func artist(id: String, cacheMode: SpotifyRequestCacheMode) async throws -> SpotifyArtistDetail
     func artistCached(id: String, cacheMode: SpotifyRequestCacheMode) async throws -> SpotifyAPIClient.CachedResponse<SpotifyArtistDetail>
-    func artistTopTracks(id: String, market: String?) async throws -> [SpotifyTrack]
     func artistAlbumsCached(
         id: String,
         includeGroups: String,
@@ -28,14 +27,10 @@ protocol SpotifyBrowsingAPI {
     /// Home feed: the user's top tracks (`user-top-read` scope).
     func topTracks(limit: Int, timeRange: String) async throws -> [SpotifyTrack]
     func albumTracks(albumID: String, market: String?, limit: Int) async throws -> [SpotifyTrack]
-    /// Single-page album tracks fetch for the artist fallback recovery path. Default-implemented
-    /// against `albumTracks` for mocks; the live client overrides with a true `maxPages: 1` call so a
-    /// recovery for one album never amplifies into multiple HTTP requests.
+    /// Single-page album tracks fetch for the artist fallback. Default-implemented against
+    /// `albumTracks` for mocks; the live client uses a true `maxPages: 1` call so each selected
+    /// album contributes at most one HTTP request.
     func albumTracksFirstPage(albumID: String, market: String?, limit: Int) async throws -> [SpotifyTrack]
-    /// Batched `GET /v1/albums?ids=...` (max 20 IDs). Replaces the per-album loop in the artist
-    /// fallback so one HTTP call retrieves up to 20 albums (each with their first 50-track page).
-    func albums(ids: [String], market: String?) async throws -> [SpotifyBatchedAlbum]
-
     // MARK: - Library write ops (mutating)
 
     func updatePlaylist(playlistID: String, name: String) async throws

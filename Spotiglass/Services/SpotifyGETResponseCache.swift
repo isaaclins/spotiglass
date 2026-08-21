@@ -14,11 +14,6 @@ enum SpotifyGETResponseCachePolicy {
                     guard item.name == "q", let value = item.value else { return item }
                     return URLQueryItem(name: "q", value: Self.normalizedSearchQueryParameterValue(value))
                 }
-            } else if components.path == "/v1/albums" {
-                mapped = items.map { item in
-                    guard item.name == "ids", let value = item.value else { return item }
-                    return URLQueryItem(name: "ids", value: Self.normalizedAlbumIDsParameterValue(value))
-                }
             } else {
                 mapped = items
             }
@@ -39,20 +34,6 @@ enum SpotifyGETResponseCachePolicy {
         return collapsed.lowercased()
     }
 
-    /// Canonicalizes comma-separated IDs so equivalent album sets share one cache key.
-    private static func normalizedAlbumIDsParameterValue(_ raw: String) -> String {
-        var deduped: [String] = []
-        var seen: Set<String> = []
-        for component in raw.split(separator: ",", omittingEmptySubsequences: true) {
-            let trimmed = component.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { continue }
-            guard !seen.contains(trimmed) else { continue }
-            seen.insert(trimmed)
-            deduped.append(trimmed)
-        }
-        return deduped.sorted().joined(separator: ",")
-    }
-
     static func shouldCache(_ request: URLRequest) -> Bool {
         guard let url = request.url else { return false }
         return ttl(for: url) != nil
@@ -67,9 +48,6 @@ enum SpotifyGETResponseCachePolicy {
         if path.hasPrefix("/v1/search") { return 90 }
         if path.hasPrefix("/v1/artists/") { return 900 }
         if path.contains("/v1/albums/"), path.hasSuffix("/tracks") { return 600 }
-        // Batched album lookup (`GET /v1/albums?ids=...`) is the artist-fallback hot path; it carries
-        // first-page tracks for up to 20 albums in one round-trip. Same TTL family as `/albums/{id}/tracks`.
-        if path == "/v1/albums" { return 600 }
         return 120
     }
 }
@@ -108,7 +86,7 @@ final class SpotifyGETResponseCache: @unchecked Sendable {
                 return SpotifyGETCacheHit(data: entry.data, isExpired: isExpired)
             }
             // Keep the expired body in memory so `staleEntry(...)` can serve it as a stale-on-failure
-            // fallback (e.g. /v1/albums on 429). LRU still bounds total memory; a successful re-fetch
+            // fallback. LRU still bounds total memory; a successful re-fetch
             // overwrites this entry via `store(...)`.
         }
 
@@ -124,10 +102,9 @@ final class SpotifyGETResponseCache: @unchecked Sendable {
         return SpotifyGETCacheHit(data: hit.data, isExpired: hit.isExpired)
     }
 
-    /// Returns an **expired** cache entry only when its age (now − expiry) is within `maxStaleAge`.
-    /// Used by the API client for stale-on-failure fallback paths (e.g. serve the prior
-    /// `/v1/albums?ids=...` response when the live request 429s within the stale window).
-    /// Fresh entries are not returned here — they are already served by `cachedEntry(forCacheKey:allowExpired:)`
+    /// Returns an **expired** cache entry only when its age (now - expiry) is within `maxStaleAge`.
+    /// Fresh entries are not returned here, because they are already served by
+    /// `cachedEntry(forCacheKey:allowExpired:)`
     /// in the regular send path, so the stale-only contract keeps the two call sites distinct.
     func staleEntry(forCacheKey key: String, maxStaleAge: TimeInterval) -> SpotifyGETCacheHit? {
         guard maxStaleAge > 0 else { return nil }

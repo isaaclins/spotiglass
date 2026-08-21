@@ -19,19 +19,11 @@ struct PreviewBrowsingAPI: SpotifyBrowsingAPI {
         return SpotifyAPIClient.CachedResponse(value: value, isStale: false)
     }
 
-    func artistTopTracks(id: String, market: String?) async throws -> [SpotifyTrack] {
-        []
-    }
-
     func search(query: String, limit: Int) async throws -> SpotifySearchResults {
         SpotifySearchResults(tracks: [], artists: [], albums: [], playlists: [])
     }
 
     func albumTracks(albumID: String, market: String?, limit: Int) async throws -> [SpotifyTrack] {
-        []
-    }
-
-    func albums(ids: [String], market: String?) async throws -> [SpotifyBatchedAlbum] {
         []
     }
 

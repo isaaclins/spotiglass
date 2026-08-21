@@ -28,15 +28,13 @@ struct SpotifyAPIClient {
     let decoder: JSONDecoder
     let getResponseCache: SpotifyGETResponseCache?
     let albumTrackRequestCoalescer: AlbumTrackRequestCoalescer
-    let batchedAlbumsRequestCoalescer: BatchedAlbumsRequestCoalescer
 
     init(
         baseURL: URL = URL(string: "https://api.spotify.com")!,
         tokenProvider: SpotifyAccessTokenProviding,
         httpClient: HTTPClient = URLSession.shared,
         getResponseCache: SpotifyGETResponseCache? = nil,
-        albumTrackRequestCoalescer: AlbumTrackRequestCoalescer = AlbumTrackRequestCoalescer(),
-        batchedAlbumsRequestCoalescer: BatchedAlbumsRequestCoalescer = BatchedAlbumsRequestCoalescer()
+        albumTrackRequestCoalescer: AlbumTrackRequestCoalescer = AlbumTrackRequestCoalescer()
     ) {
         self.baseURL = baseURL
         self.tokenProvider = tokenProvider
@@ -44,7 +42,6 @@ struct SpotifyAPIClient {
         self.decoder = JSONDecoder.spotifyWebAPI
         self.getResponseCache = getResponseCache
         self.albumTrackRequestCoalescer = albumTrackRequestCoalescer
-        self.batchedAlbumsRequestCoalescer = batchedAlbumsRequestCoalescer
     }
 
     func makeRequest(path: String, queryItems: [URLQueryItem] = [], accessToken: String) throws -> URLRequest {

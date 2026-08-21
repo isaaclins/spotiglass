@@ -55,7 +55,6 @@ final class PlaylistBrowserMainSurfaceRefreshTests: XCTestCase {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
             trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "t1")])]],
-            artistTopTracksHandler: { _, _ in [] },
             artistAlbumsHandler: { _, _, _ in [] }
         )
         let vm = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())

@@ -16,23 +16,15 @@ final class SpotifyGETResponseCacheTests: XCTestCase {
             600
         )
         XCTAssertEqual(
-            SpotifyGETResponseCachePolicy.ttl(for: URL(string: "https://api.spotify.com/v1/albums?ids=a")!),
-            600
-        )
-        XCTAssertEqual(
             SpotifyGETResponseCachePolicy.ttl(for: URL(string: "https://api.spotify.com/v1/foo")!),
             120
         )
     }
 
-    func testNormalizedCacheKeySortsSearchAndAlbumIDs() {
+    func testNormalizedCacheKeyNormalizesSearchAndSortsQueryItems() {
         let search = URLRequest(url: URL(string: "https://api.spotify.com/v1/search?q=Hello%20World&type=track")!)
         let searchKey = SpotifyGETResponseCachePolicy.normalizedCacheKey(for: search)
         XCTAssertTrue(searchKey?.contains("q=hello%20world") == true || searchKey?.contains("q=hello world") == true)
-
-        let albums = URLRequest(url: URL(string: "https://api.spotify.com/v1/albums?ids=z,a,z")!)
-        let albumsKey = SpotifyGETResponseCachePolicy.normalizedCacheKey(for: albums)
-        XCTAssertTrue(albumsKey?.contains("ids=a,z") == true)
     }
 
     func testMemoryLRUEvictsOldestEntry() {

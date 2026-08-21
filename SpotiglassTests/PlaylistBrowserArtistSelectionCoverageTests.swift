@@ -6,11 +6,7 @@ final class PlaylistBrowserArtistSelectionCoverageTests: XCTestCase {
     func testSelectArtistUsesCachedSnapshotWithoutNetwork() async {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
-            trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "t1")])]],
-            artistTopTracksHandler: { _, _ in
-                XCTFail("Should not fetch when cache is fresh")
-                return []
-            }
+            trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "t1")])]]
         )
         let vm = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
         await vm.load()
@@ -46,9 +42,13 @@ final class PlaylistBrowserArtistSelectionCoverageTests: XCTestCase {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
             trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "t1")])]],
-            artistTopTracksHandler: { id, _ in
-                XCTAssertEqual(id, "artist-net")
-                return [PlaylistBrowsingTestFixtures.fallbackTrack(id: "top", name: "Top", artistId: "artist-net")]
+            searchHandler: { _, _ in
+                SpotifySearchResults(
+                    tracks: [PlaylistBrowsingTestFixtures.fallbackTrack(id: "search", name: "Search", artistId: "artist-net")],
+                    artists: [],
+                    albums: [],
+                    playlists: []
+                )
             },
             artistAlbumsHandler: { id, _, _ in
                 XCTAssertEqual(id, "artist-net")
@@ -70,9 +70,9 @@ final class PlaylistBrowserArtistSelectionCoverageTests: XCTestCase {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
             trackResults: [:],
-            artistTopTracksHandler: { _, _ in
+            searchHandler: { _, _ in
                 try await Task.sleep(nanoseconds: 300_000_000)
-                return []
+                return SpotifySearchResults(tracks: [], artists: [], albums: [], playlists: [])
             },
             artistAlbumsHandler: { _, _, _ in [] }
         )
@@ -90,9 +90,6 @@ final class PlaylistBrowserArtistSelectionCoverageTests: XCTestCase {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
             trackResults: [:],
-            artistTopTracksHandler: { id, _ in
-                [PlaylistBrowsingTestFixtures.fallbackTrack(id: "top", name: "Top", artistId: id)]
-            },
             artistAlbumsHandler: { _, _, _ in [] }
         )
         let vm = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
@@ -129,9 +126,6 @@ final class PlaylistBrowserArtistSelectionCoverageTests: XCTestCase {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
             trackResults: [:],
-            artistTopTracksHandler: { id, _ in
-                [PlaylistBrowsingTestFixtures.fallbackTrack(id: "top", name: "Top", artistId: id)]
-            },
             artistAlbumsHandler: { _, _, _ in [] }
         )
         let vm = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
@@ -171,7 +165,6 @@ final class PlaylistBrowserArtistSelectionCoverageTests: XCTestCase {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
             trackResults: [:],
-            artistTopTracksHandler: { _, _ in [] },
             artistAlbumsHandler: { _, _, _ in [] }
         )
         let vm = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())

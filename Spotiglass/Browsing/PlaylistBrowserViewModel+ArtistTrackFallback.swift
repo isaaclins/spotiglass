@@ -1,32 +1,15 @@
 import Foundation
 
 extension PlaylistBrowserViewModel {
-    /// Prefer Spotify top-tracks; when forbidden/unavailable (common for Web API dev-mode apps), fall back to
-    /// search then album-derived tracks. The album fallback issues **one** batched `GET /v1/albums?ids=...`
-    /// call covering up to `strategy.maxAlbumRequests` IDs, plus at most one single-album recovery if the
-    /// batched response was missing tracks for an album we still need. Long-retry 429s short-circuit the
-    /// album fallback entirely so we don't cascade rate-limit pain into more outbound calls.
+    /// Prefer catalog search, then use the supported per-album track route when search returns no
+    /// tracks for this artist. The album fallback is capped to a small number of releases so an artist
+    /// load stays bounded.
     func resolveArtistTracks(
         artistId: String,
         artist: SpotifyArtistDetail,
         albums: [SpotifyArtistAlbum],
         market: String?
-    ) async -> [SpotifyTrack] {
-        let probeKey = ArtistTopTracksProbeKey(artistID: artistId, market: market)
-        var fallbackBudgetMode: AlbumFallbackBudgetMode = .healthy
-        if artistFallbackCooldown.shouldProbeTopTracks(for: probeKey, now: now()) {
-            do {
-                let top = try await api.artistTopTracks(id: artistId, market: market)
-                artistFallbackCooldown.registerTopTracksProbeSuccess(for: probeKey)
-                if !top.isEmpty {
-                    return top
-                }
-            } catch {
-                fallbackBudgetMode = artistFallbackCooldown.registerTopTracksProbeFailure(error, for: probeKey, now: now())
-                // Non-fatal: continue with fallbacks (403 Forbidden on `/top-tracks` is expected for dev-mode apps).
-            }
-        }
-
+    ) async throws -> [SpotifyTrack] {
         do {
             let sanitizedName = artist.name.replacingOccurrences(of: "\"", with: "")
             let query = "artist:\"\(sanitizedName)\""
@@ -35,19 +18,16 @@ extension PlaylistBrowserViewModel {
             if !matching.isEmpty {
                 return Array(matching.prefix(10))
             }
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
-            // Non-fatal: try album-derived list.
+            // Non-fatal: try album-derived tracks.
         }
 
-        if fallbackBudgetMode == .skipped {
-            // 429 with a long retry-after: skip the album fallback entirely instead of stacking another
-            // outbound call onto a back-off window.
-            artistFetchMetrics.albumFallbackBudgetStops += 1
-            return []
-        }
-
-        let strategy = ArtistAlbumFallbackStrategy(rateLimited: fallbackBudgetMode == .rateLimitedReduced)
-        let selectedAlbums = Self.albumsForTrackFallback(from: albums, maxCount: strategy.maxAlbumRequests)
+        let selectedAlbums = Self.albumsForTrackFallback(
+            from: albums,
+            maxCount: ArtistAlbumFallbackStrategy.maxAlbumRequests
+        )
         artistFetchMetrics.albumFallbackAlbumAttempts = selectedAlbums.count
         artistFetchMetrics.albumFallbackUniqueAlbums = Set(selectedAlbums.map { $0.id }).count
         guard !selectedAlbums.isEmpty else {
@@ -60,76 +40,41 @@ extension PlaylistBrowserViewModel {
                 albumImagesByID[album.id] = url
             }
         }
-        let ids = selectedAlbums.map(\.id)
+
         var collected: [SpotifyTrack] = []
-        if artistFallbackCooldown.shouldSkipBatchedAlbumsFallback(for: probeKey, now: now()) {
-            artistFetchMetrics.albumFallbackBudgetStops += 1
-            return collected
-        }
-        let batchSignature = Self.artistAlbumBatchSignature(artistID: artistId, market: market, ids: ids)
-        if artistFallbackCooldown.shouldSkipFailedAlbumBatch(signature: batchSignature, now: now()) {
-            artistFetchMetrics.albumFallbackBudgetStops += 1
-            return collected
-        }
-
-        let batchedAlbums: [String: SpotifyBatchedAlbum]
-        do {
-            let response = try await api.albums(ids: ids, market: market)
-            artistFetchMetrics.albumFallbackBatchedCalls += 1
-            batchedAlbums = Dictionary(uniqueKeysWithValues: response.map { ($0.id, $0) })
-        } catch {
-            if case let SpotifyAPIError.rateLimited(retryAfter) = error {
-                let until = artistFallbackCooldown.registerBatchedAlbumsRateLimit(for: probeKey, retryAfter: retryAfter, now: now())
-                artistFallbackCooldown.recordFailedAlbumBatchCooldown(signature: batchSignature, until: until)
-            }
-            artistFetchMetrics.albumFallbackBudgetStops += 1
-            return []
-        }
-
         var seenNames: Set<String> = []
+        var lastFailure: Error?
         for album in selectedAlbums {
-            guard let entry = batchedAlbums[album.id] else { continue }
-            Self.appendUniqueFallbackTracks(
-                from: entry.tracks,
-                albumArtworkFallback: albumImagesByID[album.id],
-                into: &collected,
-                seen: &seenNames,
-                limit: 10
-            )
-            if collected.count >= 10 {
-                return collected
-            }
-        }
-
-        if collected.count < 10, strategy.maxRecoveryCalls > 0 {
-            let recoveryCandidate = selectedAlbums.first { album in
-                guard !artistFallbackCooldown.hasAttemptedAlbumRecovery(albumID: album.id) else { return false }
-                guard let entry = batchedAlbums[album.id] else { return false }
-                return entry.tracksAvailable == false
-            }
-            if let recoveryCandidate {
-                do {
-                    artistFallbackCooldown.markAlbumRecoveryAttempted(albumID: recoveryCandidate.id)
-                    let recovered = try await api.albumTracksFirstPage(
-                        albumID: recoveryCandidate.id,
-                        market: market,
-                        limit: 10
-                    )
-                    artistFetchMetrics.albumFallbackRecoveryCalls += 1
-                    artistFetchMetrics.albumFallbackPagesFetched = 1
-                    Self.appendUniqueFallbackTracks(
-                        from: recovered,
-                        albumArtworkFallback: albumImagesByID[recoveryCandidate.id],
-                        into: &collected,
-                        seen: &seenNames,
-                        limit: 10
-                    )
-                } catch {
-                    artistFetchMetrics.albumFallbackBudgetStops += 1
+            try Task.checkCancellation()
+            do {
+                let tracks = try await api.albumTracksFirstPage(
+                    albumID: album.id,
+                    market: market,
+                    limit: 10
+                )
+                artistFetchMetrics.albumFallbackTrackRequests += 1
+                artistFetchMetrics.albumFallbackPagesFetched += 1
+                Self.appendUniqueFallbackTracks(
+                    from: tracks,
+                    albumArtworkFallback: albumImagesByID[album.id],
+                    into: &collected,
+                    seen: &seenNames,
+                    limit: 10
+                )
+                if collected.count >= 10 {
+                    return collected
                 }
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                lastFailure = error
+                artistFetchMetrics.albumFallbackBudgetStops += 1
             }
         }
 
+        if collected.isEmpty, let lastFailure {
+            throw lastFailure
+        }
         return collected
     }
 
@@ -185,13 +130,5 @@ extension PlaylistBrowserViewModel {
             return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
         }
         return Array(sorted.prefix(max(0, maxCount)))
-    }
-
-    static func artistAlbumBatchSignature(artistID: String, market: String?, ids: [String]) -> String {
-        let normalizedMarket: String = {
-            let trimmed = market?.trimmingCharacters(in: .whitespacesAndNewlines)
-            return (trimmed?.isEmpty ?? true) ? "from_token" : trimmed!
-        }()
-        return "\(artistID)|\(normalizedMarket)|\(ids.sorted().joined(separator: ","))"
     }
 }

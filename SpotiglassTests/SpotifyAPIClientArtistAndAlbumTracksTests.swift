@@ -26,19 +26,6 @@ final class SpotifyAPIClientArtistAndAlbumTracksTests: XCTestCase {
         XCTAssertEqual(artist.genres, ["pop"])
     }
 
-    func testArtistTopTracksPassesMarketQueryItem() async throws {
-        let httpClient = QueueHTTPClient([
-            .json(#"{"tracks":[]}"#)
-        ])
-        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
-
-        _ = try await client.artistTopTracks(id: "ar1", market: "US")
-
-        let url = try XCTUnwrap(httpClient.requests.first?.url?.absoluteString)
-        XCTAssertTrue(url.contains("/v1/artists/ar1/top-tracks"))
-        XCTAssertTrue(url.contains("market=US"))
-    }
-
     func testAlbumTracksRequestsCorrectURLAndDecodes() async throws {
         let httpClient = QueueHTTPClient([
             .json("""
@@ -73,6 +60,54 @@ final class SpotifyAPIClientArtistAndAlbumTracksTests: XCTestCase {
         XCTAssertEqual(tracks.count, 1)
         XCTAssertEqual(tracks.first?.id, "tr1")
         XCTAssertEqual(tracks.first?.name, "Song")
+    }
+
+    func testAlbumTracksFirstPageDoesNotJoinAConcurrentMultiPageRequest() async throws {
+        func page(trackID: String, next: String?) -> String {
+            let nextJSON = next.map { "\"\($0)\"" } ?? "null"
+            return """
+            {
+              "href": "https://api.spotify.com/v1/albums/al1/tracks",
+              "limit": 1,
+              "next": \(nextJSON),
+              "offset": 0,
+              "previous": null,
+              "total": 2,
+              "items": [
+                {
+                  "id": "\(trackID)",
+                  "name": "Song \(trackID)",
+                  "artists": [{ "id": "ar1", "name": "Artist" }],
+                  "album": { "images": [] },
+                  "duration_ms": 1000,
+                  "explicit": false,
+                  "uri": "spotify:track:\(trackID)"
+                }
+              ]
+            }
+            """
+        }
+        let next = "https://api.spotify.com/v1/albums/al1/tracks?offset=1&limit=1"
+        let httpClient = AlbumTracksPageRoutingHTTPClient(
+            firstPage: page(trackID: "tr1", next: next),
+            secondPage: page(trackID: "tr2", next: nil)
+        )
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+        let fullTask = Task {
+            try await client.albumTracks(albumID: "al1", market: "US", limit: 1, maxPages: 2)
+        }
+        for _ in 0..<100 {
+            if await httpClient.requestCount >= 1 { break }
+            try await Task.sleep(nanoseconds: 1_000_000)
+        }
+
+        let firstPage = try await client.albumTracksFirstPage(albumID: "al1", market: "US", limit: 1)
+        let full = try await fullTask.value
+
+        XCTAssertEqual(firstPage.map(\.id), ["tr1"])
+        XCTAssertEqual(full.map(\.id), ["tr1", "tr2"])
+        let requestCount = await httpClient.requestCount
+        XCTAssertEqual(requestCount, 3)
     }
 
     func testAlbumTracksConcurrentRequestsCoalesceByAlbumKey() async throws {
@@ -134,5 +169,30 @@ final class SpotifyAPIClientArtistAndAlbumTracksTests: XCTestCase {
 
         XCTAssertEqual(result.tracks.map(\.id), ["tr1", "tr2"])
         XCTAssertEqual(httpClient.requests.count, 1, "maxPages cap should stop pagination after one HTTP call regardless of `next` URL.")
+    }
+}
+
+private actor AlbumTracksPageRoutingHTTPClient: HTTPClient {
+    private let firstPage: Data
+    private let secondPage: Data
+    private(set) var requestCount = 0
+
+    init(firstPage: String, secondPage: String) {
+        self.firstPage = Data(firstPage.utf8)
+        self.secondPage = Data(secondPage.utf8)
+    }
+
+    func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        requestCount += 1
+        try await Task.sleep(nanoseconds: 20_000_000)
+        let isSecondPage = request.url?.query?.contains("offset=1") == true
+        let data = isSecondPage ? secondPage : firstPage
+        let response = HTTPURLResponse(
+            url: request.url!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        return (data, response)
     }
 }

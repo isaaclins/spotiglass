@@ -121,12 +121,10 @@ private final class ProfileAwareMockBrowsingAPI: SpotifyBrowsingAPI {
     func artistCached(id: String, cacheMode: SpotifyRequestCacheMode) async throws -> SpotifyAPIClient.CachedResponse<SpotifyArtistDetail> {
         SpotifyAPIClient.CachedResponse(value: try await artist(id: id, cacheMode: cacheMode), isStale: false)
     }
-    func artistTopTracks(id: String, market: String?) async throws -> [SpotifyTrack] { [] }
     func search(query: String, limit: Int) async throws -> SpotifySearchResults {
         SpotifySearchResults(tracks: [], artists: [], albums: [], playlists: [])
     }
     func albumTracks(albumID: String, market: String?, limit: Int) async throws -> [SpotifyTrack] { [] }
-    func albums(ids: [String], market: String?) async throws -> [SpotifyBatchedAlbum] { [] }
     func artistAlbumsCached(id: String, includeGroups: String, limit: Int, cacheMode: SpotifyRequestCacheMode) async throws -> SpotifyAPIClient.CachedResponse<[SpotifyArtistAlbum]> {
         SpotifyAPIClient.CachedResponse(value: [], isStale: false)
     }

@@ -17,10 +17,6 @@ final class SpotifyAPIClientArtistsEndpointTests: XCTestCase {
             .invalidRequest("Artist ID is required.")
         )
         await XCTAssertThrowsSpotifyAPIError(
-            try await client.artistTopTracks(id: "", market: nil),
-            .invalidRequest("Artist ID is required.")
-        )
-        await XCTAssertThrowsSpotifyAPIError(
             try await client.artistAlbumsPage(id: ""),
             .invalidRequest("Artist ID is required.")
         )
@@ -115,15 +111,4 @@ final class SpotifyAPIClientArtistsEndpointTests: XCTestCase {
         XCTAssertEqual(httpClient.requests.first?.url, next)
     }
 
-    func testArtistTopTracksDefaultsMarketToFromToken() async throws {
-        let httpClient = QueueHTTPClient([.json(#"{"tracks":[]}"#)])
-        let client = SpotifyAPIClient(
-            tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"),
-            httpClient: httpClient
-        )
-
-        _ = try await client.artistTopTracks(id: "ar1", market: nil)
-
-        XCTAssertTrue(httpClient.requests.first?.url?.query?.contains("market=from_token") == true)
-    }
 }
