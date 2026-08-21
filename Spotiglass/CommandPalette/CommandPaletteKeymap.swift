@@ -210,7 +210,7 @@ struct CommandShortcut: Hashable {
     private static func recordingKeyFromANSIKeyCode(_ keyCode: UInt16) -> String? {
         let letters = "abcdefghijklmnopqrstuvwxyz"
         let letterCodes: [UInt16] = [0, 11, 8, 2, 14, 3, 5, 4, 34, 38, 40, 37, 46, 45, 31, 35, 12, 15, 1, 17, 32, 9, 13, 7, 16, 6, 18, 19, 20, 21, 23]
-        if let index = letterCodes.firstIndex(of: keyCode) {
+        if let index = letterCodes.firstIndex(of: keyCode), index < letters.count {
             let i = letters.index(letters.startIndex, offsetBy: index)
             return String(letters[i])
         }

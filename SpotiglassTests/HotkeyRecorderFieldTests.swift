@@ -155,6 +155,29 @@ final class ZHotkeyRecorderFieldTests: XCTestCase {
         XCTAssertFalse(view.isRecording)
     }
 
+    func testRecordingNumericShortcutsOneThroughFivePersistsBindings() throws {
+        let numericKeys: [(digit: String, virtualKey: CGKeyCode)] = [
+            ("1", 18),
+            ("2", 19),
+            ("3", 20),
+            ("4", 21),
+            ("5", 23),
+        ]
+        let (_, keymap, view, _, _) = try makeHarness()
+
+        for (digit, virtualKey) in numericKeys {
+            view.testing_beginKeyCapture()
+            view.keyDown(with: keyEvent(virtualKey: virtualKey, modifierFlags: [.command, .shift]))
+
+            XCTAssertEqual(
+                keymap.primaryShortcut(for: CommandPaletteCommandID.openSettings),
+                try CommandShortcut(keystroke: "shift-cmd-\(digit)"),
+                "recording \(digit) should persist the physical numeric key with modifiers"
+            )
+            XCTAssertFalse(view.isRecording, "recording \(digit) should finish normally")
+        }
+    }
+
     func testDeleteClearsBinding() throws {
         var applied = 0
         let (field, keymap, view, _, _) = try makeHarness(onApplied: { applied += 1 })
