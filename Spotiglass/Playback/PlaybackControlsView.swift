@@ -198,7 +198,7 @@ struct PlaybackControlsView: View {
                     .contentTransition(.symbolEffect(.replace))
                     .animation(.smooth(duration: 0.18), value: playPauseIcon)
             }
-            .disabled(!hasReadyDevice)
+            .disabled(!hasReadyDevice || viewModel.isRemotePlaybackActive)
             // Label and tooltip agree here: the state and the next action are
             // the same word, so "Pause" shows while something is playing.
             .help(playPauseAccessibilityLabel)

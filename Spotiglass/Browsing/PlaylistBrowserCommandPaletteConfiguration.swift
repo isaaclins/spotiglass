@@ -47,7 +47,8 @@ enum PlaylistBrowserCommandPaletteConfiguration {
             playback?.start(recoveryCause: .manualReconnect)
         }
         manager.playbackTogglePrerequisite = { [weak playback = dependencies.playbackViewModel] in
-            playback?.isPlaybackTransportReady ?? false
+            guard let playback else { return false }
+            return playback.isPlaybackTransportReady && !playback.isRemotePlaybackActive
         }
         manager.togglePlayback = { [weak playback = dependencies.playbackViewModel] in
             await playback?.togglePlayPause()

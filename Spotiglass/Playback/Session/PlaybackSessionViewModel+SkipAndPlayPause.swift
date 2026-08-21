@@ -3,6 +3,7 @@ import Foundation
 @MainActor
 extension PlaybackSessionViewModel {
     func togglePlayPause() async {
+        guard !isRemotePlaybackActive else { return }
         guard !togglePlayPauseAwaitingBridgeAck else { return }
         togglePlayPauseAwaitingBridgeAck = true
         scheduleTogglePlayPauseAckTimeout()
@@ -123,12 +124,12 @@ extension PlaybackSessionViewModel {
     }
 
     private func sendDeviceCommand(action: (String) async throws -> Void) async {
-        guard let deviceID else {
+        guard let commandDeviceID else {
             setConnectionState(.error(Self.playbackDeviceReconnectRequiredError()))
             return
         }
         do {
-            try await action(deviceID)
+            try await action(commandDeviceID)
             noteLocalPlaybackMutation()
         } catch {
             setConnectionState(.error(Self.displayError(for: error)))

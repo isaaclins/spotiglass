@@ -3,16 +3,16 @@ import Foundation
 @MainActor
 extension PlaybackSessionViewModel {
     func play(uri: String) async {
-        guard let deviceID else {
-            SpotiglassLog.error(.playback, "play(uri:) aborted: deviceID is nil. uri=\(uri)")
+        guard let commandDeviceID else {
+            SpotiglassLog.error(.playback, "play(uri:) aborted: no command device. uri=\(uri)")
             setConnectionState(.error(Self.playbackDeviceNotReadyError()))
             return
         }
 
-        SpotiglassLog.info(.playback, "play(uri:) entry uri=\(uri) deviceID=\(deviceID) currentURI=\(currentNowPlayingURI ?? "<nil>") hasTransferred=\(hasTransferredPlaybackToCurrentDevice)")
+        SpotiglassLog.info(.playback, "play(uri:) entry uri=\(uri) deviceID=\(commandDeviceID) currentURI=\(currentNowPlayingURI ?? "<nil>") hasTransferred=\(hasTransferredPlaybackToCurrentDevice)")
 
         activePlaylistID = nil
-        let commandKey = PlayCommandKey.singleURI(deviceID: deviceID, uri: uri)
+        let commandKey = PlayCommandKey.singleURI(deviceID: commandDeviceID, uri: uri)
         guard let dispatch = beginPlayCommandDispatchIfNeeded(for: commandKey) else {
             SpotiglassLog.info(.playback, "play(uri:) deduped uri=\(uri)")
             return
@@ -21,8 +21,8 @@ extension PlaybackSessionViewModel {
 
         do {
             try await performPrioritizedControlCommand {
-                try await ensurePlaybackTransferredIfNeeded(deviceID: deviceID)
-                try await playbackAPI.play(uri: uri, deviceID: deviceID)
+                try await ensurePlaybackTransferredIfNeeded(deviceID: commandDeviceID)
+                try await playbackAPI.play(uri: uri, deviceID: commandDeviceID)
             }
             SpotiglassLog.info(.playback, "play(uri:) API ok uri=\(uri)")
             guard isPlayCommandDispatchCurrent(dispatch) else {
@@ -33,7 +33,9 @@ extension PlaybackSessionViewModel {
             if let optimisticNowPlaying = optimisticNowPlaying(for: uri) {
                 setConnectionState(.playing(optimisticNowPlaying.with(positionMilliseconds: 0)))
             }
-            try await webCommander.send(.playURI, payload: ["uri": uri])
+            if !isRemotePlaybackActive {
+                try await webCommander.send(.playURI, payload: ["uri": uri])
+            }
             finalizePlayCommandDispatchIfCurrent(dispatch)
         } catch {
             SpotiglassLog.error(.playback, "play(uri:) failed uri=\(uri) error=\(error)")
@@ -45,23 +47,25 @@ extension PlaybackSessionViewModel {
     }
 
     func play(contextURI: String) async {
-        guard let deviceID else {
+        guard let commandDeviceID else {
             setConnectionState(.error(Self.playbackDeviceNotReadyError()))
             return
         }
 
         activePlaylistID = nil
-        let commandKey = PlayCommandKey.contextURI(deviceID: deviceID, contextURI: contextURI)
+        let commandKey = PlayCommandKey.contextURI(deviceID: commandDeviceID, contextURI: contextURI)
         guard let dispatch = beginPlayCommandDispatchIfNeeded(for: commandKey) else { return }
 
         do {
             try await performPrioritizedControlCommand {
-                try await ensurePlaybackTransferredIfNeeded(deviceID: deviceID)
-                try await playbackAPI.play(contextURI: contextURI, deviceID: deviceID)
+                try await ensurePlaybackTransferredIfNeeded(deviceID: commandDeviceID)
+                try await playbackAPI.play(contextURI: contextURI, deviceID: commandDeviceID)
             }
             guard isPlayCommandDispatchCurrent(dispatch) else { return }
             noteLocalPlaybackMutation(shouldSyncTransportImmediately: false)
-            try await webCommander.send(.playURI, payload: ["uri": contextURI])
+            if !isRemotePlaybackActive {
+                try await webCommander.send(.playURI, payload: ["uri": contextURI])
+            }
             finalizePlayCommandDispatchIfCurrent(dispatch)
         } catch {
             guard isPlayCommandDispatchCurrent(dispatch) else { return }
@@ -71,8 +75,8 @@ extension PlaybackSessionViewModel {
     }
 
     func playFromPlaylist(clickedURI: String, playableURIs: [String], playlistID: String? = nil) async {
-        guard let deviceID else {
-            SpotiglassLog.error(.playback, "playFromPlaylist aborted: deviceID is nil. clickedURI=\(clickedURI)")
+        guard let commandDeviceID else {
+            SpotiglassLog.error(.playback, "playFromPlaylist aborted: no command device. clickedURI=\(clickedURI)")
             setConnectionState(.error(Self.playbackDeviceNotReadyError()))
             return
         }
@@ -94,7 +98,7 @@ extension PlaybackSessionViewModel {
 
         activePlaylistID = playlistID
         let commandKey = PlayCommandKey.uriQueue(
-            deviceID: deviceID,
+            deviceID: commandDeviceID,
             headURI: clickedURI,
             queueCount: queue.count
         )
@@ -106,8 +110,8 @@ extension PlaybackSessionViewModel {
 
         do {
             try await performPrioritizedControlCommand {
-                try await ensurePlaybackTransferredIfNeeded(deviceID: deviceID)
-                try await playbackAPI.play(uris: queue, deviceID: deviceID)
+                try await ensurePlaybackTransferredIfNeeded(deviceID: commandDeviceID)
+                try await playbackAPI.play(uris: queue, deviceID: commandDeviceID)
             }
             SpotiglassLog.info(.playback, "playFromPlaylist API ok clickedURI=\(clickedURI) queueCount=\(queue.count)")
             guard isPlayCommandDispatchCurrent(dispatch) else {
@@ -118,7 +122,9 @@ extension PlaybackSessionViewModel {
             if let optimisticNowPlaying = optimisticNowPlaying(for: clickedURI) {
                 setConnectionState(.playing(optimisticNowPlaying.with(positionMilliseconds: 0)))
             }
-            try await webCommander.send(.playURI, payload: ["uri": clickedURI])
+            if !isRemotePlaybackActive {
+                try await webCommander.send(.playURI, payload: ["uri": clickedURI])
+            }
             finalizePlayCommandDispatchIfCurrent(dispatch)
         } catch {
             SpotiglassLog.error(.playback, "playFromPlaylist failed clickedURI=\(clickedURI) error=\(error)")

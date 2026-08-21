@@ -115,6 +115,7 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
     /// URI / context URI / first list URI. Suspending here keeps that play in flight
     /// from the view model's perspective until the closure returns.
     var onPlay: ((String) async -> Void)?
+    var onSeek: ((Int) async -> Void)?
     private(set) var seekCallTimestamps: [Date] = []
     /// Returned by `fetchPlayerSnapshot`; updated when mock `setShuffle` / `setRepeat` succeed so background sync matches optimistic UI.
     private var reportedTransport = SpotifyPlayerTransport(shuffle: false, repeatMode: .off)
@@ -181,6 +182,7 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
             try? await Task.sleep(nanoseconds: seekDelayNanoseconds)
         }
         actions.append("seek:\(deviceID):\(milliseconds)")
+        await onSeek?(milliseconds)
     }
 
     func next(deviceID: String) async throws {

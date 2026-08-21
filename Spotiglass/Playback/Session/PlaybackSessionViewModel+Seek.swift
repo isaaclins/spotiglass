@@ -94,13 +94,13 @@ extension PlaybackSessionViewModel {
     }
 
     private func sendSeekCommand(milliseconds: Int) async -> Bool {
-        guard let deviceID else {
+        guard let commandDeviceID else {
             setConnectionState(.error(Self.playbackDeviceReconnectRequiredError()))
             return false
         }
         do {
             try await performPrioritizedControlCommand {
-                try await playbackAPI.seek(to: milliseconds, deviceID: deviceID)
+                try await playbackAPI.seek(to: milliseconds, deviceID: commandDeviceID)
             }
             return true
         } catch {

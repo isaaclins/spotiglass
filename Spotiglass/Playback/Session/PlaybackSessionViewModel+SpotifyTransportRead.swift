@@ -22,6 +22,10 @@ extension PlaybackSessionViewModel {
             do {
                 if let snapshot = try await playbackAPI.fetchPlayerSnapshot() {
                     latestPlayerSnapshot = snapshot
+                    if localMutationSettleTicksRemaining == 0,
+                       let activeDeviceID = snapshot.activeDevice?.deviceID {
+                        setActivePlaybackDeviceID(activeDeviceID)
+                    }
                     applyTransportShuffleEnabled(
                         snapshot.transport.shuffle,
                         minimumMutationVersion: minimumShuffleMutationVersion

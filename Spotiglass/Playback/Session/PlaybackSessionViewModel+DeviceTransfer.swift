@@ -14,11 +14,8 @@ extension PlaybackSessionViewModel {
             try await performPrioritizedControlCommand {
                 try await self.performTransfer(deviceID: selectedDeviceID, play: shouldPlay, origin: .userManualConnect)
             }
-            if selectedDeviceID == deviceID {
-                hasTransferredPlaybackToCurrentDevice = true
-            } else {
-                hasTransferredPlaybackToCurrentDevice = false
-            }
+            setActivePlaybackDeviceID(selectedDeviceID)
+            hasTransferredPlaybackToCurrentDevice = selectedDeviceID == deviceID
             noteLocalPlaybackMutation()
             await syncTransportFromSpotify()
             await refreshConnectDevices(force: true)
@@ -131,6 +128,10 @@ extension PlaybackSessionViewModel {
     }
 
     func ensurePlaybackTransferredIfNeeded(deviceID: String) async throws {
+        guard deviceID == self.deviceID else {
+            SpotiglassLog.info(.playback, "ensureTransferred skipped for remote command target deviceID=\(deviceID)")
+            return
+        }
         guard !hasTransferredPlaybackToCurrentDevice else {
             SpotiglassLog.info(.playback, "ensureTransferred skipped (already transferred) deviceID=\(deviceID)")
             return

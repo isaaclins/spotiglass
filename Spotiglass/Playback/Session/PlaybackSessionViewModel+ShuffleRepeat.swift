@@ -3,7 +3,7 @@ import Foundation
 @MainActor
 extension PlaybackSessionViewModel {
     func toggleShuffle() async {
-        guard let deviceID else {
+        guard let commandDeviceID else {
             setConnectionState(.error(Self.playbackDeviceReconnectRequiredError()))
             return
         }
@@ -33,7 +33,7 @@ extension PlaybackSessionViewModel {
             inFlightShuffleTarget = requestedTarget
             do {
                 try await performPrioritizedControlCommand {
-                    try await playbackAPI.setShuffle(enabled: requestedTarget, deviceID: deviceID)
+                    try await playbackAPI.setShuffle(enabled: requestedTarget, deviceID: commandDeviceID)
                 }
                 lastConfirmedShuffleEnabled = requestedTarget
                 scheduleTransportSyncAfterShuffleToggle(minimumMutationVersion: nextMutationVersion)
@@ -69,7 +69,7 @@ extension PlaybackSessionViewModel {
     }
 
     func cycleRepeat() async {
-        guard let deviceID else {
+        guard let commandDeviceID else {
             setConnectionState(.error(Self.playbackDeviceReconnectRequiredError()))
             return
         }
@@ -77,7 +77,7 @@ extension PlaybackSessionViewModel {
         repeatMode = nextMode
         desiredRepeatMode = nextMode
         setPendingRepeat(mode: nextMode)
-        await flushDesiredRepeatWrites(deviceID: deviceID)
+        await flushDesiredRepeatWrites(deviceID: commandDeviceID)
     }
 
     func setPendingRepeat(mode: SpotifyRepeatMode) {

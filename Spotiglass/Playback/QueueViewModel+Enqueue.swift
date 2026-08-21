@@ -7,7 +7,7 @@ extension QueueViewModel {
     }
 
     func addToQueue(uri: String) async {
-        guard let deviceID = playbackSession.deviceID else {
+        guard let deviceID = playbackSession.commandDeviceID else {
             lastError = BrowsingDisplayError(
                 title: SpotiglassL10n.string("error.queue.playbackUnavailable.title"),
                 message: SpotiglassL10n.string("error.queue.playbackUnavailable.message"),

@@ -7,7 +7,25 @@ final class PlaybackSessionViewModel: ObservableObject {
     @Published var connectionState: PlaybackConnectionState = .disconnected
     /// Display-only playback position anchor for smooth scrubber interpolation.
     @Published var progressAnchor: PlaybackProgressAnchor?
+    /// The device ID owned by the embedded Web Playback SDK.
     @Published var deviceID: String?
+    /// The Spotify Connect device currently targeted by Web API playback commands.
+    /// This can be remote while ``deviceID`` remains ready for local SDK events.
+    @Published private(set) var activePlaybackDeviceID: String?
+    /// The device ID to use for a Spotify Web API playback command.
+    var commandDeviceID: String? {
+        activePlaybackDeviceID ?? deviceID
+    }
+
+    func setActivePlaybackDeviceID(_ deviceID: String?) {
+        activePlaybackDeviceID = deviceID
+    }
+
+    /// Whether Spotify playback is currently routed away from the embedded SDK device.
+    var isRemotePlaybackActive: Bool {
+        guard let activePlaybackDeviceID, let deviceID else { return false }
+        return activePlaybackDeviceID != deviceID
+    }
     /// The Spotify playlist ID that the current playback originated from, or
     /// `nil` if playback was started from a single track URI or external context.
     /// Used by the sidebar to highlight which playlist row is "now playing".
@@ -160,6 +178,13 @@ final class PlaybackSessionViewModel: ObservableObject {
     var lastSeekSentInstant: ContinuousClock.Instant?
     var lastSentSeekPositionMilliseconds: Int?
     var hasTransferredPlaybackToCurrentDevice = false
+    /// Device IDs superseded by a newer Web Playback SDK ready event or a host reload. Late
+    /// events from those devices no longer own this playback lifecycle. Explicit disconnect
+    /// clears the fence before a deliberately new lifecycle begins.
+    var supersededSDKDeviceIDs: Set<String> = []
+    /// A not-ready device may reclaim ownership when recovery reuses the same host. A hard
+    /// reload clears this allowance so a late event from the old host cannot reclaim it.
+    var reclaimableSDKDeviceID: String?
     /// Set by `start()` and cleared by the next `.ready` event. While set, the next ready event runs
     /// the stale-Spotiglass-device auto-resume check; without it, direct `.handle(.ready)` test paths
     /// (which never go through `start()`) keep their previous behavior and don't fetch Connect devices.

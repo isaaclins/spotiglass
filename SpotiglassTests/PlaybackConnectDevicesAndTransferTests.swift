@@ -61,6 +61,83 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
         XCTAssertEqual(refreshCalls.count, 2, "Post-transfer refresh should bypass short-term freshness TTL.")
     }
 
+    func testConnectTransferMakesNextCommandUseSelectedDevice() async {
+        let playbackAPI = MockPlaybackAPI()
+        playbackAPI.availableDevices = [
+            SpotifyConnectDevice(
+                deviceID: "living-room",
+                isActive: false,
+                isRestricted: false,
+                name: "Living Room",
+                type: "speaker"
+            )
+        ]
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: playbackAPI,
+            webCommander: MockWebPlaybackCommander(),
+            skipCommandMinimumSpacing: .zero
+        )
+        viewModel.handle(.ready(deviceID: "sdk-device"))
+        await viewModel.refreshConnectDevices(force: true)
+
+        await viewModel.transferPlayback(toConnectDevice: "living-room")
+        await viewModel.next()
+
+        XCTAssertEqual(
+            playbackAPI.actions.filter { $0.hasPrefix("next:") },
+            ["next:living-room"],
+            "Commands after a Connect transfer must target the selected active device."
+        )
+    }
+
+    func testConnectTransferRoutesSupportedCommandsToSelectedDevice() async {
+        let playbackAPI = MockPlaybackAPI()
+        playbackAPI.availableDevices = [
+            SpotifyConnectDevice(
+                deviceID: "living-room",
+                isActive: false,
+                isRestricted: false,
+                name: "Living Room",
+                type: "speaker"
+            )
+        ]
+        let seekSent = AsyncSignal()
+        playbackAPI.onSeek = { _ in seekSent.signal() }
+        let commander = MockWebPlaybackCommander()
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: playbackAPI,
+            webCommander: commander,
+            postShuffleSyncDelay: .seconds(10),
+            postRepeatSyncDelay: .seconds(10),
+            skipCommandMinimumSpacing: .zero
+        )
+        viewModel.handle(.ready(deviceID: "sdk-device"))
+        await viewModel.refreshConnectDevices(force: true)
+        await viewModel.transferPlayback(toConnectDevice: "living-room")
+
+        await viewModel.next()
+        await viewModel.previous()
+        await viewModel.seek(to: 12_000)
+        let didSeek = await seekSent.wait(timeout: .seconds(1))
+        await viewModel.cycleRepeat()
+        await viewModel.toggleShuffle()
+        let queue = QueueViewModel(playbackAPI: playbackAPI, playbackSession: viewModel)
+        await queue.addToQueue(uri: "spotify:track:queued")
+        await viewModel.play(uri: "spotify:track:played")
+        await viewModel.togglePlayPause()
+
+        XCTAssertTrue(didSeek)
+        XCTAssertEqual(playbackAPI.actions.filter { $0.hasPrefix("next:") }, ["next:living-room"])
+        XCTAssertEqual(playbackAPI.actions.filter { $0.hasPrefix("previous:") }, ["previous:living-room"])
+        XCTAssertEqual(playbackAPI.actions.filter { $0.hasPrefix("seek:") }, ["seek:living-room:12000"])
+        XCTAssertEqual(playbackAPI.actions.filter { $0.hasPrefix("setRepeat:") }, ["setRepeat:living-room:context"])
+        XCTAssertEqual(playbackAPI.actions.filter { $0.hasPrefix("setShuffle:") }, ["setShuffle:living-room:true"])
+        XCTAssertTrue(playbackAPI.actions.contains("addToQueue:living-room:spotify:track:queued"))
+        XCTAssertTrue(playbackAPI.actions.contains("play:living-room:spotify:track:played"))
+        XCTAssertFalse(playbackAPI.actions.contains("transfer:sdk-device:false"))
+        XCTAssertTrue(commander.commands.filter { $0.command == .togglePlay }.isEmpty)
+    }
+
     // MARK: - Skip command (previous/next) spam guard
 
     func testPreviousBurstWithinCooldownIssuesSinglePOST() async {

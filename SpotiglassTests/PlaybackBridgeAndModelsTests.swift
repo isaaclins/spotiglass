@@ -35,6 +35,24 @@ final class PlaybackBridgeAndModelsTests: XCTestCase {
         }
     }
 
+    func testStaleWebPlaybackEventsCannotReplaceNewerConnectionAfterHostReload() {
+        let commander = MockWebPlaybackCommander()
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: MockPlaybackAPI(),
+            webCommander: commander
+        )
+        viewModel.handle(.ready(deviceID: "old-device"))
+        viewModel.handle(.notReady(deviceID: "old-device"))
+        viewModel.start()
+        viewModel.handle(.ready(deviceID: "new-device"))
+        viewModel.handle(.notReady(deviceID: "old-device"))
+        viewModel.handle(.ready(deviceID: "old-device"))
+
+        XCTAssertTrue(commander.didLoadHost)
+        XCTAssertEqual(viewModel.deviceID, "new-device")
+        XCTAssertEqual(viewModel.connectionState, .ready(deviceID: "new-device"))
+    }
+
     func testBridgeParsesPlaybackState() throws {
         let event = try SpotifyPlaybackBridgeParser.parse([
             "name": "state_changed",

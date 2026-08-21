@@ -6,10 +6,25 @@ extension PlaybackSessionViewModel {
         switch event {
         case let .ready(deviceID):
             SpotiglassLog.info(.playback, "SDK ready deviceID=\(deviceID) previousDeviceID=\(self.deviceID ?? "<nil>") autoResumeOnNextReady=\(autoResumeOnNextReady)")
-            if self.deviceID != deviceID {
+            if supersededSDKDeviceIDs.contains(deviceID) {
+                guard self.deviceID == nil, reclaimableSDKDeviceID == deviceID else {
+                    SpotiglassLog.info(.playback, "Ignoring stale SDK ready deviceID=\(deviceID)")
+                    return
+                }
+                supersededSDKDeviceIDs.remove(deviceID)
+            }
+            reclaimableSDKDeviceID = nil
+            let previousSDKDeviceID = self.deviceID
+            if let previousSDKDeviceID, previousSDKDeviceID != deviceID {
+                supersededSDKDeviceIDs.insert(previousSDKDeviceID)
+            }
+            if previousSDKDeviceID != deviceID {
                 hasTransferredPlaybackToCurrentDevice = false
             }
             self.deviceID = deviceID
+            if activePlaybackDeviceID == nil || activePlaybackDeviceID == previousSDKDeviceID {
+                setActivePlaybackDeviceID(deviceID)
+            }
             setConnectionState(.ready(deviceID: deviceID))
             refreshTrayOutputSymbol()
             let shouldAutoResume = autoResumeOnNextReady
@@ -23,7 +38,16 @@ extension PlaybackSessionViewModel {
         case let .notReady(deviceID):
             SpotiglassLog.info(.playback, "SDK not_ready deviceID=\(deviceID)")
             if self.deviceID == deviceID {
-                self.deviceID = nil
+                supersededSDKDeviceIDs.insert(deviceID)
+                reclaimableSDKDeviceID = deviceID
+            }
+            guard self.deviceID == deviceID else {
+                SpotiglassLog.info(.playback, "Ignoring stale SDK not_ready deviceID=\(deviceID) currentDeviceID=\(self.deviceID ?? "<nil>")")
+                return
+            }
+            self.deviceID = nil
+            if activePlaybackDeviceID == deviceID {
+                setActivePlaybackDeviceID(nil)
             }
             hasTransferredPlaybackToCurrentDevice = false
             clearPendingSkipCommand()
@@ -41,7 +65,7 @@ extension PlaybackSessionViewModel {
             }
             sdkNextTracks = nextTracks
             let effectiveNowPlaying = applyPendingSeekSuppression(to: nowPlaying)
-            if effectiveNowPlaying != nil {
+            if effectiveNowPlaying != nil, !isRemotePlaybackActive {
                 hasTransferredPlaybackToCurrentDevice = true
             }
             setConnectionState(isPaused ? .paused(effectiveNowPlaying) : .playing(effectiveNowPlaying ?? fallbackNowPlaying()))

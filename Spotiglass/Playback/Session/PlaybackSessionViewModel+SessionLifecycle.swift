@@ -19,6 +19,11 @@ extension PlaybackSessionViewModel {
         autoResumeOnNextReady = true
         transferAttemptInstants.removeAll()
         transferRetryCooldownUntil = nil
+        if let deviceID {
+            supersededSDKDeviceIDs.insert(deviceID)
+        }
+        reclaimableSDKDeviceID = nil
+        setActivePlaybackDeviceID(nil)
         setConnectionState(.connecting)
         deviceID = nil
         webCommander.loadHost()
@@ -34,6 +39,9 @@ extension PlaybackSessionViewModel {
             // Disconnect best-effort; errors are non-fatal.
         }
         deviceID = nil
+        supersededSDKDeviceIDs.removeAll()
+        reclaimableSDKDeviceID = nil
+        setActivePlaybackDeviceID(nil)
         hasTransferredPlaybackToCurrentDevice = false
         activePlaylistID = nil
         sdkNextTracks = []
@@ -95,6 +103,8 @@ extension PlaybackSessionViewModel {
             autoResumeOnNextReady = true
             transferAttemptInstants.removeAll()
             transferRetryCooldownUntil = nil
+            reclaimableSDKDeviceID = nil
+            setActivePlaybackDeviceID(nil)
             setConnectionState(.connecting)
             self.deviceID = nil
             webCommander.loadHost()
@@ -107,6 +117,7 @@ extension PlaybackSessionViewModel {
         do {
             setConnectionState(.transferring(deviceID: deviceID))
             try await performTransfer(deviceID: deviceID, play: false, origin: .userRetry)
+            setActivePlaybackDeviceID(deviceID)
             hasTransferredPlaybackToCurrentDevice = true
             setConnectionState(.ready(deviceID: deviceID))
             noteLocalPlaybackMutation()
