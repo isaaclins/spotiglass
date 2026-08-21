@@ -61,6 +61,7 @@ extension PlaybackSessionViewModel {
             now: clock.now,
             transportRateLimitedUntil: transportRateLimitedUntil,
             localMutationSettleTicksRemaining: localMutationSettleTicksRemaining,
+            hasPendingVolumeMutation: pendingVolumeMutation != nil,
             transportTransientErrorCount: transportTransientErrorCount,
             hasLatestPlayerSnapshot: latestPlayerSnapshot != nil,
             isPlaybackActiveForPolling: isPlaybackActiveForPolling,

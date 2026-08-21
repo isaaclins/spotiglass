@@ -16,6 +16,8 @@ extension PlaybackSessionViewModel {
         shuffleSyncTask = nil
         repeatSyncTask?.cancel()
         repeatSyncTask = nil
+        cancelPlaybackVolumeSend()
+        pendingVolumeMutation = nil
         deferredTransportSyncTask?.cancel()
         deferredTransportSyncTask = nil
         transportSyncSchedulerTask?.cancel()

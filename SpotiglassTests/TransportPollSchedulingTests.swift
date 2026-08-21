@@ -87,6 +87,7 @@ final class TransportPollSchedulingTests: XCTestCase {
             now: now,
             transportRateLimitedUntil: future,
             localMutationSettleTicksRemaining: 0,
+            hasPendingVolumeMutation: false,
             transportTransientErrorCount: 0,
             hasLatestPlayerSnapshot: true,
             isPlaybackActiveForPolling: true,
@@ -98,6 +99,7 @@ final class TransportPollSchedulingTests: XCTestCase {
             now: now,
             transportRateLimitedUntil: now.advanced(by: .seconds(-1)),
             localMutationSettleTicksRemaining: 0,
+            hasPendingVolumeMutation: false,
             transportTransientErrorCount: 0,
             hasLatestPlayerSnapshot: true,
             isPlaybackActiveForPolling: true,
@@ -115,6 +117,7 @@ final class TransportPollSchedulingTests: XCTestCase {
             now: now,
             transportRateLimitedUntil: nil,
             localMutationSettleTicksRemaining: 2,
+            hasPendingVolumeMutation: false,
             transportTransientErrorCount: 0,
             hasLatestPlayerSnapshot: true,
             isPlaybackActiveForPolling: true,
@@ -126,6 +129,10 @@ final class TransportPollSchedulingTests: XCTestCase {
         transient.localMutationSettleTicksRemaining = 0
         transient.transportTransientErrorCount = 3
         XCTAssertEqual(TransportPollScheduling.pollDelay(for: transient), .seconds(8))
+
+        var pendingVolume = transient
+        pendingVolume.hasPendingVolumeMutation = true
+        XCTAssertEqual(TransportPollScheduling.pollDelay(for: pendingVolume), .seconds(1))
 
         var noSnapshot = transient
         noSnapshot.transportTransientErrorCount = 0

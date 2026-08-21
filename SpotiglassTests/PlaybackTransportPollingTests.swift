@@ -24,6 +24,23 @@ final class PlaybackTransportPollingTests: XCTestCase {
         )
     }
 
+    func testTransportPollingFailureDoesNotBecomePlaybackError() async {
+        let playbackAPI = MockPlaybackAPI()
+        playbackAPI.fetchPlayerSnapshotError = SpotifyAPIError.network("offline")
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: playbackAPI,
+            webCommander: MockWebPlaybackCommander()
+        )
+        viewModel.deviceID = "device-1"
+        viewModel.setConnectionState(.ready(deviceID: "device-1"))
+
+        await viewModel.syncTransportFromSpotify()
+
+        if case .error = viewModel.connectionState {
+            XCTFail("A transport polling failure must not become a playback error.")
+        }
+    }
+
     func testPositionOnlyStateChangedDoesNotTriggerTransportFetch() async {
         let playbackAPI = MockPlaybackAPI()
         let viewModel = PlaybackSessionViewModel(

@@ -15,6 +15,12 @@ struct PlaybackSeekIntent: Equatable, Sendable {
 
 @MainActor
 final class PlaybackSessionViewModel: ObservableObject {
+    struct PendingVolumeMutation: Equatable, Sendable {
+        let version: UInt64
+        let target: Double
+        let deadline: ContinuousClock.Instant
+    }
+
     @Published var connectionState: PlaybackConnectionState = .disconnected
     /// Display-only playback position anchor for smooth scrubber interpolation.
     @Published var progressAnchor: PlaybackProgressAnchor?
@@ -174,6 +180,8 @@ final class PlaybackSessionViewModel: ObservableObject {
     let seekRateLimitInterval: Duration
     let seekDeduplicationWindowMilliseconds: Int
     let seekMatchToleranceMilliseconds: Int
+    let pendingVolumeTimeout: Duration
+    let volumeMatchTolerance: Double
     /// Sliding window in which automatic transfers (auto-resume + ensure-before-play) are budgeted.
     /// User-initiated retries and manual Connect picks bypass the count but still respect the 429 cooldown.
     let autoTransferRollingWindow: Duration
@@ -193,6 +201,10 @@ final class PlaybackSessionViewModel: ObservableObject {
     var transportTransientErrorCount = 0
     var transportRateLimitedUntil: ContinuousClock.Instant?
     var localMutationSettleTicksRemaining = 0
+    var volumeMutationVersion: UInt64 = 0
+    var pendingVolumeMutation: PendingVolumeMutation?
+    var playbackVolumeSendTask: Task<Void, Never>?
+    var playbackVolumeSendSerial: UInt64 = 0
     var isAppActive = NSApp.isActive
     var seekDispatchTask: Task<Void, Never>?
     var seekDispatchSerial: UInt64 = 0
@@ -491,7 +503,9 @@ final class PlaybackSessionViewModel: ObservableObject {
         playbackHostHardReloadWindow: Duration = .seconds(300),
         playbackHostHardReloadWindowMax: Int = 2,
         playbackHostRecoveryConnectTimeout: Duration = .seconds(1),
-        playbackHostRecoverySoftResetTimeout: Duration = .seconds(2)
+        playbackHostRecoverySoftResetTimeout: Duration = .seconds(2),
+        pendingVolumeTimeout: Duration = .seconds(3),
+        volumeMatchTolerance: Double = 0.01
     ) {
         self.playbackAPI = playbackAPI
         self.webCommander = webCommander
@@ -506,6 +520,8 @@ final class PlaybackSessionViewModel: ObservableObject {
         self.seekRateLimitInterval = seekRateLimitInterval
         self.seekDeduplicationWindowMilliseconds = seekDeduplicationWindowMilliseconds
         self.seekMatchToleranceMilliseconds = seekMatchToleranceMilliseconds
+        self.pendingVolumeTimeout = pendingVolumeTimeout
+        self.volumeMatchTolerance = volumeMatchTolerance
         self.playCommandDedupeWindow = playCommandDedupeWindow
         self.connectDevicesFreshnessWindow = connectDevicesFreshnessWindow
         self.skipCommandMinimumSpacing = skipCommandMinimumSpacing
@@ -571,11 +587,64 @@ final class PlaybackSessionViewModel: ObservableObject {
 
     func setPlaybackVolume(_ value: Double) {
         let clamped = min(max(value, 0), 1)
+        let version = beginPendingPlaybackVolumeMutation(target: clamped)
         playbackVolume = clamped
         defaults.set(clamped, forKey: Self.playbackVolumeUserDefaultsKey)
-        Task {
-            try? await webCommander.send(.setVolume, payload: ["volume": clamped])
+        schedulePlaybackVolumeSend(
+            value: clamped,
+            version: version,
+            generation: playbackHostGeneration
+        )
+    }
+
+    @discardableResult
+    func beginPendingPlaybackVolumeMutation(target: Double) -> UInt64 {
+        let clamped = min(max(target, 0), 1)
+        volumeMutationVersion &+= 1
+        pendingVolumeMutation = PendingVolumeMutation(
+            version: volumeMutationVersion,
+            target: clamped,
+            deadline: clock.now.advanced(by: pendingVolumeTimeout)
+        )
+        return volumeMutationVersion
+    }
+
+    func cancelPlaybackVolumeSend() {
+        playbackVolumeSendTask?.cancel()
+        playbackVolumeSendTask = nil
+        playbackVolumeSendSerial &+= 1
+    }
+
+    private func schedulePlaybackVolumeSend(
+        value: Double,
+        version: UInt64,
+        generation: PlaybackHostGeneration
+    ) {
+        cancelPlaybackVolumeSend()
+        let serial = playbackVolumeSendSerial
+        playbackVolumeSendTask = Task { @MainActor [weak self] in
+            defer {
+                if let self, self.playbackVolumeSendSerial == serial {
+                    self.playbackVolumeSendTask = nil
+                }
+            }
+            guard let self,
+                  self.ownsPlaybackHostGeneration(generation),
+                  self.volumeMutationVersion == version,
+                  self.playbackVolumeSendSerial == serial,
+                  !Task.isCancelled else { return }
+            try? await self.webCommander.send(
+                .setVolume,
+                payload: ["volume": value],
+                generation: generation
+            )
         }
+    }
+
+    func applyRemotePlaybackVolume(_ value: Double) {
+        let clamped = min(max(value, 0), 1)
+        playbackVolume = clamped
+        defaults.set(clamped, forKey: Self.playbackVolumeUserDefaultsKey)
     }
 
     deinit {
@@ -589,6 +658,7 @@ final class PlaybackSessionViewModel: ObservableObject {
         shuffleSyncTask?.cancel()
         repeatSyncTask?.cancel()
         seekDispatchTask?.cancel()
+        playbackVolumeSendTask?.cancel()
         deferredTransportSyncTask?.cancel()
         transportSyncSchedulerTask?.cancel()
         macAudioOutput.stopListening()

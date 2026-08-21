@@ -36,6 +36,7 @@ final class MockWebPlaybackCommander: WebPlaybackCommanding {
     /// Runs after each command is recorded — lets tests await a specific command
     /// deterministically instead of sleeping for "long enough".
     var onSend: ((PlaybackBridgeCommand) async -> Void)?
+    var onSendWithPayload: ((PlaybackBridgeCommand, [String: Any]) async -> Void)?
     var onGenerationSend: ((PlaybackBridgeCommand, PlaybackHostGeneration) async -> Void)?
 
     func loadHost(generation: PlaybackHostGeneration) {
@@ -47,6 +48,7 @@ final class MockWebPlaybackCommander: WebPlaybackCommanding {
 
     func send(_ command: PlaybackBridgeCommand, payload: [String: Any]) async throws {
         commands.append(SentCommand(command: command, payload: payload))
+        await onSendWithPayload?(command, payload)
         await onSend?(command)
     }
 

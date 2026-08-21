@@ -51,6 +51,7 @@ extension PlaybackSessionViewModel {
             }
 
             do {
+                let volumeMutationVersionAtRequest = volumeMutationVersion
                 let snapshot = try await playbackAPI.fetchPlayerSnapshot()
                 guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
                 if let snapshot {
@@ -60,6 +61,10 @@ extension PlaybackSessionViewModel {
                        let activeDeviceID = snapshot.activeDevice?.deviceID {
                         setActivePlaybackDeviceID(activeDeviceID)
                     }
+                    applyTransportVolume(
+                        snapshot,
+                        startedWithVolumeMutationVersion: volumeMutationVersionAtRequest
+                    )
                     applyTransportShuffleEnabled(
                         snapshot.transport.shuffle,
                         minimumMutationVersion: minimumShuffleMutationVersion
@@ -68,6 +73,9 @@ extension PlaybackSessionViewModel {
                 } else {
                     latestPlayerSnapshot = nil
                     setTransportStateKnown(false)
+                    expirePendingVolumeMutationIfNeeded(
+                        startedWithVolumeMutationVersion: volumeMutationVersionAtRequest
+                    )
                 }
                 transportTransientErrorCount = 0
                 transportRateLimitedUntil = nil
@@ -92,6 +100,47 @@ extension PlaybackSessionViewModel {
                 generation: generation
             )
         }
+    }
+
+    private func expirePendingVolumeMutationIfNeeded(
+        startedWithVolumeMutationVersion requestVersion: UInt64
+    ) {
+        guard requestVersion == volumeMutationVersion,
+              let pendingVolumeMutation,
+              clock.now >= pendingVolumeMutation.deadline else { return }
+        self.pendingVolumeMutation = nil
+    }
+
+    private func applyTransportVolume(
+        _ snapshot: SpotifyPlayerSnapshot,
+        startedWithVolumeMutationVersion requestVersion: UInt64
+    ) {
+        guard requestVersion == volumeMutationVersion else { return }
+        expirePendingVolumeMutationIfNeeded(
+            startedWithVolumeMutationVersion: requestVersion
+        )
+        guard let localDeviceID = deviceID,
+              let activeDevice = snapshot.activeDevice,
+              activeDevice.deviceID == localDeviceID,
+              activeDevice.isActive,
+              let volume = activeDevice.volumeFraction else { return }
+
+        if let pending = pendingVolumeMutation {
+            if abs(volume - pending.target) <= volumeMatchTolerance {
+                cancelPlaybackVolumeSend()
+                applyRemotePlaybackVolume(volume)
+                pendingVolumeMutation = nil
+                return
+            }
+            guard clock.now >= pending.deadline else { return }
+            cancelPlaybackVolumeSend()
+            applyRemotePlaybackVolume(volume)
+            pendingVolumeMutation = nil
+            return
+        }
+
+        cancelPlaybackVolumeSend()
+        applyRemotePlaybackVolume(volume)
     }
 
     /// Schedules a single coalesced `syncTransportFromSpotify()` on the main actor.

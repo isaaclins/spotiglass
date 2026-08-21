@@ -3,6 +3,42 @@ import XCTest
 
 @MainActor
 final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
+    func testHostLifecycleClearsPendingVolumeAndBlocksStaleBridgeSend() async {
+        let commander = MockWebPlaybackCommander()
+        let oldVolumeSendStarted = AsyncSignal()
+        let releaseOldVolumeSend = AsyncSignal()
+        var didBlockVolumeSend = false
+        commander.onGenerationSend = { command, _ in
+            guard command == .setVolume, !didBlockVolumeSend else { return }
+            didBlockVolumeSend = true
+            oldVolumeSendStarted.signal()
+            await releaseOldVolumeSend.wait()
+        }
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: MockPlaybackAPI(),
+            webCommander: commander,
+            defaults: makeEphemeralDefaults()
+        )
+        viewModel.deviceID = "old-device"
+        viewModel.setPlaybackVolume(0.40)
+
+        let didStartOldSend = await oldVolumeSendStarted.wait(timeout: .seconds(1))
+        XCTAssertTrue(didStartOldSend)
+        XCTAssertNotNil(viewModel.pendingVolumeMutation)
+
+        await viewModel.disconnect()
+        XCTAssertNil(viewModel.pendingVolumeMutation)
+        viewModel.start()
+        let newGeneration = viewModel.playbackHostGeneration
+        releaseOldVolumeSend.signal()
+        await Task.yield()
+
+        XCTAssertEqual(viewModel.playbackHostGeneration, newGeneration)
+        XCTAssertFalse(commander.commands.contains {
+            $0.command == .setVolume && ($0.payload["volume"] as? Double) == 0.40
+        })
+    }
+
     func testDisconnectDuringStartupRemainsDisconnectedAfterLateSDKEvents() async {
         let commander = MockWebPlaybackCommander()
         let playbackAPI = MockPlaybackAPI()

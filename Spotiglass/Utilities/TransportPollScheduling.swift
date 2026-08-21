@@ -47,6 +47,7 @@ enum TransportPollScheduling {
         var now: ContinuousClock.Instant
         var transportRateLimitedUntil: ContinuousClock.Instant?
         var localMutationSettleTicksRemaining: Int
+        var hasPendingVolumeMutation: Bool
         var transportTransientErrorCount: Int
         var hasLatestPlayerSnapshot: Bool
         var isPlaybackActiveForPolling: Bool
@@ -60,7 +61,7 @@ enum TransportPollScheduling {
             }
             return .seconds(15)
         }
-        if inputs.localMutationSettleTicksRemaining > 0 {
+        if inputs.localMutationSettleTicksRemaining > 0 || inputs.hasPendingVolumeMutation {
             return .seconds(1)
         }
         if inputs.transportTransientErrorCount > 0 {

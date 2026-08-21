@@ -43,6 +43,11 @@ extension PlaybackSessionViewModel {
             }
             setConnectionState(.ready(deviceID: deviceID))
             refreshTrayOutputSymbol()
+            let persistedVolume = playbackVolume
+            let persistedVolumeMutationVersion = shouldRefreshTransportState
+                ? beginPendingPlaybackVolumeMutation(target: persistedVolume)
+                : volumeMutationVersion
+            let persistedVolumeSendSerial = playbackVolumeSendSerial
             let initialTransportSyncTask = shouldRefreshTransportState ? scheduleTransportSync() : nil
             let shouldAutoResume = autoResumeOnNextReady
             playbackHostAutoResumeTask?.cancel()
@@ -64,7 +69,12 @@ extension PlaybackSessionViewModel {
                 guard self.ownsPlaybackHostGeneration(generation),
                       self.playbackHostAutoResumeSerial == autoResumeSerial,
                       !Task.isCancelled else { return }
-                await self.syncPlaybackVolumeToWebPlayer(generation: generation)
+                await self.syncPlaybackVolumeToWebPlayer(
+                    persistedVolume,
+                    mutationVersion: persistedVolumeMutationVersion,
+                    sendSerial: persistedVolumeSendSerial,
+                    generation: generation
+                )
                 guard self.ownsPlaybackHostGeneration(generation),
                       self.playbackHostAutoResumeSerial == autoResumeSerial,
                       !Task.isCancelled else { return }
@@ -179,11 +189,18 @@ extension PlaybackSessionViewModel {
         }
     }
 
-    private func syncPlaybackVolumeToWebPlayer(generation: PlaybackHostGeneration) async {
+    private func syncPlaybackVolumeToWebPlayer(
+        _ volume: Double,
+        mutationVersion: UInt64,
+        sendSerial: UInt64,
+        generation: PlaybackHostGeneration
+    ) async {
         guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
+        guard mutationVersion == volumeMutationVersion,
+              sendSerial == playbackVolumeSendSerial else { return }
         try? await webCommander.send(
             .setVolume,
-            payload: ["volume": playbackVolume],
+            payload: ["volume": volume],
             generation: generation
         )
     }

@@ -151,6 +151,60 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
         )
     }
 
+    func testReadyFencesPersistedVolumeBeforeInitialTransportSnapshotCompletes() async {
+        let playbackAPI = MockPlaybackAPI()
+        let fetchStarted = AsyncSignal()
+        let releaseFetch = AsyncSignal()
+        playbackAPI.onFetchPlayerSnapshot = {
+            fetchStarted.signal()
+            await releaseFetch.wait()
+        }
+        playbackAPI.snapshotResponses = [SpotifyPlayerSnapshot(
+            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+            activeDevice: SpotifyConnectDevice(
+                deviceID: "device-1",
+                isActive: true,
+                isRestricted: false,
+                name: "Spotiglass",
+                type: "computer",
+                volumePercent: 20
+            ),
+            isPlaying: false
+        )]
+        let defaults = makeEphemeralDefaults()
+        defaults.set(0.64, forKey: "spotiglass.playbackVolume")
+        let commander = MockWebPlaybackCommander()
+        let persistedVolumeSent = AsyncSignal()
+        commander.onSendWithPayload = { command, payload in
+            guard command == .setVolume,
+                  let volume = payload["volume"] as? Double,
+                  abs(volume - 0.64) < 0.000_001 else { return }
+            persistedVolumeSent.signal()
+        }
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: playbackAPI,
+            webCommander: commander,
+            defaults: defaults
+        )
+
+        viewModel.handle(.ready(deviceID: "device-1"))
+        let didStartFetch = await fetchStarted.wait(timeout: .seconds(1))
+        XCTAssertTrue(didStartFetch)
+        XCTAssertEqual(try XCTUnwrap(viewModel.pendingVolumeMutation).target, 0.64, accuracy: 0.000_001)
+
+        releaseFetch.signal()
+        for _ in 0..<1_000 where viewModel.latestPlayerSnapshot?.activeDevice?.volumePercent != 20 {
+            await Task.yield()
+        }
+        XCTAssertEqual(viewModel.latestPlayerSnapshot?.activeDevice?.volumePercent, 20)
+        XCTAssertEqual(viewModel.playbackVolume, 0.64, accuracy: 0.000_001)
+        XCTAssertEqual(defaults.double(forKey: "spotiglass.playbackVolume"), 0.64, accuracy: 0.000_001)
+
+        let didSendPersistedVolume = await persistedVolumeSent.wait(timeout: .seconds(1))
+        XCTAssertTrue(didSendPersistedVolume)
+        XCTAssertEqual(try XCTUnwrap(commander.commands.last?.payload["volume"] as? Double), 0.64, accuracy: 0.000_001)
+    }
+
     func testReadySyncsPlaybackVolumeToWebPlayer() async {
         let commander = MockWebPlaybackCommander()
         let viewModel = PlaybackSessionViewModel(
@@ -171,6 +225,31 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
         XCTAssertEqual(sent!, PlaybackSessionViewModel.defaultPlaybackVolume, accuracy: 0.001)
     }
 
+    func testRapidPlaybackVolumeChangesLeaveLatestBridgeCommandAuthoritative() async {
+        let commander = MockWebPlaybackCommander()
+        let latestCommandSent = AsyncSignal()
+        commander.onSendWithPayload = { command, payload in
+            guard command == .setVolume,
+                  let volume = payload["volume"] as? Double,
+                  abs(volume - 0.85) < 0.000_001 else { return }
+            latestCommandSent.signal()
+        }
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: MockPlaybackAPI(),
+            webCommander: commander,
+            defaults: makeEphemeralDefaults()
+        )
+
+        viewModel.setPlaybackVolume(0.25)
+        viewModel.setPlaybackVolume(0.85)
+
+        let didSendLatest = await latestCommandSent.wait(timeout: .seconds(1))
+        XCTAssertTrue(didSendLatest)
+        XCTAssertEqual(viewModel.volumeMutationVersion, 2)
+        XCTAssertEqual(viewModel.playbackVolume, 0.85, accuracy: 0.000_001)
+        XCTAssertEqual(try XCTUnwrap(commander.commands.last?.payload["volume"] as? Double), 0.85, accuracy: 0.000_001)
+    }
+
     func testSetPlaybackVolumePersistsAndSendsBridgeCommand() async {
         let commander = MockWebPlaybackCommander()
         let defaults = makeEphemeralDefaults()
@@ -187,6 +266,189 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
         XCTAssertNotNil(lastVolume)
         XCTAssertEqual(lastVolume!, 0.56, accuracy: 0.000_001)
         XCTAssertEqual(defaults.double(forKey: "spotiglass.playbackVolume"), 0.56, accuracy: 0.000_001)
+    }
+
+    func testTransportResponseStartedBeforeLocalVolumeChangeCannotOverwriteIt() async {
+        let playbackAPI = MockPlaybackAPI()
+        let fetchStarted = AsyncSignal()
+        let releaseFetch = AsyncSignal()
+        playbackAPI.onFetchPlayerSnapshot = {
+            fetchStarted.signal()
+            await releaseFetch.wait()
+        }
+        playbackAPI.snapshotResponses = [SpotifyPlayerSnapshot(
+            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+            activeDevice: SpotifyConnectDevice(
+                deviceID: "device-1",
+                isActive: true,
+                isRestricted: false,
+                name: "Spotiglass",
+                type: "computer",
+                volumePercent: 20
+            ),
+            isPlaying: false
+        )]
+        let defaults = makeEphemeralDefaults()
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: playbackAPI,
+            webCommander: MockWebPlaybackCommander(),
+            defaults: defaults
+        )
+        viewModel.deviceID = "device-1"
+
+        let syncTask = Task { await viewModel.syncTransportFromSpotify() }
+        let didStartFetch = await fetchStarted.wait(timeout: .seconds(1))
+        XCTAssertTrue(didStartFetch)
+        viewModel.setPlaybackVolume(0.75)
+        releaseFetch.signal()
+        await syncTask.value
+
+        XCTAssertEqual(viewModel.playbackVolume, 0.75, accuracy: 0.000_001)
+        XCTAssertEqual(defaults.double(forKey: "spotiglass.playbackVolume"), 0.75, accuracy: 0.000_001)
+    }
+
+    func testMismatchingTransportVolumeConvergesAfterPendingDeadline() async {
+        let playbackAPI = MockPlaybackAPI()
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: playbackAPI,
+            webCommander: MockWebPlaybackCommander(),
+            defaults: makeEphemeralDefaults(),
+            pendingVolumeTimeout: .zero
+        )
+        viewModel.deviceID = "device-1"
+        viewModel.setPlaybackVolume(0.80)
+        playbackAPI.snapshotResponses = [SpotifyPlayerSnapshot(
+            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+            activeDevice: SpotifyConnectDevice(
+                deviceID: "device-1",
+                isActive: true,
+                isRestricted: false,
+                name: "Spotiglass",
+                type: "computer",
+                volumePercent: 30
+            ),
+            isPlaying: false
+        )]
+
+        await viewModel.syncTransportFromSpotify()
+
+        XCTAssertEqual(viewModel.playbackVolume, 0.30, accuracy: 0.000_001)
+        XCTAssertNil(viewModel.pendingVolumeMutation)
+    }
+
+    func testMatchingTransportVolumeAcknowledgesPendingLocalTarget() async {
+        let playbackAPI = MockPlaybackAPI()
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: playbackAPI,
+            webCommander: MockWebPlaybackCommander(),
+            defaults: makeEphemeralDefaults()
+        )
+        viewModel.deviceID = "device-1"
+        viewModel.setPlaybackVolume(0.80)
+        playbackAPI.snapshotResponses = [SpotifyPlayerSnapshot(
+            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+            activeDevice: SpotifyConnectDevice(
+                deviceID: "device-1",
+                isActive: true,
+                isRestricted: false,
+                name: "Spotiglass",
+                type: "computer",
+                volumePercent: 80
+            ),
+            isPlaying: false
+        )]
+
+        await viewModel.syncTransportFromSpotify()
+
+        XCTAssertEqual(viewModel.playbackVolume, 0.80, accuracy: 0.000_001)
+        XCTAssertNil(viewModel.pendingVolumeMutation)
+    }
+
+    func testRemoteTransportDeviceVolumeDoesNotChangeLocalPlaybackVolume() async {
+        let playbackAPI = MockPlaybackAPI()
+        let defaults = makeEphemeralDefaults()
+        defaults.set(0.70, forKey: "spotiglass.playbackVolume")
+        playbackAPI.snapshotResponses = [SpotifyPlayerSnapshot(
+            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+            activeDevice: SpotifyConnectDevice(
+                deviceID: "remote-device",
+                isActive: true,
+                isRestricted: false,
+                name: "Phone",
+                type: "smartphone",
+                volumePercent: 20
+            ),
+            isPlaying: true
+        )]
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: playbackAPI,
+            webCommander: MockWebPlaybackCommander(),
+            defaults: defaults
+        )
+        viewModel.deviceID = "local-device"
+
+        await viewModel.syncTransportFromSpotify()
+
+        XCTAssertEqual(viewModel.playbackVolume, 0.70, accuracy: 0.000_001)
+        XCTAssertEqual(defaults.double(forKey: "spotiglass.playbackVolume"), 0.70, accuracy: 0.000_001)
+    }
+
+    func testMismatchingTransportVolumeDoesNotOverwritePendingLocalTarget() async {
+        let playbackAPI = MockPlaybackAPI()
+        let defaults = makeEphemeralDefaults()
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: playbackAPI,
+            webCommander: MockWebPlaybackCommander(),
+            defaults: defaults
+        )
+        viewModel.deviceID = "device-1"
+        viewModel.setPlaybackVolume(0.80)
+        playbackAPI.snapshotResponses = [SpotifyPlayerSnapshot(
+            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+            activeDevice: SpotifyConnectDevice(
+                deviceID: "device-1",
+                isActive: true,
+                isRestricted: false,
+                name: "Spotiglass",
+                type: "computer",
+                volumePercent: 30
+            ),
+            isPlaying: false
+        )]
+
+        await viewModel.syncTransportFromSpotify()
+
+        XCTAssertEqual(viewModel.playbackVolume, 0.80, accuracy: 0.000_001)
+        XCTAssertNotNil(viewModel.pendingVolumeMutation)
+        XCTAssertEqual(defaults.double(forKey: "spotiglass.playbackVolume"), 0.80, accuracy: 0.000_001)
+    }
+
+    func testTransportSnapshotUpdatesPlaybackVolumeForCurrentLocalDevice() async {
+        let playbackAPI = MockPlaybackAPI()
+        let defaults = makeEphemeralDefaults()
+        playbackAPI.snapshotResponses = [SpotifyPlayerSnapshot(
+            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+            activeDevice: SpotifyConnectDevice(
+                deviceID: "device-1",
+                isActive: true,
+                isRestricted: false,
+                name: "Spotiglass",
+                type: "computer",
+                volumePercent: 30
+            ),
+            isPlaying: false
+        )]
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: playbackAPI,
+            webCommander: MockWebPlaybackCommander(),
+            defaults: defaults
+        )
+        viewModel.deviceID = "device-1"
+
+        await viewModel.syncTransportFromSpotify()
+
+        XCTAssertEqual(viewModel.playbackVolume, 0.30, accuracy: 0.000_001)
+        XCTAssertEqual(defaults.double(forKey: "spotiglass.playbackVolume"), 0.30, accuracy: 0.000_001)
     }
 
     func testPlayURITransfersPlaybackBeforePlayCommand() async {

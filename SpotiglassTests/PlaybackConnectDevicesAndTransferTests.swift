@@ -326,6 +326,38 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
         XCTAssertEqual(refreshCalls.count, 2, "Post-transfer refresh should bypass short-term freshness TTL.")
     }
 
+    func testStaleTransportSnapshotCannotReplaceSelectedConnectDevice() async {
+        let playbackAPI = MockPlaybackAPI()
+        playbackAPI.snapshotResponses = [SpotifyPlayerSnapshot(
+            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+            activeDevice: SpotifyConnectDevice(
+                deviceID: "sdk-device",
+                isActive: true,
+                isRestricted: false,
+                name: "Spotiglass",
+                type: "computer"
+            ),
+            isPlaying: false
+        )]
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: playbackAPI,
+            webCommander: MockWebPlaybackCommander()
+        )
+        viewModel.deviceID = "sdk-device"
+        viewModel.setActivePlaybackDeviceID("sdk-device")
+        viewModel.connectDevices = [SpotifyConnectDevice(
+            deviceID: "living-room",
+            isActive: false,
+            isRestricted: false,
+            name: "Living Room",
+            type: "speaker"
+        )]
+
+        await viewModel.transferPlayback(toConnectDevice: "living-room")
+
+        XCTAssertEqual(viewModel.activePlaybackDeviceID, "living-room")
+    }
+
     func testConnectTransferMakesNextCommandUseSelectedDevice() async {
         let playbackAPI = MockPlaybackAPI()
         playbackAPI.availableDevices = [

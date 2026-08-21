@@ -291,6 +291,31 @@ struct SpotifyConnectDevice: Equatable, Identifiable {
     let name: String
     /// Spotify device type string (e.g. `computer`, `smartphone`, `speaker`).
     let type: String
+    /// Optional percentage reported by Spotify for the device's volume.
+    let volumePercent: Int?
+
+    init(
+        deviceID: String,
+        isActive: Bool,
+        isRestricted: Bool,
+        name: String,
+        type: String,
+        volumePercent: Int? = nil
+    ) {
+        self.deviceID = deviceID
+        self.isActive = isActive
+        self.isRestricted = isRestricted
+        self.name = name
+        self.type = type
+        self.volumePercent = volumePercent
+    }
+
+    /// Maps Spotify's optional 0...100 volume to the Web Playback slider range.
+    /// Invalid server values are kept safe at the application boundary.
+    var volumeFraction: Double? {
+        guard let volumePercent else { return nil }
+        return min(max(Double(volumePercent), 0), 100) / 100
+    }
 
     var id: String { deviceID }
 }

@@ -37,12 +37,14 @@ private struct SpotifyConnectDeviceDTO: Decodable {
     let isRestricted: Bool
     let name: String
     let type: String
+    let volumePercent: Int?
 
     enum CodingKeys: String, CodingKey {
         case id
         case isActive = "is_active"
         case isRestricted = "is_restricted"
         case name, type
+        case volumePercent = "volume_percent"
     }
 
     func domainModel() -> SpotifyConnectDevice {
@@ -51,7 +53,8 @@ private struct SpotifyConnectDeviceDTO: Decodable {
             isActive: isActive,
             isRestricted: isRestricted,
             name: name,
-            type: type
+            type: type,
+            volumePercent: volumePercent
         )
     }
 }

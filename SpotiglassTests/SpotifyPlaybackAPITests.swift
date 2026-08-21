@@ -281,6 +281,85 @@ final class SpotifyPlaybackAPITests: XCTestCase {
         XCTAssertEqual(unwrapped.activeDevice?.name, "MacBook")
     }
 
+    func testFetchPlayerSnapshotDecodesOptionalVolumePercent() async throws {
+        let (api, _, _) = makeAPI([.json("""
+        {
+          "shuffle_state": false,
+          "repeat_state": "off",
+          "is_playing": false,
+          "device": {
+            "id": "d1",
+            "is_active": true,
+            "is_restricted": false,
+            "name": "MacBook",
+            "type": "computer",
+            "volume_percent": 35
+          }
+        }
+        """)])
+
+        let snapshot = try await api.fetchPlayerSnapshot()
+
+        XCTAssertEqual(snapshot?.activeDevice?.volumePercent, 35)
+    }
+
+    func testFetchPlayerSnapshotVolumeMappingIsSafeForOutOfRangeAndMissingValues() async throws {
+        let (api, _, _) = makeAPI([
+            .json("""
+            {
+              "shuffle_state": false,
+              "repeat_state": "off",
+              "is_playing": false,
+              "device": {
+                "id": "d1",
+                "is_active": true,
+                "is_restricted": false,
+                "name": "MacBook",
+                "type": "computer",
+                "volume_percent": 150
+              }
+            }
+            """),
+            .json("""
+            {
+              "shuffle_state": false,
+              "repeat_state": "off",
+              "is_playing": false,
+              "device": {
+                "id": "d1",
+                "is_active": true,
+                "is_restricted": false,
+                "name": "MacBook",
+                "type": "computer"
+              }
+            }
+            """),
+            .json("""
+            {
+              "shuffle_state": false,
+              "repeat_state": "off",
+              "is_playing": false,
+              "device": {
+                "id": "d1",
+                "is_active": true,
+                "is_restricted": false,
+                "name": "MacBook",
+                "type": "computer",
+                "volume_percent": -20
+              }
+            }
+            """)
+        ])
+
+        let clampedHigh = try await api.fetchPlayerSnapshot()
+        let missing = try await api.fetchPlayerSnapshot()
+        let clampedLow = try await api.fetchPlayerSnapshot()
+
+        XCTAssertEqual(try XCTUnwrap(clampedHigh?.activeDevice?.volumeFraction), 1.0, accuracy: 0.000_001)
+        XCTAssertNil(missing?.activeDevice?.volumeFraction)
+        XCTAssertEqual(try XCTUnwrap(clampedLow?.activeDevice?.volumeFraction), 0.0, accuracy: 0.000_001)
+    }
+
     func testFetchPlayerSnapshotUnknownRepeatStateFallsBackToOff() async throws {
         let (api, _, _) = makeAPI([.json("""
         {"shuffle_state": false, "repeat_state": "bogus", "is_playing": false}
