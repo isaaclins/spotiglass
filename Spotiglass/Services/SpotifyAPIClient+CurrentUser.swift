@@ -25,6 +25,11 @@ extension SpotifyAPIClient {
         var offset = 0
         var totalAvailable = 0
         var pagesFetched = 0
+        // Guards against a server that hands back a continuation pointing at a
+        // page already fetched. Seeded with the first page's offset, because
+        // that page is requested by path rather than by continuation URL and a
+        // self-referential `next` would otherwise be followed once.
+        var seenOffsets: Set<Int> = [0]
         var seenNextURLs: Set<String> = []
 
         repeat {
@@ -50,6 +55,12 @@ extension SpotifyAPIClient {
             })
             nextURL = page.next
             if let nextURL {
+                if let nextOffset = Self.offset(from: nextURL) {
+                    if seenOffsets.contains(nextOffset) {
+                        break
+                    }
+                    seenOffsets.insert(nextOffset)
+                }
                 let key = nextURL.absoluteString
                 if seenNextURLs.contains(key) {
                     break
@@ -64,5 +75,15 @@ extension SpotifyAPIClient {
         } while nextURL != nil
 
         return SpotifySavedTracksResult(tracks: results, totalAvailable: totalAvailable)
+    }
+}
+
+private extension SpotifyAPIClient {
+    static func offset(from url: URL) -> Int? {
+        guard let queryItems = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems,
+              let offsetValue = queryItems.first(where: { $0.name == "offset" })?.value else {
+            return nil
+        }
+        return Int(offsetValue)
     }
 }

@@ -132,27 +132,31 @@ extension SpotifyAPIClient {
         return out
     }
 
+    /// Deduplicates removals and orders every position from the end of the
+    /// playlist backwards.
+    ///
+    /// Ordering is not cosmetic. A removal larger than one batch is sent as
+    /// several requests, and each request shifts every position after the ones
+    /// it deleted. Descending order means a batch only ever removes positions
+    /// later than the ones still queued, so the remaining positions stay valid
+    /// against the snapshot returned by the previous batch. Ascending order
+    /// would make every batch after the first delete the wrong occurrences,
+    /// which is the exact failure this endpoint change exists to prevent.
     private func normalisedTrackRemovals(_ removals: [SpotifyPlaylistTrackRemoval]) -> [SpotifyPlaylistTrackRemoval] {
-        var order: [String] = []
-        var positionsByURI: [String: [Int]] = [:]
+        var positionsByURI: [String: Set<Int>] = [:]
         for removal in removals {
             let uri = removal.uri.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !uri.isEmpty else { continue }
-            let positions = removal.positions.filter { $0 >= 0 }
-            guard !positions.isEmpty else { continue }
-            if positionsByURI[uri] == nil {
-                order.append(uri)
+            for position in removal.positions where position >= 0 {
+                positionsByURI[uri, default: []].insert(position)
             }
-            var existing = positionsByURI[uri, default: []]
-            for position in positions where !existing.contains(position) {
-                existing.append(position)
-            }
-            positionsByURI[uri] = existing
         }
-        return order.compactMap { uri in
-            guard let positions = positionsByURI[uri], !positions.isEmpty else { return nil }
-            return SpotifyPlaylistTrackRemoval(uri: uri, positions: positions)
-        }
+
+        let descendingPairs = positionsByURI
+            .flatMap { uri, positions in positions.map { (uri: uri, position: $0) } }
+            .sorted { $0.position > $1.position }
+
+        return descendingPairs.map { SpotifyPlaylistTrackRemoval(uri: $0.uri, positions: [$0.position]) }
     }
 
     private func orderedURIs(_ uris: [String]) -> [String] {
@@ -260,32 +264,41 @@ private struct SpotifyPlaylistMutationResponse: Decodable {
 }
 
 private extension Array where Element == SpotifyPlaylistTrackRemoval {
+    /// Splits a position-descending list into requests of at most `maximum`
+    /// positions, merging entries that share a URI inside a single request.
+    /// Merging is safe within one request because Spotify applies it against a
+    /// single snapshot; merging across requests is not, so batch boundaries
+    /// always follow the descending order.
     func chunkedByPositionCount(maximum: Int) -> [[Element]] {
         guard maximum > 0 else { return [self] }
         var batches: [[Element]] = []
         var current: [Element] = []
         var currentPositionCount = 0
 
+        func flush() {
+            guard !current.isEmpty else { return }
+            batches.append(current)
+            current = []
+            currentPositionCount = 0
+        }
+
         for removal in self {
-            var remaining = removal.positions
-            while !remaining.isEmpty {
-                let capacity = maximum - currentPositionCount
-                if capacity == 0 {
-                    batches.append(current)
-                    current = []
-                    currentPositionCount = 0
-                    continue
+            for position in removal.positions {
+                if currentPositionCount == maximum {
+                    flush()
                 }
-                let count = Swift.min(capacity, remaining.count)
-                let positions = [Int](remaining.prefix(count))
-                current.append(SpotifyPlaylistTrackRemoval(uri: removal.uri, positions: positions))
-                currentPositionCount += count
-                remaining.removeFirst(count)
+                if let index = current.firstIndex(where: { $0.uri == removal.uri }) {
+                    current[index] = SpotifyPlaylistTrackRemoval(
+                        uri: removal.uri,
+                        positions: current[index].positions + [position]
+                    )
+                } else {
+                    current.append(SpotifyPlaylistTrackRemoval(uri: removal.uri, positions: [position]))
+                }
+                currentPositionCount += 1
             }
         }
-        if !current.isEmpty {
-            batches.append(current)
-        }
+        flush()
         return batches
     }
 }

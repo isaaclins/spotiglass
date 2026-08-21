@@ -73,13 +73,21 @@ final class SpotifyAPIClientPlaylistSummaryDecodingTests: XCTestCase {
         let firstBody = try XCTUnwrap(httpClient.requests[0].httpBody)
         let firstObject = try XCTUnwrap(JSONSerialization.jsonObject(with: firstBody) as? [String: Any])
         let firstItems = try XCTUnwrap(firstObject["items"] as? [[String: Any]])
-        XCTAssertEqual(firstItems.compactMap { $0["uri"] as? String }, Array((0..<100).map { "spotify:track:track-\($0)" }))
-        XCTAssertEqual(firstItems.compactMap { $0["positions"] as? [Int] }, Array((0..<100).map { [$0] }))
+        // Batches run from the end of the playlist backwards so that deleting
+        // one batch cannot shift the positions still queued in the next one.
+        XCTAssertEqual(
+            firstItems.compactMap { $0["uri"] as? String },
+            (1...100).reversed().map { "spotify:track:track-\($0)" }
+        )
+        XCTAssertEqual(
+            firstItems.compactMap { $0["positions"] as? [Int] },
+            (1...100).reversed().map { [$0] }
+        )
         let secondBody = try XCTUnwrap(httpClient.requests[1].httpBody)
         let secondObject = try XCTUnwrap(JSONSerialization.jsonObject(with: secondBody) as? [String: Any])
         let secondItems = try XCTUnwrap(secondObject["items"] as? [[String: Any]])
-        XCTAssertEqual(secondItems.compactMap { $0["uri"] as? String }, ["spotify:track:track-100"])
-        XCTAssertEqual(secondItems.compactMap { $0["positions"] as? [Int] }, [[100]])
+        XCTAssertEqual(secondItems.compactMap { $0["uri"] as? String }, ["spotify:track:track-0"])
+        XCTAssertEqual(secondItems.compactMap { $0["positions"] as? [Int] }, [[0]])
     }
 
     func testAddTracksToPlaylistPreservesDuplicateOccurrences() async throws {
@@ -120,9 +128,12 @@ final class SpotifyAPIClientPlaylistSummaryDecodingTests: XCTestCase {
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
         let items = try XCTUnwrap(object["items"] as? [[String: Any]])
         XCTAssertEqual(items.count, 2)
-        XCTAssertEqual(items[0]["uri"] as? String, "spotify:track:duplicate")
-        XCTAssertEqual(items[0]["positions"] as? [Int], [0, 2])
-        XCTAssertEqual(items[1]["positions"] as? [Int], [4])
+        // Highest position first, and the duplicate's two slots merge into one
+        // entry because a single request is applied against a single snapshot.
+        XCTAssertEqual(items[0]["uri"] as? String, "spotify:track:other")
+        XCTAssertEqual(items[0]["positions"] as? [Int], [4])
+        XCTAssertEqual(items[1]["uri"] as? String, "spotify:track:duplicate")
+        XCTAssertEqual(items[1]["positions"] as? [Int], [2, 0])
         XCTAssertEqual(object["snapshot_id"] as? String, "snapshot-1")
     }
 
