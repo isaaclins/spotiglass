@@ -43,16 +43,21 @@ struct SpotifyTokenClient {
     private let httpClient: HTTPClient
     private let now: () -> Date
     private let random: (ClosedRange<Double>) -> Double
+    private let sleep: @Sendable (TimeInterval) async throws -> Void
     private let tokenEndpoint = URL(string: "https://accounts.spotify.com/api/token")!
 
     init(
         httpClient: HTTPClient = URLSession.shared,
         now: @escaping () -> Date = Date.init,
-        random: @escaping (ClosedRange<Double>) -> Double = { Double.random(in: $0) }
+        random: @escaping (ClosedRange<Double>) -> Double = { Double.random(in: $0) },
+        sleep: @escaping @Sendable (TimeInterval) async throws -> Void = { delay in
+            try await Task.sleep(for: .seconds(delay))
+        }
     ) {
         self.httpClient = httpClient
         self.now = now
         self.random = random
+        self.sleep = sleep
     }
 
     func exchangeAuthorizationCode(
@@ -94,7 +99,7 @@ struct SpotifyTokenClient {
                 response.statusCode,
                 error?.errorDescription ?? error?.error,
                 error?.error,
-                Self.retryAfter(from: response.allHeaderFields)
+                Self.retryAfter(from: response.allHeaderFields, now: now())
             )
         }
 
@@ -120,7 +125,7 @@ struct SpotifyTokenClient {
                     throw error
                 }
                 let delay = retryDelay(forAttempt: attempt, error: error)
-                try await Task.sleep(for: .seconds(delay))
+                try await sleep(delay)
             }
         }
     }
@@ -152,12 +157,12 @@ struct SpotifyTokenClient {
            case let .httpError(status, _, _, retryAfter) = tokenError,
            status == 429,
            let retryAfter {
-            return min(max(jitterDelay, retryAfter), 30)
+            return max(jitterDelay, retryAfter)
         }
         return jitterDelay
     }
 
-    private static func retryAfter(from headers: [AnyHashable: Any]) -> TimeInterval? {
+    private static func retryAfter(from headers: [AnyHashable: Any], now: Date) -> TimeInterval? {
         guard let raw = headers.first(where: {
             String(describing: $0.key).caseInsensitiveCompare("Retry-After") == .orderedSame
         })?.value as? String else {
@@ -173,11 +178,11 @@ struct SpotifyTokenClient {
         formatter.timeZone = TimeZone(secondsFromGMT: 0)
         formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
         if let date = formatter.date(from: trimmed) {
-            return max(0, date.timeIntervalSinceNow)
+            return max(0, date.timeIntervalSince(now))
         }
         formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss 'GMT'"
         if let date = formatter.date(from: trimmed) {
-            return max(0, date.timeIntervalSinceNow)
+            return max(0, date.timeIntervalSince(now))
         }
         return nil
     }

@@ -53,9 +53,70 @@ final class SpotifyTokenClientCoverageTests: XCTestCase {
             }
             """, statusCode: 200)
         ])
-        let client = SpotifyTokenClient(httpClient: httpClient, now: { now }, random: { _ in 0 })
+        let client = SpotifyTokenClient(
+            httpClient: httpClient,
+            now: { now },
+            random: { _ in 0 },
+            sleep: { _ in }
+        )
         let grant = try await client.refreshAccessToken(clientID: "id", refreshToken: "rt")
         XCTAssertEqual(grant.accessToken, "after-429")
+        XCTAssertEqual(httpClient.requestCount, 2)
+    }
+
+    func testRefresh429WithLongRetryAfterDoesNotScheduleEarlyRetry() async throws {
+        let httpClient = SequencedTokenHTTPClientForCoverage([
+            .json(#"{"error":"rate_limited"}"#, statusCode: 429, headers: ["Retry-After": "120"]),
+            .json("""
+            {
+              "access_token": "after-long-429",
+              "token_type": "Bearer",
+              "expires_in": 120
+            }
+            """, statusCode: 200)
+        ])
+        let delays = RetryDelayRecorder()
+        let client = SpotifyTokenClient(
+            httpClient: httpClient,
+            random: { _ in 0 },
+            sleep: { delay in await delays.record(delay) }
+        )
+
+        let grant = try await client.refreshAccessToken(clientID: "id", refreshToken: "rt")
+        let recordedDelays = await delays.values
+        XCTAssertEqual(grant.accessToken, "after-long-429")
+        XCTAssertEqual(recordedDelays, [120])
+        XCTAssertEqual(httpClient.requestCount, 2)
+    }
+
+    func testRefresh429WithHTTPDateRetryAfterDoesNotScheduleEarlyRetry() async throws {
+        let now = Date(timeIntervalSince1970: 1_000_000_000)
+        let httpClient = SequencedTokenHTTPClientForCoverage([
+            .json(
+                #"{"error":"rate_limited"}"#,
+                statusCode: 429,
+                headers: ["Retry-After": "Sun, 09 Sep 2001 01:48:40 GMT"]
+            ),
+            .json("""
+            {
+              "access_token": "after-date-429",
+              "token_type": "Bearer",
+              "expires_in": 120
+            }
+            """, statusCode: 200)
+        ])
+        let delays = RetryDelayRecorder()
+        let client = SpotifyTokenClient(
+            httpClient: httpClient,
+            now: { now },
+            random: { _ in 0 },
+            sleep: { delay in await delays.record(delay) }
+        )
+
+        let grant = try await client.refreshAccessToken(clientID: "id", refreshToken: "rt")
+        let recordedDelays = await delays.values
+        XCTAssertEqual(grant.accessToken, "after-date-429")
+        XCTAssertEqual(recordedDelays, [120])
         XCTAssertEqual(httpClient.requestCount, 2)
     }
 
@@ -119,6 +180,14 @@ final class SpotifyTokenClientCoverageTests: XCTestCase {
         let session = grant.authenticatedSession
         XCTAssertEqual(session.accessToken, "a")
         XCTAssertEqual(session.scope, "streaming")
+    }
+}
+
+private actor RetryDelayRecorder {
+    private(set) var values: [TimeInterval] = []
+
+    func record(_ delay: TimeInterval) {
+        values.append(delay)
     }
 }
 
