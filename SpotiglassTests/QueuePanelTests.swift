@@ -894,6 +894,13 @@ final class QueuePanelTests: XCTestCase {
         let api = QueueTestPlaybackAPI()
         let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: StubWebPlaybackCommander())
         playback.handle(.ready(deviceID: "device-1"))
+        // `.ready` schedules a transport sync that can mark the device as
+        // already transferred. Whether it wins the race against the play below
+        // is scheduler-dependent, and it decided this test on CI once. State
+        // the precondition instead: nothing has been transferred yet, so
+        // playing must transfer first and then play.
+        await Task.yield()
+        playback.hasTransferredPlaybackToCurrentDevice = false
         let queue = QueueViewModel(playbackAPI: api, playbackSession: playback)
         let item = QueueItem.from(track: SpotifyTrack(
             id: "t",
