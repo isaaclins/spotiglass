@@ -85,7 +85,12 @@ struct PlaylistBrowserView: View {
         viewModel.breadcrumbPath.last?.label ?? AppMetadata.displayName
     }
 
-    var body: some View {
+    // The browser body is split into sequential stages on purpose. As one
+    // expression the modifier chain exceeded the Swift type-checker's budget on
+    // CI's toolchain ("unable to type-check this expression in reasonable
+    // time"). Each stage is type-checked independently, so keep new modifiers
+    // grouped into the stage they belong to instead of extending one chain.
+    private var browserSplitLayout: some View {
         VStack(spacing: 0) {
             NavigationSplitView(columnVisibility: $playlistColumnVisibility) {
                 PlaylistBrowserSidebar(
@@ -144,6 +149,10 @@ struct PlaylistBrowserView: View {
                 }
             )
         }
+    }
+
+    private var browserChrome: some View {
+        browserSplitLayout
         .animation(.easeOut(duration: 0.22), value: lyricsOverlay.isPresented)
         .animation(.easeOut(duration: 0.2), value: viewModel.canNavigateBack)
         .onGeometryChange(for: CGFloat.self, of: \.size.width) { _, newWidth in
@@ -247,6 +256,10 @@ struct PlaylistBrowserView: View {
         } message: {
             Text(SpotiglassL10n.string("browser.disconnect.confirm.message"))
         }
+    }
+
+    private var browserLifecycle: some View {
+        browserChrome
         .task {
             await viewModel.loadIfNeeded()
         }
@@ -287,6 +300,10 @@ struct PlaylistBrowserView: View {
             commandPaletteManager.dismissLyricsOverlayIfPresented = nil
             lyricsOverlay.detach()
         }
+    }
+
+    private var browserCommandBindings: some View {
+        browserLifecycle
         .onChange(of: viewModel.sidebarSelection) { _, _ in
             bindCommandPalette(queueVisible: $isQueueVisible, lyricsPresented: isLyricsPresentedBinding)
         }
@@ -319,6 +336,10 @@ struct PlaylistBrowserView: View {
             syncLibraryRowOrder()
             bindCommandPalette(queueVisible: $isQueueVisible, lyricsPresented: isLyricsPresentedBinding)
         }
+    }
+
+    var body: some View {
+        browserCommandBindings
         .onChange(of: isQueueVisible) { _, visible in
             queueViewModel.setPanelVisible(visible)
             browserContentWidth = browserWidthSampler.latestWidth
