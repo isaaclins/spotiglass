@@ -43,6 +43,28 @@ final class QueueViewModelEnqueueCoverageTests: XCTestCase {
         XCTAssertNil(queue.lastError)
     }
 
+    func testPlayItemWithBlankURIValuesNoOps() async {
+        let api = MockPlaybackAPI()
+        let commander = MockWebPlaybackCommander()
+        let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: commander)
+        playback.handle(.ready(deviceID: "device-1"))
+        let queue = QueueViewModel(playbackAPI: api, playbackSession: playback)
+
+        for uri in ["", " \n\t"] {
+            let item = QueueItem(
+                name: "Display only",
+                subtitle: "",
+                albumArtURL: nil,
+                durationMilliseconds: 0,
+                uri: uri
+            )
+            await queue.playItem(item)
+        }
+
+        XCTAssertTrue(commander.commands.isEmpty)
+        XCTAssertFalse(api.actions.contains(where: { $0.hasPrefix("play:") }))
+    }
+
     func testPlayItemWithoutURINoOps() async {
         let api = MockPlaybackAPI()
         let commander = MockWebPlaybackCommander()

@@ -105,23 +105,8 @@ private struct SpotifyQueueResponseDTO: Decodable {
     }
 
     func domainModel() -> SpotifyQueueResponse {
-        let currentItem = currentlyPlaying?.domainModel
-        let currentURI = currentItem.flatMap(Self.uri(for:))
         let queued = queue.compactMap(\.domainModel)
-        let filteredQueue: [SpotifyQueueTrackItem]
-        if let currentURI {
-            filteredQueue = queued.filter { Self.uri(for: $0) != currentURI }
-        } else {
-            filteredQueue = queued
-        }
-        return SpotifyQueueResponse(queue: filteredQueue)
-    }
-
-    private static func uri(for item: SpotifyQueueTrackItem) -> String {
-        switch item {
-        case let .track(t): t.uri
-        case let .episode(e): e.uri
-        }
+        return SpotifyQueueResponse(queue: queued)
     }
 }
 

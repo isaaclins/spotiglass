@@ -228,6 +228,29 @@ final class PlaybackChromeViewsTests: XCTestCase {
         )
     }
 
+    func testQueuePanelOmitsPlayAndCopyActionsForURIlessRows() throws {
+        let api = MockPlaybackAPI()
+        let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: MockWebPlaybackCommander())
+        let queue = QueueViewModel(playbackAPI: api, playbackSession: playback)
+        queue.nowPlayingItem = QueueItem(
+            name: "Display only",
+            subtitle: "Unavailable",
+            albumArtURL: nil,
+            durationMilliseconds: 0,
+            uri: " \n\t"
+        )
+
+        let view = QueuePanelView(
+            queueViewModel: queue,
+            playbackViewModel: playback,
+            openArtist: { _ in }
+        )
+        ViewTestHost.host(view, size: CGSize(width: 420, height: 640))
+
+        XCTAssertThrowsError(try view.inspect().find(button: "Play Now"))
+        XCTAssertThrowsError(try view.inspect().find(button: "Copy URI"))
+    }
+
     func testQueuePanelPopulatedNowPlayingAndUpNext() async throws {
         let api = MockPlaybackAPI()
         let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: MockWebPlaybackCommander())

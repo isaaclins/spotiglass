@@ -109,8 +109,8 @@ struct QueuePanelView: View {
         .listStyle(.inset)
         .onKeyPress(.return) {
             guard let selectedItemID,
-                let item = queueViewModel.upcomingItems.first(where: { $0.id == selectedItemID })
-                    ?? queueViewModel.nowPlayingItem.flatMap({ $0.id == selectedItemID ? $0 : nil })
+                let item = queueViewModel.item(forSelectionID: selectedItemID),
+                item.playableURI != nil
             else { return .ignored }
             Task { await queueViewModel.playItem(item) }
             return .handled
@@ -193,7 +193,7 @@ struct QueuePanelView: View {
     }
 
     private func copyURI(_ uri: String?) {
-        guard let uri else { return }
+        guard let uri = SpotifyPlayableURI.canonical(uri) else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(uri, forType: .string)
     }
@@ -237,10 +237,14 @@ private struct QueueRowView: View {
         .contentShape(Rectangle())
         // Single click selects, the way a Mac list row does; playing is the
         // double click, Return on the selection, or the VoiceOver action below.
-        .onTapGesture(count: 2, perform: onSelect)
+        .modifier(QueueRowPlayInteractionModifier(
+            isPlayable: item.playableURI != nil,
+            action: onSelect,
+            accessibilityLabel: SpotiglassL10n.string("queue.playNow")
+        ))
         .contextMenu {
-            Button(SpotiglassL10n.string("queue.playNow"), action: onSelect)
-            if item.uri != nil {
+            if item.playableURI != nil {
+                Button(SpotiglassL10n.string("queue.playNow"), action: onSelect)
                 Button(SpotiglassL10n.string("queue.copyURI"), action: onCopyURI)
             }
         }
@@ -248,11 +252,7 @@ private struct QueueRowView: View {
         .accessibilityLabel(
             String(format: SpotiglassL10n.string("queue.item.accessibility"), item.name, item.subtitle)
         )
-        // The row announces its length and offers the play action directly, so a
-        // VoiceOver user does not have to find the context menu to start a track.
         .accessibilityValue(item.durationLabel)
-        .accessibilityAddTraits(.isButton)
-        .accessibilityAction(named: Text(SpotiglassL10n.string("queue.playNow")), onSelect)
     }
 
     @ViewBuilder
@@ -294,5 +294,23 @@ private struct QueueRowView: View {
     /// de-emphasizes when the panel is not the focused control.
     private var rowBackground: Color {
         isCurrent ? Color.primary.opacity(TrackRowMetrics.currentTintOpacity) : Color.clear
+    }
+}
+
+private struct QueueRowPlayInteractionModifier: ViewModifier {
+    let isPlayable: Bool
+    let action: () -> Void
+    let accessibilityLabel: String
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if isPlayable {
+            content
+                .onTapGesture(count: 2, perform: action)
+                .accessibilityAddTraits(.isButton)
+                .accessibilityAction(named: Text(accessibilityLabel), action)
+        } else {
+            content
+        }
     }
 }

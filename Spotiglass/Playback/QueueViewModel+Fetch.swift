@@ -26,32 +26,47 @@ extension QueueViewModel {
 
             isRefreshInFlight = true
             isLoading = true
+            let requestGeneration = queueSessionGeneration
             var queueChanged = false
+            var responseApplied = false
             do {
                 let fetchedQueue = try await playbackAPI.fetchQueue()
-                queueChanged = lastFetchedQueue != fetchedQueue
-                lastFetchedQueue = fetchedQueue
-                lastError = nil
-                queueCooldownUntil = nil
-            } catch {
-                if let apiError = error as? SpotifyAPIError,
-                   case let .rateLimited(retryAfter) = apiError {
-                    let fallback = max(1, min(defaultRateLimitCooldownSeconds, maxRateLimitCooldownSeconds))
-                    let effectiveRetry = min(max(retryAfter ?? fallback, 1), maxRateLimitCooldownSeconds)
-                    queueCooldownUntil = Date().addingTimeInterval(effectiveRetry)
+                if requestGeneration != queueSessionGeneration {
+                    // A disconnect or unavailable transition invalidated this
+                    // request. Do not let its response become the next session's queue.
+                } else if isQueueSessionBoundary {
+                    clearQueueSessionProjection()
+                } else {
+                    queueChanged = lastFetchedQueue != fetchedQueue
+                    lastFetchedQueue = fetchedQueue
+                    lastError = nil
+                    queueCooldownUntil = nil
+                    responseApplied = true
                 }
-                // A queue refresh that is superseded by a newer one (e.g. the
-                // poll task is restarted because the user paused/unpaused) shows
-                // up here as a CancellationError or URLError.cancelled. Those
-                // are not real failures from the user's perspective, so don't
-                // surface them as a "Queue update failed" banner.
-                if let mapped = Self.displayError(for: error) {
-                    lastError = mapped
+            } catch {
+                if requestGeneration == queueSessionGeneration, !isQueueSessionBoundary {
+                    if let apiError = error as? SpotifyAPIError,
+                       case let .rateLimited(retryAfter) = apiError {
+                        let fallback = max(1, min(defaultRateLimitCooldownSeconds, maxRateLimitCooldownSeconds))
+                        let effectiveRetry = min(max(retryAfter ?? fallback, 1), maxRateLimitCooldownSeconds)
+                        queueCooldownUntil = Date().addingTimeInterval(effectiveRetry)
+                    }
+                    // A queue refresh that is superseded by a newer one (e.g. the
+                    // poll task is restarted because the user paused/unpaused) shows
+                    // up here as a CancellationError or URLError.cancelled. Those
+                    // are not real failures from the user's perspective, so don't
+                    // surface them as a "Queue update failed" banner.
+                    if let mapped = Self.displayError(for: error) {
+                        lastError = mapped
+                    }
+                    responseApplied = true
                 }
             }
             isLoading = false
             isRefreshInFlight = false
-            clearOptimisticProjectionIfReconciled()
+            if responseApplied {
+                clearOptimisticProjectionIfReconciled()
+            }
             publishMergedState()
 
             if trigger == .poll {
@@ -127,6 +142,7 @@ extension QueueViewModel {
     }
 
     private func shouldAllowQueueRequest(allowsHiddenPanel: Bool) -> Bool {
+        guard !isQueueSessionBoundary else { return false }
         guard isAppActive else { return false }
         if allowsHiddenPanel {
             return shouldPoll
@@ -166,22 +182,32 @@ extension QueueViewModel {
     }
 
     func publishMergedState() {
+        if isQueueSessionBoundary {
+            clearQueueSessionProjection()
+            return
+        }
+        queueSessionBoundaryActive = false
         nowPlayingItem = Self.nowPlayingQueueItem(from: playbackSession.connectionState)
-        let nowPlayingURI = nowPlayingItem?.uri
-        let sdkNext = playbackSession.sdkNextTracks
+        let sdkProjection = Self.sdkUpcomingItems(
+            from: playbackSession.sdkNextTracks,
+            limit: maxUpcomingItems
+        )
         let rawUpcoming: [QueueItem]
         if let optimisticUpcomingItems {
-            rawUpcoming = Self.removingDuplicateNowPlaying(from: optimisticUpcomingItems, nowPlayingURI: nowPlayingURI)
+            rawUpcoming = optimisticUpcomingItems
         } else if let api = lastFetchedQueue {
-            let merged = Self.mergedUpcoming(apiResponse: api, sdkNext: sdkNext, limit: maxUpcomingItems)
-            let deduped = Self.removingDuplicateNowPlaying(from: merged, nowPlayingURI: nowPlayingURI)
-            if Self.shouldPreferSDKProjection(apiUpcoming: deduped, sdkNext: sdkNext, nowPlayingURI: nowPlayingURI) {
-                rawUpcoming = Self.sdkUpcomingItems(from: sdkNext, limit: maxUpcomingItems)
+            let apiProjection = Self.mergedUpcoming(
+                apiResponse: api,
+                sdkNext: playbackSession.sdkNextTracks,
+                limit: maxUpcomingItems
+            )
+            if Self.shouldPreferSDKProjection(apiUpcoming: apiProjection, sdkUpcoming: sdkProjection) {
+                rawUpcoming = sdkProjection
             } else {
-                rawUpcoming = deduped
+                rawUpcoming = apiProjection
             }
         } else {
-            rawUpcoming = Self.sdkUpcomingItems(from: sdkNext, limit: maxUpcomingItems)
+            rawUpcoming = sdkProjection
         }
         upcomingItems = Self.applyRepeatOneGate(rawUpcoming, repeatMode: playbackSession.repeatMode)
     }
@@ -200,19 +226,24 @@ extension QueueViewModel {
             optimisticUpcomingItems = nil
             return
         }
-        let nowPlayingURI = nowPlayingItem?.uri
-        let sdkNext = playbackSession.sdkNextTracks
+        let sdkProjection = Self.sdkUpcomingItems(
+            from: playbackSession.sdkNextTracks,
+            limit: maxUpcomingItems
+        )
         let candidateRaw: [QueueItem]
         if let api = lastFetchedQueue {
-            let merged = Self.mergedUpcoming(apiResponse: api, sdkNext: sdkNext, limit: maxUpcomingItems)
-            let deduped = Self.removingDuplicateNowPlaying(from: merged, nowPlayingURI: nowPlayingURI)
-            if Self.shouldPreferSDKProjection(apiUpcoming: deduped, sdkNext: sdkNext, nowPlayingURI: nowPlayingURI) {
-                candidateRaw = Self.sdkUpcomingItems(from: sdkNext, limit: maxUpcomingItems)
+            let apiProjection = Self.mergedUpcoming(
+                apiResponse: api,
+                sdkNext: playbackSession.sdkNextTracks,
+                limit: maxUpcomingItems
+            )
+            if Self.shouldPreferSDKProjection(apiUpcoming: apiProjection, sdkUpcoming: sdkProjection) {
+                candidateRaw = sdkProjection
             } else {
-                candidateRaw = deduped
+                candidateRaw = apiProjection
             }
         } else {
-            candidateRaw = Self.sdkUpcomingItems(from: sdkNext, limit: maxUpcomingItems)
+            candidateRaw = sdkProjection
         }
         let candidate = Self.applyRepeatOneGate(candidateRaw, repeatMode: playbackSession.repeatMode)
         if candidate.map(\.id) == targetIDs {
@@ -235,7 +266,9 @@ extension QueueViewModel {
     }
 
     private static func sdkUpcomingItems(from sdkNext: [PlaybackNowPlaying], limit: Int) -> [QueueItem] {
-        Array(sdkNext.map { QueueItem.from(playback: $0) }.prefix(limit))
+        sdkNext.prefix(limit).enumerated().map { index, item in
+            QueueItem.from(playback: item, id: "queue:sdk:occurrence:\(index)")
+        }
     }
 
     private static func nowPlayingQueueItem(from state: PlaybackConnectionState) -> QueueItem? {
@@ -249,45 +282,29 @@ extension QueueViewModel {
             np = nil
         }
         guard let np else { return nil }
-        return QueueItem.from(playback: np)
+        let identity = np.uri.map { "now-playing:\($0)" } ?? "now-playing"
+        return QueueItem.from(playback: np, id: identity)
     }
 
     private static func mergedUpcoming(apiResponse: SpotifyQueueResponse, sdkNext: [PlaybackNowPlaying], limit: Int) -> [QueueItem] {
         let apiQueue = apiResponse.queue
         guard !apiQueue.isEmpty else {
-            return Array(sdkNext.map { QueueItem.from(playback: $0) }.prefix(limit))
+            return sdkUpcomingItems(from: sdkNext, limit: limit)
         }
-        var result: [QueueItem] = []
-        for item in apiQueue where result.count < limit {
-            result.append(QueueItem.from(queueItem: item))
+        return apiQueue.prefix(limit).enumerated().map { index, item in
+            QueueItem.from(queueItem: item, id: "queue:rest:occurrence:\(index)")
         }
-        return result
     }
 
     /// During skip/track-advance transitions, API queue snapshots can lag
-    /// behind SDK `next_tracks`; prefer SDK ordering when the heads diverge or
-    /// when API still includes now-playing as "up next".
+    /// behind SDK `next_tracks`; prefer SDK ordering when the heads diverge.
     private static func shouldPreferSDKProjection(
         apiUpcoming: [QueueItem],
-        sdkNext: [PlaybackNowPlaying],
-        nowPlayingURI: String?
+        sdkUpcoming: [QueueItem]
     ) -> Bool {
-        guard !sdkNext.isEmpty else { return false }
+        guard !sdkUpcoming.isEmpty else { return false }
         if apiUpcoming.isEmpty { return true }
-        let apiFirst = apiUpcoming.first?.uri
-        let sdkFirst = sdkNext.first?.uri
-        if apiFirst != sdkFirst {
-            return true
-        }
-        if let nowPlayingURI, apiUpcoming.contains(where: { $0.uri == nowPlayingURI }) {
-            return true
-        }
-        return false
-    }
-
-    private static func removingDuplicateNowPlaying(from items: [QueueItem], nowPlayingURI: String?) -> [QueueItem] {
-        guard let nowPlayingURI else { return items }
-        return items.filter { $0.uri != nowPlayingURI }
+        return apiUpcoming.first?.uri != sdkUpcoming.first?.uri
     }
 
     static func shuffledDeterministically(_ items: [QueueItem]) -> [QueueItem] {

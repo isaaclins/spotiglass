@@ -128,6 +128,14 @@ struct AlbumTapTarget: Equatable {
     let name: String
 }
 
+enum SpotifyPlayableURI {
+    static func canonical(_ uri: String?) -> String? {
+        guard let uri else { return nil }
+        let trimmed = uri.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
 struct QueueItem: Identifiable, Equatable {
     let id: String
     let name: String
@@ -151,7 +159,7 @@ struct QueueItem: Identifiable, Equatable {
         uri: String?,
         artistTapTargets: [ArtistTapTarget] = []
     ) {
-        self.id = id ?? uri ?? UUID().uuidString
+        self.id = id ?? UUID().uuidString
         self.name = name
         self.subtitle = subtitle
         self.albumArtURL = albumArtURL
@@ -164,8 +172,15 @@ struct QueueItem: Identifiable, Equatable {
 }
 
 extension QueueItem {
-    static func from(track: SpotifyTrack) -> QueueItem {
+    /// Returns the canonical URI used by playback gestures, or nil for a
+    /// missing, empty, or whitespace-only URI.
+    var playableURI: String? {
+        SpotifyPlayableURI.canonical(uri)
+    }
+
+    static func from(track: SpotifyTrack, id: String? = nil) -> QueueItem {
         QueueItem(
+            id: id,
             name: track.name,
             subtitle: track.artists.joined(separator: ", "),
             albumArtURL: track.albumArtworkURL,
@@ -177,8 +192,9 @@ extension QueueItem {
         )
     }
 
-    static func from(episode: SpotifyEpisode) -> QueueItem {
+    static func from(episode: SpotifyEpisode, id: String? = nil) -> QueueItem {
         QueueItem(
+            id: id,
             name: episode.name,
             subtitle: episode.showName ?? SpotiglassL10n.string("playback.queue.episodeFallback"),
             albumArtURL: episode.artworkURL,
@@ -187,17 +203,18 @@ extension QueueItem {
         )
     }
 
-    static func from(queueItem: SpotifyQueueTrackItem) -> QueueItem {
+    static func from(queueItem: SpotifyQueueTrackItem, id: String? = nil) -> QueueItem {
         switch queueItem {
         case let .track(track):
-            .from(track: track)
+            .from(track: track, id: id)
         case let .episode(episode):
-            .from(episode: episode)
+            .from(episode: episode, id: id)
         }
     }
 
-    static func from(playback: PlaybackNowPlaying) -> QueueItem {
+    static func from(playback: PlaybackNowPlaying, id: String? = nil) -> QueueItem {
         QueueItem(
+            id: id,
             name: playback.name,
             subtitle: playback.artistText,
             albumArtURL: playback.albumArtURL,

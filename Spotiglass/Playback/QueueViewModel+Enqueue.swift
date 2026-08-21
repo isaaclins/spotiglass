@@ -2,7 +2,7 @@ import Foundation
 
 extension QueueViewModel {
     func playItem(_ item: QueueItem) async {
-        guard let uri = item.uri else { return }
+        guard let uri = item.playableURI else { return }
         await playbackSession.play(uri: uri)
     }
 

@@ -73,6 +73,39 @@ final class SpotifyPlaybackModelsTests: XCTestCase {
         XCTAssertEqual(fromPlayback.artistTapTargets.count, 1)
     }
 
+    func testQueueItemOccurrencesUseIndependentIdentities() {
+        let track = PlaylistBrowsingTestFixtures.fallbackTrack(id: "duplicate", name: "Duplicate", artistId: "artist")
+
+        let first = QueueItem.from(track: track)
+        let second = QueueItem.from(track: track)
+
+        XCTAssertNotEqual(first.id, second.id)
+        XCTAssertNotEqual(first.id, track.uri)
+        XCTAssertNotEqual(second.id, track.uri)
+    }
+
+    func testQueueItemPlayableURIRejectsBlankValuesAndTrimsValidValues() {
+        for uri in [nil, "", " \n\t"] as [String?] {
+            let item = QueueItem(
+                name: "Display only",
+                subtitle: "",
+                albumArtURL: nil,
+                durationMilliseconds: 0,
+                uri: uri
+            )
+            XCTAssertNil(item.playableURI)
+        }
+
+        let item = QueueItem(
+            name: "Playable",
+            subtitle: "",
+            albumArtURL: nil,
+            durationMilliseconds: 1,
+            uri: "  spotify:track:playable  "
+        )
+        XCTAssertEqual(item.playableURI, "spotify:track:playable")
+    }
+
     func testQueueItemLyricsPrefetchRequiresTrackURI() {
         let trackItem = QueueItem(
             name: "T",

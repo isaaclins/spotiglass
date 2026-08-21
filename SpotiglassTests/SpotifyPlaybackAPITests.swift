@@ -153,46 +153,71 @@ final class SpotifyPlaybackAPITests: XCTestCase {
 
     // MARK: - GET endpoints
 
-    func testFetchQueueDecodesTracksAndFiltersCurrentlyPlaying() async throws {
-        let (api, _, _) = makeAPI([.json("""
-        {
-          "currently_playing": {
-            "id": "cur",
-            "name": "Now",
-            "artists": [{"id":"a1","name":"A"}],
-            "duration_ms": 100,
-            "explicit": false,
-            "uri": "spotify:track:cur"
-          },
-          "queue": [
+    func testFetchQueuePreservesCurrentURIQueueOccurrences() async throws {
+        let (api, _, _) = makeAPI([
+            .json("""
             {
-              "id": "cur",
-              "name": "Now",
-              "artists": [{"id":"a1","name":"A"}],
-              "duration_ms": 100,
-              "explicit": false,
-              "uri": "spotify:track:cur"
-            },
-            {
-              "id": "next1",
-              "name": "Next",
-              "artists": [{"id":"a2","name":"B"}],
-              "duration_ms": 200,
-              "explicit": true,
-              "uri": "spotify:track:next1"
+              "currently_playing": {
+                "id": "cur",
+                "name": "Now",
+                "artists": [{"id":"a1","name":"A"}],
+                "duration_ms": 100,
+                "explicit": false,
+                "uri": "spotify:track:cur"
+              },
+              "queue": [
+                {
+                  "id": "cur",
+                  "name": "Queued copy",
+                  "artists": [{"id":"a1","name":"A"}],
+                  "duration_ms": 100,
+                  "explicit": false,
+                  "uri": "spotify:track:cur"
+                }
+              ]
             }
-          ]
-        }
-        """)])
+            """),
+            .json("""
+            {
+              "currently_playing": {
+                "id": "cur",
+                "name": "Now",
+                "artists": [{"id":"a1","name":"A"}],
+                "duration_ms": 100,
+                "explicit": false,
+                "uri": "spotify:track:cur"
+              },
+              "queue": [
+                {
+                  "id": "cur-1",
+                  "name": "Queued copy 1",
+                  "artists": [{"id":"a1","name":"A"}],
+                  "duration_ms": 100,
+                  "explicit": false,
+                  "uri": "spotify:track:cur"
+                },
+                {
+                  "id": "cur-2",
+                  "name": "Queued copy 2",
+                  "artists": [{"id":"a1","name":"A"}],
+                  "duration_ms": 100,
+                  "explicit": false,
+                  "uri": "spotify:track:cur"
+                }
+              ]
+            }
+            """)
+        ])
 
-        let response = try await api.fetchQueue()
+        let oneOccurrence = try await api.fetchQueue()
+        let twoOccurrences = try await api.fetchQueue()
 
-        XCTAssertEqual(response.queue.count, 1, "currently-playing track must be filtered out of queue")
-        if case let .track(t) = response.queue[0] {
-            XCTAssertEqual(t.id, "next1")
-        } else {
-            XCTFail("expected track item")
-        }
+        XCTAssertEqual(oneOccurrence.queue.count, 1)
+        XCTAssertEqual(twoOccurrences.queue.count, 2)
+        XCTAssertEqual(twoOccurrences.queue.compactMap { item in
+            if case let .track(track) = item { return track.uri }
+            return nil
+        }, ["spotify:track:cur", "spotify:track:cur"])
     }
 
     func testFetchQueueDecodesEpisodeViaShowDiscriminator() async throws {

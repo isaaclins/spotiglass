@@ -56,6 +56,334 @@ final class QueuePanelTests: XCTestCase {
         XCTAssertEqual(nextTracks.first?.uri, "spotify:track:next")
     }
 
+    func testQueueDisconnectClearsFetchedQueueProjectionImmediately() async {
+        let api = QueueTestPlaybackAPI()
+        let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: StubWebPlaybackCommander())
+        let queue = QueueViewModel(playbackAPI: api, playbackSession: playback, pollIntervalNanoseconds: 60_000_000_000)
+
+        playback.handle(.ready(deviceID: "device-1"))
+        let current = PlaybackNowPlaying(
+            name: "Current",
+            artists: ["Artist"],
+            albumName: nil,
+            albumID: nil,
+            albumArtURL: nil,
+            durationMilliseconds: 120_000,
+            positionMilliseconds: 0,
+            uri: "spotify:track:current"
+        )
+        playback.handle(.stateChanged(current, isPaused: false, nextTracks: []))
+        let next = SpotifyTrack(
+            id: "next",
+            name: "Next",
+            artists: ["Artist"],
+            albumArtworkURL: nil,
+            durationMilliseconds: 100_000,
+            isExplicit: false,
+            isPlayable: true,
+            linkedFromID: nil,
+            uri: "spotify:track:next"
+        )
+        api.queueResponse = SpotifyQueueResponse(queue: [.track(next)])
+
+        queue.setPanelVisible(true)
+        await queue.refreshQueue()
+        XCTAssertEqual(queue.nowPlayingItem?.uri, current.uri)
+        XCTAssertEqual(queue.upcomingItems.map(\.uri), [next.uri])
+
+        await playback.disconnect()
+        queue.handlePlaybackStateChange()
+
+        XCTAssertNil(queue.nowPlayingItem)
+        XCTAssertTrue(queue.upcomingItems.isEmpty)
+        XCTAssertNil(queue.lastFetchedQueue)
+    }
+
+    func testQueueUnavailableClearsRESTAndOptimisticProjectionImmediately() {
+        let api = QueueTestPlaybackAPI()
+        let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: StubWebPlaybackCommander())
+        let queue = QueueViewModel(playbackAPI: api, playbackSession: playback)
+        let current = PlaybackNowPlaying(
+            name: "Current",
+            artists: ["Artist"],
+            albumName: nil,
+            albumID: nil,
+            albumArtURL: nil,
+            durationMilliseconds: 120_000,
+            positionMilliseconds: 0,
+            uri: "spotify:track:current"
+        )
+        playback.handle(.ready(deviceID: "device-1"))
+        playback.handle(.stateChanged(current, isPaused: false, nextTracks: []))
+        let cached = QueueItem(
+            name: "Cached",
+            subtitle: "Artist",
+            albumArtURL: nil,
+            durationMilliseconds: 100_000,
+            uri: "spotify:track:cached"
+        )
+        queue.lastFetchedQueue = SpotifyQueueResponse(queue: [])
+        queue.optimisticUpcomingItems = [cached]
+        queue.preShuffleUpcomingSnapshot = [cached]
+        queue.publishMergedState()
+        queue.upcomingItems = [cached]
+
+        playback.setConnectionState(.unavailable("device lost"))
+        queue.handlePlaybackStateChange()
+
+        XCTAssertNil(queue.nowPlayingItem)
+        XCTAssertTrue(queue.upcomingItems.isEmpty)
+        XCTAssertNil(queue.lastFetchedQueue)
+        XCTAssertNil(queue.optimisticUpcomingItems)
+        XCTAssertNil(queue.preShuffleUpcomingSnapshot)
+    }
+
+    func testQueueDiscardStaleFetchAfterDisconnectBeforeReconnect() async {
+        let api = QueueTestPlaybackAPI()
+        let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: StubWebPlaybackCommander())
+        let queue = QueueViewModel(playbackAPI: api, playbackSession: playback, pollIntervalNanoseconds: 60_000_000_000)
+
+        playback.handle(.ready(deviceID: "device-1"))
+        let oldCurrent = PlaybackNowPlaying(
+            name: "Old current",
+            artists: ["Artist"],
+            albumName: nil,
+            albumID: nil,
+            albumArtURL: nil,
+            durationMilliseconds: 120_000,
+            positionMilliseconds: 0,
+            uri: "spotify:track:old-current"
+        )
+        playback.handle(.stateChanged(oldCurrent, isPaused: false, nextTracks: []))
+        let oldNext = SpotifyTrack(
+            id: "old-next",
+            name: "Old next",
+            artists: ["Artist"],
+            albumArtworkURL: nil,
+            durationMilliseconds: 100_000,
+            isExplicit: false,
+            isPlayable: true,
+            linkedFromID: nil,
+            uri: "spotify:track:old-next"
+        )
+        api.queueResponse = SpotifyQueueResponse(queue: [.track(oldNext)])
+        queue.lastFetchedQueue = api.queueResponse
+        queue.publishMergedState()
+        queue.isPanelVisible = true
+
+        api.fetchQueueDelayNanoseconds = 150_000_000
+        let refreshTask = Task { await queue.refreshQueue() }
+        let fetchStarted = await api.fetchQueueSignal.wait(timeout: .seconds(1))
+        XCTAssertTrue(fetchStarted)
+        queue.isPanelVisible = false
+
+        await playback.disconnect()
+        queue.handlePlaybackStateChange()
+        playback.handle(.ready(deviceID: "device-2"))
+        playback.handle(.stateChanged(
+            PlaybackNowPlaying(
+                name: "New current",
+                artists: ["Artist"],
+                albumName: nil,
+                albumID: nil,
+                albumArtURL: nil,
+                durationMilliseconds: 120_000,
+                positionMilliseconds: 0,
+                uri: "spotify:track:new-current"
+            ),
+            isPaused: false,
+            nextTracks: []
+        ))
+        queue.handlePlaybackStateChange()
+
+        await refreshTask.value
+
+        XCTAssertNil(queue.lastFetchedQueue)
+        XCTAssertFalse(queue.upcomingItems.contains(where: { $0.uri == oldNext.uri }))
+    }
+
+    func testQueueIgnoresStaleFetchErrorAfterDisconnectBeforeReconnect() async {
+        let api = QueueTestPlaybackAPI()
+        let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: StubWebPlaybackCommander())
+        let queue = QueueViewModel(playbackAPI: api, playbackSession: playback, pollIntervalNanoseconds: 60_000_000_000)
+
+        playback.handle(.ready(deviceID: "device-1"))
+        playback.handle(.stateChanged(
+            PlaybackNowPlaying(
+                name: "Current",
+                artists: ["Artist"],
+                albumName: nil,
+                albumID: nil,
+                albumArtURL: nil,
+                durationMilliseconds: 120_000,
+                positionMilliseconds: 0,
+                uri: "spotify:track:current"
+            ),
+            isPaused: false,
+            nextTracks: []
+        ))
+        queue.isPanelVisible = true
+        api.fetchQueueDelayNanoseconds = 150_000_000
+        api.errorToThrow = SpotifyAPIError.unauthorized
+
+        let refreshTask = Task { await queue.refreshQueue() }
+        let fetchStarted = await api.fetchQueueSignal.wait(timeout: .seconds(1))
+        XCTAssertTrue(fetchStarted)
+        queue.isPanelVisible = false
+
+        await playback.disconnect()
+        queue.handlePlaybackStateChange()
+        playback.handle(.ready(deviceID: "device-2"))
+        queue.handlePlaybackStateChange()
+
+        await refreshTask.value
+
+        XCTAssertNil(queue.lastError)
+    }
+
+    func testSDKProjectionRetainsCurrentURIAndDuplicateOccurrences() {
+        let api = QueueTestPlaybackAPI()
+        let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: StubWebPlaybackCommander())
+        let queue = QueueViewModel(playbackAPI: api, playbackSession: playback)
+        let currentURI = "spotify:track:current"
+        let current = PlaybackNowPlaying(
+            name: "Current",
+            artists: ["Artist"],
+            albumName: nil,
+            albumID: nil,
+            albumArtURL: nil,
+            durationMilliseconds: 120_000,
+            positionMilliseconds: 0,
+            uri: currentURI
+        )
+
+        playback.handle(.ready(deviceID: "device-1"))
+        playback.handle(.stateChanged(current, isPaused: false, nextTracks: [current]))
+        queue.syncFromPlaybackSession()
+        XCTAssertEqual(queue.upcomingItems.map(\.uri), [currentURI])
+
+        playback.handle(.stateChanged(current, isPaused: false, nextTracks: [current, current]))
+        queue.syncFromPlaybackSession()
+
+        XCTAssertEqual(queue.upcomingItems.map(\.uri), [currentURI, currentURI])
+        XCTAssertEqual(Set(queue.upcomingItems.map(\.id)).count, queue.upcomingItems.count)
+    }
+
+    func testQueueProjectionPreservesCurrentURIOccurrencesWithStableUniqueIDs() async {
+        let api = QueueTestPlaybackAPI()
+        let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: StubWebPlaybackCommander())
+        let queue = QueueViewModel(playbackAPI: api, playbackSession: playback, pollIntervalNanoseconds: 60_000_000_000)
+
+        playback.handle(.ready(deviceID: "device-1"))
+        let current = PlaybackNowPlaying(
+            name: "Current",
+            artists: ["Artist"],
+            albumName: nil,
+            albumID: nil,
+            albumArtURL: nil,
+            durationMilliseconds: 120_000,
+            positionMilliseconds: 0,
+            uri: "spotify:track:current"
+        )
+        playback.handle(.stateChanged(current, isPaused: false, nextTracks: []))
+        let currentTrack = SpotifyTrack(
+            id: "current",
+            name: "Current",
+            artists: ["Artist"],
+            albumArtworkURL: nil,
+            durationMilliseconds: 120_000,
+            isExplicit: false,
+            isPlayable: true,
+            linkedFromID: nil,
+            uri: "spotify:track:current"
+        )
+        let duplicateTrack = SpotifyTrack(
+            id: "current-duplicate",
+            name: "Current duplicate",
+            artists: ["Artist"],
+            albumArtworkURL: nil,
+            durationMilliseconds: 120_000,
+            isExplicit: false,
+            isPlayable: true,
+            linkedFromID: nil,
+            uri: "spotify:track:current"
+        )
+        let nextTrack = SpotifyTrack(
+            id: "next",
+            name: "Next",
+            artists: ["Next Artist"],
+            albumArtworkURL: nil,
+            durationMilliseconds: 100_000,
+            isExplicit: false,
+            isPlayable: true,
+            linkedFromID: nil,
+            uri: "spotify:track:next"
+        )
+        api.queueResponse = SpotifyQueueResponse(
+            queue: [.track(currentTrack), .track(duplicateTrack), .track(nextTrack)]
+        )
+
+        queue.setPanelVisible(true)
+        await queue.refreshQueue()
+        let firstIDs = queue.upcomingItems.map(\.id)
+
+        await queue.refreshQueue()
+
+        XCTAssertEqual(queue.upcomingItems.map(\.uri), [current.uri, current.uri, nextTrack.uri])
+        XCTAssertEqual(Set(firstIDs).count, firstIDs.count)
+        XCTAssertEqual(queue.upcomingItems.map(\.id), firstIDs)
+    }
+
+    func testQueueSelectionIDResolvesSecondDuplicateOccurrence() async {
+        let api = QueueTestPlaybackAPI()
+        let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: StubWebPlaybackCommander())
+        let queue = QueueViewModel(playbackAPI: api, playbackSession: playback)
+        playback.handle(.ready(deviceID: "device-1"))
+        playback.handle(.stateChanged(
+            PlaybackNowPlaying(
+                name: "Playing",
+                artists: ["Artist"],
+                albumName: nil,
+                albumID: nil,
+                albumArtURL: nil,
+                durationMilliseconds: 120_000,
+                positionMilliseconds: 0,
+                uri: "spotify:track:playing"
+            ),
+            isPaused: false,
+            nextTracks: []
+        ))
+        let first = SpotifyTrack(
+            id: "duplicate-1",
+            name: "Duplicate one",
+            artists: ["Artist"],
+            albumArtworkURL: nil,
+            durationMilliseconds: 100_000,
+            isExplicit: false,
+            isPlayable: true,
+            linkedFromID: nil,
+            uri: "spotify:track:duplicate"
+        )
+        let second = SpotifyTrack(
+            id: "duplicate-2",
+            name: "Duplicate two",
+            artists: ["Artist"],
+            albumArtworkURL: nil,
+            durationMilliseconds: 100_000,
+            isExplicit: false,
+            isPlayable: true,
+            linkedFromID: nil,
+            uri: "spotify:track:duplicate"
+        )
+        api.queueResponse = SpotifyQueueResponse(queue: [.track(first), .track(second)])
+
+        queue.isPanelVisible = true
+        await queue.refreshQueue()
+        let selectedID = queue.upcomingItems[1].id
+
+        XCTAssertEqual(queue.item(forSelectionID: selectedID)?.name, "Duplicate two")
+    }
+
     func testQueueViewModelMergesSDKTracksWithAPIQueueSources() async {
         let api = QueueTestPlaybackAPI()
         let commander = StubWebPlaybackCommander()
@@ -232,6 +560,46 @@ final class QueuePanelTests: XCTestCase {
         let enqueueCalls = api.actions.filter { $0 == "addToQueue:device-1:spotify:track:ambiguous" }
         XCTAssertEqual(enqueueCalls.count, 1)
         XCTAssertEqual(queue.lastError?.title, "Queue status pending")
+    }
+
+    func testQueueTransientRefreshFailurePreservesSameSessionCachedRows() async {
+        let api = QueueTestPlaybackAPI()
+        let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: StubWebPlaybackCommander())
+        let queue = QueueViewModel(playbackAPI: api, playbackSession: playback)
+        playback.handle(.ready(deviceID: "device-1"))
+        playback.handle(.stateChanged(
+            PlaybackNowPlaying(
+                name: "Current",
+                artists: ["Artist"],
+                albumName: nil,
+                albumID: nil,
+                albumArtURL: nil,
+                durationMilliseconds: 120_000,
+                positionMilliseconds: 0,
+                uri: "spotify:track:current"
+            ),
+            isPaused: false,
+            nextTracks: []
+        ))
+        let cached = SpotifyTrack(
+            id: "cached",
+            name: "Cached",
+            artists: ["Artist"],
+            albumArtworkURL: nil,
+            durationMilliseconds: 100_000,
+            isExplicit: false,
+            isPlayable: true,
+            linkedFromID: nil,
+            uri: "spotify:track:cached"
+        )
+        api.queueResponse = SpotifyQueueResponse(queue: [.track(cached)])
+        queue.isPanelVisible = true
+        await queue.refreshQueue()
+        api.errorToThrow = URLError(.timedOut)
+
+        await queue.refreshQueue()
+
+        XCTAssertEqual(queue.upcomingItems.map(\.uri), [cached.uri])
     }
 
     func testQueueViewModelDoesNotShowErrorBannerForCancellation() async {

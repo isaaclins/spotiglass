@@ -49,6 +49,31 @@ final class QueueViewModel: ObservableObject {
     var unchangedPollTickCount = 0
     var queueCooldownUntil: Date?
     var lastQueuePollingKey: String?
+    var queueSessionGeneration: UInt64 = 0
+    var queueSessionBoundaryActive = false
+
+    var isQueueSessionBoundary: Bool {
+        switch playbackSession.connectionState {
+        case .disconnected, .unavailable:
+            return true
+        case .connecting, .ready, .transferring, .playing, .paused, .error:
+            return false
+        }
+    }
+
+    func clearQueueSessionProjection() {
+        if !queueSessionBoundaryActive {
+            queueSessionGeneration &+= 1
+            queueSessionBoundaryActive = true
+        }
+        lastFetchedQueue = nil
+        optimisticUpcomingItems = nil
+        preShuffleUpcomingSnapshot = nil
+        optimisticReconcileTargetIDs = nil
+        optimisticReconcileDeadline = nil
+        nowPlayingItem = nil
+        upcomingItems = []
+    }
 
     enum RefreshTrigger {
         case manual
@@ -125,6 +150,11 @@ final class QueueViewModel: ObservableObject {
 
     func syncFromPlaybackSession() {
         publishMergedState()
+    }
+
+    func item(forSelectionID id: QueueItem.ID) -> QueueItem? {
+        upcomingItems.first(where: { $0.id == id })
+            ?? nowPlayingItem.flatMap { $0.id == id ? $0 : nil }
     }
 
     /// Web Playback SDK updated `track_window.next_tracks` (e.g. track advanced, queue context changed).
