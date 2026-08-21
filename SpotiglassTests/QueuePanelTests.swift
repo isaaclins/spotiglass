@@ -361,6 +361,23 @@ final class QueuePanelTests: XCTestCase {
         await offTask.value
     }
 
+    func testQueueShuffleDoesNotRefreshBeforeTransportStateIsKnown() async {
+        let api = MockPlaybackAPI()
+        api.fetchPlayerSnapshotError = SpotifyAPIError.network("offline")
+        let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: MockWebPlaybackCommander())
+        playback.handle(.ready(deviceID: "device-1"))
+        let queue = QueueViewModel(
+            playbackAPI: api,
+            playbackSession: playback,
+            pollIntervalNanoseconds: 60_000_000_000
+        )
+
+        await queue.toggleShuffle()
+
+        XCTAssertFalse(api.actions.contains("fetchQueue"))
+        XCTAssertFalse(api.actions.contains { $0.hasPrefix("setShuffle:") })
+    }
+
     func testQueueShuffleFailureRestoresPreviousOrdering() async {
         let api = QueueTestPlaybackAPI()
         api.setShuffleError = SpotifyAPIError.notFound(message: nil)

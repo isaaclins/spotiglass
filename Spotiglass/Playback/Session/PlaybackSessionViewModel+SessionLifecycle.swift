@@ -16,6 +16,7 @@ extension PlaybackSessionViewModel {
         playbackHostReloadAttemptCount += 1
         bumpCounter(&playbackHostReloadAttemptsByCause, key: recoveryCause.rawValue)
         hasTransferredPlaybackToCurrentDevice = false
+        setTransportStateKnown(false)
         autoResumeOnNextReady = true
         transferAttemptInstants.removeAll()
         transferRetryCooldownUntil = nil
@@ -52,6 +53,7 @@ extension PlaybackSessionViewModel {
         shuffleMutationVersion = 0
         repeatMode = .off
         confirmedRepeatMode = .off
+        setTransportStateKnown(false)
         latestPlayerSnapshot = nil
         connectDevices = []
         lastConnectDevicesRefreshAt = nil
@@ -100,6 +102,7 @@ extension PlaybackSessionViewModel {
             playbackHostReloadAttemptCount += 1
             bumpCounter(&playbackHostReloadAttemptsByCause, key: PlaybackHostRecoveryCause.missingDeviceRetryTransfer.rawValue)
             hasTransferredPlaybackToCurrentDevice = false
+            setTransportStateKnown(false)
             autoResumeOnNextReady = true
             transferAttemptInstants.removeAll()
             transferRetryCooldownUntil = nil
@@ -114,6 +117,7 @@ extension PlaybackSessionViewModel {
             return
         }
         hasTransferredPlaybackToCurrentDevice = false
+        setTransportStateKnown(false)
         do {
             setConnectionState(.transferring(deviceID: deviceID))
             try await performTransfer(deviceID: deviceID, play: false, origin: .userRetry)

@@ -127,6 +127,7 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
     var activeConnectDevice: SpotifyConnectDevice?
     var availableDevices: [SpotifyConnectDevice] = []
     var fetchAvailableDevicesDelayNanoseconds: UInt64 = 0
+    var fetchPlayerSnapshotDelayNanoseconds: UInt64 = 0
     var setShuffleError: Error?
     var setRepeatError: Error?
     var fetchPlayerSnapshotError: Error?
@@ -210,6 +211,9 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
 
     func fetchPlayerSnapshot() async throws -> SpotifyPlayerSnapshot? {
         actions.append("fetchPlayerSnapshot")
+        if fetchPlayerSnapshotDelayNanoseconds > 0 {
+            try? await Task.sleep(nanoseconds: fetchPlayerSnapshotDelayNanoseconds)
+        }
         if let fetchPlayerSnapshotError {
             throw fetchPlayerSnapshotError
         }

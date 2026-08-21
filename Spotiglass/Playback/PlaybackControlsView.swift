@@ -225,7 +225,7 @@ struct PlaybackControlsView: View {
                             : AnyShapeStyle(.secondary)
                     )
             }
-            .disabled(!hasReadyDevice)
+            .disabled(!viewModel.isTransportMutationReady)
             .help(PlaybackTransportTooltips.repeatTooltip(currentMode: viewModel.repeatMode))
             .accessibilityLabel(repeatAccessibilityLabel)
             .accessibilityHint(SpotiglassL10n.string("playback.controls.repeat.hint"))

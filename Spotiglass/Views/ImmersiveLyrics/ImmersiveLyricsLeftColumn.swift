@@ -33,7 +33,7 @@ struct ImmersiveLyricsLeftColumnView: View {
                             )
                     }
                     .buttonStyle(.plain)
-                    .disabled(!hasPlaybackDeviceForTransportControls)
+                    .disabled(!playbackViewModel.isTransportMutationReady)
                     .help(PlaybackTransportTooltips.repeatTooltip(currentMode: playbackViewModel.repeatMode))
                     .accessibilityLabel(lyricsRepeatAccessibilityLabel)
                     .accessibilityHint(SpotiglassL10n.string("playback.controls.repeat.hint"))
@@ -94,15 +94,6 @@ struct ImmersiveLyricsLeftColumnView: View {
         }
     }
 
-    /// Matches ``PlaybackControlsView`` transport availability for prev/next/repeat.
-    private var hasPlaybackDeviceForTransportControls: Bool {
-        switch playbackViewModel.connectionState {
-        case .ready, .transferring, .playing, .paused:
-            true
-        case .disconnected, .connecting, .unavailable, .error:
-            false
-        }
-    }
 }
 
 struct ImmersiveLyricsArtistLineView: View {

@@ -64,6 +64,10 @@ final class CommandPaletteManager: ObservableObject {
     var dismissLyricsOverlayIfPresented: (() -> Bool)?
     /// When set, Toggle Play/Pause only runs if this returns true (e.g. Web Playback transport ready).
     var playbackTogglePrerequisite: (() -> Bool)?
+    /// Mirrors the session's confirmed shuffle/repeat readiness for the menu bar.
+    @Published var canMutatePlaybackTransport = false
+    /// Guards shuffle/repeat commands from the command palette and menu key equivalents.
+    var playbackTransportMutationPrerequisite: (() -> Bool)?
 
     private var cancellables: Set<AnyCancellable> = []
 
@@ -217,8 +221,10 @@ final class CommandPaletteManager: ObservableObject {
         case CommandPaletteCommandID.disconnectPlayback:
             Task { await disconnectPlayback?() }
         case CommandPaletteCommandID.toggleShuffle:
+            guard playbackTransportMutationPrerequisite?() ?? false else { return }
             Task { await toggleShuffle?() }
         case CommandPaletteCommandID.cycleRepeat:
+            guard playbackTransportMutationPrerequisite?() ?? false else { return }
             Task { await cycleRepeat?() }
         case CommandPaletteCommandID.navigateBack:
             Task { await navigateBack?() }

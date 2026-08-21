@@ -117,13 +117,13 @@ struct SpotiglassMenuCommands: Commands {
                 run(CommandPaletteCommandID.toggleShuffle)
             }
             .keyboardShortcut("s", modifiers: [.option, .command])
-            .disabled(!isSignedIn)
+            .disabled(!isSignedIn || !commandPaletteManager.canMutatePlaybackTransport)
 
             Button(SpotiglassL10n.string("menu.playback.repeat")) {
                 run(CommandPaletteCommandID.cycleRepeat)
             }
             .keyboardShortcut("r", modifiers: [.option, .command])
-            .disabled(!isSignedIn)
+            .disabled(!isSignedIn || !commandPaletteManager.canMutatePlaybackTransport)
 
             Divider()
 

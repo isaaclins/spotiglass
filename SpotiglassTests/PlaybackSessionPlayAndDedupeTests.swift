@@ -41,6 +41,76 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
         XCTAssertEqual(nowPlaying.name, "Track")
     }
 
+    func testReadyWithoutCachedSnapshotStartsInitialTransportSyncImmediately() async {
+        let playbackAPI = MockPlaybackAPI()
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: playbackAPI,
+            webCommander: MockWebPlaybackCommander()
+        )
+
+        XCTAssertNil(viewModel.latestPlayerSnapshot)
+        viewModel.handle(.ready(deviceID: "device-1"))
+
+        let deadline = Date().addingTimeInterval(1.0)
+        while Date() < deadline,
+              !playbackAPI.actions.contains("fetchPlayerSnapshot") {
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+
+        XCTAssertTrue(
+            playbackAPI.actions.contains("fetchPlayerSnapshot"),
+            "SDK ready should start transport synchronization without the no-snapshot poll delay."
+        )
+    }
+
+    func testReadyAndConcurrentSyncCallersShareOneInitialTransportFetch() async {
+        let playbackAPI = MockPlaybackAPI()
+        playbackAPI.fetchPlayerSnapshotDelayNanoseconds = 100_000_000
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: playbackAPI,
+            webCommander: MockWebPlaybackCommander()
+        )
+        viewModel.handle(.ready(deviceID: "device-1"))
+
+        async let firstSync: Void = viewModel.syncTransportFromSpotify()
+        async let secondSync: Void = viewModel.syncTransportFromSpotify()
+        _ = await (firstSync, secondSync)
+
+        XCTAssertEqual(
+            playbackAPI.actions.filter { $0 == "fetchPlayerSnapshot" }.count,
+            1,
+            "Ready and concurrent sync callers must share one initial transport read."
+        )
+    }
+
+    func testDuplicateReadyForKnownCurrentDevicePreservesTransportStateWithoutAnotherFetch() async {
+        let playbackAPI = MockPlaybackAPI()
+        playbackAPI.snapshotResponses = [SpotifyPlayerSnapshot(
+            transport: SpotifyPlayerTransport(shuffle: true, repeatMode: .track),
+            activeDevice: nil,
+            isPlaying: false
+        )]
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: playbackAPI,
+            webCommander: MockWebPlaybackCommander()
+        )
+        viewModel.handle(.ready(deviceID: "device-1"))
+        await viewModel.syncTransportFromSpotify()
+        let fetchCountAfterInitialSync = playbackAPI.actions.filter { $0 == "fetchPlayerSnapshot" }.count
+
+        viewModel.handle(.ready(deviceID: "device-1"))
+        try? await Task.sleep(nanoseconds: 50_000_000)
+
+        XCTAssertTrue(viewModel.isTransportStateKnown)
+        XCTAssertTrue(viewModel.shuffleEnabled)
+        XCTAssertEqual(viewModel.repeatMode, .track)
+        XCTAssertEqual(
+            playbackAPI.actions.filter { $0 == "fetchPlayerSnapshot" }.count,
+            fetchCountAfterInitialSync,
+            "A duplicate ready event for the current known device must not start another sync."
+        )
+    }
+
     func testReadySyncsPlaybackVolumeToWebPlayer() async {
         let commander = MockWebPlaybackCommander()
         let viewModel = PlaybackSessionViewModel(
@@ -87,7 +157,7 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
 
         await viewModel.play(uri: "spotify:track:1")
 
-        XCTAssertEqual(playbackAPI.actions, [
+        XCTAssertEqual(playbackAPI.actions.filter { $0 != "fetchPlayerSnapshot" }, [
             "transfer:device-1:false",
             "play:device-1:spotify:track:1"
         ])
@@ -106,7 +176,7 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
         await viewModel.play(uri: "spotify:track:1")
         await firstPlay
 
-        XCTAssertEqual(playbackAPI.actions, [
+        XCTAssertEqual(playbackAPI.actions.filter { $0 != "fetchPlayerSnapshot" }, [
             "transfer:device-1:false",
             "play:device-1:spotify:track:1"
         ])
@@ -150,14 +220,27 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
         playbackAPI.playDelayNanoseconds = 180_000_000
         let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: commander)
         viewModel.handle(.ready(deviceID: "device-1"))
+        await viewModel.syncTransportFromSpotify()
+        let initialFetchCount = playbackAPI.actions.filter { $0 == "fetchPlayerSnapshot" }.count
 
         let playTask = Task { await viewModel.play(uri: "spotify:track:1") }
         try? await Task.sleep(nanoseconds: 20_000_000)
         await viewModel.syncTransportFromSpotify()
-        XCTAssertFalse(playbackAPI.actions.contains("fetchPlayerSnapshot"))
+        XCTAssertEqual(
+            playbackAPI.actions.filter { $0 == "fetchPlayerSnapshot" }.count,
+            initialFetchCount,
+            "Transport reads should defer while the play command is in flight."
+        )
         await playTask.value
-        try? await Task.sleep(nanoseconds: 120_000_000)
-        XCTAssertTrue(playbackAPI.actions.contains("fetchPlayerSnapshot"))
+        let syncDeadline = Date().addingTimeInterval(1.0)
+        while Date() < syncDeadline,
+              playbackAPI.actions.filter({ $0 == "fetchPlayerSnapshot" }).count == initialFetchCount {
+            try? await Task.sleep(nanoseconds: 20_000_000)
+        }
+        XCTAssertGreaterThan(
+            playbackAPI.actions.filter { $0 == "fetchPlayerSnapshot" }.count,
+            initialFetchCount
+        )
     }
 
     func testPlayURIDoesNotTransferAgainForConsecutiveTrackSwitchesOnSameDevice() async {
@@ -169,7 +252,7 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
         await viewModel.play(uri: "spotify:track:1")
         await viewModel.play(uri: "spotify:track:2")
 
-        XCTAssertEqual(playbackAPI.actions, [
+        XCTAssertEqual(playbackAPI.actions.filter { $0 != "fetchPlayerSnapshot" }, [
             "transfer:device-1:false",
             "play:device-1:spotify:track:1",
             "play:device-1:spotify:track:2"
@@ -187,7 +270,7 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
         viewModel.handle(.ready(deviceID: "device-1"))
         await viewModel.play(uri: "spotify:track:2")
 
-        XCTAssertEqual(playbackAPI.actions, [
+        XCTAssertEqual(playbackAPI.actions.filter { $0 != "fetchPlayerSnapshot" }, [
             "transfer:device-1:false",
             "play:device-1:spotify:track:1",
             "transfer:device-1:false",

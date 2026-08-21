@@ -15,6 +15,10 @@ extension PlaybackSessionViewModel {
             }
             reclaimableSDKDeviceID = nil
             let previousSDKDeviceID = self.deviceID
+            let shouldRefreshTransportState = !(previousSDKDeviceID == deviceID && isTransportStateKnown)
+            if shouldRefreshTransportState {
+                setTransportStateKnown(false)
+            }
             if let previousSDKDeviceID, previousSDKDeviceID != deviceID {
                 supersededSDKDeviceIDs.insert(previousSDKDeviceID)
             }
@@ -27,12 +31,16 @@ extension PlaybackSessionViewModel {
             }
             setConnectionState(.ready(deviceID: deviceID))
             refreshTrayOutputSymbol()
+            let initialTransportSyncTask = shouldRefreshTransportState ? scheduleTransportSync() : nil
             let shouldAutoResume = autoResumeOnNextReady
             autoResumeOnNextReady = false
             Task {
                 await syncPlaybackVolumeToWebPlayer()
                 if shouldAutoResume {
-                    await autoResumeFromStaleSpotiglassDeviceIfNeeded(targetDeviceID: deviceID)
+                    await autoResumeFromStaleSpotiglassDeviceIfNeeded(
+                        targetDeviceID: deviceID,
+                        initialTransportSyncTask: initialTransportSyncTask
+                    )
                 }
             }
         case let .notReady(deviceID):
@@ -46,6 +54,7 @@ extension PlaybackSessionViewModel {
                 return
             }
             self.deviceID = nil
+            setTransportStateKnown(false)
             if activePlaybackDeviceID == deviceID {
                 setActivePlaybackDeviceID(nil)
             }

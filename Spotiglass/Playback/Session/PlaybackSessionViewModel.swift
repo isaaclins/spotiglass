@@ -17,6 +17,10 @@ final class PlaybackSessionViewModel: ObservableObject {
         activePlaybackDeviceID ?? deviceID
     }
 
+    func setTransportStateKnown(_ known: Bool) {
+        isTransportStateKnown = known
+    }
+
     func setActivePlaybackDeviceID(_ deviceID: String?) {
         activePlaybackDeviceID = deviceID
     }
@@ -37,6 +41,9 @@ final class PlaybackSessionViewModel: ObservableObject {
     /// From `GET /v1/me/player` for the active Spotify player (may be this device or another).
     @Published var shuffleEnabled = false
     @Published var repeatMode: SpotifyRepeatMode = .off
+    /// True only after a player snapshot has supplied the current shuffle/repeat state.
+    /// The values above remain harmless display defaults until this becomes true.
+    @Published private(set) var isTransportStateKnown = false
     /// Spotify Connect devices from `GET /v1/me/player/devices`.
     @Published var connectDevices: [SpotifyConnectDevice] = []
     /// Core Audio output-capable devices (system default output picker).
@@ -279,6 +286,12 @@ final class PlaybackSessionViewModel: ObservableObject {
         case .disconnected, .connecting, .unavailable, .error:
             false
         }
+    }
+
+    /// Whether shuffle/repeat commands have both a ready target and a confirmed
+    /// Spotify transport state. The visible values are not actionable otherwise.
+    var isTransportMutationReady: Bool {
+        isTransportStateKnown && isPlaybackTransportReady && commandDeviceID != nil
     }
 
     enum PlaybackHostRecoveryCause: String {

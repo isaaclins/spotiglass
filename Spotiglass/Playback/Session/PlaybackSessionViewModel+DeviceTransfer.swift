@@ -146,7 +146,10 @@ extension PlaybackSessionViewModel {
     /// freshly created device so the user keeps hearing music through the window they just
     /// reopened. Restricted to devices named ``SpotifyPlaybackHost/deviceName`` so a clean first
     /// launch never steals playback from the user's other Connect targets (phone, desktop, …).
-    func autoResumeFromStaleSpotiglassDeviceIfNeeded(targetDeviceID: String) async {
+    func autoResumeFromStaleSpotiglassDeviceIfNeeded(
+        targetDeviceID: String,
+        initialTransportSyncTask: Task<Void, Never>? = nil
+    ) async {
         guard !hasTransferredPlaybackToCurrentDevice else { return }
         await refreshConnectDevices(force: true)
         let devices = connectDevices
@@ -157,12 +160,38 @@ extension PlaybackSessionViewModel {
         }) else {
             return
         }
+        let shouldPlay = await preservedPlayState(
+            for: staleSpotiglass.deviceID,
+            initialTransportSyncTask: initialTransportSyncTask
+        )
+
         do {
             setConnectionState(.transferring(deviceID: targetDeviceID))
-            try await performTransfer(deviceID: targetDeviceID, play: true, origin: .autoResume)
+            try await performTransfer(deviceID: targetDeviceID, play: shouldPlay, origin: .autoResume)
             // Subsequent SDK `state_changed` will move the connection state to .playing/.paused.
         } catch {
             setConnectionState(.ready(deviceID: targetDeviceID))
         }
+    }
+
+    private func preservedPlayState(
+        for deviceID: String,
+        initialTransportSyncTask: Task<Void, Never>?
+    ) async -> Bool {
+        if let initialTransportSyncTask {
+            await initialTransportSyncTask.value
+        } else {
+            await syncTransportFromSpotify()
+        }
+
+        guard isTransportStateKnown,
+              let snapshot = latestPlayerSnapshot,
+              snapshot.activeDevice?.deviceID == deviceID
+        else {
+            // A missing, unreadable, or mismatched player snapshot must never
+            // turn a paused session into a playing transfer.
+            return false
+        }
+        return snapshot.isPlaying
     }
 }

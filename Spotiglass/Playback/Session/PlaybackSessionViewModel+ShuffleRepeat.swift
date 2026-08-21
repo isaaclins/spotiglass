@@ -3,6 +3,7 @@ import Foundation
 @MainActor
 extension PlaybackSessionViewModel {
     func toggleShuffle() async {
+        guard isTransportStateKnown else { return }
         guard let commandDeviceID else {
             setConnectionState(.error(Self.playbackDeviceReconnectRequiredError()))
             return
@@ -12,18 +13,20 @@ extension PlaybackSessionViewModel {
         let mutationVersion = nextShuffleMutationVersion()
         setPendingShuffle(enabled: target)
 
-        // Avoid writes when the target is already confirmed from Spotify transport.
-        if lastConfirmedShuffleEnabled == target {
-            clearPendingShuffle()
-            return
-        }
         // Avoid duplicate writes while the same target is already in flight.
         if inFlightShuffleTarget == target {
             return
         }
-        // Coalesce rapid toggles to a single follow-up write target.
+        // Coalesce rapid toggles to a single follow-up write target. This must
+        // run before the confirmed-state shortcut so a toggle back to the last
+        // confirmed value is still sent after an opposite write in flight.
         if inFlightShuffleTarget != nil {
             queuedShuffleTarget = target
+            return
+        }
+        // Avoid writes when the target is already confirmed from Spotify transport.
+        if lastConfirmedShuffleEnabled == target {
+            clearPendingShuffle()
             return
         }
 
@@ -69,6 +72,7 @@ extension PlaybackSessionViewModel {
     }
 
     func cycleRepeat() async {
+        guard isTransportStateKnown else { return }
         guard let commandDeviceID else {
             setConnectionState(.error(Self.playbackDeviceReconnectRequiredError()))
             return

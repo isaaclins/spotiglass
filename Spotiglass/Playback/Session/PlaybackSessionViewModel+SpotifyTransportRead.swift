@@ -5,6 +5,14 @@ extension PlaybackSessionViewModel {
     /// Refreshes shuffle/repeat from Spotify (`GET /v1/me/player`). Safe to call from UI and poll paths.
     /// Concurrent calls are coalesced so only one in-flight request runs at a time.
     func syncTransportFromSpotify(minimumShuffleMutationVersion: UInt64? = nil) async {
+        if let scheduledTask = transportSyncSchedulerTask {
+            await scheduledTask.value
+            return
+        }
+        await performTransportSync(minimumShuffleMutationVersion: minimumShuffleMutationVersion)
+    }
+
+    private func performTransportSync(minimumShuffleMutationVersion: UInt64?) async {
         guard controlCommandsInFlight == 0 else {
             transportSyncDeferredWhileControlCommandInFlight = true
             return
@@ -22,6 +30,7 @@ extension PlaybackSessionViewModel {
             do {
                 if let snapshot = try await playbackAPI.fetchPlayerSnapshot() {
                     latestPlayerSnapshot = snapshot
+                    setTransportStateKnown(true)
                     if localMutationSettleTicksRemaining == 0,
                        let activeDeviceID = snapshot.activeDevice?.deviceID {
                         setActivePlaybackDeviceID(activeDeviceID)
@@ -33,6 +42,7 @@ extension PlaybackSessionViewModel {
                     applyTransportRepeatMode(snapshot.transport.repeatMode)
                 } else {
                     latestPlayerSnapshot = nil
+                    setTransportStateKnown(false)
                 }
                 transportTransientErrorCount = 0
                 transportRateLimitedUntil = nil
@@ -55,12 +65,19 @@ extension PlaybackSessionViewModel {
     }
 
     /// Schedules a single coalesced `syncTransportFromSpotify()` on the main actor.
-    func scheduleTransportSync(minimumShuffleMutationVersion: UInt64? = nil) {
-        if transportSyncSchedulerTask != nil { return }
-        transportSyncSchedulerTask = Task { @MainActor [weak self] in
-            defer { self?.transportSyncSchedulerTask = nil }
-            await self?.syncTransportFromSpotify(minimumShuffleMutationVersion: minimumShuffleMutationVersion)
+    @discardableResult
+    func scheduleTransportSync(minimumShuffleMutationVersion: UInt64? = nil) -> Task<Void, Never>? {
+        if let transportSyncSchedulerTask { return transportSyncSchedulerTask }
+        if transportSyncInFlight {
+            transportSyncQueued = true
+            return nil
         }
+        let task = Task { @MainActor [weak self] in
+            defer { self?.transportSyncSchedulerTask = nil }
+            await self?.performTransportSync(minimumShuffleMutationVersion: minimumShuffleMutationVersion)
+        }
+        transportSyncSchedulerTask = task
+        return task
     }
 
     private static func isBenignTransportSyncCancellation(_ error: Error) -> Bool {

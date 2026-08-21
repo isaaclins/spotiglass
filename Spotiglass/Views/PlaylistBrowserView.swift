@@ -307,6 +307,12 @@ struct PlaylistBrowserView: View {
         .onChange(of: playbackViewModel.deviceID) { _, _ in
             syncTrackSelectionMenuState()
         }
+        .onChange(of: playbackViewModel.connectionState) { _, _ in
+            commandPaletteManager.canMutatePlaybackTransport = playbackViewModel.isTransportMutationReady
+        }
+        .onChange(of: playbackViewModel.isTransportStateKnown) { _, _ in
+            commandPaletteManager.canMutatePlaybackTransport = playbackViewModel.isTransportMutationReady
+        }
         .onChange(of: pinnedStore.items) { _, _ in
             syncTrackSelectionMenuState()
             syncLibraryRowOrder()

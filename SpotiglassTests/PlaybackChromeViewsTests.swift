@@ -126,6 +126,33 @@ final class PlaybackChromeViewsTests: XCTestCase {
         XCTAssertNoThrow(try view.inspect().find(viewWithAccessibilityLabel: "Retry playback transfer"))
     }
 
+    func testPlaybackControlsDisablesRepeatUntilTransportStateKnown() async throws {
+        try ViewTestHost.skipIfViewInspectorGeometryUnsupported()
+        let api = MockPlaybackAPI()
+        api.fetchPlayerSnapshotError = SpotifyAPIError.network("offline")
+        let playback = PlaybackSessionViewModel(
+            playbackAPI: api,
+            webCommander: MockWebPlaybackCommander()
+        )
+        playback.handle(.ready(deviceID: "device-1"))
+
+        let deadline = Date().addingTimeInterval(1.0)
+        while Date() < deadline,
+              !api.actions.contains("fetchPlayerSnapshot") {
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+
+        let view = PlaybackControlsView(
+            viewModel: playback,
+            isLyricsPresented: .constant(false),
+            openArtist: { _ in }
+        )
+        ViewTestHost.host(view, size: CGSize(width: 900, height: 120))
+
+        let repeatButton = try view.inspect().find(viewWithAccessibilityLabel: "Repeat off")
+        XCTAssertTrue(repeatButton.isDisabled())
+    }
+
     func testPlaybackControlsReadyShowsTransportAccessibility() throws {
         try ViewTestHost.skipIfViewInspectorGeometryUnsupported()
         let playback = PlaybackSessionViewModel(
@@ -171,10 +198,16 @@ final class PlaybackChromeViewsTests: XCTestCase {
         XCTAssertNoThrow(try view.inspect().find(text: "Paused"))
     }
 
-    func testQueuePanelEmptyStates() throws {
+    func testQueuePanelEmptyStates() async throws {
         let api = MockPlaybackAPI()
+        api.snapshotResponses = [SpotifyPlayerSnapshot(
+            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+            activeDevice: nil,
+            isPlaying: false
+        )]
         let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: MockWebPlaybackCommander())
         playback.handle(.ready(deviceID: "device-1"))
+        await playback.syncTransportFromSpotify()
         let queue = QueueViewModel(
             playbackAPI: api,
             playbackSession: playback,
@@ -285,11 +318,16 @@ final class PlaybackChromeViewsTests: XCTestCase {
         XCTAssertNoThrow(try view.inspect().find(text: "Playback unavailable"))
     }
 
-    func testQueuePanelRepeatOneSubtitle() throws {
+    func testQueuePanelRepeatOneSubtitle() async throws {
         let api = MockPlaybackAPI()
+        api.snapshotResponses = [SpotifyPlayerSnapshot(
+            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .track),
+            activeDevice: nil,
+            isPlaying: false
+        )]
         let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: MockWebPlaybackCommander())
         playback.handle(.ready(deviceID: "device-1"))
-        playback.repeatMode = .track
+        await playback.syncTransportFromSpotify()
         let queue = QueueViewModel(
             playbackAPI: api,
             playbackSession: playback,

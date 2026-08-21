@@ -3,6 +3,7 @@ import Foundation
 extension QueueViewModel {
     /// Toggles Spotify shuffle for this device, then reloads the queue so **Up next** reorders with existing list animations.
     func toggleShuffle() async {
+        guard playbackSession.isTransportMutationReady else { return }
         let previousUpcoming = upcomingItems
         let previousSnapshot = preShuffleUpcomingSnapshot
         let previousShuffle = playbackSession.shuffleEnabled

@@ -10,6 +10,7 @@ final class PlaybackTransportPollingTests: XCTestCase {
             webCommander: MockWebPlaybackCommander()
         )
         viewModel.handle(.ready(deviceID: "device-1"))
+        await viewModel.syncTransportFromSpotify()
         let baselineFetchCount = playbackAPI.actions.filter { $0 == "fetchPlayerSnapshot" }.count
 
         viewModel.restartTransportPollingIfNeeded()
@@ -30,6 +31,7 @@ final class PlaybackTransportPollingTests: XCTestCase {
             webCommander: MockWebPlaybackCommander()
         )
         viewModel.handle(.ready(deviceID: "device-1"))
+        await viewModel.syncTransportFromSpotify()
         let track = PlaybackNowPlaying(
             name: "Track",
             artists: ["Artist"],
@@ -89,6 +91,7 @@ final class PlaybackTransportPollingTests: XCTestCase {
             webCommander: MockWebPlaybackCommander()
         )
         viewModel.handle(.ready(deviceID: "device-1"))
+        await viewModel.syncTransportFromSpotify()
         let track = PlaybackNowPlaying(
             name: "Track",
             artists: ["Artist"],

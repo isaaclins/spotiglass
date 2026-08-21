@@ -12,7 +12,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
 
         await viewModel.retryPlaybackTransfer()
 
-        XCTAssertEqual(playbackAPI.actions, ["transfer:device-1:false"])
+        XCTAssertEqual(playbackAPI.actions.filter { $0 != "fetchPlayerSnapshot" }, ["transfer:device-1:false"])
         guard case let .ready(id) = viewModel.connectionState else {
             return XCTFail("Expected ready after retry transfer")
         }
@@ -156,6 +156,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
         let playbackAPI = MockPlaybackAPI()
         let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: commander)
         viewModel.handle(.ready(deviceID: "device-1"))
+        await viewModel.syncTransportFromSpotify()
 
         await viewModel.playFromPlaylist(
             clickedURI: "spotify:track:2",
@@ -167,7 +168,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
             ]
         )
 
-        XCTAssertEqual(playbackAPI.actions, [
+        XCTAssertEqual(playbackAPI.actions.filter { $0 != "fetchPlayerSnapshot" }, [
             "transfer:device-1:false",
             "play-list:device-1:spotify:track:2,spotify:episode:3,spotify:track:4"
         ])
@@ -181,6 +182,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
             webCommander: MockWebPlaybackCommander()
         )
         viewModel.handle(.ready(deviceID: "device-1"))
+        await viewModel.syncTransportFromSpotify()
 
         await viewModel.playFromPlaylist(
             clickedURI: "spotify:episode:2",
@@ -191,7 +193,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
             ]
         )
 
-        XCTAssertEqual(playbackAPI.actions, [
+        XCTAssertEqual(playbackAPI.actions.filter { $0 != "fetchPlayerSnapshot" }, [
             "transfer:device-1:false",
             "play-list:device-1:spotify:episode:2,spotify:track:3"
         ])
@@ -210,7 +212,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
             playableURIs: ["spotify:track:1", "spotify:track:2"]
         )
 
-        XCTAssertEqual(playbackAPI.actions, [
+        XCTAssertEqual(playbackAPI.actions.filter { $0 != "fetchPlayerSnapshot" }, [
             "transfer:device-1:false",
             "play:device-1:spotify:track:missing"
         ])

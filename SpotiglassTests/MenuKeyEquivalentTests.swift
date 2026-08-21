@@ -77,6 +77,7 @@ final class MenuKeyEquivalentTests: XCTestCase {
         var repeated = 0
         manager.toggleShuffle = { shuffled += 1 }
         manager.cycleRepeat = { repeated += 1 }
+        manager.playbackTransportMutationPrerequisite = { true }
 
         manager.execute(commandID: CommandPaletteCommandID.toggleShuffle)
         manager.execute(commandID: CommandPaletteCommandID.cycleRepeat)

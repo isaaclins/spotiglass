@@ -49,7 +49,7 @@ struct QueuePanelView: View {
                             : AnyShapeStyle(.primary)
                     )
             }
-            .disabled(playbackViewModel.deviceID == nil)
+            .disabled(!playbackViewModel.isTransportMutationReady)
             .accessibilityLabel(
                 playbackViewModel.shuffleEnabled
                     ? SpotiglassL10n.string("queue.shuffle.on")

@@ -3,6 +3,191 @@ import XCTest
 
 @MainActor
 final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
+    func testReadyAutoResumeUsesInitialSnapshotWithoutDuplicatePlayerRead() async {
+        let playbackAPI = MockPlaybackAPI()
+        let staleDevice = SpotifyConnectDevice(
+            deviceID: "stale-spotiglass",
+            isActive: true,
+            isRestricted: false,
+            name: SpotifyPlaybackHost.deviceName,
+            type: "computer"
+        )
+        playbackAPI.availableDevices = [staleDevice]
+        playbackAPI.snapshotResponses = [SpotifyPlayerSnapshot(
+            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+            activeDevice: staleDevice,
+            isPlaying: true
+        )]
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: playbackAPI,
+            webCommander: MockWebPlaybackCommander()
+        )
+        viewModel.autoResumeOnNextReady = true
+        viewModel.handle(.ready(deviceID: "new-spotiglass"))
+
+        let deadline = Date().addingTimeInterval(1.0)
+        while Date() < deadline,
+              !playbackAPI.actions.contains("transfer:new-spotiglass:true") {
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+
+        XCTAssertTrue(playbackAPI.actions.contains("transfer:new-spotiglass:true"))
+        XCTAssertEqual(
+            playbackAPI.actions.filter { $0 == "fetchPlayerSnapshot" }.count,
+            1,
+            "Startup auto-resume should reuse the initial transport snapshot."
+        )
+    }
+
+    func testAutoResumePreservesPausedStateFromStaleSpotiglassDevice() async {
+        let playbackAPI = MockPlaybackAPI()
+        let staleDevice = SpotifyConnectDevice(
+            deviceID: "stale-spotiglass",
+            isActive: true,
+            isRestricted: false,
+            name: SpotifyPlaybackHost.deviceName,
+            type: "computer"
+        )
+        playbackAPI.availableDevices = [staleDevice]
+        playbackAPI.snapshotResponses = [SpotifyPlayerSnapshot(
+            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+            activeDevice: staleDevice,
+            isPlaying: false
+        )]
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: playbackAPI,
+            webCommander: MockWebPlaybackCommander()
+        )
+        viewModel.deviceID = "new-spotiglass"
+        viewModel.setConnectionState(.ready(deviceID: "new-spotiglass"))
+
+        await viewModel.autoResumeFromStaleSpotiglassDeviceIfNeeded(targetDeviceID: "new-spotiglass")
+
+        XCTAssertEqual(
+            playbackAPI.actions.filter { $0.hasPrefix("transfer:") },
+            ["transfer:new-spotiglass:false"]
+        )
+    }
+
+    func testAutoResumePreservesPlayingStateFromStaleSpotiglassDevice() async {
+        let playbackAPI = MockPlaybackAPI()
+        let staleDevice = SpotifyConnectDevice(
+            deviceID: "stale-spotiglass",
+            isActive: true,
+            isRestricted: false,
+            name: SpotifyPlaybackHost.deviceName,
+            type: "computer"
+        )
+        playbackAPI.availableDevices = [staleDevice]
+        playbackAPI.snapshotResponses = [SpotifyPlayerSnapshot(
+            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+            activeDevice: staleDevice,
+            isPlaying: true
+        )]
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: playbackAPI,
+            webCommander: MockWebPlaybackCommander()
+        )
+        viewModel.deviceID = "new-spotiglass"
+        viewModel.setConnectionState(.ready(deviceID: "new-spotiglass"))
+
+        await viewModel.autoResumeFromStaleSpotiglassDeviceIfNeeded(targetDeviceID: "new-spotiglass")
+
+        XCTAssertEqual(
+            playbackAPI.actions.filter { $0.hasPrefix("transfer:") },
+            ["transfer:new-spotiglass:true"]
+        )
+    }
+
+    func testAutoResumeDoesNotUsePlayingStateFromDifferentActiveDevice() async {
+        let playbackAPI = MockPlaybackAPI()
+        let staleDevice = SpotifyConnectDevice(
+            deviceID: "stale-spotiglass",
+            isActive: true,
+            isRestricted: false,
+            name: SpotifyPlaybackHost.deviceName,
+            type: "computer"
+        )
+        let otherDevice = SpotifyConnectDevice(
+            deviceID: "other-device",
+            isActive: true,
+            isRestricted: false,
+            name: "Other",
+            type: "speaker"
+        )
+        playbackAPI.availableDevices = [staleDevice]
+        playbackAPI.snapshotResponses = [SpotifyPlayerSnapshot(
+            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+            activeDevice: otherDevice,
+            isPlaying: true
+        )]
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: playbackAPI,
+            webCommander: MockWebPlaybackCommander()
+        )
+        viewModel.deviceID = "new-spotiglass"
+        viewModel.setConnectionState(.ready(deviceID: "new-spotiglass"))
+
+        await viewModel.autoResumeFromStaleSpotiglassDeviceIfNeeded(targetDeviceID: "new-spotiglass")
+
+        XCTAssertEqual(
+            playbackAPI.actions.filter { $0.hasPrefix("transfer:") },
+            ["transfer:new-spotiglass:false"]
+        )
+    }
+
+    func testAutoResumeUsesSafePauseWhenPlayerSnapshotIsAbsent() async {
+        let playbackAPI = MockPlaybackAPI()
+        let staleDevice = SpotifyConnectDevice(
+            deviceID: "stale-spotiglass",
+            isActive: true,
+            isRestricted: false,
+            name: SpotifyPlaybackHost.deviceName,
+            type: "computer"
+        )
+        playbackAPI.availableDevices = [staleDevice]
+        playbackAPI.snapshotResponses = [nil]
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: playbackAPI,
+            webCommander: MockWebPlaybackCommander()
+        )
+        viewModel.deviceID = "new-spotiglass"
+        viewModel.setConnectionState(.ready(deviceID: "new-spotiglass"))
+
+        await viewModel.autoResumeFromStaleSpotiglassDeviceIfNeeded(targetDeviceID: "new-spotiglass")
+
+        XCTAssertEqual(
+            playbackAPI.actions.filter { $0.hasPrefix("transfer:") },
+            ["transfer:new-spotiglass:false"]
+        )
+    }
+
+    func testAutoResumeUsesSafePauseWhenPlayerSnapshotReadFails() async {
+        let playbackAPI = MockPlaybackAPI()
+        let staleDevice = SpotifyConnectDevice(
+            deviceID: "stale-spotiglass",
+            isActive: true,
+            isRestricted: false,
+            name: SpotifyPlaybackHost.deviceName,
+            type: "computer"
+        )
+        playbackAPI.availableDevices = [staleDevice]
+        playbackAPI.fetchPlayerSnapshotError = SpotifyAPIError.network("offline")
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: playbackAPI,
+            webCommander: MockWebPlaybackCommander()
+        )
+        viewModel.deviceID = "new-spotiglass"
+        viewModel.setConnectionState(.ready(deviceID: "new-spotiglass"))
+
+        await viewModel.autoResumeFromStaleSpotiglassDeviceIfNeeded(targetDeviceID: "new-spotiglass")
+
+        XCTAssertEqual(
+            playbackAPI.actions.filter { $0.hasPrefix("transfer:") },
+            ["transfer:new-spotiglass:false"]
+        )
+    }
+
     func testRefreshConnectDevicesSkipsNetworkInsideFreshnessWindow() async {
         let playbackAPI = MockPlaybackAPI()
         playbackAPI.availableDevices = [
