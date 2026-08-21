@@ -2,6 +2,26 @@ import XCTest
 @testable import Spotiglass
 
 final class SpotifyAPIClientSearchAndHTTPTests: XCTestCase {
+    func testHomeFeedRefreshCanBypassFreshResponseCache() async throws {
+        let httpClient = QueueHTTPClient([
+            .json(#"{"items":[]}"#),
+            .json(#"{"items":[]}"#),
+            .json(#"{"items":[]}"#),
+            .json(#"{"items":[]}"#)
+        ])
+        let client = SpotifyAPIClient(
+            tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"),
+            httpClient: httpClient
+        )
+
+        _ = try await client.recentlyPlayedTracks(limit: 50, cacheMode: .freshOnly)
+        _ = try await client.topTracks(limit: 20, timeRange: "short_term", cacheMode: .freshOnly)
+        _ = try await client.recentlyPlayedTracks(limit: 50, cacheMode: .bypassCache)
+        _ = try await client.topTracks(limit: 20, timeRange: "short_term", cacheMode: .bypassCache)
+
+        XCTAssertEqual(httpClient.requests.count, 4)
+    }
+
     func testSearchClampsRequestedLimitToSpotifyMaximum() async throws {
         let httpClient = QueueHTTPClient([
             .json("""

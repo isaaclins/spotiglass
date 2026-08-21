@@ -23,9 +23,9 @@ protocol SpotifyBrowsingAPI {
     ) async throws -> SpotifyAPIClient.SpotifyArtistAlbumsPage
     func search(query: String, limit: Int) async throws -> SpotifySearchResults
     /// Home feed: recently played tracks (`user-read-recently-played` scope).
-    func recentlyPlayedTracks(limit: Int) async throws -> [SpotifyTrack]
+    func recentlyPlayedTracks(limit: Int, cacheMode: SpotifyRequestCacheMode) async throws -> [SpotifyTrack]
     /// Home feed: the user's top tracks (`user-top-read` scope).
-    func topTracks(limit: Int, timeRange: String) async throws -> [SpotifyTrack]
+    func topTracks(limit: Int, timeRange: String, cacheMode: SpotifyRequestCacheMode) async throws -> [SpotifyTrack]
     func albumTracks(albumID: String, market: String?, limit: Int) async throws -> [SpotifyTrack]
     /// Single-page album tracks fetch for the artist fallback. Default-implemented against
     /// `albumTracks` for mocks; the live client uses a true `maxPages: 1` call so each selected
@@ -55,8 +55,8 @@ extension SpotifyBrowsingAPI {
     // Default empty home-feed implementations so preview/test mocks that don't
     // exercise the home surface compile without overrides. The live
     // `SpotifyAPIClient` provides real implementations.
-    func recentlyPlayedTracks(limit: Int) async throws -> [SpotifyTrack] { [] }
-    func topTracks(limit: Int, timeRange: String) async throws -> [SpotifyTrack] { [] }
+    func recentlyPlayedTracks(limit: Int, cacheMode: SpotifyRequestCacheMode) async throws -> [SpotifyTrack] { [] }
+    func topTracks(limit: Int, timeRange: String, cacheMode: SpotifyRequestCacheMode) async throws -> [SpotifyTrack] { [] }
 
     // Default no-op implementations for library mutations. Mocks/previews that
     // never exercise the menu can ignore these; the live `SpotifyAPIClient`

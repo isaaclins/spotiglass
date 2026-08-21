@@ -42,8 +42,7 @@ extension PlaylistBrowserViewModel {
                    knownPlaylistSummariesByID[id] != nil {
                     return
                 }
-                sidebarSelection = nil
-                detailState = .empty(SpotiglassL10n.string("browser.empty.noPlaylistsHint"))
+                await selectHomeIfNoDetailIsShown()
                 return
             }
             let selectionBefore = sidebarSelection
@@ -84,7 +83,18 @@ extension PlaylistBrowserViewModel {
             } else {
                 playlistState = .error(displayError)
             }
+            await selectHomeIfNoDetailIsShown()
         }
+    }
+
+    /// The Home feed is independent of the playlist library. On the initial
+    /// route, keep it available even when the library has no usable response.
+    private func selectHomeIfNoDetailIsShown() async {
+        guard detailState.currentValue == nil,
+              sidebarSelection == nil || sidebarSelection == .home else {
+            return
+        }
+        await selectSidebar(.home)
     }
 
     private func fetchPlaylistsForRefresh(trigger: PlaylistRefreshTrigger) async throws -> [SpotifyPlaylistSummary] {

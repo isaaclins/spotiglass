@@ -57,6 +57,28 @@ struct CatalogSearchResults: Equatable {
     }
 }
 
+private extension SpotifySearchResults {
+    func paging(for category: CatalogSearchCategory) -> SpotifySearchPaging? {
+        switch category {
+        case .all: nil
+        case .tracks: tracksPaging
+        case .artists: artistsPaging
+        case .albums: albumsPaging
+        case .playlists: playlistsPaging
+        }
+    }
+
+    func itemCount(for category: CatalogSearchCategory) -> Int {
+        switch category {
+        case .all: tracks.count + artists.count + albums.count + playlists.count
+        case .tracks: tracks.count
+        case .artists: artists.count
+        case .albums: albums.count
+        case .playlists: playlists.count
+        }
+    }
+}
+
 /// Backing model for the full-window catalog Search view.
 ///
 /// Deliberately independent of ``CommandPaletteViewModel``: the palette stays the
@@ -85,16 +107,22 @@ final class CatalogSearchViewModel: ObservableObject {
     @Published private(set) var state: BrowsingLoadState<CatalogSearchResults> = .empty("")
 
     /// Injected by the browser view so this model never owns an API client.
-    /// Parameters are the trimmed query and the paging offset.
-    var searchProvider: (String, Int) async throws -> SpotifySearchResults = { _, _ in
+    /// Parameters are the trimmed query, paging offset, and cache policy for the run.
+    var searchProvider: (String, Int, SpotifyRequestCacheMode) async throws -> SpotifySearchResults = { _, _, _ in
         SpotifySearchResults(tracks: [], artists: [], albums: [], playlists: [])
     }
 
     private var searchTask: Task<Void, Never>?
+    /// Monotonically identifies the latest scheduled query or refresh.
+    private var searchGeneration = 0
     /// Query the cached page set belongs to; lets pill switches re-filter without refetching.
     private var cachedQuery: String?
     private var cachedPageCount = 0
     private var cachedResults: CatalogSearchResults?
+    private var cachedRawTracks: [SpotifyTrack] = []
+    private var cachedHasMore: [CatalogSearchCategory: Bool] = [:]
+    private var cachedNextOffsets: [CatalogSearchCategory: Int] = [:]
+    @Published private(set) var isLoadingMore = false
 
     deinit {
         searchTask?.cancel()
@@ -114,6 +142,18 @@ final class CatalogSearchViewModel: ObservableObject {
         (state.currentValue ?? CatalogSearchResults()).filtered(to: category)
     }
 
+    /// True when the focused category has another Spotify page available.
+    var canLoadMore: Bool {
+        guard category != .all,
+              !isLoadingMore,
+              cachedQuery == trimmedQuery,
+              cachedResults != nil,
+              cachedPageCount >= pageCount(for: category) else {
+            return false
+        }
+        return cachedHasMore[category] == true
+    }
+
     // MARK: - Input
 
     /// Call from the search field's `onChange`.
@@ -126,7 +166,14 @@ final class CatalogSearchViewModel: ObservableObject {
         category = newCategory
         // A focused pill wants deeper paging than the `all` preview, so only
         // refetch when the cache cannot already satisfy the new page depth.
-        if cachedQuery == trimmedQuery, cachedPageCount >= pageCount(for: newCategory) {
+        if cachedQuery == trimmedQuery,
+           let cachedResults,
+           cachedPageCount >= pageCount(for: newCategory) {
+            searchGeneration += 1
+            isLoadingMore = false
+            state = cachedResults.isEmpty
+                ? .empty(SpotiglassL10n.format("search.empty.noResults", trimmedQuery))
+                : .loaded(cachedResults)
             return
         }
         scheduleSearch()
@@ -137,11 +184,70 @@ final class CatalogSearchViewModel: ObservableObject {
         scheduleSearch()
     }
 
+    /// Explicit user refresh. Unlike query changes and category switches, this
+    /// must discard the in-memory result and bypass the HTTP response cache.
+    func refreshSearch() {
+        scheduleSearch(forceRefresh: true)
+    }
+
     /// Palette handoff: opens this view pre-populated with the palette's query and scope.
     func applyHandoff(query newQuery: String, paletteCategory: CommandPaletteSearchCategory) {
         query = newQuery
         category = CatalogSearchCategory.fromPaletteCategory(paletteCategory)
         scheduleSearch()
+    }
+
+    /// Loads one continuation page for the focused category and appends it to
+    /// the current result set. Ordinary paging keeps the fresh-cache policy.
+    func loadMore() async {
+        guard canLoadMore,
+              let queryToLoad = cachedQuery,
+              let existingResults = cachedResults,
+              let offset = cachedNextOffsets[category] else {
+            return
+        }
+
+        let generation = searchGeneration
+        let categoryBeingLoaded = category
+        isLoadingMore = true
+        state = .refreshing(existingResults)
+        defer {
+            if generation == searchGeneration {
+                isLoadingMore = false
+            }
+        }
+
+        do {
+            let page = try await searchProvider(queryToLoad, offset, .freshOnly)
+            try Task.checkCancellation()
+            guard generation == searchGeneration,
+                  category == categoryBeingLoaded,
+                  self.cachedQuery == queryToLoad else {
+                return
+            }
+
+            var merged = existingResults
+            var tracks = cachedRawTracks
+            appendUniqueTracks(from: page, to: &tracks)
+            appendUniqueArtists(from: page, to: &merged)
+            appendUniqueAlbums(from: page, to: &merged)
+            appendUniquePlaylists(from: page, to: &merged)
+            merged.tracks = TrackRowViewModel.numberedTopTracks(tracks)
+
+            let fetchedPageCount = max(cachedPageCount, offset / Self.pageSize + 1)
+            cachedPageCount = fetchedPageCount
+            cachedRawTracks = tracks
+            updatePagingState(from: page, offset: offset)
+            cachedResults = merged
+            state = merged.isEmpty
+                ? .empty(SpotiglassL10n.format("search.empty.noResults", queryToLoad))
+                : .loaded(merged)
+        } catch is CancellationError {
+            return
+        } catch {
+            guard generation == searchGeneration, !Task.isCancelled else { return }
+            state = .staleCache(existingResults, PlaylistBrowserViewModel.displayError(for: error))
+        }
     }
 
     // MARK: - Search
@@ -152,8 +258,11 @@ final class CatalogSearchViewModel: ObservableObject {
 
     /// Debounces, then fetches. Queries below ``minimumQueryCharacters`` never
     /// reach ``searchProvider``.
-    func scheduleSearch() {
+    func scheduleSearch(forceRefresh: Bool = false) {
         searchTask?.cancel()
+        isLoadingMore = false
+        searchGeneration += 1
+        let generation = searchGeneration
         let trimmed = trimmedQuery
         guard !trimmed.isEmpty else {
             resetCache()
@@ -165,7 +274,9 @@ final class CatalogSearchViewModel: ObservableObject {
             state = .empty(SpotiglassL10n.string("search.empty.keepTyping"))
             return
         }
-        if cachedQuery == trimmed, let cachedResults, cachedPageCount >= pageCount(for: category) {
+        if forceRefresh {
+            resetCache()
+        } else if cachedQuery == trimmed, let cachedResults, cachedPageCount >= pageCount(for: category) {
             state = cachedResults.isEmpty
                 ? .empty(SpotiglassL10n.format("search.empty.noResults", trimmed))
                 : .loaded(cachedResults)
@@ -174,9 +285,15 @@ final class CatalogSearchViewModel: ObservableObject {
 
         state = .loading
         let pages = pageCount(for: category)
+        let cacheMode: SpotifyRequestCacheMode = forceRefresh ? .bypassCache : .freshOnly
         searchTask = Task { [weak self] in
             guard let self else { return }
-            await self.performSearch(query: trimmed, pageCount: pages)
+            await self.performSearch(
+                query: trimmed,
+                pageCount: pages,
+                cacheMode: cacheMode,
+                generation: generation
+            )
         }
     }
 
@@ -185,42 +302,54 @@ final class CatalogSearchViewModel: ObservableObject {
         await searchTask?.value
     }
 
-    private func performSearch(query trimmed: String, pageCount pages: Int) async {
+    private func performSearch(
+        query trimmed: String,
+        pageCount pages: Int,
+        cacheMode: SpotifyRequestCacheMode,
+        generation: Int
+    ) async {
         do {
             try await Task.sleep(for: .milliseconds(Self.debounceMilliseconds))
             try Task.checkCancellation()
 
             var merged = CatalogSearchResults()
             var tracks: [SpotifyTrack] = []
-            var seenTrackIDs: Set<String> = []
-            var seenArtistIDs: Set<String> = []
-            var seenAlbumIDs: Set<String> = []
-            var seenPlaylistIDs: Set<String> = []
+            var hasMoreByCategory: [CatalogSearchCategory: Bool] = [:]
+            var nextOffsets: [CatalogSearchCategory: Int] = [:]
+            var pagesFetched = 0
 
-            for page in 0 ..< max(1, pages) {
-                let results = try await searchProvider(trimmed, page * Self.pageSize)
+            for pageIndex in 0 ..< max(1, pages) {
+                let offset = pageIndex * Self.pageSize
+                let results = try await searchProvider(trimmed, offset, cacheMode)
                 try Task.checkCancellation()
-                for track in results.tracks where seenTrackIDs.insert(track.id).inserted {
-                    tracks.append(track)
-                }
-                for artist in results.artists where seenArtistIDs.insert(artist.id).inserted {
-                    merged.artists.append(artist)
-                }
-                for album in results.albums where seenAlbumIDs.insert(album.id).inserted {
-                    merged.albums.append(album)
-                }
-                for playlist in results.playlists where seenPlaylistIDs.insert(playlist.id).inserted {
-                    merged.playlists.append(playlist)
-                }
-                // A short page means the catalog is exhausted for this query.
-                if results.tracks.isEmpty, results.artists.isEmpty, results.albums.isEmpty, results.playlists.isEmpty {
+                pagesFetched = pageIndex + 1
+                appendUniqueTracks(from: results, to: &tracks)
+                appendUniqueArtists(from: results, to: &merged)
+                appendUniqueAlbums(from: results, to: &merged)
+                appendUniquePlaylists(from: results, to: &merged)
+                updatePagingState(
+                    from: results,
+                    offset: offset,
+                    hasMoreByCategory: &hasMoreByCategory,
+                    nextOffsets: &nextOffsets
+                )
+
+                let pageIsEmpty = results.tracks.isEmpty
+                    && results.artists.isEmpty
+                    && results.albums.isEmpty
+                    && results.playlists.isEmpty
+                if pageIsEmpty || (category != .all && hasMoreByCategory[category] == false) {
                     break
                 }
             }
+            guard generation == searchGeneration, !Task.isCancelled else { return }
             merged.tracks = TrackRowViewModel.numberedTopTracks(tracks)
 
             cachedQuery = trimmed
-            cachedPageCount = pages
+            cachedPageCount = pagesFetched
+            cachedRawTracks = tracks
+            cachedHasMore = hasMoreByCategory
+            cachedNextOffsets = nextOffsets
             cachedResults = merged
             state = merged.isEmpty
                 ? .empty(SpotiglassL10n.format("search.empty.noResults", trimmed))
@@ -228,14 +357,98 @@ final class CatalogSearchViewModel: ObservableObject {
         } catch is CancellationError {
             return
         } catch {
+            guard generation == searchGeneration, !Task.isCancelled else { return }
             resetCache()
             state = .error(PlaylistBrowserViewModel.displayError(for: error))
         }
+    }
+
+    private func appendUniqueTracks(from page: SpotifySearchResults, to tracks: inout [SpotifyTrack]) {
+        var seenIDs = Set(tracks.map(\.id))
+        for track in page.tracks where seenIDs.insert(track.id).inserted {
+            tracks.append(track)
+        }
+    }
+
+    private func appendUniqueArtists(from page: SpotifySearchResults, to results: inout CatalogSearchResults) {
+        var seenIDs = Set(results.artists.map(\.id))
+        for artist in page.artists where seenIDs.insert(artist.id).inserted {
+            results.artists.append(artist)
+        }
+    }
+
+    private func appendUniqueAlbums(from page: SpotifySearchResults, to results: inout CatalogSearchResults) {
+        var seenIDs = Set(results.albums.map(\.id))
+        for album in page.albums where seenIDs.insert(album.id).inserted {
+            results.albums.append(album)
+        }
+    }
+
+    private func appendUniquePlaylists(from page: SpotifySearchResults, to results: inout CatalogSearchResults) {
+        var seenIDs = Set(results.playlists.map(\.id))
+        for playlist in page.playlists where seenIDs.insert(playlist.id).inserted {
+            results.playlists.append(playlist)
+        }
+    }
+
+    private func updatePagingState(
+        from results: SpotifySearchResults,
+        offset: Int,
+        hasMoreByCategory: inout [CatalogSearchCategory: Bool],
+        nextOffsets: inout [CatalogSearchCategory: Int]
+    ) {
+        for pagedCategory in CatalogSearchCategory.allCases where pagedCategory != .all {
+            let hasMore = hasMore(in: results, category: pagedCategory, offset: offset)
+            hasMoreByCategory[pagedCategory] = hasMore
+            if hasMore {
+                nextOffsets[pagedCategory] = nextOffset(from: results.paging(for: pagedCategory), offset: offset)
+            } else {
+                nextOffsets[pagedCategory] = nil
+            }
+        }
+    }
+
+    private func hasMore(
+        in results: SpotifySearchResults,
+        category: CatalogSearchCategory,
+        offset: Int
+    ) -> Bool {
+        let itemCount = results.itemCount(for: category)
+        if let paging = results.paging(for: category) {
+            return paging.next != nil || offset + itemCount < paging.total
+        }
+        return itemCount >= Self.pageSize
+    }
+
+    private func nextOffset(from paging: SpotifySearchPaging?, offset: Int) -> Int {
+        let fallback = offset + Self.pageSize
+        guard let nextURL = paging?.next else { return fallback }
+        guard let queryItems = URLComponents(url: nextURL, resolvingAgainstBaseURL: false)?.queryItems else {
+            return fallback
+        }
+        guard let value = queryItems.first(where: { $0.name == "offset" })?.value,
+              let parsedOffset = Int(value),
+              parsedOffset > offset else {
+            return fallback
+        }
+        return parsedOffset
+    }
+
+    private func updatePagingState(from results: SpotifySearchResults, offset: Int) {
+        updatePagingState(
+            from: results,
+            offset: offset,
+            hasMoreByCategory: &cachedHasMore,
+            nextOffsets: &cachedNextOffsets
+        )
     }
 
     private func resetCache() {
         cachedQuery = nil
         cachedPageCount = 0
         cachedResults = nil
+        cachedRawTracks = []
+        cachedHasMore = [:]
+        cachedNextOffsets = [:]
     }
 }

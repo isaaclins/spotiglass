@@ -49,19 +49,23 @@ extension PlaylistBrowserViewModel {
 
     /// Reloads the network-backed home sections (recently played, top tracks)
     /// concurrently. Quick access is derived state and needs no reload here.
-    func reloadHomeSections() async {
+    func reloadHomeSections(forceRefresh: Bool = false) async {
         homeFeedGeneration += 1
         let generation = homeFeedGeneration
+        let cacheMode: SpotifyRequestCacheMode = forceRefresh ? .bypassCache : .freshOnly
         homeRecentlyPlayed = .loading
         homeTopTracks = .loading
-        async let recently: Void = loadHomeRecentlyPlayed(generation: generation)
-        async let top: Void = loadHomeTopTracks(generation: generation)
+        async let recently: Void = loadHomeRecentlyPlayed(generation: generation, cacheMode: cacheMode)
+        async let top: Void = loadHomeTopTracks(generation: generation, cacheMode: cacheMode)
         _ = await (recently, top)
     }
 
-    private func loadHomeRecentlyPlayed(generation: Int) async {
+    private func loadHomeRecentlyPlayed(
+        generation: Int,
+        cacheMode: SpotifyRequestCacheMode
+    ) async {
         do {
-            let tracks = try await api.recentlyPlayedTracks(limit: 50)
+            let tracks = try await api.recentlyPlayedTracks(limit: 50, cacheMode: cacheMode)
             guard generation == homeFeedGeneration else { return }
             var seenAlbums: Set<String> = []
             let cards = tracks.compactMap { track -> HomeMediaCard? in
@@ -78,9 +82,16 @@ extension PlaylistBrowserViewModel {
         }
     }
 
-    private func loadHomeTopTracks(generation: Int) async {
+    private func loadHomeTopTracks(
+        generation: Int,
+        cacheMode: SpotifyRequestCacheMode
+    ) async {
         do {
-            let tracks = try await api.topTracks(limit: 20, timeRange: "short_term")
+            let tracks = try await api.topTracks(
+                limit: 20,
+                timeRange: "short_term",
+                cacheMode: cacheMode
+            )
             guard generation == homeFeedGeneration else { return }
             homeTopTracks = .loaded(TrackRowViewModel.numberedTopTracks(tracks))
         } catch is CancellationError {

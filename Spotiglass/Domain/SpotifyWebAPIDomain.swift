@@ -182,11 +182,40 @@ struct SpotifyAlbum: Codable, Equatable, Identifiable {
     let uri: String
 }
 
+struct SpotifySearchPaging: Codable, Equatable {
+    let total: Int
+    let next: URL?
+}
+
 struct SpotifySearchResults: Codable, Equatable {
     let tracks: [SpotifyTrack]
     let artists: [SpotifyArtist]
     let albums: [SpotifyAlbum]
     let playlists: [SpotifyPlaylistSummary]
+    let tracksPaging: SpotifySearchPaging?
+    let artistsPaging: SpotifySearchPaging?
+    let albumsPaging: SpotifySearchPaging?
+    let playlistsPaging: SpotifySearchPaging?
+
+    init(
+        tracks: [SpotifyTrack],
+        artists: [SpotifyArtist],
+        albums: [SpotifyAlbum],
+        playlists: [SpotifyPlaylistSummary],
+        tracksPaging: SpotifySearchPaging? = nil,
+        artistsPaging: SpotifySearchPaging? = nil,
+        albumsPaging: SpotifySearchPaging? = nil,
+        playlistsPaging: SpotifySearchPaging? = nil
+    ) {
+        self.tracks = tracks
+        self.artists = artists
+        self.albums = albums
+        self.playlists = playlists
+        self.tracksPaging = tracksPaging
+        self.artistsPaging = artistsPaging
+        self.albumsPaging = albumsPaging
+        self.playlistsPaging = playlistsPaging
+    }
 }
 
 struct SpotifyEpisode: Codable, Equatable, Identifiable {

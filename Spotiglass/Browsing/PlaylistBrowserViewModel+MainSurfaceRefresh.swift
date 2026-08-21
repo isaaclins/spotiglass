@@ -33,10 +33,10 @@ extension PlaylistBrowserViewModel {
         switch selection {
         case .home:
             await refreshPlaylists(trigger: .userInitiated)
-            await reloadHomeSections()
+            await reloadHomeSections(forceRefresh: true)
         case .search:
-            // Re-runs the active query rather than reloading a cached surface.
-            catalogSearch.scheduleSearch()
+            // Re-runs the active query and bypasses both search caches.
+            catalogSearch.refreshSearch()
         case .likedSongs, .playlist, .pinnedItem:
             await refreshSelectedPlaylist()
         }

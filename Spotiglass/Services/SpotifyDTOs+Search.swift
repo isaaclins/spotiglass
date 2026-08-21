@@ -11,7 +11,11 @@ struct SpotifySearchResponseDTO: Decodable {
             tracks: (tracks?.items ?? []).compactMap { $0.domainModel() },
             artists: (artists?.items ?? []).map { $0.domainModel() },
             albums: (albums?.items ?? []).map { $0.domainModel() },
-            playlists: (playlists?.items ?? []).map { $0.domainModel() }
+            playlists: (playlists?.items ?? []).map { $0.domainModel() },
+            tracksPaging: tracks.map { SpotifySearchPaging(total: $0.total, next: $0.next) },
+            artistsPaging: artists.map { SpotifySearchPaging(total: $0.total, next: $0.next) },
+            albumsPaging: albums.map { SpotifySearchPaging(total: $0.total, next: $0.next) },
+            playlistsPaging: playlists.map { SpotifySearchPaging(total: $0.total, next: $0.next) }
         )
     }
 }

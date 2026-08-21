@@ -7,7 +7,12 @@ extension SpotifyAPIClient {
 
     /// Paged catalog search. `offset` is the only way past the first 10 results per
     /// item type: `limit` is capped at 10 by Spotify, not by us.
-    func search(query: String, limit: Int, offset: Int) async throws -> SpotifySearchResults {
+    func search(
+        query: String,
+        limit: Int,
+        offset: Int,
+        cacheMode: SpotifyRequestCacheMode = .freshOnly
+    ) async throws -> SpotifySearchResults {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             return SpotifySearchResults(tracks: [], artists: [], albums: [], playlists: [])
@@ -24,7 +29,8 @@ extension SpotifyAPIClient {
         }
         let dto: SpotifySearchResponseDTO = try await send(
             path: "/v1/search",
-            queryItems: queryItems
+            queryItems: queryItems,
+            cacheMode: cacheMode
         )
         return dto.domainModel()
     }

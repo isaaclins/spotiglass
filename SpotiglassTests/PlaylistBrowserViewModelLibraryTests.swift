@@ -119,6 +119,32 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         }
         XCTAssertEqual(error.title, "Spotify is rate limiting requests")
         XCTAssertTrue(error.canRetry)
+        XCTAssertEqual(viewModel.sidebarSelection, .home)
+        XCTAssertEqual(viewModel.detailState, .loaded(.home))
+        XCTAssertEqual(api.recentlyPlayedCallCount, 1)
+        XCTAssertEqual(api.topTracksCallCount, 1)
+    }
+
+    func testCachedPlaylistRefreshFailureStillLoadsHomeDetail() async {
+        let cached = PlaylistBrowsingTestFixtures.playlist(id: "cached", name: "Cached")
+        let api = MockBrowsingAPI(
+            playlistResults: [.failure(SpotifyAPIError.network("Offline"))],
+            trackResults: [:]
+        )
+        let viewModel = PlaylistBrowserViewModel(
+            api: api,
+            cache: MockBrowsingCache(cachedPlaylists: [cached])
+        )
+
+        await viewModel.load()
+
+        XCTAssertEqual(viewModel.sidebarSelection, .home)
+        XCTAssertEqual(viewModel.detailState, .loaded(.home))
+        guard case .staleCache = viewModel.playlistState else {
+            return XCTFail("The cached playlist list should remain visible as stale")
+        }
+        XCTAssertEqual(api.recentlyPlayedCallCount, 1)
+        XCTAssertEqual(api.topTracksCallCount, 1)
     }
 
     func testEmptyPlaylistLibraryShowsEmptyStates() async {
@@ -131,7 +157,10 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
             return XCTFail("Expected empty playlist state")
         }
         XCTAssertEqual(playlistMessage, "Your Spotify library has no playlists yet.")
-        XCTAssertNil(viewModel.selectedPlaylistID)
+        XCTAssertEqual(viewModel.sidebarSelection, .home)
+        XCTAssertEqual(viewModel.detailState, .loaded(.home))
+        XCTAssertEqual(api.recentlyPlayedCallCount, 1)
+        XCTAssertEqual(api.topTracksCallCount, 1)
     }
 
     func testSelectedPlaylistDisappearingIsHandledCleanly() async {
@@ -554,7 +583,10 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
 
     func testManualHomeRefreshCooldownSkipsImmediateSecondRoundTrip() async {
         let api = MockBrowsingAPI(
-            playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
+            playlistResults: [
+                .success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")]),
+                .success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])
+            ],
             trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]]
         )
         let viewModel = PlaylistBrowserViewModel(

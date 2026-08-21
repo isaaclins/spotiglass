@@ -65,6 +65,30 @@ final class SpotifyAPIClientSearchRateLimitAndGETRetryTests: XCTestCase {
         )
     }
 
+    func testSearchRetainsPerCategoryPagingMetadata() async throws {
+        let httpClient = QueueHTTPClient([
+            .json("""
+            {
+              "tracks": {
+                "limit": 10,
+                "total": 31,
+                "next": "https://api.spotify.com/v1/search?q=wide&type=track&limit=10&offset=10",
+                "items": []
+              }
+            }
+            """)
+        ])
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+
+        let results = try await client.search(query: "wide", limit: 10)
+
+        XCTAssertEqual(results.tracksPaging?.total, 31)
+        XCTAssertEqual(
+            results.tracksPaging?.next?.absoluteString,
+            "https://api.spotify.com/v1/search?q=wide&type=track&limit=10&offset=10"
+        )
+    }
+
     func testSearchTracksUsesTypeTrackAndLimit() async throws {
         let httpClient = QueueHTTPClient([
             .json("""
@@ -131,6 +155,29 @@ final class SpotifyAPIClientSearchRateLimitAndGETRetryTests: XCTestCase {
 
         XCTAssertEqual(httpClient.requests.count, 1, "GET response cache should avoid a second HTTP request for the same search.")
         XCTAssertEqual(second.tracks.map(\.id), ["track-1"])
+    }
+
+    func testSearchBypassCacheMakesSecondHTTPRequest() async throws {
+        let searchJSON = """
+            {
+              "tracks": { "items": [] },
+              "artists": { "items": [] },
+              "albums": { "items": [] },
+              "playlists": { "items": [] }
+            }
+            """
+        let cache = SpotifyGETResponseCache(diskCache: nil)
+        let httpClient = QueueHTTPClient([.json(searchJSON), .json(searchJSON)])
+        let client = SpotifyAPIClient(
+            tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"),
+            httpClient: httpClient,
+            getResponseCache: cache
+        )
+
+        _ = try await client.search(query: "Midnight", limit: 4, offset: 0, cacheMode: .freshOnly)
+        _ = try await client.search(query: "Midnight", limit: 4, offset: 0, cacheMode: .bypassCache)
+
+        XCTAssertEqual(httpClient.requests.count, 2)
     }
 
     func testLateSpotifyGETCompletionCannotOverwriteNewerBypassResponse() async throws {

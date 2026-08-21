@@ -48,7 +48,40 @@ final class PlaylistBrowserHomeFeedTests: XCTestCase {
 
         XCTAssertEqual(vm.detailState, .loaded(.home))
         XCTAssertEqual(vm.homeTopTracks.value?.map(\.title), ["Track t1"])
-        XCTAssertEqual(api.topTracksCallCount, 1)
+        XCTAssertEqual(api.topTracksCallCount, 2)
+    }
+
+    func testManualHomeRefreshFetchesChangedSectionsOutsideFreshCache() async {
+        let firstRecentlyPlayed = recentlyPlayedTrack(id: "recent-1", albumID: "album-1", albumName: "Album 1")
+        let secondRecentlyPlayed = recentlyPlayedTrack(id: "recent-2", albumID: "album-2", albumName: "Album 2")
+        let firstTopTrack = recentlyPlayedTrack(id: "top-1", albumID: "top-album-1", albumName: "Top Album 1")
+        let secondTopTrack = recentlyPlayedTrack(id: "top-2", albumID: "top-album-2", albumName: "Top Album 2")
+        var recentlyPlayedInvocation = 0
+        var topTracksInvocation = 0
+        let api = MockBrowsingAPI(
+            playlistResults: [
+                .success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")]),
+                .success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])
+            ],
+            trackResults: [:]
+        )
+        api.recentlyPlayedHandler = { _ in
+            recentlyPlayedInvocation += 1
+            return recentlyPlayedInvocation == 1 ? [firstRecentlyPlayed] : [secondRecentlyPlayed]
+        }
+        api.topTracksHandler = { _, _ in
+            topTracksInvocation += 1
+            return topTracksInvocation == 1 ? [firstTopTrack] : [secondTopTrack]
+        }
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+
+        await viewModel.load()
+        await viewModel.unifiedRefreshMainSurface()
+
+        XCTAssertEqual(viewModel.homeRecentlyPlayed.value?.map(\.id), ["album-2"])
+        XCTAssertEqual(viewModel.homeTopTracks.value?.map(\.id), ["top-2"])
+        XCTAssertEqual(api.recentlyPlayedCacheModes, [.freshOnly, .bypassCache])
+        XCTAssertEqual(api.topTracksCacheModes, [.freshOnly, .bypassCache])
     }
 
     func testRecentlyPlayedDedupesByAlbum() async {

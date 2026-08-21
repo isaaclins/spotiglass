@@ -274,18 +274,29 @@ final class MockBrowsingAPI: SpotifyBrowsingAPI {
     var recentlyPlayedHandler: ((Int) async throws -> [SpotifyTrack])?
     var topTracksHandler: ((Int, String) async throws -> [SpotifyTrack])?
     private(set) var recentlyPlayedCallCount = 0
+    private(set) var recentlyPlayedCacheModes: [SpotifyRequestCacheMode] = []
     private(set) var topTracksCallCount = 0
+    private(set) var topTracksCacheModes: [SpotifyRequestCacheMode] = []
 
-    func recentlyPlayedTracks(limit: Int) async throws -> [SpotifyTrack] {
+    func recentlyPlayedTracks(
+        limit: Int,
+        cacheMode: SpotifyRequestCacheMode
+    ) async throws -> [SpotifyTrack] {
         recentlyPlayedCallCount += 1
+        recentlyPlayedCacheModes.append(cacheMode)
         if let recentlyPlayedHandler {
             return try await recentlyPlayedHandler(limit)
         }
         return []
     }
 
-    func topTracks(limit: Int, timeRange: String) async throws -> [SpotifyTrack] {
+    func topTracks(
+        limit: Int,
+        timeRange: String,
+        cacheMode: SpotifyRequestCacheMode
+    ) async throws -> [SpotifyTrack] {
         topTracksCallCount += 1
+        topTracksCacheModes.append(cacheMode)
         if let topTracksHandler {
             return try await topTracksHandler(limit, timeRange)
         }

@@ -146,9 +146,10 @@ struct CatalogSearchView: View {
         }
     }
 
-    @ViewBuilder
     private func resultSections(_ results: CatalogSearchResults) -> some View {
-        ScrollView {
+        let showsLoadMore = searchViewModel.category != .all
+            && (searchViewModel.canLoadMore || searchViewModel.isLoadingMore)
+        return ScrollView {
             VStack(alignment: .leading, spacing: SpotiglassDesign.spacingL) {
                 if results.isEmpty {
                     // Selecting a category with no matches used to render an
@@ -171,9 +172,28 @@ struct CatalogSearchView: View {
                 if !results.playlists.isEmpty {
                     playlistSection(results.playlists)
                 }
+                if showsLoadMore {
+                    loadMoreControl
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    private var loadMoreControl: some View {
+        Button {
+            Task { await searchViewModel.loadMore() }
+        } label: {
+            if searchViewModel.isLoadingMore {
+                ProgressView()
+                    .controlSize(.small)
+                Text(SpotiglassL10n.string("search.loadingMore"))
+            } else {
+                Text(SpotiglassL10n.string("search.loadMore"))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
+        .disabled(searchViewModel.isLoadingMore)
     }
 
     private func trackSection(_ tracks: [TrackRowViewModel]) -> some View {

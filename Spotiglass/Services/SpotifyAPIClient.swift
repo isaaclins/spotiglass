@@ -1,6 +1,6 @@
 import Foundation
 
-enum SpotifyRequestCacheMode {
+enum SpotifyRequestCacheMode: Equatable {
     case freshOnly
     case allowStale
     case bypassCache

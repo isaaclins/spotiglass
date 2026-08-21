@@ -55,7 +55,7 @@ final class CatalogSearchViewTests: XCTestCase {
     ) -> CatalogSearchViewModel {
         let viewModel = CatalogSearchViewModel()
         let payload = results ?? makeCatalogResults()
-        viewModel.searchProvider = { _, offset in
+        viewModel.searchProvider = { _, offset, _ in
             onCall?()
             // Only the first page carries results, so paging terminates.
             return offset == 0
@@ -149,20 +149,43 @@ final class CatalogSearchViewTests: XCTestCase {
         XCTAssertTrue(artistsOnly.playlists.isEmpty)
     }
 
-    func testResultsFilteredToTracksKeepsOnlyTracks() {
-        let results = CatalogSearchResults(
-            tracks: TrackRowViewModel.numberedTopTracks(makeCatalogResults().tracks),
-            artists: makeCatalogResults().artists,
-            albums: makeCatalogResults().albums,
-            playlists: makeCatalogResults().playlists
-        )
+    func testFocusedCategoryLoadMoreAppendsResultsPastInitialThirty() async {
+        let viewModel = CatalogSearchViewModel()
+        viewModel.searchProvider = { _, offset, _ in
+            let indexes: [Int]
+            switch offset {
+            case 0, 10, 20:
+                indexes = Array((offset + 1)...(offset + 10))
+            case 30:
+                indexes = [31]
+            default:
+                indexes = []
+            }
+            let tracks = indexes.map { index in
+                SpotifyTrack(
+                    id: "track-\(index)",
+                    name: "Track \(index)",
+                    artists: ["Artist"],
+                    albumArtworkURL: nil,
+                    durationMilliseconds: 120_000,
+                    isExplicit: false,
+                    isPlayable: true,
+                    linkedFromID: nil,
+                    uri: "spotify:track:track-\(index)"
+                )
+            }
+            return SpotifySearchResults(tracks: tracks, artists: [], albums: [], playlists: [])
+        }
 
-        let filtered = results.filtered(to: .tracks)
+        viewModel.query = "many results"
+        viewModel.selectCategory(.tracks)
+        await viewModel.waitForSearchCompletion()
+        XCTAssertEqual(viewModel.visibleResults.tracks.count, 30)
 
-        XCTAssertEqual(filtered.tracks.count, 1)
-        XCTAssertTrue(filtered.artists.isEmpty)
-        XCTAssertTrue(filtered.albums.isEmpty)
-        XCTAssertTrue(filtered.playlists.isEmpty)
+        await viewModel.loadMore()
+
+        XCTAssertEqual(viewModel.visibleResults.tracks.count, 31)
+        XCTAssertEqual(viewModel.visibleResults.tracks.last?.id, "track-31")
     }
 
     // MARK: - Minimum length + debounce gate
@@ -205,6 +228,76 @@ final class CatalogSearchViewTests: XCTestCase {
         XCTAssertEqual(callCount, 1, "Rapid keystrokes must collapse into a single search.")
     }
 
+    func testRefreshingSameQueryCallsProviderAgainAndReplacesResults() async {
+        let browserViewModel = makeBrowserViewModel()
+        await browserViewModel.selectSidebar(.search)
+        var callCount = 0
+        var cacheModes: [SpotifyRequestCacheMode] = []
+        browserViewModel.catalogSearch.searchProvider = { _, offset, cacheMode in
+            cacheModes.append(cacheMode)
+            guard offset == 0 else {
+                return SpotifySearchResults(tracks: [], artists: [], albums: [], playlists: [])
+            }
+            callCount += 1
+            let trackID = callCount == 1 ? "before-refresh" : "after-refresh"
+            let track = SpotifyTrack(
+                id: trackID,
+                name: trackID,
+                artists: ["Artist"],
+                albumArtworkURL: nil,
+                durationMilliseconds: 120_000,
+                isExplicit: false,
+                isPlayable: true,
+                linkedFromID: nil,
+                uri: "spotify:track:\(trackID)"
+            )
+            return SpotifySearchResults(tracks: [track], artists: [], albums: [], playlists: [])
+        }
+        browserViewModel.catalogSearch.query = "found"
+        browserViewModel.catalogSearch.queryDidChange()
+        await browserViewModel.catalogSearch.waitForSearchCompletion()
+
+        await browserViewModel.unifiedRefreshMainSurface()
+        await browserViewModel.catalogSearch.waitForSearchCompletion()
+
+        XCTAssertEqual(callCount, 2)
+        XCTAssertEqual(cacheModes, [.freshOnly, .bypassCache])
+        XCTAssertEqual(browserViewModel.catalogSearch.visibleResults.tracks.map(\.id), ["after-refresh"])
+    }
+
+    func testSupersededSearchErrorCannotReplaceNewerResults() async {
+        let viewModel = CatalogSearchViewModel()
+        let oldRequestGate = CatalogSearchErrorGate()
+        let oldRequestFinished = expectation(description: "old search finished")
+        viewModel.searchProvider = { query, _, _ in
+            if query == "old" {
+                await oldRequestGate.waitForRelease()
+                oldRequestFinished.fulfill()
+                throw SpotifyAPIError.rateLimited(retryAfter: 1)
+            }
+            return self.makeCatalogResults()
+        }
+
+        viewModel.query = "old"
+        viewModel.queryDidChange()
+        await oldRequestGate.waitUntilStarted()
+
+        viewModel.query = "new"
+        viewModel.queryDidChange()
+        await viewModel.waitForSearchCompletion()
+        guard case .loaded = viewModel.state else {
+            return XCTFail("The newer query should load before the old request fails")
+        }
+
+        await oldRequestGate.release()
+        await fulfillment(of: [oldRequestFinished], timeout: 2)
+
+        guard case let .loaded(results) = viewModel.state else {
+            return XCTFail("A late error from the old query must not replace the newer results")
+        }
+        XCTAssertEqual(results.tracks.map(\.id), ["t1"])
+    }
+
     func testMinimumQueryLengthIsSharedWithTheCommandPalette() {
         XCTAssertEqual(
             CatalogSearchViewModel.minimumQueryCharacters,
@@ -217,7 +310,7 @@ final class CatalogSearchViewTests: XCTestCase {
     func testPaletteShowAllResultsRowSetsQueryAndScopeOnSearchViewModel() async {
         let browserViewModel = makeBrowserViewModel()
         let searchViewModel = browserViewModel.catalogSearch
-        searchViewModel.searchProvider = { _, _ in
+        searchViewModel.searchProvider = { _, _, _ in
             SpotifySearchResults(tracks: [], artists: [], albums: [], playlists: [])
         }
 
@@ -389,7 +482,8 @@ final class CatalogSearchViewTests: XCTestCase {
     func testEverySearchStringResolvesToRealCopy() {
         var keys = ["browser.search", "menu.view.search", "palette.section.showAll",
                     "palette.showAllResults.subtitle", "search.field.placeholder",
-                    "search.field.clear", "search.state.searching", "search.empty.title",
+                    "search.field.clear", "search.loadMore", "search.loadingMore",
+                    "search.state.searching", "search.empty.title",
                     "palette.command.\(CommandPaletteCommandID.openSearch).title",
                     "palette.command.\(CommandPaletteCommandID.openSearch).subtitle"]
         keys += CatalogSearchCategory.allCases.map { "search.category.\($0.rawValue)" }
@@ -405,5 +499,40 @@ final class CatalogSearchViewTests: XCTestCase {
             XCTAssertFalse(pill.pillLabel.isEmpty)
             XCTAssertNotEqual(pill.pillLabel, "search.category.\(pill.rawValue)")
         }
+    }
+}
+
+private actor CatalogSearchErrorGate {
+    private var hasStarted = false
+    private var startWaiters: [CheckedContinuation<Void, Never>] = []
+    private var isReleased = false
+    private var releaseWaiter: CheckedContinuation<Void, Never>?
+
+    func waitUntilStarted() async {
+        if hasStarted {
+            return
+        }
+        await withCheckedContinuation { continuation in
+            startWaiters.append(continuation)
+        }
+    }
+
+    func waitForRelease() async {
+        hasStarted = true
+        let waiters = startWaiters
+        startWaiters.removeAll()
+        waiters.forEach { $0.resume() }
+        if isReleased {
+            return
+        }
+        await withCheckedContinuation { continuation in
+            releaseWaiter = continuation
+        }
+    }
+
+    func release() {
+        isReleased = true
+        releaseWaiter?.resume()
+        releaseWaiter = nil
     }
 }

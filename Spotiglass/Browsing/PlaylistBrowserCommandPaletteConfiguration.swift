@@ -124,8 +124,13 @@ enum PlaylistBrowserCommandPaletteConfiguration {
         // The Search view owns no API client; it borrows the browser's search
         // client. `/v1/search` caps `limit` at 10 per type, so depth comes from offset.
         let searchClient = dependencies.spotifySearchClient
-        browserVM.catalogSearch.searchProvider = { query, offset in
-            try await searchClient.search(query: query, limit: CatalogSearchViewModel.pageSize, offset: offset)
+        browserVM.catalogSearch.searchProvider = { query, offset, cacheMode in
+            try await searchClient.search(
+                query: query,
+                limit: CatalogSearchViewModel.pageSize,
+                offset: offset,
+                cacheMode: cacheMode
+            )
         }
         manager.openSearch = { [weak viewModel = dependencies.viewModel] in
             guard let viewModel else { return }

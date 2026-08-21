@@ -2262,29 +2262,6 @@
         }
       }
     },
-    "browser.empty.noPlaylistsHint": {
-      "extractionState": "stale",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Erstellen Sie eine Playlist in Spotify oder folgen Sie einer, und aktualisieren Sie dann."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Create or follow a playlist in Spotify, then refresh."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Crea o sigue una lista en Spotify y vuelve a actualizar."
-          }
-        }
-      }
-    },
     "browser.empty.pickSomething": {
       "extractionState": "stale",
       "localizations": {
@@ -11240,6 +11217,52 @@
           "stringUnit": {
             "state": "translated",
             "value": "Buscar en Spotify"
+          }
+        }
+      }
+    },
+    "search.loadMore": {
+      "extractionState": "stale",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weitere Ergebnisse laden"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Load more results"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cargar más resultados"
+          }
+        }
+      }
+    },
+    "search.loadingMore": {
+      "extractionState": "stale",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weitere Ergebnisse werden geladen …"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading more results…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cargando más resultados…"
           }
         }
       }
