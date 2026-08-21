@@ -15,7 +15,7 @@ struct SpotifyPlaylistSummary: Codable, Equatable, Identifiable {
     let ownerID: String
     let ownerName: String
     let imageURL: URL?
-    let trackCount: Int
+    let trackCount: Int?
     let snapshotID: String
 }
 

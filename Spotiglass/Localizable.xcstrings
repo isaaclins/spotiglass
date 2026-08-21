@@ -3389,6 +3389,29 @@
         }
       }
     },
+    "browser.trackCountUnavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Titelanzahl nicht verfügbar"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Track count unavailable"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cantidad de canciones no disponible"
+          }
+        }
+      }
+    },
     "browser.trackCount": {
       "extractionState": "manual",
       "localizations": {

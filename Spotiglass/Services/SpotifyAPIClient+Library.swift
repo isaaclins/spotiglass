@@ -204,6 +204,7 @@ extension SpotifyAPIClient {
         guard (200..<300).contains(response.statusCode) else {
             let message = (try? decoder.decode(SpotifyAPIErrorResponse.self, from: data).error.message)
             switch response.statusCode {
+            case 401: throw SpotifyAPIError.unauthorized
             case 400: throw SpotifyAPIError.badRequest(message: message, details: nil)
             case 403: throw SpotifyAPIError.forbidden(message: message, details: nil)
             case 404: throw SpotifyAPIError.notFound(message: message)

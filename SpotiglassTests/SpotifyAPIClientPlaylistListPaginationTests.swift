@@ -64,12 +64,10 @@ final class SpotifyAPIClientPlaylistListPaginationTests: XCTestCase {
         XCTAssertEqual(httpClient.requests[1].url?.absoluteString, "https://api.spotify.com/v1/me/playlists?offset=1&limit=1")
     }
 
-    func testPlaylistPaginationStopsAtConfiguredPageCap() async throws {
-        // Each page must advertise a distinct `next` URL; `collectPaged` stops if Spotify repeats the same `next`
-        // link while pagination is still ongoing (defensive loop guard).
-        let responses: [QueueHTTPClient.Response] = (0 ..< 20).map { idx in
+    func testCurrentUserPlaylistPaginationReachesBeyondPreviousPageCap() async throws {
+        let responses: [QueueHTTPClient.Response] = (0 ..< 21).map { idx in
             let nextJSON: String
-            if idx < 19 {
+            if idx < 20 {
                 nextJSON = "\"https://api.spotify.com/v1/me/playlists?offset=\(idx + 1)&limit=1\""
             } else {
                 nextJSON = "null"
@@ -100,9 +98,9 @@ final class SpotifyAPIClientPlaylistListPaginationTests: XCTestCase {
 
         let playlists = try await client.currentUserPlaylists(limit: 1)
 
-        XCTAssertEqual(playlists.count, 20)
-        XCTAssertEqual(playlists.map(\.id), (0 ..< 20).map { "playlist-\($0)" })
-        XCTAssertEqual(httpClient.requests.count, 20)
+        XCTAssertEqual(playlists.count, 21)
+        XCTAssertEqual(playlists.map(\.id), (0 ..< 21).map { "playlist-\($0)" })
+        XCTAssertEqual(httpClient.requests.count, 21)
     }
 
     func testPlaylistPaginationBreaksWhenNextURLRepeats() async throws {

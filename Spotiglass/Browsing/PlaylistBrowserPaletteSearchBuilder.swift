@@ -237,7 +237,7 @@ enum PlaylistBrowserPaletteSearchBuilder {
                 ownerID: row.ownerID,
                 ownerName: row.owner,
                 imageURL: row.artworkURL,
-                trackCount: 0,
+                trackCount: row.trackCount,
                 snapshotID: row.snapshotID
             )
             let pinPayload = PinnedItem.playlist(summary)

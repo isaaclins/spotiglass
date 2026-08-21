@@ -40,7 +40,7 @@ struct PlaylistDetailContent: View {
                     ownerID: detail.playlist.ownerID,
                     ownerName: detail.playlist.owner,
                     imageURL: detail.playlist.artworkURL,
-                    trackCount: 0,
+                    trackCount: detail.playlist.trackCount,
                     snapshotID: detail.playlist.snapshotID
                 )
             )

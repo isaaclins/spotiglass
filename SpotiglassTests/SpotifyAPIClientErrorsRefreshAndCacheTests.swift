@@ -172,6 +172,31 @@ final class SpotifyAPIClientErrorsRefreshAndCacheTests: XCTestCase {
         XCTAssertEqual(tokenProvider.refreshCount, 1)
     }
 
+    func testWriteSecondUnauthorizedRemainsAuthorizationFailureAfterOneRefresh() async throws {
+        let httpClient = QueueHTTPClient([
+            .json(#"{"error":{"status":401,"message":"Expired"}}"#, statusCode: 401),
+            .json(#"{"error":{"status":401,"message":"Still expired"}}"#, statusCode: 401),
+        ])
+        let tokenProvider = RefreshingTokenProvider()
+        let client = SpotifyAPIClient(tokenProvider: tokenProvider, httpClient: httpClient)
+
+        do {
+            try await client.updatePlaylist(playlistID: "playlist-1", name: "Renamed")
+            XCTFail("Expected unauthorized")
+        } catch let error as SpotifyAPIError {
+            XCTAssertEqual(error, .unauthorized)
+        }
+
+        XCTAssertEqual(tokenProvider.refreshCount, 1)
+        XCTAssertEqual(httpClient.requests.count, 2)
+        XCTAssertEqual(httpClient.requests.map(\.httpMethod), ["PUT", "PUT"])
+        XCTAssertEqual(httpClient.requests.map { $0.value(forHTTPHeaderField: "Authorization") }, [
+            "Bearer stale-token",
+            "Bearer fresh-token",
+        ])
+        XCTAssertEqual(httpClient.requests[0].httpBody, httpClient.requests[1].httpBody)
+    }
+
     func testConcurrentUnauthorizedRequestsShareSingleRefresh() async throws {
         let httpClient = TokenAwareUnauthorizedHTTPClient()
         let tokenProvider = SingleFlightRefreshingTokenProvider()

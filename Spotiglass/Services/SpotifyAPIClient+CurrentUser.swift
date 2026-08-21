@@ -7,9 +7,10 @@ extension SpotifyAPIClient {
     }
 
     func currentUserPlaylists(limit: Int = 50) async throws -> [SpotifyPlaylistSummary] {
-        // `/v1/me/playlists` can span many pages; cap total pages to avoid
-        // pathological loops and runaway request bursts if `next` misbehaves.
-        try await collectPaged(path: "/v1/me/playlists", limit: limit, maxPages: 20) { (dto: SpotifyPlaylistDTO, _) in
+        // Follow Spotify's continuation links to completion. `collectPaged` stops
+        // when a continuation URL repeats, protecting against malformed loops
+        // without silently dropping a valid long library.
+        try await collectPaged(path: "/v1/me/playlists", limit: limit) { (dto: SpotifyPlaylistDTO, _) in
             dto.domainModel()
         }
     }

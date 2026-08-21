@@ -127,6 +127,48 @@ final class SpotifyAPIClientPlaylistSummaryDecodingTests: XCTestCase {
         XCTAssertTrue(httpClient.requests.isEmpty)
     }
 
+    func testOmittedPlaylistItemsStayUnavailableThroughCacheAndSidebarRows() async throws {
+        let httpClient = QueueHTTPClient([
+            .json("""
+            {
+              "limit": 2,
+              "offset": 0,
+              "total": 2,
+              "next": null,
+              "items": [
+                {
+                  "id": "followed-playlist",
+                  "name": "Followed",
+                  "owner": { "id": "owner-1", "display_name": "Owner" },
+                  "images": [],
+                  "snapshot_id": "snapshot-followed"
+                },
+                {
+                  "id": "empty-playlist",
+                  "name": "Empty",
+                  "owner": { "id": "owner-2", "display_name": "Owner Two" },
+                  "images": [],
+                  "items": { "total": 0 },
+                  "snapshot_id": "snapshot-empty"
+                }
+              ]
+            }
+            """),
+        ])
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+        let playlists = try await client.currentUserPlaylists(limit: 2)
+        let cache = try SpotifyLocalCache(rootDirectory: spotiglassTestsTemporaryDirectory())
+
+        try cache.savePlaylists(playlists, cachedAt: Date(timeIntervalSince1970: 1_000))
+        let cachedPlaylists = try XCTUnwrap(cache.loadPlaylistsBundle(now: Date(timeIntervalSince1970: 1_001))).playlists
+        let rows = cachedPlaylists.map(PlaylistRowViewModel.init)
+
+        XCTAssertEqual(rows.map(\.trackCountText), [
+            "Track count unavailable",
+            SpotiglassL10n.format("browser.trackCount", Int64(0)),
+        ])
+    }
+
     func testPlaylistDecodingToleratesMissingSpotifyOptionalFields() async throws {
         let httpClient = QueueHTTPClient([
             .json("""

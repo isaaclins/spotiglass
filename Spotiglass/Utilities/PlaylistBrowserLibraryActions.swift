@@ -59,7 +59,7 @@ enum PlaylistBrowserLibraryActions {
             ownerID: row.ownerID,
             ownerName: row.owner,
             imageURL: row.artworkURL,
-            trackCount: 0,
+            trackCount: row.trackCount,
             snapshotID: row.snapshotID
         )
     }

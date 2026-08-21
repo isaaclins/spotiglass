@@ -6,6 +6,7 @@ struct PlaylistRowViewModel: Equatable, Identifiable {
     let owner: String
     /// Spotify user id for the playlist owner; empty for album rows where owner is artist text.
     let ownerID: String
+    let trackCount: Int?
     let trackCountText: String
     let artworkURL: URL?
     let snapshotID: String
@@ -15,7 +16,12 @@ struct PlaylistRowViewModel: Equatable, Identifiable {
         self.title = playlist.name
         self.owner = playlist.ownerName
         self.ownerID = playlist.ownerID
-        self.trackCountText = SpotiglassL10n.format("browser.trackCount", Int64(playlist.trackCount))
+        self.trackCount = playlist.trackCount
+        if let trackCount = playlist.trackCount {
+            self.trackCountText = SpotiglassL10n.format("browser.trackCount", Int64(trackCount))
+        } else {
+            self.trackCountText = SpotiglassL10n.string("browser.trackCountUnavailable")
+        }
         self.artworkURL = playlist.imageURL
         self.snapshotID = playlist.snapshotID
     }
@@ -35,6 +41,7 @@ struct PlaylistRowViewModel: Equatable, Identifiable {
         self.title = SpotiglassL10n.string("browser.likedSongs.title")
         self.owner = likedSongsOwnerDisplay
         self.ownerID = ""
+        self.trackCount = totalTrackCount
         if let totalTrackCount {
             self.trackCountText = SpotiglassL10n.format("browser.trackCount", Int64(totalTrackCount))
         } else {
@@ -53,6 +60,7 @@ struct PlaylistRowViewModel: Equatable, Identifiable {
         self.title = albumDisplayName
         self.owner = artistsDisplay
         self.ownerID = ""
+        self.trackCount = totalTrackCount
         self.trackCountText = SpotiglassL10n.format("browser.trackCount", Int64(totalTrackCount))
         self.artworkURL = artworkURL
         self.snapshotID = "album-\(albumID)"

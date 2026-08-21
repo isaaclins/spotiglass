@@ -32,7 +32,7 @@ struct SpotifyPlaylistDTO: Decodable {
     let name: String
     let owner: SpotifyOwnerDTO
     let images: [SpotifyImageDTO]
-    let items: SpotifyPlaylistTracksReferenceDTO
+    let items: SpotifyPlaylistTracksReferenceDTO?
     let snapshotID: String
 
     enum CodingKeys: String, CodingKey {
@@ -56,7 +56,7 @@ struct SpotifyPlaylistDTO: Decodable {
         // so we accept either to keep the client compatible across deployment modes.
         let itemsReference = try container.decodeIfPresent(SpotifyPlaylistTracksReferenceDTO.self, forKey: .items)
         let tracksReference = try container.decodeIfPresent(SpotifyPlaylistTracksReferenceDTO.self, forKey: .tracks)
-        items = itemsReference ?? tracksReference ?? SpotifyPlaylistTracksReferenceDTO(total: 0)
+        items = itemsReference ?? tracksReference
         snapshotID = try container.decodeIfPresent(String.self, forKey: .snapshotID) ?? id
     }
 
@@ -67,7 +67,7 @@ struct SpotifyPlaylistDTO: Decodable {
             ownerID: owner.id,
             ownerName: owner.displayName ?? owner.id,
             imageURL: images.largestImageURL,
-            trackCount: items.total,
+            trackCount: items?.total,
             snapshotID: snapshotID
         )
     }
