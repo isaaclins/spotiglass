@@ -83,6 +83,46 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
         )
     }
 
+    func testDisconnectDuringInFlightTransportSyncSuppressesLateSnapshotMutation() async {
+        let playbackAPI = MockPlaybackAPI()
+        playbackAPI.snapshotResponses = [SpotifyPlayerSnapshot(
+            transport: SpotifyPlayerTransport(shuffle: true, repeatMode: .track),
+            activeDevice: SpotifyConnectDevice(
+                deviceID: "old-device",
+                isActive: true,
+                isRestricted: false,
+                name: "Old device",
+                type: "computer"
+            ),
+            isPlaying: true
+        )]
+        let fetchStarted = AsyncSignal()
+        let releaseFetch = AsyncSignal()
+        playbackAPI.onFetchPlayerSnapshot = {
+            fetchStarted.signal()
+            await releaseFetch.wait()
+        }
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: playbackAPI,
+            webCommander: MockWebPlaybackCommander()
+        )
+        viewModel.handle(.ready(deviceID: "old-device"))
+
+        let didStart = await fetchStarted.wait(timeout: .seconds(1))
+        XCTAssertTrue(didStart)
+        await viewModel.disconnect()
+        playbackAPI.onFetchPlayerSnapshot = nil
+        releaseFetch.signal()
+        try? await Task.sleep(for: .milliseconds(30))
+
+        XCTAssertEqual(viewModel.connectionState, .disconnected)
+        XCTAssertNil(viewModel.latestPlayerSnapshot)
+        XCTAssertFalse(viewModel.isTransportStateKnown)
+        XCTAssertFalse(viewModel.shuffleEnabled)
+        XCTAssertEqual(viewModel.repeatMode, .off)
+        XCTAssertNil(viewModel.activePlaybackDeviceID)
+    }
+
     func testDuplicateReadyForKnownCurrentDevicePreservesTransportStateWithoutAnotherFetch() async {
         let playbackAPI = MockPlaybackAPI()
         playbackAPI.snapshotResponses = [SpotifyPlayerSnapshot(

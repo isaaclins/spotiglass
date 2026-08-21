@@ -650,7 +650,7 @@ final class QueuePanelTests: XCTestCase {
 }
 
 private final class StubWebPlaybackCommander: WebPlaybackCommanding {
-    func loadHost() {}
+    func loadHost(generation: PlaybackHostGeneration) {}
 
     func send(_ command: PlaybackBridgeCommand, payload: [String: Any]) async throws {}
 }

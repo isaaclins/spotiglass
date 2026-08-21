@@ -2,7 +2,19 @@ import Foundation
 
 @MainActor
 extension PlaybackSessionViewModel {
+    func handle(_ envelope: PlaybackBridgeEventEnvelope) {
+        guard ownsPlaybackHostGeneration(envelope.hostGeneration) else {
+            SpotiglassLog.info(.playback, "Ignoring stale SDK event generation=\(envelope.hostGeneration.rawValue) current=\(playbackHostGeneration.rawValue)")
+            return
+        }
+        handleCurrentPlaybackEvent(envelope.event)
+    }
+
     func handle(_ event: PlaybackBridgeEvent) {
+        handle(PlaybackBridgeEventEnvelope(event: event, hostGeneration: playbackHostGeneration))
+    }
+
+    private func handleCurrentPlaybackEvent(_ event: PlaybackBridgeEvent) {
         switch event {
         case let .ready(deviceID):
             SpotiglassLog.info(.playback, "SDK ready deviceID=\(deviceID) previousDeviceID=\(self.deviceID ?? "<nil>") autoResumeOnNextReady=\(autoResumeOnNextReady)")
@@ -33,13 +45,34 @@ extension PlaybackSessionViewModel {
             refreshTrayOutputSymbol()
             let initialTransportSyncTask = shouldRefreshTransportState ? scheduleTransportSync() : nil
             let shouldAutoResume = autoResumeOnNextReady
-            autoResumeOnNextReady = false
-            Task {
-                await syncPlaybackVolumeToWebPlayer()
+            playbackHostAutoResumeTask?.cancel()
+            playbackHostAutoResumeTask = nil
+            playbackHostAutoResumeSerial &+= 1
+            let autoResumeSerial = playbackHostAutoResumeSerial
+            let generation = playbackHostGeneration
+            playbackHostAutoResumeTask = Task { [weak self] in
+                guard let self else { return }
+                defer {
+                    if self.ownsPlaybackHostGeneration(generation),
+                       self.playbackHostAutoResumeSerial == autoResumeSerial {
+                        self.playbackHostAutoResumeTask = nil
+                        if shouldAutoResume {
+                            self.autoResumeOnNextReady = false
+                        }
+                    }
+                }
+                guard self.ownsPlaybackHostGeneration(generation),
+                      self.playbackHostAutoResumeSerial == autoResumeSerial,
+                      !Task.isCancelled else { return }
+                await self.syncPlaybackVolumeToWebPlayer(generation: generation)
+                guard self.ownsPlaybackHostGeneration(generation),
+                      self.playbackHostAutoResumeSerial == autoResumeSerial,
+                      !Task.isCancelled else { return }
                 if shouldAutoResume {
-                    await autoResumeFromStaleSpotiglassDeviceIfNeeded(
+                    await self.autoResumeFromStaleSpotiglassDeviceIfNeeded(
                         targetDeviceID: deviceID,
-                        initialTransportSyncTask: initialTransportSyncTask
+                        initialTransportSyncTask: initialTransportSyncTask,
+                        generation: generation
                     )
                 }
             }
@@ -62,8 +95,20 @@ extension PlaybackSessionViewModel {
             clearPendingSkipCommand()
             sdkNextTracks = []
             setConnectionState(.unavailable("Spotify playback device is no longer available. Reconnect playback to continue."))
-            Task {
-                await attemptPlaybackHostRecovery(cause: .notReady)
+            playbackHostRecoveryTask?.cancel()
+            playbackHostRecoveryTask = nil
+            playbackHostRecoverySerial &+= 1
+            let recoverySerial = playbackHostRecoverySerial
+            let generation = playbackHostGeneration
+            playbackHostRecoveryTask = Task { [weak self] in
+                guard let self else { return }
+                defer {
+                    if self.ownsPlaybackHostGeneration(generation),
+                       self.playbackHostRecoverySerial == recoverySerial {
+                        self.playbackHostRecoveryTask = nil
+                    }
+                }
+                await self.attemptPlaybackHostRecovery(cause: .notReady, generation: generation)
             }
         case let .stateChanged(nowPlaying, isPaused, nextTracks):
             let suppressed = shouldSuppressStaleStateChange(nowPlaying: nowPlaying)
@@ -88,8 +133,20 @@ extension PlaybackSessionViewModel {
                 message: message,
                 recoveryAction: .reconnect
             )))
-            Task {
-                await attemptPlaybackHostRecovery(cause: .initializationError)
+            playbackHostRecoveryTask?.cancel()
+            playbackHostRecoveryTask = nil
+            playbackHostRecoverySerial &+= 1
+            let recoverySerial = playbackHostRecoverySerial
+            let generation = playbackHostGeneration
+            playbackHostRecoveryTask = Task { [weak self] in
+                guard let self else { return }
+                defer {
+                    if self.ownsPlaybackHostGeneration(generation),
+                       self.playbackHostRecoverySerial == recoverySerial {
+                        self.playbackHostRecoveryTask = nil
+                    }
+                }
+                await self.attemptPlaybackHostRecovery(cause: .initializationError, generation: generation)
             }
         case let .authenticationError(message):
             setConnectionState(.error(PlaybackDisplayError(
@@ -115,7 +172,12 @@ extension PlaybackSessionViewModel {
         }
     }
 
-    private func syncPlaybackVolumeToWebPlayer() async {
-        try? await webCommander.send(.setVolume, payload: ["volume": playbackVolume])
+    private func syncPlaybackVolumeToWebPlayer(generation: PlaybackHostGeneration) async {
+        guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
+        try? await webCommander.send(
+            .setVolume,
+            payload: ["volume": playbackVolume],
+            generation: generation
+        )
     }
 }

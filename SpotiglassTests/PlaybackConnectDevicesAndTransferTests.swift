@@ -3,6 +3,86 @@ import XCTest
 
 @MainActor
 final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
+    func testNewReadyEventReplacesPriorAutoResumeTask() async {
+        let playbackAPI = MockPlaybackAPI()
+        playbackAPI.availableDevices = [
+            SpotifyConnectDevice(
+                deviceID: "stale-spotiglass",
+                isActive: true,
+                isRestricted: false,
+                name: SpotifyPlaybackHost.deviceName,
+                type: "computer"
+            )
+        ]
+        let refreshStarted = AsyncSignal()
+        let releaseRefresh = AsyncSignal()
+        let transferStarted = AsyncSignal()
+        playbackAPI.onFetchAvailableDevices = {
+            refreshStarted.signal()
+            await releaseRefresh.wait()
+        }
+        playbackAPI.onTransferPlayback = { _, _ in
+            transferStarted.signal()
+        }
+        let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander())
+        viewModel.autoResumeOnNextReady = true
+        viewModel.handle(.ready(deviceID: "device-1"))
+
+        let didStart = await refreshStarted.wait(timeout: .seconds(1))
+        XCTAssertTrue(didStart)
+        viewModel.handle(.ready(deviceID: "device-2"))
+        XCTAssertEqual(viewModel.connectionState, .ready(deviceID: "device-2"))
+
+        releaseRefresh.signal()
+        let didTransfer = await transferStarted.wait(timeout: .seconds(1))
+
+        XCTAssertTrue(didTransfer)
+        XCTAssertEqual(
+            playbackAPI.actions.filter { $0.hasPrefix("transfer:") },
+            ["transfer:device-2:false"]
+        )
+        XCTAssertFalse(playbackAPI.actions.contains("transfer:device-1:false"))
+        XCTAssertEqual(viewModel.connectionState, .transferring(deviceID: "device-2"))
+    }
+
+    func testDisconnectDuringAutoResumeDeviceRefreshSuppressesLateRefreshAndTransfer() async {
+        let playbackAPI = MockPlaybackAPI()
+        let staleDevice = SpotifyConnectDevice(
+            deviceID: "stale-spotiglass",
+            isActive: true,
+            isRestricted: false,
+            name: SpotifyPlaybackHost.deviceName,
+            type: "computer"
+        )
+        playbackAPI.availableDevices = [staleDevice]
+        let refreshStarted = AsyncSignal()
+        let releaseRefresh = AsyncSignal()
+        let transferStarted = AsyncSignal()
+        playbackAPI.onFetchAvailableDevices = {
+            refreshStarted.signal()
+            await releaseRefresh.wait()
+        }
+        playbackAPI.onTransferPlayback = { _, _ in
+            transferStarted.signal()
+        }
+        let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander())
+        viewModel.autoResumeOnNextReady = true
+        viewModel.handle(.ready(deviceID: "new-spotiglass"))
+
+        let didStart = await refreshStarted.wait(timeout: .seconds(1))
+        XCTAssertTrue(didStart)
+        await viewModel.disconnect()
+        releaseRefresh.signal()
+        let didTransfer = await transferStarted.wait(timeout: .milliseconds(100))
+
+        XCTAssertEqual(viewModel.connectionState, .disconnected)
+        XCTAssertFalse(didTransfer)
+        XCTAssertNil(viewModel.deviceID)
+        XCTAssertTrue(viewModel.connectDevices.isEmpty)
+        XCTAssertFalse(viewModel.isRefreshingConnectDevices)
+        XCTAssertFalse(playbackAPI.actions.contains { $0.hasPrefix("transfer:") })
+    }
+
     func testReadyAutoResumeUsesInitialSnapshotWithoutDuplicatePlayerRead() async {
         let playbackAPI = MockPlaybackAPI()
         let staleDevice = SpotifyConnectDevice(
@@ -477,6 +557,125 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
     }
 
     // MARK: - Transfer playback hardening (audit follow-up)
+
+    func testDisconnectDuringKnownDeviceRetryIgnoresLifecycleCancellation() async {
+        let playbackAPI = MockPlaybackAPI()
+        let transferStarted = AsyncSignal()
+        let releaseTransfer = AsyncSignal()
+        playbackAPI.onTransferPlayback = { _, _ in
+            transferStarted.signal()
+            await releaseTransfer.wait()
+        }
+        let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander())
+        viewModel.handle(.ready(deviceID: "device-1"))
+        viewModel.handle(.playbackError("retry me"))
+
+        let retryTask = Task {
+            await viewModel.retryPlaybackTransfer()
+        }
+        let didStart = await transferStarted.wait(timeout: .seconds(1))
+        XCTAssertTrue(didStart)
+
+        await viewModel.disconnect()
+        releaseTransfer.signal()
+        await retryTask.value
+
+        XCTAssertEqual(viewModel.connectionState, .disconnected)
+        XCTAssertNil(viewModel.connectionStateError)
+    }
+
+    func testDisconnectDuringPlayEnsureTransferDoesNotPublishCancellationError() async {
+        let playbackAPI = MockPlaybackAPI()
+        let transferStarted = AsyncSignal()
+        let releaseTransfer = AsyncSignal()
+        playbackAPI.onTransferPlayback = { _, _ in
+            transferStarted.signal()
+            await releaseTransfer.wait()
+        }
+        let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander())
+        viewModel.handle(.ready(deviceID: "device-1"))
+
+        let playTask = Task {
+            await viewModel.play(uri: "spotify:track:1")
+        }
+        let didStart = await transferStarted.wait(timeout: .seconds(1))
+        XCTAssertTrue(didStart)
+
+        await viewModel.disconnect()
+        releaseTransfer.signal()
+        await playTask.value
+
+        XCTAssertEqual(viewModel.connectionState, .disconnected)
+        XCTAssertFalse(viewModel.connectionStateError != nil)
+        XCTAssertFalse(playbackAPI.actions.contains { $0.hasPrefix("play:") })
+    }
+
+    func testDisconnectDuringInFlightTransferSuppressesLateCompletionWork() async {
+        let playbackAPI = MockPlaybackAPI()
+        let transferStarted = AsyncSignal()
+        let releaseTransfer = AsyncSignal()
+        playbackAPI.onTransferPlayback = { _, _ in
+            transferStarted.signal()
+            await releaseTransfer.wait()
+        }
+        playbackAPI.availableDevices = [
+            SpotifyConnectDevice(
+                deviceID: "target",
+                isActive: false,
+                isRestricted: false,
+                name: "Speaker",
+                type: "speaker"
+            )
+        ]
+        let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander())
+        viewModel.handle(.ready(deviceID: "device-1"))
+
+        let transferTask = Task {
+            await viewModel.transferPlayback(toConnectDevice: "target")
+        }
+        let didStart = await transferStarted.wait(timeout: .seconds(1))
+        XCTAssertTrue(didStart)
+
+        await viewModel.disconnect()
+        releaseTransfer.signal()
+        await transferTask.value
+        await Task.yield()
+
+        XCTAssertEqual(viewModel.connectionState, .disconnected)
+        XCTAssertNil(viewModel.activePlaybackDeviceID)
+        XCTAssertTrue(viewModel.connectDevices.isEmpty)
+        XCTAssertFalse(playbackAPI.actions.contains("fetchAvailableDevices"))
+    }
+
+    func testDisconnectCancelsQueuedTransferIntentAfterInFlightTransfer() async {
+        let playbackAPI = MockPlaybackAPI()
+        let transferStarted = AsyncSignal()
+        let releaseTransfer = AsyncSignal()
+        playbackAPI.onTransferPlayback = { _, _ in
+            transferStarted.signal()
+            await releaseTransfer.wait()
+        }
+        let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander())
+        viewModel.handle(.ready(deviceID: "device-1"))
+
+        let firstTransfer = Task {
+            await viewModel.transferPlayback(toConnectDevice: "target-a")
+        }
+        let didStart = await transferStarted.wait(timeout: .seconds(1))
+        XCTAssertTrue(didStart)
+        let queuedTransfer = Task {
+            await viewModel.transferPlayback(toConnectDevice: "target-b")
+        }
+        await Task.yield()
+
+        await viewModel.disconnect()
+        releaseTransfer.signal()
+        await firstTransfer.value
+        await queuedTransfer.value
+
+        XCTAssertEqual(viewModel.connectionState, .disconnected)
+        XCTAssertFalse(playbackAPI.actions.contains { $0.contains("target-b") })
+    }
 
     func testConcurrentPlayRequestsCollapseToASingleTransferPUT() async {
         let playbackAPI = MockPlaybackAPI()

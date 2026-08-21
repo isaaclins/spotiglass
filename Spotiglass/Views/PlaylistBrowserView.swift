@@ -66,8 +66,8 @@ struct PlaylistBrowserView: View {
         let playbackCoordinator = SpotifyPlaybackWebViewCoordinator(
             tokenBridge: PlaybackTokenBridge(provider: playbackTokenProvider)
         )
-        playbackCoordinator.onEvent = { [weak playbackViewModel] event in
-            playbackViewModel?.handle(event)
+        playbackCoordinator.onEvent = { [weak playbackViewModel] envelope in
+            playbackViewModel?.handle(envelope)
         }
 
         _viewModel = StateObject(wrappedValue: viewModel)

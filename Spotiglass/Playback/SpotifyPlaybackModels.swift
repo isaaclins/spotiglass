@@ -292,6 +292,21 @@ enum SpotifyQueueTrackItem: Equatable {
     case episode(SpotifyEpisode)
 }
 
+struct PlaybackHostGeneration: Equatable, Hashable, Sendable {
+    let rawValue: UInt64
+
+    static let initial = PlaybackHostGeneration(rawValue: 0)
+
+    func advanced() -> PlaybackHostGeneration {
+        PlaybackHostGeneration(rawValue: rawValue &+ 1)
+    }
+}
+
+struct PlaybackBridgeEventEnvelope: Equatable {
+    let event: PlaybackBridgeEvent
+    let hostGeneration: PlaybackHostGeneration
+}
+
 enum PlaybackBridgeEvent: Equatable {
     case ready(deviceID: String)
     case notReady(deviceID: String)

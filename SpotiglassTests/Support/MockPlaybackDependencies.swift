@@ -30,19 +30,36 @@ final class MockWebPlaybackCommander: WebPlaybackCommanding {
 
     private(set) var didLoadHost = false
     private(set) var loadHostCallCount = 0
+    private(set) var loadedHostGenerations: [PlaybackHostGeneration] = []
     private(set) var commands: [SentCommand] = []
+    private var currentHostGeneration: PlaybackHostGeneration?
     /// Runs after each command is recorded — lets tests await a specific command
     /// deterministically instead of sleeping for "long enough".
     var onSend: ((PlaybackBridgeCommand) async -> Void)?
+    var onGenerationSend: ((PlaybackBridgeCommand, PlaybackHostGeneration) async -> Void)?
 
-    func loadHost() {
+    func loadHost(generation: PlaybackHostGeneration) {
         didLoadHost = true
         loadHostCallCount += 1
+        loadedHostGenerations.append(generation)
+        currentHostGeneration = generation
     }
 
     func send(_ command: PlaybackBridgeCommand, payload: [String: Any]) async throws {
         commands.append(SentCommand(command: command, payload: payload))
         await onSend?(command)
+    }
+
+    func send(
+        _ command: PlaybackBridgeCommand,
+        payload: [String: Any],
+        generation: PlaybackHostGeneration
+    ) async throws {
+        await onGenerationSend?(command, generation)
+        guard !Task.isCancelled,
+              currentHostGeneration == nil || currentHostGeneration == generation
+        else { return }
+        try await send(command, payload: payload)
     }
 }
 
@@ -144,6 +161,8 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
     var snapshotResponses: [SpotifyPlayerSnapshot?] = []
     var activeConnectDevice: SpotifyConnectDevice?
     var availableDevices: [SpotifyConnectDevice] = []
+    var onFetchPlayerSnapshot: (() async -> Void)?
+    var onFetchAvailableDevices: (() async -> Void)?
     var fetchAvailableDevicesDelayNanoseconds: UInt64 = 0
     var fetchPlayerSnapshotDelayNanoseconds: UInt64 = 0
     var setShuffleError: Error?
@@ -153,6 +172,9 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
     var seekDelayNanoseconds: UInt64 = 0
     var setRepeatDelayNanoseconds: UInt64 = 0
     var setShuffleDelayNanoseconds: UInt64 = 0
+    /// Runs at the top of `transferPlayback`, before any optional delay. Tests can use it
+    /// to hold a PUT in flight without relying on wall-clock timing.
+    var onTransferPlayback: ((String, Bool) async -> Void)?
     /// When non-zero, `transferPlayback` sleeps before recording the action. Lets the transfer-playback audit
     /// concurrency tests overlap the in-flight PUT with a sibling caller so the single-flight guard runs.
     var transferPlaybackDelayNanoseconds: UInt64 = 0
@@ -160,6 +182,7 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
     var transferPlaybackErrors: [Error] = []
 
     func transferPlayback(to deviceID: String, play: Bool) async throws {
+        await onTransferPlayback?(deviceID, play)
         if transferPlaybackDelayNanoseconds > 0 {
             try? await Task.sleep(nanoseconds: transferPlaybackDelayNanoseconds)
         }
@@ -229,6 +252,7 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
 
     func fetchPlayerSnapshot() async throws -> SpotifyPlayerSnapshot? {
         actionRecorder.append("fetchPlayerSnapshot")
+        await onFetchPlayerSnapshot?()
         if fetchPlayerSnapshotDelayNanoseconds > 0 {
             try? await Task.sleep(nanoseconds: fetchPlayerSnapshotDelayNanoseconds)
         }
@@ -248,6 +272,7 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
 
     func fetchAvailableDevices() async throws -> [SpotifyConnectDevice] {
         actionRecorder.append("fetchAvailableDevices")
+        await onFetchAvailableDevices?()
         if fetchAvailableDevicesDelayNanoseconds > 0 {
             try? await Task.sleep(nanoseconds: fetchAvailableDevicesDelayNanoseconds)
         }

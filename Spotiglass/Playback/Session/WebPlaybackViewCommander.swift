@@ -2,32 +2,63 @@ import Foundation
 import WebKit
 
 protocol WebPlaybackCommanding {
-    func loadHost()
+    func loadHost(generation: PlaybackHostGeneration)
     func send(_ command: PlaybackBridgeCommand, payload: [String: Any]) async throws
+    func send(
+        _ command: PlaybackBridgeCommand,
+        payload: [String: Any],
+        generation: PlaybackHostGeneration
+    ) async throws
+}
+
+extension WebPlaybackCommanding {
+    func loadHost() {
+        loadHost(generation: .initial)
+    }
+
+    func send(
+        _ command: PlaybackBridgeCommand,
+        payload: [String: Any],
+        generation: PlaybackHostGeneration
+    ) async throws {
+        try await send(command, payload: payload)
+    }
 }
 
 final class WebPlaybackViewCommander: WebPlaybackCommanding {
     private weak var webView: WKWebView?
+    private var loadedHostGeneration: PlaybackHostGeneration?
     /// Set when ``loadHost()`` runs before the `WKWebView` has been installed by
     /// `HiddenPlaybackWebView.makeNSView` (a real race on window reopen). The
     /// load is replayed in ``attach(webView:)`` once the WebView is available so
     /// the SDK host page is guaranteed to load.
-    private var hostLoadPending = false
+    private var hostLoadPendingGeneration: PlaybackHostGeneration?
 
     func attach(webView: WKWebView?) {
         self.webView = webView
-        if hostLoadPending, let webView {
-            hostLoadPending = false
-            webView.loadHTMLString(SpotifyPlaybackHost.html, baseURL: URL(string: "https://spotiglass.local"))
+        if let generation = hostLoadPendingGeneration, let webView {
+            hostLoadPendingGeneration = nil
+            webView.loadHTMLString(
+                SpotifyPlaybackHost.html(forHostGeneration: generation),
+                baseURL: URL(string: "https://spotiglass.local")
+            )
         }
     }
 
     func loadHost() {
+        loadHost(generation: .initial)
+    }
+
+    func loadHost(generation: PlaybackHostGeneration) {
+        loadedHostGeneration = generation
         guard let webView else {
-            hostLoadPending = true
+            hostLoadPendingGeneration = generation
             return
         }
-        webView.loadHTMLString(SpotifyPlaybackHost.html, baseURL: URL(string: "https://spotiglass.local"))
+        webView.loadHTMLString(
+            SpotifyPlaybackHost.html(forHostGeneration: generation),
+            baseURL: URL(string: "https://spotiglass.local")
+        )
     }
 
     @MainActor
@@ -35,5 +66,17 @@ final class WebPlaybackViewCommander: WebPlaybackCommanding {
         guard let webView else { return }
         let script = try WebPlaybackCommandScriptBuilder.script(for: command, payload: payload)
         _ = try await webView.evaluateJavaScript(script)
+    }
+
+    @MainActor
+    func send(
+        _ command: PlaybackBridgeCommand,
+        payload: [String: Any] = [:],
+        generation: PlaybackHostGeneration
+    ) async throws {
+        guard !Task.isCancelled,
+              loadedHostGeneration == nil || loadedHostGeneration == generation
+        else { return }
+        try await send(command, payload: payload)
     }
 }

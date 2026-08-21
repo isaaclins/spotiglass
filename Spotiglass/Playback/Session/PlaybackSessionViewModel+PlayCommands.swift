@@ -9,6 +9,8 @@ extension PlaybackSessionViewModel {
             return
         }
 
+        let generation = playbackHostGeneration
+        guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
         SpotiglassLog.info(.playback, "play(uri:) entry uri=\(uri) deviceID=\(commandDeviceID) currentURI=\(currentNowPlayingURI ?? "<nil>") hasTransferred=\(hasTransferredPlaybackToCurrentDevice)")
 
         activePlaylistID = nil
@@ -25,7 +27,8 @@ extension PlaybackSessionViewModel {
                 try await playbackAPI.play(uri: uri, deviceID: commandDeviceID)
             }
             SpotiglassLog.info(.playback, "play(uri:) API ok uri=\(uri)")
-            guard isPlayCommandDispatchCurrent(dispatch) else {
+            guard ownsPlaybackHostGeneration(generation), !Task.isCancelled,
+                  isPlayCommandDispatchCurrent(dispatch) else {
                 SpotiglassLog.info(.playback, "play(uri:) superseded after API uri=\(uri)")
                 return
             }
@@ -39,7 +42,8 @@ extension PlaybackSessionViewModel {
             finalizePlayCommandDispatchIfCurrent(dispatch)
         } catch {
             SpotiglassLog.error(.playback, "play(uri:) failed uri=\(uri) error=\(error)")
-            guard isPlayCommandDispatchCurrent(dispatch) else { return }
+            guard ownsPlaybackHostGeneration(generation), !Task.isCancelled,
+                  isPlayCommandDispatchCurrent(dispatch) else { return }
             clearPendingPlay()
             setConnectionState(.error(Self.displayError(for: error)))
             finalizePlayCommandDispatchIfCurrent(dispatch)
@@ -52,6 +56,8 @@ extension PlaybackSessionViewModel {
             return
         }
 
+        let generation = playbackHostGeneration
+        guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
         activePlaylistID = nil
         let commandKey = PlayCommandKey.contextURI(deviceID: commandDeviceID, contextURI: contextURI)
         guard let dispatch = beginPlayCommandDispatchIfNeeded(for: commandKey) else { return }
@@ -61,14 +67,16 @@ extension PlaybackSessionViewModel {
                 try await ensurePlaybackTransferredIfNeeded(deviceID: commandDeviceID)
                 try await playbackAPI.play(contextURI: contextURI, deviceID: commandDeviceID)
             }
-            guard isPlayCommandDispatchCurrent(dispatch) else { return }
+            guard ownsPlaybackHostGeneration(generation), !Task.isCancelled,
+                  isPlayCommandDispatchCurrent(dispatch) else { return }
             noteLocalPlaybackMutation(shouldSyncTransportImmediately: false)
             if !isRemotePlaybackActive {
                 try await webCommander.send(.playURI, payload: ["uri": contextURI])
             }
             finalizePlayCommandDispatchIfCurrent(dispatch)
         } catch {
-            guard isPlayCommandDispatchCurrent(dispatch) else { return }
+            guard ownsPlaybackHostGeneration(generation), !Task.isCancelled,
+                  isPlayCommandDispatchCurrent(dispatch) else { return }
             setConnectionState(.error(Self.displayError(for: error)))
             finalizePlayCommandDispatchIfCurrent(dispatch)
         }
@@ -81,6 +89,8 @@ extension PlaybackSessionViewModel {
             return
         }
 
+        let generation = playbackHostGeneration
+        guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
         SpotiglassLog.info(.playback, "playFromPlaylist entry clickedURI=\(clickedURI) playlistID=\(playlistID ?? "<nil>") playableCount=\(playableURIs.count) currentURI=\(currentNowPlayingURI ?? "<nil>") hasTransferred=\(hasTransferredPlaybackToCurrentDevice)")
 
         guard let startIndex = playableURIs.firstIndex(of: clickedURI) else {
@@ -114,7 +124,8 @@ extension PlaybackSessionViewModel {
                 try await playbackAPI.play(uris: queue, deviceID: commandDeviceID)
             }
             SpotiglassLog.info(.playback, "playFromPlaylist API ok clickedURI=\(clickedURI) queueCount=\(queue.count)")
-            guard isPlayCommandDispatchCurrent(dispatch) else {
+            guard ownsPlaybackHostGeneration(generation), !Task.isCancelled,
+                  isPlayCommandDispatchCurrent(dispatch) else {
                 SpotiglassLog.info(.playback, "playFromPlaylist superseded after API clickedURI=\(clickedURI)")
                 return
             }
@@ -128,7 +139,8 @@ extension PlaybackSessionViewModel {
             finalizePlayCommandDispatchIfCurrent(dispatch)
         } catch {
             SpotiglassLog.error(.playback, "playFromPlaylist failed clickedURI=\(clickedURI) error=\(error)")
-            guard isPlayCommandDispatchCurrent(dispatch) else { return }
+            guard ownsPlaybackHostGeneration(generation), !Task.isCancelled,
+                  isPlayCommandDispatchCurrent(dispatch) else { return }
             clearPendingPlay()
             setConnectionState(.error(Self.displayError(for: error)))
             finalizePlayCommandDispatchIfCurrent(dispatch)

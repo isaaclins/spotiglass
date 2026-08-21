@@ -222,21 +222,34 @@ extension PlaybackSessionViewModel {
 
     private func scheduleTransportSyncAfterRepeatToggle() {
         repeatSyncTask?.cancel()
+        let generation = playbackHostGeneration
         repeatSyncTask = Task { [weak self] in
-            guard let delay = self?.postRepeatSyncDelay else { return }
-            try? await Task.sleep(for: delay)
             guard let self else { return }
-            await self.syncTransportFromSpotify()
+            do {
+                try await Task.sleep(for: self.postRepeatSyncDelay)
+            } catch {
+                return
+            }
+            guard self.ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
+            await self.syncTransportFromSpotify(generation: generation)
         }
     }
 
     private func scheduleTransportSyncAfterShuffleToggle(minimumMutationVersion: UInt64) {
         shuffleSyncTask?.cancel()
+        let generation = playbackHostGeneration
         shuffleSyncTask = Task { [weak self] in
-            guard let delay = self?.postShuffleSyncDelay else { return }
-            try? await Task.sleep(for: delay)
             guard let self else { return }
-            await self.syncTransportFromSpotify(minimumShuffleMutationVersion: minimumMutationVersion)
+            do {
+                try await Task.sleep(for: self.postShuffleSyncDelay)
+            } catch {
+                return
+            }
+            guard self.ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
+            await self.syncTransportFromSpotify(
+                minimumShuffleMutationVersion: minimumMutationVersion,
+                generation: generation
+            )
         }
     }
 

@@ -3,6 +3,7 @@ import Foundation
 @MainActor
 extension PlaybackSessionViewModel {
     func transferPlayback(toConnectDevice selectedDeviceID: String) async {
+        let generation = playbackHostGeneration
         let shouldPlay: Bool
         switch connectionState {
         case .playing:
@@ -14,12 +15,15 @@ extension PlaybackSessionViewModel {
             try await performPrioritizedControlCommand {
                 try await self.performTransfer(deviceID: selectedDeviceID, play: shouldPlay, origin: .userManualConnect)
             }
+            guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
             setActivePlaybackDeviceID(selectedDeviceID)
             hasTransferredPlaybackToCurrentDevice = selectedDeviceID == deviceID
             noteLocalPlaybackMutation()
-            await syncTransportFromSpotify()
-            await refreshConnectDevices(force: true)
+            await syncTransportFromSpotify(generation: generation)
+            await refreshConnectDevices(force: true, generation: generation)
+            guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
         } catch {
+            guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
             setConnectionState(.error(Self.displayError(for: error)))
         }
     }
@@ -30,11 +34,14 @@ extension PlaybackSessionViewModel {
         controlCommandsInFlight += 1
         defer {
             controlCommandsInFlight -= 1
-            if controlCommandsInFlight == 0, transportSyncDeferredWhileControlCommandInFlight {
+            if controlCommandsInFlight == 0,
+               transportSyncDeferredWhileControlCommandInFlight,
+               let deferredGeneration = transportSyncDeferredGeneration {
                 transportSyncDeferredWhileControlCommandInFlight = false
+                transportSyncDeferredGeneration = nil
                 deferredTransportSyncTask?.cancel()
                 deferredTransportSyncTask = nil
-                scheduleTransportSync()
+                scheduleTransportSync(generation: deferredGeneration)
             }
         }
         try await operation()
@@ -46,31 +53,59 @@ extension PlaybackSessionViewModel {
     /// in-flight transfer already covered the same intent).
     @discardableResult
     func performTransfer(deviceID: String, play: Bool, origin: TransferOrigin) async throws -> Bool {
-        if let inflight = inflightTransferTask {
+        let generation = playbackHostGeneration
+        guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else {
+            throw CancellationError()
+        }
+        if let inflight = inflightTransferTask,
+           inflightTransferGeneration == generation {
             // Wait for the in-flight transfer; if it satisfied this caller's intent, we're done.
             _ = try? await inflight.value
+            guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else {
+                throw CancellationError()
+            }
             if origin.isAutomatic, deviceID == self.deviceID, hasTransferredPlaybackToCurrentDevice {
                 return false
             }
         }
+        guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else {
+            throw CancellationError()
+        }
         let serial = inflightTransferSerial
         inflightTransferSerial &+= 1
         let task = Task<Bool, Error> { [weak self] in
-            guard let self else { return false }
-            return try await self.runSingleTransfer(deviceID: deviceID, play: play, origin: origin)
+            guard let self, self.ownsPlaybackHostGeneration(generation), !Task.isCancelled else {
+                throw CancellationError()
+            }
+            return try await self.runSingleTransfer(
+                deviceID: deviceID,
+                play: play,
+                origin: origin,
+                generation: generation
+            )
         }
         inflightTransferTask = task
+        inflightTransferGeneration = generation
         activeInflightTransferSerial = serial
         defer {
             if activeInflightTransferSerial == serial {
                 inflightTransferTask = nil
+                inflightTransferGeneration = nil
                 activeInflightTransferSerial = nil
             }
         }
         return try await task.value
     }
 
-    private func runSingleTransfer(deviceID: String, play: Bool, origin: TransferOrigin) async throws -> Bool {
+    private func runSingleTransfer(
+        deviceID: String,
+        play: Bool,
+        origin: TransferOrigin,
+        generation: PlaybackHostGeneration
+    ) async throws -> Bool {
+        guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else {
+            throw CancellationError()
+        }
         let alreadyActive: Bool
         switch origin {
         case .userManualConnect:
@@ -103,14 +138,23 @@ extension PlaybackSessionViewModel {
         transferAttemptInstants.append(clock.now)
         do {
             try await playbackAPI.transferPlayback(to: deviceID, play: play)
+            guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else {
+                throw CancellationError()
+            }
             SpotiglassLog.info(.playback, "transferPlayback PUT ok deviceID=\(deviceID) play=\(play)")
         } catch let apiError as SpotifyAPIError {
+            guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else {
+                throw CancellationError()
+            }
             SpotiglassLog.error(.playback, "transferPlayback PUT failed deviceID=\(deviceID) play=\(play) error=\(apiError)")
             if case let .rateLimited(retryAfter) = apiError {
                 let cooldown = retryAfter ?? Self.durationSeconds(transferDefaultCooldown)
                 transferRetryCooldownUntil = clock.now.advanced(by: .seconds(cooldown))
             }
             throw apiError
+        }
+        guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else {
+            throw CancellationError()
         }
         if (origin == .ensureBeforePlay || origin == .autoResume), deviceID == self.deviceID {
             hasTransferredPlaybackToCurrentDevice = true
@@ -148,10 +192,14 @@ extension PlaybackSessionViewModel {
     /// launch never steals playback from the user's other Connect targets (phone, desktop, …).
     func autoResumeFromStaleSpotiglassDeviceIfNeeded(
         targetDeviceID: String,
-        initialTransportSyncTask: Task<Void, Never>? = nil
+        initialTransportSyncTask: Task<Void, Never>? = nil,
+        generation: PlaybackHostGeneration? = nil
     ) async {
+        let generation = generation ?? playbackHostGeneration
+        guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
         guard !hasTransferredPlaybackToCurrentDevice else { return }
-        await refreshConnectDevices(force: true)
+        await refreshConnectDevices(force: true, generation: generation)
+        guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
         let devices = connectDevices
         guard let staleSpotiglass = devices.first(where: { device in
             device.isActive
@@ -162,27 +210,34 @@ extension PlaybackSessionViewModel {
         }
         let shouldPlay = await preservedPlayState(
             for: staleSpotiglass.deviceID,
-            initialTransportSyncTask: initialTransportSyncTask
+            initialTransportSyncTask: initialTransportSyncTask,
+            generation: generation
         )
+        guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
 
         do {
+            guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
             setConnectionState(.transferring(deviceID: targetDeviceID))
             try await performTransfer(deviceID: targetDeviceID, play: shouldPlay, origin: .autoResume)
+            guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
             // Subsequent SDK `state_changed` will move the connection state to .playing/.paused.
         } catch {
+            guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
             setConnectionState(.ready(deviceID: targetDeviceID))
         }
     }
 
     private func preservedPlayState(
         for deviceID: String,
-        initialTransportSyncTask: Task<Void, Never>?
+        initialTransportSyncTask: Task<Void, Never>?,
+        generation: PlaybackHostGeneration
     ) async -> Bool {
         if let initialTransportSyncTask {
             await initialTransportSyncTask.value
         } else {
-            await syncTransportFromSpotify()
+            await syncTransportFromSpotify(generation: generation)
         }
+        guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return false }
 
         guard isTransportStateKnown,
               let snapshot = latestPlayerSnapshot,

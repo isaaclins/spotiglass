@@ -173,8 +173,10 @@ final class PlaybackSessionViewModel: ObservableObject {
     var shuffleSyncTask: Task<Void, Never>?
     var repeatSyncTask: Task<Void, Never>?
     var transportSyncInFlight = false
+    var transportSyncGeneration: PlaybackHostGeneration?
     var transportSyncQueued = false
     var transportSyncSchedulerTask: Task<Void, Never>?
+    var transportSyncSchedulerGeneration: PlaybackHostGeneration?
     /// Last non-empty track URI from SDK state; stabilizes poll keys when `uri` flickers nil.
     var stableTransportTrackURI: String?
     var transportTransientErrorCount = 0
@@ -192,8 +194,17 @@ final class PlaybackSessionViewModel: ObservableObject {
     /// A not-ready device may reclaim ownership when recovery reuses the same host. A hard
     /// reload clears this allowance so a late event from the old host cannot reclaim it.
     var reclaimableSDKDeviceID: String?
-    /// Set by `start()` and cleared by the next `.ready` event. While set, the next ready event runs
-    /// the stale-Spotiglass-device auto-resume check; without it, direct `.handle(.ready)` test paths
+    /// Monotonically identifies the Web Playback host lifecycle currently owned by this session.
+    /// Events and asynchronous completions from an older generation cannot publish into this one.
+    var playbackHostGeneration = PlaybackHostGeneration.initial
+    var playbackHostConnectTask: Task<Void, Never>?
+    var playbackHostRecoveryTask: Task<Void, Never>?
+    var playbackHostRecoverySerial: UInt64 = 0
+    var playbackHostAutoResumeTask: Task<Void, Never>?
+    var playbackHostAutoResumeSerial: UInt64 = 0
+    /// Set by `start()` and kept pending until the current generation's accepted ready task
+    /// finishes its auto-resume attempt. While set, each replacement ready task inherits the
+    /// stale-Spotiglass-device auto-resume intent; without it, direct `.handle(.ready)` test paths
     /// (which never go through `start()`) keep their previous behavior and don't fetch Connect devices.
     var autoResumeOnNextReady = false
     /// Timestamps of recent transfer PUTs, pruned to ``autoTransferRollingWindow``. Drives the
@@ -205,6 +216,7 @@ final class PlaybackSessionViewModel: ObservableObject {
     /// Single-flight guard for transfer requests. New callers await this task before issuing their
     /// own `PUT /v1/me/player`, which collapses concurrent play() bursts to one effective transfer.
     var inflightTransferTask: Task<Bool, Error>?
+    var inflightTransferGeneration: PlaybackHostGeneration?
     var inflightTransferSerial: UInt64 = 0
     var activeInflightTransferSerial: UInt64?
     /// Expected repeat mode after an optimistic local toggle. While pending,
@@ -230,6 +242,7 @@ final class PlaybackSessionViewModel: ObservableObject {
     var queuedShuffleTarget: Bool?
     var lastConfirmedShuffleEnabled: Bool?
     var connectDevicesRefreshTask: Task<[SpotifyConnectDevice], Error>?
+    var connectDevicesRefreshGeneration: PlaybackHostGeneration?
     var lastConnectDevicesRefreshAt: ContinuousClock.Instant?
     let connectDevicesFreshnessWindow: Duration
     let playbackHostHardReloadCooldown: Duration
@@ -276,6 +289,7 @@ final class PlaybackSessionViewModel: ObservableObject {
     var playCommandSequence: UInt64 = 0
     var controlCommandsInFlight = 0
     var transportSyncDeferredWhileControlCommandInFlight = false
+    var transportSyncDeferredGeneration: PlaybackHostGeneration?
     var deferredTransportSyncTask: Task<Void, Never>?
 
     /// True when the Web Playback path is far enough along for transport actions (mirrors transport button enablement).
@@ -451,6 +465,11 @@ final class PlaybackSessionViewModel: ObservableObject {
     }
 
     deinit {
+        playbackHostConnectTask?.cancel()
+        playbackHostRecoveryTask?.cancel()
+        playbackHostAutoResumeTask?.cancel()
+        connectDevicesRefreshTask?.cancel()
+        inflightTransferTask?.cancel()
         togglePlayPauseAckTimeoutTask?.cancel()
         transportPollTask?.cancel()
         shuffleSyncTask?.cancel()

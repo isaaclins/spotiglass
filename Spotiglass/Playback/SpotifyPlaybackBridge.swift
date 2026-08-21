@@ -35,6 +35,13 @@ enum SpotifyPlaybackHost {
         }
         return text
     }
+
+    static func html(forHostGeneration generation: PlaybackHostGeneration) -> String {
+        html.replacingOccurrences(
+            of: "__SPOTIGLASS_HOST_GENERATION__",
+            with: String(generation.rawValue)
+        )
+    }
 }
 
 enum SpotifyPlaybackBridgeParser {
@@ -150,12 +157,32 @@ enum SpotifyPlaybackWebViewCoordinatorDispatch {
             return .playbackError("Invalid playback bridge message: \(error.localizedDescription)")
         }
     }
+
+    static func playbackEventEnvelope(body: Any) -> PlaybackBridgeEventEnvelope {
+        let generation = ((body as? [String: Any])?["payload"] as? [String: Any])?["hostGeneration"]
+            .flatMap { value -> UInt64? in
+                if let number = value as? NSNumber {
+                    return number.uint64Value
+                }
+                if let value = value as? UInt64 {
+                    return value
+                }
+                if let value = value as? Int, value >= 0 {
+                    return UInt64(value)
+                }
+                return nil
+            } ?? PlaybackHostGeneration.initial.rawValue
+        return PlaybackBridgeEventEnvelope(
+            event: playbackEvent(body: body),
+            hostGeneration: PlaybackHostGeneration(rawValue: generation)
+        )
+    }
 }
 
 @MainActor
 final class SpotifyPlaybackWebViewCoordinator: NSObject, WKScriptMessageHandlerWithReply, WKScriptMessageHandler {
     let tokenBridge: PlaybackTokenBridge
-    var onEvent: ((PlaybackBridgeEvent) -> Void)?
+    var onEvent: ((PlaybackBridgeEventEnvelope) -> Void)?
 
     init(tokenBridge: PlaybackTokenBridge) {
         self.tokenBridge = tokenBridge
@@ -180,6 +207,6 @@ final class SpotifyPlaybackWebViewCoordinator: NSObject, WKScriptMessageHandlerW
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         guard message.name == SpotifyPlaybackWebViewCoordinatorDispatch.playbackHandlerName else { return }
-        onEvent?(SpotifyPlaybackWebViewCoordinatorDispatch.playbackEvent(body: message.body))
+        onEvent?(SpotifyPlaybackWebViewCoordinatorDispatch.playbackEventEnvelope(body: message.body))
     }
 }

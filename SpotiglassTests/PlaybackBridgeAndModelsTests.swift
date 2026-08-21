@@ -21,6 +21,21 @@ final class PlaybackBridgeAndModelsTests: XCTestCase {
         XCTAssertNil(nowPlaying.artistTapTargets[0].id)
     }
 
+    func testPlaybackBridgeAssociatesEventsWithHostGeneration() {
+        let envelope = SpotifyPlaybackWebViewCoordinatorDispatch.playbackEventEnvelope(body: [
+            "name": "ready",
+            "payload": ["deviceID": "device-1", "hostGeneration": 7]
+        ])
+
+        XCTAssertEqual(
+            envelope,
+            PlaybackBridgeEventEnvelope(
+                event: .ready(deviceID: "device-1"),
+                hostGeneration: PlaybackHostGeneration(rawValue: 7)
+            )
+        )
+    }
+
     func testBridgeParsesReadyStateAndErrors() throws {
         XCTAssertEqual(
             try SpotifyPlaybackBridgeParser.parse(["name": "ready", "payload": ["deviceID": "device-1"]]),

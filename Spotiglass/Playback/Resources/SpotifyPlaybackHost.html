@@ -10,11 +10,12 @@
   <script>
     (() => {
       const swift = window.webkit.messageHandlers.spotiglassPlayback;
+      const hostGeneration = Number('__SPOTIGLASS_HOST_GENERATION__');
       let player = null;
       let deviceId = null;
 
       function post(name, payload = {}) {
-        swift.postMessage({ name, payload });
+        swift.postMessage({ name, payload: { ...payload, hostGeneration } });
       }
 
       async function requestToken(refresh = false) {

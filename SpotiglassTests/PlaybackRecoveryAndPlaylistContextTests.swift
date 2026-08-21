@@ -3,6 +3,211 @@ import XCTest
 
 @MainActor
 final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
+    func testDisconnectDuringStartupRemainsDisconnectedAfterLateSDKEvents() async {
+        let commander = MockWebPlaybackCommander()
+        let playbackAPI = MockPlaybackAPI()
+        let connectStarted = AsyncSignal()
+        let releaseConnect = AsyncSignal()
+        commander.onSend = { command in
+            guard command == .connect else { return }
+            connectStarted.signal()
+            await releaseConnect.wait()
+        }
+        let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: commander)
+
+        viewModel.start()
+        let oldGeneration = viewModel.playbackHostGeneration
+        let didConnectStart = await connectStarted.wait(timeout: .seconds(1))
+        XCTAssertTrue(didConnectStart)
+
+        await viewModel.disconnect()
+        viewModel.handle(PlaybackBridgeEventEnvelope(event: .ready(deviceID: "old-device"), hostGeneration: oldGeneration))
+        viewModel.handle(PlaybackBridgeEventEnvelope(event: .notReady(deviceID: "old-device"), hostGeneration: oldGeneration))
+        viewModel.handle(PlaybackBridgeEventEnvelope(event: .initializationError("old startup failed"), hostGeneration: oldGeneration))
+        releaseConnect.signal()
+        await Task.yield()
+
+        XCTAssertEqual(viewModel.connectionState, .disconnected)
+        XCTAssertNil(viewModel.deviceID)
+        XCTAssertFalse(viewModel.autoResumeOnNextReady)
+        XCTAssertFalse(playbackAPI.actions.contains { $0.hasPrefix("transfer:") })
+    }
+
+    func testDisconnectDuringNotReadyRecoveryPreventsOldRecoveryCompletion() async {
+        let commander = MockWebPlaybackCommander()
+        let connectStarted = AsyncSignal()
+        let releaseConnect = AsyncSignal()
+        var connectCount = 0
+        commander.onSend = { command in
+            guard command == .connect else { return }
+            connectCount += 1
+            if connectCount == 1 {
+                connectStarted.signal()
+                await releaseConnect.wait()
+            }
+        }
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: MockPlaybackAPI(),
+            webCommander: commander,
+            playbackHostRecoveryConnectTimeout: .milliseconds(10),
+            playbackHostRecoverySoftResetTimeout: .milliseconds(10)
+        )
+        viewModel.handle(.ready(deviceID: "device-1"))
+        viewModel.handle(.notReady(deviceID: "device-1"))
+
+        let didConnectStart = await connectStarted.wait(timeout: .seconds(1))
+        XCTAssertTrue(didConnectStart)
+        await viewModel.disconnect()
+        releaseConnect.signal()
+        try? await Task.sleep(for: .milliseconds(80))
+
+        XCTAssertEqual(viewModel.connectionState, .disconnected)
+        XCTAssertEqual(commander.loadHostCallCount, 0)
+        XCTAssertEqual(connectCount, 1)
+    }
+
+    func testFreshStartDuringDisconnectSendPreservesNewLifecycle() async {
+        let commander = MockWebPlaybackCommander()
+        let disconnectStarted = AsyncSignal()
+        let releaseDisconnect = AsyncSignal()
+        commander.onSend = { command in
+            guard command == .disconnect else { return }
+            disconnectStarted.signal()
+            await releaseDisconnect.wait()
+        }
+        let viewModel = PlaybackSessionViewModel(playbackAPI: MockPlaybackAPI(), webCommander: commander)
+        viewModel.handle(.ready(deviceID: "old-device"))
+
+        let disconnectTask = Task {
+            await viewModel.disconnect()
+        }
+        let didDisconnectStart = await disconnectStarted.wait(timeout: .seconds(1))
+        XCTAssertTrue(didDisconnectStart)
+
+        viewModel.start()
+        let newGeneration = viewModel.playbackHostGeneration
+        XCTAssertEqual(viewModel.connectionState, .connecting)
+        XCTAssertTrue(viewModel.autoResumeOnNextReady)
+        XCTAssertEqual(commander.loadHostCallCount, 1)
+        viewModel.handle(.ready(deviceID: "new-device"))
+        XCTAssertEqual(viewModel.connectionState, .ready(deviceID: "new-device"))
+
+        releaseDisconnect.signal()
+        await disconnectTask.value
+
+        XCTAssertEqual(viewModel.playbackHostGeneration, newGeneration)
+        XCTAssertEqual(viewModel.connectionState, .ready(deviceID: "new-device"))
+        XCTAssertEqual(viewModel.deviceID, "new-device")
+    }
+
+    func testDisconnectDuringInitializationRecoveryPreventsOldRecoveryCompletion() async {
+        let commander = MockWebPlaybackCommander()
+        let connectStarted = AsyncSignal()
+        let releaseConnect = AsyncSignal()
+        var connectCount = 0
+        commander.onSend = { command in
+            guard command == .connect else { return }
+            connectCount += 1
+            if connectCount == 1 {
+                connectStarted.signal()
+                await releaseConnect.wait()
+            }
+        }
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: MockPlaybackAPI(),
+            webCommander: commander,
+            playbackHostRecoveryConnectTimeout: .milliseconds(10),
+            playbackHostRecoverySoftResetTimeout: .milliseconds(10)
+        )
+
+        viewModel.handle(.initializationError("SDK init failed"))
+        let didConnectStart = await connectStarted.wait(timeout: .seconds(1))
+        XCTAssertTrue(didConnectStart)
+        await viewModel.disconnect()
+        releaseConnect.signal()
+        try? await Task.sleep(for: .milliseconds(80))
+
+        XCTAssertEqual(viewModel.connectionState, .disconnected)
+        XCTAssertEqual(commander.loadHostCallCount, 0)
+        XCTAssertEqual(connectCount, 1)
+    }
+
+    func testStaleConnectCompletionCannotSendIntoFreshHostGeneration() async {
+        let commander = MockWebPlaybackCommander()
+        let connectStarted = AsyncSignal()
+        let releaseConnect = AsyncSignal()
+        var blockedGeneration: PlaybackHostGeneration?
+        commander.onGenerationSend = { command, generation in
+            guard command == .connect, blockedGeneration == nil else { return }
+            blockedGeneration = generation
+            connectStarted.signal()
+            await releaseConnect.wait()
+        }
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: MockPlaybackAPI(),
+            webCommander: commander
+        )
+
+        viewModel.start()
+        let oldGeneration = viewModel.playbackHostGeneration
+        let didStart = await connectStarted.wait(timeout: .seconds(1))
+        XCTAssertTrue(didStart)
+        XCTAssertEqual(blockedGeneration, oldGeneration)
+
+        await viewModel.disconnect()
+        viewModel.start()
+        let newGeneration = viewModel.playbackHostGeneration
+        releaseConnect.signal()
+        try? await Task.sleep(for: .milliseconds(30))
+
+        XCTAssertNotEqual(oldGeneration, newGeneration)
+        XCTAssertEqual(
+            commander.commands.filter { $0.command == .connect }.count,
+            1,
+            "The stale connect must be dropped after a fresh host generation is loaded."
+        )
+        XCTAssertEqual(commander.commands.first(where: { $0.command == .connect })?.command, .connect)
+    }
+
+    func testExplicitReconnectCreatesFreshGenerationAndRetainsRecoveryBehavior() async {
+        let commander = MockWebPlaybackCommander()
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: MockPlaybackAPI(),
+            webCommander: commander,
+            playbackHostRecoveryConnectTimeout: .milliseconds(10),
+            playbackHostRecoverySoftResetTimeout: .milliseconds(10)
+        )
+
+        viewModel.start()
+        let oldGeneration = viewModel.playbackHostGeneration
+        await viewModel.disconnect()
+        viewModel.start()
+        let newGeneration = viewModel.playbackHostGeneration
+
+        XCTAssertNotEqual(oldGeneration, newGeneration)
+        viewModel.handle(PlaybackBridgeEventEnvelope(
+            event: .ready(deviceID: "old-device"),
+            hostGeneration: oldGeneration
+        ))
+        XCTAssertEqual(viewModel.connectionState, .connecting)
+        XCTAssertNil(viewModel.deviceID)
+
+        viewModel.handle(PlaybackBridgeEventEnvelope(
+            event: .ready(deviceID: "new-device"),
+            hostGeneration: newGeneration
+        ))
+        XCTAssertEqual(viewModel.connectionState, .ready(deviceID: "new-device"))
+
+        viewModel.handle(PlaybackBridgeEventEnvelope(
+            event: .notReady(deviceID: "new-device"),
+            hostGeneration: newGeneration
+        ))
+        try? await Task.sleep(for: .milliseconds(60))
+
+        XCTAssertGreaterThanOrEqual(viewModel.playbackHostReuseConnectAttemptCount, 1)
+        XCTAssertTrue(commander.commands.contains { $0.command == .connect })
+    }
+
     func testRetryPlaybackTransferCallsTransferAPIWhenDeviceKnown() async {
         let commander = MockWebPlaybackCommander()
         let playbackAPI = MockPlaybackAPI()

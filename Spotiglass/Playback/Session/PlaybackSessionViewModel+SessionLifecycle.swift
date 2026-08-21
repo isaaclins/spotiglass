@@ -2,6 +2,52 @@ import Foundation
 
 @MainActor
 extension PlaybackSessionViewModel {
+    @discardableResult
+    func beginPlaybackHostLifecycle() -> PlaybackHostGeneration {
+        playbackHostConnectTask?.cancel()
+        playbackHostConnectTask = nil
+        playbackHostRecoveryTask?.cancel()
+        playbackHostRecoveryTask = nil
+        playbackHostRecoverySerial &+= 1
+        playbackHostAutoResumeTask?.cancel()
+        playbackHostAutoResumeTask = nil
+        playbackHostAutoResumeSerial &+= 1
+        shuffleSyncTask?.cancel()
+        shuffleSyncTask = nil
+        repeatSyncTask?.cancel()
+        repeatSyncTask = nil
+        deferredTransportSyncTask?.cancel()
+        deferredTransportSyncTask = nil
+        transportSyncSchedulerTask?.cancel()
+        transportSyncSchedulerTask = nil
+        transportSyncSchedulerGeneration = nil
+        transportSyncInFlight = false
+        transportSyncGeneration = nil
+        transportSyncQueued = false
+        transportSyncDeferredWhileControlCommandInFlight = false
+        transportSyncDeferredGeneration = nil
+        connectDevicesRefreshTask?.cancel()
+        connectDevicesRefreshTask = nil
+        connectDevicesRefreshGeneration = nil
+        isRefreshingConnectDevices = false
+        inflightTransferTask?.cancel()
+        inflightTransferTask = nil
+        inflightTransferGeneration = nil
+        activeInflightTransferSerial = nil
+        inflightTransferSerial &+= 1
+        playbackHostGeneration = playbackHostGeneration.advanced()
+        return playbackHostGeneration
+    }
+
+    @discardableResult
+    func invalidatePlaybackHostLifecycle() -> PlaybackHostGeneration {
+        beginPlaybackHostLifecycle()
+    }
+
+    func ownsPlaybackHostGeneration(_ generation: PlaybackHostGeneration) -> Bool {
+        playbackHostGeneration == generation
+    }
+
     func start(recoveryCause: PlaybackHostRecoveryCause = .manualReconnect) {
         switch connectionState {
         case .disconnected, .error, .unavailable:
@@ -13,6 +59,7 @@ extension PlaybackSessionViewModel {
         guard registerHardReloadAttempt(cause: recoveryCause, enforceBudget: enforceHardReloadBudget) else {
             return
         }
+        let generation = beginPlaybackHostLifecycle()
         playbackHostReloadAttemptCount += 1
         bumpCounter(&playbackHostReloadAttemptsByCause, key: recoveryCause.rawValue)
         hasTransferredPlaybackToCurrentDevice = false
@@ -27,18 +74,23 @@ extension PlaybackSessionViewModel {
         setActivePlaybackDeviceID(nil)
         setConnectionState(.connecting)
         deviceID = nil
-        webCommander.loadHost()
-        Task {
-            try? await webCommander.send(.connect, payload: [:])
+        webCommander.loadHost(generation: generation)
+        playbackHostConnectTask = Task { [weak self] in
+            guard let self, self.ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
+            defer {
+                if self.ownsPlaybackHostGeneration(generation) {
+                    self.playbackHostConnectTask = nil
+                }
+            }
+            try? await self.webCommander.send(.connect, payload: [:], generation: generation)
         }
     }
 
     func disconnect() async {
-        do {
-            try await webCommander.send(.disconnect, payload: [:])
-        } catch {
-            // Disconnect best-effort; errors are non-fatal.
-        }
+        let hostGeneration = playbackHostGeneration
+        let generation = invalidatePlaybackHostLifecycle()
+        autoResumeOnNextReady = false
+        setConnectionState(.disconnected)
         deviceID = nil
         supersededSDKDeviceIDs.removeAll()
         reclaimableSDKDeviceID = nil
@@ -70,6 +122,7 @@ extension PlaybackSessionViewModel {
         inFlightPlayCommandID = nil
         inFlightPlayCommandKey = nil
         transportSyncDeferredWhileControlCommandInFlight = false
+        transportSyncDeferredGeneration = nil
         deferredTransportSyncTask?.cancel()
         deferredTransportSyncTask = nil
         transportSyncSchedulerTask?.cancel()
@@ -89,12 +142,19 @@ extension PlaybackSessionViewModel {
         inflightTransferTask = nil
         activeInflightTransferSerial = nil
         clearTogglePlayPauseAckWait()
-        setConnectionState(.disconnected)
+        guard ownsPlaybackHostGeneration(generation) else { return }
+        do {
+            try await webCommander.send(.disconnect, payload: [:], generation: hostGeneration)
+        } catch {
+            // Disconnect best-effort; errors are non-fatal.
+        }
     }
 
     /// Retries Spotify “transfer playback” to this device after API or transport failures that set `recoveryAction` to `.retryTransfer`.
     /// If no device ID is known, falls back to `start()` (full Web Playback SDK reconnect).
     func retryPlaybackTransfer() async {
+        let generation = playbackHostGeneration
+        guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
         guard let deviceID else {
             guard registerHardReloadAttempt(cause: .missingDeviceRetryTransfer, enforceBudget: true) else {
                 return
@@ -110,9 +170,16 @@ extension PlaybackSessionViewModel {
             setActivePlaybackDeviceID(nil)
             setConnectionState(.connecting)
             self.deviceID = nil
-            webCommander.loadHost()
-            Task {
-                try? await webCommander.send(.connect, payload: [:])
+            let generation = beginPlaybackHostLifecycle()
+            webCommander.loadHost(generation: generation)
+            playbackHostConnectTask = Task { [weak self] in
+                guard let self, self.ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
+                defer {
+                    if self.ownsPlaybackHostGeneration(generation) {
+                        self.playbackHostConnectTask = nil
+                    }
+                }
+                try? await self.webCommander.send(.connect, payload: [:], generation: generation)
             }
             return
         }
@@ -121,11 +188,13 @@ extension PlaybackSessionViewModel {
         do {
             setConnectionState(.transferring(deviceID: deviceID))
             try await performTransfer(deviceID: deviceID, play: false, origin: .userRetry)
+            guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
             setActivePlaybackDeviceID(deviceID)
             hasTransferredPlaybackToCurrentDevice = true
             setConnectionState(.ready(deviceID: deviceID))
             noteLocalPlaybackMutation()
         } catch {
+            guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
             setConnectionState(.error(Self.displayError(for: error)))
         }
     }
@@ -169,41 +238,73 @@ extension PlaybackSessionViewModel {
         }
     }
 
-    private func waitForPlaybackReadyAfterRecovery(timeout: Duration = .seconds(1)) async -> Bool {
+    private func waitForPlaybackReadyAfterRecovery(
+        timeout: Duration = .seconds(1),
+        generation: PlaybackHostGeneration
+    ) async -> Bool {
         let deadline = clock.now.advanced(by: timeout)
         let pollInterval = min(timeout, .milliseconds(25))
         while clock.now < deadline {
+            guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return false }
             if isPlaybackReadyStateForRecovery() {
                 return true
             }
-            try? await Task.sleep(for: pollInterval)
+            do {
+                try await Task.sleep(for: pollInterval)
+            } catch {
+                return false
+            }
         }
-        return isPlaybackReadyStateForRecovery()
+        return ownsPlaybackHostGeneration(generation) && isPlaybackReadyStateForRecovery()
     }
 
-    func attemptPlaybackHostRecovery(cause: PlaybackHostRecoveryCause) async {
-        guard !isPlaybackReadyStateForRecovery() else { return }
+    func attemptPlaybackHostRecovery(
+        cause: PlaybackHostRecoveryCause,
+        generation: PlaybackHostGeneration? = nil
+    ) async {
+        let generation = generation ?? playbackHostGeneration
+        guard ownsPlaybackHostGeneration(generation), !isPlaybackReadyStateForRecovery() else { return }
 
         playbackHostReuseConnectAttemptCount += 1
         bumpCounter(&playbackHostReuseAttemptsByCause, key: cause.rawValue)
-        try? await webCommander.send(.connect, payload: [:])
-        if await waitForPlaybackReadyAfterRecovery(timeout: playbackHostRecoveryConnectTimeout) {
+        try? await webCommander.send(.connect, payload: [:], generation: generation)
+        guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
+        if await waitForPlaybackReadyAfterRecovery(
+            timeout: playbackHostRecoveryConnectTimeout,
+            generation: generation
+        ) {
+            guard ownsPlaybackHostGeneration(generation) else { return }
             playbackHostReuseSuccessCount += 1
             return
         }
 
+        guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
         playbackHostReuseSoftResetAttemptCount += 1
         bumpCounter(&playbackHostReuseAttemptsByCause, key: cause.rawValue)
-        try? await webCommander.send(.disconnect, payload: [:])
-        try? await Task.sleep(for: min(playbackHostRecoverySoftResetTimeout, .milliseconds(200)))
-        try? await webCommander.send(.connect, payload: [:])
-        if await waitForPlaybackReadyAfterRecovery(timeout: playbackHostRecoverySoftResetTimeout) {
+        try? await webCommander.send(.disconnect, payload: [:], generation: generation)
+        guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
+        do {
+            try await Task.sleep(for: min(playbackHostRecoverySoftResetTimeout, .milliseconds(200)))
+        } catch {
+            return
+        }
+        guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
+        try? await webCommander.send(.connect, payload: [:], generation: generation)
+        guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
+        if await waitForPlaybackReadyAfterRecovery(
+            timeout: playbackHostRecoverySoftResetTimeout,
+            generation: generation
+        ) {
+            guard ownsPlaybackHostGeneration(generation) else { return }
             playbackHostReuseSuccessCount += 1
             return
         }
 
+        guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
         let previousState = connectionState
+        let reloadGeneration = generation.advanced()
         start(recoveryCause: cause)
+        guard ownsPlaybackHostGeneration(reloadGeneration) else { return }
         if previousState == connectionState {
             playbackHostRecoveryFailureCount += 1
             bumpCounter(&playbackHostRecoveryFailuresByCause, key: cause.rawValue)
