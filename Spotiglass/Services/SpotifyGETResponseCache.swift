@@ -58,6 +58,12 @@ struct SpotifyGETCacheHit {
     let isExpired: Bool
 }
 
+/// Ownership token for a response write that is still current for one normalized cache key.
+struct SpotifyGETResponseCacheWriteOwnership: Equatable, Sendable {
+    fileprivate let cacheKey: String
+    fileprivate let generation: UInt64
+}
+
 /// TTL cache for idempotent Spotify Web API GET JSON bodies (memory + optional on-disk under `SpotifyCache/get_responses/`).
 final class SpotifyGETResponseCache: @unchecked Sendable {
     static let shared: SpotifyGETResponseCache = {
@@ -68,6 +74,8 @@ final class SpotifyGETResponseCache: @unchecked Sendable {
     private let lock = NSLock()
     private var memory: [String: (expiry: Date, data: Data)] = [:]
     private var lruKeys: [String] = []
+    private var nextWriteGeneration: UInt64 = 0
+    private var currentWriteGenerationByKey: [String: UInt64] = [:]
     private let diskCache: SpotifyLocalCache?
     private let maxMemoryEntries: Int
 
@@ -140,10 +148,43 @@ final class SpotifyGETResponseCache: @unchecked Sendable {
         return SpotifyGETCacheHit(data: hit.data, isExpired: true)
     }
 
+    func beginWrite(forCacheKey key: String) -> SpotifyGETResponseCacheWriteOwnership {
+        lock.lock()
+        defer { lock.unlock() }
+
+        nextWriteGeneration &+= 1
+        currentWriteGenerationByKey[key] = nextWriteGeneration
+        return SpotifyGETResponseCacheWriteOwnership(cacheKey: key, generation: nextWriteGeneration)
+    }
+
     func store(body: Data, cacheKey key: String, ttl: TimeInterval) {
         lock.lock()
         defer { lock.unlock() }
 
+        nextWriteGeneration &+= 1
+        currentWriteGenerationByKey[key] = nextWriteGeneration
+        storeLocked(body: body, cacheKey: key, ttl: ttl)
+    }
+
+    @discardableResult
+    func store(
+        body: Data,
+        cacheKey key: String,
+        ttl: TimeInterval,
+        ownership: SpotifyGETResponseCacheWriteOwnership
+    ) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+
+        guard ownership.cacheKey == key,
+              currentWriteGenerationByKey[key] == ownership.generation else {
+            return false
+        }
+        storeLocked(body: body, cacheKey: key, ttl: ttl)
+        return true
+    }
+
+    private func storeLocked(body: Data, cacheKey key: String, ttl: TimeInterval) {
         memory[key] = (expiry: Date().addingTimeInterval(ttl), data: body)
         touchLRU(key)
         evictMemoryIfNeeded()

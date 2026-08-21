@@ -133,6 +133,45 @@ final class SpotifyAPIClientSearchRateLimitAndGETRetryTests: XCTestCase {
         XCTAssertEqual(second.tracks.map(\.id), ["track-1"])
     }
 
+    func testLateSpotifyGETCompletionCannotOverwriteNewerBypassResponse() async throws {
+        let oldJSON = #"{"id":"artist-1","name":"Old","images":[],"followers":{"total":1},"genres":[],"uri":"spotify:artist:artist-1"}"#
+        let newJSON = #"{"id":"artist-1","name":"New","images":[],"followers":{"total":2},"genres":[],"uri":"spotify:artist:artist-1"}"#
+        let root = spotiglassTestsTemporaryDirectory()
+        let disk = try SpotifyLocalCache(rootDirectory: root)
+        let cache = SpotifyGETResponseCache(diskCache: disk)
+        let httpClient = OutOfOrderSpotifyGETHTTPClient()
+        let client = SpotifyAPIClient(
+            tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"),
+            httpClient: httpClient,
+            getResponseCache: cache
+        )
+
+        async let oldResult = client.artist(id: "artist-1", cacheMode: .freshOnly)
+        await httpClient.waitUntilRequestCount(1)
+        let refreshTask = Task {
+            try await client.artist(id: "artist-1", cacheMode: .bypassCache)
+        }
+        await httpClient.waitUntilRequestCount(2)
+
+        await httpClient.release(requestNumber: 2, body: Data(newJSON.utf8))
+        let refreshed = try await refreshTask.value
+        await httpClient.release(requestNumber: 1, body: Data(oldJSON.utf8))
+        let delayed = try await oldResult
+
+        XCTAssertEqual(refreshed.name, "New")
+        XCTAssertEqual(delayed.name, "Old")
+
+        let freshRead = try await client.artist(id: "artist-1", cacheMode: .freshOnly)
+        XCTAssertEqual(freshRead.name, "New")
+        let requestCount = await httpClient.requestCount
+        XCTAssertEqual(requestCount, 2)
+
+        let request = URLRequest(url: URL(string: "https://api.spotify.com/v1/artists/artist-1")!)
+        let key = try XCTUnwrap(SpotifyGETResponseCachePolicy.normalizedCacheKey(for: request))
+        let diskReader = SpotifyGETResponseCache(diskCache: disk)
+        XCTAssertEqual(diskReader.cachedEntry(forCacheKey: key, allowExpired: false)?.data, Data(newJSON.utf8))
+    }
+
     func testSearchCacheSharesKeyForCaseAndWhitespaceVariantsOfQ() async throws {
         let searchJSON = """
             {
@@ -260,5 +299,48 @@ final class SpotifyAPIClientSearchRateLimitAndGETRetryTests: XCTestCase {
 
         XCTAssertEqual(results.tracks.count, 0)
         XCTAssertEqual(results.playlists.map(\.id), ["playlist-0", "playlist-2"])
+    }
+}
+
+private actor OutOfOrderSpotifyGETHTTPClient: HTTPClient {
+    private var requestCountValue = 0
+    private var startWaiters: [(target: Int, continuation: CheckedContinuation<Void, Never>)] = []
+    private var responseContinuations: [Int: CheckedContinuation<(Data, HTTPURLResponse), Error>] = [:]
+
+    var requestCount: Int {
+        requestCountValue
+    }
+
+    func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        try await withCheckedThrowingContinuation { continuation in
+            requestCountValue += 1
+            let requestNumber = requestCountValue
+            responseContinuations[requestNumber] = continuation
+            let resumed = startWaiters.filter { $0.target <= requestCountValue }
+            startWaiters.removeAll { $0.target <= requestCountValue }
+            for waiter in resumed {
+                waiter.continuation.resume()
+            }
+        }
+    }
+
+    func waitUntilRequestCount(_ target: Int) async {
+        if requestCountValue >= target { return }
+        await withCheckedContinuation { continuation in
+            startWaiters.append((target: target, continuation: continuation))
+        }
+    }
+
+    func release(requestNumber: Int, body: Data) {
+        guard let continuation = responseContinuations.removeValue(forKey: requestNumber) else {
+            return
+        }
+        let response = HTTPURLResponse(
+            url: URL(string: "https://api.spotify.com/v1/artists/artist-1")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        continuation.resume(returning: (body, response))
     }
 }

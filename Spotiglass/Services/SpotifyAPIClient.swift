@@ -205,7 +205,8 @@ struct SpotifyAPIClient {
         request: URLRequest,
         didRefreshAfterUnauthorized: Bool,
         rateLimitRetryCount: Int,
-        cacheMode: SpotifyRequestCacheMode
+        cacheMode: SpotifyRequestCacheMode,
+        cacheWriteOwnership: SpotifyGETResponseCacheWriteOwnership? = nil
     ) async throws -> Response {
         if !didRefreshAfterUnauthorized,
            cacheMode != .bypassCache,
@@ -217,6 +218,11 @@ struct SpotifyAPIClient {
             return cachedValue
         }
 
+        let writeOwnership = cacheWriteOwnership ?? beginCacheWriteOwnership(
+            for: request,
+            didRefreshAfterUnauthorized: didRefreshAfterUnauthorized
+        )
+
         do {
             let (data, response) = try await httpClient.data(for: request)
             if response.statusCode == 401 && !didRefreshAfterUnauthorized {
@@ -227,7 +233,8 @@ struct SpotifyAPIClient {
                     request: refreshedRequest,
                     didRefreshAfterUnauthorized: true,
                     rateLimitRetryCount: rateLimitRetryCount,
-                    cacheMode: cacheMode
+                    cacheMode: cacheMode,
+                    cacheWriteOwnership: writeOwnership
                 )
             }
             guard (200..<300).contains(response.statusCode) else {
@@ -248,7 +255,8 @@ struct SpotifyAPIClient {
                         request: request,
                         didRefreshAfterUnauthorized: didRefreshAfterUnauthorized,
                         rateLimitRetryCount: rateLimitRetryCount + 1,
-                        cacheMode: cacheMode
+                        cacheMode: cacheMode,
+                        cacheWriteOwnership: writeOwnership
                     )
                 }
                 throw mappedError
@@ -260,8 +268,9 @@ struct SpotifyAPIClient {
                    SpotifyGETResponseCachePolicy.shouldCache(request),
                    let cacheKey = SpotifyGETResponseCachePolicy.normalizedCacheKey(for: request),
                    let url = request.url,
-                   let ttl = SpotifyGETResponseCachePolicy.ttl(for: url) {
-                    cache.store(body: data, cacheKey: cacheKey, ttl: ttl)
+                   let ttl = SpotifyGETResponseCachePolicy.ttl(for: url),
+                   let writeOwnership {
+                    cache.store(body: data, cacheKey: cacheKey, ttl: ttl, ownership: writeOwnership)
                 }
                 return value
             } catch {
@@ -276,6 +285,19 @@ struct SpotifyAPIClient {
         } catch {
             throw SpotifyAPIError.network(error.localizedDescription)
         }
+    }
+
+    private func beginCacheWriteOwnership(
+        for request: URLRequest,
+        didRefreshAfterUnauthorized: Bool
+    ) -> SpotifyGETResponseCacheWriteOwnership? {
+        guard !didRefreshAfterUnauthorized,
+              let cache = getResponseCache,
+              SpotifyGETResponseCachePolicy.shouldCache(request),
+              let key = SpotifyGETResponseCachePolicy.normalizedCacheKey(for: request) else {
+            return nil
+        }
+        return cache.beginWrite(forCacheKey: key)
     }
 
     /// Inline 429 retry only fires for short `Retry-After` values. When Spotify advertises a longer

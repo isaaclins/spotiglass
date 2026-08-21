@@ -213,10 +213,11 @@ final class SpotifyAuthStepTests: XCTestCase {
             settings: makeSettings(clientID: "client-id"),
             tokenClient: SpotifyTokenClient(),
             refreshTokenStore: store,
-            signOutDataCleaner: cleaner.invoke
+            signOutDataCleaner: cleaner.invoke,
+            artworkCacheClearer: {}
         )
 
-        viewModel.signOut()
+        await viewModel.signOut()
 
         XCTAssertNil(try store.loadRefreshToken())
         XCTAssertEqual(cleaner.callCount, 1, "Sign-out must wipe cached library data alongside the Keychain.")
@@ -237,7 +238,8 @@ final class SpotifyAuthStepTests: XCTestCase {
             settings: makeSettings(clientID: "client-id"),
             tokenClient: SpotifyTokenClient(httpClient: httpClient),
             refreshTokenStore: store,
-            signOutDataCleaner: cleaner.invoke
+            signOutDataCleaner: cleaner.invoke,
+            artworkCacheClearer: {}
         )
 
         await viewModel.restoreSessionIfAvailable()
@@ -260,7 +262,8 @@ final class SpotifyAuthStepTests: XCTestCase {
             settings: makeSettings(clientID: "client-id"),
             tokenClient: SpotifyTokenClient(httpClient: httpClient),
             refreshTokenStore: store,
-            signOutDataCleaner: cleaner.invoke
+            signOutDataCleaner: cleaner.invoke,
+            artworkCacheClearer: {}
         )
 
         await viewModel.restoreSessionIfAvailable()
@@ -291,7 +294,8 @@ final class SpotifyAuthStepTests: XCTestCase {
             settings: makeSettings(clientID: "client-id"),
             tokenClient: SpotifyTokenClient(httpClient: httpClient, now: { now }, random: { _ in 0 }),
             refreshTokenStore: store,
-            signOutDataCleaner: {}
+            signOutDataCleaner: {},
+            artworkCacheClearer: {}
         )
 
         async let first = viewModel.refreshedPlaybackAccessToken()
@@ -316,7 +320,8 @@ final class SpotifyAuthStepTests: XCTestCase {
             settings: makeSettings(clientID: "client-id"),
             tokenClient: SpotifyTokenClient(httpClient: httpClient, random: { _ in 0 }),
             refreshTokenStore: store,
-            signOutDataCleaner: {}
+            signOutDataCleaner: {},
+            artworkCacheClearer: {}
         )
 
         do {
@@ -361,7 +366,8 @@ final class SpotifyAuthStepTests: XCTestCase {
             authorizationFlow: flow,
             tokenClient: SpotifyTokenClient(),
             refreshTokenStore: InMemoryRefreshTokenStore(),
-            signOutDataCleaner: {}
+            signOutDataCleaner: {},
+            artworkCacheClearer: {}
         )
 
         async let signInFinishes: Void = viewModel.signIn()
@@ -400,7 +406,8 @@ final class SpotifyAuthStepTests: XCTestCase {
             authorizationFlow: flow,
             tokenClient: tokenClient,
             refreshTokenStore: InMemoryRefreshTokenStore(),
-            signOutDataCleaner: {}
+            signOutDataCleaner: {},
+            artworkCacheClearer: {}
         )
 
         async let firstAttempt: Void = viewModel.signIn()
@@ -425,7 +432,8 @@ final class SpotifyAuthStepTests: XCTestCase {
             authorizationFlow: flow,
             tokenClient: SpotifyTokenClient(),
             refreshTokenStore: InMemoryRefreshTokenStore(),
-            signOutDataCleaner: {}
+            signOutDataCleaner: {},
+            artworkCacheClearer: {}
         )
 
         async let first: Void = viewModel.signIn()
@@ -448,7 +456,8 @@ final class SpotifyAuthStepTests: XCTestCase {
             authorizationFlow: flow,
             tokenClient: SpotifyTokenClient(),
             refreshTokenStore: InMemoryRefreshTokenStore(),
-            signOutDataCleaner: {}
+            signOutDataCleaner: {},
+            artworkCacheClearer: {}
         )
 
         await viewModel.signIn()

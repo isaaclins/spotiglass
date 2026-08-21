@@ -13,8 +13,10 @@ actor ArtworkImageStore {
     }()
 
     private var inFlight: [String: Task<NSImage?, Never>] = [:]
+    private var cacheGeneration: UInt64 = 0
     private let diskDirectory: URL
-    private let urlSession: URLSession
+    private var urlSession: URLSession
+    private let makeURLSession: () -> URLSession
     private let responseURLCache: URLCache
     private let maxDiskBytes: Int64 = 50 * 1024 * 1024
 
@@ -24,7 +26,6 @@ actor ArtworkImageStore {
         let disk = base
             .appendingPathComponent(AppMetadata.displayName, isDirectory: true)
             .appendingPathComponent("Artwork", isDirectory: true)
-        let config = URLSessionConfiguration.default
         let urlCacheDir = base.appendingPathComponent(AppMetadata.displayName, isDirectory: true)
             .appendingPathComponent("ArtworkURLCache", isDirectory: true)
         try? FileManager.default.createDirectory(at: urlCacheDir, withIntermediateDirectories: true)
@@ -33,13 +34,28 @@ actor ArtworkImageStore {
             diskCapacity: 96 * 1024 * 1024,
             diskPath: urlCacheDir.path
         )
-        config.urlCache = urlCache
-        self.init(diskDirectory: disk, urlSession: URLSession(configuration: config), responseURLCache: urlCache)
+        let makeURLSession: () -> URLSession = {
+            let configuration = URLSessionConfiguration.default
+            configuration.urlCache = urlCache
+            return URLSession(configuration: configuration)
+        }
+        self.init(
+            diskDirectory: disk,
+            urlSession: makeURLSession(),
+            responseURLCache: urlCache,
+            urlSessionFactory: makeURLSession
+        )
     }
 
-    init(diskDirectory: URL, urlSession: URLSession, responseURLCache: URLCache) {
+    init(
+        diskDirectory: URL,
+        urlSession: URLSession,
+        responseURLCache: URLCache,
+        urlSessionFactory: @escaping () -> URLSession
+    ) {
         self.diskDirectory = diskDirectory
         self.urlSession = urlSession
+        self.makeURLSession = urlSessionFactory
         self.responseURLCache = responseURLCache
         try? FileManager.default.createDirectory(at: diskDirectory, withIntermediateDirectories: true)
     }
@@ -52,12 +68,15 @@ actor ArtworkImageStore {
         if let existing = inFlight[key] {
             return await existing.value
         }
+        let generation = cacheGeneration
         let task = Task<NSImage?, Never> {
-            await self.loadThroughDiskAndNetwork(url: url, key: key)
+            await self.loadThroughDiskAndNetwork(url: url, key: key, generation: generation)
         }
         inFlight[key] = task
         let result = await task.value
-        inFlight[key] = nil
+        if cacheGeneration == generation {
+            inFlight[key] = nil
+        }
         return result
     }
 
@@ -79,9 +98,11 @@ actor ArtworkImageStore {
         return NSImage(data: data)
     }
 
-    private func loadThroughDiskAndNetwork(url: URL, key: String) async -> NSImage? {
+    private func loadThroughDiskAndNetwork(url: URL, key: String, generation: UInt64) async -> NSImage? {
+        guard generation == cacheGeneration else { return nil }
         let fileURL = Self.cacheFileURL(for: url, diskDirectory: diskDirectory)
         if let data = try? Data(contentsOf: fileURL),
+           generation == cacheGeneration,
            let image = NSImage(data: data) {
             memoryKeys.setObject(image, forKey: key as NSString)
             return image
@@ -89,6 +110,7 @@ actor ArtworkImageStore {
 
         do {
             let (data, response) = try await urlSession.data(from: url)
+            guard generation == cacheGeneration else { return nil }
             guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {
                 return nil
             }
@@ -137,9 +159,15 @@ actor ArtworkImageStore {
 
     /// Clears memory and on-disk artwork (call on disconnect).
     func clearAllCachedImages() {
-        memoryKeys.removeAllObjects()
+        cacheGeneration &+= 1
+        for task in inFlight.values {
+            task.cancel()
+        }
         inFlight.removeAll()
+        memoryKeys.removeAllObjects()
         responseURLCache.removeAllCachedResponses()
+        urlSession.invalidateAndCancel()
+        urlSession = makeURLSession()
         try? FileManager.default.removeItem(at: diskDirectory)
         try? FileManager.default.createDirectory(at: diskDirectory, withIntermediateDirectories: true)
     }

@@ -20,6 +20,7 @@ final class AuthViewModel: ObservableObject {
     private let tokenClient: SpotifyTokenClient
     private let refreshTokenStore: RefreshTokenStore
     private let signOutDataCleaner: () -> Void
+    private let artworkCacheClearer: () async -> Void
     private var inFlightRefreshTask: Task<String, Error>?
     private var authTransitionGeneration = 0
     private var refreshCooldownUntil: Date?
@@ -31,6 +32,7 @@ final class AuthViewModel: ObservableObject {
         tokenClient: SpotifyTokenClient = SpotifyTokenClient(),
         refreshTokenStore: RefreshTokenStore = KeychainRefreshTokenStore(),
         signOutDataCleaner: @escaping () -> Void = AuthViewModel.defaultSignOutDataCleaner,
+        artworkCacheClearer: @escaping () async -> Void = { await ArtworkImageStore.shared.clearAllCachedImages() },
         initialState: AppConnectionState = .signedOut
     ) {
         self.settings = settings
@@ -39,6 +41,7 @@ final class AuthViewModel: ObservableObject {
         self.tokenClient = tokenClient
         self.refreshTokenStore = refreshTokenStore
         self.signOutDataCleaner = signOutDataCleaner
+        self.artworkCacheClearer = artworkCacheClearer
         self.state = initialState
     }
 
@@ -49,7 +52,6 @@ final class AuthViewModel: ObservableObject {
         // catalog responses and per-account pins have separate ownership.
         guard let cache = try? SpotifyLocalCache() else { return }
         try? cache.clearPrivateAccountData()
-        Task { await ArtworkImageStore.shared.clearAllCachedImages() }
     }
 
     func restoreSessionIfAvailable() async {
@@ -68,7 +70,7 @@ final class AuthViewModel: ObservableObject {
             )
         } catch {
             guard generation == authTransitionGeneration else { return }
-            handleRefreshFailure(error: error)
+            await handleRefreshFailure(error: error)
         }
     }
 
@@ -80,7 +82,7 @@ final class AuthViewModel: ObservableObject {
         do {
             try refreshTokenStore.deleteRefreshToken()
             if isReconnect {
-                signOutDataCleaner()
+                await clearSignOutData()
             }
         } catch {
             state = .failed(AuthDisplayError(message: displayMessage(for: error)))
@@ -157,13 +159,14 @@ final class AuthViewModel: ObservableObject {
         }
     }
 
-    func signOut() {
-        _ = invalidateAuthOperations()
+    func signOut() async {
+        let generation = invalidateAuthOperations()
         do {
             try refreshTokenStore.deleteRefreshToken()
             settings.grantedScope = nil
             currentSession = nil
-            signOutDataCleaner()
+            await clearSignOutData()
+            guard generation == authTransitionGeneration else { return }
             state = .signedOut
         } catch {
             state = .failed(AuthDisplayError(message: displayMessage(for: error)))
@@ -264,18 +267,25 @@ final class AuthViewModel: ObservableObject {
         try Task.checkCancellation()
     }
 
-    private func handleRefreshFailure(error: Error) {
+    private func handleRefreshFailure(error: Error) async {
         // If Spotify rejected the refresh with an OAuth-spec error (HTTP 4xx),
         // the stored refresh token is no longer usable. Wipe it from the
         // Keychain and clear local cached library data so the user starts the
         // next sign-in clean instead of repeatedly retrying a dead token.
         if isUnrecoverableRefreshError(error) {
+            let generation = authTransitionGeneration
             try? refreshTokenStore.deleteRefreshToken()
             settings.grantedScope = nil
             currentSession = nil
-            signOutDataCleaner()
+            await clearSignOutData()
+            guard generation == authTransitionGeneration else { return }
         }
         state = .failed(AuthDisplayError(message: displayMessage(for: error)))
+    }
+
+    private func clearSignOutData() async {
+        signOutDataCleaner()
+        await artworkCacheClearer()
     }
 
     private func isUnrecoverableRefreshError(_ error: Error) -> Bool {
@@ -397,7 +407,7 @@ extension AuthViewModel: PlaybackAccessTokenProviding {
             // restoreSessionIfAvailable / refreshAccessTokenIfNeeded so the
             // browsing and playback sides stay in agreement when a refresh
             // token gets revoked mid-session.
-            handleRefreshFailure(error: error)
+            await handleRefreshFailure(error: error)
             throw SpotifyAPIError.unauthorized
         }
     }

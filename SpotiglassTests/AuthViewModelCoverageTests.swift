@@ -131,7 +131,8 @@ final class AuthViewModelCoverageTests: XCTestCase {
             settings: makeSettings(clientID: "client-id"),
             tokenClient: SpotifyTokenClient(httpClient: httpClient),
             refreshTokenStore: store,
-            signOutDataCleaner: {}
+            signOutDataCleaner: {},
+            artworkCacheClearer: {}
         )
 
         let refreshTask = Task { @MainActor in
@@ -139,12 +140,39 @@ final class AuthViewModelCoverageTests: XCTestCase {
         }
         await httpClient.waitUntilRequestStarted()
 
-        viewModel.signOut()
+        await viewModel.signOut()
         await httpClient.complete()
         _ = try? await refreshTask.value
 
         XCTAssertEqual(viewModel.state, .signedOut)
         XCTAssertNil(try store.loadRefreshToken())
+    }
+
+    func testSignOutWaitsForArtworkClearBeforePublishingSignedOut() async throws {
+        let store = InMemoryRefreshTokenStore()
+        try store.saveRefreshToken("refresh-token")
+        let session = AuthenticatedSession(
+            accessToken: "access-token",
+            tokenType: "Bearer",
+            scope: "playlist-read-private playlist-read-collaborative user-library-read streaming",
+            expiresAt: Date().addingTimeInterval(3_600)
+        )
+        let gate = ArtworkCacheClearGate()
+        let viewModel = AuthViewModel(
+            settings: makeSettings(clientID: "client-id"),
+            refreshTokenStore: store,
+            signOutDataCleaner: {},
+            artworkCacheClearer: { await gate.waitUntilReleased() },
+            initialState: .signedIn(session)
+        )
+
+        let signOutTask = Task { await viewModel.signOut() }
+        await gate.waitUntilStarted()
+        XCTAssertEqual(viewModel.state, .signedIn(session))
+
+        await gate.release()
+        await signOutTask.value
+        XCTAssertEqual(viewModel.state, .signedOut)
     }
 
     func testReconnectInvalidatesDelayedRefreshCompletion() async throws {
@@ -180,7 +208,8 @@ final class AuthViewModelCoverageTests: XCTestCase {
             authorizationFlow: flow,
             tokenClient: SpotifyTokenClient(httpClient: httpClient),
             refreshTokenStore: store,
-            signOutDataCleaner: {}
+            signOutDataCleaner: {},
+            artworkCacheClearer: {}
         )
 
         let refreshTask = Task { @MainActor in
@@ -232,6 +261,7 @@ final class AuthViewModelCoverageTests: XCTestCase {
             tokenClient: SpotifyTokenClient(httpClient: httpClient),
             refreshTokenStore: store,
             signOutDataCleaner: { try? cache.clear() },
+            artworkCacheClearer: {},
             initialState: .signedIn(AuthenticatedSession(
                 accessToken: "account-a-access-token",
                 tokenType: "Bearer",
@@ -252,7 +282,7 @@ final class AuthViewModelCoverageTests: XCTestCase {
         XCTAssertEqual(session.accessToken, "account-b-access-token")
     }
 
-    func testSignOutPreservesPerAccountPinsForLaterRebind() throws {
+    func testSignOutPreservesPerAccountPinsForLaterRebind() async throws {
         let cache = try SpotifyLocalCache(rootDirectory: spotiglassTestsTemporaryDirectory())
         let item = PinnedItem.playlist(PlaylistBrowsingTestFixtures.playlist(id: "account-a-playlist", name: "Account A"))
         try cache.savePinnedItems([item], userID: "account-a")
@@ -261,10 +291,11 @@ final class AuthViewModelCoverageTests: XCTestCase {
         let viewModel = AuthViewModel(
             settings: makeSettings(clientID: "client-id"),
             refreshTokenStore: tokenStore,
-            signOutDataCleaner: { try? cache.clear() }
+            signOutDataCleaner: { try? cache.clear() },
+            artworkCacheClearer: {}
         )
 
-        viewModel.signOut()
+        await viewModel.signOut()
 
         XCTAssertNil(try tokenStore.loadRefreshToken())
         let pinnedStore = PinnedItemsStore(cache: cache)
@@ -299,13 +330,13 @@ final class AuthViewModelCoverageTests: XCTestCase {
         }
     }
 
-    func testSignOutFailureSurfacesKeychainMessage() {
+    func testSignOutFailureSurfacesKeychainMessage() async {
         let viewModel = AuthViewModel(
             settings: makeSettings(clientID: "client-id"),
             refreshTokenStore: FailingDeleteRefreshTokenStore()
         )
 
-        viewModel.signOut()
+        await viewModel.signOut()
 
         guard case let .failed(error) = viewModel.state else {
             return XCTFail("Expected failed sign-out")
@@ -433,6 +464,39 @@ private actor ReconnectAuthHTTPClient: HTTPClient {
         self.refreshContinuation = nil
         self.refreshResponse = nil
         refreshContinuation.resume(returning: (refreshData, refreshResponse))
+    }
+}
+
+private actor ArtworkCacheClearGate {
+    private var started = false
+    private var released = false
+    private var startWaiters: [CheckedContinuation<Void, Never>] = []
+    private var releaseWaiter: CheckedContinuation<Void, Never>?
+
+    func waitUntilStarted() async {
+        if started { return }
+        await withCheckedContinuation { continuation in
+            startWaiters.append(continuation)
+        }
+    }
+
+    func waitUntilReleased() async {
+        started = true
+        let waiters = startWaiters
+        startWaiters.removeAll()
+        for waiter in waiters {
+            waiter.resume()
+        }
+        if released { return }
+        await withCheckedContinuation { continuation in
+            releaseWaiter = continuation
+        }
+    }
+
+    func release() {
+        released = true
+        releaseWaiter?.resume()
+        releaseWaiter = nil
     }
 }
 

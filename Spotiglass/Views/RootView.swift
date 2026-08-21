@@ -47,7 +47,7 @@ struct RootView: View {
             .onAppear {
                 commandPaletteManager.signOut = { [viewModel] in
                     pinnedStore.clearForSignOut()
-                    viewModel.signOut()
+                    Task { await viewModel.signOut() }
                 }
                 commandPaletteManager.openSettings = {
                     openSettingsAction()
@@ -75,7 +75,7 @@ struct RootView: View {
                 commandPaletteManager: commandPaletteManager,
                 signOut: {
                     pinnedStore.clearForSignOut()
-                    viewModel.signOut()
+                    Task { await viewModel.signOut() }
                 }
             )
         case .refreshing(.none):
