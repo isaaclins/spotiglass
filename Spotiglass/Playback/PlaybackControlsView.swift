@@ -447,8 +447,7 @@ struct PlaybackControlsView: View {
     }
 
     private var showsLyricsButton: Bool {
-        guard let uri = nowPlaying?.uri else { return false }
-        return uri.hasPrefix("spotify:track:")
+        viewModel.currentLyricTrack != nil
     }
 
     private var subtitle: String {

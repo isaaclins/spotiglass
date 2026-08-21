@@ -26,6 +26,7 @@ final class CommandPaletteManagerTests: XCTestCase {
 
     func testToggleLyricsCommandInvokesHandler() {
         let manager = CommandPaletteManager()
+        manager.setLyricsToggleAvailability(true)
         var toggled = false
         manager.toggleLyrics = { toggled = true }
         manager.execute(commandID: CommandPaletteCommandID.toggleLyrics)
@@ -80,6 +81,56 @@ final class CommandPaletteManagerTests: XCTestCase {
         manager.isSignedIn = true
         let signedInCount = manager.viewModel.staticItemsProvider().count
         XCTAssertGreaterThanOrEqual(signedInCount, signedOutCount)
+    }
+
+    func testLyricsCommandRequiresCurrentMusicTrack() {
+        let manager = CommandPaletteManager()
+        manager.isSignedIn = true
+        let playback = PlaybackSessionViewModel(
+            playbackAPI: MockPlaybackAPI(),
+            webCommander: MockWebPlaybackCommander()
+        )
+        manager.bindPlaybackReadiness(to: playback)
+        var dispatchCount = 0
+        manager.toggleLyrics = { dispatchCount += 1 }
+
+        XCTAssertFalse(
+            manager.viewModel.staticItemsProvider().contains { $0.id == CommandPaletteCommandID.toggleLyrics }
+        )
+        manager.execute(commandID: CommandPaletteCommandID.toggleLyrics)
+        XCTAssertEqual(dispatchCount, 0)
+
+        let episode = PlaybackNowPlaying(
+            name: "Episode",
+            artists: ["Host"],
+            albumName: nil,
+            albumID: nil,
+            albumArtURL: nil,
+            durationMilliseconds: 100,
+            positionMilliseconds: 0,
+            uri: "spotify:episode:1"
+        )
+        playback.setConnectionState(.playing(episode))
+        XCTAssertFalse(
+            manager.viewModel.staticItemsProvider().contains { $0.id == CommandPaletteCommandID.toggleLyrics }
+        )
+
+        let track = PlaybackNowPlaying(
+            name: "Song",
+            artists: ["Artist"],
+            albumName: nil,
+            albumID: nil,
+            albumArtURL: nil,
+            durationMilliseconds: 100,
+            positionMilliseconds: 0,
+            uri: "spotify:track:1"
+        )
+        playback.setConnectionState(.playing(track))
+        XCTAssertTrue(
+            manager.viewModel.staticItemsProvider().contains { $0.id == CommandPaletteCommandID.toggleLyrics }
+        )
+        manager.execute(commandID: CommandPaletteCommandID.toggleLyrics)
+        XCTAssertEqual(dispatchCount, 1)
     }
 
     func testPlaybackTogglePaletteItemTracksReadiness() async {

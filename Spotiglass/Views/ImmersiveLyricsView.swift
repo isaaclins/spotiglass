@@ -57,14 +57,7 @@ struct ImmersiveLyricsView: View {
     }
 
     private var currentTrack: PlaybackNowPlaying? {
-        switch playbackViewModel.connectionState {
-        case let .playing(np):
-            return np
-        case let .paused(opt):
-            return opt
-        default:
-            return nil
-        }
+        playbackViewModel.currentLyricTrack
     }
 
     @ViewBuilder

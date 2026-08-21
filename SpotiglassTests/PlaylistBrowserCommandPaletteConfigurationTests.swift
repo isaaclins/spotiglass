@@ -47,6 +47,20 @@ final class PlaylistBrowserCommandPaletteConfigurationTests: XCTestCase {
         playback.deviceID = "device-1"
         playback.setConnectionState(.ready(deviceID: "device-1"))
         XCTAssertTrue(manager.canTogglePlayback)
+        manager.toggleLyrics?()
+        XCTAssertFalse(lyricsVisible)
+        playback.setConnectionState(.playing(
+            PlaybackNowPlaying(
+                name: "Song",
+                artists: ["Artist"],
+                albumName: "Album",
+                albumID: nil,
+                albumArtURL: nil,
+                durationMilliseconds: 180_000,
+                positionMilliseconds: 0,
+                uri: "spotify:track:lyrics-config"
+            )
+        ))
         manager.toggleQueue?()
         XCTAssertTrue(queueVisible)
         manager.toggleLyrics?()

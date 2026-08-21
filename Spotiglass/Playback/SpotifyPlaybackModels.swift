@@ -70,6 +70,23 @@ struct PlaybackNowPlaying: Equatable {
     }
 }
 
+extension PlaybackConnectionState {
+    /// The currently playing or paused Spotify music track, if lyrics can be loaded for it.
+    var currentLyricTrack: PlaybackNowPlaying? {
+        let nowPlaying: PlaybackNowPlaying?
+        switch self {
+        case let .playing(track):
+            nowPlaying = track
+        case let .paused(track):
+            nowPlaying = track
+        case .disconnected, .connecting, .ready, .transferring, .unavailable, .error:
+            nowPlaying = nil
+        }
+        guard let nowPlaying, nowPlaying.spotifyTrackIDForLyrics != nil else { return nil }
+        return nowPlaying
+    }
+}
+
 /// Wall-clock anchor for smooth scrubber interpolation without mutating `connectionState` on a timer.
 struct PlaybackProgressAnchor: Equatable {
     var positionMilliseconds: Int

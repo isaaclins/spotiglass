@@ -70,6 +70,28 @@ final class LrcLibClientTests: XCTestCase {
         XCTAssertEqual(LRCLIBStubURLProtocol.requestedEndpoints, ["get-cached"])
     }
 
+    func testFetchLyricsExpandsRepeatedTimestampsAndPreservesThemInDiskCache() async throws {
+        LRCLIBStubURLProtocol.responseByEndpoint["get-cached"] = (
+            statusCode: 200,
+            body: #"{"instrumental":false,"syncedLyrics":"[00:10.00][00:20.00]Chorus\n[00:30.00]Next","plainLyrics":null}"#
+        )
+        let client = makeClient()
+        let lyrics = try await client.fetchLyrics(for: sampleTrack())
+        let expected: FetchedLyrics = .synced([
+            SyncedLyricLine(id: 0, startTimeMs: 10_000, words: "Chorus"),
+            SyncedLyricLine(id: 1, startTimeMs: 20_000, words: "Chorus"),
+            SyncedLyricLine(id: 2, startTimeMs: 30_000, words: "Next")
+        ])
+        XCTAssertEqual(lyrics, expected)
+
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SpotiglassLyricsExpandedCache-\(UUID().uuidString)")
+        let disk = try LyricsDiskCache(directory: directory)
+        try disk.save(spotifyTrackID: "abc123def456", lyrics: lyrics)
+        XCTAssertEqual(disk.load(spotifyTrackID: "abc123def456"), expected)
+        try? FileManager.default.removeItem(at: directory)
+    }
+
     func testFetchLyricsFallsBackToGetWhenGetCachedMissing() async throws {
         LRCLIBStubURLProtocol.responseByEndpoint["get-cached"] = (statusCode: 404, body: "")
         LRCLIBStubURLProtocol.responseByEndpoint["get"] = (

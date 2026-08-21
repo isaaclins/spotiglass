@@ -151,6 +151,7 @@ enum PlaylistBrowserCommandPaletteConfiguration {
             queueVisible.wrappedValue.toggle()
         }
         manager.toggleLyrics = {
+            guard dependencies.playbackViewModel.currentLyricTrack != nil else { return }
             lyricsPresented.wrappedValue.toggle()
         }
         manager.filterByArtist = { [weak manager] name in

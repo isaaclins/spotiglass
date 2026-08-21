@@ -34,6 +34,10 @@ struct SpotiglassMenuCommands: Commands {
         isSignedIn && commandPaletteManager.canTogglePlayback
     }
 
+    var isLyricsToggleEnabled: Bool {
+        isSignedIn && commandPaletteManager.canToggleLyrics
+    }
+
     var body: some Commands {
         CommandGroup(after: .appSettings) {
             Button(SpotiglassL10n.string("menu.app.signOut")) {
@@ -78,7 +82,7 @@ struct SpotiglassMenuCommands: Commands {
                 run(CommandPaletteCommandID.toggleLyrics)
             }
             .keyboardShortcut(keymapShortcut(for: CommandPaletteCommandID.toggleLyrics))
-            .disabled(!isSignedIn)
+            .disabled(!isLyricsToggleEnabled)
 
             Divider()
 

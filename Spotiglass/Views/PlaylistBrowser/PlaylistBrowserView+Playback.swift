@@ -5,6 +5,7 @@ extension PlaylistBrowserView {
         Binding(
             get: { lyricsOverlay.isPresented },
             set: { newValue in
+                guard !newValue || playbackViewModel.currentLyricTrack != nil else { return }
                 if newValue, !lyricsOverlay.isPresented {
                     pendingPlaylistListScrollRestoreID = anchorTrackIDForPlaylistListScrollRestore()
                 }

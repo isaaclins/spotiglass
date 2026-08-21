@@ -15,11 +15,19 @@ enum LrcLineParser {
         for raw in lrc.components(separatedBy: .newlines) {
             let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { continue }
-            guard let (ms, text) = extractLeadingTimestamp(trimmed), !text.isEmpty else { continue }
-            result.append(SyncedLyricLine(id: nextID, startTimeMs: ms, words: text))
-            nextID += 1
+            guard let (timestamps, text) = extractLeadingTimestamps(trimmed), !text.isEmpty else { continue }
+            for timestamp in timestamps {
+                result.append(SyncedLyricLine(id: nextID, startTimeMs: timestamp, words: text))
+                nextID += 1
+            }
         }
-        return result.sorted { $0.startTimeMs < $1.startTimeMs }.enumerated().map { index, line in
+        let sorted = result.sorted { lhs, rhs in
+            if lhs.startTimeMs != rhs.startTimeMs {
+                return lhs.startTimeMs < rhs.startTimeMs
+            }
+            return lhs.id < rhs.id
+        }
+        return sorted.enumerated().map { index, line in
             SyncedLyricLine(id: index, startTimeMs: line.startTimeMs, words: line.words)
         }
     }
@@ -56,20 +64,23 @@ enum LrcLineParser {
         return min(lineCount - 1, Int(progress * Double(lineCount)))
     }
 
-    private static func extractLeadingTimestamp(_ line: String) -> (Int, String)? {
-        guard line.hasPrefix("["), let close = line.firstIndex(of: "]") else {
-            return nil
+    private static func extractLeadingTimestamps(_ line: String) -> ([Int], String)? {
+        var remainder = line
+        var timestamps: [Int] = []
+
+        while remainder.hasPrefix("[") {
+            guard let close = remainder.firstIndex(of: "]") else { break }
+            let tag = String(remainder[remainder.startIndex ... close])
+            guard let milliseconds = parseTimestampTag(tag) else { break }
+            timestamps.append(milliseconds)
+
+            let after = remainder.index(after: close)
+            remainder = after < remainder.endIndex ? String(remainder[after...]) : ""
+            remainder = remainder.trimmingCharacters(in: .whitespacesAndNewlines)
         }
-        let tag = String(line[line.startIndex ... close])
-        guard let ms = parseTimestampTag(tag) else {
-            return nil
-        }
-        let after = line.index(after: close)
-        guard after < line.endIndex else {
-            return (ms, "")
-        }
-        let remainder = String(line[after...]).trimmingCharacters(in: .whitespacesAndNewlines)
-        return (ms, remainder)
+
+        guard !timestamps.isEmpty else { return nil }
+        return (timestamps, remainder.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
     /// Parses `[mm:ss]`, `[mm:ss.x]`, `[mm:ss.xx]`, `[mm:ss.xxx]` (fraction is sub-second; 1–3 digits).

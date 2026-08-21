@@ -46,6 +46,7 @@ final class ImmersiveLyricsViewModel: ObservableObject {
 
     private let fetch: (PlaybackNowPlaying) async throws -> FetchedLyrics
     private let diskCache: LyricsDiskCache?
+    private var loadGeneration = 0
 
     /// In-memory only; class is `@MainActor` so no lock is required.
     private static var cache: [String: FetchedLyrics] = [:]
@@ -76,6 +77,9 @@ final class ImmersiveLyricsViewModel: ObservableObject {
     }
 
     func load(track: PlaybackNowPlaying) async {
+        let generation = beginLoad()
+        guard isCurrentLoad(generation) else { return }
+
         guard let tid = track.spotifyTrackIDForLyrics else {
             phase = .failed(SpotiglassL10n.string("lyrics.error.musicOnly"))
             return
@@ -98,17 +102,31 @@ final class ImmersiveLyricsViewModel: ObservableObject {
         phase = .loading
         do {
             let lyrics = try await fetchWithDedup(trackId: tid, track: track)
+            guard isCurrentLoad(generation) else { return }
             phase = .ready(lyrics)
+        } catch is CancellationError {
+            return
         } catch let failure as LrcLibClient.Failure {
+            guard isCurrentLoad(generation) else { return }
             registerFailureBackoff(trackId: tid, failure: failure)
             phase = .failed(failure.userFacingMessage)
         } catch {
+            guard isCurrentLoad(generation) else { return }
             registerFailureBackoff(trackId: tid, failure: nil)
             // localizedDescription here is an URLError or decoding dump, which
             // is not a sentence for a reader waiting on lyrics (#157).
             SpotiglassLog.error(.api, "lyrics fetch failed: \(error)")
             phase = .failed(SpotiglassL10n.string("lyrics.error.http"))
         }
+    }
+
+    private func beginLoad() -> Int {
+        loadGeneration += 1
+        return loadGeneration
+    }
+
+    private func isCurrentLoad(_ generation: Int) -> Bool {
+        !Task.isCancelled && generation == loadGeneration
     }
 
     private func fetchWithDedup(trackId: String, track: PlaybackNowPlaying) async throws -> FetchedLyrics {

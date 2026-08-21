@@ -22,6 +22,35 @@ final class SpotifyPlaybackModelsTests: XCTestCase {
         XCTAssertEqual(paused.fraction(at: now), 10_000.0 / 60_000.0, accuracy: 0.001)
     }
 
+    func testCurrentLyricTrackRequiresMusicURI() {
+        let track = PlaybackNowPlaying(
+            name: "Song",
+            artists: ["Artist"],
+            albumName: nil,
+            albumID: nil,
+            albumArtURL: nil,
+            durationMilliseconds: 100,
+            positionMilliseconds: 0,
+            uri: "spotify:track:1"
+        )
+        let episode = PlaybackNowPlaying(
+            name: "Episode",
+            artists: ["Host"],
+            albumName: nil,
+            albumID: nil,
+            albumArtURL: nil,
+            durationMilliseconds: 100,
+            positionMilliseconds: 0,
+            uri: "spotify:episode:1"
+        )
+
+        XCTAssertEqual(PlaybackConnectionState.playing(track).currentLyricTrack, track)
+        XCTAssertEqual(PlaybackConnectionState.paused(track).currentLyricTrack, track)
+        XCTAssertNil(PlaybackConnectionState.playing(episode).currentLyricTrack)
+        XCTAssertNil(PlaybackConnectionState.paused(episode).currentLyricTrack)
+        XCTAssertNil(PlaybackConnectionState.ready(deviceID: "device").currentLyricTrack)
+    }
+
     func testPlaybackDisplayErrorEqualityIgnoresID() {
         let a = PlaybackDisplayError(title: "T", message: "M", recoveryAction: .reconnect)
         let b = PlaybackDisplayError(title: "T", message: "M", recoveryAction: .reconnect)

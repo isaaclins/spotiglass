@@ -109,6 +109,53 @@ final class MenuKeyEquivalentTests: XCTestCase {
         XCTAssertTrue(commands.isPlaybackToggleEnabled)
     }
 
+    func testLyricsMenuRequiresCurrentMusicTrack() {
+        let manager = CommandPaletteManager(keymapStore: makeStore())
+        let playback = PlaybackSessionViewModel(
+            playbackAPI: MockPlaybackAPI(),
+            webCommander: MockWebPlaybackCommander()
+        )
+        manager.bindPlaybackReadiness(to: playback)
+        let commands = SpotiglassMenuCommands(
+            commandPaletteManager: manager,
+            isSignedIn: true,
+            isQueueVisible: false,
+            isLyricsPresented: false,
+            canNavigateBack: false,
+            canEnqueueTrackSelection: false,
+            trackSelectionPinState: .unavailable
+        )
+
+        XCTAssertFalse(commands.isLyricsToggleEnabled)
+        playback.setConnectionState(.playing(
+            PlaybackNowPlaying(
+                name: "Episode",
+                artists: ["Host"],
+                albumName: nil,
+                albumID: nil,
+                albumArtURL: nil,
+                durationMilliseconds: 100,
+                positionMilliseconds: 0,
+                uri: "spotify:episode:1"
+            )
+        ))
+        XCTAssertFalse(commands.isLyricsToggleEnabled)
+
+        playback.setConnectionState(.playing(
+            PlaybackNowPlaying(
+                name: "Song",
+                artists: ["Artist"],
+                albumName: nil,
+                albumID: nil,
+                albumArtURL: nil,
+                durationMilliseconds: 100,
+                positionMilliseconds: 0,
+                uri: "spotify:track:1"
+            )
+        ))
+        XCTAssertTrue(commands.isLyricsToggleEnabled)
+    }
+
     // MARK: - Help menu (#177)
 
     /// The default Help item was a silent no-op: the bundle declares no

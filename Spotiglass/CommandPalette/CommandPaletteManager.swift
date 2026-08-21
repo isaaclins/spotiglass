@@ -68,6 +68,8 @@ final class CommandPaletteManager: ObservableObject {
     /// and command palette. The playback session owns the predicate; this published
     /// projection keeps both surfaces observable from the app scene.
     @Published private(set) var canTogglePlayback = false
+    /// Mirrors whether a current Spotify music track can open immersive lyrics.
+    @Published private(set) var canToggleLyrics = false
     /// Mirrors the session's confirmed shuffle/repeat readiness for the menu bar.
     @Published var canMutatePlaybackTransport = false
     /// Guards shuffle/repeat commands from the command palette and menu key equivalents.
@@ -116,9 +118,17 @@ final class CommandPaletteManager: ObservableObject {
         viewModel.refresh()
     }
 
+    func setLyricsToggleAvailability(_ available: Bool) {
+        guard canToggleLyrics != available else { return }
+        canToggleLyrics = available
+        guard viewModel.isPresented, viewModel.currentScope == .commands else { return }
+        viewModel.refresh()
+    }
+
     func bindPlaybackReadiness(to playback: PlaybackSessionViewModel) {
         playbackReadinessCancellables.removeAll()
         setPlaybackToggleAvailability(playback.isPlaybackToggleReady)
+        setLyricsToggleAvailability(playback.currentLyricTrack != nil)
 
         Publishers.CombineLatest3(
             playback.$connectionState,
@@ -133,6 +143,7 @@ final class CommandPaletteManager: ObservableObject {
                     activePlaybackDeviceID: activePlaybackDeviceID
                 )
             )
+            self?.setLyricsToggleAvailability(connectionState.currentLyricTrack != nil)
         }
         .store(in: &playbackReadinessCancellables)
     }
@@ -208,6 +219,9 @@ final class CommandPaletteManager: ObservableObject {
         let filtered = matched.filter { binding in
             if binding.command == CommandPaletteCommandID.togglePlayback {
                 return playbackTogglePrerequisite?() ?? true
+            }
+            if binding.command == CommandPaletteCommandID.toggleLyrics {
+                return canToggleLyrics
             }
             return true
         }
@@ -286,6 +300,7 @@ final class CommandPaletteManager: ObservableObject {
         case CommandPaletteCommandID.toggleQueue:
             toggleQueue?()
         case CommandPaletteCommandID.toggleLyrics:
+            guard canToggleLyrics else { return }
             toggleLyrics?()
         case CommandPaletteCommandID.enqueueTrackSelection:
             Task { await enqueueTrackSelection?() }
@@ -308,6 +323,7 @@ final class CommandPaletteManager: ObservableObject {
         CommandPaletteCommandCatalog.editable.compactMap { spec in
             guard !spec.requiresSignInForPalette || isSignedIn else { return nil }
             guard spec.commandID != CommandPaletteCommandID.togglePlayback || canTogglePlayback else { return nil }
+            guard spec.commandID != CommandPaletteCommandID.toggleLyrics || canToggleLyrics else { return nil }
             let canExecute: (@MainActor () -> Bool)?
             if spec.commandID == CommandPaletteCommandID.togglePlayback {
                 canExecute = { [weak self] in

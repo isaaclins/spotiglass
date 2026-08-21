@@ -2,7 +2,7 @@ import SwiftUI
 
 // MARK: - Motion design constants
 
-private enum LyricsMotion {
+enum LyricsMotion {
     /// Long, organic spring that drives the scroll position. No overshoot, settles softly.
     static let centerSpring: Animation = .spring(response: 0.72, dampingFraction: 0.86)
 
@@ -17,6 +17,14 @@ private enum LyricsMotion {
 
     /// Engage/disengage state crossfade.
     static let engageSpring: Animation = .spring(response: 0.35, dampingFraction: 0.9)
+
+    static func shouldAnimate(reduceMotion: Bool) -> Bool {
+        !reduceMotion
+    }
+
+    static func animation(_ animation: Animation, reduceMotion: Bool) -> Animation? {
+        shouldAnimate(reduceMotion: reduceMotion) ? animation : nil
+    }
 }
 
 // MARK: - Auto-center controller
@@ -106,19 +114,25 @@ struct ImmersiveLyricsScrollCore<ID: Hashable, Content: View>: View {
                     centerOn(activeID, animated: !reduceMotion)
                 }
                 .padding(.bottom, ImmersiveLyricsLayout.resumePillBottomInset)
-                .transition(
-                    .asymmetric(
-                        insertion: .scale(scale: 0.85, anchor: .bottom)
-                            .combined(with: .opacity)
-                            .combined(with: .offset(y: 12)),
-                        removal: .scale(scale: 0.9, anchor: .bottom)
-                            .combined(with: .opacity)
-                            .combined(with: .offset(y: 6))
-                    )
-                )
+                .transition(resumePillTransition)
             }
         }
-        .animation(LyricsMotion.engageSpring, value: controller.isAutoCentering)
+        .animation(
+            LyricsMotion.animation(LyricsMotion.engageSpring, reduceMotion: reduceMotion),
+            value: controller.isAutoCentering
+        )
+    }
+
+    private var resumePillTransition: AnyTransition {
+        guard LyricsMotion.shouldAnimate(reduceMotion: reduceMotion) else { return .identity }
+        return .asymmetric(
+            insertion: .scale(scale: 0.85, anchor: .bottom)
+                .combined(with: .opacity)
+                .combined(with: .offset(y: 12)),
+            removal: .scale(scale: 0.9, anchor: .bottom)
+                .combined(with: .opacity)
+                .combined(with: .offset(y: 6))
+        )
     }
 
     @ViewBuilder
@@ -188,7 +202,8 @@ struct ImmersiveLyricsTimedLyricsScrollView: View {
                         ImmersiveLyricsLineText(
                             line.words,
                             distance: line.id - activeID,
-                            size: lyricsTextSize
+                            size: lyricsTextSize,
+                            reduceMotion: reduceMotion
                         )
                     }
                     .id(line.id)
@@ -233,7 +248,8 @@ struct ImmersiveLyricsPlainLyricsScrollView: View {
                     ImmersiveLyricsLineText(
                         text,
                         distance: index - active,
-                        size: lyricsTextSize
+                        size: lyricsTextSize,
+                        reduceMotion: reduceMotion
                     )
                     .id(index)
                 }
@@ -256,11 +272,13 @@ struct ImmersiveLyricsLineText: View {
     let text: String
     let distance: Int
     let size: LyricsTextMetrics
+    let reduceMotion: Bool
 
-    init(_ text: String, distance: Int, size: LyricsTextMetrics) {
+    init(_ text: String, distance: Int, size: LyricsTextMetrics, reduceMotion: Bool = false) {
         self.text = text
         self.distance = distance
         self.size = size
+        self.reduceMotion = reduceMotion
     }
 
     private var isActive: Bool { distance == 0 }
@@ -310,10 +328,19 @@ struct ImmersiveLyricsLineText: View {
             )
             .multilineTextAlignment(.leading)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .contentTransition(.interpolate)
-            .animation(LyricsMotion.lineSpring, value: distance)
-            .animation(LyricsMotion.lineSpring, value: isActive)
-            .animation(LyricsMotion.sizeSpring, value: size)
+            .contentTransition(reduceMotion ? .identity : .interpolate)
+            .animation(
+                LyricsMotion.animation(LyricsMotion.lineSpring, reduceMotion: reduceMotion),
+                value: distance
+            )
+            .animation(
+                LyricsMotion.animation(LyricsMotion.lineSpring, reduceMotion: reduceMotion),
+                value: isActive
+            )
+            .animation(
+                LyricsMotion.animation(LyricsMotion.sizeSpring, reduceMotion: reduceMotion),
+                value: size
+            )
     }
 }
 
@@ -343,7 +370,10 @@ struct TappableLyricLine<Content: View>: View {
                     // reachable. Active line is already at peak luminance so
                     // no extra lift — just the cursor cue.
                     .brightness(isHovered && !isActive ? 0.08 : 0)
-                    .animation(.easeOut(duration: 0.12), value: isHovered)
+                    .animation(
+                        reduceMotion ? nil : .easeOut(duration: 0.12),
+                        value: isHovered
+                    )
             }
             .buttonStyle(TappableLyricButtonStyle(reduceMotion: reduceMotion))
             .pointerStyle(.link)
@@ -379,22 +409,34 @@ private struct TappableLyricButtonStyle: ButtonStyle {
 struct LyricsReturnToCurrentLinePill: View {
     let action: () -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var iconPulse = false
 
     var body: some View {
         Button(action: action) {
-            Label(SpotiglassL10n.string("lyrics.returnToLine"), systemImage: "scope")
-                .labelStyle(.titleAndIcon)
-                .font(.callout.weight(.semibold))
-                .symbolEffect(.pulse, options: .repeating, value: iconPulse)
-                .foregroundStyle(.white)
+            if LyricsMotion.shouldAnimate(reduceMotion: reduceMotion) {
+                Label(SpotiglassL10n.string("lyrics.returnToLine"), systemImage: "scope")
+                    .labelStyle(.titleAndIcon)
+                    .font(.callout.weight(.semibold))
+                    .symbolEffect(.pulse, options: .repeating, value: iconPulse)
+                    .foregroundStyle(.white)
+            } else {
+                Label(SpotiglassL10n.string("lyrics.returnToLine"), systemImage: "scope")
+                    .labelStyle(.titleAndIcon)
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(.white)
+            }
         }
         .buttonStyle(SpotiglassPillStyle(
             variant: .glass,
             horizontalPadding: ImmersiveLyricsLayout.resumePillHorizontalPadding,
             verticalPadding: ImmersiveLyricsLayout.resumePillVerticalPadding
         ))
-        .onAppear { iconPulse.toggle() }
+        .onAppear {
+            if LyricsMotion.shouldAnimate(reduceMotion: reduceMotion) {
+                iconPulse.toggle()
+            }
+        }
         .accessibilityLabel(SpotiglassL10n.string("lyrics.returnToLine"))
     }
 }

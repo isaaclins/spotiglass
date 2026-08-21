@@ -123,6 +123,44 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
         XCTAssertFalse(toggled)
     }
 
+    func testLyricsShortcutRequiresCurrentMusicTrack() throws {
+        let url = makeCommandPaletteTestsTempSettingsURL()
+        let settings = SpotiglassSettingsStore(fileURL: url)
+        let keymap = CommandPaletteKeymapStore(settingsStore: settings)
+        let manager = CommandPaletteManager(keymapStore: keymap)
+        manager.isSignedIn = true
+        try keymap.setBinding(
+            commandID: CommandPaletteCommandID.toggleLyrics,
+            shortcut: try CommandShortcut(keystroke: "cmd-l"),
+            replaceConflicting: true
+        )
+        let playback = PlaybackSessionViewModel(
+            playbackAPI: MockPlaybackAPI(),
+            webCommander: MockWebPlaybackCommander()
+        )
+        manager.bindPlaybackReadiness(to: playback)
+        var toggled = 0
+        manager.toggleLyrics = { toggled += 1 }
+
+        XCTAssertFalse(manager.handleKeyEvent(keyDown(keyCode: 37, characters: "l", modifiers: [.command])))
+        XCTAssertEqual(toggled, 0)
+
+        playback.setConnectionState(.playing(
+            PlaybackNowPlaying(
+                name: "Song",
+                artists: ["Artist"],
+                albumName: nil,
+                albumID: nil,
+                albumArtURL: nil,
+                durationMilliseconds: 100,
+                positionMilliseconds: 0,
+                uri: "spotify:track:1"
+            )
+        ))
+        XCTAssertTrue(manager.handleKeyEvent(keyDown(keyCode: 37, characters: "l", modifiers: [.command])))
+        XCTAssertEqual(toggled, 1)
+    }
+
     func testExecuteWiresPlaybackAndNavigationHandlers() async {
         let manager = CommandPaletteManager()
         let toggle = expectation(description: "toggle")
@@ -232,6 +270,7 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
         XCTAssertTrue(queueToggled)
 
         var lyricsToggled = false
+        manager.setLyricsToggleAvailability(true)
         manager.toggleLyrics = { lyricsToggled = true }
         manager.execute(commandID: CommandPaletteCommandID.toggleLyrics)
         XCTAssertTrue(lyricsToggled)

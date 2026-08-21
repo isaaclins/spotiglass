@@ -223,6 +223,13 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
         XCTAssertNoThrow(try inactive.inspect().find(text: "Far line"))
     }
 
+    func testLyricsMotionPolicyHonorsReduceMotion() {
+        XCTAssertTrue(LyricsMotion.shouldAnimate(reduceMotion: false))
+        XCTAssertFalse(LyricsMotion.shouldAnimate(reduceMotion: true))
+        XCTAssertEqual(LyricsMotion.animation(.default, reduceMotion: false), .default)
+        XCTAssertNil(LyricsMotion.animation(.default, reduceMotion: true))
+    }
+
     func testReturnToCurrentLinePill() throws {
         var tapped = false
         let pill = LyricsReturnToCurrentLinePill { tapped = true }

@@ -24,6 +24,20 @@ final class LrcParsingTests: XCTestCase {
         XCTAssertEqual(lines[0].words, "Subsecond")
     }
 
+    func testExpandsRepeatedTimestampsWithoutRenderingTags() {
+        let lrc = "[00:20.00][00:10.00]Chorus\n[00:30.00]Next"
+        let lines = LrcLineParser.parseSyncedLines(lrc)
+
+        XCTAssertEqual(
+            lines,
+            [
+                SyncedLyricLine(id: 0, startTimeMs: 10_000, words: "Chorus"),
+                SyncedLyricLine(id: 1, startTimeMs: 20_000, words: "Chorus"),
+                SyncedLyricLine(id: 2, startTimeMs: 30_000, words: "Next")
+            ]
+        )
+    }
+
     func testParsesMinuteBoundary() {
         let lrc = "[01:02.03]Chorus"
         let lines = LrcLineParser.parseSyncedLines(lrc)

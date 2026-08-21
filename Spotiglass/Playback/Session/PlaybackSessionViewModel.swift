@@ -748,6 +748,10 @@ final class PlaybackSessionViewModel: ObservableObject {
         }
     }
 
+    var currentLyricTrack: PlaybackNowPlaying? {
+        connectionState.currentLyricTrack
+    }
+
     func setConnectionState(_ state: PlaybackConnectionState) {
         updateSeekOwnership(from: state)
         updateStableTransportTrackURI(from: state)

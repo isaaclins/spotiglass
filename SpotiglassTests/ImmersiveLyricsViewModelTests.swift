@@ -72,6 +72,79 @@ final class ImmersiveLyricsViewModelTests: XCTestCase {
         XCTAssertEqual(lyrics, .instrumental)
     }
 
+    func testCancelledTrackLoadCannotOverwriteCurrentPhaseOrTrackBackoff() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SpotiglassLyricsCancellationTests-\(UUID().uuidString)")
+        let disk = try LyricsDiskCache(directory: directory)
+        let gate = TrackLyricsFetchGate()
+        let vm = ImmersiveLyricsViewModel(fetchLyrics: { track in
+            guard let trackID = track.spotifyTrackIDForLyrics else {
+                return .instrumental
+            }
+            await gate.fetchStarted(trackID)
+            return try await gate.waitForResult(trackID)
+        }, diskCache: disk)
+        let trackA = sampleTrack(spotifyID: "cancelled-A")
+        let trackB = sampleTrack(spotifyID: "current-B")
+
+        let loadA = Task { await vm.load(track: trackA) }
+        await gate.waitUntilStarted("cancelled-A")
+        loadA.cancel()
+
+        let loadB = Task { await vm.load(track: trackB) }
+        await gate.waitUntilStarted("current-B")
+        await gate.release("current-B", result: .failure(.noLyrics))
+        await loadB.value
+
+        await gate.release("cancelled-A", result: .success(.unsyncedPlain(["Track A"])))
+        await loadA.value
+
+        guard case let .failed(message) = vm.phase else {
+            return XCTFail("expected current track failure, got \(vm.phase)")
+        }
+        XCTAssertTrue(message.contains("No lyrics"))
+        XCTAssertEqual(disk.load(spotifyTrackID: "cancelled-A"), .unsyncedPlain(["Track A"]))
+        XCTAssertNil(disk.loadTrackBackoffMetadata(spotifyTrackID: "cancelled-A"))
+        XCTAssertEqual(
+            disk.loadTrackBackoffMetadata(spotifyTrackID: "current-B")?.failureClass,
+            .noLyrics
+        )
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    func testSupersededFailureDoesNotRegisterTrackBackoff() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SpotiglassLyricsCancellationFailureTests-\(UUID().uuidString)")
+        let disk = try LyricsDiskCache(directory: directory)
+        let gate = TrackLyricsFetchGate()
+        let vm = ImmersiveLyricsViewModel(fetchLyrics: { track in
+            guard let trackID = track.spotifyTrackIDForLyrics else {
+                return .instrumental
+            }
+            await gate.fetchStarted(trackID)
+            return try await gate.waitForResult(trackID)
+        }, diskCache: disk)
+        let trackA = sampleTrack(spotifyID: "failed-A")
+        let trackB = sampleTrack(spotifyID: "ready-B")
+
+        let loadA = Task { await vm.load(track: trackA) }
+        await gate.waitUntilStarted("failed-A")
+        loadA.cancel()
+
+        let loadB = Task { await vm.load(track: trackB) }
+        await gate.waitUntilStarted("ready-B")
+        await gate.release("failed-A", result: .failure(.http(503)))
+        await loadA.value
+        await gate.release("ready-B", result: .success(.instrumental))
+        await loadB.value
+
+        XCTAssertEqual(vm.phase, .ready(.instrumental))
+        XCTAssertNil(disk.loadTrackBackoffMetadata(spotifyTrackID: "failed-A"))
+        XCTAssertEqual(disk.load(spotifyTrackID: "ready-B"), .instrumental)
+        XCTAssertNil(disk.loadTrackBackoffMetadata(spotifyTrackID: "ready-B"))
+        try? FileManager.default.removeItem(at: directory)
+    }
+
     func testConcurrentPreloadsShareOneFetch() async {
         var fetchCount = 0
         let vm = ImmersiveLyricsViewModel { _ in
@@ -273,5 +346,33 @@ private actor LyricsFetchTestGate {
     func releaseFetch() {
         releaseWaiter?.resume()
         releaseWaiter = nil
+    }
+}
+
+private actor TrackLyricsFetchGate {
+    private var startedTrackIDs: Set<String> = []
+    private var startWaiters: [String: [CheckedContinuation<Void, Never>]] = [:]
+    private var releaseWaiters: [String: CheckedContinuation<Result<FetchedLyrics, LrcLibClient.Failure>, Never>] = [:]
+
+    func fetchStarted(_ trackID: String) {
+        startedTrackIDs.insert(trackID)
+        let waiters = startWaiters.removeValue(forKey: trackID) ?? []
+        for waiter in waiters { waiter.resume() }
+    }
+
+    func waitUntilStarted(_ trackID: String) async {
+        if startedTrackIDs.contains(trackID) { return }
+        await withCheckedContinuation { startWaiters[trackID, default: []].append($0) }
+    }
+
+    func waitForResult(_ trackID: String) async throws -> FetchedLyrics {
+        let result = await withCheckedContinuation { continuation in
+            releaseWaiters[trackID] = continuation
+        }
+        return try result.get()
+    }
+
+    func release(_ trackID: String, result: Result<FetchedLyrics, LrcLibClient.Failure>) {
+        releaseWaiters.removeValue(forKey: trackID)?.resume(returning: result)
     }
 }
