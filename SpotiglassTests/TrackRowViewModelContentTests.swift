@@ -123,4 +123,32 @@ final class TrackRowViewModelContentTests: XCTestCase {
         XCTAssertEqual(top.first?.listPosition, 1)
         XCTAssertEqual(top.first?.title, "One")
     }
+
+    func testPlaylistOccurrenceKeepsRowIDButPinsCanonicalTrackIdentity() {
+        let canonicalTrack = SpotifyTrack(
+            id: "track-real",
+            name: "Same Song",
+            artists: ["Artist"],
+            albumArtworkURL: nil,
+            durationMilliseconds: 180_000,
+            isExplicit: false,
+            isPlayable: true,
+            linkedFromID: nil,
+            uri: "spotify:track:track-real"
+        )
+        let row = TrackRowViewModel(
+            SpotifyPlaylistTrackItem(id: "track-real:7", content: .track(canonicalTrack)),
+            listPosition: 8
+        )
+
+        XCTAssertEqual(row.id, "track-real:7")
+        XCTAssertEqual(row.pinnedTrackItem()?.id, "track:track-real")
+        XCTAssertEqual(row.pinnedTrackItem()?.spotifyURI, "spotify:track:track-real")
+
+        let movedRow = TrackRowViewModel(
+            SpotifyPlaylistTrackItem(id: "track-real:2", content: .track(canonicalTrack)),
+            listPosition: 3
+        )
+        XCTAssertEqual(movedRow.pinnedTrackItem(), row.pinnedTrackItem())
+    }
 }

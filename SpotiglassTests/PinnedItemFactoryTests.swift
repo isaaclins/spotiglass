@@ -80,7 +80,7 @@ final class PinnedItemFactoryTests: XCTestCase {
 
     func testTrackFactoryJoinsArtists() {
         let track = SpotifyTrack(
-            id: "t1", name: "Song",
+            id: "t1:7", name: "Song",
             artists: ["A", "B"], albumArtworkURL: URL(string: "https://x/t.jpg"),
             durationMilliseconds: 1000, isExplicit: false, isPlayable: true,
             linkedFromID: nil, uri: "spotify:track:t1"
@@ -91,6 +91,24 @@ final class PinnedItemFactoryTests: XCTestCase {
         XCTAssertEqual(pin.title, "Song")
         XCTAssertEqual(pin.subtitle, "A, B")
         XCTAssertEqual(pin.spotifyURI, "spotify:track:t1")
+    }
+
+    func testAlbumDetailHeaderUsesAlbumPinIdentity() {
+        let header = PlaylistRowViewModel(
+            albumDisplayName: "Public Album",
+            artistsDisplay: "Artist",
+            totalTrackCount: 8,
+            artworkURL: nil,
+            albumID: "album-1"
+        )
+
+        let pin = PlaylistDetailHeaderPinning.item(for: header)
+
+        XCTAssertEqual(pin.kind, .album)
+        XCTAssertEqual(pin.id, "album:album-1")
+        XCTAssertEqual(pin.spotifyURI, "spotify:album:album-1")
+        XCTAssertEqual(pin.title, "Public Album")
+        XCTAssertEqual(pin.subtitle, "Artist")
     }
 
     func testLikedSongsFactoryHasStableIDAndNoURI() {

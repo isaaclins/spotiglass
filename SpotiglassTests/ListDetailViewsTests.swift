@@ -190,8 +190,7 @@ final class ListDetailViewsTests: XCTestCase {
             trackNumber: 5,
             isCurrent: false,
             isPlaying: false,
-            store: store,
-            surfaceID: "pl:test"
+            store: store
         )
         ViewTestHost.host(view, size: CGSize(width: 640, height: 56))
         XCTAssertNoThrow(try view.inspect().find(text: "Pinned to sidebar"))

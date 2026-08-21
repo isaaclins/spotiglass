@@ -239,6 +239,7 @@ extension PlaylistBrowserViewModel {
         let renumbered = filtered.enumerated().map { idx, row -> TrackRowViewModel in
             TrackRowViewModel(
                 id: row.id,
+                spotifyTrackID: row.spotifyTrackID,
                 listPosition: idx + 1,
                 title: row.title,
                 subtitle: row.subtitle,
@@ -300,6 +301,7 @@ private extension TrackRowViewModel {
     /// with updated `listPosition` after a destructive mutation.
     init(
         id: String,
+        spotifyTrackID: String? = nil,
         listPosition: Int,
         title: String,
         subtitle: String,
@@ -313,6 +315,7 @@ private extension TrackRowViewModel {
         artistRefs: [SpotifyArtistRef]
     ) {
         self.id = id
+        self.spotifyTrackID = spotifyTrackID
         self.listPosition = listPosition
         self.title = title
         self.subtitle = subtitle

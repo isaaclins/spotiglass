@@ -37,7 +37,11 @@ final class PinnedItemsStore: ObservableObject {
             return
         }
         if let loaded = try? cache.loadPinnedItems(userID: userID) {
-            items = loaded
+            let migrated = PinnedItem.migrateLegacyTrackPins(loaded)
+            items = migrated
+            if migrated != loaded {
+                persist()
+            }
         } else {
             items = []
             SpotiglassLog.error(SpotiglassLog.pinning, "Failed to load pinned items for user")
@@ -56,14 +60,15 @@ final class PinnedItemsStore: ObservableObject {
     /// applied so callers don't have to bounds-check.
     @discardableResult
     func pin(_ item: PinnedItem, at index: Int? = nil) -> Bool {
-        guard !isPinned(id: item.id) else { return false }
+        let normalizedItem = item.migratedLegacyTrackPin()
+        guard !isPinned(id: normalizedItem.id) else { return false }
         let clamped: Int
         if let index {
             clamped = max(0, min(index, items.count))
         } else {
             clamped = items.count
         }
-        items.insert(item, at: clamped)
+        items.insert(normalizedItem, at: clamped)
         persist()
         return true
     }
@@ -113,7 +118,12 @@ final class PinnedItemsStore: ObservableObject {
     /// Spotify ID + kind (track row, album card, artist header, …).
     func isPinned(spotifyID: String, kind: PinnedItemKind) -> Bool {
         let pinID = PinnedItem.id(forKind: kind, spotifyID: spotifyID)
-        return isPinned(id: pinID)
+        if isPinned(id: pinID) { return true }
+        guard kind == .track else { return false }
+        return items.contains {
+            $0.kind == .track
+                && PinnedItem.canonicalTrackID(fromSpotifyURI: $0.spotifyURI) == spotifyID
+        }
     }
 
     func markStale(id: String, _ stale: Bool) {

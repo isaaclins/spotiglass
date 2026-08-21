@@ -37,8 +37,12 @@ extension PlaylistBrowserViewModel {
             try? cache.savePlaylists(playlists, cachedAt: now())
             if playlists.isEmpty {
                 playlistsByID = [:]
-                sidebarSelection = nil
                 playlistState = .empty(SpotiglassL10n.string("browser.empty.noPlaylists"))
+                if case let .playlist(id) = sidebarSelection,
+                   knownPlaylistSummariesByID[id] != nil {
+                    return
+                }
+                sidebarSelection = nil
                 detailState = .empty(SpotiglassL10n.string("browser.empty.noPlaylistsHint"))
                 return
             }
@@ -141,7 +145,7 @@ extension PlaylistBrowserViewModel {
 
         if preserveSelection, let selection = sidebarSelection {
             switch selection {
-            case let .playlist(id) where playlistsByID[id] != nil:
+            case let .playlist(id) where playlistsByID[id] != nil || knownPlaylistSummariesByID[id] != nil:
                 return
             case .likedSongs, .home, .search, .pinnedItem:
                 return
@@ -150,7 +154,9 @@ extension PlaylistBrowserViewModel {
             }
         }
 
-        if case let .playlist(missingID) = sidebarSelection, playlistsByID[missingID] == nil {
+        if case let .playlist(missingID) = sidebarSelection,
+           playlistsByID[missingID] == nil,
+           knownPlaylistSummariesByID[missingID] == nil {
             detailState = .error(BrowsingDisplayError(
                 title: SpotiglassL10n.string("error.browsing.playlistUnavailable.title"),
                 message: SpotiglassL10n.string("error.browsing.playlistUnavailable.deleted"),

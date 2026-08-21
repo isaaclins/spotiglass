@@ -98,6 +98,9 @@ final class PlaylistBrowserViewModel: ObservableObject {
     /// Number of artist album pages to load initially before exposing "Load more".
     let initialArtistAlbumPageCount: Int
     internal(set) var playlistsByID: [String: SpotifyPlaylistSummary] = [:]
+    /// Catalog and pinned summaries are kept separately from the signed-in
+    /// library so external public playlists can still use the normal loader.
+    internal(set) var knownPlaylistSummariesByID: [String: SpotifyPlaylistSummary] = [:]
     var hasLoaded = false
     var detailSession = 0
     var detailLoadTask: Task<Void, Never>?
@@ -201,6 +204,7 @@ final class PlaylistBrowserViewModel: ObservableObject {
         prefetchAllPlaylistsProgress = nil
         sidebarSelection = nil
         playlistsByID = [:]
+        knownPlaylistSummariesByID = [:]
         lastTracksRevalidationByID = [:]
         cachedArtistSnapshots = [:]
         currentArtistAlbumsPaging = nil

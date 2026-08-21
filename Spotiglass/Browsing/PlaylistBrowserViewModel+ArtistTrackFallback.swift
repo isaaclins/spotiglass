@@ -42,7 +42,7 @@ extension PlaylistBrowserViewModel {
         }
 
         var collected: [SpotifyTrack] = []
-        var seenNames: Set<String> = []
+        var seenTrackIdentityKeys: Set<String> = []
         var lastFailure: Error?
         for album in selectedAlbums {
             try Task.checkCancellation()
@@ -58,7 +58,7 @@ extension PlaylistBrowserViewModel {
                     from: tracks,
                     albumArtworkFallback: albumImagesByID[album.id],
                     into: &collected,
-                    seen: &seenNames,
+                    seen: &seenTrackIdentityKeys,
                     limit: 10
                 )
                 if collected.count >= 10 {
@@ -89,9 +89,9 @@ extension PlaylistBrowserViewModel {
     ) {
         for track in source {
             if collected.count >= limit { return }
-            let key = track.name.lowercased()
-            guard !seen.contains(key) else { continue }
-            seen.insert(key)
+            let identityKeys = PinnedItem.trackIdentityKeys(for: track)
+            guard !identityKeys.isEmpty, seen.isDisjoint(with: identityKeys) else { continue }
+            seen.formUnion(identityKeys)
             let withArt: SpotifyTrack
             if track.albumArtworkURL == nil, let url = albumArtworkFallback {
                 withArt = SpotifyTrack(

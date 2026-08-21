@@ -126,6 +126,52 @@ final class PinnedItemsStoreTests: XCTestCase {
         XCTAssertEqual(try cache.loadPinnedItems(userID: "u").count, 1)
     }
 
+    func testBindMigratesPositionQualifiedTrackPinToCanonicalIdentity() {
+        let cache = RecordingPinnedCache()
+        let legacy = PinnedItem(
+            id: "track:track-real:7",
+            kind: .track,
+            title: "Same Song",
+            subtitle: "Artist",
+            artworkURL: nil,
+            spotifyURI: "spotify:track:track-real",
+            isStale: false
+        )
+        cache.saved["u"] = [legacy]
+        let store = PinnedItemsStore(cache: cache)
+
+        store.bind(userID: "u")
+
+        XCTAssertEqual(store.items.map(\.id), ["track:track-real"])
+        XCTAssertEqual(cache.saved["u"]?.map(\.id), ["track:track-real"])
+
+        store.unpin(id: "track:track-real")
+        XCTAssertTrue(store.items.isEmpty)
+    }
+
+    func testLegacyTrackPinJSONDecodesAndMigratesWhenBound() throws {
+        let legacyJSON = """
+        {
+          "id": "track:track-real:7",
+          "kind": "track",
+          "title": "Same Song",
+          "subtitle": "Artist",
+          "artworkURL": null,
+          "spotifyURI": "spotify:track:track-real",
+          "isStale": false
+        }
+        """
+        let legacy = try JSONDecoder().decode(PinnedItem.self, from: Data(legacyJSON.utf8))
+        let cache = RecordingPinnedCache()
+        cache.saved["u"] = [legacy]
+        let store = PinnedItemsStore(cache: cache)
+
+        store.bind(userID: "u")
+
+        XCTAssertEqual(store.items.map(\.id), ["track:track-real"])
+        XCTAssertEqual(cache.saved["u"]?.map(\.id), ["track:track-real"])
+    }
+
     func testMarkStale() {
         let cache = RecordingPinnedCache()
         let store = PinnedItemsStore(cache: cache)

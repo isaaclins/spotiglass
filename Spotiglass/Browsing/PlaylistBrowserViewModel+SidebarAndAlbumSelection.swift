@@ -81,6 +81,11 @@ extension PlaylistBrowserViewModel {
         }
     }
 
+    func selectPlaylist(summary: SpotifyPlaylistSummary, origin: BrowserNavigationOrigin = .reset) async {
+        knownPlaylistSummariesByID[summary.id] = summary
+        await selectSidebar(.playlist(summary.id), origin: origin)
+    }
+
     func selectPlaylist(id: String?, origin: BrowserNavigationOrigin = .reset) async {
         if let id {
             await selectSidebar(.playlist(id), origin: origin)

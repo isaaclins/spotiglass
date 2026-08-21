@@ -92,7 +92,7 @@ final class PlaylistBrowserArtistFallbackTests: XCTestCase {
                 XCTAssertEqual(limit, 10)
                 return [PlaylistBrowsingTestFixtures.fallbackTrack(
                     id: "track-\(albumID)",
-                    name: "Track \(albumID)",
+                    name: "Dup",
                     artistId: "artist-xyz"
                 )]
             }
@@ -105,8 +105,55 @@ final class PlaylistBrowserArtistFallbackTests: XCTestCase {
         guard case let .loaded(.artist(detail)) = viewModel.detailState else {
             return XCTFail("Expected loaded artist detail")
         }
-        XCTAssertEqual(detail.tracks.map(\.title), ["Track album-new", "Track album-old"])
+        XCTAssertEqual(detail.tracks.map(\.id), ["track-album-new", "track-album-old"])
+        XCTAssertEqual(detail.tracks.map(\.title), ["Dup", "Dup"])
         XCTAssertEqual(api.albumTracksCallCount, 2)
+    }
+
+    func testArtistFallbackDeduplicatesCanonicalTracksBeforeApplyingCap() async {
+        let duplicate = PlaylistBrowsingTestFixtures.fallbackTrack(
+            id: "same-track",
+            name: "Dup",
+            artistId: "artist-xyz"
+        )
+        let distinctTracks = (1 ... 10).map { index in
+            PlaylistBrowsingTestFixtures.fallbackTrack(
+                id: "distinct-\(index)",
+                name: "Dup",
+                artistId: "artist-xyz"
+            )
+        }
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
+            trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]],
+            searchHandler: { _, _ in
+                SpotifySearchResults(tracks: [], artists: [], albums: [], playlists: [])
+            },
+            artistAlbumsHandler: { _, _, _ in
+                [SpotifyArtistAlbum(
+                    id: "album-one",
+                    name: "Album",
+                    imageURL: nil,
+                    releaseYear: "2024",
+                    totalTracks: 12,
+                    group: .album,
+                    uri: "spotify:album:album-one"
+                )]
+            },
+            albumTracksHandler: { _, _, _ in
+                [duplicate, duplicate] + distinctTracks
+            }
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+
+        await viewModel.load()
+        await viewModel.selectArtist(id: "artist-xyz")
+
+        guard case let .loaded(.artist(detail)) = viewModel.detailState else {
+            return XCTFail("Expected loaded artist detail")
+        }
+        XCTAssertEqual(detail.tracks.count, 10)
+        XCTAssertEqual(detail.tracks.map(\.id), ["same-track"] + (1 ... 9).map { "distinct-\($0)" })
     }
 
     func testArtistDetailSurfacesAlbumTrackFailureInsteadOfShowingValidEmptyTracks() async {

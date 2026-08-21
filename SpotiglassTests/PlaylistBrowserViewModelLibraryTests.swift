@@ -3,6 +3,37 @@ import XCTest
 
 @MainActor
 final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
+    func testCatalogPlaylistSummaryLoadsTracksOutsideLibrary() async {
+        let external = SpotifyPlaylistSummary(
+            id: "external",
+            name: "Public Mix",
+            ownerID: "public-owner",
+            ownerName: "Public Owner",
+            imageURL: nil,
+            trackCount: 1,
+            snapshotID: "external-snapshot"
+        )
+        let library = PlaylistBrowsingTestFixtures.playlist(id: "library", name: "Library")
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([library]), .success([])],
+            trackResults: ["external": [.success([PlaylistBrowsingTestFixtures.track(id: "external-track")])]]
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+
+        await viewModel.load()
+        await viewModel.selectPlaylist(summary: external)
+
+        XCTAssertEqual(viewModel.sidebarSelection, .playlist("external"))
+        XCTAssertEqual(viewModel.breadcrumbPath.first?.label, "Public Mix")
+        XCTAssertEqual(PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).map(\.title), ["Track external-track"])
+        XCTAssertEqual(api.playlistTracksInvocationCountByID["external"], 1)
+
+        await viewModel.refreshPlaylists()
+
+        XCTAssertEqual(viewModel.sidebarSelection, .playlist("external"))
+        XCTAssertEqual(PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).map(\.title), ["Track external-track"])
+    }
+
     func testSelectLikedSongsLoadsSavedTracks() async {
         let liked = PlaylistBrowsingTestFixtures.track(id: "liked-one")
         let api = MockBrowsingAPI(

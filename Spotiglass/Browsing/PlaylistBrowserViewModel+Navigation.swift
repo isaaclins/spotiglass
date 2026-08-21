@@ -148,7 +148,8 @@ extension PlaylistBrowserViewModel {
                     )
                 ]
             case let .playlist(id):
-                let title = playlistsByID[id]?.name ?? SpotiglassL10n.string("browser.breadcrumb.playlistFallback")
+                let title = (playlistsByID[id] ?? knownPlaylistSummariesByID[id])?.name
+                    ?? SpotiglassL10n.string("browser.breadcrumb.playlistFallback")
                 breadcrumbPath = [
                     BrowserBreadcrumb(
                         id: UUID(),
@@ -315,7 +316,7 @@ extension PlaylistBrowserViewModel {
     private func albumNavigationTargetFromCurrentDetail() -> BrowserNavigationTarget? {
         guard let content = detailState.currentValue,
               case let .playlist(detail) = content,
-              detail.playlist.snapshotID.hasPrefix("album-") else {
+              detail.playlist.isAlbumDetail else {
             return nil
         }
         return .album(

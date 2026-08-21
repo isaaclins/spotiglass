@@ -38,7 +38,7 @@ enum PlaylistBrowserSidebarSelectionHandling {
 
     struct ActivationCallbacks {
         var setSidebarSelection: (SidebarSelection?) -> Void
-        var selectSidebarPlaylist: (String) async -> Void
+        var selectSidebarPlaylist: (SpotifyPlaylistSummary) async -> Void
         var selectArtist: (String, BrowserNavigationOrigin, String?) async -> Void
         var selectAlbum: (String, String, String, URL?, BrowserNavigationOrigin) async -> Void
         var playURI: (String) async -> Void
@@ -66,8 +66,8 @@ enum PlaylistBrowserSidebarSelectionHandling {
                 revert = selection ?? lastNonPinnedSelection
             }
             callbacks.setSidebarSelection(revert)
-        case let .selectPlaylist(id):
-            await callbacks.selectSidebarPlaylist(id)
+        case let .selectPlaylist(summary):
+            await callbacks.selectSidebarPlaylist(summary)
             syncPinnedStaleState(item: item, fallbackSelection: previousSelection ?? lastNonPinnedSelection, callbacks: callbacks)
         case let .selectArtist(id, displayName):
             await callbacks.selectArtist(id, .reset, displayName)

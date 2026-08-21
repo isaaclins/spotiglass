@@ -1,5 +1,39 @@
 import SwiftUI
 
+enum PlaylistDetailHeaderPinning {
+    static func item(for playlist: PlaylistRowViewModel) -> PinnedItem {
+        if playlist.id == SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID {
+            return .likedSongs(ownerDisplay: playlist.owner, artworkURL: playlist.artworkURL)
+        }
+        if playlist.isAlbumDetail {
+            return .album(
+                SpotifyAlbum(
+                    id: playlist.id,
+                    name: playlist.title,
+                    artists: playlist.owner.isEmpty ? [] : [playlist.owner],
+                    imageURL: playlist.artworkURL,
+                    uri: "spotify:album:\(playlist.id)"
+                )
+            )
+        }
+        return .playlist(
+            SpotifyPlaylistSummary(
+                id: playlist.id,
+                name: playlist.title,
+                ownerID: playlist.ownerID,
+                ownerName: playlist.owner,
+                imageURL: playlist.artworkURL,
+                trackCount: playlist.trackCount,
+                snapshotID: playlist.snapshotID
+            )
+        )
+    }
+
+    static func supportsPinning(_ playlist: PlaylistRowViewModel) -> Bool {
+        playlist.id != SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID
+    }
+}
+
 struct PlaylistDetailContent: View {
     let detail: PlaylistDetailViewModel
     var currentUserSpotifyID: String?
@@ -30,21 +64,7 @@ struct PlaylistDetailContent: View {
     private var tracksSurfaceKey: String { "pl:\(detail.playlist.id)" }
 
     private var headerPinnedItem: PinnedItem {
-        if detail.playlist.id == SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID {
-            .likedSongs(ownerDisplay: detail.playlist.owner, artworkURL: detail.playlist.artworkURL)
-        } else {
-            .playlist(
-                SpotifyPlaylistSummary(
-                    id: detail.playlist.id,
-                    name: detail.playlist.title,
-                    ownerID: detail.playlist.ownerID,
-                    ownerName: detail.playlist.owner,
-                    imageURL: detail.playlist.artworkURL,
-                    trackCount: detail.playlist.trackCount,
-                    snapshotID: detail.playlist.snapshotID
-                )
-            )
-        }
+        PlaylistDetailHeaderPinning.item(for: detail.playlist)
     }
 
     private var isHeaderPinned: Bool {
@@ -52,7 +72,7 @@ struct PlaylistDetailContent: View {
     }
 
     private var supportsHeaderPinning: Bool {
-        detail.playlist.id != SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID
+        PlaylistDetailHeaderPinning.supportsPinning(detail.playlist)
     }
 
     private var canRenamePlaylist: Bool {

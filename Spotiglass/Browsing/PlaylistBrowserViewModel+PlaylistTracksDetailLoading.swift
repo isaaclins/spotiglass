@@ -4,7 +4,7 @@ extension PlaylistBrowserViewModel {
     func loadTracks(for playlistID: String, refreshCachedData: Bool, session: Int) async {
         guard !Task.isCancelled else { return }
         guard session == detailSession else { return }
-        guard let playlist = playlistsByID[playlistID] else {
+        guard let playlist = playlistsByID[playlistID] ?? knownPlaylistSummariesByID[playlistID] else {
             detailState = .error(BrowsingDisplayError(
                 title: SpotiglassL10n.string("error.browsing.playlistUnavailable.title"),
                 message: SpotiglassL10n.string("error.browsing.playlistUnavailable.gone"),

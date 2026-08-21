@@ -140,11 +140,12 @@ struct TrackListRow: View {
     }
 
     private var isTrackPinned: Bool {
-        pinnedStore.isPinned(spotifyID: track.id, kind: .track)
+        guard let spotifyTrackID = track.spotifyTrackID else { return false }
+        return pinnedStore.isPinned(spotifyID: spotifyTrackID, kind: .track)
     }
 
     private var showsPinnedBadge: Bool {
-        tracksSurfaceID != nil && isTrackPinned
+        isTrackPinned
     }
 
     private var accessibilityStatusSuffix: String {

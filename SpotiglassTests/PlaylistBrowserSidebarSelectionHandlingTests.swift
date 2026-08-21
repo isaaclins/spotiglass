@@ -38,13 +38,17 @@ final class PlaylistBrowserSidebarSelectionHandlingTests: XCTestCase {
 
     func testActivatePinnedPlaylistSelectsSidebar() async {
         var selectedPlaylist: String?
+        var selectedSummary: SpotifyPlaylistSummary?
         var markedStale: (String, Bool)?
         await PlaylistBrowserSidebarSelectionHandling.activatePinnedItem(
             PinnedItem.playlist(PlaylistBrowsingTestFixtures.playlist(id: "p1", name: "One")),
             previousSelection: .home,
             lastNonPinnedSelection: .home,
             callbacks: makeCallbacks(
-                selectSidebarPlaylist: { selectedPlaylist = $0 },
+                selectSidebarPlaylist: { summary in
+                    selectedPlaylist = summary.id
+                    selectedSummary = summary
+                },
                 markStale: { id, stale in markedStale = (id, stale) },
                 detailState: .loaded(.playlist(PlaylistDetailViewModel(
                     playlist: PlaylistRowViewModel(PlaylistBrowsingTestFixtures.playlist(id: "p1", name: "One")),
@@ -53,6 +57,7 @@ final class PlaylistBrowserSidebarSelectionHandlingTests: XCTestCase {
             )
         )
         XCTAssertEqual(selectedPlaylist, "p1")
+        XCTAssertEqual(selectedSummary?.name, "One")
         XCTAssertEqual(markedStale?.1, false)
     }
 
@@ -88,7 +93,7 @@ final class PlaylistBrowserSidebarSelectionHandlingTests: XCTestCase {
 
     private func makeCallbacks(
         setSidebarSelection: @escaping (SidebarSelection?) -> Void = { _ in },
-        selectSidebarPlaylist: @escaping (String) async -> Void = { _ in },
+        selectSidebarPlaylist: @escaping (SpotifyPlaylistSummary) async -> Void = { _ in },
         selectArtist: @escaping (String, BrowserNavigationOrigin, String?) async -> Void = { _, _, _ in },
         selectAlbum: @escaping (String, String, String, URL?, BrowserNavigationOrigin) async -> Void = { _, _, _, _, _ in },
         playURI: @escaping (String) async -> Void = { _ in },

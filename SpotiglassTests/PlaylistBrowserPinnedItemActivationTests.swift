@@ -7,7 +7,7 @@ final class PlaylistBrowserPinnedItemActivationTests: XCTestCase {
         let playlist = PinnedItem.playlist(PlaylistBrowsingTestFixtures.playlist(id: "p", name: "P"))
         XCTAssertEqual(
             PlaylistBrowserPinnedItemActivation.route(for: playlist, previousSelection: nil),
-            .selectPlaylist("p")
+            .selectPlaylist(playlist.playlistSummary!)
         )
 
         let artist = PinnedItem.artist(
@@ -28,6 +28,27 @@ final class PlaylistBrowserPinnedItemActivationTests: XCTestCase {
         } else {
             XCTFail("expected stale revert")
         }
+    }
+
+    func testPinnedPlaylistRouteCarriesStoredSummaryMetadata() {
+        let summary = SpotifyPlaylistSummary(
+            id: "public-playlist",
+            name: "Public Mix",
+            ownerID: "public-owner",
+            ownerName: "Public Owner",
+            imageURL: nil,
+            trackCount: 42,
+            snapshotID: "public-snapshot"
+        )
+        let item = PinnedItem.playlist(summary)
+
+        guard case let .selectPlaylist(routedSummary)? = PlaylistBrowserPinnedItemActivation.route(
+            for: item,
+            previousSelection: nil
+        ) else {
+            return XCTFail("expected playlist route with summary")
+        }
+        XCTAssertEqual(routedSummary, summary)
     }
 
     func testSidebarSelectionAfterActivationWhenLoaded() {

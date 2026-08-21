@@ -272,7 +272,7 @@ struct CatalogSearchView: View {
                             destination: .playlist(id: playlist.id)
                         )
                     ) {
-                        Task { await viewModel.selectPlaylist(id: playlist.id, origin: .extend) }
+                        Task { await viewModel.selectPlaylist(summary: playlist, origin: .extend) }
                     }
                 }
             }

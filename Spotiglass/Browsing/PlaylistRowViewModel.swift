@@ -11,6 +11,10 @@ struct PlaylistRowViewModel: Equatable, Identifiable {
     let artworkURL: URL?
     let snapshotID: String
 
+    var isAlbumDetail: Bool {
+        snapshotID.hasPrefix("album-")
+    }
+
     init(_ playlist: SpotifyPlaylistSummary) {
         self.id = playlist.id
         self.title = playlist.name

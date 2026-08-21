@@ -2,6 +2,9 @@ import Foundation
 
 struct TrackRowViewModel: Equatable, Identifiable {
     let id: String
+    /// Canonical Spotify track ID. Playlist rows keep ``id`` occurrence-qualified
+    /// for selection, so pinning and badge state use this separate identity.
+    let spotifyTrackID: String?
     /// 1-based row index in playlist / artist track lists (for ``TrackListRow``).
     let listPosition: Int
     let title: String
@@ -39,6 +42,7 @@ struct TrackRowViewModel: Equatable, Identifiable {
 
         switch item.content {
         case let .track(track):
+            self.spotifyTrackID = PinnedItem.canonicalTrackID(for: track)
             self.title = track.name
             self.subtitle = track.artists.joined(separator: ", ")
             self.artworkURL = track.albumArtworkURL
@@ -52,6 +56,7 @@ struct TrackRowViewModel: Equatable, Identifiable {
             self.playableURI = track.isPlayable == false ? nil : track.uri
             self.artistRefs = track.artistRefs
         case let .episode(episode):
+            self.spotifyTrackID = nil
             self.title = episode.name
             self.subtitle = episode.showName ?? SpotiglassL10n.string("browser.trackBadge.podcastEpisode")
             self.artworkURL = episode.artworkURL
@@ -65,6 +70,7 @@ struct TrackRowViewModel: Equatable, Identifiable {
             self.playableURI = episode.isPlayable == false ? nil : episode.uri
             self.artistRefs = []
         case let .localTrack(track):
+            self.spotifyTrackID = nil
             self.title = track.name
             self.subtitle = track.artists.isEmpty
                 ? SpotiglassL10n.string("browser.trackBadge.localTrack")
@@ -78,6 +84,7 @@ struct TrackRowViewModel: Equatable, Identifiable {
             self.playableURI = nil
             self.artistRefs = []
         case let .unavailable(reason):
+            self.spotifyTrackID = nil
             self.title = SpotiglassL10n.string("browser.trackBadge.unavailableItem")
             self.subtitle = reason
             self.artworkURL = nil
@@ -94,6 +101,7 @@ struct TrackRowViewModel: Equatable, Identifiable {
     init(topTrack track: SpotifyTrack, listPosition: Int) {
         self.listPosition = listPosition
         self.id = track.id
+        self.spotifyTrackID = PinnedItem.canonicalTrackID(for: track)
         self.title = track.name
         self.subtitle = track.artists.joined(separator: ", ")
         self.artworkURL = track.albumArtworkURL
@@ -112,12 +120,14 @@ struct TrackRowViewModel: Equatable, Identifiable {
 
     /// Domain track for palette pinning and draggable pins; `nil` for episodes, locals, and unavailable rows.
     func spotifyTrackForPinning() -> SpotifyTrack? {
-        guard let playableURI, playableURI.hasPrefix("spotify:track:") else { return nil }
+        guard let spotifyTrackID,
+              let playableURI,
+              playableURI.hasPrefix("spotify:track:") else { return nil }
         let names: [String] = artistRefs.map(\.name).isEmpty
             ? subtitle.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
             : artistRefs.map(\.name)
         return SpotifyTrack(
-            id: id,
+            id: spotifyTrackID,
             name: title,
             artists: names,
             artistRefs: artistRefs,

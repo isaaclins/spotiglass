@@ -37,7 +37,7 @@ extension PlaylistBrowserView {
             lastNonPinnedSelection: lastNonPinnedSelection,
             callbacks: .init(
                 setSidebarSelection: { browserVM.sidebarSelection = $0 },
-                selectSidebarPlaylist: { id in await browserVM.selectSidebar(.playlist(id)) },
+                selectSidebarPlaylist: { summary in await browserVM.selectPlaylist(summary: summary) },
                 selectArtist: { id, origin, name in
                     await browserVM.selectArtist(id: id, origin: origin, displayName: name)
                 },

@@ -24,6 +24,35 @@ struct PinnedItem: Identifiable, Equatable, Codable, Hashable {
     /// like Liked Songs which have no list-level URI.
     let spotifyURI: String?
     var isStale: Bool
+    /// Snapshot metadata retained for playlist pins so public playlists can be
+    /// loaded even when they are not in the signed-in library.
+    let playlistOwnerID: String?
+    let playlistTrackCount: Int?
+    let playlistSnapshotID: String?
+
+    init(
+        id: String,
+        kind: PinnedItemKind,
+        title: String,
+        subtitle: String,
+        artworkURL: URL?,
+        spotifyURI: String?,
+        isStale: Bool,
+        playlistOwnerID: String? = nil,
+        playlistTrackCount: Int? = nil,
+        playlistSnapshotID: String? = nil
+    ) {
+        self.id = id
+        self.kind = kind
+        self.title = title
+        self.subtitle = subtitle
+        self.artworkURL = artworkURL
+        self.spotifyURI = spotifyURI
+        self.isStale = isStale
+        self.playlistOwnerID = playlistOwnerID
+        self.playlistTrackCount = playlistTrackCount
+        self.playlistSnapshotID = playlistSnapshotID
+    }
 
     /// ID for the Liked Songs virtual row. Stable across processes / accounts;
     /// duplicated only when the same row is pinned for the same account.
@@ -44,7 +73,10 @@ extension PinnedItem {
             subtitle: playlist.ownerName,
             artworkURL: playlist.imageURL,
             spotifyURI: "spotify:playlist:\(playlist.id)",
-            isStale: false
+            isStale: false,
+            playlistOwnerID: playlist.ownerID,
+            playlistTrackCount: playlist.trackCount,
+            playlistSnapshotID: playlist.snapshotID
         )
     }
 
@@ -98,8 +130,9 @@ extension PinnedItem {
     }
 
     static func track(_ track: SpotifyTrack) -> PinnedItem {
-        PinnedItem(
-            id: id(forKind: .track, spotifyID: track.id),
+        let canonicalID = canonicalTrackID(for: track) ?? track.id
+        return PinnedItem(
+            id: id(forKind: .track, spotifyID: canonicalID),
             kind: .track,
             title: track.name,
             subtitle: track.artists.joined(separator: ", "),
@@ -130,5 +163,98 @@ extension PinnedItem {
         let prefix = "\(kind.rawValue):"
         guard id.hasPrefix(prefix) else { return nil }
         return String(id.dropFirst(prefix.count))
+    }
+
+    /// Reconstructs the summary captured when a playlist was pinned. Older pins
+    /// have no snapshot fields, so the playlist ID is a safe cache namespace.
+    var playlistSummary: SpotifyPlaylistSummary? {
+        guard kind == .playlist, let spotifyID else { return nil }
+        return SpotifyPlaylistSummary(
+            id: spotifyID,
+            name: title,
+            ownerID: playlistOwnerID ?? "",
+            ownerName: subtitle,
+            imageURL: artworkURL,
+            trackCount: playlistTrackCount,
+            snapshotID: playlistSnapshotID ?? spotifyID
+        )
+    }
+
+    /// Canonical track identity shared by row pinning, pin state, and fallback
+    /// deduplication. A URI key is retained alongside the ID so either Spotify
+    /// representation recognizes the same track.
+    static func trackIdentityKeys(for track: SpotifyTrack) -> Set<String> {
+        var keys = Set<String>()
+        if let id = canonicalTrackID(for: track) {
+            keys.insert("id:\(id)")
+        }
+        if let uri = canonicalTrackURI(track.uri) {
+            keys.insert("uri:\(uri)")
+        }
+        return keys
+    }
+
+    static func canonicalTrackID(for track: SpotifyTrack) -> String? {
+        if let uriID = canonicalTrackID(fromSpotifyURI: track.uri) {
+            return uriID
+        }
+        let id = track.id.trimmingCharacters(in: .whitespacesAndNewlines)
+        return id.isEmpty ? nil : id
+    }
+
+    static func canonicalTrackID(fromSpotifyURI uri: String?) -> String? {
+        guard let uri = canonicalTrackURI(uri) else { return nil }
+        let prefix = "spotify:track:"
+        let id = String(uri.dropFirst(prefix.count))
+        return id.isEmpty ? nil : id
+    }
+
+    static func canonicalTrackURI(_ uri: String?) -> String? {
+        guard let uri else { return nil }
+        let trimmed = uri.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.hasPrefix("spotify:track:") else { return nil }
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    /// Rewrites pins written before playlist rows separated their occurrence ID
+    /// from the canonical Spotify track ID. A canonical pin already passes
+    /// through unchanged.
+    func migratedLegacyTrackPin() -> PinnedItem {
+        guard kind == .track,
+              let canonicalID = PinnedItem.canonicalTrackID(fromSpotifyURI: spotifyURI)
+                ?? legacyTrackID
+        else { return self }
+        let canonicalPinID = PinnedItem.id(forKind: .track, spotifyID: canonicalID)
+        guard id != canonicalPinID else { return self }
+        return PinnedItem(
+            id: canonicalPinID,
+            kind: kind,
+            title: title,
+            subtitle: subtitle,
+            artworkURL: artworkURL,
+            spotifyURI: spotifyURI,
+            isStale: isStale,
+            playlistOwnerID: playlistOwnerID,
+            playlistTrackCount: playlistTrackCount,
+            playlistSnapshotID: playlistSnapshotID
+        )
+    }
+
+    static func migrateLegacyTrackPins(_ items: [PinnedItem]) -> [PinnedItem] {
+        var seenIDs = Set<String>()
+        var migrated: [PinnedItem] = []
+        for item in items {
+            let normalized = item.migratedLegacyTrackPin()
+            guard seenIDs.insert(normalized.id).inserted else { continue }
+            migrated.append(normalized)
+        }
+        return migrated
+    }
+
+    private var legacyTrackID: String? {
+        guard kind == .track, let spotifyID else { return nil }
+        let pieces = spotifyID.split(separator: ":")
+        guard let first = pieces.first else { return nil }
+        return pieces.count > 1 ? pieces.dropLast().joined(separator: ":") : String(first)
     }
 }
