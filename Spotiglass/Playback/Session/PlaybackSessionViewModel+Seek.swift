@@ -7,15 +7,35 @@ extension PlaybackSessionViewModel {
     }
 
     func clearPendingSeek() {
-        queuedSeekPositionMilliseconds = nil
-        coalescedSeekPositionMilliseconds = nil
-        pendingSeekDisplayPositionMilliseconds = nil
+        queuedSeek = nil
+        coalescedSeek = nil
+        pendingSeek = nil
         pendingSeekDeadline = nil
+    }
+
+    /// Records the authoritative track that owns the seek state. A new track
+    /// invalidates every optimistic seek belonging to the previous owner.
+    func updateSeekOwnership(from state: PlaybackConnectionState) {
+        switch state {
+        case let .playing(nowPlaying):
+            guard let trackURI = SpotifyPlayableURI.canonical(nowPlaying.uri) else { return }
+            updateSeekOwnership(trackURI: trackURI)
+        case let .paused(nowPlaying):
+            guard let nowPlaying,
+                  let trackURI = SpotifyPlayableURI.canonical(nowPlaying.uri) else { return }
+            updateSeekOwnership(trackURI: trackURI)
+        case .disconnected, .connecting, .ready, .transferring, .unavailable, .error:
+            return
+        }
     }
 
     /// Keeps the optimistic seek position visible until Spotify catches up.
     func applyPendingSeekSuppression(to nowPlaying: PlaybackNowPlaying?) -> PlaybackNowPlaying? {
-        guard let expectedPosition = pendingSeekDisplayPositionMilliseconds else {
+        guard let pendingSeek else {
+            return nowPlaying
+        }
+        guard pendingSeek.owner == seekOwnershipKey else {
+            clearPendingSeek()
             return nowPlaying
         }
         if let deadline = pendingSeekDeadline, clock.now >= deadline {
@@ -25,49 +45,71 @@ extension PlaybackSessionViewModel {
         guard let nowPlaying else {
             return nil
         }
-        if let incomingURI = nowPlaying.uri,
-           let currentURI = currentNowPlaying?.uri,
-           incomingURI != currentURI {
+        if abs(nowPlaying.positionMilliseconds - pendingSeek.milliseconds) <= seekMatchToleranceMilliseconds {
             clearPendingSeek()
             return nowPlaying
         }
-        if abs(nowPlaying.positionMilliseconds - expectedPosition) <= seekMatchToleranceMilliseconds {
-            clearPendingSeek()
-            return nowPlaying
-        }
-        return nowPlaying.with(positionMilliseconds: expectedPosition)
+        return nowPlaying.with(positionMilliseconds: pendingSeek.milliseconds)
+    }
+
+    private func updateSeekOwnership(trackURI: String) {
+        guard seekOwnershipKey.hostGeneration != playbackHostGeneration
+            || seekOwnershipKey.trackURI != trackURI else { return }
+        cancelSeekDispatch()
+        seekOwnershipKey = PlaybackSeekOwnershipKey(
+            hostGeneration: playbackHostGeneration,
+            trackURI: trackURI,
+            trackGeneration: seekOwnershipKey.trackGeneration &+ 1
+        )
+        clearPendingSeek()
+        lastSentSeek = nil
+        failedSeekOwnershipKey = nil
     }
 
     private func enqueueSeek(milliseconds: Int) {
         let normalized = normalizedSeekMilliseconds(milliseconds)
-        if queuedSeekPositionMilliseconds == nil {
-            queuedSeekPositionMilliseconds = normalized
+        let intent = PlaybackSeekIntent(milliseconds: normalized, owner: seekOwnershipKey)
+        if queuedSeek == nil {
+            queuedSeek = intent
         } else {
-            coalescedSeekPositionMilliseconds = normalized
+            coalescedSeek = intent
         }
-        pendingSeekDisplayPositionMilliseconds = normalized
+        pendingSeek = intent
         pendingSeekDeadline = clock.now.advanced(by: pendingSeekTimeout)
+        failedSeekOwnershipKey = nil
         applyOptimisticSeekPosition(normalized)
         scheduleSeekDispatchIfNeeded()
     }
 
+    func cancelSeekDispatch() {
+        seekDispatchSerial &+= 1
+        seekDispatchTask?.cancel()
+        seekDispatchTask = nil
+    }
+
     private func scheduleSeekDispatchIfNeeded() {
         guard seekDispatchTask == nil else { return }
+        seekDispatchSerial &+= 1
+        let serial = seekDispatchSerial
         seekDispatchTask = Task { [weak self] in
-            await self?.runSeekDispatchLoop()
+            await self?.runSeekDispatchLoop(serial: serial)
         }
     }
 
-    private func runSeekDispatchLoop() async {
-        defer { seekDispatchTask = nil }
+    private func runSeekDispatchLoop(serial: UInt64) async {
+        defer { finishSeekDispatch(serial: serial) }
         while !Task.isCancelled {
-            guard let target = queuedSeekPositionMilliseconds else {
+            guard let intent = queuedSeek else {
                 return
             }
-            queuedSeekPositionMilliseconds = nil
+            queuedSeek = nil
 
-            if let lastSentPosition = lastSentSeekPositionMilliseconds,
-               abs(target - lastSentPosition) < seekDeduplicationWindowMilliseconds {
+            guard intent.owner == seekOwnershipKey else {
+                continue
+            }
+            if let lastSentSeek,
+               lastSentSeek.owner == intent.owner,
+               abs(intent.milliseconds - lastSentSeek.milliseconds) < seekDeduplicationWindowMilliseconds {
                 continue
             }
 
@@ -82,31 +124,57 @@ extension PlaybackSessionViewModel {
                 }
             }
 
+            guard intent.owner == seekOwnershipKey else {
+                continue
+            }
             lastSeekSentInstant = clock.now
-            if await sendSeekCommand(milliseconds: target) {
-                lastSentSeekPositionMilliseconds = target
+            if await sendSeekCommand(intent) {
+                guard intent.owner == seekOwnershipKey else { continue }
+                lastSentSeek = intent
             }
-            if queuedSeekPositionMilliseconds == nil, let coalescedTarget = coalescedSeekPositionMilliseconds {
-                queuedSeekPositionMilliseconds = coalescedTarget
-                coalescedSeekPositionMilliseconds = nil
-            }
+            promoteCoalescedSeekIfNeeded()
         }
     }
 
-    private func sendSeekCommand(milliseconds: Int) async -> Bool {
+    private func finishSeekDispatch(serial: UInt64) {
+        guard serial == seekDispatchSerial else { return }
+        seekDispatchTask = nil
+        if queuedSeek != nil {
+            scheduleSeekDispatchIfNeeded()
+        }
+    }
+
+    private func promoteCoalescedSeekIfNeeded() {
+        guard queuedSeek == nil, let coalescedSeek else { return }
+        self.coalescedSeek = nil
+        guard coalescedSeek.owner == seekOwnershipKey else { return }
+        queuedSeek = coalescedSeek
+    }
+
+    private func sendSeekCommand(_ intent: PlaybackSeekIntent) async -> Bool {
+        guard intent.owner == seekOwnershipKey else { return false }
         guard let commandDeviceID else {
-            setConnectionState(.error(Self.playbackDeviceReconnectRequiredError()))
+            failSeek(intent, with: Self.playbackDeviceReconnectRequiredError())
             return false
         }
         do {
             try await performPrioritizedControlCommand {
-                try await playbackAPI.seek(to: milliseconds, deviceID: commandDeviceID)
+                try await playbackAPI.seek(to: intent.milliseconds, deviceID: commandDeviceID)
             }
+            guard intent.owner == seekOwnershipKey, !Task.isCancelled else { return false }
             return true
         } catch {
-            setConnectionState(.error(Self.displayError(for: error)))
+            guard intent.owner == seekOwnershipKey else { return false }
+            failSeek(intent, with: Self.displayError(for: error))
             return false
         }
+    }
+
+    private func failSeek(_ intent: PlaybackSeekIntent, with error: PlaybackDisplayError) {
+        guard intent.owner == seekOwnershipKey else { return }
+        clearPendingSeek()
+        failedSeekOwnershipKey = intent.owner
+        setConnectionState(.error(error))
     }
 
     private func normalizedSeekMilliseconds(_ milliseconds: Int) -> Int {

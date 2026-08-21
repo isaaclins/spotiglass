@@ -117,6 +117,13 @@ extension PlaybackSessionViewModel {
             if suppressed {
                 return
             }
+            let authoritativeState: PlaybackConnectionState = isPaused
+                ? .paused(nowPlaying)
+                : .playing(nowPlaying ?? fallbackNowPlaying())
+            updateSeekOwnership(from: authoritativeState)
+            if failedSeekOwnershipKey == seekOwnershipKey {
+                return
+            }
             sdkNextTracks = nextTracks
             let effectiveNowPlaying = applyPendingSeekSuppression(to: nowPlaying)
             if effectiveNowPlaying != nil, !isRemotePlaybackActive {

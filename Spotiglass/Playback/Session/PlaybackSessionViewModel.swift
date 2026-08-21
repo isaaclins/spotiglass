@@ -2,6 +2,17 @@ import AppKit
 import CoreAudio
 import Foundation
 
+struct PlaybackSeekOwnershipKey: Equatable, Sendable {
+    let hostGeneration: PlaybackHostGeneration
+    let trackURI: String?
+    let trackGeneration: UInt64
+}
+
+struct PlaybackSeekIntent: Equatable, Sendable {
+    let milliseconds: Int
+    let owner: PlaybackSeekOwnershipKey
+}
+
 @MainActor
 final class PlaybackSessionViewModel: ObservableObject {
     @Published var connectionState: PlaybackConnectionState = .disconnected
@@ -184,8 +195,15 @@ final class PlaybackSessionViewModel: ObservableObject {
     var localMutationSettleTicksRemaining = 0
     var isAppActive = NSApp.isActive
     var seekDispatchTask: Task<Void, Never>?
+    var seekDispatchSerial: UInt64 = 0
     var lastSeekSentInstant: ContinuousClock.Instant?
-    var lastSentSeekPositionMilliseconds: Int?
+    var seekOwnershipKey = PlaybackSeekOwnershipKey(
+        hostGeneration: .initial,
+        trackURI: nil,
+        trackGeneration: 0
+    )
+    var lastSentSeek: PlaybackSeekIntent?
+    var failedSeekOwnershipKey: PlaybackSeekOwnershipKey?
     var hasTransferredPlaybackToCurrentDevice = false
     /// Device IDs superseded by a newer Web Playback SDK ready event or a host reload. Late
     /// events from those devices no longer own this playback lifecycle. Explicit disconnect
@@ -233,9 +251,9 @@ final class PlaybackSessionViewModel: ObservableObject {
     /// reads are ignored while this short-lived expectation is pending.
     var pendingShuffleEnabled: Bool?
     var pendingShuffleDeadline: ContinuousClock.Instant?
-    var queuedSeekPositionMilliseconds: Int?
-    var coalescedSeekPositionMilliseconds: Int?
-    var pendingSeekDisplayPositionMilliseconds: Int?
+    var queuedSeek: PlaybackSeekIntent?
+    var coalescedSeek: PlaybackSeekIntent?
+    var pendingSeek: PlaybackSeekIntent?
     var pendingSeekDeadline: ContinuousClock.Instant?
     var shuffleMutationVersion: UInt64 = 0
     var inFlightShuffleTarget: Bool?
@@ -606,6 +624,7 @@ final class PlaybackSessionViewModel: ObservableObject {
     }
 
     func setConnectionState(_ state: PlaybackConnectionState) {
+        updateSeekOwnership(from: state)
         updateStableTransportTrackURI(from: state)
         let wasPolling = shouldRunTransportPolling(for: connectionState)
         connectionState = state

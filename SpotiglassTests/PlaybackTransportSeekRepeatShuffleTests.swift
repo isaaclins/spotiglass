@@ -76,6 +76,336 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(spacing, 0.08)
     }
 
+    func testFailedSeekKeepsLateSameTrackStateFromClearingError() async {
+        let api = MockPlaybackAPI()
+        api.seekError = SpotifyAPIError.notFound(message: nil)
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: api,
+            webCommander: MockWebPlaybackCommander(),
+            seekRateLimitInterval: .milliseconds(10)
+        )
+        viewModel.handle(.ready(deviceID: "device-1"))
+        let track = PlaybackNowPlaying(
+            name: "Track",
+            artists: ["Artist"],
+            albumName: nil,
+            albumID: nil,
+            albumArtURL: nil,
+            durationMilliseconds: 180_000,
+            positionMilliseconds: 6_000,
+            uri: "spotify:track:1"
+        )
+        viewModel.handle(.stateChanged(track, isPaused: false, nextTracks: []))
+
+        await viewModel.seek(to: 92_000)
+        let errorDeadline = Date().addingTimeInterval(1.0)
+        while Date() < errorDeadline {
+            if viewModel.connectionStateError != nil { break }
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertEqual(api.seekCallTimestamps.count, 1)
+        XCTAssertNotNil(viewModel.connectionStateError)
+
+        viewModel.handle(.stateChanged(track.with(positionMilliseconds: 7_000), isPaused: false, nextTracks: []))
+
+        XCTAssertNotNil(viewModel.connectionStateError)
+        XCTAssertNil(viewModel.currentNowPlaying)
+    }
+
+    func testFailedSeekKeepsErrorAfterURIlessStateTick() async {
+        let api = MockPlaybackAPI()
+        api.seekError = SpotifyAPIError.notFound(message: nil)
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: api,
+            webCommander: MockWebPlaybackCommander(),
+            seekRateLimitInterval: .zero
+        )
+        viewModel.handle(.ready(deviceID: "device-1"))
+        let track = PlaybackNowPlaying(
+            name: "Track",
+            artists: ["Artist"],
+            albumName: nil,
+            albumID: nil,
+            albumArtURL: nil,
+            durationMilliseconds: 180_000,
+            positionMilliseconds: 6_000,
+            uri: "spotify:track:1"
+        )
+        viewModel.handle(.stateChanged(track, isPaused: false, nextTracks: []))
+        await viewModel.seek(to: 92_000)
+        let errorDeadline = Date().addingTimeInterval(1.0)
+        while Date() < errorDeadline, viewModel.connectionStateError == nil {
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertNotNil(viewModel.connectionStateError)
+
+        viewModel.handle(.stateChanged(nil, isPaused: true, nextTracks: []))
+
+        XCTAssertNotNil(viewModel.connectionStateError)
+        XCTAssertNil(viewModel.currentNowPlaying)
+    }
+
+    func testFailedSeekClearsCoalescedIntentBeforePublishingError() async {
+        let api = MockPlaybackAPI()
+        api.seekError = SpotifyAPIError.notFound(message: nil)
+        let firstSeekEntered = AsyncSignal()
+        let releaseFirstSeek = AsyncSignal()
+        api.onSeekAttempt = { milliseconds in
+            if milliseconds == 92_000 {
+                firstSeekEntered.signal()
+                await releaseFirstSeek.wait()
+            }
+        }
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: api,
+            webCommander: MockWebPlaybackCommander(),
+            seekRateLimitInterval: .zero
+        )
+        viewModel.handle(.ready(deviceID: "device-1"))
+        let track = PlaybackNowPlaying(
+            name: "Track",
+            artists: ["Artist"],
+            albumName: nil,
+            albumID: nil,
+            albumArtURL: nil,
+            durationMilliseconds: 180_000,
+            positionMilliseconds: 6_000,
+            uri: "spotify:track:1"
+        )
+        viewModel.handle(.stateChanged(track, isPaused: false, nextTracks: []))
+        await viewModel.seek(to: 92_000)
+        let didEnterFirstSeek = await firstSeekEntered.wait(timeout: .seconds(1))
+        XCTAssertTrue(didEnterFirstSeek)
+        await viewModel.seek(to: 93_000)
+        releaseFirstSeek.signal()
+
+        let errorDeadline = Date().addingTimeInterval(1.0)
+        while Date() < errorDeadline, viewModel.connectionStateError == nil {
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertNotNil(viewModel.connectionStateError)
+        XCTAssertEqual(api.seekCallTimestamps.count, 1)
+    }
+
+    func testDifferentTrackStateRecoversAfterFailedSeekWithoutUsingFailedTarget() async {
+        let api = MockPlaybackAPI()
+        api.seekError = SpotifyAPIError.notFound(message: nil)
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: api,
+            webCommander: MockWebPlaybackCommander(),
+            seekRateLimitInterval: .zero
+        )
+        viewModel.handle(.ready(deviceID: "device-1"))
+        let trackA = PlaybackNowPlaying(
+            name: "A",
+            artists: ["Artist A"],
+            albumName: nil,
+            albumID: nil,
+            albumArtURL: nil,
+            durationMilliseconds: 180_000,
+            positionMilliseconds: 6_000,
+            uri: "spotify:track:a"
+        )
+        let trackB = PlaybackNowPlaying(
+            name: "B",
+            artists: ["Artist B"],
+            albumName: nil,
+            albumID: nil,
+            albumArtURL: nil,
+            durationMilliseconds: 180_000,
+            positionMilliseconds: 0,
+            uri: "spotify:track:b"
+        )
+        viewModel.handle(.stateChanged(trackA, isPaused: false, nextTracks: []))
+        await viewModel.seek(to: 92_000)
+        let errorDeadline = Date().addingTimeInterval(1.0)
+        while Date() < errorDeadline, viewModel.connectionStateError == nil {
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+
+        viewModel.handle(.stateChanged(trackB, isPaused: false, nextTracks: []))
+
+        guard case let .playing(nowPlaying) = viewModel.connectionState else {
+            return XCTFail("Expected the different track to establish playback state")
+        }
+        XCTAssertEqual(nowPlaying.uri, trackB.uri)
+        XCTAssertEqual(nowPlaying.positionMilliseconds, 0)
+    }
+
+    func testFirstSeekOnNewTrackIsNotDedupedAgainstPreviousTrack() async {
+        let api = MockPlaybackAPI()
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: api,
+            webCommander: MockWebPlaybackCommander(),
+            seekRateLimitInterval: .zero
+        )
+        viewModel.handle(.ready(deviceID: "device-1"))
+        let trackA = PlaybackNowPlaying(
+            name: "A",
+            artists: ["Artist A"],
+            albumName: nil,
+            albumID: nil,
+            albumArtURL: nil,
+            durationMilliseconds: 180_000,
+            positionMilliseconds: 0,
+            uri: "spotify:track:a"
+        )
+        let trackB = PlaybackNowPlaying(
+            name: "B",
+            artists: ["Artist B"],
+            albumName: nil,
+            albumID: nil,
+            albumArtURL: nil,
+            durationMilliseconds: 180_000,
+            positionMilliseconds: 0,
+            uri: "spotify:track:b"
+        )
+        viewModel.handle(.stateChanged(trackA, isPaused: false, nextTracks: []))
+        await viewModel.seek(to: 30_000)
+
+        let firstSeekDeadline = Date().addingTimeInterval(1.0)
+        while Date() < firstSeekDeadline,
+              api.actions.filter({ $0.hasPrefix("seek:") }).count < 1 {
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+        viewModel.handle(.stateChanged(trackB, isPaused: false, nextTracks: []))
+        await viewModel.seek(to: 30_100)
+
+        let secondSeekDeadline = Date().addingTimeInterval(1.0)
+        while Date() < secondSeekDeadline,
+              api.actions.filter({ $0.hasPrefix("seek:") }).count < 2 {
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertEqual(
+            api.actions.filter { $0.hasPrefix("seek:") },
+            ["seek:device-1:30000", "seek:device-1:30100"]
+        )
+    }
+
+    func testTrackChangeDropsOldInFlightSeekAndDispatchesNewTrackIntent() async {
+        let api = MockPlaybackAPI()
+        let firstSeekEntered = AsyncSignal()
+        let releaseFirstSeek = AsyncSignal()
+        api.onSeekAttempt = { milliseconds in
+            if milliseconds == 10_000 {
+                firstSeekEntered.signal()
+                await releaseFirstSeek.wait()
+            }
+        }
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: api,
+            webCommander: MockWebPlaybackCommander(),
+            seekRateLimitInterval: .zero,
+            seekDeduplicationWindowMilliseconds: 0
+        )
+        viewModel.handle(.ready(deviceID: "device-1"))
+        let trackA = PlaybackNowPlaying(
+            name: "A",
+            artists: ["Artist A"],
+            albumName: nil,
+            albumID: nil,
+            albumArtURL: nil,
+            durationMilliseconds: 180_000,
+            positionMilliseconds: 6_000,
+            uri: "spotify:track:a"
+        )
+        let trackB = PlaybackNowPlaying(
+            name: "B",
+            artists: ["Artist B"],
+            albumName: nil,
+            albumID: nil,
+            albumArtURL: nil,
+            durationMilliseconds: 180_000,
+            positionMilliseconds: 0,
+            uri: "spotify:track:b"
+        )
+        viewModel.handle(.stateChanged(trackA, isPaused: false, nextTracks: []))
+        await viewModel.seek(to: 10_000)
+        let didEnterFirstSeek = await firstSeekEntered.wait(timeout: .seconds(1))
+        XCTAssertTrue(didEnterFirstSeek)
+
+        await viewModel.seek(to: 20_000)
+        viewModel.handle(.stateChanged(trackB, isPaused: false, nextTracks: []))
+        await viewModel.seek(to: 30_000)
+        releaseFirstSeek.signal()
+
+        let seekDeadline = Date().addingTimeInterval(1.0)
+        while Date() < seekDeadline,
+              api.actions.filter({ $0.hasPrefix("seek:") }).count < 1 {
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertEqual(
+            api.actions.filter { $0.hasPrefix("seek:") },
+            ["seek:device-1:30000"]
+        )
+        guard case let .playing(nowPlaying) = viewModel.connectionState else {
+            return XCTFail("Expected the new track to remain authoritative")
+        }
+        XCTAssertEqual(nowPlaying.uri, trackB.uri)
+        XCTAssertEqual(nowPlaying.positionMilliseconds, 30_000)
+    }
+
+    func testNewHostLifecycleCancelsOldSeekBeforeDispatchingNewHostIntent() async {
+        let api = MockPlaybackAPI()
+        let firstSeekEntered = AsyncSignal()
+        let releaseFirstSeek = AsyncSignal()
+        api.onSeekAttempt = { milliseconds in
+            if milliseconds == 10_000 {
+                firstSeekEntered.signal()
+                await releaseFirstSeek.wait()
+            }
+        }
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: api,
+            webCommander: MockWebPlaybackCommander(),
+            seekRateLimitInterval: .zero,
+            seekDeduplicationWindowMilliseconds: 0
+        )
+        viewModel.handle(.ready(deviceID: "device-1"))
+        let trackA = PlaybackNowPlaying(
+            name: "A",
+            artists: ["Artist A"],
+            albumName: nil,
+            albumID: nil,
+            albumArtURL: nil,
+            durationMilliseconds: 180_000,
+            positionMilliseconds: 6_000,
+            uri: "spotify:track:a"
+        )
+        let trackB = PlaybackNowPlaying(
+            name: "B",
+            artists: ["Artist B"],
+            albumName: nil,
+            albumID: nil,
+            albumArtURL: nil,
+            durationMilliseconds: 180_000,
+            positionMilliseconds: 0,
+            uri: "spotify:track:b"
+        )
+        viewModel.handle(.stateChanged(trackA, isPaused: false, nextTracks: []))
+        await viewModel.seek(to: 10_000)
+        let didEnterFirstSeek = await firstSeekEntered.wait(timeout: .seconds(1))
+        XCTAssertTrue(didEnterFirstSeek)
+
+        let oldHostGeneration = viewModel.playbackHostGeneration
+        let newHostGeneration = viewModel.beginPlaybackHostLifecycle()
+        XCTAssertNotEqual(newHostGeneration, oldHostGeneration)
+        viewModel.handle(.ready(deviceID: "device-2"))
+        viewModel.handle(.stateChanged(trackB, isPaused: false, nextTracks: []))
+        await viewModel.seek(to: 30_000)
+        releaseFirstSeek.signal()
+
+        let seekDeadline = Date().addingTimeInterval(1.0)
+        while Date() < seekDeadline,
+              api.actions.filter({ $0.hasPrefix("seek:") }).count < 1 {
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertEqual(
+            api.actions.filter { $0.hasPrefix("seek:") },
+            ["seek:device-2:30000"]
+        )
+    }
+
     func testSeekSuppressionPreventsSnapBackUntilStateCatchesUp() async {
         let api = MockPlaybackAPI()
         let viewModel = PlaybackSessionViewModel(

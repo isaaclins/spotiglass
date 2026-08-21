@@ -36,6 +36,15 @@ extension PlaybackSessionViewModel {
         activeInflightTransferSerial = nil
         inflightTransferSerial &+= 1
         playbackHostGeneration = playbackHostGeneration.advanced()
+        cancelSeekDispatch()
+        clearPendingSeek()
+        lastSentSeek = nil
+        failedSeekOwnershipKey = nil
+        seekOwnershipKey = PlaybackSeekOwnershipKey(
+            hostGeneration: playbackHostGeneration,
+            trackURI: nil,
+            trackGeneration: seekOwnershipKey.trackGeneration &+ 1
+        )
         return playbackHostGeneration
     }
 
@@ -129,10 +138,10 @@ extension PlaybackSessionViewModel {
         transportSyncSchedulerTask = nil
         clearPendingSkipCommand()
         clearPendingSeek()
-        seekDispatchTask?.cancel()
-        seekDispatchTask = nil
+        cancelSeekDispatch()
         lastSeekSentInstant = nil
-        lastSentSeekPositionMilliseconds = nil
+        lastSentSeek = nil
+        failedSeekOwnershipKey = nil
         transportTransientErrorCount = 0
         transportRateLimitedUntil = nil
         localMutationSettleTicksRemaining = 0

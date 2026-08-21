@@ -151,6 +151,7 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
     /// from the view model's perspective until the closure returns.
     var onPlay: ((String) async -> Void)?
     var onSeek: ((Int) async -> Void)?
+    var onSeekAttempt: ((Int) async -> Void)?
     private(set) var seekCallTimestamps: [Date] = []
     /// Returned by `fetchPlayerSnapshot`; updated when mock `setShuffle` / `setRepeat` succeed so background sync matches optimistic UI.
     private var reportedTransport = SpotifyPlayerTransport(shuffle: false, repeatMode: .off)
@@ -170,6 +171,7 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
     var fetchPlayerSnapshotError: Error?
     var playDelayNanoseconds: UInt64 = 0
     var seekDelayNanoseconds: UInt64 = 0
+    var seekError: Error?
     var setRepeatDelayNanoseconds: UInt64 = 0
     var setShuffleDelayNanoseconds: UInt64 = 0
     /// Runs at the top of `transferPlayback`, before any optional delay. Tests can use it
@@ -220,8 +222,13 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
 
     func seek(to milliseconds: Int, deviceID: String) async throws {
         seekCallTimestamps.append(Date())
+        await onSeekAttempt?(milliseconds)
+        try Task.checkCancellation()
         if seekDelayNanoseconds > 0 {
             try? await Task.sleep(nanoseconds: seekDelayNanoseconds)
+        }
+        if let seekError {
+            throw seekError
         }
         actionRecorder.append("seek:\(deviceID):\(milliseconds)")
         await onSeek?(milliseconds)
