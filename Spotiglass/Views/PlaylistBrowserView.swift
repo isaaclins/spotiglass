@@ -292,6 +292,7 @@ struct PlaylistBrowserView: View {
         }
         .onChange(of: viewModel.detailState) { _, _ in
             bindCommandPalette(queueVisible: $isQueueVisible, lyricsPresented: isLyricsPresentedBinding)
+            syncTrackSelectionMenuState()
         }
         .onChange(of: viewModel.prefetchAllPlaylistsProgress) { _, newValue in
             commandPaletteManager.viewModel.prefetchProgress = newValue

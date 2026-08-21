@@ -4,10 +4,13 @@ extension PlaylistBrowserViewModel {
     func loadMoreArtistAlbums() async {
         guard case let .loaded(.artist(detail)) = detailState,
               var paging = currentArtistAlbumsPaging,
+              paging.artistID == detail.artist.id,
               !paging.isLoading,
               let nextURL = paging.nextURL else {
             return
         }
+        let session = detailSession
+        let artistID = detail.artist.id
 
         paging.isLoading = true
         currentArtistAlbumsPaging = paging
@@ -34,6 +37,7 @@ extension PlaylistBrowserViewModel {
                     nextURL: nextURL,
                     cacheMode: .bypassCache
                 )
+                guard ownsArtistPagination(session: session, artistID: artistID) else { return }
                 paging.albums = Self.dedupeAlbums(paging.albums + page.items)
                 paging.nextURL = page.next
                 paging.nextOffset += paging.limit
@@ -47,7 +51,7 @@ extension PlaylistBrowserViewModel {
                 canLoadMoreAlbums: paging.nextURL != nil,
                 isLoadingMoreAlbums: false
             )
-            cachedArtistSnapshots[detail.artist.id] = CachedArtistSnapshot(
+            cachedArtistSnapshots[artistID] = CachedArtistSnapshot(
                 snapshot: ArtistDetailSnapshot(
                     artistDetail: detail.artist,
                     albums: paging.albums,
@@ -57,11 +61,26 @@ extension PlaylistBrowserViewModel {
                 ),
                 fetchedAt: now()
             )
+            guard ownsArtistDetailSurface(session: session, artistID: artistID) else { return }
             detailState = .loaded(.artist(refreshed))
         } catch {
+            guard ownsArtistPagination(session: session, artistID: artistID) else { return }
             paging.isLoading = false
             currentArtistAlbumsPaging = paging
+            guard ownsArtistDetailSurface(session: session, artistID: artistID) else { return }
             detailState = .staleCache(.artist(detail), Self.displayError(for: error))
         }
+    }
+
+    private func ownsArtistPagination(session: Int, artistID: String) -> Bool {
+        session == detailSession && currentArtistAlbumsPaging?.artistID == artistID
+    }
+
+    private func ownsArtistDetailSurface(session: Int, artistID: String) -> Bool {
+        guard ownsArtistPagination(session: session, artistID: artistID),
+              case let .loaded(.artist(detail)) = detailState else {
+            return false
+        }
+        return detail.artist.id == artistID
     }
 }

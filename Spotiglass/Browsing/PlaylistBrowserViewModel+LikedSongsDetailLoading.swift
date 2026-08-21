@@ -9,7 +9,7 @@ extension PlaylistBrowserViewModel {
 
         if refreshCachedData,
            let cachedTracks = try? cache.loadTracks(playlistID: virtualID, snapshotID: snapshotID, now: now(), maxAge: maxCacheAge) {
-            await setLikedSongsDetailState(from: cachedTracks)
+            guard await setLikedSongsDetailState(from: cachedTracks, session: session) else { return }
             if shouldSkipAutomaticLikedSongsRevalidation() {
                 return
             }
@@ -24,7 +24,7 @@ extension PlaylistBrowserViewModel {
 
         if refreshCachedData,
            let staleTracks = try? cache.loadTracksIgnoringAge(playlistID: virtualID, snapshotID: snapshotID) {
-            await setLikedSongsDetailState(from: staleTracks)
+            guard await setLikedSongsDetailState(from: staleTracks, session: session) else { return }
             if let existingDetail = detailState.currentValue {
                 detailState = .refreshing(existingDetail)
             }
@@ -37,16 +37,17 @@ extension PlaylistBrowserViewModel {
         // placeholder would make a revalidation failure surface unrelated content
         // wrapped in a stale-cache banner instead of a terminal error.
         detailState = .loading
-        guard session == detailSession else { return }
         await revalidateLikedSongs(session: session)
     }
 
-    private func setLikedSongsDetailState(from tracks: [SpotifyPlaylistTrackItem]) async {
+    private func setLikedSongsDetailState(from tracks: [SpotifyPlaylistTrackItem], session: Int) async -> Bool {
+        guard session == detailSession else { return false }
         if tracks.isEmpty {
             detailState = .empty(SpotiglassL10n.string("browser.empty.noLikedSongs"))
-            return
+            return true
         }
         let profile = try? await api.currentUserProfile()
+        guard session == detailSession else { return false }
         let trimmedName = profile?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let owner = trimmedName.isEmpty ? "You" : trimmedName
         let row = PlaylistRowViewModel(
@@ -55,6 +56,7 @@ extension PlaylistBrowserViewModel {
             artworkURL: firstLikedSongsArtwork(from: tracks)
         )
         detailState = .loaded(.playlist(PlaylistDetailViewModel(playlist: row, tracks: TrackRowViewModel.numberedPlaylistRows(tracks))))
+        return true
     }
 
     private func firstLikedSongsArtwork(from tracks: [SpotifyPlaylistTrackItem]) -> URL? {
@@ -81,6 +83,7 @@ extension PlaylistBrowserViewModel {
             )
             guard session == detailSession else { return }
             let profile = try? await api.currentUserProfile()
+            guard session == detailSession else { return }
             let trimmedName = profile?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             let owner = trimmedName.isEmpty ? "You" : trimmedName
             let row = PlaylistRowViewModel(

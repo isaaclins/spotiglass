@@ -3,6 +3,209 @@ import XCTest
 
 @MainActor
 final class PlaylistBrowserLikedSongsCoverageTests: XCTestCase {
+    func testLateCachedLikedSongsProfileCannotOverwritePlaylistDetail() async {
+        let profileGate = ProfileLookupGate()
+        let profileControl = ProfileLookupControl(
+            gate: profileGate,
+            profile: SpotifyUserProfile(id: "u", displayName: "Cached User", country: "US")
+        )
+        let playlist = PlaylistBrowsingTestFixtures.playlist(id: "playlist-b", name: "Playlist B")
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([playlist])],
+            trackResults: [playlist.id: [.success([PlaylistBrowsingTestFixtures.track(id: "playlist-track")])]],
+            profileHandler: { try await profileControl.nextProfile() }
+        )
+        let cache = MockBrowsingCache(
+            cachedTracks: [
+                SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID: [PlaylistBrowsingTestFixtures.track(id: "liked-cached")]
+            ]
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: cache)
+
+        await viewModel.load()
+        let likedTask = Task { await viewModel.selectSidebar(.likedSongs) }
+        await profileGate.waitUntilBlocked()
+
+        await viewModel.selectPlaylist(id: playlist.id)
+        let playlistDetail = viewModel.detailState
+
+        await profileGate.resolve(())
+        await likedTask.value
+
+        XCTAssertEqual(viewModel.sidebarSelection, .playlist(playlist.id))
+        XCTAssertEqual(viewModel.detailState, playlistDetail)
+        XCTAssertEqual(
+            PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).map(\.title),
+            ["Track playlist-track"]
+        )
+    }
+
+    func testLateStaleLikedSongsProfileCannotOverwritePlaylistDetail() async {
+        let profileGate = ProfileLookupGate()
+        let profileControl = ProfileLookupControl(
+            gate: profileGate,
+            profile: SpotifyUserProfile(id: "u", displayName: "Stale User", country: "US")
+        )
+        let playlist = PlaylistBrowsingTestFixtures.playlist(id: "playlist-b", name: "Playlist B")
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([playlist])],
+            trackResults: [playlist.id: [.success([PlaylistBrowsingTestFixtures.track(id: "playlist-track")])]],
+            profileHandler: { try await profileControl.nextProfile() }
+        )
+        let cache = MockBrowsingCache(
+            cachedTracks: [
+                SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID: [PlaylistBrowsingTestFixtures.track(id: "liked-stale")]
+            ],
+            expiredTrackIDs: [SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID]
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: cache)
+
+        await viewModel.load()
+        let likedTask = Task { await viewModel.selectSidebar(.likedSongs) }
+        await profileGate.waitUntilBlocked()
+
+        await viewModel.selectPlaylist(id: playlist.id)
+        let playlistDetail = viewModel.detailState
+
+        await profileGate.resolve(())
+        await likedTask.value
+
+        XCTAssertEqual(viewModel.sidebarSelection, .playlist(playlist.id))
+        XCTAssertEqual(viewModel.detailState, playlistDetail)
+        XCTAssertEqual(
+            PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).map(\.title),
+            ["Track playlist-track"]
+        )
+    }
+
+    func testLateFreshLikedSongsProfileCannotOverwriteAlbumDetail() async {
+        let profileGate = ProfileLookupGate()
+        let profileControl = ProfileLookupControl(
+            gate: profileGate,
+            profile: SpotifyUserProfile(id: "u", displayName: "Fresh User", country: "US")
+        )
+        let albumTrack = PlaylistBrowsingTestFixtures.fallbackTrack(
+            id: "album-track",
+            name: "Album Track",
+            artistId: "artist-b"
+        )
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
+            trackResults: [:],
+            albumTracksHandler: { _, _, _ in [albumTrack] },
+            savedTracksResult: .success(
+                SpotifySavedTracksResult(
+                    tracks: [PlaylistBrowsingTestFixtures.track(id: "liked-fresh")],
+                    totalAvailable: 1
+                )
+            ),
+            profileHandler: { try await profileControl.nextProfile() }
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+
+        await viewModel.load()
+        let likedTask = Task { await viewModel.selectSidebar(.likedSongs) }
+        await profileGate.waitUntilBlocked()
+
+        await viewModel.selectAlbum(
+            id: "album-b",
+            displayTitle: "Album B",
+            displaySubtitle: "Artist B",
+            artworkURL: nil
+        )
+        let albumDetail = viewModel.detailState
+
+        await profileGate.resolve(())
+        await likedTask.value
+
+        XCTAssertEqual(viewModel.detailState, albumDetail)
+        XCTAssertEqual(
+            PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).map(\.title),
+            ["Album Track"]
+        )
+    }
+
+    func testLateFreshEmptyLikedSongsProfileCannotOverwritePlaylistDetail() async {
+        let profileGate = ProfileLookupGate()
+        let profileControl = ProfileLookupControl(
+            gate: profileGate,
+            profile: SpotifyUserProfile(id: "u", displayName: "Fresh User", country: "US")
+        )
+        let playlist = PlaylistBrowsingTestFixtures.playlist(id: "playlist-b", name: "Playlist B")
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([playlist])],
+            trackResults: [playlist.id: [.success([PlaylistBrowsingTestFixtures.track(id: "playlist-track")])]],
+            savedTracksResult: .success(SpotifySavedTracksResult(tracks: [], totalAvailable: 0)),
+            profileHandler: { try await profileControl.nextProfile() }
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+
+        await viewModel.load()
+        let likedTask = Task { await viewModel.selectSidebar(.likedSongs) }
+        await profileGate.waitUntilBlocked()
+
+        await viewModel.selectPlaylist(id: playlist.id)
+        let playlistDetail = viewModel.detailState
+
+        await profileGate.resolve(())
+        await likedTask.value
+
+        XCTAssertEqual(viewModel.sidebarSelection, .playlist(playlist.id))
+        XCTAssertEqual(viewModel.detailState, playlistDetail)
+        XCTAssertEqual(
+            PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).map(\.title),
+            ["Track playlist-track"]
+        )
+    }
+
+    func testLateFreshLikedSongsProfileFailureCannotOverwriteAlbumDetail() async {
+        let profileGate = ProfileLookupGate()
+        let profileControl = ProfileLookupControl(
+            gate: profileGate,
+            profile: SpotifyUserProfile(id: "u", displayName: "Fresh User", country: "US")
+        )
+        let albumTrack = PlaylistBrowsingTestFixtures.fallbackTrack(
+            id: "album-track",
+            name: "Album Track",
+            artistId: "artist-b"
+        )
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
+            trackResults: [:],
+            albumTracksHandler: { _, _, _ in [albumTrack] },
+            savedTracksResult: .success(
+                SpotifySavedTracksResult(
+                    tracks: [PlaylistBrowsingTestFixtures.track(id: "liked-fresh")],
+                    totalAvailable: 1
+                )
+            ),
+            profileHandler: { try await profileControl.nextProfile() }
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+
+        await viewModel.load()
+        let likedTask = Task { await viewModel.selectSidebar(.likedSongs) }
+        await profileGate.waitUntilBlocked()
+
+        await viewModel.selectAlbum(
+            id: "album-b",
+            displayTitle: "Album B",
+            displaySubtitle: "Artist B",
+            artworkURL: nil
+        )
+        let albumDetail = viewModel.detailState
+
+        await profileControl.setDelayedFailure()
+        await profileGate.resolve(())
+        await likedTask.value
+
+        XCTAssertEqual(viewModel.detailState, albumDetail)
+        XCTAssertEqual(
+            PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).map(\.title),
+            ["Album Track"]
+        )
+    }
+
     func testEmptyLikedSongsShowsEmptyState() async {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
@@ -96,6 +299,63 @@ final class PlaylistBrowserLikedSongsCoverageTests: XCTestCase {
             return XCTFail("Expected loaded detail")
         }
         XCTAssertEqual(detail.playlist.artworkURL, artwork)
+    }
+}
+
+private actor ProfileLookupGate {
+    private var waiter: CheckedContinuation<Void, Never>?
+    private var blockedWaiters: [CheckedContinuation<Void, Never>] = []
+
+    func wait() async {
+        await withCheckedContinuation { continuation in
+            waiter = continuation
+            let waiters = blockedWaiters
+            blockedWaiters.removeAll()
+            waiters.forEach { $0.resume() }
+        }
+    }
+
+    func waitUntilBlocked() async {
+        if waiter != nil {
+            return
+        }
+        await withCheckedContinuation { continuation in
+            blockedWaiters.append(continuation)
+        }
+    }
+
+    func resolve(_ value: Void) {
+        waiter?.resume()
+        waiter = nil
+    }
+}
+
+private struct ProfileLookupFailure: Error {}
+
+private actor ProfileLookupControl {
+    private let gate: ProfileLookupGate
+    private let profile: SpotifyUserProfile
+    private var callCount = 0
+    private var delayedFailure = false
+
+    init(gate: ProfileLookupGate, profile: SpotifyUserProfile) {
+        self.gate = gate
+        self.profile = profile
+    }
+
+    func nextProfile() async throws -> SpotifyUserProfile {
+        callCount += 1
+        if callCount == 2 {
+            await gate.wait()
+            if delayedFailure {
+                throw ProfileLookupFailure()
+            }
+        }
+        return profile
+    }
+
+    func setDelayedFailure() {
+        delayedFailure = true
     }
 }
 

@@ -7,6 +7,7 @@ extension PlaylistBrowserViewModel {
         origin: BrowserNavigationOrigin = .reset,
         displayName: String? = nil
     ) async {
+        clearTrackSelection()
         registerNavigationTransition(to: .artist(id))
         applyBreadcrumbForArtist(
             id: id,
@@ -19,6 +20,7 @@ extension PlaylistBrowserViewModel {
         if !forceRefresh,
            let cached = cachedArtistSnapshots[id],
            nowDate.timeIntervalSince(cached.fetchedAt) < artistDetailCacheTTL {
+            detailSession += 1
             currentArtistAlbumsPaging = cached.snapshot.paging
             let cachedVM = ArtistDetailViewModel(
                 artist: cached.snapshot.artistDetail,
@@ -29,7 +31,6 @@ extension PlaylistBrowserViewModel {
             )
             ignoreNextNilSidebarSelectionForDetail = true
             sidebarSelection = nil
-            detailSession += 1
             detailState = .loaded(.artist(cachedVM))
             refineLastBreadcrumbArtistLabelIfNeeded(artistID: id, resolvedName: cached.snapshot.artistDetail.name)
             return
@@ -45,6 +46,7 @@ extension PlaylistBrowserViewModel {
         ignoreNextNilSidebarSelectionForDetail = true
         sidebarSelection = nil
         detailSession += 1
+        currentArtistAlbumsPaging = nil
         let session = detailSession
         detailState = .loading
         do {

@@ -34,6 +34,30 @@ final class PlaylistBrowserNavigationTests: XCTestCase {
         XCTAssertEqual(detail.tracks.first?.title, "Hit")
     }
 
+    func testDirectArtistDrillInClearsSelectionBeforeMatchingRowsCanBeTargeted() async {
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
+            trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "same-id")])]],
+            searchHandler: { _, _ in
+                SpotifySearchResults(
+                    tracks: [PlaylistBrowsingTestFixtures.fallbackTrack(id: "same-id", name: "Artist Match", artistId: "artist-xyz")],
+                    artists: [],
+                    albums: [],
+                    playlists: []
+                )
+            }
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+
+        await viewModel.load()
+        viewModel.selectedDetailTrackIDs = ["same-id"]
+        await viewModel.selectArtist(id: "artist-xyz")
+
+        XCTAssertTrue(viewModel.selectedDetailTrackIDs.isEmpty)
+        XCTAssertEqual(viewModel.loadedContextTracksForPalette?.map(\.id), ["same-id"])
+        XCTAssertTrue(viewModel.selectedTrackRows.isEmpty)
+    }
+
     func testBackNavigationTracksPlaylistHistory() async {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One"), PlaylistBrowsingTestFixtures.playlist(id: "two", name: "Two")])],
@@ -98,6 +122,38 @@ final class PlaylistBrowserNavigationTests: XCTestCase {
         XCTAssertEqual(detail.tracks.first?.artworkURL, albumCoverURL)
         XCTAssertEqual(api.albumTracksCallCount, 1, "Album detail should reuse the already-fetched album cover locally, without extra Spotify calls.")
         XCTAssertEqual(api.searchCallCount, 0)
+    }
+
+    func testDirectAlbumDrillInClearsSelectionBeforeMatchingRowsCanBeTargeted() async {
+        let albumTrack = SpotifyTrack(
+            id: "same-id",
+            name: "Album Match",
+            artists: ["Artist Name"],
+            albumArtworkURL: nil,
+            durationMilliseconds: 180_000,
+            isExplicit: false,
+            isPlayable: true,
+            linkedFromID: nil,
+            uri: "spotify:track:same-id"
+        )
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
+            trackResults: [:],
+            albumTracksHandler: { _, _, _ in [albumTrack] }
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+
+        await viewModel.load()
+        viewModel.selectedDetailTrackIDs = ["same-id"]
+        await viewModel.selectAlbum(
+            id: "album-123",
+            displayTitle: "Album Name",
+            displaySubtitle: "Artist Name",
+            artworkURL: nil
+        )
+
+        XCTAssertTrue(viewModel.selectedDetailTrackIDs.isEmpty)
+        XCTAssertTrue(viewModel.selectedTrackRows.isEmpty)
     }
 
     func testBackNavigationReturnsFromAlbumToArtist() async {

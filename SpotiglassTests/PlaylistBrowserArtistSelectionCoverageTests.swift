@@ -38,6 +38,43 @@ final class PlaylistBrowserArtistSelectionCoverageTests: XCTestCase {
         XCTAssertEqual(detail.artist.name, "Cached Artist")
     }
 
+    func testCachedArtistNavigationClearsPreviousTrackSelection() async {
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
+            trackResults: [:]
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+        let artist = SpotifyArtistDetail(
+            id: "artist-cached-selection",
+            name: "Cached Selection",
+            imageURL: nil,
+            followersTotal: nil,
+            genres: [],
+            uri: "spotify:artist:artist-cached-selection"
+        )
+        let matchingTrack = PlaylistBrowsingTestFixtures.fallbackTrack(
+            id: "same-id",
+            name: "Matching Track",
+            artistId: artist.id
+        )
+        viewModel.cachedArtistSnapshots[artist.id] = PlaylistBrowserViewModel.CachedArtistSnapshot(
+            snapshot: PlaylistBrowserViewModel.ArtistDetailSnapshot(
+                artistDetail: artist,
+                albums: [],
+                tracks: [matchingTrack],
+                usedStaleCache: false,
+                paging: nil
+            ),
+            fetchedAt: Date()
+        )
+        viewModel.selectedDetailTrackIDs = [matchingTrack.id]
+
+        await viewModel.selectArtist(id: artist.id)
+
+        XCTAssertTrue(viewModel.selectedDetailTrackIDs.isEmpty)
+        XCTAssertTrue(viewModel.selectedTrackRows.isEmpty)
+    }
+
     func testSelectArtistLoadsFromNetworkOnMiss() async {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],

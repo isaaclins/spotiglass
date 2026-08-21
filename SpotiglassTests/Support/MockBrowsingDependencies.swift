@@ -84,6 +84,7 @@ final class MockBrowsingAPI: SpotifyBrowsingAPI {
     private let savedTracksHandler: (() async throws -> SpotifySavedTracksResult)?
     private let playlistsHandler: (() async throws -> [SpotifyPlaylistSummary])?
     private let updatePlaylistHandler: ((String, String) async throws -> Void)?
+    private let profileHandler: (() async throws -> SpotifyUserProfile)?
     private(set) var savedTracksCallCount = 0
     private(set) var currentUserPlaylistsCallCount = 0
     private(set) var searchCallCount = 0
@@ -103,7 +104,8 @@ final class MockBrowsingAPI: SpotifyBrowsingAPI {
         savedTracksResult: Result<SpotifySavedTracksResult, Error>? = nil,
         savedTracksHandler: (() async throws -> SpotifySavedTracksResult)? = nil,
         playlistsHandler: (() async throws -> [SpotifyPlaylistSummary])? = nil,
-        updatePlaylistHandler: ((String, String) async throws -> Void)? = nil
+        updatePlaylistHandler: ((String, String) async throws -> Void)? = nil,
+        profileHandler: (() async throws -> SpotifyUserProfile)? = nil
     ) {
         self.playlistResults = playlistResults
         self.trackResults = trackResults
@@ -115,6 +117,7 @@ final class MockBrowsingAPI: SpotifyBrowsingAPI {
         self.savedTracksHandler = savedTracksHandler
         self.playlistsHandler = playlistsHandler
         self.updatePlaylistHandler = updatePlaylistHandler
+        self.profileHandler = profileHandler
     }
 
     func updatePlaylist(playlistID: String, name: String) async throws {
@@ -143,7 +146,10 @@ final class MockBrowsingAPI: SpotifyBrowsingAPI {
     }
 
     func currentUserProfile() async throws -> SpotifyUserProfile {
-        SpotifyUserProfile(id: "u", displayName: nil, country: "US")
+        if let profileHandler {
+            return try await profileHandler()
+        }
+        return SpotifyUserProfile(id: "u", displayName: nil, country: "US")
     }
 
     func artist(id: String, cacheMode: SpotifyRequestCacheMode) async throws -> SpotifyArtistDetail {
