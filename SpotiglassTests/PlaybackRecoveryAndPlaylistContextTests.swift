@@ -242,6 +242,12 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
 
         XCTAssertGreaterThanOrEqual(viewModel.playbackHostReuseConnectAttemptCount, 1)
         XCTAssertTrue(commander.commands.contains { $0.command == .connect })
+
+        // The `.notReady` above starts an escalating recovery chain on 10ms
+        // timers. Letting the test end with it still running crashed the CI
+        // test host twice. Disconnecting cancels the chain, which is what the
+        // other recovery tests in this file already do.
+        await viewModel.disconnect()
     }
 
     func testRetryPlaybackTransferCallsTransferAPIWhenDeviceKnown() async {
@@ -308,6 +314,8 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(viewModel.playbackHostReuseConnectAttemptCount, 1)
         XCTAssertGreaterThanOrEqual(viewModel.playbackHostReuseSoftResetAttemptCount, 1)
         XCTAssertEqual(commander.loadHostCallCount, 1, "Transient init recovery should escalate to a single hard reload after reuse attempts.")
+
+        await viewModel.disconnect()
     }
 
     func testPremiumAccountErrorMapsToClearState() {
