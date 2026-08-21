@@ -111,12 +111,20 @@ jobs:
           set -euo pipefail
           # -parallel-testing-enabled NO matches `make test`: several suites
           # touch shared on-disk settings fixtures and are not parallel-safe.
+          #
+          # The per-test timeout is deliberate. A playback test once wedged the
+          # runner here for 40 minutes and was only stopped by the job timeout,
+          # which reports nothing about which test hung. With timeouts enabled
+          # the run fails fast and names the test. The slowest test in the suite
+          # takes about a second, so 120s is far above any legitimate case.
           xcodebuild \
             -project "$PROJECT" \
             -scheme "$SCHEME" \
             -destination 'platform=macOS' \
             -derivedDataPath "$DERIVED_DATA" \
             -parallel-testing-enabled NO \
+            -test-timeouts-enabled YES \
+            -maximum-test-execution-time-allowance 120 \
             -enableCodeCoverage YES \
             -resultBundlePath "$GITHUB_WORKSPACE/build/ci-cov.xcresult" \
             CODE_SIGNING_ALLOWED=NO \
