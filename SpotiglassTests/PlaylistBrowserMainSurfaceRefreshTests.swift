@@ -51,6 +51,84 @@ final class PlaylistBrowserMainSurfaceRefreshTests: XCTestCase {
         XCTAssertTrue(queueRefreshed)
     }
 
+    func testUnifiedRefreshFromLikedSongsInvalidatesItsTrackCache() async {
+        let playlist = PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")
+        let cache = MockBrowsingCache(
+            cachedPlaylists: [playlist],
+            cachedTracks: [SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID: [
+                PlaylistBrowsingTestFixtures.track(id: "stale-liked")
+            ]],
+            playlistListCacheAge: 5
+        )
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([playlist])],
+            trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "t1")])]],
+            savedTracksResult: .success(SpotifySavedTracksResult(
+                tracks: [PlaylistBrowsingTestFixtures.track(id: "fresh-liked")],
+                totalAvailable: 1
+            ))
+        )
+        let vm = PlaylistBrowserViewModel(api: api, cache: cache)
+        await vm.load()
+        await vm.selectSidebar(.likedSongs)
+
+        await vm.unifiedRefreshMainSurface()
+
+        XCTAssertTrue(
+            cache.invalidatedTrackPlaylistIDs.contains(SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID),
+            "Refreshing Liked Songs must drop its cached tracks so the reload hits Spotify."
+        )
+    }
+
+    func testUnifiedRefreshFromPinnedItemLeavesDetailAlone() async {
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
+            trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "t1")])]]
+        )
+        let vm = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+        await vm.load()
+        vm.sidebarSelection = .pinnedItem("pin-1")
+        let sessionBefore = vm.detailSession
+
+        await vm.unifiedRefreshMainSurface()
+
+        XCTAssertEqual(vm.detailSession, sessionBefore, "A pinned row owns no reloadable detail.")
+    }
+
+    func testPerformUnifiedRefreshWithLyricsPresentedRefreshesTheMainSurface() async {
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
+            trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "t1")])]]
+        )
+        let vm = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+        await vm.load()
+        vm.refreshRoutingLyricsPresented = true
+        // Lyrics take priority over the queue panel, even when it is focused.
+        vm.refreshRoutingQueuePanelVisible = true
+        vm.refreshRoutingQueuePanelFocused = true
+        var queueRefreshed = false
+
+        await vm.performUnifiedRefresh(queueRefresh: { queueRefreshed = true })
+
+        XCTAssertFalse(queueRefreshed, "With lyrics presented the refresh belongs to the main surface.")
+    }
+
+    func testPerformUnifiedRefreshWithoutQueueFocusRefreshesTheMainSurface() async {
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
+            trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "t1")])]]
+        )
+        let vm = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+        await vm.load()
+        vm.refreshRoutingQueuePanelVisible = true
+        vm.refreshRoutingQueuePanelFocused = false
+        var queueRefreshed = false
+
+        await vm.performUnifiedRefresh(queueRefresh: { queueRefreshed = true })
+
+        XCTAssertFalse(queueRefreshed, "A visible but unfocused queue panel does not own the refresh.")
+    }
+
     func testRefreshSelectedPlaylistReloadsArtistDetail() async {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],

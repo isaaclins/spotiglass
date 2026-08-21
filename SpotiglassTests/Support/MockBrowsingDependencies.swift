@@ -316,6 +316,9 @@ final class MockBrowsingCache: SpotifyBrowsingCache {
     var expiredTrackIDs: Set<String>
     private(set) var savedPlaylists: [SpotifyPlaylistSummary]?
     private(set) var savedTracks: [String: [SpotifyPlaylistTrackItem]] = [:]
+    /// Records every `invalidateTracks` call, since a reload immediately
+    /// repopulates the cache and would otherwise hide the invalidation.
+    private(set) var invalidatedTrackPlaylistIDs: [String] = []
 
     init(
         cachedPlaylists: [SpotifyPlaylistSummary]? = nil,
@@ -369,6 +372,7 @@ final class MockBrowsingCache: SpotifyBrowsingCache {
     }
 
     func invalidateTracks(playlistID: String) throws {
+        invalidatedTrackPlaylistIDs.append(playlistID)
         cachedTracks[playlistID] = nil
         trackSnapshotByPlaylistID[playlistID] = nil
     }
