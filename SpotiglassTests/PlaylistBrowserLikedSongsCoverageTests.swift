@@ -374,7 +374,7 @@ private final class ProfileAwareMockBrowsingAPI: SpotifyBrowsingAPI {
     func updatePlaylist(playlistID: String, name: String) async throws {}
     func currentUserPlaylists(limit: Int) async throws -> [SpotifyPlaylistSummary] { playlists }
     func playlistTracks(playlistID: String, limit: Int, maxPages: Int) async throws -> [SpotifyPlaylistTrackItem] { [] }
-    func currentUserSavedTracks(limit: Int, maxPages: Int) async throws -> SpotifySavedTracksResult { savedTracks }
+    func currentUserSavedTracks(limit: Int, maxPages: Int?) async throws -> SpotifySavedTracksResult { savedTracks }
     func artist(id: String, cacheMode: SpotifyRequestCacheMode) async throws -> SpotifyArtistDetail {
         SpotifyArtistDetail(id: id, name: id, imageURL: nil, followersTotal: nil, genres: [], uri: "spotify:artist:\(id)")
     }

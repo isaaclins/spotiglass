@@ -24,7 +24,13 @@ struct SpotifyPlaylistTrackItem: Codable, Equatable, Identifiable {
     let content: SpotifyPlaylistItemContent
 }
 
-/// Paged result from `GET /v1/me/tracks` (Liked Songs). `totalAvailable` is Spotify’s total; `tracks` may be shorter when pagination is capped.
+/// One or more exact positions for a URI in a playlist mutation.
+struct SpotifyPlaylistTrackRemoval: Equatable {
+    let uri: String
+    let positions: [Int]
+}
+
+/// Paged result from `GET /v1/me/tracks` (Liked Songs). `totalAvailable` is Spotify's total; `tracks` is complete unless a caller explicitly caps pagination.
 struct SpotifySavedTracksResult: Equatable {
     let tracks: [SpotifyPlaylistTrackItem]
     let totalAvailable: Int

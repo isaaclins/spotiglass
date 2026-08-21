@@ -40,9 +40,9 @@ extension SpotifyAPIClient {
 
     /// Appends the given tracks to a playlist, batched into ≤100-URI chunks.
     func addTracksToPlaylist(playlistID: String, uris: [String]) async throws {
-        let unique = uniqueOrderedURIs(uris)
-        guard !unique.isEmpty, !playlistID.isEmpty else { return }
-        for chunk in unique.chunked(into: Self.playlistTracksMutationBatchSize) {
+        let ordered = orderedURIs(uris)
+        guard !ordered.isEmpty, !playlistID.isEmpty else { return }
+        for chunk in ordered.chunked(into: Self.playlistTracksMutationBatchSize) {
             let body: [String: Any] = ["uris": chunk]
             try await sendVoidWrite(
                 method: "POST",
@@ -53,20 +53,38 @@ extension SpotifyAPIClient {
         }
     }
 
-    /// Removes all occurrences of the given URIs from a playlist, batched.
-    func removeTracksFromPlaylist(playlistID: String, uris: [String]) async throws {
-        let unique = uniqueOrderedURIs(uris)
-        guard !unique.isEmpty, !playlistID.isEmpty else { return }
-        for chunk in unique.chunked(into: Self.playlistTracksMutationBatchSize) {
-            let body: [String: Any] = [
-                "items": chunk.map { ["uri": $0] }
+    /// Removes the exact playlist positions supplied for each URI, batched into
+    /// requests of at most 100 positions. A snapshot protects the mutation from
+    /// deleting the wrong occurrence after the playlist changes.
+    func removeTracksFromPlaylist(
+        playlistID: String,
+        items: [SpotifyPlaylistTrackRemoval],
+        snapshotID: String? = nil
+    ) async throws {
+        let removals = normalisedTrackRemovals(items)
+        guard !removals.isEmpty, !playlistID.isEmpty else { return }
+        var currentSnapshotID = snapshotID
+        for chunk in removals.chunkedByPositionCount(maximum: Self.playlistTracksMutationBatchSize) {
+            var body: [String: Any] = [
+                "items": chunk.map { [
+                    "uri": $0.uri,
+                    "positions": $0.positions
+                ] }
             ]
-            try await sendVoidWrite(
+            if let currentSnapshotID, !currentSnapshotID.isEmpty {
+                body["snapshot_id"] = currentSnapshotID
+            }
+            let responseData = try await sendDataWrite(
                 method: "DELETE",
                 path: "/v1/playlists/\(playlistID)/items",
                 queryItems: [],
                 jsonBody: body
             )
+            if let response = try? decoder.decode(SpotifyPlaylistMutationResponse.self, from: responseData),
+               let nextSnapshotID = response.snapshotID,
+               !nextSnapshotID.isEmpty {
+                currentSnapshotID = nextSnapshotID
+            }
         }
     }
 
@@ -114,16 +132,34 @@ extension SpotifyAPIClient {
         return out
     }
 
-    private func uniqueOrderedURIs(_ uris: [String]) -> [String] {
-        var seen: Set<String> = []
-        var out: [String] = []
-        out.reserveCapacity(uris.count)
-        for uri in uris {
-            let trimmed = uri.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty, seen.insert(trimmed).inserted else { continue }
-            out.append(trimmed)
+    private func normalisedTrackRemovals(_ removals: [SpotifyPlaylistTrackRemoval]) -> [SpotifyPlaylistTrackRemoval] {
+        var order: [String] = []
+        var positionsByURI: [String: [Int]] = [:]
+        for removal in removals {
+            let uri = removal.uri.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !uri.isEmpty else { continue }
+            let positions = removal.positions.filter { $0 >= 0 }
+            guard !positions.isEmpty else { continue }
+            if positionsByURI[uri] == nil {
+                order.append(uri)
+            }
+            var existing = positionsByURI[uri, default: []]
+            for position in positions where !existing.contains(position) {
+                existing.append(position)
+            }
+            positionsByURI[uri] = existing
         }
-        return out
+        return order.compactMap { uri in
+            guard let positions = positionsByURI[uri], !positions.isEmpty else { return nil }
+            return SpotifyPlaylistTrackRemoval(uri: uri, positions: positions)
+        }
+    }
+
+    private func orderedURIs(_ uris: [String]) -> [String] {
+        uris.compactMap { uri in
+            let trimmed = uri.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
     }
 
     /// Issues a writing (POST/PUT/DELETE) request that returns no decodable body.
@@ -212,6 +248,45 @@ extension SpotifyAPIClient {
             }
         }
         return data
+    }
+}
+
+private struct SpotifyPlaylistMutationResponse: Decodable {
+    let snapshotID: String?
+
+    enum CodingKeys: String, CodingKey {
+        case snapshotID = "snapshot_id"
+    }
+}
+
+private extension Array where Element == SpotifyPlaylistTrackRemoval {
+    func chunkedByPositionCount(maximum: Int) -> [[Element]] {
+        guard maximum > 0 else { return [self] }
+        var batches: [[Element]] = []
+        var current: [Element] = []
+        var currentPositionCount = 0
+
+        for removal in self {
+            var remaining = removal.positions
+            while !remaining.isEmpty {
+                let capacity = maximum - currentPositionCount
+                if capacity == 0 {
+                    batches.append(current)
+                    current = []
+                    currentPositionCount = 0
+                    continue
+                }
+                let count = Swift.min(capacity, remaining.count)
+                let positions = [Int](remaining.prefix(count))
+                current.append(SpotifyPlaylistTrackRemoval(uri: removal.uri, positions: positions))
+                currentPositionCount += count
+                remaining.removeFirst(count)
+            }
+        }
+        if !current.isEmpty {
+            batches.append(current)
+        }
+        return batches
     }
 }
 

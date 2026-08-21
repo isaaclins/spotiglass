@@ -67,7 +67,7 @@ final class LimitCapturingBrowsingAPI: SpotifyBrowsingAPI {
         return tracks
     }
 
-    func currentUserSavedTracks(limit: Int, maxPages: Int) async throws -> SpotifySavedTracksResult {
+    func currentUserSavedTracks(limit: Int, maxPages: Int?) async throws -> SpotifySavedTracksResult {
         SpotifySavedTracksResult(tracks: [], totalAvailable: 0)
     }
 }
@@ -84,6 +84,10 @@ final class MockBrowsingAPI: SpotifyBrowsingAPI {
     private let savedTracksHandler: (() async throws -> SpotifySavedTracksResult)?
     private let playlistsHandler: (() async throws -> [SpotifyPlaylistSummary])?
     private let updatePlaylistHandler: ((String, String) async throws -> Void)?
+    private let addTracksHandler: ((String, [String]) async throws -> Void)?
+    private let removeTracksHandler: ((String, [SpotifyPlaylistTrackRemoval], String?) async throws -> Void)?
+    private let saveTracksHandler: (([String]) async throws -> Void)?
+    private let removeSavedTracksHandler: (([String]) async throws -> Void)?
     private let profileHandler: (() async throws -> SpotifyUserProfile)?
     private(set) var savedTracksCallCount = 0
     private(set) var currentUserPlaylistsCallCount = 0
@@ -92,6 +96,10 @@ final class MockBrowsingAPI: SpotifyBrowsingAPI {
     private(set) var artistAlbumsPageCallCount = 0
     private(set) var playlistTracksInvocationCountByID: [String: Int] = [:]
     private(set) var updatePlaylistCalls: [(playlistID: String, name: String)] = []
+    private(set) var addTracksCalls: [(playlistID: String, uris: [String])] = []
+    private(set) var removeTracksCalls: [(playlistID: String, items: [SpotifyPlaylistTrackRemoval], snapshotID: String?)] = []
+    private(set) var saveTracksCalls: [[String]] = []
+    private(set) var removeSavedTracksCalls: [[String]] = []
     var playlistTracksDelayOnInvocation: UInt64?
 
     init(
@@ -105,6 +113,10 @@ final class MockBrowsingAPI: SpotifyBrowsingAPI {
         savedTracksHandler: (() async throws -> SpotifySavedTracksResult)? = nil,
         playlistsHandler: (() async throws -> [SpotifyPlaylistSummary])? = nil,
         updatePlaylistHandler: ((String, String) async throws -> Void)? = nil,
+        addTracksHandler: ((String, [String]) async throws -> Void)? = nil,
+        removeTracksHandler: ((String, [SpotifyPlaylistTrackRemoval], String?) async throws -> Void)? = nil,
+        saveTracksHandler: (([String]) async throws -> Void)? = nil,
+        removeSavedTracksHandler: (([String]) async throws -> Void)? = nil,
         profileHandler: (() async throws -> SpotifyUserProfile)? = nil
     ) {
         self.playlistResults = playlistResults
@@ -117,12 +129,40 @@ final class MockBrowsingAPI: SpotifyBrowsingAPI {
         self.savedTracksHandler = savedTracksHandler
         self.playlistsHandler = playlistsHandler
         self.updatePlaylistHandler = updatePlaylistHandler
+        self.addTracksHandler = addTracksHandler
+        self.removeTracksHandler = removeTracksHandler
+        self.saveTracksHandler = saveTracksHandler
+        self.removeSavedTracksHandler = removeSavedTracksHandler
         self.profileHandler = profileHandler
     }
 
     func updatePlaylist(playlistID: String, name: String) async throws {
         updatePlaylistCalls.append((playlistID: playlistID, name: name))
         try await updatePlaylistHandler?(playlistID, name)
+    }
+
+    func addTracksToPlaylist(playlistID: String, uris: [String]) async throws {
+        addTracksCalls.append((playlistID: playlistID, uris: uris))
+        try await addTracksHandler?(playlistID, uris)
+    }
+
+    func removeTracksFromPlaylist(
+        playlistID: String,
+        items: [SpotifyPlaylistTrackRemoval],
+        snapshotID: String?
+    ) async throws {
+        removeTracksCalls.append((playlistID: playlistID, items: items, snapshotID: snapshotID))
+        try await removeTracksHandler?(playlistID, items, snapshotID)
+    }
+
+    func saveTracks(ids: [String]) async throws {
+        saveTracksCalls.append(ids)
+        try await saveTracksHandler?(ids)
+    }
+
+    func removeSavedTracks(ids: [String]) async throws {
+        removeSavedTracksCalls.append(ids)
+        try await removeSavedTracksHandler?(ids)
     }
 
     func currentUserPlaylists(limit: Int) async throws -> [SpotifyPlaylistSummary] {
@@ -218,7 +258,7 @@ final class MockBrowsingAPI: SpotifyBrowsingAPI {
         )
     }
 
-    func currentUserSavedTracks(limit: Int, maxPages: Int) async throws -> SpotifySavedTracksResult {
+    func currentUserSavedTracks(limit: Int, maxPages: Int?) async throws -> SpotifySavedTracksResult {
         savedTracksCallCount += 1
         if let savedTracksHandler {
             return try await savedTracksHandler()

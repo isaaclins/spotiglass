@@ -67,9 +67,11 @@ extension PlaylistBrowserViewModel {
         return nil
     }
 
-    private func revalidateLikedSongs(session: Int) async {
+    func revalidateLikedSongs(session: Int) async {
+        let mutationGeneration = likedSongsMutationGeneration
         do {
             let result = try await likedSongsRevalidationResult()
+            guard mutationGeneration == likedSongsMutationGeneration else { return }
             try? cache.saveTracks(
                 result.tracks,
                 playlistID: SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID,
@@ -83,7 +85,8 @@ extension PlaylistBrowserViewModel {
             )
             guard session == detailSession else { return }
             let profile = try? await api.currentUserProfile()
-            guard session == detailSession else { return }
+            guard session == detailSession,
+                  mutationGeneration == likedSongsMutationGeneration else { return }
             let trimmedName = profile?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             let owner = trimmedName.isEmpty ? "You" : trimmedName
             let row = PlaylistRowViewModel(
@@ -101,7 +104,8 @@ extension PlaylistBrowserViewModel {
         } catch let urlError as URLError where urlError.code == .cancelled {
             return
         } catch {
-            guard session == detailSession else { return }
+            guard session == detailSession,
+                  mutationGeneration == likedSongsMutationGeneration else { return }
             let displayError = Self.displayError(for: error)
             if let existingDetail = detailState.currentValue {
                 detailState = .staleCache(existingDetail, displayError)
@@ -123,11 +127,18 @@ extension PlaylistBrowserViewModel {
         if let inFlight = likedSongsRevalidationTask {
             return try await inFlight.value
         }
+        let generation = likedSongsMutationGeneration
         let task = Task { [api] in
-            try await api.currentUserSavedTracks(limit: 50, maxPages: 20)
+            try await api.currentUserSavedTracks(limit: 50, maxPages: nil)
         }
         likedSongsRevalidationTask = task
-        defer { likedSongsRevalidationTask = nil }
+        likedSongsRevalidationTaskGeneration = generation
+        defer {
+            if likedSongsRevalidationTaskGeneration == generation {
+                likedSongsRevalidationTask = nil
+                likedSongsRevalidationTaskGeneration = nil
+            }
+        }
         return try await task.value
     }
 }

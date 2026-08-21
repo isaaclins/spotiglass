@@ -51,25 +51,79 @@ final class SpotifyAPIClientPlaylistSummaryDecodingTests: XCTestCase {
         XCTAssertEqual(secondObject["uris"], Array(uris.suffix(1)))
     }
 
-    func testRemoveTracksFromPlaylistUsesItemsRouteAndPreservesURIOrderInBatches() async throws {
+    func testRemoveTracksFromPlaylistUsesPositionsAndPreservesOrderInBatches() async throws {
         let httpClient = QueueHTTPClient([
             .data(Data(), statusCode: 200),
             .data(Data(), statusCode: 200)
         ])
         let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
-        let uris = (0..<101).map { "spotify:track:track-\($0)" }
+        let removals = (0..<101).map {
+            SpotifyPlaylistTrackRemoval(uri: "spotify:track:track-\($0)", positions: [$0])
+        }
 
-        try await client.removeTracksFromPlaylist(playlistID: "playlist-1", uris: uris)
+        try await client.removeTracksFromPlaylist(
+            playlistID: "playlist-1",
+            items: removals,
+            snapshotID: nil
+        )
 
         XCTAssertEqual(httpClient.requests.count, 2)
         XCTAssertEqual(httpClient.requests[0].httpMethod, "DELETE")
         XCTAssertEqual(httpClient.requests[0].url?.absoluteString, "https://api.spotify.com/v1/playlists/playlist-1/items")
         let firstBody = try XCTUnwrap(httpClient.requests[0].httpBody)
-        let firstObject = try XCTUnwrap(JSONSerialization.jsonObject(with: firstBody) as? [String: [[String: String]]])
-        XCTAssertEqual(firstObject["items"]?.compactMap { $0["uri"] }, Array(uris.prefix(100)))
+        let firstObject = try XCTUnwrap(JSONSerialization.jsonObject(with: firstBody) as? [String: Any])
+        let firstItems = try XCTUnwrap(firstObject["items"] as? [[String: Any]])
+        XCTAssertEqual(firstItems.compactMap { $0["uri"] as? String }, Array((0..<100).map { "spotify:track:track-\($0)" }))
+        XCTAssertEqual(firstItems.compactMap { $0["positions"] as? [Int] }, Array((0..<100).map { [$0] }))
         let secondBody = try XCTUnwrap(httpClient.requests[1].httpBody)
-        let secondObject = try XCTUnwrap(JSONSerialization.jsonObject(with: secondBody) as? [String: [[String: String]]])
-        XCTAssertEqual(secondObject["items"]?.compactMap { $0["uri"] }, Array(uris.suffix(1)))
+        let secondObject = try XCTUnwrap(JSONSerialization.jsonObject(with: secondBody) as? [String: Any])
+        let secondItems = try XCTUnwrap(secondObject["items"] as? [[String: Any]])
+        XCTAssertEqual(secondItems.compactMap { $0["uri"] as? String }, ["spotify:track:track-100"])
+        XCTAssertEqual(secondItems.compactMap { $0["positions"] as? [Int] }, [[100]])
+    }
+
+    func testAddTracksToPlaylistPreservesDuplicateOccurrences() async throws {
+        let httpClient = QueueHTTPClient([
+            .data(Data(), statusCode: 201)
+        ])
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+
+        try await client.addTracksToPlaylist(
+            playlistID: "playlist-1",
+            uris: ["spotify:track:duplicate", "spotify:track:duplicate"]
+        )
+
+        let request = try XCTUnwrap(httpClient.requests.first)
+        let body = try XCTUnwrap(request.httpBody)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: [String]])
+        XCTAssertEqual(object["uris"], ["spotify:track:duplicate", "spotify:track:duplicate"])
+    }
+
+    func testRemoveTracksFromPlaylistUsesPositionsAndSnapshotID() async throws {
+        let httpClient = QueueHTTPClient([
+            .data(Data(), statusCode: 200)
+        ])
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+        let removals = [
+            SpotifyPlaylistTrackRemoval(uri: "spotify:track:duplicate", positions: [0, 2]),
+            SpotifyPlaylistTrackRemoval(uri: "spotify:track:other", positions: [4])
+        ]
+
+        try await client.removeTracksFromPlaylist(
+            playlistID: "playlist-1",
+            items: removals,
+            snapshotID: "snapshot-1"
+        )
+
+        let request = try XCTUnwrap(httpClient.requests.first)
+        let body = try XCTUnwrap(request.httpBody)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        let items = try XCTUnwrap(object["items"] as? [[String: Any]])
+        XCTAssertEqual(items.count, 2)
+        XCTAssertEqual(items[0]["uri"] as? String, "spotify:track:duplicate")
+        XCTAssertEqual(items[0]["positions"] as? [Int], [0, 2])
+        XCTAssertEqual(items[1]["positions"] as? [Int], [4])
+        XCTAssertEqual(object["snapshot_id"] as? String, "snapshot-1")
     }
 
     func testCreatePlaylistUsesCurrentUserRouteAndPreservesBody() async throws {

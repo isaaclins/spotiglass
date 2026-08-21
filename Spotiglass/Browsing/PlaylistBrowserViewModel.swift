@@ -113,6 +113,9 @@ final class PlaylistBrowserViewModel: ObservableObject {
     var lastManualPlaylistRefreshAt: Date?
     /// Collapses concurrent liked-songs refresh triggers into one network run.
     var likedSongsRevalidationTask: Task<SpotifySavedTracksResult, Error>?
+    var likedSongsRevalidationTaskGeneration: Int?
+    /// Prevents a pre-mutation response from repopulating the virtual cache.
+    var likedSongsMutationGeneration = 0
     var lastLikedSongsRevalidationAt: Date?
     /// In-flight bulk "Load all your songs into Spotiglass" prefetch run. Holding the
     /// task lets the same command toggle cancellation on re-invocation.
@@ -202,6 +205,11 @@ final class PlaylistBrowserViewModel: ObservableObject {
         prefetchAllPlaylistsTask?.cancel()
         prefetchAllPlaylistsTask = nil
         prefetchAllPlaylistsProgress = nil
+        likedSongsRevalidationTask?.cancel()
+        likedSongsRevalidationTask = nil
+        likedSongsRevalidationTaskGeneration = nil
+        likedSongsMutationGeneration += 1
+        lastLikedSongsRevalidationAt = nil
         sidebarSelection = nil
         playlistsByID = [:]
         knownPlaylistSummariesByID = [:]

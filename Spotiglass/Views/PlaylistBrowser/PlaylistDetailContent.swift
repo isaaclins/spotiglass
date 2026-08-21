@@ -314,21 +314,24 @@ struct TrackOpsMenuItems: View {
 
     var body: some View {
         let targets = browserViewModel.effectiveTrackTargets(forRowID: rowID)
-        let label = targets.count > 1 ? "\(targets.count) tracks" : "track"
+        let playlistTargets = browserViewModel.playlistMutationRows(for: targets)
+        let likedSongsTargets = browserViewModel.likedSongsMutationRows(for: targets)
+        let playlistLabel = SpotiglassL10n.format("playlist.mutation.trackLabel", Int64(playlistTargets.count))
+        let likedSongsLabel = SpotiglassL10n.format("playlist.mutation.trackLabel", Int64(likedSongsTargets.count))
         let destinations = browserViewModel.userOwnedPlaylistsForMenu(
             excludingPlaylistID: currentPlaylistID
         )
 
-        Menu("Add to playlist") {
+        Menu(SpotiglassL10n.string("Add to playlist")) {
             Button(SpotiglassL10n.string("playlist.detail.newPlaylist.menuItem")) {
-                onRequestCreatePlaylist(targets)
+                onRequestCreatePlaylist(playlistTargets)
             }
             if !destinations.isEmpty { Divider() }
             ForEach(destinations, id: \.id) { dest in
                 Button(dest.name) {
                     Task {
                         await browserViewModel.addRowsToPlaylist(
-                            targets,
+                            playlistTargets,
                             playlistID: dest.id,
                             playlistName: dest.name
                         )
@@ -336,14 +339,14 @@ struct TrackOpsMenuItems: View {
                 }
             }
         }
-        .disabled(targets.isEmpty)
+        .disabled(playlistTargets.isEmpty)
 
-        Menu("Move to playlist") {
+        Menu(SpotiglassL10n.string("Move to playlist")) {
             ForEach(destinations, id: \.id) { dest in
                 Button(dest.name) {
                     Task {
                         await browserViewModel.moveRowsBetweenPlaylists(
-                            targets,
+                            playlistTargets,
                             from: currentPlaylistID,
                             to: dest.id,
                             destinationName: dest.name
@@ -352,17 +355,17 @@ struct TrackOpsMenuItems: View {
                 }
             }
         }
-        .disabled(targets.isEmpty || destinations.isEmpty)
+        .disabled(playlistTargets.isEmpty || destinations.isEmpty)
 
-        Button(SpotiglassL10n.format("playlist.detail.likedSongs.add", label)) {
-            Task { await browserViewModel.favoriteRows(targets) }
+        Button(SpotiglassL10n.format("playlist.detail.likedSongs.add", likedSongsLabel)) {
+            Task { await browserViewModel.favoriteRows(likedSongsTargets) }
         }
-        .disabled(targets.isEmpty)
+        .disabled(likedSongsTargets.isEmpty)
 
-        Button(SpotiglassL10n.format("playlist.detail.likedSongs.remove", label)) {
-            Task { await browserViewModel.unfavoriteRows(targets) }
+        Button(SpotiglassL10n.format("playlist.detail.likedSongs.remove", likedSongsLabel)) {
+            Task { await browserViewModel.unfavoriteRows(likedSongsTargets) }
         }
-        .disabled(targets.isEmpty)
+        .disabled(likedSongsTargets.isEmpty)
     }
 }
 

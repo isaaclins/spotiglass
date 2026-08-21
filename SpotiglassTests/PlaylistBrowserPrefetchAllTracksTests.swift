@@ -260,7 +260,7 @@ private final class ConcurrencyTrackingBrowsingAPI: SpotifyBrowsingAPI, @uncheck
         return trackFactory(playlistID)
     }
 
-    func currentUserSavedTracks(limit: Int, maxPages: Int) async throws -> SpotifySavedTracksResult {
+    func currentUserSavedTracks(limit: Int, maxPages: Int?) async throws -> SpotifySavedTracksResult {
         await counter.enter()
         try await Task.sleep(nanoseconds: 20_000_000)
         await counter.recordSavedTracks()

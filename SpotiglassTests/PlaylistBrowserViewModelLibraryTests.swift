@@ -262,6 +262,256 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         XCTAssertEqual(api.savedTracksCallCount, 1, "Fresh cache should not immediately trigger a second liked-songs revalidation.")
     }
 
+    func testRemovingVisibleLikedSongRefreshesDetailAndCacheAfterWrite() async {
+        let visible = PlaylistBrowsingTestFixtures.track(id: "liked-visible")
+        let remaining = PlaylistBrowsingTestFixtures.track(id: "liked-remaining")
+        let api = MockBrowsingAPI(
+            playlistResults: [],
+            trackResults: [:],
+            savedTracksResult: .success(SpotifySavedTracksResult(tracks: [remaining], totalAvailable: 1)),
+            removeSavedTracksHandler: { ids in
+                XCTAssertEqual(ids, ["liked-visible"])
+            }
+        )
+        let cache = MockBrowsingCache(
+            cachedTracks: [
+                SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID: [visible, remaining]
+            ]
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: cache)
+        viewModel.sidebarSelection = .likedSongs
+        viewModel.detailSession = 1
+        let rows = TrackRowViewModel.numberedPlaylistRows([visible, remaining])
+        viewModel.detailState = .loaded(.playlist(PlaylistDetailViewModel(
+            playlist: PlaylistRowViewModel(likedSongsOwnerDisplay: "You", totalTrackCount: 2, artworkURL: nil),
+            tracks: rows
+        )))
+
+        await viewModel.unfavoriteRows([rows[0]])
+
+        XCTAssertEqual(
+            cache.cachedTracks[SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID]?.map(\.id),
+            ["liked-remaining"]
+        )
+        XCTAssertEqual(
+            PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).map(\.id),
+            ["liked-remaining"]
+        )
+    }
+
+    func testSuccessfulLikedSongsSaveInvalidatesCacheBeforeReturningToLikedSongs() async {
+        let cached = PlaylistBrowsingTestFixtures.track(id: "liked-cached")
+        let saved = PlaylistBrowsingTestFixtures.track(id: "liked-saved")
+        let api = MockBrowsingAPI(
+            playlistResults: [],
+            trackResults: [:],
+            savedTracksResult: .success(SpotifySavedTracksResult(tracks: [cached, saved], totalAvailable: 2))
+        )
+        let cache = MockBrowsingCache(
+            cachedTracks: [SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID: [cached]]
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: cache)
+        viewModel.sidebarSelection = .playlist("source")
+        let row = TrackRowViewModel.numberedPlaylistRows([saved])[0]
+
+        await viewModel.favoriteRows([row])
+
+        XCTAssertNil(cache.cachedTracks[SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID])
+        await viewModel.selectSidebar(.likedSongs)
+        XCTAssertEqual(
+            PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).map(\.id),
+            ["liked-cached", "liked-saved"]
+        )
+    }
+
+    func testFailedLikedSongsRemovalLeavesRowsAndCacheUntouched() async {
+        let visible = PlaylistBrowsingTestFixtures.track(id: "liked-visible")
+        let remaining = PlaylistBrowsingTestFixtures.track(id: "liked-remaining")
+        let api = MockBrowsingAPI(
+            playlistResults: [],
+            trackResults: [:],
+            removeSavedTracksHandler: { _ in
+                throw SpotifyAPIError.network("Offline")
+            }
+        )
+        let cache = MockBrowsingCache(
+            cachedTracks: [
+                SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID: [visible, remaining]
+            ]
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: cache)
+        viewModel.sidebarSelection = .likedSongs
+        viewModel.detailSession = 1
+        let rows = TrackRowViewModel.numberedPlaylistRows([visible, remaining])
+        viewModel.detailState = .loaded(.playlist(PlaylistDetailViewModel(
+            playlist: PlaylistRowViewModel(likedSongsOwnerDisplay: "You", totalTrackCount: 2, artworkURL: nil),
+            tracks: rows
+        )))
+
+        await viewModel.unfavoriteRows([rows[0]])
+
+        XCTAssertEqual(viewModel.trackMutationToast, "Offline")
+        XCTAssertEqual(
+            cache.cachedTracks[SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID]?.map(\.id),
+            ["liked-visible", "liked-remaining"]
+        )
+        XCTAssertEqual(
+            PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).map(\.id),
+            ["liked-visible", "liked-remaining"]
+        )
+    }
+
+    func testMovingTwoDuplicateRowsAddsAndRemovesExactlyThoseOccurrences() async {
+        let source = PlaylistBrowsingTestFixtures.playlist(id: "source", name: "Source", snapshotID: "source-snapshot")
+        let destination = PlaylistBrowsingTestFixtures.playlist(id: "destination", name: "Destination", snapshotID: "destination-snapshot")
+        let duplicate = PlaylistBrowsingTestFixtures.track(id: "duplicate")
+        let first = SpotifyPlaylistTrackItem(id: "duplicate:0", content: duplicate.content)
+        let second = SpotifyPlaylistTrackItem(id: "duplicate:1", content: duplicate.content)
+        let remaining = PlaylistBrowsingTestFixtures.track(id: "remaining")
+        let api = MockBrowsingAPI(
+            playlistResults: [],
+            trackResults: [source.id: [.success([remaining])]]
+        )
+        let cache = MockBrowsingCache(
+            cachedTracks: [
+                source.id: [first, second, remaining],
+                destination.id: []
+            ]
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: cache)
+        viewModel.playlistsByID = [source.id: source, destination.id: destination]
+        viewModel.sidebarSelection = .playlist(source.id)
+        viewModel.detailSession = 1
+        let rows = TrackRowViewModel.numberedPlaylistRows([first, second, remaining])
+        viewModel.detailState = .loaded(.playlist(PlaylistDetailViewModel(
+            playlist: PlaylistRowViewModel(source),
+            tracks: rows
+        )))
+
+        await viewModel.moveRowsBetweenPlaylists(
+            Array(rows.prefix(2)),
+            from: source.id,
+            to: destination.id,
+            destinationName: destination.name
+        )
+
+        XCTAssertEqual(api.addTracksCalls.map(\.uris), [["spotify:track:duplicate", "spotify:track:duplicate"]])
+        guard let removeCall = try? XCTUnwrap(api.removeTracksCalls.first) else {
+            return XCTFail("Expected one source removal call")
+        }
+        XCTAssertEqual(removeCall.playlistID, source.id)
+        XCTAssertEqual(
+            removeCall.items,
+            [SpotifyPlaylistTrackRemoval(uri: "spotify:track:duplicate", positions: [0, 1])]
+        )
+        XCTAssertEqual(removeCall.snapshotID, source.snapshotID)
+        XCTAssertEqual(PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).map(\.id), ["remaining"])
+        XCTAssertNil(cache.cachedTracks[destination.id])
+    }
+
+    func testPartialMoveReportsBothPlaylistsAndRefreshesTheOpenSource() async {
+        let source = PlaylistBrowsingTestFixtures.playlist(id: "source", name: "Source", snapshotID: "source-snapshot")
+        let destination = PlaylistBrowsingTestFixtures.playlist(id: "destination", name: "Destination", snapshotID: "destination-snapshot")
+        let sourceTrack = PlaylistBrowsingTestFixtures.track(id: "move-track")
+        let api = MockBrowsingAPI(
+            playlistResults: [],
+            trackResults: [source.id: [.success([sourceTrack])]],
+            addTracksHandler: { playlistID, uris in
+                XCTAssertEqual(playlistID, destination.id)
+                XCTAssertEqual(uris, ["spotify:track:move-track"])
+            },
+            removeTracksHandler: { playlistID, items, snapshotID in
+                XCTAssertEqual(playlistID, source.id)
+                XCTAssertEqual(snapshotID, source.snapshotID)
+                XCTAssertEqual(items, [SpotifyPlaylistTrackRemoval(uri: "spotify:track:move-track", positions: [0])])
+                throw SpotifyAPIError.network("Removal unavailable")
+            }
+        )
+        let cache = MockBrowsingCache(
+            cachedTracks: [
+                source.id: [sourceTrack],
+                destination.id: [PlaylistBrowsingTestFixtures.track(id: "destination-cached")]
+            ]
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: cache)
+        viewModel.playlistsByID = [source.id: source, destination.id: destination]
+        viewModel.sidebarSelection = .playlist(source.id)
+        viewModel.detailSession = 1
+        let rows = TrackRowViewModel.numberedPlaylistRows([sourceTrack])
+        viewModel.detailState = .loaded(.playlist(PlaylistDetailViewModel(
+            playlist: PlaylistRowViewModel(source),
+            tracks: rows
+        )))
+
+        await viewModel.moveRowsBetweenPlaylists(
+            rows,
+            from: source.id,
+            to: destination.id,
+            destinationName: destination.name
+        )
+
+        XCTAssertTrue(viewModel.trackMutationToast?.contains("both playlists") == true)
+        XCTAssertEqual(api.playlistTracksInvocationCountByID[source.id], 1)
+        XCTAssertNil(cache.cachedTracks[destination.id])
+        XCTAssertEqual(PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).map(\.id), ["move-track"])
+    }
+
+    func testTrackOperationTargetsAreActionSpecificForMixedRows() {
+        let playable = PlaylistBrowsingTestFixtures.track(id: "playable")
+        let episode = SpotifyPlaylistTrackItem(
+            id: "episode:1",
+            content: .episode(SpotifyEpisode(
+                id: "episode",
+                name: "Episode",
+                showName: "Show",
+                artworkURL: nil,
+                durationMilliseconds: 60_000,
+                isPlayable: true,
+                uri: "spotify:episode:episode"
+            ))
+        )
+        let local = SpotifyPlaylistTrackItem(
+            id: "local:track:2",
+            content: .localTrack(SpotifyLocalTrack(
+                name: "Local",
+                artists: [],
+                durationMilliseconds: 60_000,
+                uri: "spotify:local:local"
+            ))
+        )
+        let rows = TrackRowViewModel.numberedPlaylistRows([playable, episode, local])
+        let viewModel = PlaylistBrowserViewModel(
+            api: MockBrowsingAPI(playlistResults: [], trackResults: [:]),
+            cache: MockBrowsingCache()
+        )
+
+        XCTAssertEqual(viewModel.playlistMutationRows(for: rows).map(\.id), ["playable"])
+        XCTAssertEqual(viewModel.likedSongsMutationRows(for: rows).map(\.id), ["playable"])
+    }
+
+    func testIneligibleTrackMutationReportsWhyNothingWasSent() async {
+        let localItem = SpotifyPlaylistTrackItem(
+            id: "local:track:0",
+            content: .localTrack(SpotifyLocalTrack(
+                name: "Local Song",
+                artists: ["Local Artist"],
+                durationMilliseconds: 120_000,
+                uri: "spotify:local:local-song"
+            ))
+        )
+        let row = TrackRowViewModel(localItem, listPosition: 1)
+        let api = MockBrowsingAPI(playlistResults: [], trackResults: [:])
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+
+        await viewModel.favoriteRows([row])
+
+        XCTAssertEqual(
+            viewModel.trackMutationToast,
+            SpotiglassL10n.string("playlist.mutation.noEligibleTracks")
+        )
+        XCTAssertTrue(api.saveTracksCalls.isEmpty)
+    }
+
     func testLikedSongsConcurrentSelectionsShareSingleRevalidationRequest() async {
         let liked = PlaylistBrowsingTestFixtures.track(id: "liked-shared")
         let api = MockBrowsingAPI(

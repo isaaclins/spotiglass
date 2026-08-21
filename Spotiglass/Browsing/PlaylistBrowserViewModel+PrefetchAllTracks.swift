@@ -180,7 +180,7 @@ extension PlaylistBrowserViewModel {
 
     private func fetchAndCacheLikedSongs(retryRemaining: Int) async -> PrefetchItemOutcome {
         do {
-            let result = try await api.currentUserSavedTracks(limit: 50, maxPages: 20)
+            let result = try await api.currentUserSavedTracks(limit: 50, maxPages: nil)
             try? cache.saveTracks(
                 result.tracks,
                 playlistID: SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID,

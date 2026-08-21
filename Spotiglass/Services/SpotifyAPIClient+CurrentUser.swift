@@ -15,25 +15,22 @@ extension SpotifyAPIClient {
         }
     }
 
-    /// Liked Songs (`GET /v1/me/tracks`). Paginates with the same item shape as playlist tracks; stops after `maxPages` to avoid unbounded requests.
-    func currentUserSavedTracks(limit: Int = 50, maxPages: Int = 20) async throws -> SpotifySavedTracksResult {
+    /// Liked Songs (`GET /v1/me/tracks`). Follows Spotify's continuation links to
+    /// completion unless an explicit page cap is supplied by a caller.
+    func currentUserSavedTracks(limit: Int = 50, maxPages: Int? = nil) async throws -> SpotifySavedTracksResult {
         let pageLimit = min(max(1, limit), 50)
-        let maxPages = max(1, maxPages)
+        let pageCap = maxPages.map { max(1, $0) }
         var results: [SpotifyPlaylistTrackItem] = []
         var nextURL: URL?
         var offset = 0
         var totalAvailable = 0
         var pagesFetched = 0
-        var seenOffsets: Set<Int> = [offset]
+        var seenNextURLs: Set<String> = []
 
         repeat {
             try Task.checkCancellation()
             let page: SpotifyPagingDTO<SpotifyPlaylistTrackItemDTO>
             if let nextURL {
-                if let nextOffset = Self.offset(from: nextURL),
-                   seenOffsets.contains(nextOffset) {
-                    break
-                }
                 page = try await send(url: nextURL)
             } else {
                 page = try await send(
@@ -51,25 +48,21 @@ extension SpotifyAPIClient {
             results.append(contentsOf: page.items.enumerated().map { index, item in
                 item.domainModel(position: startIndex + index)
             })
-            seenOffsets.insert(page.offset)
             nextURL = page.next
+            if let nextURL {
+                let key = nextURL.absoluteString
+                if seenNextURLs.contains(key) {
+                    break
+                }
+                seenNextURLs.insert(key)
+            }
             offset += page.limit
             pagesFetched += 1
-            if pagesFetched >= maxPages {
+            if let pageCap, pagesFetched >= pageCap {
                 break
             }
         } while nextURL != nil
 
         return SpotifySavedTracksResult(tracks: results, totalAvailable: totalAvailable)
-    }
-}
-
-private extension SpotifyAPIClient {
-    static func offset(from url: URL) -> Int? {
-        guard let queryItems = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems,
-              let offsetValue = queryItems.first(where: { $0.name == "offset" })?.value else {
-            return nil
-        }
-        return Int(offsetValue)
     }
 }

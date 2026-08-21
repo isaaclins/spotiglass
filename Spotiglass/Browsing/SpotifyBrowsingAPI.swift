@@ -3,7 +3,7 @@ import Foundation
 protocol SpotifyBrowsingAPI {
     func currentUserPlaylists(limit: Int) async throws -> [SpotifyPlaylistSummary]
     func playlistTracks(playlistID: String, limit: Int, maxPages: Int) async throws -> [SpotifyPlaylistTrackItem]
-    func currentUserSavedTracks(limit: Int, maxPages: Int) async throws -> SpotifySavedTracksResult
+    func currentUserSavedTracks(limit: Int, maxPages: Int?) async throws -> SpotifySavedTracksResult
     func currentUserProfile() async throws -> SpotifyUserProfile
     func artist(id: String, cacheMode: SpotifyRequestCacheMode) async throws -> SpotifyArtistDetail
     func artistCached(id: String, cacheMode: SpotifyRequestCacheMode) async throws -> SpotifyAPIClient.CachedResponse<SpotifyArtistDetail>
@@ -35,7 +35,11 @@ protocol SpotifyBrowsingAPI {
 
     func updatePlaylist(playlistID: String, name: String) async throws
     func addTracksToPlaylist(playlistID: String, uris: [String]) async throws
-    func removeTracksFromPlaylist(playlistID: String, uris: [String]) async throws
+    func removeTracksFromPlaylist(
+        playlistID: String,
+        items: [SpotifyPlaylistTrackRemoval],
+        snapshotID: String?
+    ) async throws
     func createPlaylist(userID: String, name: String, isPublic: Bool) async throws -> SpotifyPlaylistSummary
     func saveTracks(ids: [String]) async throws
     func removeSavedTracks(ids: [String]) async throws
@@ -63,7 +67,11 @@ extension SpotifyBrowsingAPI {
     func addTracksToPlaylist(playlistID: String, uris: [String]) async throws {
         throw SpotifyAPIError.invalidRequest("Playlist mutation is not supported by this API implementation.")
     }
-    func removeTracksFromPlaylist(playlistID: String, uris: [String]) async throws {
+    func removeTracksFromPlaylist(
+        playlistID: String,
+        items: [SpotifyPlaylistTrackRemoval],
+        snapshotID: String?
+    ) async throws {
         throw SpotifyAPIError.invalidRequest("Playlist mutation is not supported by this API implementation.")
     }
     func createPlaylist(userID: String, name: String, isPublic: Bool) async throws -> SpotifyPlaylistSummary {

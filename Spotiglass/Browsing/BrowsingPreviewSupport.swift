@@ -89,7 +89,7 @@ struct PreviewBrowsingAPI: SpotifyBrowsingAPI {
         ]
     }
 
-    func currentUserSavedTracks(limit: Int, maxPages: Int) async throws -> SpotifySavedTracksResult {
+    func currentUserSavedTracks(limit: Int, maxPages: Int?) async throws -> SpotifySavedTracksResult {
         SpotifySavedTracksResult(tracks: [], totalAvailable: 0)
     }
 }

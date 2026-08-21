@@ -32,12 +32,50 @@ extension PlaylistBrowserViewModel {
         rows.compactMap(\.playableURI).filter { $0.hasPrefix("spotify:track:") }
     }
 
-    /// Catalog IDs (`spotify:track:<id>` → `<id>`) for Liked Songs save/remove calls.
+    /// Unique catalog IDs (`spotify:track:<id>` → `<id>`) for Liked Songs
+    /// save/remove calls. The Spotify endpoint treats IDs as a set.
     func catalogTrackIDs(for rows: [TrackRowViewModel]) -> [String] {
-        rows.compactMap { row in
+        var seen: Set<String> = []
+        return rows.compactMap { row in
             guard let uri = row.playableURI, uri.hasPrefix("spotify:track:") else { return nil }
             let id = String(uri.dropFirst("spotify:track:".count))
-            return id.isEmpty ? nil : id
+            guard !id.isEmpty, seen.insert(id).inserted else { return nil }
+            return id
+        }
+    }
+
+    /// Rows accepted by playlist Add and Move operations.
+    func playlistMutationRows(for rows: [TrackRowViewModel]) -> [TrackRowViewModel] {
+        rows.filter { !playableURIs(for: [$0]).isEmpty }
+    }
+
+    /// Unique rows accepted by Liked Songs save and remove operations.
+    func likedSongsMutationRows(for rows: [TrackRowViewModel]) -> [TrackRowViewModel] {
+        var seen: Set<String> = []
+        return rows.filter { row in
+            guard let uri = row.playableURI, uri.hasPrefix("spotify:track:") else { return false }
+            let id = String(uri.dropFirst("spotify:track:".count))
+            return !id.isEmpty && seen.insert(id).inserted
+        }
+    }
+
+    /// Exact source playlist positions for a row-level Move operation. Duplicate
+    /// catalog tracks stay grouped by URI while retaining every selected slot.
+    func playlistTrackRemovals(for rows: [TrackRowViewModel]) -> [SpotifyPlaylistTrackRemoval] {
+        var order: [String] = []
+        var positionsByURI: [String: [Int]] = [:]
+        for row in rows {
+            guard let uri = row.playableURI,
+                  uri.hasPrefix("spotify:track:"),
+                  row.listPosition > 0 else { continue }
+            if positionsByURI[uri] == nil {
+                order.append(uri)
+            }
+            positionsByURI[uri, default: []].append(row.listPosition - 1)
+        }
+        return order.compactMap { uri in
+            guard let positions = positionsByURI[uri], !positions.isEmpty else { return nil }
+            return SpotifyPlaylistTrackRemoval(uri: uri, positions: positions)
         }
     }
 
@@ -53,11 +91,19 @@ extension PlaylistBrowserViewModel {
 
     func addRowsToPlaylist(_ rows: [TrackRowViewModel], playlistID: String, playlistName: String) async {
         let uris = playableURIs(for: rows)
-        guard !uris.isEmpty, !playlistID.isEmpty else { return }
+        guard !uris.isEmpty else {
+            trackMutationToast = SpotiglassL10n.string("playlist.mutation.noEligibleTracks")
+            return
+        }
+        guard !playlistID.isEmpty else { return }
         do {
             try await api.addTracksToPlaylist(playlistID: playlistID, uris: uris)
             invalidateTracksCache(playlistID: playlistID)
-            trackMutationToast = "Added \(uris.count) track\(uris.count == 1 ? "" : "s") to \(playlistName)"
+            trackMutationToast = SpotiglassL10n.format(
+                "playlist.mutation.addedToPlaylist",
+                Int64(uris.count),
+                playlistName
+            )
         } catch {
             trackMutationToast = describeFailure(error)
         }
@@ -70,19 +116,49 @@ extension PlaylistBrowserViewModel {
         destinationName: String
     ) async {
         let uris = playableURIs(for: rows)
-        guard !uris.isEmpty, !destinationPlaylistID.isEmpty else { return }
+        let removals = playlistTrackRemovals(for: rows)
+        let sourceIsLikedSongs = sourcePlaylistID == SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID
+        guard !uris.isEmpty,
+              sourceIsLikedSongs || !removals.isEmpty else {
+            trackMutationToast = SpotiglassL10n.string("playlist.mutation.noEligibleTracks")
+            return
+        }
+        guard !destinationPlaylistID.isEmpty else { return }
+
         do {
             try await api.addTracksToPlaylist(playlistID: destinationPlaylistID, uris: uris)
-            if !sourcePlaylistID.isEmpty,
-               sourcePlaylistID != SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID {
-                try await api.removeTracksFromPlaylist(playlistID: sourcePlaylistID, uris: uris)
+            if !sourcePlaylistID.isEmpty, !sourceIsLikedSongs {
+                let snapshotID = playlistsByID[sourcePlaylistID]?.snapshotID
+                    ?? knownPlaylistSummariesByID[sourcePlaylistID]?.snapshotID
+                do {
+                    try await api.removeTracksFromPlaylist(
+                        playlistID: sourcePlaylistID,
+                        items: removals,
+                        snapshotID: snapshotID
+                    )
+                } catch {
+                    invalidateTracksCache(playlistID: sourcePlaylistID)
+                    invalidateTracksCache(playlistID: destinationPlaylistID)
+                    await refreshCurrentPlaylistMutationDetail(
+                        for: [sourcePlaylistID, destinationPlaylistID]
+                    )
+                    trackMutationToast = SpotiglassL10n.format(
+                        "playlist.mutation.partialMove",
+                        destinationName
+                    )
+                    return
+                }
                 invalidateTracksCache(playlistID: sourcePlaylistID)
-                // Reflect the removal locally so the UI doesn't show ghosts
-                // until the next refresh round-trip completes.
-                removeRowsFromLoadedDetail(rowIDs: Set(rows.map(\.id)))
             }
             invalidateTracksCache(playlistID: destinationPlaylistID)
-            trackMutationToast = "Moved \(uris.count) track\(uris.count == 1 ? "" : "s") to \(destinationName)"
+            await refreshCurrentPlaylistMutationDetail(
+                for: [sourcePlaylistID, destinationPlaylistID]
+            )
+            trackMutationToast = SpotiglassL10n.format(
+                "playlist.mutation.movedToPlaylist",
+                Int64(uris.count),
+                destinationName
+            )
         } catch {
             trackMutationToast = describeFailure(error)
         }
@@ -90,10 +166,18 @@ extension PlaylistBrowserViewModel {
 
     func favoriteRows(_ rows: [TrackRowViewModel]) async {
         let ids = catalogTrackIDs(for: rows)
-        guard !ids.isEmpty else { return }
+        guard !ids.isEmpty else {
+            trackMutationToast = SpotiglassL10n.string("playlist.mutation.noEligibleTracks")
+            return
+        }
         do {
             try await api.saveTracks(ids: ids)
-            trackMutationToast = "Added \(ids.count) track\(ids.count == 1 ? "" : "s") to Liked Songs"
+            invalidateLikedSongsCache()
+            await refreshLikedSongsDetailAfterMutation()
+            trackMutationToast = SpotiglassL10n.format(
+                "playlist.mutation.addedToLikedSongs",
+                Int64(ids.count)
+            )
         } catch {
             trackMutationToast = describeFailure(error)
         }
@@ -101,10 +185,18 @@ extension PlaylistBrowserViewModel {
 
     func unfavoriteRows(_ rows: [TrackRowViewModel]) async {
         let ids = catalogTrackIDs(for: rows)
-        guard !ids.isEmpty else { return }
+        guard !ids.isEmpty else {
+            trackMutationToast = SpotiglassL10n.string("playlist.mutation.noEligibleTracks")
+            return
+        }
         do {
             try await api.removeSavedTracks(ids: ids)
-            trackMutationToast = "Removed \(ids.count) track\(ids.count == 1 ? "" : "s") from Liked Songs"
+            invalidateLikedSongsCache()
+            await refreshLikedSongsDetailAfterMutation()
+            trackMutationToast = SpotiglassL10n.format(
+                "playlist.mutation.removedFromLikedSongs",
+                Int64(ids.count)
+            )
         } catch {
             trackMutationToast = describeFailure(error)
         }
@@ -115,7 +207,7 @@ extension PlaylistBrowserViewModel {
     /// sidebar so the user immediately sees it.
     func createPlaylistWithRows(name: String, rows: [TrackRowViewModel]) async {
         guard let userID = currentUserSpotifyID, !userID.isEmpty else {
-            trackMutationToast = "Sign in to Spotify before creating a playlist."
+            trackMutationToast = SpotiglassL10n.string("playlist.mutation.signInToCreate")
             return
         }
         do {
@@ -126,8 +218,12 @@ extension PlaylistBrowserViewModel {
             }
             insertSidebarPlaylist(created, refreshedTrackCount: uris.count)
             trackMutationToast = uris.isEmpty
-                ? "Created \(created.name)"
-                : "Created \(created.name) with \(uris.count) track\(uris.count == 1 ? "" : "s")"
+                ? SpotiglassL10n.format("playlist.mutation.createdPlaylist", created.name)
+                : SpotiglassL10n.format(
+                    "playlist.mutation.createdPlaylistWithTracks",
+                    created.name,
+                    Int64(uris.count)
+                )
         } catch {
             trackMutationToast = describeFailure(error)
         }
@@ -225,46 +321,34 @@ extension PlaylistBrowserViewModel {
     }
 
     private func invalidateTracksCache(playlistID: String) {
-        guard playlistID != SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID,
-              !playlistID.isEmpty else { return }
+        guard !playlistID.isEmpty else { return }
         try? cache.invalidateTracks(playlistID: playlistID)
         lastTracksRevalidationByID.removeValue(forKey: playlistID)
+        if playlistID == SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID {
+            likedSongsMutationGeneration += 1
+            likedSongsRevalidationTask?.cancel()
+            likedSongsRevalidationTask = nil
+            likedSongsRevalidationTaskGeneration = nil
+            lastLikedSongsRevalidationAt = nil
+        }
     }
 
-    private func removeRowsFromLoadedDetail(rowIDs: Set<String>) {
-        guard let content = detailState.currentValue,
-              case let .playlist(playlistViewModel) = content
+    private func invalidateLikedSongsCache() {
+        invalidateTracksCache(playlistID: SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID)
+    }
+
+    private func refreshLikedSongsDetailAfterMutation() async {
+        guard sidebarSelection == .likedSongs else { return }
+        await revalidateLikedSongs(session: detailSession)
+    }
+
+    private func refreshCurrentPlaylistMutationDetail(for playlistIDs: [String]) async {
+        guard case let .playlist(currentPlaylistID) = sidebarSelection,
+              playlistIDs.contains(currentPlaylistID),
+              currentPlaylistID != SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID,
+              playlistsByID[currentPlaylistID] != nil || knownPlaylistSummariesByID[currentPlaylistID] != nil
         else { return }
-        let filtered = playlistViewModel.tracks.filter { !rowIDs.contains($0.id) }
-        let renumbered = filtered.enumerated().map { idx, row -> TrackRowViewModel in
-            TrackRowViewModel(
-                id: row.id,
-                spotifyTrackID: row.spotifyTrackID,
-                listPosition: idx + 1,
-                title: row.title,
-                subtitle: row.subtitle,
-                artworkURL: row.artworkURL,
-                durationText: row.durationText,
-                badgeText: row.badgeText,
-                isUnavailable: row.isUnavailable,
-                isExplicit: row.isExplicit,
-                playableURI: row.playableURI,
-                artistRefs: row.artistRefs
-            )
-        }
-        let nextDetail = PlaylistDetailViewModel(playlist: playlistViewModel.playlist, tracks: renumbered)
-        switch detailState {
-        case .loading, .empty, .error:
-            break
-        case .loaded:
-            detailState = .loaded(.playlist(nextDetail))
-        case let .refreshing(_):
-            detailState = .refreshing(.playlist(nextDetail))
-        case let .staleCache(_, displayError):
-            detailState = .staleCache(.playlist(nextDetail), displayError)
-        }
-        // Drop selection IDs that no longer exist.
-        selectedDetailTrackIDs.subtract(rowIDs)
+        await loadTracks(for: currentPlaylistID, refreshCachedData: true, session: detailSession)
     }
 
     private func insertSidebarPlaylist(_ summary: SpotifyPlaylistSummary, refreshedTrackCount: Int) {
@@ -293,39 +377,5 @@ extension PlaylistBrowserViewModel {
             }
         }
         try? cache.savePlaylists(Array(playlistsByID.values), cachedAt: now())
-    }
-}
-
-private extension TrackRowViewModel {
-    /// Memberwise builder used by `removeRowsFromLoadedDetail` to rebuild rows
-    /// with updated `listPosition` after a destructive mutation.
-    init(
-        id: String,
-        spotifyTrackID: String? = nil,
-        listPosition: Int,
-        title: String,
-        subtitle: String,
-        artworkURL: URL?,
-        durationText: String,
-        durationMilliseconds: Int = 0,
-        badgeText: String?,
-        isUnavailable: Bool,
-        isExplicit: Bool,
-        playableURI: String?,
-        artistRefs: [SpotifyArtistRef]
-    ) {
-        self.id = id
-        self.spotifyTrackID = spotifyTrackID
-        self.listPosition = listPosition
-        self.title = title
-        self.subtitle = subtitle
-        self.artworkURL = artworkURL
-        self.durationText = durationText
-        self.durationMilliseconds = max(0, durationMilliseconds)
-        self.badgeText = badgeText
-        self.isUnavailable = isUnavailable
-        self.isExplicit = isExplicit
-        self.playableURI = playableURI
-        self.artistRefs = artistRefs
     }
 }

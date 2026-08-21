@@ -45,6 +45,51 @@ final class SpotifyAPIClientSavedTracksPaginationTests: XCTestCase {
         XCTAssertEqual(httpClient.requests.first?.url?.absoluteString, "https://api.spotify.com/v1/me/tracks?limit=50&offset=0")
     }
 
+    func testCurrentUserSavedTracksFollowsAllContinuationPagesByDefault() async throws {
+        let pages = (0..<21).map { pageIndex in
+            let trackID = "saved-page-\(pageIndex)"
+            let next: String
+            if pageIndex < 20 {
+                next = "\"https://api.spotify.com/v1/me/tracks?limit=50&offset=\((pageIndex + 1) * 50)\""
+            } else {
+                next = "null"
+            }
+            return QueueHTTPClient.Response.json("""
+            {
+              "href": "https://api.spotify.com/v1/me/tracks",
+              "limit": 50,
+              "offset": \(pageIndex * 50),
+              "next": \(next),
+              "previous": null,
+              "total": 21,
+              "items": [
+                {
+                  "added_at": "2020-01-01T00:00:00Z",
+                  "track": {
+                    "type": "track",
+                    "id": "\(trackID)",
+                    "name": "Page \(pageIndex)",
+                    "artists": [{ "id": "artist-1", "name": "Artist" }],
+                    "album": { "name": "Album", "images": [] },
+                    "duration_ms": 180000,
+                    "explicit": false,
+                    "uri": "spotify:track:\(trackID)",
+                    "is_local": false
+                  }
+                }
+              ]
+            }
+            """)
+        }
+        let httpClient = QueueHTTPClient(pages)
+        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+
+        let result = try await client.currentUserSavedTracks()
+
+        XCTAssertEqual(result.tracks.count, 21)
+        XCTAssertEqual(httpClient.requests.count, 21)
+    }
+
     func testCurrentUserSavedTracksStopsWhenNextOffsetRepeats() async throws {
         let loopingPage = """
             {
