@@ -188,6 +188,10 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
     func testDifferentPlayCommandsIncrementSupersededCounterWhenOverlapping() async {
         let commander = MockWebPlaybackCommander()
         let playbackAPI = MockPlaybackAPI()
+        let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: commander)
+        viewModel.handle(.ready(deviceID: "device-1"))
+        await viewModel.syncTransportFromSpotify()
+
         // Deterministic overlap, no wall-clock racing: the first play parks inside the
         // mock (still in flight for the dispatch bookkeeping) until the second play's
         // API call arrives — and reaching the mock means the second dispatch has
@@ -202,8 +206,6 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
                 releaseFirstPlay.signal()
             }
         }
-        let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: commander)
-        viewModel.handle(.ready(deviceID: "device-1"))
 
         async let first: Void = viewModel.play(uri: "spotify:track:1")
         await firstPlayEntered.wait()

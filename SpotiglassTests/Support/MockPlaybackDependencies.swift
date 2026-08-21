@@ -109,8 +109,26 @@ final class AsyncSignal: @unchecked Sendable {
     }
 }
 
+private final class MockPlaybackActionRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var recordedActions: [String] = []
+
+    func append(_ action: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        recordedActions.append(action)
+    }
+
+    func snapshot() -> [String] {
+        lock.lock()
+        defer { lock.unlock() }
+        return recordedActions
+    }
+}
+
 final class MockPlaybackAPI: SpotifyPlaybackControlling {
-    private(set) var actions: [String] = []
+    private let actionRecorder = MockPlaybackActionRecorder()
+    var actions: [String] { actionRecorder.snapshot() }
     /// Runs at the top of every `play*` call (before the artificial delay), with the
     /// URI / context URI / first list URI. Suspending here keeps that play in flight
     /// from the view model's perspective until the closure returns.
@@ -147,10 +165,10 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
         }
         if !transferPlaybackErrors.isEmpty {
             let next = transferPlaybackErrors.removeFirst()
-            actions.append("transfer-error:\(deviceID):\(play)")
+            actionRecorder.append("transfer-error:\(deviceID):\(play)")
             throw next
         }
-        actions.append("transfer:\(deviceID):\(play)")
+        actionRecorder.append("transfer:\(deviceID):\(play)")
     }
 
     func play(uri: String, deviceID: String) async throws {
@@ -158,7 +176,7 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
         if playDelayNanoseconds > 0 {
             try? await Task.sleep(nanoseconds: playDelayNanoseconds)
         }
-        actions.append("play:\(deviceID):\(uri)")
+        actionRecorder.append("play:\(deviceID):\(uri)")
     }
 
     func play(contextURI: String, deviceID: String) async throws {
@@ -166,7 +184,7 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
         if playDelayNanoseconds > 0 {
             try? await Task.sleep(nanoseconds: playDelayNanoseconds)
         }
-        actions.append("play-context:\(deviceID):\(contextURI)")
+        actionRecorder.append("play-context:\(deviceID):\(contextURI)")
     }
 
     func play(uris: [String], deviceID: String) async throws {
@@ -174,7 +192,7 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
         if playDelayNanoseconds > 0 {
             try? await Task.sleep(nanoseconds: playDelayNanoseconds)
         }
-        actions.append("play-list:\(deviceID):\(uris.joined(separator: ","))")
+        actionRecorder.append("play-list:\(deviceID):\(uris.joined(separator: ","))")
     }
 
     func seek(to milliseconds: Int, deviceID: String) async throws {
@@ -182,35 +200,35 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
         if seekDelayNanoseconds > 0 {
             try? await Task.sleep(nanoseconds: seekDelayNanoseconds)
         }
-        actions.append("seek:\(deviceID):\(milliseconds)")
+        actionRecorder.append("seek:\(deviceID):\(milliseconds)")
         await onSeek?(milliseconds)
     }
 
     func next(deviceID: String) async throws {
-        actions.append("next:\(deviceID)")
+        actionRecorder.append("next:\(deviceID)")
     }
 
     func previous(deviceID: String) async throws {
-        actions.append("previous:\(deviceID)")
+        actionRecorder.append("previous:\(deviceID)")
     }
 
     var queueResponse = SpotifyQueueResponse(queue: [])
     var addToQueueErrors: [Error] = []
 
     func fetchQueue() async throws -> SpotifyQueueResponse {
-        actions.append("fetchQueue")
+        actionRecorder.append("fetchQueue")
         return queueResponse
     }
 
     func addToQueue(uri: String, deviceID: String) async throws {
-        actions.append("addToQueue:\(deviceID):\(uri)")
+        actionRecorder.append("addToQueue:\(deviceID):\(uri)")
         if !addToQueueErrors.isEmpty {
             throw addToQueueErrors.removeFirst()
         }
     }
 
     func fetchPlayerSnapshot() async throws -> SpotifyPlayerSnapshot? {
-        actions.append("fetchPlayerSnapshot")
+        actionRecorder.append("fetchPlayerSnapshot")
         if fetchPlayerSnapshotDelayNanoseconds > 0 {
             try? await Task.sleep(nanoseconds: fetchPlayerSnapshotDelayNanoseconds)
         }
@@ -229,7 +247,7 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
     }
 
     func fetchAvailableDevices() async throws -> [SpotifyConnectDevice] {
-        actions.append("fetchAvailableDevices")
+        actionRecorder.append("fetchAvailableDevices")
         if fetchAvailableDevicesDelayNanoseconds > 0 {
             try? await Task.sleep(nanoseconds: fetchAvailableDevicesDelayNanoseconds)
         }
@@ -241,7 +259,7 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
         if setShuffleDelayNanoseconds > 0 {
             try? await Task.sleep(nanoseconds: setShuffleDelayNanoseconds)
         }
-        actions.append("setShuffle:\(deviceID):\(enabled)")
+        actionRecorder.append("setShuffle:\(deviceID):\(enabled)")
         reportedTransport = SpotifyPlayerTransport(shuffle: enabled, repeatMode: reportedTransport.repeatMode)
     }
 
@@ -250,7 +268,7 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
             try? await Task.sleep(nanoseconds: setRepeatDelayNanoseconds)
         }
         if let setRepeatError { throw setRepeatError }
-        actions.append("setRepeat:\(deviceID):\(mode.rawValue)")
+        actionRecorder.append("setRepeat:\(deviceID):\(mode.rawValue)")
         reportedTransport = SpotifyPlayerTransport(shuffle: reportedTransport.shuffle, repeatMode: mode)
     }
 }
