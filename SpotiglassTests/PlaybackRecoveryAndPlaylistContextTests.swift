@@ -210,8 +210,15 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
         let viewModel = PlaybackSessionViewModel(
             playbackAPI: MockPlaybackAPI(),
             webCommander: commander,
-            playbackHostRecoveryConnectTimeout: .milliseconds(10),
-            playbackHostRecoverySoftResetTimeout: .milliseconds(10)
+            // Long enough that recovery stops at its first connect attempt for
+            // the duration of this test. This test is about generation
+            // fencing, not about escalation; with 10ms timeouts the chain
+            // raced ahead into repeated hard reloads and crashed the CI test
+            // host in runs 32508559474, 32521200807 and 32548893141.
+            // `testInitializationErrorRunsReuseAttemptsBeforeHardReload` is
+            // the test that deliberately drives the escalation.
+            playbackHostRecoveryConnectTimeout: .seconds(30),
+            playbackHostRecoverySoftResetTimeout: .seconds(30)
         )
 
         viewModel.start()
@@ -238,15 +245,19 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
             event: .notReady(deviceID: "new-device"),
             hostGeneration: newGeneration
         ))
-        try? await Task.sleep(for: .milliseconds(60))
+        // Wait for the first recovery attempt rather than for a fixed
+        // duration, so a slow runner cannot turn this into a flake.
+        let deadline = Date().addingTimeInterval(2)
+        while Date() < deadline,
+              viewModel.playbackHostReuseConnectAttemptCount < 1
+                || !commander.commands.contains(where: { $0.command == .connect }) {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
 
         XCTAssertGreaterThanOrEqual(viewModel.playbackHostReuseConnectAttemptCount, 1)
         XCTAssertTrue(commander.commands.contains { $0.command == .connect })
 
-        // The `.notReady` above starts an escalating recovery chain on 10ms
-        // timers. Letting the test end with it still running crashed the CI
-        // test host twice. Disconnecting cancels the chain, which is what the
-        // other recovery tests in this file already do.
+        // Cancels the in-flight recovery so it cannot outlive the view model.
         await viewModel.disconnect()
     }
 
