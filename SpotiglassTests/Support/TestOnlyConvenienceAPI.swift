@@ -27,3 +27,17 @@ extension SpotifyGETResponseCache {
         store(body: body, cacheKey: key, ttl: ttl, ownership: beginWrite(forCacheKey: key))
     }
 }
+
+final class TestSampleRateProvider: EqualizerSampleRateProviding {
+    var activeSampleRate: UInt32
+    var activeSampleRateDidChange: ((UInt32) -> Void)?
+
+    init(sampleRate: UInt32) {
+        activeSampleRate = sampleRate
+    }
+
+    func setActiveSampleRate(_ sampleRate: UInt32) {
+        activeSampleRate = sampleRate
+        activeSampleRateDidChange?(sampleRate)
+    }
+}

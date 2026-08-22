@@ -1,6 +1,11 @@
 import CoreAudio
 import Foundation
 
+protocol EqualizerSampleRateProviding: AnyObject {
+    var activeSampleRate: UInt32 { get }
+    var activeSampleRateDidChange: ((UInt32) -> Void)? { get set }
+}
+
 /// Owns the lifecycle of the bundled `SpotiglassEQDriver.driver` CoreAudio
 /// AudioServerPlugIn. Responsibilities:
 ///
@@ -15,7 +20,7 @@ import Foundation
 /// **No microphone / recording permission is ever needed.** The driver is a
 /// pure virtual output device; this controller only ever queries / sets the
 /// default OUTPUT device, never input.
-final class EqualizerHALPluginController: @unchecked Sendable {
+final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRateProviding {
     /// System-scope HAL plugins directory.
     ///
     /// macOS 26's `coreaudiod` scans only `/Library/Audio/Plug-Ins/HAL/`; the
@@ -52,6 +57,8 @@ final class EqualizerHALPluginController: @unchecked Sendable {
     private let halDirectory: URL
     private let embeddedDriverURL: URL?
     private let fileManager: FileManager
+    private var activeSampleRateListener: AudioObjectPropertyListenerBlock?
+    private var observedSampleRateDeviceID: AudioObjectID?
 
     /// AudioObjectID of the device we routed away from when enabling.
     /// Persisted on disk via ``defaultOutputBackupURL`` so disable restores
@@ -60,6 +67,7 @@ final class EqualizerHALPluginController: @unchecked Sendable {
     /// Cache of the active sample rate the plugin is currently advertising,
     /// used by the coefficient publisher to recompute biquads on rate change.
     private(set) var activeSampleRate: UInt32 = 48_000
+    var activeSampleRateDidChange: ((UInt32) -> Void)?
 
     init(
         halDirectory: URL = EqualizerHALPluginController.defaultHALDirectory,
@@ -69,6 +77,10 @@ final class EqualizerHALPluginController: @unchecked Sendable {
         self.halDirectory = halDirectory
         self.fileManager = fileManager
         self.embeddedDriverURL = Self.locateEmbeddedDriver(in: bundle)
+    }
+
+    deinit {
+        removeActiveSampleRateObservation()
     }
 
     // MARK: - Public API
@@ -107,7 +119,13 @@ final class EqualizerHALPluginController: @unchecked Sendable {
                 previousUID: previousUID
             )
             Self.writeForwardingTarget(uid: targetUID)
-            try setDefaultOutputDevice(to: deviceID)
+            try beginActiveSampleRateObservation(for: deviceID)
+            do {
+                try setDefaultOutputDevice(to: deviceID)
+            } catch {
+                removeActiveSampleRateObservation()
+                throw error
+            }
         } else {
             throw EqualizerHALPluginError.driverNotLoadedYet(
                 installedPath: installedDriverURL.path
@@ -124,6 +142,7 @@ final class EqualizerHALPluginController: @unchecked Sendable {
     /// Restores the previously-active default output device. Does NOT remove
     /// the `.driver` from disk — call ``uninstall()`` for that.
     func disable() {
+        removeActiveSampleRateObservation()
         guard let previous = previousDefaultOutputID else { return }
         try? setDefaultOutputDevice(to: previous)
         previousDefaultOutputID = nil
@@ -184,6 +203,7 @@ final class EqualizerHALPluginController: @unchecked Sendable {
     func availableForwardingTargets() -> [AudioDeviceEnumerator.Device] {
         AudioDeviceEnumerator.allOutputDevices()
             .filter { $0.name != Self.virtualDeviceName }
+            .filter { AudioDeviceEnumerator.supportsEQForwarding(deviceID: $0.id) }
     }
 
     /// The UID currently written to the forwarding-target file. Reads
@@ -270,6 +290,103 @@ final class EqualizerHALPluginController: @unchecked Sendable {
                 .appendingPathComponent(driverBundleName, isDirectory: true)
         ].compactMap { $0 }
         return candidates.first { FileManager.default.fileExists(atPath: $0.path) }
+    }
+
+    // MARK: - Sample-rate observation
+
+    @discardableResult
+    func updateActiveSampleRate(nominalRate: Double) -> Bool {
+        guard let rate = normalizedSampleRate(nominalRate), rate != activeSampleRate else {
+            return false
+        }
+        activeSampleRate = rate
+        activeSampleRateDidChange?(rate)
+        return true
+    }
+
+    private func beginActiveSampleRateObservation(for deviceID: AudioObjectID) throws {
+        removeActiveSampleRateObservation()
+        guard let nominalRate = readNominalSampleRate(from: deviceID),
+              let rate = normalizedSampleRate(nominalRate)
+        else {
+            throw EqualizerHALPluginError.coreAudioStatus(
+                kAudioHardwareUnknownPropertyError
+            )
+        }
+        activeSampleRate = rate
+
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyNominalSampleRate,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+            self?.refreshActiveSampleRate(for: deviceID)
+        }
+        observedSampleRateDeviceID = deviceID
+        activeSampleRateListener = listener
+        let status = AudioObjectAddPropertyListenerBlock(
+            deviceID,
+            &address,
+            DispatchQueue.main,
+            listener
+        )
+        guard status == noErr else {
+            removeActiveSampleRateObservation()
+            throw EqualizerHALPluginError.coreAudioStatus(status)
+        }
+    }
+
+    private func removeActiveSampleRateObservation() {
+        guard let listener = activeSampleRateListener,
+              let deviceID = observedSampleRateDeviceID
+        else {
+            activeSampleRateListener = nil
+            observedSampleRateDeviceID = nil
+            return
+        }
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyNominalSampleRate,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        AudioObjectRemovePropertyListenerBlock(deviceID, &address, DispatchQueue.main, listener)
+        activeSampleRateListener = nil
+        observedSampleRateDeviceID = nil
+    }
+
+    private func refreshActiveSampleRate(for deviceID: AudioObjectID) {
+        guard let nominalRate = readNominalSampleRate(from: deviceID) else { return }
+        _ = updateActiveSampleRate(nominalRate: nominalRate)
+    }
+
+    private func normalizedSampleRate(_ nominalRate: Double) -> UInt32? {
+        guard nominalRate.isFinite,
+              nominalRate > 0,
+              nominalRate <= Double(UInt32.max)
+        else { return nil }
+        let rate = UInt32(nominalRate.rounded())
+        return rate > 0 ? rate : nil
+    }
+
+    private func readNominalSampleRate(from deviceID: AudioObjectID) -> Double? {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyNominalSampleRate,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var rate = Float64(0)
+        var size = UInt32(MemoryLayout<Float64>.size)
+        let status = AudioObjectGetPropertyData(
+            deviceID,
+            &address,
+            0,
+            nil,
+            &size,
+            &rate
+        )
+        guard status == noErr, size == MemoryLayout<Float64>.size else { return nil }
+        return rate
     }
 
     // MARK: - Device-routing internals
@@ -437,6 +554,42 @@ enum AudioDeviceEnumerator {
         var size: UInt32 = 0
         let status = AudioObjectGetPropertyDataSize(deviceID, &address, 0, nil, &size)
         return status == noErr && size > 0
+    }
+
+    static func supportsEQForwarding(format: AudioStreamBasicDescription) -> Bool {
+        guard format.mFormatID == kAudioFormatLinearPCM,
+              format.mFormatFlags & kAudioFormatFlagIsFloat != 0,
+              format.mFormatFlags & kAudioFormatFlagIsPacked != 0,
+              format.mBitsPerChannel == 32,
+              format.mChannelsPerFrame == 2,
+              format.mFramesPerPacket == 1
+        else { return false }
+        let nonInterleaved = format.mFormatFlags & kAudioFormatFlagIsNonInterleaved != 0
+        let bytesPerFrame: UInt32 = nonInterleaved ? 4 : 8
+        return format.mBytesPerFrame == bytesPerFrame
+            && format.mBytesPerPacket == bytesPerFrame
+    }
+
+    static func supportsEQForwarding(deviceID: AudioObjectID) -> Bool {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyStreamFormat,
+            mScope: kAudioObjectPropertyScopeOutput,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var format = AudioStreamBasicDescription()
+        var size = UInt32(MemoryLayout<AudioStreamBasicDescription>.size)
+        let status = AudioObjectGetPropertyData(
+            deviceID,
+            &address,
+            0,
+            nil,
+            &size,
+            &format
+        )
+        guard status == noErr, size == MemoryLayout<AudioStreamBasicDescription>.size else {
+            return false
+        }
+        return supportsEQForwarding(format: format)
     }
 
     private static func deviceName(id: AudioObjectID) -> String {

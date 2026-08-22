@@ -33,6 +33,7 @@ final class AudioEqualizerEngine: ObservableObject {
 
     private let pluginController: EqualizerHALPluginController
     private let coefficientPublisher: EQCoefficientPublisher
+    private let sampleRateProvider: any EqualizerSampleRateProviding
 
     /// In-memory mirror of the most recently applied settings. The persisted
     /// copy lives in ``SpotiglassSettingsStore``; this mirror is what's used
@@ -41,10 +42,15 @@ final class AudioEqualizerEngine: ObservableObject {
 
     init(
         pluginController: EqualizerHALPluginController = .init(),
-        coefficientPublisher: EQCoefficientPublisher = .init()
+        coefficientPublisher: EQCoefficientPublisher = .init(),
+        sampleRateProvider: (any EqualizerSampleRateProviding)? = nil
     ) {
         self.pluginController = pluginController
         self.coefficientPublisher = coefficientPublisher
+        self.sampleRateProvider = sampleRateProvider ?? pluginController
+        self.sampleRateProvider.activeSampleRateDidChange = { [weak self] _ in
+            self?.publishCoefficients()
+        }
     }
 
     // MARK: - Lifecycle
@@ -132,7 +138,7 @@ final class AudioEqualizerEngine: ObservableObject {
     // MARK: - Internals
 
     private func publishCoefficients() {
-        let sampleRate = pluginController.activeSampleRate
+        let sampleRate = sampleRateProvider.activeSampleRate
         let frame = EQCoefficientFrame.build(
             settings: currentSettings,
             sampleRateHz: sampleRate

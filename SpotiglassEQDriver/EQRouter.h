@@ -1,6 +1,7 @@
 #ifndef SPOTIGLASS_EQ_ROUTER_H
 #define SPOTIGLASS_EQ_ROUTER_H
 
+#include <CoreAudio/AudioHardware.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -9,6 +10,26 @@ extern "C" {
 #endif
 
 typedef struct EQRouter EQRouter;
+
+typedef enum EQRouterOutputLayout {
+    EQRouterOutputLayoutUnsupported = 0,
+    EQRouterOutputLayoutInterleavedStereo = 1,
+    EQRouterOutputLayoutNonInterleavedStereo = 2
+} EQRouterOutputLayout;
+
+// Classify the output layout supplied to the target IOProc. Only packed
+// Float32 stereo is supported by the router payload: one two-channel buffer
+// or two one-channel buffers.
+EQRouterOutputLayout EQRouter_ClassifyOutputLayout(const AudioBufferList* output_data);
+
+// Copy a contiguous range of interleaved stereo Float32 frames into the
+// target layout. The write is allocation-free and advances no router state;
+// callers that consume a ring can invoke it for each contiguous ring segment.
+// Returns 0 on success and nonzero when the layout or buffer sizes are invalid.
+int EQRouter_WriteFrames(const float* frames,
+                         size_t frame_count,
+                         AudioBufferList* output_data,
+                         size_t output_frame_offset);
 
 // Open a router that forwards interleaved float32 stereo frames to the
 // CoreAudio output device with the given UID. Returns NULL on failure.
@@ -34,6 +55,32 @@ void EQRouter_Close(EQRouter* router);
 
 #ifdef __cplusplus
 }
+
+#include <atomic>
+
+/// Atomic pointer publication with a non-blocking reader lease. Render and
+/// worker callbacks acquire a lease before loading the router pointer; the
+/// swapping thread exchanges the pointer and waits off the realtime path
+/// before closing the retired router.
+class EQRouterLifetime {
+public:
+    explicit EQRouterLifetime(EQRouter* initial = nullptr) noexcept;
+
+    EQRouter* acquire() noexcept;
+    void release() noexcept;
+    EQRouter* swap(EQRouter* replacement) noexcept;
+    bool hasRouter() const noexcept;
+    void waitForUsers() noexcept;
+
+private:
+    static_assert(std::atomic<EQRouter*>::is_always_lock_free,
+                  "router pointer publication must be lock-free");
+    static_assert(std::atomic<uint32_t>::is_always_lock_free,
+                  "router lease counter must be lock-free");
+
+    std::atomic<EQRouter*> router_;
+    std::atomic<uint32_t> users_;
+};
 #endif
 
 #endif

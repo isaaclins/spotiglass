@@ -49,8 +49,14 @@ void EQDSP_Apply(EQDSPState* state,
     // No published frame yet AND no cached frame -> emit unchanged buffer.
     if (!frame && !state->hasCached) return;
 
-    // Refresh cached frame when a new one is provided.
+    // A coefficient frame carries the sample rate used to design its
+    // filters. State from the previous rate is not valid for the new poles,
+    // so clear it before making the new frame active. This is fixed-size state
+    // and therefore remains realtime-safe.
     if (frame) {
+        if (state->hasCached && state->cachedFrame.sampleRateHz != frame->sampleRateHz) {
+            memset(state->bandState, 0, sizeof(state->bandState));
+        }
         state->cachedFrame = *frame;
         state->hasCached = 1;
     }

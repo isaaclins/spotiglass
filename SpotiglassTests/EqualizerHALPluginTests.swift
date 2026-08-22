@@ -1,3 +1,4 @@
+import CoreAudio
 import XCTest
 @testable import Spotiglass
 
@@ -143,6 +144,76 @@ final class EqualizerHALPluginTests: XCTestCase {
                                   "\(preset.name) should differ from bypass")
             }
         }
+    }
+
+    func testForwardingFormatAcceptsOnlyFloat32StereoLayouts() {
+        var interleaved = AudioStreamBasicDescription()
+        interleaved.mFormatID = kAudioFormatLinearPCM
+        interleaved.mFormatFlags = kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked
+        interleaved.mBytesPerPacket = 8
+        interleaved.mFramesPerPacket = 1
+        interleaved.mBytesPerFrame = 8
+        interleaved.mChannelsPerFrame = 2
+        interleaved.mBitsPerChannel = 32
+
+        var nonInterleaved = interleaved
+        nonInterleaved.mFormatFlags |= kAudioFormatFlagIsNonInterleaved
+        nonInterleaved.mBytesPerPacket = 4
+        nonInterleaved.mBytesPerFrame = 4
+
+        var integerStereo = interleaved
+        integerStereo.mFormatFlags = kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsPacked
+
+        var threeChannel = interleaved
+        threeChannel.mChannelsPerFrame = 3
+        threeChannel.mBytesPerPacket = 12
+        threeChannel.mBytesPerFrame = 12
+
+        XCTAssertTrue(AudioDeviceEnumerator.supportsEQForwarding(format: interleaved))
+        XCTAssertTrue(AudioDeviceEnumerator.supportsEQForwarding(format: nonInterleaved))
+        XCTAssertFalse(AudioDeviceEnumerator.supportsEQForwarding(format: integerStereo))
+        XCTAssertFalse(AudioDeviceEnumerator.supportsEQForwarding(format: threeChannel))
+    }
+
+    func testControllerPublishesAChangedDeviceSampleRateOnce() {
+        let controller = EqualizerHALPluginController()
+        var received: [UInt32] = []
+        controller.activeSampleRateDidChange = { received.append($0) }
+
+        XCTAssertTrue(controller.updateActiveSampleRate(nominalRate: 44_100))
+        XCTAssertFalse(controller.updateActiveSampleRate(nominalRate: 44_100))
+        XCTAssertFalse(controller.updateActiveSampleRate(nominalRate: 0))
+        XCTAssertEqual(received, [44_100])
+        XCTAssertEqual(controller.activeSampleRate, 44_100)
+    }
+
+    @MainActor
+    func testActiveSampleRateChangePublishesCoefficientsForThatRate() throws {
+        let path = (NSTemporaryDirectory() as NSString)
+            .appendingPathComponent("spotiglass-eq-rate-\(UUID().uuidString).shm")
+        defer { try? FileManager.default.removeItem(atPath: path) }
+
+        let publisher = EQCoefficientPublisher(shmPath: path)
+        let sampleRateProvider = TestSampleRateProvider(sampleRate: 48_000)
+        let engine = AudioEqualizerEngine(
+            coefficientPublisher: publisher,
+            sampleRateProvider: sampleRateProvider
+        )
+        var settings = EqualizerSettings(enabled: true)
+        settings.bands[5] = 6
+
+        engine.apply(settings: settings)
+        let at48k = try XCTUnwrap(publisher.readForTesting())
+        sampleRateProvider.setActiveSampleRate(44_100)
+        let at44k = try XCTUnwrap(publisher.readForTesting())
+
+        let expectedAt44k = EQCoefficientFrame.build(
+            settings: settings,
+            sampleRateHz: 44_100
+        )
+        XCTAssertEqual(at44k.sampleRateHz, 44_100)
+        XCTAssertEqual(at44k.bands, expectedAt44k.bands)
+        XCTAssertNotEqual(at44k.bands, at48k.bands)
     }
 
     // MARK: - Helpers

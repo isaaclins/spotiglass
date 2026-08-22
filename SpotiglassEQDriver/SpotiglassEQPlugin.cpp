@@ -38,6 +38,7 @@
 #include <mach/mach_time.h>
 #include <math.h>
 #include <pthread.h>
+#include <sched.h>
 #include <stdio.h>
 #include <unistd.h>
 
@@ -79,7 +80,7 @@ struct PluginState {
     EQDSPState dsp{};
     EQCoefficientReader* coeffReader = nullptr;
     EQCoefficientFrame lastFrame{};
-    Float64 currentSampleRate = 48000.0;
+    std::atomic<UInt32> currentSampleRateHz{48'000};
     // Whether StartIO has been called and StopIO has not yet been. This is
     // what kAudioDevicePropertyDeviceIsRunning must reflect. Keeping it
     // separate from `coeffReader` (which is null when the publisher file
@@ -96,9 +97,15 @@ struct PluginState {
     // Forwards EQ-processed audio out to the real hardware output that was
     // active before the user routed default-output to Spotiglass EQ. Without
     // this, audio routed to our virtual device would have nowhere to go.
-    // Lazily opened on StartIO; closed on StopIO. NEVER opens an input
-    // IOProc — output-scope only, no microphone path.
-    EQRouter* router = nullptr;
+    // Lazily opened on StartIO; closed after a retired router has no users.
+    // NEVER opens an input IOProc, output scope only, no microphone path.
+    EQRouterLifetime routerLifetime;
+
+    // DoIOOperation and StopIO share this gate so the coefficient reader is
+    // not unmapped while a render callback still has it in use. The callback
+    // only performs lock-free atomic operations on this gate.
+    std::atomic<bool> ioAccepting{false};
+    std::atomic<uint32_t> ioUsers{0};
 
     // Last scalar (0..1) the OS / user set on the master volume control.
     // The control mirrors-through to the EQRouter target device's
@@ -117,6 +124,63 @@ struct PluginState {
 };
 
 PluginState gPlugin;
+
+class RouterLease final {
+public:
+    RouterLease() noexcept : router_(gPlugin.routerLifetime.acquire()) {}
+
+    ~RouterLease() {
+        if (router_) gPlugin.routerLifetime.release();
+    }
+
+    RouterLease(const RouterLease&) = delete;
+    RouterLease& operator=(const RouterLease&) = delete;
+
+    explicit operator bool() const noexcept { return router_ != nullptr; }
+    EQRouter* get() const noexcept { return router_; }
+
+private:
+    EQRouter* router_;
+};
+
+class IOLease final {
+public:
+    IOLease() noexcept : active_(false) {
+        gPlugin.ioUsers.fetch_add(1, std::memory_order_seq_cst);
+        if (gPlugin.ioAccepting.load(std::memory_order_seq_cst)) {
+            active_ = true;
+        } else {
+            gPlugin.ioUsers.fetch_sub(1, std::memory_order_seq_cst);
+        }
+    }
+
+    ~IOLease() {
+        if (active_) gPlugin.ioUsers.fetch_sub(1, std::memory_order_seq_cst);
+    }
+
+    IOLease(const IOLease&) = delete;
+    IOLease& operator=(const IOLease&) = delete;
+
+    explicit operator bool() const noexcept { return active_; }
+
+private:
+    bool active_;
+};
+
+void WaitForIOUsers() noexcept {
+    while (gPlugin.ioUsers.load(std::memory_order_seq_cst) != 0) {
+        sched_yield();
+    }
+}
+
+void PublishRouter(EQRouter* replacement) {
+    EQRouter* prior = gPlugin.routerLifetime.swap(replacement);
+    if (!prior) return;
+    // This wait is deliberately outside DoIOOperation. The realtime callback
+    // only increments/decrements the lease counter and never waits.
+    gPlugin.routerLifetime.waitForUsers();
+    EQRouter_Close(prior);
+}
 
 // MARK: - Volume control math + target-device mirroring
 
@@ -279,48 +343,40 @@ OSStatus DoIOOperation(AudioServerPlugInDriverRef /*self*/,
     if (operationID != kAudioServerPlugInIOOperationWriteMix) return noErr;
     if (!ioMainBuffer || ioBufferFrameSize == 0) return noErr;
 
+    IOLease ioLease;
+    if (!ioLease) return noErr;
+
     EQCoefficientFrame freshFrame;
     const int snapshotStatus = EQCoefficientReader_Snapshot(
         gPlugin.coeffReader, &freshFrame
     );
     // 0 = success, 1 = torn read (use cached), 2 = no reader
-#if defined(SPOTIGLASS_EQ_DEBUG)
-    // Periodic diagnostic — every 200 IO cycles (~2s @ 96-frame cycles)
-    // dump snapshot status + first band coefficient so we can see whether
-    // the driver is actually reading new coefficient frames.
-    static UInt32 ioCycleCounter = 0;
-    if ((ioCycleCounter++ % 200) == 0) {
-        FILE* log = fopen("/tmp/com.isaaclins.spotiglass.eq.router.log", "a");
-        if (log) {
-            fprintf(log,
-                "DoIO[%u]: snapStatus=%d preamp=%.3f band[0..3]=%.4f,%.4f,%.4f,%.4f rate=%u mask=0x%x frames=%u\n",
-                ioCycleCounter,
-                snapshotStatus,
-                (double)freshFrame.preampLinear,
-                (double)freshFrame.bandCoeffs[0],
-                (double)freshFrame.bandCoeffs[1],
-                (double)freshFrame.bandCoeffs[2],
-                (double)freshFrame.bandCoeffs[3],
-                (unsigned)freshFrame.sampleRateHz,
-                (unsigned)freshFrame.enabledMask,
-                (unsigned)ioBufferFrameSize);
-            fclose(log);
-        }
-    }
-#endif
-    EQDSP_Apply(
-        &gPlugin.dsp,
-        snapshotStatus == 0 ? &freshFrame : nullptr,
-        static_cast<float*>(ioMainBuffer),
-        ioBufferFrameSize
+    const UInt32 expectedRate = gPlugin.currentSampleRateHz.load(
+        std::memory_order_acquire
     );
+    const UInt32 frameRate = snapshotStatus == 0
+        ? freshFrame.sampleRateHz
+        : (gPlugin.dsp.hasCached ? gPlugin.dsp.cachedFrame.sampleRateHz : expectedRate);
+    if (frameRate == expectedRate) {
+        EQDSP_Apply(
+            &gPlugin.dsp,
+            snapshotStatus == 0 ? &freshFrame : nullptr,
+            static_cast<float*>(ioMainBuffer),
+            ioBufferFrameSize
+        );
+    } else {
+        // Do not run a cached old-rate filter while the GUI frame catches up.
+        // Leaving this cycle unfiltered is safer than shifting every band.
+        EQDSP_Reset(&gPlugin.dsp);
+    }
     // Forward the post-EQ stereo buffer to the previous real default output
     // so the user actually hears the result. EQRouter_Push is lock-free and
     // drops oldest frames if the consumer's IOProc falls behind, so it's
     // safe to call from this realtime callback.
-    if (gPlugin.router) {
+    RouterLease routerLease;
+    if (routerLease) {
         EQRouter_Push(
-            gPlugin.router,
+            routerLease.get(),
             static_cast<const float*>(ioMainBuffer),
             ioBufferFrameSize
         );
@@ -339,10 +395,9 @@ ULONG AddRef(void* /*self*/) { return 1; }
 ULONG Release(void* /*self*/) { return 1; }
 
 // Watcher thread: every 500ms, reads the forwarding target file and, if the
-// UID differs from the router currently in gPlugin.router, opens a new
-// router on the new device and atomically swaps. This lets the Settings UI
-// switch where EQ'd audio goes (e.g., from speakers to headphones) without
-// requiring the user to toggle EQ off and back on.
+// UID differs from the current router, opens a new router and atomically
+// publishes it. This lets the Settings UI switch where EQ'd audio goes
+// without requiring the user to toggle EQ off and back on.
 void* TargetWatcherMain(void* /*unused*/) {
     while (true) {
         struct timespec ts = {0, 500 * 1000 * 1000}; // 500ms
@@ -359,24 +414,25 @@ void* TargetWatcherMain(void* /*unused*/) {
         }
         if (len == 0) continue;
 
-        pthread_mutex_lock(&gPlugin.stateLock);
-        EQRouter* current = gPlugin.router;
-        const char* current_uid = current ? EQRouter_TargetUID(current) : "";
-        bool same = (strcmp(current_uid, new_uid) == 0);
-        pthread_mutex_unlock(&gPlugin.stateLock);
-        if (same) continue;
+        char current_uid[256] = {0};
+        {
+            RouterLease current;
+            if (current) {
+                strncpy(
+                    current_uid,
+                    EQRouter_TargetUID(current.get()),
+                    sizeof(current_uid) - 1
+                );
+            }
+        }
+        if (strcmp(current_uid, new_uid) == 0) continue;
 
-        // Target changed. Open a fresh router on the new device, then
-        // atomically swap pointers and close the old one. Doing the open
-        // BEFORE acquiring the lock keeps the IO-thread `EQRouter_Push`
-        // path lock-free; only the pointer swap is briefly serialised.
+        // Open the replacement before publishing it. The exchange itself is
+        // atomic, and PublishRouter waits off the realtime path before it
+        // stops or deletes the retired router.
         EQRouter* opened = EQRouter_Open(new_uid);
         if (!opened) continue;
-        pthread_mutex_lock(&gPlugin.stateLock);
-        EQRouter* prior = gPlugin.router;
-        gPlugin.router = opened;
-        pthread_mutex_unlock(&gPlugin.stateLock);
-        if (prior) EQRouter_Close(prior);
+        PublishRouter(opened);
     }
     return nullptr;
 }
@@ -397,7 +453,9 @@ void* VolumeMirrorMain(void* /*unused*/) {
         struct timespec ts = {0, 150 * 1000 * 1000}; // 150ms
         nanosleep(&ts, nullptr);
 
-        const AudioObjectID target = EQRouter_TargetDevice(gPlugin.router);
+        RouterLease routerLease;
+        if (!routerLease) continue;
+        const AudioObjectID target = EQRouter_TargetDevice(routerLease.get());
         if (target == kAudioObjectUnknown) continue;
 
         AudioObjectPropertyAddress addr = {
@@ -506,13 +564,14 @@ OSStatus StartIO(AudioServerPlugInDriverRef /*self*/,
     }
     EQDSP_Reset(&gPlugin.dsp);
     gPlugin.ioRunning = true;
+    gPlugin.ioAccepting.store(true, std::memory_order_seq_cst);
     gPlugin.ioStartHostTime = mach_absolute_time();
     gPlugin.ioStartSeed++;
 
     // Snapshot whether the router still needs opening, then release the
-    // state lock BEFORE the call out (held locks across calls back into
-    // coreaudiod deadlock). EQRouter is currently disabled (see below).
-    bool need_open_router = (gPlugin.router == nullptr);
+    // state lock before the call out. Calls back into coreaudiod while holding
+    // this lock can deadlock the daemon.
+    bool need_open_router = !gPlugin.routerLifetime.hasRouter();
     pthread_mutex_unlock(&gPlugin.stateLock);
 
     if (need_open_router) {
@@ -545,14 +604,7 @@ OSStatus StartIO(AudioServerPlugInDriverRef /*self*/,
                                if (len == 0) return nullptr;
                                EQRouter* opened = EQRouter_Open(uid);
                                if (!opened) return nullptr;
-                               pthread_mutex_lock(&gPlugin.stateLock);
-                               if (!gPlugin.router) {
-                                   gPlugin.router = opened;
-                                   pthread_mutex_unlock(&gPlugin.stateLock);
-                               } else {
-                                   pthread_mutex_unlock(&gPlugin.stateLock);
-                                   EQRouter_Close(opened);
-                               }
+                               PublishRouter(opened);
                                return nullptr;
                            },
                            nullptr) == 0) {
@@ -565,6 +617,9 @@ OSStatus StartIO(AudioServerPlugInDriverRef /*self*/,
 OSStatus StopIO(AudioServerPlugInDriverRef /*self*/,
                 AudioObjectID /*deviceID*/,
                 UInt32 /*clientID*/) {
+    gPlugin.ioAccepting.store(false, std::memory_order_seq_cst);
+    WaitForIOUsers();
+
     pthread_mutex_lock(&gPlugin.stateLock);
     gPlugin.ioRunning = false;
     if (gPlugin.coeffReader) {
@@ -627,8 +682,14 @@ OSStatus PerformDeviceConfigurationChange(AudioServerPlugInDriverRef /*self*/,
                                           AudioObjectID /*deviceID*/, UInt64 changeAction,
                                           void* /*info*/) {
     pthread_mutex_lock(&gPlugin.stateLock);
-    gPlugin.currentSampleRate = static_cast<Float64>(changeAction);
+    gPlugin.ioAccepting.store(false, std::memory_order_seq_cst);
+    WaitForIOUsers();
+    gPlugin.currentSampleRateHz.store(
+        static_cast<UInt32>(changeAction),
+        std::memory_order_release
+    );
     EQDSP_Reset(&gPlugin.dsp); // clear z1/z2 history across rate change
+    gPlugin.ioAccepting.store(gPlugin.ioRunning, std::memory_order_seq_cst);
     pthread_mutex_unlock(&gPlugin.stateLock);
     return noErr;
 }
@@ -954,7 +1015,9 @@ OSStatus GetPropertyData(AudioServerPlugInDriverRef self, AudioObjectID objectID
             case kAudioDevicePropertySafetyOffset:                   return putUInt32(0);
             case kAudioDevicePropertyNominalSampleRate: {
                 if (inSize < sizeof(Float64)) return kAudioHardwareBadPropertySizeError;
-                *static_cast<Float64*>(outData) = gPlugin.currentSampleRate;
+                *static_cast<Float64*>(outData) = static_cast<Float64>(
+                    gPlugin.currentSampleRateHz.load(std::memory_order_acquire)
+                );
                 *outDataSize = sizeof(Float64);
                 return noErr;
             }
@@ -970,7 +1033,8 @@ OSStatus GetPropertyData(AudioServerPlugInDriverRef self, AudioObjectID objectID
                 return noErr;
             }
             case kAudioDevicePropertyIsHidden:               return putUInt32(0);
-            case kAudioDevicePropertyZeroTimeStampPeriod:    return putUInt32(static_cast<UInt32>(gPlugin.currentSampleRate));
+            case kAudioDevicePropertyZeroTimeStampPeriod:
+                return putUInt32(gPlugin.currentSampleRateHz.load(std::memory_order_acquire));
             case kAudioDevicePropertyPreferredChannelsForStereo: {
                 if (inSize < 2 * sizeof(UInt32)) return kAudioHardwareBadPropertySizeError;
                 UInt32* out = static_cast<UInt32*>(outData);
@@ -994,8 +1058,9 @@ OSStatus GetPropertyData(AudioServerPlugInDriverRef self, AudioObjectID objectID
             case kAudioStreamPropertyVirtualFormat:
             case kAudioStreamPropertyPhysicalFormat: {
                 if (inSize < sizeof(AudioStreamBasicDescription)) return kAudioHardwareBadPropertySizeError;
-                *static_cast<AudioStreamBasicDescription*>(outData) =
-                    MakeStreamFormat(gPlugin.currentSampleRate);
+                *static_cast<AudioStreamBasicDescription*>(outData) = MakeStreamFormat(
+                    static_cast<Float64>(gPlugin.currentSampleRateHz.load(std::memory_order_acquire))
+                );
                 *outDataSize = sizeof(AudioStreamBasicDescription);
                 return noErr;
             }
@@ -1088,7 +1153,10 @@ OSStatus SetPropertyData(AudioServerPlugInDriverRef self, AudioObjectID objectID
         }
         if (!ok) return kAudioHardwareIllegalOperationError;
         pthread_mutex_lock(&gPlugin.stateLock);
-        gPlugin.currentSampleRate = newRate;
+        gPlugin.currentSampleRateHz.store(
+            static_cast<UInt32>(newRate),
+            std::memory_order_release
+        );
         pthread_mutex_unlock(&gPlugin.stateLock);
         return noErr;
     }
@@ -1152,7 +1220,9 @@ OSStatus GetZeroTimeStamp(AudioServerPlugInDriverRef /*self*/, AudioObjectID /*d
     pthread_mutex_lock(&gPlugin.stateLock);
     const UInt64 anchor = gPlugin.ioStartHostTime ? gPlugin.ioStartHostTime : now;
     const UInt64 seed = gPlugin.ioStartSeed;
-    const Float64 rate = gPlugin.currentSampleRate;
+    const Float64 rate = static_cast<Float64>(
+        gPlugin.currentSampleRateHz.load(std::memory_order_acquire)
+    );
     pthread_mutex_unlock(&gPlugin.stateLock);
     // Convert (now - anchor) mach ticks to nanoseconds to samples.
     const UInt64 elapsed_ticks = (now >= anchor) ? (now - anchor) : 0;

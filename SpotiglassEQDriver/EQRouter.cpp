@@ -28,6 +28,7 @@
 #include <cstdio>
 #include <cstring>
 #include <new>
+#include <sched.h>
 
 // Diagnostic log path used during bring-up. Writes from inside coreaudiod
 // otherwise vanish into the audio-driver subsystem; a flat file is the
@@ -62,12 +63,6 @@ struct Ring {
     float buffer[kRingFrames * kChannels];
     std::atomic<size_t> read_pos{0};
     std::atomic<size_t> write_pos{0};
-    // OutputCallback-only counters; the target device's IO thread is the
-    // single reader/writer of these. Used by the diagnostic log to surface
-    // underruns when downstream (e.g. Bluetooth) drains the ring faster than
-    // DoIOOperation can fill it.
-    uint64_t cb_count = 0;
-    uint64_t underrun_total = 0;
 };
 
 AudioObjectID FindDeviceByUID(const char* uid) {
@@ -97,6 +92,81 @@ AudioObjectID FindDeviceByUID(const char* uid) {
     return (status == noErr) ? deviceID : kAudioObjectUnknown;
 }
 
+bool SupportsFloat32StereoOutput(AudioObjectID device) {
+    AudioObjectPropertyAddress address = {
+        kAudioDevicePropertyStreamFormat,
+        kAudioObjectPropertyScopeOutput,
+        kAudioObjectPropertyElementMain
+    };
+    AudioStreamBasicDescription format = {};
+    UInt32 size = sizeof(format);
+    const OSStatus status = AudioObjectGetPropertyData(
+        device, &address, 0, nullptr, &size, &format
+    );
+    if (status != noErr || size != sizeof(format)) return false;
+    if (format.mFormatID != kAudioFormatLinearPCM ||
+        (format.mFormatFlags & kAudioFormatFlagIsFloat) == 0 ||
+        (format.mFormatFlags & kAudioFormatFlagIsPacked) == 0 ||
+        format.mBitsPerChannel != 32 || format.mChannelsPerFrame != kChannels) {
+        return false;
+    }
+    const bool non_interleaved =
+        (format.mFormatFlags & kAudioFormatFlagIsNonInterleaved) != 0;
+    const UInt32 bytes_per_frame = non_interleaved
+        ? sizeof(Float32)
+        : sizeof(Float32) * kChannels;
+    return format.mBytesPerFrame == bytes_per_frame &&
+        format.mBytesPerPacket == bytes_per_frame && format.mFramesPerPacket == 1;
+}
+
+bool OutputFrameCount(const AudioBufferList* output_data,
+                      EQRouterOutputLayout layout,
+                      size_t* out_frame_count) {
+    if (!output_data || !out_frame_count) return false;
+    if (layout == EQRouterOutputLayoutInterleavedStereo) {
+        const AudioBuffer& buffer = output_data->mBuffers[0];
+        if (!buffer.mData || buffer.mDataByteSize % (sizeof(float) * kChannels) != 0) {
+            return false;
+        }
+        *out_frame_count = buffer.mDataByteSize / (sizeof(float) * kChannels);
+        return true;
+    }
+    if (layout == EQRouterOutputLayoutNonInterleavedStereo) {
+        const AudioBuffer& left = output_data->mBuffers[0];
+        const AudioBuffer& right = output_data->mBuffers[1];
+        if (!left.mData || !right.mData || left.mDataByteSize % sizeof(float) != 0 ||
+            right.mDataByteSize % sizeof(float) != 0) {
+            return false;
+        }
+        const size_t left_frames = left.mDataByteSize / sizeof(float);
+        const size_t right_frames = right.mDataByteSize / sizeof(float);
+        if (left_frames != right_frames) return false;
+        *out_frame_count = left_frames;
+        return true;
+    }
+    return false;
+}
+
+void ZeroOutputFrames(AudioBufferList* output_data,
+                      EQRouterOutputLayout layout,
+                      size_t first_frame,
+                      size_t frame_count) {
+    if (layout == EQRouterOutputLayoutInterleavedStereo) {
+        float* output = static_cast<float*>(output_data->mBuffers[0].mData);
+        for (size_t frame = first_frame; frame < frame_count; ++frame) {
+            output[frame * kChannels + 0] = 0.0f;
+            output[frame * kChannels + 1] = 0.0f;
+        }
+        return;
+    }
+    float* left = static_cast<float*>(output_data->mBuffers[0].mData);
+    float* right = static_cast<float*>(output_data->mBuffers[1].mData);
+    for (size_t frame = first_frame; frame < frame_count; ++frame) {
+        left[frame] = 0.0f;
+        right[frame] = 0.0f;
+    }
+}
+
 OSStatus OutputCallback(AudioObjectID /*inDevice*/,
                         const AudioTimeStamp* /*inNow*/,
                         const AudioBufferList* /*inInputData*/,
@@ -107,50 +177,47 @@ OSStatus OutputCallback(AudioObjectID /*inDevice*/,
     Ring* ring = static_cast<Ring*>(inClientData);
     if (!ring || !outOutputData) return noErr;
 
-    ring->cb_count++;
-    const bool should_log = (ring->cb_count == 1) || (ring->cb_count % 50 == 0);
+    const EQRouterOutputLayout layout = EQRouter_ClassifyOutputLayout(outOutputData);
+    if (layout == EQRouterOutputLayoutUnsupported) {
+        return kAudioHardwareUnsupportedOperationError;
+    }
+    size_t frame_count = 0;
+    if (!OutputFrameCount(outOutputData, layout, &frame_count)) {
+        return kAudioHardwareUnsupportedOperationError;
+    }
+    if (frame_count == 0) return noErr;
 
-    for (UInt32 b = 0; b < outOutputData->mNumberBuffers; ++b) {
-        AudioBuffer& buf = outOutputData->mBuffers[b];
-        if (!buf.mData) continue;
-        float* out = static_cast<float*>(buf.mData);
-        UInt32 channels = buf.mNumberChannels;
-        if (channels == 0) continue;
-        UInt32 frames = buf.mDataByteSize / (sizeof(float) * channels);
-
-        const size_t write_pos = ring->write_pos.load(std::memory_order_acquire);
-        size_t read_pos = ring->read_pos.load(std::memory_order_relaxed);
-        const size_t avail = (write_pos >= read_pos) ? (write_pos - read_pos) : 0;
-        UInt32 to_copy = static_cast<UInt32>(avail < frames ? avail : frames);
-
-        for (UInt32 i = 0; i < to_copy; ++i) {
-            const size_t idx = (read_pos + i) % kRingFrames;
-            const float L = ring->buffer[idx * kChannels + 0];
-            const float R = ring->buffer[idx * kChannels + 1];
-            if (channels >= 2) {
-                out[i * channels + 0] = L;
-                out[i * channels + 1] = R;
-                for (UInt32 c = 2; c < channels; ++c) out[i * channels + c] = 0.0f;
-            } else {
-                out[i * channels + 0] = 0.5f * (L + R);
-            }
+    const size_t write_pos = ring->write_pos.load(std::memory_order_acquire);
+    const size_t read_pos = ring->read_pos.load(std::memory_order_relaxed);
+    const size_t avail = (write_pos >= read_pos) ? (write_pos - read_pos) : 0;
+    const size_t to_copy = avail < frame_count ? avail : frame_count;
+    if (to_copy > 0) {
+        const size_t first_index = read_pos % kRingFrames;
+        const size_t first_count =
+            (to_copy < kRingFrames - first_index) ? to_copy : kRingFrames - first_index;
+        if (EQRouter_WriteFrames(
+                ring->buffer + first_index * kChannels,
+                first_count,
+                outOutputData,
+                0
+            ) != 0) {
+            return kAudioHardwareUnsupportedOperationError;
         }
-        for (UInt32 i = to_copy; i < frames; ++i) {
-            for (UInt32 c = 0; c < channels; ++c) {
-                out[i * channels + c] = 0.0f;
-            }
-        }
-        ring->read_pos.store(read_pos + to_copy, std::memory_order_release);
-
-        const UInt32 underrun = frames - to_copy;
-        ring->underrun_total += underrun;
-        if (should_log) {
-            EQR_log("OutputCB[%llu] buf=%u ch=%u req=%u avail=%zu copied=%u underrun=%u underrun_total=%llu",
-                    (unsigned long long)ring->cb_count, (unsigned)b, (unsigned)channels,
-                    (unsigned)frames, avail, (unsigned)to_copy,
-                    (unsigned)underrun, (unsigned long long)ring->underrun_total);
+        if (first_count < to_copy && EQRouter_WriteFrames(
+                ring->buffer,
+                to_copy - first_count,
+                outOutputData,
+                first_count
+            ) != 0) {
+            return kAudioHardwareUnsupportedOperationError;
         }
     }
+    if (to_copy < frame_count) {
+        ZeroOutputFrames(outOutputData, layout, to_copy, frame_count);
+    }
+    // The whole output cycle consumed one frame range, regardless of whether
+    // CoreAudio represented its two channels as one or two buffers.
+    ring->read_pos.store(read_pos + to_copy, std::memory_order_release);
     return noErr;
 }
 
@@ -167,7 +234,100 @@ struct EQRouter {
     char target_uid[256] = {0};
 };
 
+EQRouterLifetime::EQRouterLifetime(EQRouter* initial) noexcept
+    : router_(initial), users_(0) {}
+
+EQRouter* EQRouterLifetime::acquire() noexcept {
+    users_.fetch_add(1, std::memory_order_seq_cst);
+    EQRouter* current = router_.load(std::memory_order_seq_cst);
+    if (!current) {
+        release();
+    }
+    return current;
+}
+
+void EQRouterLifetime::release() noexcept {
+    users_.fetch_sub(1, std::memory_order_seq_cst);
+}
+
+EQRouter* EQRouterLifetime::swap(EQRouter* replacement) noexcept {
+    return router_.exchange(replacement, std::memory_order_seq_cst);
+}
+
+bool EQRouterLifetime::hasRouter() const noexcept {
+    return router_.load(std::memory_order_seq_cst) != nullptr;
+}
+
+void EQRouterLifetime::waitForUsers() noexcept {
+    while (users_.load(std::memory_order_seq_cst) != 0) {
+        sched_yield();
+    }
+}
+
 extern "C" {
+
+EQRouterOutputLayout EQRouter_ClassifyOutputLayout(const AudioBufferList* output_data) {
+    if (!output_data) return EQRouterOutputLayoutUnsupported;
+    if (output_data->mNumberBuffers == 1 &&
+        output_data->mBuffers[0].mNumberChannels == kChannels) {
+        return EQRouterOutputLayoutInterleavedStereo;
+    }
+    if (output_data->mNumberBuffers == kChannels &&
+        output_data->mBuffers[0].mNumberChannels == 1 &&
+        output_data->mBuffers[1].mNumberChannels == 1) {
+        return EQRouterOutputLayoutNonInterleavedStereo;
+    }
+    return EQRouterOutputLayoutUnsupported;
+}
+
+int EQRouter_WriteFrames(const float* frames,
+                         size_t frame_count,
+                         AudioBufferList* output_data,
+                         size_t output_frame_offset) {
+    if (!frames || !output_data || frame_count == 0) return 1;
+    const EQRouterOutputLayout layout = EQRouter_ClassifyOutputLayout(output_data);
+    if (layout == EQRouterOutputLayoutUnsupported) return 1;
+
+    if (layout == EQRouterOutputLayoutInterleavedStereo) {
+        AudioBuffer& buffer = output_data->mBuffers[0];
+        if (!buffer.mData || buffer.mDataByteSize % (sizeof(float) * kChannels) != 0) {
+            return 1;
+        }
+        const size_t capacity = buffer.mDataByteSize / (sizeof(float) * kChannels);
+        if (output_frame_offset > capacity || frame_count > capacity - output_frame_offset) {
+            return 1;
+        }
+        float* output = static_cast<float*>(buffer.mData);
+        for (size_t frame = 0; frame < frame_count; ++frame) {
+            const size_t destination = (output_frame_offset + frame) * kChannels;
+            output[destination + 0] = frames[frame * kChannels + 0];
+            output[destination + 1] = frames[frame * kChannels + 1];
+        }
+        return 0;
+    }
+
+    AudioBuffer& leftBuffer = output_data->mBuffers[0];
+    AudioBuffer& rightBuffer = output_data->mBuffers[1];
+    if (!leftBuffer.mData || !rightBuffer.mData ||
+        leftBuffer.mDataByteSize % sizeof(float) != 0 ||
+        rightBuffer.mDataByteSize % sizeof(float) != 0) {
+        return 1;
+    }
+    const size_t leftCapacity = leftBuffer.mDataByteSize / sizeof(float);
+    const size_t rightCapacity = rightBuffer.mDataByteSize / sizeof(float);
+    if (leftCapacity != rightCapacity || output_frame_offset > leftCapacity ||
+        frame_count > leftCapacity - output_frame_offset) {
+        return 1;
+    }
+    float* left = static_cast<float*>(leftBuffer.mData);
+    float* right = static_cast<float*>(rightBuffer.mData);
+    for (size_t frame = 0; frame < frame_count; ++frame) {
+        const size_t destination = output_frame_offset + frame;
+        left[destination] = frames[frame * kChannels + 0];
+        right[destination] = frames[frame * kChannels + 1];
+    }
+    return 0;
+}
 
 EQRouter* EQRouter_Open(const char* target_uid) {
     EQR_log("EQRouter_Open: target_uid=%s", target_uid ? target_uid : "(null)");
@@ -175,6 +335,10 @@ EQRouter* EQRouter_Open(const char* target_uid) {
     EQR_log("  FindDeviceByUID → AudioObjectID=%u", device);
     if (device == kAudioObjectUnknown) {
         EQR_log("  FAIL: device not found for UID");
+        return nullptr;
+    }
+    if (!SupportsFloat32StereoOutput(device)) {
+        EQR_log("  FAIL: target is not packed Float32 stereo");
         return nullptr;
     }
 
