@@ -217,6 +217,55 @@ final class ImmersiveLyricsViewModelTests: XCTestCase {
         XCTAssertTrue(message.contains("No lyrics"))
     }
 
+    // MARK: - Failure backoff classification
+    //
+    // A server outage must not be treated like a missing lyric, so the class of
+    // failure decides how long the track is suppressed for.
+
+    private func backoffClass(
+        after failure: LrcLibClient.Failure,
+        trackID: String
+    ) async throws -> LyricsDiskCache.TrackBackoffMetadata {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SpotiglassLyricsBackoff-\(UUID().uuidString)")
+        let disk = try LyricsDiskCache(directory: dir)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let vm = ImmersiveLyricsViewModel(fetchLyrics: { _ in throw failure }, diskCache: disk)
+
+        await vm.load(track: sampleTrack(spotifyID: trackID))
+
+        return try XCTUnwrap(
+            disk.loadTrackBackoffMetadata(spotifyTrackID: trackID),
+            "A failed load should record backoff metadata."
+        )
+    }
+
+    func testServerErrorBacksOffAsTransient() async throws {
+        let metadata = try await backoffClass(after: .http(503), trackID: "backoff-5xx")
+        XCTAssertEqual(metadata.failureClass, .transient, "A 5xx is the server's problem and should be retried.")
+        XCTAssertEqual(metadata.failureCount, 1)
+    }
+
+    func testClientErrorBacksOffAsPermanent() async throws {
+        let metadata = try await backoffClass(after: .http(404), trackID: "backoff-4xx")
+        XCTAssertEqual(metadata.failureClass, .permanent, "A 4xx will not change by retrying soon.")
+    }
+
+    func testRateLimitBacksOffAsRateLimited() async throws {
+        let metadata = try await backoffClass(after: .rateLimited(retryAfter: 30), trackID: "backoff-429")
+        XCTAssertEqual(metadata.failureClass, .rateLimited)
+        XCTAssertGreaterThan(
+            metadata.nextEligibleFetchAt.timeIntervalSinceNow,
+            0,
+            "A rate limit must hold the track back until the cooldown passes."
+        )
+    }
+
+    func testInvalidURLBacksOffAsPermanent() async throws {
+        let metadata = try await backoffClass(after: .invalidURL, trackID: "backoff-url")
+        XCTAssertEqual(metadata.failureClass, .permanent)
+    }
+
     func testNoLyricsCooldownPersistsToDiskAndSuppressesRefetch() async throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("SpotiglassLyricsMissTests-\(UUID().uuidString)")
         let disk = try LyricsDiskCache(directory: dir)
