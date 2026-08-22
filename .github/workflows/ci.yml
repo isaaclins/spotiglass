@@ -130,6 +130,21 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             test
 
+      - name: Build audio driver
+        # The HAL driver is built with clang rather than Xcode, so nothing in
+        # the Swift build covers it and CI used to accept C++ that did not
+        # compile. Ad-hoc signing is enough to prove it builds; installing it
+        # would need a Developer ID and is never done here.
+        run: ./SpotiglassEQDriver/build-driver.sh
+
+      - name: Driver unit tests
+        # Covers output-layout handling and the router lifetime guard. Both
+        # fail silently in production (collapsed stereo, or a router closed
+        # while a render callback still holds it), so they are worth testing
+        # even though the driver has no Xcode test target. Touches no audio
+        # hardware: EQRouter_Open is never called.
+        run: ./SpotiglassEQDriver/run-driver-tests.sh
+
       - name: Dead-code scan
         # `make scan` existed for a long time and CI never ran it, so dead
         # declarations were found by hand instead. Gates on new findings only;
