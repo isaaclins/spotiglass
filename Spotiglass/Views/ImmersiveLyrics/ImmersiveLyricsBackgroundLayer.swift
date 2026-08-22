@@ -42,16 +42,24 @@ struct ImmersiveBlurredArtwork: View {
     /// After optional downscale, this is the raster size SwiftUI blurs (not window size).
     private let blurredTileSize: CGFloat = 1_024
     private let blurRadius: CGFloat = 24
-    /// One-time shrink before `blur` so the filter runs on fewer pixels.
-    private let downscaleMaxEdge: CGFloat = 576
+    @StateObject private var artworkLoader: ArtworkImageLoader
 
-    @State private var image: NSImage?
+    init(url: URL) {
+        self.url = url
+        _artworkLoader = StateObject(
+            wrappedValue: ArtworkImageLoader(
+                imageTransformer: { image in
+                    Self.downscaledForBlur(image, maxEdge: 576)
+                }
+            )
+        )
+    }
 
     var body: some View {
         GeometryReader { geo in
             let size = geo.size
             ZStack {
-                if let image {
+                if let image = artworkLoader.image {
                     // Blur is computed on a fixed tile, then scaled up to **aspect-fill** the window.
                     // Without this, a ~1024pt tile centered in an ultrawide/tall window leaves black gutters;
                     // scaling mirrors “stretching” the artwork into the sides instead of empty black.
@@ -75,11 +83,7 @@ struct ImmersiveBlurredArtwork: View {
             .clipped()
         }
         .task(id: url.absoluteString) {
-            guard let full = await ArtworkImageStore.shared.image(for: url) else {
-                image = nil
-                return
-            }
-            image = Self.downscaledForBlur(full, maxEdge: downscaleMaxEdge)
+            await artworkLoader.load(for: url)
         }
     }
 

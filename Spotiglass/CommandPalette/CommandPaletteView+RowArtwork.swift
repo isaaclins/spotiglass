@@ -7,13 +7,13 @@ struct CommandPaletteArtistAvatar: View {
     private let diameter: CGFloat = 28
 
     @Environment(\.colorScheme) private var colorScheme
-    @State private var loadedImage: NSImage?
+    @StateObject private var artworkLoader = ArtworkImageLoader()
 
     var body: some View {
         ZStack {
             Circle()
                 .fill(Color.secondary.opacity(0.12))
-            if let loadedImage {
+            if let loadedImage = artworkLoader.image {
                 Image(nsImage: loadedImage)
                     .resizable()
                     .scaledToFill()
@@ -30,11 +30,7 @@ struct CommandPaletteArtistAvatar: View {
                 .strokeBorder(SpotiglassDesign.artworkBorderColor(colorScheme: colorScheme), lineWidth: 1)
         }
         .task(id: imageURL?.absoluteString ?? "") {
-            guard let imageURL else {
-                loadedImage = nil
-                return
-            }
-            loadedImage = await ArtworkImageStore.shared.image(for: imageURL)
+            await artworkLoader.load(for: imageURL)
         }
     }
 }
@@ -48,13 +44,13 @@ struct CommandPaletteTrackArtwork: View {
     private let side: CGFloat = 28
 
     @Environment(\.colorScheme) private var colorScheme
-    @State private var loadedImage: NSImage?
+    @StateObject private var artworkLoader = ArtworkImageLoader()
 
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
                 .fill(Color.secondary.opacity(0.12))
-            if let loadedImage {
+            if let loadedImage = artworkLoader.image {
                 Image(nsImage: loadedImage)
                     .resizable()
                     .scaledToFill()
@@ -71,7 +67,7 @@ struct CommandPaletteTrackArtwork: View {
                 .strokeBorder(SpotiglassDesign.artworkBorderColor(colorScheme: colorScheme), lineWidth: 1)
         }
         .task(id: imageURL.absoluteString) {
-            loadedImage = await ArtworkImageStore.shared.image(for: imageURL)
+            await artworkLoader.load(for: imageURL)
         }
     }
 }

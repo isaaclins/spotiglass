@@ -184,6 +184,98 @@ final class ArtworkImageStoreTests: XCTestCase {
         let image = await store.image(for: URL(string: "https://example.com/missing.png")!)
         XCTAssertNil(image)
     }
+
+    @MainActor
+    func testLoaderIgnoresCompletionForPreviousURL() async {
+        let firstURL = URL(string: "https://example.com/first.png")!
+        let secondURL = URL(string: "https://example.com/second.png")!
+        let firstImage = NSImage(size: NSSize(width: 1, height: 1))
+        let secondImage = NSImage(size: NSSize(width: 2, height: 2))
+        let firstGate = ArtworkImageTestGate()
+        let secondGate = ArtworkImageTestGate()
+        let loader = ArtworkImageLoader { url in
+            if url == firstURL {
+                return await firstGate.waitForImage()
+            }
+            return await secondGate.waitForImage()
+        }
+
+        let firstTask = Task { @MainActor in
+            await loader.load(for: firstURL)
+        }
+        await firstGate.waitUntilRequested()
+
+        let secondTask = Task { @MainActor in
+            await loader.load(for: secondURL)
+        }
+        await secondGate.waitUntilRequested()
+        XCTAssertNil(loader.image)
+
+        firstTask.cancel()
+        await firstGate.release(firstImage)
+        await firstTask.value
+        XCTAssertNil(loader.image)
+
+        await secondGate.release(secondImage)
+        await secondTask.value
+        XCTAssertTrue(loader.image === secondImage)
+    }
+
+    @MainActor
+    func testLoaderResetsFailureWhenURLChanges() async {
+        let failedURL = URL(string: "https://example.com/failed.png")!
+        let currentURL = URL(string: "https://example.com/current.png")!
+        let currentImage = NSImage(size: NSSize(width: 2, height: 2))
+        let currentGate = ArtworkImageTestGate()
+        let loader = ArtworkImageLoader { url in
+            if url == failedURL {
+                return nil
+            }
+            return await currentGate.waitForImage()
+        }
+
+        await loader.load(for: failedURL)
+        XCTAssertTrue(loader.didFail)
+
+        let currentTask = Task { @MainActor in
+            await loader.load(for: currentURL)
+        }
+        await currentGate.waitUntilRequested()
+        XCTAssertNil(loader.image)
+        XCTAssertFalse(loader.didFail)
+
+        await currentGate.release(currentImage)
+        await currentTask.value
+        XCTAssertTrue(loader.image === currentImage)
+        XCTAssertFalse(loader.didFail)
+    }
+}
+
+private actor ArtworkImageTestGate {
+    private var requested = false
+    private var requestWaiter: CheckedContinuation<Void, Never>?
+    private var responseWaiter: CheckedContinuation<NSImage?, Never>?
+
+    func waitForImage() async -> NSImage? {
+        requested = true
+        requestWaiter?.resume()
+        requestWaiter = nil
+        return await withCheckedContinuation { continuation in
+            responseWaiter = continuation
+        }
+    }
+
+    func waitUntilRequested() async {
+        guard !requested else { return }
+        await withCheckedContinuation { continuation in
+            requestWaiter = continuation
+        }
+    }
+
+    func release(_ image: NSImage?) {
+        responseWaiter?.resume(returning: image)
+        responseWaiter = nil
+    }
 }
 
 private func makeDelayedArtworkURLSession(cache: URLCache) -> URLSession {

@@ -106,11 +106,11 @@ struct PinnedRowView: View {
 private struct CachedCircularArtwork: View {
     let url: URL
     let diameter: CGFloat
-    @State private var image: NSImage?
+    @StateObject private var artworkLoader = ArtworkImageLoader()
 
     var body: some View {
         Group {
-            if let image {
+            if let image = artworkLoader.image {
                 Image(nsImage: image)
                     .resizable()
                     .scaledToFill()
@@ -120,7 +120,7 @@ private struct CachedCircularArtwork: View {
         }
         .frame(width: diameter, height: diameter)
         .task(id: url.absoluteString) {
-            image = await ArtworkImageStore.shared.image(for: url)
+            await artworkLoader.load(for: url)
         }
     }
 }
@@ -224,21 +224,23 @@ private struct DragPreviewArtwork: View {
     let url: URL?
     let size: CGFloat
     @Environment(\.colorScheme) private var colorScheme
-    @State private var image: NSImage?
+    @StateObject private var artworkLoader: ArtworkImageLoader
 
     init(url: URL?, size: CGFloat) {
         self.url = url
         self.size = size
-        if let url {
-            _image = State(initialValue: ArtworkImageStore.cachedImageIfAvailable(for: url))
-        } else {
-            _image = State(initialValue: nil)
-        }
+        let initialImage = url.flatMap { ArtworkImageStore.cachedImageIfAvailable(for: $0) }
+        _artworkLoader = StateObject(
+            wrappedValue: ArtworkImageLoader(
+                initialImage: initialImage,
+                initialURL: url
+            )
+        )
     }
 
     var body: some View {
         Group {
-            if let image {
+            if let image = artworkLoader.image {
                 Image(nsImage: image)
                     .resizable()
                     .scaledToFill()
@@ -258,8 +260,7 @@ private struct DragPreviewArtwork: View {
                 .strokeBorder(SpotiglassDesign.artworkBorderColor(colorScheme: colorScheme), lineWidth: 1)
         }
         .task(id: url?.absoluteString ?? "") {
-            guard image == nil, let url else { return }
-            image = await ArtworkImageStore.shared.image(for: url)
+            await artworkLoader.load(for: url)
         }
     }
 }

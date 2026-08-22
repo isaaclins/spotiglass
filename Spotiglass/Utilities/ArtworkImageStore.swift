@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import CryptoKit
 import Foundation
 
@@ -170,5 +171,58 @@ actor ArtworkImageStore {
         urlSession = makeURLSession()
         try? FileManager.default.removeItem(at: diskDirectory)
         try? FileManager.default.createDirectory(at: diskDirectory, withIntermediateDirectories: true)
+    }
+}
+
+/// Owns the state for one artwork surface and fences asynchronous results to the
+/// URL and generation that requested them.
+@MainActor
+final class ArtworkImageLoader: ObservableObject {
+    typealias ImageProvider = @Sendable (URL) async -> NSImage?
+    typealias ImageTransformer = (NSImage) -> NSImage
+
+    @Published private(set) var image: NSImage?
+    @Published private(set) var didFail = false
+
+    private let imageProvider: ImageProvider
+    private let imageTransformer: ImageTransformer
+    private var requestedURL: URL?
+    private var generation: UInt64 = 0
+
+    init(
+        imageProvider: @escaping ImageProvider = { url in
+            await ArtworkImageStore.shared.image(for: url)
+        },
+        initialImage: NSImage? = nil,
+        initialURL: URL? = nil,
+        imageTransformer: @escaping ImageTransformer = { $0 }
+    ) {
+        self.imageProvider = imageProvider
+        self.imageTransformer = imageTransformer
+        self.image = initialImage.map(imageTransformer)
+        self.requestedURL = initialURL
+    }
+
+    func load(for url: URL?) async {
+        if requestedURL == url, image != nil {
+            return
+        }
+
+        generation &+= 1
+        let requestGeneration = generation
+        requestedURL = url
+        image = nil
+        didFail = false
+
+        guard let url else { return }
+        let loaded = await imageProvider(url)
+        guard !Task.isCancelled,
+            generation == requestGeneration,
+            requestedURL == url
+        else {
+            return
+        }
+        image = loaded.map(imageTransformer)
+        didFail = loaded == nil
     }
 }

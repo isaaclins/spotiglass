@@ -79,26 +79,25 @@ struct ArtworkPlaceholderContent: View {
 private struct CachedArtworkImage: View {
     let url: URL
     let size: CGFloat
-    @State private var image: NSImage?
-    @State private var didFail = false
+    @StateObject private var artworkLoader = ArtworkImageLoader()
 
     var body: some View {
         Group {
-            if let image {
+            if let image = artworkLoader.image {
                 Image(nsImage: image)
                     .resizable()
                     .scaledToFill()
             } else {
-                ArtworkPlaceholderContent(state: didFail ? .failed : .loading, size: size)
+                ArtworkPlaceholderContent(
+                    state: artworkLoader.didFail ? .failed : .loading,
+                    size: size
+                )
             }
         }
         .task(id: url.absoluteString) {
             // Re-entering this state resets the failure, so scrolling a row back
             // into view retries rather than leaving a permanent hole.
-            didFail = false
-            let loaded = await ArtworkImageStore.shared.image(for: url)
-            image = loaded
-            didFail = loaded == nil
+            await artworkLoader.load(for: url)
         }
     }
 }
