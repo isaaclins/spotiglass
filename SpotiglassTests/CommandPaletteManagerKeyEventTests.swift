@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import XCTest
 @testable import Spotiglass
 
@@ -133,6 +134,55 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
         let manager = CommandPaletteManager(keymapStore: keymap)
         XCTAssertTrue(manager.handleKeyEvent(command))
         XCTAssertTrue(manager.viewModel.isPresented)
+    }
+
+    func testLyricsModalOwnerDefersGlobalCommandsButLeavesEscapeAvailable() throws {
+        let focusContainer = LyricsOverlayFocusContainerView(
+            content: EmptyView(),
+            isActive: true
+        )
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 80, height: 40),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        window.isReleasedWhenClosed = false
+        window.contentView = focusContainer
+        defer {
+            focusContainer.deactivate()
+            window.makeFirstResponder(nil)
+            window.close()
+        }
+
+        XCTAssertTrue(AppKitTestSupport.makeFirstResponder(focusContainer, in: window))
+        let settings = SpotiglassSettingsStore(fileURL: makeCommandPaletteTestsTempSettingsURL())
+        let keymap = CommandPaletteKeymapStore(settingsStore: settings)
+        let manager = CommandPaletteManager(keymapStore: keymap)
+        manager.isSignedIn = true
+        try keymap.setBinding(
+            commandID: CommandPaletteCommandID.openPalette,
+            shortcut: try CommandShortcut(keystroke: "cmd-k"),
+            replaceConflicting: true
+        )
+
+        let command = keyDown(
+            keyCode: 40,
+            characters: "k",
+            modifiers: [.command],
+            windowNumber: window.windowNumber
+        )
+        XCTAssertFalse(manager.handleKeyEvent(command))
+        XCTAssertFalse(manager.viewModel.isPresented)
+
+        var dismissed = false
+        manager.dismissLyricsOverlayIfPresented = {
+            dismissed = true
+            return true
+        }
+        let escape = keyDown(keyCode: 53, windowNumber: window.windowNumber)
+        XCTAssertTrue(manager.handleKeyEvent(escape))
+        XCTAssertTrue(dismissed)
     }
 
     func testAutoRepeatDoesNotFireCommands() throws {

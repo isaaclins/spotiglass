@@ -1,6 +1,10 @@
 import SwiftUI
 
 struct ImmersiveLyricsView: View {
+    private enum FocusTarget: Hashable {
+        case close
+    }
+
     @ObservedObject var playbackViewModel: PlaybackSessionViewModel
     @ObservedObject var queueViewModel: QueueViewModel
     @ObservedObject var lyricsModel: ImmersiveLyricsViewModel
@@ -11,6 +15,9 @@ struct ImmersiveLyricsView: View {
     @EnvironmentObject private var settingsStore: SpotiglassSettingsStore
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @FocusState private var focusedControl: FocusTarget?
+    @AccessibilityFocusState private var accessibilityFocusedControl: FocusTarget?
+    @Namespace private var focusNamespace
 
     /// Soft fade at scroll top/bottom; off when legibility or calm motion is preferred.
     private var usesLyricsScrollEdgeFade: Bool {
@@ -43,6 +50,32 @@ struct ImmersiveLyricsView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .overlay(alignment: .topTrailing) {
+            Button(action: onDismiss) {
+                Label(
+                    SpotiglassL10n.string("browser.closeLyrics"),
+                    systemImage: "xmark.circle"
+                )
+            }
+            .buttonStyle(.borderless)
+            .padding(.top, ImmersiveLyricsLayout.minimumTopClearance - 8)
+            .padding(.trailing, SpotiglassDesign.spacingL)
+            .focused($focusedControl, equals: .close)
+            .accessibilityFocused($accessibilityFocusedControl, equals: .close)
+            .accessibilityDefaultFocus($accessibilityFocusedControl, .close)
+            .accessibilityHint(SpotiglassL10n.string("browser.closeLyrics.hint"))
+            .accessibilitySortPriority(100)
+        }
+        .focusScope(focusNamespace)
+        .defaultFocus($focusedControl, .close)
+        // A modal trait tells VoiceOver that this surface owns navigation;
+        // RootView separately hides the browser tree so the sidebar and
+        // playback controls cannot remain in the accessibility hierarchy.
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isModal)
+        .onAppear {
+            scheduleInitialFocus()
+        }
         .task(id: currentTrack?.uri) {
             guard let track = currentTrack else {
                 onDismiss()
@@ -54,6 +87,20 @@ struct ImmersiveLyricsView: View {
             await queuePrefetch
         }
         .onExitCommand(perform: onDismiss)
+    }
+
+    /// macOS can ignore a focus request made during the first appearance pass;
+    /// the second main-queue pass makes opening lyrics deterministic without
+    /// stealing focus again after the user starts navigating the overlay.
+    private func scheduleInitialFocus() {
+        DispatchQueue.main.async {
+            focusedControl = .close
+            accessibilityFocusedControl = .close
+            DispatchQueue.main.async {
+                focusedControl = .close
+                accessibilityFocusedControl = .close
+            }
+        }
     }
 
     private var currentTrack: PlaybackNowPlaying? {
