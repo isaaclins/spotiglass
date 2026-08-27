@@ -114,6 +114,7 @@ struct PlaylistDetailContent: View {
                             addToQueue: addToQueue,
                             openArtist: openArtist,
                             tracksSurfaceID: tracksSurfaceKey,
+                            isSelected: browserViewModel.selectedDetailTrackIDs.contains(track.id),
                             drawsRowHighlights: false,
                             isKeyboardFocusable: false,
                             trackOpsMenuItems: {

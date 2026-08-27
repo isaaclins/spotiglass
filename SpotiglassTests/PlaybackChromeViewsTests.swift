@@ -206,6 +206,73 @@ final class PlaybackChromeViewsTests: XCTestCase {
         XCTAssertNoThrow(try view.inspect().find(viewWithAccessibilityLabel: "Open artist M83"))
     }
 
+    func testPlaybackControlsKeepLyricsAndArtistActionsSeparate() throws {
+        try ViewTestHost.skipIfViewInspectorGeometryUnsupported()
+        let playback = makePlayingPlayback(artists: ["M83", "The Weeknd"])
+        let view = PlaybackControlsView(
+            viewModel: playback,
+            isLyricsPresented: .constant(false),
+            openArtist: { _ in }
+        )
+
+        ViewTestHost.host(view, size: CGSize(width: 900, height: 120))
+        XCTAssertNoThrow(try view.inspect().find(viewWithAccessibilityLabel: "Lyrics"))
+        XCTAssertNoThrow(try view.inspect().find(viewWithAccessibilityLabel: "Open lyrics"))
+        XCTAssertNoThrow(try view.inspect().find(viewWithAccessibilityLabel: "Open artist M83"))
+        XCTAssertNoThrow(try view.inspect().find(viewWithAccessibilityLabel: "Open artist The Weeknd"))
+    }
+
+    func testPlaybackArtistLineScrollPolicyDetectsOverflowAndReducedMotion() {
+        XCTAssertEqual(
+            PlaybackArtistLineScrollPolicy.maxScrollOffset(contentWidth: 200, viewportWidth: 240),
+            0
+        )
+        XCTAssertEqual(
+            PlaybackArtistLineScrollPolicy.maxScrollOffset(contentWidth: 360, viewportWidth: 240),
+            120
+        )
+        XCTAssertTrue(
+            PlaybackArtistLineScrollPolicy.shouldAutoScroll(maxScrollOffset: 120, reduceMotion: false)
+        )
+        XCTAssertFalse(
+            PlaybackArtistLineScrollPolicy.shouldAutoScroll(maxScrollOffset: 120, reduceMotion: true)
+        )
+        XCTAssertFalse(
+            PlaybackArtistLineScrollPolicy.shouldAutoScroll(maxScrollOffset: 0, reduceMotion: false)
+        )
+        XCTAssertEqual(PlaybackArtistLineScrollPolicy.duration(for: 0), 0)
+        XCTAssertEqual(
+            PlaybackArtistLineScrollPolicy.duration(for: 1),
+            SpotiglassDesign.nowPlayingArtistLineMinimumScrollDuration
+        )
+        XCTAssertGreaterThan(
+            PlaybackArtistLineScrollPolicy.duration(for: 120),
+            SpotiglassDesign.nowPlayingArtistLineMinimumScrollDuration
+        )
+    }
+
+    func testTrackRowVisualStateSeparatesSelectionFromCurrentPlayback() {
+        XCTAssertEqual(
+            TrackRowVisualState.resolve(isSelected: false, isCurrent: false),
+            .unselected
+        )
+        XCTAssertEqual(
+            TrackRowVisualState.resolve(isSelected: true, isCurrent: false),
+            .selected
+        )
+        XCTAssertEqual(
+            TrackRowVisualState.resolve(isSelected: false, isCurrent: true),
+            .current
+        )
+        XCTAssertEqual(
+            TrackRowVisualState.resolve(isSelected: true, isCurrent: true),
+            .selectedAndCurrent
+        )
+        XCTAssertFalse(TrackRowVisualState.current.showsSelectionIndicator)
+        XCTAssertTrue(TrackRowVisualState.selected.showsSelectionIndicator)
+        XCTAssertTrue(TrackRowVisualState.selectedAndCurrent.showsSelectionIndicator)
+    }
+
     func testPlaybackControlsPausedShowsPausedBadge() throws {
         let playback = makePlayingPlayback(paused: true)
         let view = PlaybackControlsView(
@@ -390,7 +457,10 @@ final class PlaybackChromeViewsTests: XCTestCase {
         ViewTestHost.assertFindLocalizedText("queue.subtitle.repeatOne", in: view)
     }
 
-    private func makePlayingPlayback(paused: Bool = false) -> PlaybackSessionViewModel {
+    private func makePlayingPlayback(
+        paused: Bool = false,
+        artists: [String] = ["M83"]
+    ) -> PlaybackSessionViewModel {
         let playback = PlaybackSessionViewModel(
             playbackAPI: MockPlaybackAPI(),
             webCommander: MockWebPlaybackCommander()
@@ -398,7 +468,7 @@ final class PlaybackChromeViewsTests: XCTestCase {
         playback.handle(.ready(deviceID: "device-1"))
         let nowPlaying = PlaybackNowPlaying(
             name: "Midnight City",
-            artists: ["M83"],
+            artists: artists,
             albumName: nil,
             albumID: nil,
             albumArtURL: nil,
