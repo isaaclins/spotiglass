@@ -142,7 +142,7 @@ jobs:
         # fail silently in production (collapsed stereo, or a router closed
         # while a render callback still holds it), so they are worth testing
         # even though the driver has no Xcode test target. Touches no audio
-        # hardware: EQRouter_OpenWithError is never called.
+        # hardware: EQRouter_Open is never called.
         run: ./SpotiglassEQDriver/run-driver-tests.sh
 
       - name: Dead-code scan
