@@ -112,6 +112,24 @@ final class EqualizerCoefficientTests: XCTestCase {
         XCTAssertEqual(frame.preampLinear, 1.0, accuracy: 1e-9)
     }
 
+    func testOutOfRangePreampUsesTheClampedModelValueInCoefficients() {
+        let upperSettings = EqualizerSettings(preamp: 100)
+        let lowerSettings = EqualizerSettings(preamp: -100)
+        let upperFrame = EQCoefficientFrame.build(settings: upperSettings, sampleRateHz: 48000)
+        let lowerFrame = EQCoefficientFrame.build(settings: lowerSettings, sampleRateHz: 48000)
+
+        XCTAssertEqual(
+            upperFrame.preampLinear,
+            Float(EQCoefficientFrame.dbToLinear(EqualizerSettings.preampRangeDB.upperBound)),
+            accuracy: 1e-6
+        )
+        XCTAssertEqual(
+            lowerFrame.preampLinear,
+            Float(EQCoefficientFrame.dbToLinear(EqualizerSettings.preampRangeDB.lowerBound)),
+            accuracy: 1e-6
+        )
+    }
+
     /// Bass Boost lifts the four lowest bands and leaves the upper six at 0.
     /// Verifies the band-index → frequency mapping by checking that bands 0..3
     /// produce non-identity coefficients and bands 4..9 stay identity.
