@@ -12,6 +12,18 @@ final class MenuKeyEquivalentTests: XCTestCase {
         return CommandPaletteKeymapStore(fileURL: url)
     }
 
+    private func makeCommands(manager: CommandPaletteManager) -> SpotiglassMenuCommands {
+        let scene = SpotiglassSceneHost(commandPaletteManager: manager)
+        let registry = SpotiglassSceneRegistry()
+        registry.activate(scene)
+        return SpotiglassMenuCommands(
+            sceneRegistry: registry,
+            keymapStore: manager.keymapStore,
+            isSignedIn: true,
+            isQueueVisible: false
+        )
+    }
+
     func testModifierBearingChordBecomesMenuKeyEquivalent() throws {
         let shortcut = try XCTUnwrap(try CommandShortcut(keystroke: "shift-cmd-right").menuKeyboardShortcut)
 
@@ -94,15 +106,7 @@ final class MenuKeyEquivalentTests: XCTestCase {
 
     func testPlaybackMenuUsesEffectiveToggleReadiness() {
         let manager = CommandPaletteManager(keymapStore: makeStore())
-        let commands = SpotiglassMenuCommands(
-            commandPaletteManager: manager,
-            isSignedIn: true,
-            isQueueVisible: false,
-            isLyricsPresented: false,
-            canNavigateBack: false,
-            canEnqueueTrackSelection: false,
-            trackSelectionPinState: .unavailable
-        )
+        let commands = makeCommands(manager: manager)
         XCTAssertFalse(commands.isPlaybackToggleEnabled)
 
         manager.setPlaybackToggleAvailability(true)
@@ -116,15 +120,7 @@ final class MenuKeyEquivalentTests: XCTestCase {
             webCommander: MockWebPlaybackCommander()
         )
         manager.bindPlaybackReadiness(to: playback)
-        let commands = SpotiglassMenuCommands(
-            commandPaletteManager: manager,
-            isSignedIn: true,
-            isQueueVisible: false,
-            isLyricsPresented: false,
-            canNavigateBack: false,
-            canEnqueueTrackSelection: false,
-            trackSelectionPinState: .unavailable
-        )
+        let commands = makeCommands(manager: manager)
 
         XCTAssertFalse(commands.isLyricsToggleEnabled)
         playback.setConnectionState(.playing(

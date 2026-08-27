@@ -41,4 +41,55 @@ final class LyricsOverlayControllerTests: XCTestCase {
         XCTAssertNil(controller.lyricsModel)
         XCTAssertFalse(controller.isPresented)
     }
+
+    func testDetachingOneSceneLeavesAnotherSceneOverlayAttached() {
+        let first = LyricsOverlayController()
+        let second = LyricsOverlayController()
+
+        let firstAPI = MockPlaybackAPI()
+        let firstPlayback = PlaybackSessionViewModel(
+            playbackAPI: firstAPI,
+            webCommander: MockWebPlaybackCommander()
+        )
+        let firstQueue = QueueViewModel(
+            playbackAPI: firstAPI,
+            playbackSession: firstPlayback,
+            pollIntervalNanoseconds: 60_000_000_000
+        )
+        first.attach(
+            playback: firstPlayback,
+            queue: firstQueue,
+            lyrics: ImmersiveLyricsViewModel { _ in .instrumental },
+            navigateToArtist: { _ in },
+            navigateToAlbum: { _, _, _ in }
+        )
+
+        let secondAPI = MockPlaybackAPI()
+        let secondPlayback = PlaybackSessionViewModel(
+            playbackAPI: secondAPI,
+            webCommander: MockWebPlaybackCommander()
+        )
+        let secondQueue = QueueViewModel(
+            playbackAPI: secondAPI,
+            playbackSession: secondPlayback,
+            pollIntervalNanoseconds: 60_000_000_000
+        )
+        second.attach(
+            playback: secondPlayback,
+            queue: secondQueue,
+            lyrics: ImmersiveLyricsViewModel { _ in .instrumental },
+            navigateToArtist: { _ in },
+            navigateToAlbum: { _, _, _ in }
+        )
+        first.isPresented = true
+        second.isPresented = true
+
+        first.detach()
+
+        XCTAssertFalse(first.isPresented)
+        XCTAssertTrue(second.isPresented)
+        XCTAssertTrue(second.playbackViewModel === secondPlayback)
+        XCTAssertTrue(second.queueViewModel === secondQueue)
+        XCTAssertNotNil(second.lyricsModel)
+    }
 }
