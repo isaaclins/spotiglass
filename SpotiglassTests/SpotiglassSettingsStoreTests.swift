@@ -47,6 +47,11 @@ final class SpotiglassSettingsStoreTests: XCTestCase {
         let decoded = try JSONDecoder().decode(SpotiglassSettingsFile.self, from: Data(legacyJSON.utf8))
         XCTAssertEqual(decoded.appearance.lyricsTextScale, 1.0)
         XCTAssertEqual(decoded.appearance.colorScheme, .dark)
+        XCTAssertEqual(decoded.version, SpotiglassSettingsFile.legacyVersion)
+        XCTAssertEqual(
+            decoded.keybindSeedBaselineVersion,
+            SpotiglassSettingsFile.legacyKeybindSeedBaselineVersion
+        )
     }
 
     /// A saved binding names its command by string, so renaming the constant
@@ -400,8 +405,10 @@ final class SpotiglassSettingsStoreTests: XCTestCase {
     }
 
     func testLoadSeedsDefaultBindingForCommandAddedAfterFileWasWritten() throws {
-        // Simulates a settings.json written before palette.enqueue existed: the command
-        // has neither a binding nor a seeded-list entry, so its ⇧↩ default must be added.
+        // Simulates a current-schema file written before palette.enqueue existed: the
+        // command has neither a binding nor a seeded-list entry, so its ⇧↩ default must
+        // be added. The explicit empty metadata is intentionally different from a
+        // pre-metadata file, whose legacy baseline is tested below.
         let url = makeTempFileURL()
         let oldKeybinds = SpotiglassSettingsStore.defaultKeybinds()
             .filter { $0.command != CommandPaletteCommandID.enqueueSelected }
@@ -419,6 +426,81 @@ final class SpotiglassSettingsStoreTests: XCTestCase {
         XCTAssertTrue(store.settings.seededKeybindCommands.contains(CommandPaletteCommandID.enqueueSelected))
         let onDisk = try JSONDecoder().decode(SpotiglassSettingsFile.self, from: Data(contentsOf: url))
         XCTAssertTrue(onDisk.keybinds.contains { $0.command == CommandPaletteCommandID.enqueueSelected })
+    }
+
+    func testPreMetadataFixturePreservesClearedLegacyCommandAndSeedsNewCommand() throws {
+        // This is the shape written before seededKeybindCommands existed. The missing
+        // palette.enqueue row is deliberate: it was an old command the user cleared,
+        // not a command that was added after this file was created.
+        let legacyJSON = """
+        {
+          "version" : 1,
+          "keybinds" : [
+            { "keystrokes" : ["cmd-,"], "command" : "app.openSettings", "when" : "always" }
+          ],
+          "appearance" : { "colorScheme" : "dark" },
+          "commandPalette" : { "backdropBlur" : false },
+          "equalizer" : { }
+        }
+        """
+        let url = makeTempFileURL()
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try legacyJSON.write(to: url, atomically: true, encoding: .utf8)
+
+        let decoded = try JSONDecoder().decode(SpotiglassSettingsFile.self, from: Data(legacyJSON.utf8))
+        XCTAssertEqual(
+            decoded.keybindSeedBaselineVersion,
+            SpotiglassSettingsFile.legacyKeybindSeedBaselineVersion
+        )
+
+        let store = SpotiglassSettingsStore(fileURL: url)
+
+        XCTAssertFalse(
+            store.settings.keybinds.contains { $0.command == CommandPaletteCommandID.enqueueSelected },
+            "A cleared command from the pre-metadata catalog must stay cleared"
+        )
+        XCTAssertTrue(
+            store.settings.keybinds.contains { $0.command == CommandPaletteCommandID.openSearch },
+            "A command added after the legacy baseline should still receive its default"
+        )
+        XCTAssertEqual(store.settings.appearance.colorScheme, .dark)
+        XCTAssertFalse(store.settings.commandPalette.backdropBlur)
+
+        let onDisk = try JSONDecoder().decode(SpotiglassSettingsFile.self, from: Data(contentsOf: url))
+        XCTAssertEqual(onDisk.version, SpotiglassSettingsFile.currentVersion)
+        XCTAssertEqual(
+            onDisk.keybindSeedBaselineVersion,
+            SpotiglassSettingsFile.currentKeybindSeedBaselineVersion
+        )
+        XCTAssertTrue(onDisk.seededKeybindCommands.contains(CommandPaletteCommandID.enqueueSelected))
+        XCTAssertFalse(onDisk.keybinds.contains { $0.command == CommandPaletteCommandID.enqueueSelected })
+    }
+
+    func testExplicitEmptySeedMetadataDoesNotUseLegacyBaseline() throws {
+        let url = makeTempFileURL()
+        let explicitEmptyJSON = """
+        {
+          "version" : 1,
+          "keybinds" : [],
+          "seededKeybindCommands" : [],
+          "appearance" : { },
+          "commandPalette" : { },
+          "equalizer" : { }
+        }
+        """
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try explicitEmptyJSON.write(to: url, atomically: true, encoding: .utf8)
+
+        let store = SpotiglassSettingsStore(fileURL: url)
+
+        XCTAssertTrue(
+            store.settings.keybinds.contains { $0.command == CommandPaletteCommandID.enqueueSelected },
+            "An explicit empty tracked list means every current default is eligible for seeding"
+        )
+        XCTAssertEqual(
+            store.settings.keybindSeedBaselineVersion,
+            SpotiglassSettingsFile.currentKeybindSeedBaselineVersion
+        )
     }
 
     func testLoadDoesNotResurrectBindingTheUserCleared() throws {

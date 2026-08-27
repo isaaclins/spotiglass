@@ -133,6 +133,12 @@ final class SpotiglassSettingsStore: ObservableObject {
         }
         var next = incoming.settings
         var changed = false
+        // Establish the legacy catalog baseline before any new-default seeding. A
+        // missing metadata field means old commands may have been deliberately
+        // cleared, so treating it as an empty tracked list would resurrect them.
+        if Self.migrateKeybindSeedMetadata(into: &next) {
+            changed = true
+        }
         let sanitized = next.keybinds.filter { $0.command != CommandPaletteCommandID.refreshTracks }
         if sanitized.count != next.keybinds.count {
             next.keybinds = sanitized
@@ -196,6 +202,12 @@ final class SpotiglassSettingsStore: ObservableObject {
             baseline: baseline.seededKeybindCommands,
             disk: disk.seededKeybindCommands,
             field: "seededKeybindCommands"
+        )
+        merged.keybindSeedBaselineVersion = choose(
+            local.keybindSeedBaselineVersion,
+            baseline: baseline.keybindSeedBaselineVersion,
+            disk: disk.keybindSeedBaselineVersion,
+            field: "keybindSeedBaselineVersion"
         )
 
         merged.appearance.language = choose(
@@ -274,6 +286,43 @@ final class SpotiglassSettingsStore: ObservableObject {
         )
 
         return SettingsMergeResult(settings: merged, conflicts: conflicts)
+    }
+
+    /// IDs that had a default binding before seeded-keybind metadata was introduced.
+    /// A pre-metadata file cannot reveal whether one of these rows was deliberately
+    /// removed, so migration records this fixed historical baseline instead of
+    /// seeding those commands again. Commands added (or given a default) later stay
+    /// outside this list and are eligible for normal one-time seeding.
+    private static let legacyKeybindSeedBaseline: [String] = [
+        CommandPaletteCommandID.openPalette,
+        CommandPaletteCommandID.refreshPlaylists,
+        CommandPaletteCommandID.connectPlayback,
+        CommandPaletteCommandID.togglePlayback,
+        CommandPaletteCommandID.nextTrack,
+        CommandPaletteCommandID.previousTrack,
+        CommandPaletteCommandID.toggleQueue,
+        CommandPaletteCommandID.openSettings,
+        CommandPaletteCommandID.pinSelected,
+        CommandPaletteCommandID.enqueueSelected,
+    ]
+
+    /// Converts pre-metadata documents into the tracked schema before defaults are
+    /// seeded. Explicit metadata (including an empty list) is left untouched.
+    private static func migrateKeybindSeedMetadata(into file: inout SpotiglassSettingsFile) -> Bool {
+        var changed = false
+        if file.keybindSeedBaselineVersion < SpotiglassSettingsFile.currentKeybindSeedBaselineVersion {
+            let alreadySeeded = Set(file.seededKeybindCommands)
+            for commandID in legacyKeybindSeedBaseline where !alreadySeeded.contains(commandID) {
+                file.seededKeybindCommands.append(commandID)
+            }
+            file.keybindSeedBaselineVersion = SpotiglassSettingsFile.currentKeybindSeedBaselineVersion
+            changed = true
+        }
+        if file.version < SpotiglassSettingsFile.currentVersion {
+            file.version = SpotiglassSettingsFile.currentVersion
+            changed = true
+        }
+        return changed
     }
 
     /// Command IDs whose spelling changed after installs already had bindings

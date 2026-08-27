@@ -108,4 +108,127 @@ final class CommandPaletteKeymapStoreTests: XCTestCase {
         XCTAssertEqual(store.primaryShortcut(for: CommandPaletteCommandID.openPalette), rebound)
     }
 
+    // MARK: - Multiple rows per command (#279)
+
+    /// The runtime dispatches by filtering candidate rows on `when`, so a command may
+    /// carry several context-scoped rows. Applying that JSON must round-trip all of
+    /// them (and their `args`) instead of keeping only the first row per command.
+    func testApplyEditorTextPreservesEveryContextRowForOneCommand() throws {
+        let url = makeCommandPaletteTestsTempSettingsURL()
+        let settingsStore = SpotiglassSettingsStore(fileURL: url)
+        let store = CommandPaletteKeymapStore(settingsStore: settingsStore)
+
+        store.editorText = """
+        {
+          "bindings": [
+            { "keystrokes": ["cmd-k"], "command": "palette.open", "when": "always" },
+            { "keystrokes": ["ctrl-p"], "command": "palette.open", "when": "palette_open",
+              "args": { "mode": "commands" } }
+          ]
+        }
+        """
+        store.applyEditorText()
+        XCTAssertNil(store.lastError)
+
+        let rows = try JSONDecoder()
+            .decode(CommandPaletteKeymapFile.self, from: Data(store.editorText.utf8))
+            .bindings
+            .filter { $0.command == CommandPaletteCommandID.openPalette }
+        XCTAssertEqual(rows.count, 2, "both accepted rows must survive normalization")
+        XCTAssertEqual(rows.map(\.when), [.always, .paletteOpen])
+        XCTAssertEqual(rows[1].args?["mode"], .string("commands"))
+
+        let onDisk = try JSONDecoder().decode(SpotiglassSettingsFile.self, from: Data(contentsOf: url))
+        XCTAssertEqual(onDisk.keybinds.filter { $0.command == CommandPaletteCommandID.openPalette }.count, 2)
+
+        // Both rows are indexed, and each only fires in its own context.
+        let ctrlP = try CommandShortcut(keystroke: "ctrl-p")
+        XCTAssertEqual(store.bindings[ctrlP]?.count, 1)
+        XCTAssertEqual(store.bindings[try CommandShortcut(keystroke: "cmd-k")]?.count, 1)
+    }
+
+    /// Rebinding from the settings GUI edits the command's primary row only; the
+    /// extra context row and its args stay on disk (#279).
+    func testSetBindingKeepsAdditionalContextRowForSameCommand() throws {
+        let url = makeCommandPaletteTestsTempSettingsURL()
+        let settingsStore = SpotiglassSettingsStore(fileURL: url)
+        let store = CommandPaletteKeymapStore(settingsStore: settingsStore)
+
+        store.editorText = """
+        {
+          "bindings": [
+            { "keystrokes": ["cmd-,"], "command": "app.openSettings", "when": "always" },
+            { "keystrokes": ["ctrl-,"], "command": "app.openSettings", "when": "palette_open",
+              "args": { "tab": "keymap" } }
+          ]
+        }
+        """
+        store.applyEditorText()
+        XCTAssertNil(store.lastError)
+
+        let rebound = try CommandShortcut(keystroke: "shift-cmd-9")
+        try store.setBinding(
+            commandID: CommandPaletteCommandID.openSettings,
+            shortcut: rebound,
+            replaceConflicting: false
+        )
+
+        let rows = try JSONDecoder()
+            .decode(CommandPaletteKeymapFile.self, from: Data(store.editorText.utf8))
+            .bindings
+            .filter { $0.command == CommandPaletteCommandID.openSettings }
+        XCTAssertEqual(rows.count, 2, "the secondary context row must not be dropped by a rebind")
+        XCTAssertEqual(rows[0].keystrokes, ["shift-cmd-9"])
+        XCTAssertEqual(rows[1].keystrokes, ["ctrl-,"])
+        XCTAssertEqual(rows[1].when, .paletteOpen)
+        XCTAssertEqual(rows[1].args?["tab"], .string("keymap"))
+    }
+
+    /// Clearing from the one-row settings UI is the explicit "unbind this command"
+    /// action, so it removes every context row for that command.
+    func testClearBindingRemovesEveryContextRowForThatCommand() throws {
+        let url = makeCommandPaletteTestsTempSettingsURL()
+        let settingsStore = SpotiglassSettingsStore(fileURL: url)
+        let store = CommandPaletteKeymapStore(settingsStore: settingsStore)
+
+        store.editorText = """
+        {
+          "bindings": [
+            { "keystrokes": ["cmd-,"], "command": "app.openSettings", "when": "always" },
+            { "keystrokes": ["ctrl-,"], "command": "app.openSettings", "when": "palette_open" }
+          ]
+        }
+        """
+        store.applyEditorText()
+        try store.clearBinding(commandID: CommandPaletteCommandID.openSettings)
+
+        let rows = try JSONDecoder()
+            .decode(CommandPaletteKeymapFile.self, from: Data(store.editorText.utf8))
+            .bindings
+            .filter { $0.command == CommandPaletteCommandID.openSettings }
+        XCTAssertTrue(rows.isEmpty)
+    }
+
+    /// Validation runs before the settings store writes, so a row with an
+    /// unsupported keystroke leaves the previous keymap on disk intact (#279).
+    func testApplyEditorTextDoesNotPersistWhenARowFailsValidation() throws {
+        let url = makeCommandPaletteTestsTempSettingsURL()
+        let settingsStore = SpotiglassSettingsStore(fileURL: url)
+        let store = CommandPaletteKeymapStore(settingsStore: settingsStore)
+        let before = try JSONDecoder().decode(SpotiglassSettingsFile.self, from: Data(contentsOf: url)).keybinds
+
+        store.editorText = """
+        {
+          "bindings": [
+            { "keystrokes": ["cmd-k"], "command": "palette.open", "when": "always" },
+            { "keystrokes": ["cmd-notakey"], "command": "palette.open", "when": "palette_open" }
+          ]
+        }
+        """
+        store.applyEditorText()
+
+        XCTAssertNotNil(store.lastError, "an invalid keystroke must be reported")
+        let after = try JSONDecoder().decode(SpotiglassSettingsFile.self, from: Data(contentsOf: url)).keybinds
+        XCTAssertEqual(after, before, "nothing may be written until every row validates")
+    }
 }
