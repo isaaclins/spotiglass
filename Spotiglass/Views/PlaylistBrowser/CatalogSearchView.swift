@@ -14,12 +14,34 @@ struct CatalogSearchView: View {
     let currentPlaybackURI: String?
     let isPlaying: Bool
     let hasPlaybackDevice: Bool
+    /// Shared playlist-creation prompt supplied by the browser detail host.
+    let onRequestCreatePlaylist: (([TrackRowViewModel]) -> Void)?
 
     @FocusState private var isQueryFieldFocused: Bool
 
     private let cardColumns = [
         GridItem(.adaptive(minimum: 150), spacing: SpotiglassDesign.spacingM, alignment: .leading)
     ]
+
+    init(
+        viewModel: PlaylistBrowserViewModel,
+        searchViewModel: CatalogSearchViewModel,
+        playbackViewModel: PlaybackSessionViewModel,
+        queueViewModel: QueueViewModel,
+        currentPlaybackURI: String?,
+        isPlaying: Bool,
+        hasPlaybackDevice: Bool,
+        onRequestCreatePlaylist: (([TrackRowViewModel]) -> Void)? = nil
+    ) {
+        self.viewModel = viewModel
+        self.searchViewModel = searchViewModel
+        self.playbackViewModel = playbackViewModel
+        self.queueViewModel = queueViewModel
+        self.currentPlaybackURI = currentPlaybackURI
+        self.isPlaying = isPlaying
+        self.hasPlaybackDevice = hasPlaybackDevice
+        self.onRequestCreatePlaylist = onRequestCreatePlaylist
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: SpotiglassDesign.spacingM) {
@@ -224,6 +246,14 @@ struct CatalogSearchView: View {
                     },
                     openArtist: { artistID in
                         Task { await viewModel.selectArtist(id: artistID, origin: .extend, displayName: nil) }
+                    },
+                    trackOpsMenuItems: {
+                        AnyView(TrackOpsMenuItems(
+                            targets: [track],
+                            browserViewModel: viewModel,
+                            sourcePlaylistID: nil,
+                            onRequestCreatePlaylist: onRequestCreatePlaylist
+                        ))
                     }
                 )
             }

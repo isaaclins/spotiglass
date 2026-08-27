@@ -90,6 +90,22 @@ final class CatalogSearchViewTests: XCTestCase {
         )
     }
 
+    func testCatalogSearchTrackOptionsUseTheSearchRowTargetWithoutMove() throws {
+        let track = TrackRowViewModel.numberedTopTracks([makeCatalogResults().tracks[0]])[0]
+        let browserViewModel = makeBrowserViewModel()
+        browserViewModel.detailState = .loaded(.search)
+        let menu = TrackOpsMenuItems(
+            targets: [track],
+            browserViewModel: browserViewModel,
+            sourcePlaylistID: nil
+        )
+
+        XCTAssertNoThrow(try menu.inspect().find(text: SpotiglassL10n.string("Add to playlist")))
+        XCTAssertThrowsError(
+            try menu.inspect().find(text: SpotiglassL10n.string("Move to playlist"))
+        )
+    }
+
     func testSearchSurfaceRendersTheCatalogSearchView() async {
         let viewModel = makeBrowserViewModel()
         await viewModel.selectSidebar(.search)

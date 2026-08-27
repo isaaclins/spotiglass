@@ -5,11 +5,27 @@ struct QueuePanelView: View {
     @ObservedObject var queueViewModel: QueueViewModel
     @ObservedObject var playbackViewModel: PlaybackSessionViewModel
     let openArtist: (ArtistTapTarget) -> Void
+    /// Builds the shared Spotify track-operations menu for a queue row. The
+    /// browser owns the mutation model, while the queue keeps its row design
+    /// and selection logic independent of it.
+    let trackOpsMenuItems: ((QueueItem) -> AnyView)?
 
     /// Drives the list's own selection, which is what makes the rows reachable
     /// with the arrow keys and gives them a de-emphasized highlight when the
     /// panel is not focused. Return plays whatever is selected (#123).
     @State private var selectedItemID: QueueItem.ID?
+
+    init(
+        queueViewModel: QueueViewModel,
+        playbackViewModel: PlaybackSessionViewModel,
+        openArtist: @escaping (ArtistTapTarget) -> Void,
+        trackOpsMenuItems: ((QueueItem) -> AnyView)? = nil
+    ) {
+        _queueViewModel = ObservedObject(wrappedValue: queueViewModel)
+        _playbackViewModel = ObservedObject(wrappedValue: playbackViewModel)
+        self.openArtist = openArtist
+        self.trackOpsMenuItems = trackOpsMenuItems
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -130,7 +146,10 @@ struct QueuePanelView: View {
                             Task { await queueViewModel.playItem(item) }
                         },
                         openArtist: openArtist,
-                        onCopyURI: { copyURI(item.uri) }
+                        onCopyURI: { copyURI(item.uri) },
+                        trackOpsMenuItems: trackOpsMenuItems.map { builder in
+                            { builder(item) }
+                        }
                     )
                     .id("now-playing-row:\(item.id)")
                     .tag(item.id)
@@ -170,7 +189,10 @@ struct QueuePanelView: View {
                             Task { await queueViewModel.playItem(item) }
                         },
                         openArtist: openArtist,
-                        onCopyURI: { copyURI(item.uri) }
+                        onCopyURI: { copyURI(item.uri) },
+                        trackOpsMenuItems: trackOpsMenuItems.map { builder in
+                            { builder(item) }
+                        }
                     )
                     .tag(item.id)
                     .transition(
@@ -206,6 +228,7 @@ private struct QueueRowView: View {
     let onSelect: () -> Void
     let openArtist: (ArtistTapTarget) -> Void
     let onCopyURI: () -> Void
+    let trackOpsMenuItems: (() -> AnyView)?
 
     var body: some View {
         HStack(spacing: SpotiglassDesign.spacingS) {
@@ -246,6 +269,10 @@ private struct QueueRowView: View {
             if item.playableURI != nil {
                 Button(SpotiglassL10n.string("queue.playNow"), action: onSelect)
                 Button(SpotiglassL10n.string("queue.copyURI"), action: onCopyURI)
+            }
+            if let trackOpsMenuItems {
+                Divider()
+                trackOpsMenuItems()
             }
         }
         .accessibilityElement(children: .combine)

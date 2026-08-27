@@ -12,10 +12,30 @@ struct HomeView: View {
     let currentPlaybackURI: String?
     let isPlaying: Bool
     let hasPlaybackDevice: Bool
+    /// Shared playlist-creation prompt supplied by the browser detail host.
+    let onRequestCreatePlaylist: (([TrackRowViewModel]) -> Void)?
 
     private let quickAccessColumns = [
         GridItem(.adaptive(minimum: 220), spacing: SpotiglassDesign.spacingS)
     ]
+
+    init(
+        viewModel: PlaylistBrowserViewModel,
+        playbackViewModel: PlaybackSessionViewModel,
+        queueViewModel: QueueViewModel,
+        currentPlaybackURI: String?,
+        isPlaying: Bool,
+        hasPlaybackDevice: Bool,
+        onRequestCreatePlaylist: (([TrackRowViewModel]) -> Void)? = nil
+    ) {
+        self.viewModel = viewModel
+        self.playbackViewModel = playbackViewModel
+        self.queueViewModel = queueViewModel
+        self.currentPlaybackURI = currentPlaybackURI
+        self.isPlaying = isPlaying
+        self.hasPlaybackDevice = hasPlaybackDevice
+        self.onRequestCreatePlaylist = onRequestCreatePlaylist
+    }
 
     var body: some View {
         ScrollView {
@@ -144,6 +164,14 @@ struct HomeView: View {
                     },
                     openArtist: { artistID in
                         Task { await viewModel.selectArtist(id: artistID, origin: .extend, displayName: nil) }
+                    },
+                    trackOpsMenuItems: {
+                        AnyView(TrackOpsMenuItems(
+                            targets: [track],
+                            browserViewModel: viewModel,
+                            sourcePlaylistID: nil,
+                            onRequestCreatePlaylist: onRequestCreatePlaylist
+                        ))
                     }
                 )
             }
