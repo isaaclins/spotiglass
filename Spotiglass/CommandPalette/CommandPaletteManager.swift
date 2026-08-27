@@ -193,6 +193,14 @@ final class CommandPaletteManager: ObservableObject {
             return true
         }
 
+        // The local monitor runs before AppKit sends the event to the focused
+        // responder. Let a focused control claim the events it handles before
+        // matching app-wide commands (for example, Space arms the shortcut
+        // recorder instead of toggling playback).
+        if FocusedKeyEventDispatcher.shouldDeferGlobalDispatch(for: event) {
+            return false
+        }
+
         if isRecordingHotkey {
             return false
         }

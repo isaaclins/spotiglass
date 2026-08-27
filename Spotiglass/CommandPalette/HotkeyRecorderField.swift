@@ -134,7 +134,7 @@ struct HotkeyRecorderField: NSViewRepresentable {
 }
 
 @MainActor
-final class RecorderKeyContainerView: NSView {
+final class RecorderKeyContainerView: NSView, FocusedKeyEventOwner {
     weak var coordinator: HotkeyRecorderField.Coordinator?
     private let button = NSButton(title: "", target: nil, action: nil)
     private(set) var isRecording = false
@@ -258,6 +258,14 @@ final class RecorderKeyContainerView: NSView {
         syncFromStore()
     }
 
+    func ownsKeyEvent(_ event: NSEvent) -> Bool {
+        if isRecording {
+            return true
+        }
+        let mods = event.modifierFlags.intersection([.command, .control, .option, .shift])
+        return mods.isEmpty && Self.isArmingKeyCode(event.keyCode)
+    }
+
     override func keyDown(with event: NSEvent) {
         if isRecording {
             coordinator?.handleKeyDown(event, in: self)
@@ -266,12 +274,15 @@ final class RecorderKeyContainerView: NSView {
         // Focused but not recording: Space or Return arms the field, the way
         // Space activates a focused button. Everything else, Tab included, is
         // left to AppKit so focus can move on.
-        let mods = event.modifierFlags.intersection([.command, .control, .option, .shift])
-        if mods.isEmpty, event.keyCode == 49 || event.keyCode == 36 || event.keyCode == 76 {
+        if ownsKeyEvent(event) {
             beginRecordingFromUser()
             return
         }
         super.keyDown(with: event)
+    }
+
+    private static func isArmingKeyCode(_ keyCode: UInt16) -> Bool {
+        keyCode == 49 || keyCode == 36 || keyCode == 76
     }
 
     func updateLiveModifierChips(_ flags: NSEvent.ModifierFlags) {
