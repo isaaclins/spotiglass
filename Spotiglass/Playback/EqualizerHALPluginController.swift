@@ -51,19 +51,34 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
     nonisolated static let driverBundleName = "SpotiglassEQDriver.driver"
     nonisolated static let virtualDeviceName = "Spotiglass EQ"
 
+    /// Stable pre-EQ output identity. Unlike an ``AudioObjectID``, a device UID
+    /// survives a process restart and CoreAudio device re-enumeration.
+    nonisolated static var defaultOutputBackupURL: URL {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent("Application Support", isDirectory: true)
+            .appendingPathComponent("Spotiglass", isDirectory: true)
+            .appendingPathComponent("eq-default-output.uid", isDirectory: false)
+    }
+
     /// Where to look for the bundled `.driver` inside the host app. Searches
     /// `Contents/Library/Audio/Plug-Ins/HAL/<name>.driver` first, then falls
     /// back to `Contents/Resources/` for a Debug-build layout.
     private let halDirectory: URL
     private let embeddedDriverURL: URL?
     private let fileManager: FileManager
+    private let outputBackupURL: URL
+    private let outputDeviceIDForUID: (String) -> AudioObjectID?
+    private let defaultOutputSetter: (AudioObjectID) throws -> Void
     private var activeSampleRateListener: AudioObjectPropertyListenerBlock?
     private var observedSampleRateDeviceID: AudioObjectID?
 
-    /// AudioObjectID of the device we routed away from when enabling.
-    /// Persisted on disk via ``defaultOutputBackupURL`` so disable restores
-    /// the original even after a process restart.
+    /// Volatile ID of the device we routed away from when enabling. The stable
+    /// UID below is the persisted source of truth used during restoration.
     private(set) var previousDefaultOutputID: AudioObjectID?
+    /// Stable UID of the device we routed away from. Loaded from disk on init
+    /// so a newly-created controller can restore an output after relaunch.
+    private(set) var previousDefaultOutputUID: String?
     /// Cache of the active sample rate the plugin is currently advertising,
     /// used by the coefficient publisher to recompute biquads on rate change.
     private(set) var activeSampleRate: UInt32 = 48_000
@@ -72,11 +87,26 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
     init(
         halDirectory: URL = EqualizerHALPluginController.defaultHALDirectory,
         fileManager: FileManager = .default,
-        bundle: Bundle = .main
+        bundle: Bundle = .main,
+        defaultOutputBackupURL: URL = EqualizerHALPluginController.defaultOutputBackupURL,
+        outputDeviceIDForUID: ((String) -> AudioObjectID?)? = nil,
+        defaultOutputSetter: ((AudioObjectID) throws -> Void)? = nil
     ) {
         self.halDirectory = halDirectory
         self.fileManager = fileManager
+        self.outputBackupURL = defaultOutputBackupURL
+        self.outputDeviceIDForUID = outputDeviceIDForUID ?? { uid in
+            AudioDeviceEnumerator.deviceID(forUID: uid)
+        }
+        self.defaultOutputSetter = defaultOutputSetter ?? { deviceID in
+            try Self.setDefaultOutputDeviceInCoreAudio(to: deviceID)
+        }
         self.embeddedDriverURL = Self.locateEmbeddedDriver(in: bundle)
+        self.previousDefaultOutputID = nil
+        self.previousDefaultOutputUID = Self.readDefaultOutputBackup(
+            from: defaultOutputBackupURL,
+            fileManager: fileManager
+        )
     }
 
     deinit {
@@ -106,14 +136,16 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
     func enable(preferredForwardingUID: String? = nil) throws {
         try installIfNeeded()
         if let deviceID = lookupSpotiglassEQDeviceID() {
-            try captureCurrentDefaultOutput()
+            try captureCurrentDefaultOutput(virtualDeviceID: deviceID)
             // Always write the forwarding target so the driver's EQRouter has
             // somewhere to send the EQ'd audio. The previous default's UID is
             // only relevant when it isn't Spotiglass EQ itself (otherwise the
             // EQ would route to itself and recurse forever).
-            let previousUID = previousDefaultOutputID.flatMap { previous -> String? in
-                previous == deviceID ? nil : AudioDeviceEnumerator.uid(of: previous)
-            }
+            let previousUID: String? = {
+                if previousDefaultOutputID == deviceID { return nil }
+                if let uid = previousDefaultOutputUID, !uid.isEmpty { return uid }
+                return previousDefaultOutputID.flatMap { AudioDeviceEnumerator.uid(of: $0) }
+            }()
             let targetUID = Self.resolveForwardingTargetUID(
                 preferred: preferredForwardingUID,
                 previousUID: previousUID
@@ -141,14 +173,52 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
 
     /// Restores the previously-active default output device. Does NOT remove
     /// the `.driver` from disk — call ``uninstall()`` for that.
-    func disable() {
+    ///
+    /// Restoration is transactional: the persisted UID and forwarding target
+    /// remain available when CoreAudio rejects the restore, so a later disable
+    /// can retry it. The state is cleared only after the setter succeeds.
+    func disable() throws {
+        try restorePreviousDefaultOutput()
         removeActiveSampleRateObservation()
-        guard let previous = previousDefaultOutputID else { return }
-        try? setDefaultOutputDevice(to: previous)
         previousDefaultOutputID = nil
+        previousDefaultOutputUID = nil
+        do {
+            try Self.clearDefaultOutputBackup(at: outputBackupURL, fileManager: fileManager)
+        } catch {
+            // The route is already restored. Keep cleanup best-effort so a
+            // filesystem problem cannot make the engine claim the EQ is still
+            // active; enable() will replace a stale backup on its next run.
+            SpotiglassLog.error(
+                .playback,
+                "Could not clear the pre-EQ output backup: \(error.localizedDescription)"
+            )
+        }
         // Forget the forwarding target so the next enable() captures a fresh
         // pre-EQ default (in case the user changed it in the meantime).
         Self.clearForwardingTarget()
+    }
+
+    /// Resolves and restores the persisted pre-EQ output. The UID is resolved
+    /// on every call because CoreAudio object IDs can change after relaunch or
+    /// device re-enumeration. A missing device is reported distinctly so the
+    /// backup can remain available if that device is connected again later.
+    func restorePreviousDefaultOutput() throws {
+        guard let previousUID = previousDefaultOutputUID ?? Self.readDefaultOutputBackup(
+            from: outputBackupURL,
+            fileManager: fileManager
+        ) else {
+            throw EqualizerHALPluginError.previousOutputBackupMissing
+        }
+        previousDefaultOutputUID = previousUID
+        guard let previous = outputDeviceIDForUID(previousUID) else {
+            throw EqualizerHALPluginError.previousOutputDeviceUnavailable(uid: previousUID)
+        }
+        previousDefaultOutputID = previous
+        do {
+            try setDefaultOutputDevice(to: previous)
+        } catch {
+            throw EqualizerHALPluginError.previousOutputRestoreFailed(underlying: error)
+        }
     }
 
     /// Path of the one-shot file the C++ driver reads in StartIO to learn
@@ -399,7 +469,33 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
         }?.id
     }
 
-    private func captureCurrentDefaultOutput() throws {
+    private func captureCurrentDefaultOutput(virtualDeviceID: AudioObjectID) throws {
+        let deviceID = try currentDefaultOutputDeviceID()
+        if deviceID == virtualDeviceID {
+            // A relaunch starts with Spotiglass EQ still selected as the system
+            // default. Keep the durable hardware UID instead of overwriting it
+            // with the virtual device's identity.
+            previousDefaultOutputUID = previousDefaultOutputUID ?? Self.readDefaultOutputBackup(
+                from: outputBackupURL,
+                fileManager: fileManager
+            )
+            previousDefaultOutputID = previousDefaultOutputUID.flatMap(outputDeviceIDForUID)
+            return
+        }
+
+        guard let uid = AudioDeviceEnumerator.uid(of: deviceID), !uid.isEmpty else {
+            throw EqualizerHALPluginError.outputDeviceUIDUnavailable
+        }
+        previousDefaultOutputID = deviceID
+        previousDefaultOutputUID = uid
+        try Self.writeDefaultOutputBackup(
+            uid: uid,
+            to: outputBackupURL,
+            fileManager: fileManager
+        )
+    }
+
+    private func currentDefaultOutputDeviceID() throws -> AudioObjectID {
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioHardwarePropertyDefaultOutputDevice,
             mScope: kAudioObjectPropertyScopeGlobal,
@@ -418,10 +514,14 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
         guard status == noErr else {
             throw EqualizerHALPluginError.coreAudioStatus(status)
         }
-        previousDefaultOutputID = deviceID
+        return deviceID
     }
 
     func setDefaultOutputDevice(to deviceID: AudioObjectID) throws {
+        try defaultOutputSetter(deviceID)
+    }
+
+    private static func setDefaultOutputDeviceInCoreAudio(to deviceID: AudioObjectID) throws {
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioHardwarePropertyDefaultOutputDevice,
             mScope: kAudioObjectPropertyScopeGlobal,
@@ -440,12 +540,55 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
             throw EqualizerHALPluginError.coreAudioStatus(status)
         }
     }
+
+    // MARK: - Pre-EQ output backup persistence
+
+    /// Reads a previously captured output UID. A missing or unreadable backup
+    /// is treated as no backup; restore reports that state explicitly.
+    nonisolated static func readDefaultOutputBackup(
+        from url: URL,
+        fileManager: FileManager = .default
+    ) -> String? {
+        guard fileManager.fileExists(atPath: url.path),
+              let contents = try? String(contentsOf: url, encoding: .utf8)
+        else { return nil }
+        let uid = contents.trimmingCharacters(in: .whitespacesAndNewlines)
+        return uid.isEmpty ? nil : uid
+    }
+
+    /// Stores the stable UID atomically, creating the Application Support
+    /// directory when this is the first enable.
+    nonisolated static func writeDefaultOutputBackup(
+        uid: String,
+        to url: URL,
+        fileManager: FileManager = .default
+    ) throws {
+        let trimmedUID = uid.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedUID.isEmpty else { return }
+        try fileManager.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try (trimmedUID + "\n").write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    nonisolated static func clearDefaultOutputBackup(
+        at url: URL,
+        fileManager: FileManager = .default
+    ) throws {
+        guard fileManager.fileExists(atPath: url.path) else { return }
+        try fileManager.removeItem(at: url)
+    }
 }
 
 enum EqualizerHALPluginError: LocalizedError {
     case embeddedDriverMissing
     case driverNotLoadedYet(installedPath: String)
     case coreAudioStatus(OSStatus)
+    case outputDeviceUIDUnavailable
+    case previousOutputBackupMissing
+    case previousOutputDeviceUnavailable(uid: String)
+    case previousOutputRestoreFailed(underlying: Error)
     case requiresSudoInstall(stagedPath: String, destinationPath: String)
 
     // These reach the user: EqualizerSettingsView assigns localizedDescription
@@ -460,6 +603,14 @@ enum EqualizerHALPluginError: LocalizedError {
             return SpotiglassL10n.string("eq.error.driverNotLoadedYet")
         case .coreAudioStatus:
             return SpotiglassL10n.string("eq.error.coreAudioStatus")
+        case .outputDeviceUIDUnavailable:
+            return SpotiglassL10n.string("eq.error.outputDeviceUIDUnavailable")
+        case .previousOutputBackupMissing:
+            return SpotiglassL10n.string("eq.error.previousOutputBackupMissing")
+        case .previousOutputDeviceUnavailable:
+            return SpotiglassL10n.string("eq.error.previousOutputDeviceUnavailable")
+        case .previousOutputRestoreFailed:
+            return SpotiglassL10n.string("eq.error.previousOutputRestoreFailed")
         case let .requiresSudoInstall(staged, destination):
             // The commands stay in the sentence, because running them is the
             // action being asked for.
@@ -485,6 +636,16 @@ enum EqualizerHALPluginError: LocalizedError {
                 """
         case let .coreAudioStatus(status):
             return "CoreAudio OSStatus \(status) while routing the default output device"
+        case .outputDeviceUIDUnavailable:
+            return "CoreAudio did not provide a stable UID for the current default output device"
+        case .previousOutputBackupMissing:
+            return "No persisted pre-EQ output device UID is available"
+        case let .previousOutputDeviceUnavailable(uid):
+            return "Persisted pre-EQ output device UID is not currently available: \(uid)"
+        case .previousOutputRestoreFailed(let underlying):
+            let details = (underlying as? EqualizerHALPluginError)?.diagnosticDetails
+                ?? String(describing: underlying)
+            return "CoreAudio failed while restoring the previous default output: \(details)"
         case let .requiresSudoInstall(staged, destination):
             return "staged: \(staged)\ndestination: \(destination)"
         }
@@ -603,6 +764,13 @@ enum AudioDeviceEnumerator {
         let status = AudioObjectGetPropertyData(id, &address, 0, nil, &size, &raw)
         guard status == noErr, let raw else { return "" }
         return raw.takeRetainedValue() as String
+    }
+
+    /// Resolves a persistent device UID to the current AudioObjectID. The ID
+    /// is intentionally looked up from the current output-device enumeration;
+    /// it must never be persisted as the restore key.
+    static func deviceID(forUID uid: String) -> AudioObjectID? {
+        allOutputDevices().first { $0.uid == uid }?.id
     }
 
     /// Returns the persistent device UID for an AudioObjectID. The EQ

@@ -23,6 +23,31 @@ struct ArtworkView: View {
     }
 }
 
+/// Artwork renderer for artist entities. Artist portraits keep their circular
+/// identity in detail headers while albums and playlists continue using
+/// ``ArtworkView``'s rounded-square treatment (#231).
+struct CircularArtworkView: View {
+    let url: URL?
+    let size: CGFloat
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        Group {
+            if let url {
+                CachedArtworkImage(url: url, size: size)
+            } else {
+                ArtworkPlaceholderContent(state: .none, size: size)
+            }
+        }
+        .frame(width: size, height: size)
+        .clipShape(Circle())
+        .overlay {
+            Circle()
+                .strokeBorder(SpotiglassDesign.artworkBorderColor(colorScheme: colorScheme), lineWidth: 1)
+        }
+    }
+}
+
 /// Why artwork is not on screen. All three used to draw the identical static
 /// glyph, so a cover that was still downloading, one whose fetch had failed and
 /// an album that simply has no cover were indistinguishable, and a failure
