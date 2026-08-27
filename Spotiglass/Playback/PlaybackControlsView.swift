@@ -26,6 +26,44 @@ enum PlaybackTransportTooltips {
     }
 }
 
+/// Geometry and motion policy for the horizontally scrollable artist credits.
+/// The view uses these pure calculations both to decide when the scroll view
+/// can move and to keep its animation speed independent of the summary width.
+enum PlaybackArtistLineScrollPolicy {
+    static func maxScrollOffset(contentWidth: CGFloat, viewportWidth: CGFloat) -> CGFloat {
+        max(0, contentWidth - viewportWidth)
+    }
+
+    static func clampedScrollOffset(_ offset: CGFloat, maxScrollOffset: CGFloat) -> CGFloat {
+        let upperBound = max(0, maxScrollOffset)
+        return min(max(0, offset), upperBound)
+    }
+
+    static func duration(for scrollDistance: CGFloat) -> TimeInterval {
+        guard scrollDistance > 0 else { return 0 }
+        let distanceDuration = Double(
+            scrollDistance / SpotiglassDesign.nowPlayingArtistLineScrollPointsPerSecond
+        )
+        return max(distanceDuration, SpotiglassDesign.nowPlayingArtistLineMinimumScrollDuration)
+    }
+
+    static func shouldAutoScroll(
+        maxScrollOffset: CGFloat,
+        reduceMotion: Bool,
+        isUserInteracting: Bool = false
+    ) -> Bool {
+        maxScrollOffset > 0 && !reduceMotion && !isUserInteracting
+    }
+
+    static func animation(duration: TimeInterval, reduceMotion: Bool) -> Animation? {
+        reduceMotion ? nil : .linear(duration: duration)
+    }
+
+    static func resetOffset(previousResetID: String, resetID: String) -> CGFloat? {
+        previousResetID == resetID ? nil : 0
+    }
+}
+
 struct PlaybackControlsView: View {
     @ObservedObject var viewModel: PlaybackSessionViewModel
     @Binding var isLyricsPresented: Bool
@@ -100,7 +138,10 @@ struct PlaybackControlsView: View {
                 }
             }
         }
-        .accessibilityElement(children: .combine)
+        // Keep the summary as an accessibility container, not a replacement
+        // element. The artwork and title Lyrics controls and each artist are
+        // real Buttons and must remain separate VoiceOver actions (#267).
+        .accessibilityElement(children: .contain)
     }
 
     @ViewBuilder
@@ -139,27 +180,11 @@ struct PlaybackControlsView: View {
     }
 
     private var artistLine: some View {
-        HStack(spacing: 0) {
-            ForEach(Array(artistTapTargets.enumerated()), id: \.element.stableID) { index, target in
-                if index > 0 {
-                    Text(SpotiglassL10n.string("common.comma"))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Button {
-                    openArtist(target)
-                } label: {
-                    Text(target.name)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(String(format: SpotiglassL10n.string("playback.controls.openArtist"), target.name))
-            }
-            Spacer(minLength: 0)
-        }
-        .lineLimit(1)
+        PlaybackArtistLine(
+            targets: artistTapTargets,
+            resetID: artistLineResetID,
+            openArtist: openArtist
+        )
         .contentTransition(.opacity)
         .animation(.smooth(duration: 0.28), value: subtitle)
     }
@@ -476,6 +501,20 @@ struct PlaybackControlsView: View {
         return nowPlaying.artistTapTargets
     }
 
+    /// Position must restart at the leading edge for every track, even when
+    /// the next track has the same artist credits. URI-less items still get a
+    /// stable identity from the visible track and artist content.
+    private var artistLineResetID: String {
+        guard let nowPlaying else { return title }
+        return [
+            nowPlaying.uri ?? "",
+            nowPlaying.name,
+            nowPlaying.albumID ?? nowPlaying.albumName ?? nowPlaying.albumArtURL?.absoluteString ?? "",
+            String(nowPlaying.durationMilliseconds),
+            artistTapTargets.map(\.stableID).joined(separator: "|"),
+        ].joined(separator: "\u{1F}")
+    }
+
     private var playPauseIcon: String {
         switch viewModel.connectionState {
         case .playing:
@@ -562,6 +601,210 @@ struct PlaybackControlsView: View {
             item
         default:
             nil
+        }
+    }
+}
+
+private struct PlaybackArtistLineScrollTaskID: Equatable {
+    let resetID: String
+    let maxScrollOffset: CGFloat
+    let reduceMotion: Bool
+    let isUserInteracting: Bool
+
+    /// Periphery cannot infer that SwiftUI consumes an Equatable task ID. Make
+    /// the dependency explicit so every part of the key participates in task
+    /// cancellation when the scroll state changes.
+    var signature: String {
+        "\(resetID)\u{1F}\(maxScrollOffset)\u{1F}\(reduceMotion)\u{1F}\(isUserInteracting)"
+    }
+}
+
+/// A one-line artist credit surface that stays horizontally scrollable while
+/// preserving each artist Button. Automatic movement pauses for real user
+/// scrolling and is disabled entirely when Reduce Motion is enabled (#210).
+private struct PlaybackArtistLine: View {
+    let targets: [ArtistTapTarget]
+    let resetID: String
+    let openArtist: (ArtistTapTarget) -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var scrollPosition = ScrollPosition()
+    @State private var maxScrollOffset: CGFloat = 0
+    @State private var isUserInteracting = false
+
+    private var autoScrollTaskID: String {
+        PlaybackArtistLineScrollTaskID(
+            resetID: resetID,
+            maxScrollOffset: maxScrollOffset,
+            reduceMotion: reduceMotion,
+            isUserInteracting: isUserInteracting
+        ).signature
+    }
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(alignment: .firstTextBaseline, spacing: 0) {
+                ForEach(Array(targets.enumerated()), id: \.element.stableID) { index, target in
+                    if index > 0 {
+                        Text(SpotiglassL10n.string("common.comma"))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Button {
+                        openArtist(target)
+                    } label: {
+                        Text(target.name)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            // Do not let the scroll view's viewport proposal
+                            // ellipsize a credit that it is meant to reveal.
+                            .fixedSize(horizontal: true, vertical: false)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(
+                        String(
+                            format: SpotiglassL10n.string("playback.controls.openArtist"),
+                            target.name
+                        )
+                    )
+                }
+            }
+            .fixedSize(horizontal: true, vertical: false)
+        }
+        // Changing identity is a second line of defence for track changes: it
+        // prevents the native scroll view from retaining an old content offset
+        // while the explicit reset below takes effect.
+        .id(resetID)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .scrollPosition($scrollPosition)
+        .scrollDisabled(maxScrollOffset <= 0)
+        .transaction { transaction in
+            // The marquee and content transition must not introduce motion when
+            // Reduce Motion is enabled. User-driven scrolling also needs an
+            // animation-free transaction so it cannot fight the gesture.
+            if reduceMotion || isUserInteracting {
+                transaction.animation = nil
+                transaction.disablesAnimations = true
+            }
+        }
+        .animation(
+            reduceMotion || isUserInteracting ? nil : .smooth(duration: 0.28),
+            value: resetID
+        )
+        .onScrollGeometryChange(
+            for: CGFloat.self,
+            of: { geometry in
+                PlaybackArtistLineScrollPolicy.maxScrollOffset(
+                    contentWidth: geometry.contentSize.width,
+                    viewportWidth: geometry.containerSize.width
+                )
+            }
+        ) { _, newValue in
+            guard newValue != maxScrollOffset else { return }
+            maxScrollOffset = newValue
+        }
+        .onScrollPhaseChange { _, newPhase in
+            switch newPhase {
+            case .tracking, .interacting, .decelerating:
+                isUserInteracting = true
+            case .idle:
+                isUserInteracting = false
+            case .animating:
+                // Programmatic marquee movement must not disable itself.
+                break
+            }
+        }
+        .onAppear {
+            scrollPosition.scrollTo(x: 0)
+        }
+        .onChange(of: resetID) { oldID, newID in
+            guard
+                let resetOffset = PlaybackArtistLineScrollPolicy.resetOffset(
+                    previousResetID: oldID,
+                    resetID: newID
+                )
+            else { return }
+            // Track changes should never inherit the previous song's offset.
+            // Keep the measured range: a different track can have the same
+            // content width, in which case GeometryChange quite correctly has
+            // no new value to report.
+            isUserInteracting = false
+            scroll(to: resetOffset)
+        }
+        .onChange(of: reduceMotion) { _, nowReduced in
+            guard nowReduced else { return }
+            // Stop an in-flight marquee immediately and without an animated
+            // jump when the system setting changes while the view is visible.
+            scroll(to: 0)
+        }
+        .task(id: autoScrollTaskID) {
+            guard
+                PlaybackArtistLineScrollPolicy.shouldAutoScroll(
+                    maxScrollOffset: maxScrollOffset,
+                    reduceMotion: reduceMotion,
+                    isUserInteracting: isUserInteracting
+                )
+            else { return }
+            await autoScroll(to: maxScrollOffset)
+        }
+    }
+
+    private func scroll(to requestedOffset: CGFloat, animation: Animation? = nil) {
+        let offset = PlaybackArtistLineScrollPolicy.clampedScrollOffset(
+            requestedOffset,
+            maxScrollOffset: maxScrollOffset
+        )
+        if let animation {
+            withAnimation(animation) {
+                scrollPosition.scrollTo(x: offset)
+            }
+        } else {
+            var transaction = Transaction()
+            transaction.animation = nil
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                scrollPosition.scrollTo(x: offset)
+            }
+        }
+    }
+
+    private func autoScroll(to maxOffset: CGFloat) async {
+        let clampedMaxOffset = PlaybackArtistLineScrollPolicy.clampedScrollOffset(
+            maxOffset,
+            maxScrollOffset: maxScrollOffset
+        )
+        guard
+            PlaybackArtistLineScrollPolicy.shouldAutoScroll(
+                maxScrollOffset: clampedMaxOffset,
+                reduceMotion: reduceMotion,
+                isUserInteracting: isUserInteracting
+            ),
+            let animation = PlaybackArtistLineScrollPolicy.animation(
+                duration: PlaybackArtistLineScrollPolicy.duration(for: clampedMaxOffset),
+                reduceMotion: reduceMotion
+            )
+        else { return }
+
+        let duration = PlaybackArtistLineScrollPolicy.duration(for: clampedMaxOffset)
+        do {
+            while !Task.isCancelled {
+                try await Task.sleep(for: SpotiglassDesign.nowPlayingArtistLineScrollPause)
+                guard !Task.isCancelled else { return }
+
+                scroll(to: clampedMaxOffset, animation: animation)
+                try await Task.sleep(for: .seconds(duration))
+                guard !Task.isCancelled else { return }
+
+                try await Task.sleep(for: SpotiglassDesign.nowPlayingArtistLineScrollPause)
+                guard !Task.isCancelled else { return }
+
+                scroll(to: 0, animation: animation)
+                try await Task.sleep(for: .seconds(duration))
+            }
+        } catch {
+            // Cancellation is the normal path when the user scrolls, the
+            // track changes, the view disappears, or Reduce Motion is enabled.
         }
     }
 }

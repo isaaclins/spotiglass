@@ -104,8 +104,7 @@ struct ArtistDetailContent: View {
 
     private var header: some View {
         HStack(alignment: .center, spacing: SpotiglassDesign.spacingL) {
-            ArtworkView(url: detail.artist.imageURL, size: SpotiglassDesign.detailHeaderArtworkSize)
-                .clipShape(RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous))
+            CircularArtworkView(url: detail.artist.imageURL, size: SpotiglassDesign.detailHeaderArtworkSize)
                 .overlay(alignment: .topTrailing) {
                     if isArtistPinned {
                         PinnedBadge(scale: .prominent)
@@ -189,15 +188,19 @@ struct ArtistDetailContent: View {
                     .font(.title3.weight(.semibold))
                     .padding(.horizontal, SpotiglassDesign.spacingL)
 
-                ScrollView(.horizontal, showsIndicators: false) {
+                // Keep the shelf discoverable and settle it on whole release cards,
+                // matching the resolved Home shelf behavior (#232).
+                ScrollView(.horizontal, showsIndicators: true) {
                     HStack(alignment: .top, spacing: SpotiglassDesign.spacingM) {
                         ForEach(albums) { album in
                             albumCardButton(album, group: group)
                         }
                     }
+                    .scrollTargetLayout()
                     .padding(.horizontal, SpotiglassDesign.spacingL)
                     .padding(.bottom, SpotiglassDesign.spacingS)
                 }
+                .scrollTargetBehavior(.viewAligned)
             }
         }
     }

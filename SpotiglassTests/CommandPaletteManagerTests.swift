@@ -11,6 +11,64 @@ final class CommandPaletteManagerTests: XCTestCase {
         XCTAssertTrue(manager.viewModel.isPresented)
     }
 
+    func testDetachingOneSceneDoesNotResetAnotherPalette() {
+        let first = CommandPaletteManager()
+        let second = CommandPaletteManager()
+        first.isSignedIn = true
+        second.isSignedIn = true
+        first.viewModel.show()
+        second.viewModel.show()
+        first.viewModel.query = "first scene"
+        second.viewModel.query = "second scene"
+
+        first.detach()
+
+        XCTAssertFalse(first.viewModel.isPresented)
+        XCTAssertEqual(first.viewModel.query, "")
+        XCTAssertTrue(second.viewModel.isPresented)
+        XCTAssertEqual(second.viewModel.query, "second scene")
+        XCTAssertTrue(second.isSignedIn)
+    }
+
+    func testSignOutCommandDetachesBeforeCallingAuthHandler() {
+        let manager = CommandPaletteManager()
+        manager.isSignedIn = true
+        manager.viewModel.show()
+        manager.viewModel.query = "stale query"
+        var wasResetBeforeSignOut = false
+        manager.signOut = {
+            wasResetBeforeSignOut = !manager.viewModel.isPresented
+                && manager.viewModel.query.isEmpty
+                && !manager.isSignedIn
+        }
+
+        manager.execute(commandID: CommandPaletteCommandID.signOut)
+
+        XCTAssertTrue(wasResetBeforeSignOut)
+        XCTAssertNil(manager.signOut)
+    }
+
+    func testInactiveSceneDoesNotConsumePaletteKeyEvent() {
+        let manager = CommandPaletteManager()
+        manager.viewModel.show()
+        manager.isCurrentScene = { false }
+        let escape = NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            characters: "",
+            charactersIgnoringModifiers: "",
+            isARepeat: false,
+            keyCode: 53
+        )!
+
+        XCTAssertFalse(manager.handleKeyEvent(escape))
+        XCTAssertTrue(manager.viewModel.isPresented)
+    }
+
     func testOpenArtistCommandInvokesHandler() async {
         let manager = CommandPaletteManager()
         let expectation = expectation(description: "openArtist")
@@ -22,6 +80,30 @@ final class CommandPaletteManagerTests: XCTestCase {
         manager.execute(commandID: CommandPaletteCommandID.openArtist, args: ["artistID": .string("abc123")])
         await fulfillment(of: [expectation], timeout: 2)
         XCTAssertEqual(receivedID, "abc123")
+    }
+
+    func testOpenAlbumCommandInvokesHandlerWithMetadata() async {
+        let manager = CommandPaletteManager()
+        let opened = expectation(description: "openAlbum")
+        var received: (id: String, title: String, subtitle: String, artworkURL: URL?)?
+        manager.openAlbum = { id, title, subtitle, artworkURL in
+            received = (id, title, subtitle, artworkURL)
+            opened.fulfill()
+        }
+        manager.execute(
+            commandID: CommandPaletteCommandID.openAlbum,
+            args: [
+                "albumID": .string("album-1"),
+                "title": .string("Night Drive"),
+                "subtitle": .string("M83"),
+                "artworkURL": .string("https://example.com/album.png"),
+            ]
+        )
+        await fulfillment(of: [opened], timeout: 2)
+        XCTAssertEqual(received?.id, "album-1")
+        XCTAssertEqual(received?.title, "Night Drive")
+        XCTAssertEqual(received?.subtitle, "M83")
+        XCTAssertEqual(received?.artworkURL, URL(string: "https://example.com/album.png"))
     }
 
     func testToggleLyricsCommandInvokesHandler() {

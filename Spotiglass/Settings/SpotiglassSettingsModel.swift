@@ -1,6 +1,87 @@
 import Foundation
 import SwiftUI
 
+/// Tracks recoverable type/shape errors while decoding a settings document.
+///
+/// The tracker is passed through ``Decoder/userInfo`` so nested settings values can
+/// repair themselves without making the whole document fail. The store uses the
+/// flag to persist the repaired document after a successful load.
+final class SpotiglassSettingsDecodeTracker {
+    var didRepair = false
+}
+
+extension CodingUserInfoKey {
+    static let spotiglassSettingsDecodeTracker = CodingUserInfoKey(
+        rawValue: "com.isaaclins.spotiglass.settingsDecodeTracker"
+    )!
+}
+
+extension KeyedDecodingContainer {
+    fileprivate func decodeRepairing<T: Decodable>(
+        _ type: T.Type,
+        forKey key: Key,
+        default defaultValue: T,
+        tracker: SpotiglassSettingsDecodeTracker?
+    ) -> T {
+        guard contains(key), (try? decodeNil(forKey: key)) != true else {
+            return defaultValue
+        }
+        do {
+            return try decode(type, forKey: key)
+        } catch {
+            tracker?.didRepair = true
+            return defaultValue
+        }
+    }
+
+    fileprivate func decodeRepairingOptional<T: Decodable>(
+        _ type: T.Type,
+        forKey key: Key,
+        tracker: SpotiglassSettingsDecodeTracker?
+    ) -> T? {
+        guard contains(key), (try? decodeNil(forKey: key)) != true else {
+            return nil
+        }
+        do {
+            return try decode(type, forKey: key)
+        } catch {
+            tracker?.didRepair = true
+            return nil
+        }
+    }
+
+    /// Decodes each array element independently so one malformed row/preset does
+    /// not discard the valid values beside it.
+    fileprivate func decodeRepairingArray<T: Decodable>(
+        _ type: T.Type,
+        forKey key: Key,
+        default defaultValue: [T],
+        tracker: SpotiglassSettingsDecodeTracker?
+    ) -> [T] {
+        guard contains(key), (try? decodeNil(forKey: key)) != true else {
+            return defaultValue
+        }
+        guard var nested = try? nestedUnkeyedContainer(forKey: key) else {
+            tracker?.didRepair = true
+            return defaultValue
+        }
+
+        var values: [T] = []
+        while !nested.isAtEnd {
+            guard let itemDecoder = try? nested.superDecoder() else {
+                tracker?.didRepair = true
+                break
+            }
+            do {
+                values.append(try type.init(from: itemDecoder))
+            } catch {
+                tracker?.didRepair = true
+            }
+        }
+        return values
+    }
+}
+
 /// In-app UI language persisted in ``AppearanceSettings``.
 enum AppLanguage: String, Codable, CaseIterable, Equatable {
     case english = "en"
@@ -198,17 +279,48 @@ struct AppearanceSettings: Codable, Equatable {
         self.lyricsTextScale = Self.clampedLyricsTextScale(lyricsTextScale)
     }
 
-    /// Backward-compatible decode for older `settings.json` files.
+    /// Backward-compatible and repairable decode for older `settings.json` files.
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        language = try container.decodeIfPresent(AppLanguage.self, forKey: .language) ?? AppLanguage.resolvedDefault()
-        colorScheme = try container.decodeIfPresent(AppearanceColorScheme.self, forKey: .colorScheme) ?? .system
-        lyricsTextSize = try container.decodeIfPresent(LyricsTextSize.self, forKey: .lyricsTextSize) ?? .medium
-        let rawOffset = try container.decodeIfPresent(Int.self, forKey: .lyricsOffsetMilliseconds) ?? 0
-        lyricsOffsetMilliseconds = Self.clampOffset(rawOffset)
-        lyricsTextScale = Self.clampedLyricsTextScale(
-            try container.decodeIfPresent(Double.self, forKey: .lyricsTextScale) ?? 1.0
+        let tracker = decoder.userInfo[.spotiglassSettingsDecodeTracker] as? SpotiglassSettingsDecodeTracker
+        language = container.decodeRepairing(
+            AppLanguage.self,
+            forKey: .language,
+            default: AppLanguage.resolvedDefault(),
+            tracker: tracker
         )
+        colorScheme = container.decodeRepairing(
+            AppearanceColorScheme.self,
+            forKey: .colorScheme,
+            default: .system,
+            tracker: tracker
+        )
+        lyricsTextSize = container.decodeRepairing(
+            LyricsTextSize.self,
+            forKey: .lyricsTextSize,
+            default: .medium,
+            tracker: tracker
+        )
+        let rawOffset = container.decodeRepairing(
+            Int.self,
+            forKey: .lyricsOffsetMilliseconds,
+            default: 0,
+            tracker: tracker
+        )
+        lyricsOffsetMilliseconds = Self.clampOffset(rawOffset)
+        if rawOffset != lyricsOffsetMilliseconds {
+            tracker?.didRepair = true
+        }
+        let rawScale = container.decodeRepairing(
+            Double.self,
+            forKey: .lyricsTextScale,
+            default: 1.0,
+            tracker: tracker
+        )
+        lyricsTextScale = Self.clampedLyricsTextScale(rawScale)
+        if rawScale != lyricsTextScale {
+            tracker?.didRepair = true
+        }
     }
 
     /// Keeps a (possibly hand-edited or future-version) offset within the supported range.
@@ -233,6 +345,21 @@ struct CommandPaletteSettings: Codable, Equatable {
     init(backdropBlur: Bool = true) {
         self.backdropBlur = backdropBlur
     }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let tracker = decoder.userInfo[.spotiglassSettingsDecodeTracker] as? SpotiglassSettingsDecodeTracker
+        backdropBlur = container.decodeRepairing(
+            Bool.self,
+            forKey: .backdropBlur,
+            default: true,
+            tracker: tracker
+        )
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case backdropBlur
+    }
 }
 
 /// Top-level shape of `~/Library/Application Support/Spotiglass/settings.json`.
@@ -240,7 +367,15 @@ struct CommandPaletteSettings: Codable, Equatable {
 /// Keeps every user-editable Spotiglass setting in one file so the user has a single
 /// source of truth under the app's Application Support directory.
 struct SpotiglassSettingsFile: Codable, Equatable {
-    static let currentVersion = 1
+    /// Version of the complete settings document. Version 2 adds an explicit
+    /// keybind-seeding marker so pre-metadata files can be migrated losslessly.
+    static let currentVersion = 2
+    static let legacyVersion = 1
+
+    /// Version of the catalog baseline represented by ``seededKeybindCommands``.
+    /// A zero value means the file predates seeded-keybind metadata.
+    static let legacyKeybindSeedBaselineVersion = 0
+    static let currentKeybindSeedBaselineVersion = 1
 
     /// Persisted schema marker; compared against ``currentVersion`` during migrations.
     // periphery:ignore
@@ -251,6 +386,10 @@ struct SpotiglassSettingsFile: Codable, Equatable {
     /// file was created are absent here, which lets the load-time migration seed their
     /// default binding exactly once without resurrecting bindings the user removed.
     var seededKeybindCommands: [String]
+    /// Explicit marker for the historical catalog baseline used by the seeded list.
+    /// Decoder inference for old files distinguishes a missing metadata field from an
+    /// explicitly empty list before the store runs its migration.
+    var keybindSeedBaselineVersion: Int
     var appearance: AppearanceSettings
     var commandPalette: CommandPaletteSettings
     var equalizer: EqualizerSettings
@@ -259,6 +398,7 @@ struct SpotiglassSettingsFile: Codable, Equatable {
         version: Int = SpotiglassSettingsFile.currentVersion,
         keybinds: [CommandPaletteKeyBinding],
         seededKeybindCommands: [String] = [],
+        keybindSeedBaselineVersion: Int = SpotiglassSettingsFile.currentKeybindSeedBaselineVersion,
         appearance: AppearanceSettings = AppearanceSettings(),
         commandPalette: CommandPaletteSettings = CommandPaletteSettings(),
         equalizer: EqualizerSettings = EqualizerSettings()
@@ -266,6 +406,7 @@ struct SpotiglassSettingsFile: Codable, Equatable {
         self.version = version
         self.keybinds = keybinds
         self.seededKeybindCommands = seededKeybindCommands
+        self.keybindSeedBaselineVersion = keybindSeedBaselineVersion
         self.appearance = appearance
         self.commandPalette = commandPalette
         self.equalizer = equalizer
@@ -273,19 +414,64 @@ struct SpotiglassSettingsFile: Codable, Equatable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        version = try container.decodeIfPresent(Int.self, forKey: .version) ?? SpotiglassSettingsFile.currentVersion
-        keybinds = try container.decodeIfPresent([CommandPaletteKeyBinding].self, forKey: .keybinds) ?? []
-        seededKeybindCommands = try container.decodeIfPresent([String].self, forKey: .seededKeybindCommands) ?? []
-        appearance = try container.decodeIfPresent(AppearanceSettings.self, forKey: .appearance) ?? AppearanceSettings()
-        commandPalette = try container.decodeIfPresent(CommandPaletteSettings.self, forKey: .commandPalette)
-            ?? CommandPaletteSettings()
-        equalizer = try container.decodeIfPresent(EqualizerSettings.self, forKey: .equalizer) ?? EqualizerSettings()
+        let tracker = decoder.userInfo[.spotiglassSettingsDecodeTracker] as? SpotiglassSettingsDecodeTracker
+        version = container.decodeRepairing(
+            Int.self,
+            forKey: .version,
+            default: SpotiglassSettingsFile.legacyVersion,
+            tracker: tracker
+        )
+        keybinds = container.decodeRepairingArray(
+            CommandPaletteKeyBinding.self,
+            forKey: .keybinds,
+            default: [],
+            tracker: tracker
+        )
+        // Files written before seededKeybindCommands existed must not be treated as
+        // an empty tracked list: their rows cannot tell us which old defaults the
+        // user deliberately removed. An explicit empty array, however, is valid
+        // current-schema metadata and intentionally means nothing was seeded yet.
+        let hasSeededMetadata = container.contains(.seededKeybindCommands)
+            && (try? container.decodeNil(forKey: .seededKeybindCommands)) != true
+        seededKeybindCommands = container.decodeRepairingArray(
+            String.self,
+            forKey: .seededKeybindCommands,
+            default: [],
+            tracker: tracker
+        )
+        keybindSeedBaselineVersion = container.decodeRepairing(
+            Int.self,
+            forKey: .keybindSeedBaselineVersion,
+            default: hasSeededMetadata
+                ? SpotiglassSettingsFile.currentKeybindSeedBaselineVersion
+                : SpotiglassSettingsFile.legacyKeybindSeedBaselineVersion,
+            tracker: tracker
+        )
+        appearance = container.decodeRepairing(
+            AppearanceSettings.self,
+            forKey: .appearance,
+            default: AppearanceSettings(),
+            tracker: tracker
+        )
+        commandPalette = container.decodeRepairing(
+            CommandPaletteSettings.self,
+            forKey: .commandPalette,
+            default: CommandPaletteSettings(),
+            tracker: tracker
+        )
+        equalizer = container.decodeRepairing(
+            EqualizerSettings.self,
+            forKey: .equalizer,
+            default: EqualizerSettings(),
+            tracker: tracker
+        )
     }
 
     private enum CodingKeys: String, CodingKey {
         case version
         case keybinds
         case seededKeybindCommands
+        case keybindSeedBaselineVersion
         case appearance
         case commandPalette
         case equalizer
@@ -335,16 +521,52 @@ struct EqualizerSettings: Codable, Equatable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? false
-        preamp = EqualizerSettings.clampPreamp(
-            try container.decodeIfPresent(Double.self, forKey: .preamp) ?? 0
+        let tracker = decoder.userInfo[.spotiglassSettingsDecodeTracker] as? SpotiglassSettingsDecodeTracker
+        enabled = container.decodeRepairing(
+            Bool.self,
+            forKey: .enabled,
+            default: false,
+            tracker: tracker
         )
-        let raw = try container.decodeIfPresent([Double].self, forKey: .bands)
-            ?? Array(repeating: 0, count: EqualizerSettings.bandCount)
+        // Repair malformed values first, then clamp out-of-range values to the
+        // declared dB range. Both repairs are persisted after a successful load.
+        let rawPreamp = container.decodeRepairing(
+            Double.self,
+            forKey: .preamp,
+            default: 0,
+            tracker: tracker
+        )
+        preamp = EqualizerSettings.clampPreamp(rawPreamp)
+        if rawPreamp != preamp {
+            tracker?.didRepair = true
+        }
+        let defaultBands = Array(repeating: 0.0, count: EqualizerSettings.bandCount)
+        let raw = container.decodeRepairingArray(
+            Double.self,
+            forKey: .bands,
+            default: defaultBands,
+            tracker: tracker
+        )
         bands = EqualizerSettings.normalizedBands(raw)
-        activePresetName = try container.decodeIfPresent(String.self, forKey: .activePresetName)
-        userPresets = try container.decodeIfPresent([EqualizerPreset].self, forKey: .userPresets) ?? []
-        forwardingTargetUID = try container.decodeIfPresent(String.self, forKey: .forwardingTargetUID)
+        if raw != bands {
+            tracker?.didRepair = true
+        }
+        activePresetName = container.decodeRepairingOptional(
+            String.self,
+            forKey: .activePresetName,
+            tracker: tracker
+        )
+        userPresets = container.decodeRepairingArray(
+            EqualizerPreset.self,
+            forKey: .userPresets,
+            default: [],
+            tracker: tracker
+        )
+        forwardingTargetUID = container.decodeRepairingOptional(
+            String.self,
+            forKey: .forwardingTargetUID,
+            tracker: tracker
+        )
     }
 
     /// Pads/truncates raw band arrays so the in-memory shape stays consistent.
@@ -393,11 +615,28 @@ struct EqualizerPreset: Codable, Equatable, Identifiable, Hashable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        let tracker = decoder.userInfo[.spotiglassSettingsDecodeTracker] as? SpotiglassSettingsDecodeTracker
+        // A preset without a usable name has no stable identity, so let the
+        // enclosing lossy array decoder discard that one preset while retaining
+        // its valid siblings.
         name = try container.decode(String.self, forKey: .name)
-        preamp = try container.decodeIfPresent(Double.self, forKey: .preamp) ?? 0
-        let raw = try container.decodeIfPresent([Double].self, forKey: .bands)
-            ?? Array(repeating: 0, count: EqualizerSettings.bandCount)
+        preamp = container.decodeRepairing(
+            Double.self,
+            forKey: .preamp,
+            default: 0,
+            tracker: tracker
+        )
+        let defaultBands = Array(repeating: 0.0, count: EqualizerSettings.bandCount)
+        let raw = container.decodeRepairingArray(
+            Double.self,
+            forKey: .bands,
+            default: defaultBands,
+            tracker: tracker
+        )
         bands = EqualizerSettings.normalizedBands(raw)
+        if raw != bands {
+            tracker?.didRepair = true
+        }
     }
 
     private enum CodingKeys: String, CodingKey {

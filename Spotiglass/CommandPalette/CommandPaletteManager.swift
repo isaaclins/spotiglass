@@ -24,6 +24,9 @@ final class CommandPaletteManager: ObservableObject {
     @Published var canNavigateBack = false
 
     var isSignedIn = false
+    /// Event monitors exist in every main-window scene. Only the key scene may
+    /// consume a shortcut, while standalone manager tests keep the default.
+    var isCurrentScene: () -> Bool = { true }
     var signOut: (() -> Void)?
     var openSettings: (() -> Void)?
     /// Reloads the focused surface (library, playlist or artist detail, or queue when the queue column has focus).
@@ -48,6 +51,7 @@ final class CommandPaletteManager: ObservableObject {
     var playURI: ((String) async -> Void)?
     var openPlaylist: ((String) async -> Void)?
     var openArtist: ((String) async -> Void)?
+    var openAlbum: ((String, String, String, URL?) async -> Void)?
     /// Opens the dedicated catalog Search view. Wired by the browser host.
     var openSearch: (() -> Void)?
     var spotifySearch: ((String, CommandPaletteSearchCategory) async throws -> CommandPaletteSearchResults)?
@@ -149,6 +153,8 @@ final class CommandPaletteManager: ObservableObject {
     }
 
     func handleKeyEvent(_ event: NSEvent) -> Bool {
+        guard isCurrentScene() else { return false }
+
         if viewModel.isPresented {
             // Bare Tab / Shift+Tab cycle the Spotify search category (footer segments)
             // while the query field stays focused. Modifier-bearing Tab events
@@ -186,6 +192,14 @@ final class CommandPaletteManager: ObservableObject {
 
         if event.keyCode == 53, dismissLyricsOverlayIfPresented?() == true {
             return true
+        }
+
+        // The local monitor runs before AppKit sends the event to the focused
+        // responder. Let a focused control claim the events it handles before
+        // matching app-wide commands (for example, Space arms the shortcut
+        // recorder instead of toggling playback).
+        if FocusedKeyEventDispatcher.shouldDeferGlobalDispatch(for: event) {
+            return false
         }
 
         if isRecordingHotkey {
@@ -255,6 +269,8 @@ final class CommandPaletteManager: ObservableObject {
         case CommandPaletteCommandID.openSettings:
             openSettings?()
         case CommandPaletteCommandID.signOut:
+            let signOut = signOut
+            detach()
             signOut?()
         case CommandPaletteCommandID.connectPlayback:
             connectPlayback?()
@@ -291,6 +307,18 @@ final class CommandPaletteManager: ObservableObject {
             if case let .string(artistID)? = args?["artistID"] {
                 Task { await openArtist?(artistID) }
             }
+        case CommandPaletteCommandID.openAlbum:
+            guard case let .string(albumID)? = args?["albumID"],
+                  case let .string(title)? = args?["title"],
+                  case let .string(subtitle)? = args?["subtitle"]
+            else { break }
+            let artworkURL: URL?
+            if case let .string(rawURL)? = args?["artworkURL"] {
+                artworkURL = URL(string: rawURL)
+            } else {
+                artworkURL = nil
+            }
+            Task { await openAlbum?(albumID, title, subtitle, artworkURL) }
         case CommandPaletteCommandID.openSearch:
             openSearch?()
         case CommandPaletteCommandID.filterByArtist:
@@ -317,6 +345,60 @@ final class CommandPaletteManager: ObservableObject {
         default:
             break
         }
+    }
+
+    /// Detaches all scene-specific palette state and callbacks. This is called
+    /// before auth content replaces the browser and when the scene disappears,
+    /// so a later scene cannot inherit a search task or a closure retaining the
+    /// old browser.
+    func detach() {
+        viewModel.hide()
+        viewModel.showAllResults = nil
+        viewModel.setAvailableSearchCategories(
+            CommandPaletteSearchCategory.footerOrder(includeThisPlaylist: false),
+            refreshIfFilterInvalidated: false
+        )
+        viewModel.prefetchProgress = nil
+
+        isSignedIn = false
+        isRecordingHotkey = false
+        canNavigateBack = false
+        canEnqueueTrackSelection = false
+        trackSelectionPinState = .unavailable
+        canTogglePlayback = false
+        canToggleLyrics = false
+        canMutatePlaybackTransport = false
+        playbackReadinessCancellables.removeAll()
+
+        signOut = nil
+        openSettings = nil
+        unifiedRefresh = nil
+        selectNextPlaylist = nil
+        selectPreviousPlaylist = nil
+        connectPlayback = nil
+        togglePlayback = nil
+        nextTrack = nil
+        previousTrack = nil
+        disconnectPlayback = nil
+        toggleShuffle = nil
+        cycleRepeat = nil
+        enqueueTrackSelection = nil
+        pinTrackSelection = nil
+        navigateBack = nil
+        seekBy = nil
+        playURI = nil
+        openPlaylist = nil
+        openArtist = nil
+        openSearch = nil
+        spotifySearch = nil
+        localSpotifySearch = nil
+        filterByArtist = nil
+        toggleQueue = nil
+        toggleLyrics = nil
+        prefetchAllPlaylists = nil
+        dismissLyricsOverlayIfPresented = nil
+        playbackTogglePrerequisite = nil
+        playbackTransportMutationPrerequisite = nil
     }
 
     private func baseItems() -> [CommandPaletteItem] {

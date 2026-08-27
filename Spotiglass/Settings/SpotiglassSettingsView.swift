@@ -64,9 +64,17 @@ enum SpotiglassSettingsSection: String, CaseIterable, Identifiable {
 
 struct SpotiglassSettingsView: View {
     @EnvironmentObject private var authViewModel: AuthViewModel
-    @ObservedObject var commandPaletteManager: CommandPaletteManager
+    /// The keymap store is the only palette dependency Settings needs: palette
+    /// presentation state is owned by each main-window scene.
+    @ObservedObject var keymapStore: CommandPaletteKeymapStore
     @ObservedObject var settingsStore: SpotiglassSettingsStore
     @ObservedObject var equalizerEngine: AudioEqualizerEngine
+    /// Clears main-window transient state before Settings signs the shared
+    /// account out. This is injected by the app's scene registry.
+    var onSignOut: () -> Void = {}
+    /// Keeps every main-window key monitor suspended while the Settings scene
+    /// captures a shortcut.
+    var onHotkeyRecordingChange: (Bool) -> Void = { _ in }
 
     @State private var section: SpotiglassSettingsSection? = .playback
     @State private var searchText: String = ""
@@ -252,12 +260,15 @@ struct SpotiglassSettingsView: View {
                     case .appearance:
                         AppearanceSettingsView(settingsStore: settingsStore)
                     case .account:
-                        AccountSettingsView(viewModel: authViewModel)
+                        AccountSettingsView(
+                            viewModel: authViewModel,
+                            onSignOut: onSignOut
+                        )
                     case .keyboard:
                         CommandPaletteSettingsView(
-                            keymapStore: commandPaletteManager.keymapStore,
-                            commandPaletteManager: commandPaletteManager,
-                            presentation: .settingsTabs
+                            keymapStore: keymapStore,
+                            presentation: .settingsTabs,
+                            onRecordingChange: onHotkeyRecordingChange
                         )
                     }
                 }

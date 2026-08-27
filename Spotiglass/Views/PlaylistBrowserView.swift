@@ -51,13 +51,15 @@ struct PlaylistBrowserView: View {
         playbackTokenProvider: PlaybackAccessTokenProviding,
         searchTokenProvider: SpotifyAccessTokenProviding,
         commandPaletteManager: CommandPaletteManager,
-        signOut: @escaping () -> Void
+        signOut: @escaping () -> Void,
+        equalizerEngine: AudioEqualizerEngine? = nil
     ) {
         let commander = WebPlaybackViewCommander()
         let playbackAPI = SpotifyPlaybackAPI(tokenProvider: playbackTokenProvider)
         let playbackViewModel = PlaybackSessionViewModel(
             playbackAPI: playbackAPI,
-            webCommander: commander
+            webCommander: commander,
+            equalizerEngine: equalizerEngine
         )
         let queueViewModel = QueueViewModel(
             playbackAPI: playbackAPI,
@@ -82,7 +84,7 @@ struct PlaylistBrowserView: View {
 
     /// Where you are, falling back to the app name at the root.
     private var windowTitle: String {
-        viewModel.breadcrumbPath.last?.label ?? AppMetadata.displayName
+        BrowserToolbarPresentation.windowTitle(for: viewModel.breadcrumbPath)
     }
 
     // The browser body is split into sequential stages on purpose. As one
@@ -296,10 +298,6 @@ struct PlaylistBrowserView: View {
             commandPaletteManager.canNavigateBack = viewModel.canNavigateBack
             syncTrackSelectionMenuState()
         }
-        .onDisappear {
-            commandPaletteManager.dismissLyricsOverlayIfPresented = nil
-            lyricsOverlay.detach()
-        }
     }
 
     private var browserCommandBindings: some View {
@@ -332,6 +330,10 @@ struct PlaylistBrowserView: View {
             commandPaletteManager.canMutatePlaybackTransport = playbackViewModel.isTransportMutationReady
         }
         .onChange(of: pinnedStore.items) { _, _ in
+            // Auth teardown detaches this scene before clearing account-bound
+            // pins. Do not let that published clear rebind browser callbacks
+            // after the palette has been reset.
+            guard commandPaletteManager.isSignedIn else { return }
             syncTrackSelectionMenuState()
             syncLibraryRowOrder()
             bindCommandPalette(queueVisible: $isQueueVisible, lyricsPresented: isLyricsPresentedBinding)

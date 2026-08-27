@@ -96,4 +96,72 @@ final class CommandPaletteEventMonitorTests: XCTestCase {
         coordinator.start()
         coordinator.stop()
     }
+
+    func testFocusedRecorderReceivesSpaceBeforeGlobalShortcut() throws {
+        let settings = SpotiglassSettingsStore(fileURL: makeCommandPaletteTestsTempSettingsURL())
+        let keymap = CommandPaletteKeymapStore(settingsStore: settings)
+        let manager = CommandPaletteManager(keymapStore: keymap)
+        manager.isSignedIn = true
+
+        var playbackToggles = 0
+        manager.togglePlayback = { playbackToggles += 1 }
+
+        let field = HotkeyRecorderField(
+            commandID: CommandPaletteCommandID.openSettings,
+            keymapStore: keymap,
+            onRecordingChange: { manager.isRecordingHotkey = $0 },
+            onCaptureConflict: { _, _ in },
+            onApplied: {}
+        )
+        let recorderCoordinator = HotkeyRecorderField.Coordinator(field)
+        let recorder = RecorderKeyContainerView(
+            frame: NSRect(x: 0, y: 0, width: 220, height: 32)
+        )
+        recorder.coordinator = recorderCoordinator
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 240, height: 40),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = recorder
+        window.isReleasedWhenClosed = false
+
+        let monitor = CommandPaletteEventMonitor.Coordinator(manager: manager)
+        defer {
+            monitor.stop()
+            recorder.cancelRecording()
+            window.makeFirstResponder(nil)
+            window.close()
+        }
+
+        AppKitTestSupport.activateAppIfNeeded()
+        window.makeKeyAndOrderFront(nil)
+        AppKitTestSupport.pumpRunLoop()
+        XCTAssertTrue(window.makeFirstResponder(recorder))
+        XCTAssertTrue(window.firstResponder === recorder)
+
+        monitor.start()
+        let space = try XCTUnwrap(
+            NSEvent.keyEvent(
+                with: .keyDown,
+                location: .zero,
+                modifierFlags: [],
+                timestamp: 0,
+                windowNumber: window.windowNumber,
+                context: nil,
+                characters: " ",
+                charactersIgnoringModifiers: " ",
+                isARepeat: false,
+                keyCode: 49
+            )
+        )
+        NSApp.sendEvent(space)
+        AppKitTestSupport.pumpRunLoop()
+
+        XCTAssertTrue(recorder.isRecording)
+        XCTAssertTrue(manager.isRecordingHotkey)
+        XCTAssertEqual(playbackToggles, 0)
+    }
 }

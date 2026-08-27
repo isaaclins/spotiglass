@@ -22,9 +22,14 @@ final class BrowserChromeViewsTests: XCTestCase {
 
         ViewTestHost.host(view, size: CGSize(width: 400, height: 44))
         XCTAssertThrowsError(try view.inspect().find(text: AppMetadata.displayName))
+        XCTAssertTrue(BrowserToolbarPresentation.ancestors(of: viewModel.breadcrumbPath).isEmpty)
+        XCTAssertEqual(
+            BrowserToolbarPresentation.windowTitle(for: viewModel.breadcrumbPath),
+            AppMetadata.displayName
+        )
     }
 
-    func testBreadcrumbToolbarShowsCrumbLabels() async throws {
+    func testBreadcrumbToolbarShowsAncestorsAndLeavesCurrentLocationToWindowTitle() async throws {
         let liked = PlaylistBrowsingTestFixtures.track(id: "liked-one")
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
@@ -34,10 +39,16 @@ final class BrowserChromeViewsTests: XCTestCase {
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
         await viewModel.load()
         await viewModel.selectSidebar(.likedSongs)
+        await viewModel.selectArtist(id: "artist-xyz", origin: .extend, displayName: "Malcolm Todd")
 
         let view = BreadcrumbToolbarView(viewModel: viewModel)
         ViewTestHost.host(view, size: CGSize(width: 520, height: 44))
         XCTAssertNoThrow(try view.inspect().find(text: "Liked Songs"))
+        XCTAssertThrowsError(try view.inspect().find(text: "Artist artist-xyz"))
+        XCTAssertEqual(
+            BrowserToolbarPresentation.windowTitle(for: viewModel.breadcrumbPath),
+            "Artist artist-xyz"
+        )
     }
 
     func testBreadcrumbToolbarHomeTapClearsTrail() async throws {

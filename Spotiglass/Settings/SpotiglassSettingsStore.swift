@@ -18,7 +18,22 @@ final class SpotiglassSettingsStore: ObservableObject {
     private let fileManager: FileManager
     private var fileWatcher: DispatchSourceFileSystemObject?
     private var watcherDescriptor: Int32 = -1
-    private var ignoreNextExternalChange: Bool = false
+
+    /// The last document known to be on disk before any unsaved local staging.
+    /// Three-way merging against this baseline keeps an external edit to a
+    /// different setting from being overwritten by a stale in-memory snapshot.
+    private var lastKnownDiskSettings: SpotiglassSettingsFile?
+
+    /// Raw content observed after the last load or write. File-system sources can
+    /// deliver more than one event for a single replacement; this identity makes
+    /// those duplicate events harmless without suppressing a different document.
+    private var lastObservedFileData: Data?
+    private var hasObservedFileData = false
+
+    /// Exact content of the most recent write performed by this store. A watcher
+    /// event is ignored only when the file still contains these bytes, rather than
+    /// merely because some event happened after a local write.
+    private var lastOwnWriteData: Data?
 
     init(fileManager: FileManager = .default, fileURL customFileURL: URL? = nil) {
         self.fileManager = fileManager
@@ -85,8 +100,16 @@ final class SpotiglassSettingsStore: ObservableObject {
     func reloadFromDisk() {
         do {
             let content = try Data(contentsOf: fileURL)
-            let parsed = try JSONDecoder().decode(SpotiglassSettingsFile.self, from: content)
-            try applyLoadedSettings(parsed)
+            if let lastOwnWriteData, lastOwnWriteData != content {
+                self.lastOwnWriteData = nil
+            }
+            rememberObservedFileData(content)
+            let loaded = try decodeSettings(content)
+            try applyLoadedSettings(
+                loaded.settings,
+                didRepair: loaded.didRepair,
+                preserveLocalChanges: true
+            )
             lastError = nil
         } catch {
             lastError = error.localizedDescription
@@ -97,9 +120,25 @@ final class SpotiglassSettingsStore: ObservableObject {
     /// Drops legacy `playlists.refreshTracks` rows (formerly default ⌘T) so refresh is only `playlists.refresh` / ⌘R,
     /// and seeds default keystrokes for catalog commands added after this file was written
     /// (e.g. `palette.enqueue` / ⇧↩) so existing installs pick up new shortcuts.
-    private func applyLoadedSettings(_ parsed: SpotiglassSettingsFile) throws {
-        var next = parsed
+    private func applyLoadedSettings(
+        _ parsed: SpotiglassSettingsFile,
+        didRepair: Bool,
+        preserveLocalChanges: Bool
+    ) throws {
+        let incoming: SettingsMergeResult
+        if preserveLocalChanges {
+            incoming = Self.mergedSettings(local: settings, baseline: lastKnownDiskSettings, disk: parsed)
+        } else {
+            incoming = SettingsMergeResult(settings: parsed, conflicts: [])
+        }
+        var next = incoming.settings
         var changed = false
+        // Establish the legacy catalog baseline before any new-default seeding. A
+        // missing metadata field means old commands may have been deliberately
+        // cleared, so treating it as an empty tracked list would resurrect them.
+        if Self.migrateKeybindSeedMetadata(into: &next) {
+            changed = true
+        }
         let sanitized = next.keybinds.filter { $0.command != CommandPaletteCommandID.refreshTracks }
         if sanitized.count != next.keybinds.count {
             next.keybinds = sanitized
@@ -114,11 +153,176 @@ final class SpotiglassSettingsStore: ObservableObject {
         if Self.seedNewDefaultKeybinds(into: &next) {
             changed = true
         }
-        if changed {
+
+        // `parsed` is the new three-way merge baseline. If a local staged value
+        // was retained, it remains a local difference and can be persisted later.
+        lastKnownDiskSettings = parsed
+        if changed || didRepair {
+            settings = next
             try persist(next)
         } else {
             settings = next
         }
+    }
+
+    /// Three-way merge at the persisted-field boundary. A local value is applied
+    /// only when it differs from the last disk baseline; untouched local fields
+    /// therefore inherit a newer external value. When both sides changed the
+    /// same field, the explicit local mutation wins and the conflict is logged.
+    private static func mergedSettings(
+        local: SpotiglassSettingsFile,
+        baseline: SpotiglassSettingsFile?,
+        disk: SpotiglassSettingsFile
+    ) -> SettingsMergeResult {
+        guard let baseline else {
+            return SettingsMergeResult(settings: disk, conflicts: [])
+        }
+
+        var merged = disk
+        var conflicts: [String] = []
+
+        func choose<T: Equatable>(
+            _ localValue: T,
+            baseline baselineValue: T,
+            disk diskValue: T,
+            field: String
+        ) -> T {
+            let localChanged = localValue != baselineValue
+            let diskChanged = diskValue != baselineValue
+            if localChanged && diskChanged && localValue != diskValue {
+                conflicts.append(field)
+            }
+            return localChanged ? localValue : diskValue
+        }
+
+        merged.version = choose(local.version, baseline: baseline.version, disk: disk.version, field: "version")
+        merged.keybinds = choose(local.keybinds, baseline: baseline.keybinds, disk: disk.keybinds, field: "keybinds")
+        merged.seededKeybindCommands = choose(
+            local.seededKeybindCommands,
+            baseline: baseline.seededKeybindCommands,
+            disk: disk.seededKeybindCommands,
+            field: "seededKeybindCommands"
+        )
+        merged.keybindSeedBaselineVersion = choose(
+            local.keybindSeedBaselineVersion,
+            baseline: baseline.keybindSeedBaselineVersion,
+            disk: disk.keybindSeedBaselineVersion,
+            field: "keybindSeedBaselineVersion"
+        )
+
+        merged.appearance.language = choose(
+            local.appearance.language,
+            baseline: baseline.appearance.language,
+            disk: disk.appearance.language,
+            field: "appearance.language"
+        )
+        merged.appearance.colorScheme = choose(
+            local.appearance.colorScheme,
+            baseline: baseline.appearance.colorScheme,
+            disk: disk.appearance.colorScheme,
+            field: "appearance.colorScheme"
+        )
+        merged.appearance.lyricsTextSize = choose(
+            local.appearance.lyricsTextSize,
+            baseline: baseline.appearance.lyricsTextSize,
+            disk: disk.appearance.lyricsTextSize,
+            field: "appearance.lyricsTextSize"
+        )
+        merged.appearance.lyricsOffsetMilliseconds = choose(
+            local.appearance.lyricsOffsetMilliseconds,
+            baseline: baseline.appearance.lyricsOffsetMilliseconds,
+            disk: disk.appearance.lyricsOffsetMilliseconds,
+            field: "appearance.lyricsOffsetMilliseconds"
+        )
+        merged.appearance.lyricsTextScale = choose(
+            local.appearance.lyricsTextScale,
+            baseline: baseline.appearance.lyricsTextScale,
+            disk: disk.appearance.lyricsTextScale,
+            field: "appearance.lyricsTextScale"
+        )
+
+        merged.commandPalette.backdropBlur = choose(
+            local.commandPalette.backdropBlur,
+            baseline: baseline.commandPalette.backdropBlur,
+            disk: disk.commandPalette.backdropBlur,
+            field: "commandPalette.backdropBlur"
+        )
+
+        merged.equalizer.enabled = choose(
+            local.equalizer.enabled,
+            baseline: baseline.equalizer.enabled,
+            disk: disk.equalizer.enabled,
+            field: "equalizer.enabled"
+        )
+        merged.equalizer.preamp = choose(
+            local.equalizer.preamp,
+            baseline: baseline.equalizer.preamp,
+            disk: disk.equalizer.preamp,
+            field: "equalizer.preamp"
+        )
+        merged.equalizer.bands = choose(
+            local.equalizer.bands,
+            baseline: baseline.equalizer.bands,
+            disk: disk.equalizer.bands,
+            field: "equalizer.bands"
+        )
+        merged.equalizer.activePresetName = choose(
+            local.equalizer.activePresetName,
+            baseline: baseline.equalizer.activePresetName,
+            disk: disk.equalizer.activePresetName,
+            field: "equalizer.activePresetName"
+        )
+        merged.equalizer.userPresets = choose(
+            local.equalizer.userPresets,
+            baseline: baseline.equalizer.userPresets,
+            disk: disk.equalizer.userPresets,
+            field: "equalizer.userPresets"
+        )
+        merged.equalizer.forwardingTargetUID = choose(
+            local.equalizer.forwardingTargetUID,
+            baseline: baseline.equalizer.forwardingTargetUID,
+            disk: disk.equalizer.forwardingTargetUID,
+            field: "equalizer.forwardingTargetUID"
+        )
+
+        return SettingsMergeResult(settings: merged, conflicts: conflicts)
+    }
+
+    /// IDs that had a default binding before seeded-keybind metadata was introduced.
+    /// A pre-metadata file cannot reveal whether one of these rows was deliberately
+    /// removed, so migration records this fixed historical baseline instead of
+    /// seeding those commands again. Commands added (or given a default) later stay
+    /// outside this list and are eligible for normal one-time seeding.
+    private static let legacyKeybindSeedBaseline: [String] = [
+        CommandPaletteCommandID.openPalette,
+        CommandPaletteCommandID.refreshPlaylists,
+        CommandPaletteCommandID.connectPlayback,
+        CommandPaletteCommandID.togglePlayback,
+        CommandPaletteCommandID.nextTrack,
+        CommandPaletteCommandID.previousTrack,
+        CommandPaletteCommandID.toggleQueue,
+        CommandPaletteCommandID.openSettings,
+        CommandPaletteCommandID.pinSelected,
+        CommandPaletteCommandID.enqueueSelected,
+    ]
+
+    /// Converts pre-metadata documents into the tracked schema before defaults are
+    /// seeded. Explicit metadata (including an empty list) is left untouched.
+    private static func migrateKeybindSeedMetadata(into file: inout SpotiglassSettingsFile) -> Bool {
+        var changed = false
+        if file.keybindSeedBaselineVersion < SpotiglassSettingsFile.currentKeybindSeedBaselineVersion {
+            let alreadySeeded = Set(file.seededKeybindCommands)
+            for commandID in legacyKeybindSeedBaseline where !alreadySeeded.contains(commandID) {
+                file.seededKeybindCommands.append(commandID)
+            }
+            file.keybindSeedBaselineVersion = SpotiglassSettingsFile.currentKeybindSeedBaselineVersion
+            changed = true
+        }
+        if file.version < SpotiglassSettingsFile.currentVersion {
+            file.version = SpotiglassSettingsFile.currentVersion
+            changed = true
+        }
+        return changed
     }
 
     /// Command IDs whose spelling changed after installs already had bindings
@@ -201,18 +405,94 @@ final class SpotiglassSettingsStore: ObservableObject {
 
     // MARK: - Persistence
 
-    private func persist(_ next: SpotiglassSettingsFile) throws {
+    private struct DecodedSettings {
+        let settings: SpotiglassSettingsFile
+        let didRepair: Bool
+    }
+
+    private struct SettingsDiskSnapshot {
+        let data: Data
+        let decoded: DecodedSettings
+    }
+
+    private struct SettingsMergeResult {
+        let settings: SpotiglassSettingsFile
+        let conflicts: [String]
+    }
+
+    private func decodeSettings(_ data: Data) throws -> DecodedSettings {
+        let tracker = SpotiglassSettingsDecodeTracker()
+        let decoder = JSONDecoder()
+        decoder.userInfo[.spotiglassSettingsDecodeTracker] = tracker
+        let settings = try decoder.decode(SpotiglassSettingsFile.self, from: data)
+        return DecodedSettings(settings: settings, didRepair: tracker.didRepair)
+    }
+
+    private func readDiskSnapshot() throws -> SettingsDiskSnapshot? {
+        guard fileManager.fileExists(atPath: fileURL.path) else { return nil }
+        let data = try Data(contentsOf: fileURL)
+        return SettingsDiskSnapshot(data: data, decoded: try decodeSettings(data))
+    }
+
+    /// A syntactically invalid document cannot provide a merge base. It is safe
+    /// to replace that document with the proposed settings, matching bootstrap's
+    /// existing whole-document fallback while keeping valid documents protected.
+    private func readDiskSnapshotForWrite() throws -> SettingsDiskSnapshot? {
+        do {
+            return try readDiskSnapshot()
+        } catch is DecodingError {
+            SpotiglassLog.error(
+                SpotiglassLog.settings,
+                "Settings document is not parseable; replacing it with the next valid snapshot."
+            )
+            return nil
+        }
+    }
+
+    private func persist(_ proposed: SpotiglassSettingsFile) throws {
         try ensureDirectory()
+
+        // Read immediately before encoding, then check once more before replacing
+        // the file. The second snapshot closes the common race where an editor
+        // saves while a staged UI value is being prepared.
+        let firstSnapshot = try readDiskSnapshotForWrite()
+        var currentSnapshot = firstSnapshot
+        let latestSnapshot = try readDiskSnapshotForWrite()
+        if firstSnapshot?.data != latestSnapshot?.data {
+            currentSnapshot = latestSnapshot
+        }
+
+        let merge: SettingsMergeResult
+        if let currentSnapshot, let baseline = lastKnownDiskSettings {
+            merge = Self.mergedSettings(
+                local: proposed,
+                baseline: baseline,
+                disk: currentSnapshot.decoded.settings
+            )
+        } else {
+            merge = SettingsMergeResult(settings: proposed, conflicts: [])
+        }
+
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .prettyPrinted]
-        let data = try encoder.encode(next)
-        // Arm the suppression only while a watcher is listening. Persists that run
-        // before startWatchingFile() (bootstrap, load-time migrations) would
-        // otherwise leave the flag stale and swallow the user's next external edit.
-        ignoreNextExternalChange = fileWatcher != nil
+        let data = try encoder.encode(merge.settings)
         try data.write(to: fileURL, options: .atomic)
-        settings = next
+
+        // The watcher may receive an event for the old inode after this method
+        // returns. Remember the exact replacement so only this write is ignored;
+        // a different external document is still reloaded.
+        rememberObservedFileData(data)
+        lastOwnWriteData = data
+        lastKnownDiskSettings = merge.settings
+        settings = merge.settings
         lastError = nil
+
+        if !merge.conflicts.isEmpty {
+            SpotiglassLog.info(
+                SpotiglassLog.settings,
+                "Merged local settings with concurrent external changes; local values won for: \(merge.conflicts.joined(separator: ", "))."
+            )
+        }
     }
 
     private func loadOrBootstrap() {
@@ -223,12 +503,19 @@ final class SpotiglassSettingsStore: ObservableObject {
                 return
             }
             let data = try Data(contentsOf: fileURL)
-            let parsed = try JSONDecoder().decode(SpotiglassSettingsFile.self, from: data)
-            try applyLoadedSettings(parsed)
+            rememberObservedFileData(data)
+            let loaded = try decodeSettings(data)
+            try applyLoadedSettings(
+                loaded.settings,
+                didRepair: loaded.didRepair,
+                preserveLocalChanges: false
+            )
             lastError = nil
         } catch {
             do {
                 let fallback = Self.bootstrapDefaults()
+                lastKnownDiskSettings = nil
+                settings = fallback
                 try persist(fallback)
                 lastError = "Settings file was invalid and has been reset to defaults. \(error.localizedDescription)"
             } catch {
@@ -277,19 +564,41 @@ final class SpotiglassSettingsStore: ObservableObject {
             watcherDescriptor = -1
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
                 guard let self else { return }
-                if !self.ignoreNextExternalChange {
-                    self.reloadFromDisk()
-                }
-                self.ignoreNextExternalChange = false
+                self.processObservedFileChange()
                 self.startWatchingFile()
             }
             return
         }
-        if ignoreNextExternalChange {
-            ignoreNextExternalChange = false
+        processObservedFileChange()
+    }
+
+    private func processObservedFileChange() {
+        let currentData = try? Data(contentsOf: fileURL)
+
+        // A self-write is identified by its exact content. If an external editor
+        // replaces the file before this callback runs, the bytes differ and the
+        // edit is reloaded instead of being swallowed by a one-shot flag.
+        if let lastOwnWriteData, currentData == lastOwnWriteData {
+            rememberObservedFileData(currentData)
             return
         }
+
+        // A single editor save can produce several write/rename notifications.
+        // Coalesce only an identical already-observed document; a new document
+        // always reaches reloadFromDisk exactly once for this store.
+        if hasObservedFileData, currentData == lastObservedFileData {
+            return
+        }
+        // This is a new external generation, so an old self-write token must not
+        // suppress a later external replacement that happens to reuse its bytes.
+        lastOwnWriteData = nil
+        rememberObservedFileData(currentData)
         reloadFromDisk()
+    }
+
+    private func rememberObservedFileData(_ data: Data?) {
+        lastObservedFileData = data
+        hasObservedFileData = true
     }
 
     // MARK: - Defaults

@@ -7,14 +7,15 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
     private func keyDown(
         keyCode: UInt16,
         characters: String = "",
-        modifiers: NSEvent.ModifierFlags = []
+        modifiers: NSEvent.ModifierFlags = [],
+        windowNumber: Int = 0
     ) -> NSEvent {
         NSEvent.keyEvent(
             with: .keyDown,
             location: .zero,
             modifierFlags: modifiers,
             timestamp: 0,
-            windowNumber: 0,
+            windowNumber: windowNumber,
             context: nil,
             characters: characters,
             charactersIgnoringModifiers: characters,
@@ -74,6 +75,64 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
             replaceConflicting: true
         )
         XCTAssertFalse(manager.handleKeyEvent(keyDown(keyCode: 40, characters: "k", modifiers: [.command])))
+    }
+
+    func testBareSpaceStillDispatchesWithoutFocusedKeyOwner() async throws {
+        let url = makeCommandPaletteTestsTempSettingsURL()
+        let settings = SpotiglassSettingsStore(fileURL: url)
+        let keymap = CommandPaletteKeymapStore(settingsStore: settings)
+        let manager = CommandPaletteManager(keymapStore: keymap)
+        manager.isSignedIn = true
+        let toggled = expectation(description: "toggle playback")
+        manager.togglePlayback = { toggled.fulfill() }
+
+        XCTAssertTrue(manager.handleKeyEvent(keyDown(keyCode: 49, characters: " ")))
+        await fulfillment(of: [toggled], timeout: 2)
+    }
+
+    func testFocusedKeyOwnerOnlyDefersEventsItOwns() {
+        let owner = TestFocusedKeyEventOwnerView(ownedKeyCode: 49)
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 80, height: 40),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        // `NSWindow` created in code defaults to `isReleasedWhenClosed`, so
+        // `close()` would release a window ARC still owns here and the test
+        // process would segfault popping the autorelease pool at test scope end.
+        window.isReleasedWhenClosed = false
+        window.contentView = owner
+        defer {
+            window.makeFirstResponder(nil)
+            window.close()
+        }
+
+        AppKitTestSupport.activateAppIfNeeded()
+        window.makeKeyAndOrderFront(nil)
+        AppKitTestSupport.pumpRunLoop(for: 0.03)
+        XCTAssertTrue(window.makeFirstResponder(owner))
+        let space = keyDown(
+            keyCode: 49,
+            characters: " ",
+            modifiers: [],
+            windowNumber: window.windowNumber
+        )
+        let command = keyDown(
+            keyCode: 40,
+            characters: "k",
+            modifiers: [.command],
+            windowNumber: window.windowNumber
+        )
+
+        XCTAssertTrue(FocusedKeyEventDispatcher.shouldDeferGlobalDispatch(for: space))
+        XCTAssertFalse(FocusedKeyEventDispatcher.shouldDeferGlobalDispatch(for: command))
+
+        let settings = SpotiglassSettingsStore(fileURL: makeCommandPaletteTestsTempSettingsURL())
+        let keymap = CommandPaletteKeymapStore(settingsStore: settings)
+        let manager = CommandPaletteManager(keymapStore: keymap)
+        XCTAssertTrue(manager.handleKeyEvent(command))
+        XCTAssertTrue(manager.viewModel.isPresented)
     }
 
     func testAutoRepeatDoesNotFireCommands() throws {
@@ -332,5 +391,27 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
         ])
         XCTAssertTrue(manager.handleKeyEvent(keyDown(keyCode: 36)))
         await fulfillment(of: [executed], timeout: 2)
+    }
+}
+
+@MainActor
+private final class TestFocusedKeyEventOwnerView: NSView, FocusedKeyEventOwner {
+    private let ownedKeyCode: UInt16
+
+    init(ownedKeyCode: UInt16) {
+        self.ownedKeyCode = ownedKeyCode
+        super.init(frame: .zero)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override var acceptsFirstResponder: Bool { true }
+
+    func ownsKeyEvent(_ event: NSEvent) -> Bool {
+        event.keyCode == ownedKeyCode
+            && event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty
     }
 }
