@@ -3609,6 +3609,75 @@
         }
       }
     },
+    "eq.error.outputDeviceUIDUnavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das aktuelle Ausgabegerät konnte nicht identifiziert werden. Versuchen Sie es erneut."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The current output device could not be identified. Try again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo identificar el dispositivo de salida actual. Inténtalo de nuevo."
+          }
+        }
+      }
+    },
+    "eq.error.previousOutputBackupMissing": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Es ist kein gespeichertes Ausgabegerät zum Wiederherstellen vorhanden."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No saved output device is available to restore."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay ningún dispositivo de salida guardado para restaurar."
+          }
+        }
+      }
+    },
+    "eq.error.previousOutputDeviceUnavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das vorherige Ausgabegerät ist nicht verbunden. Verbinden Sie es erneut und deaktivieren Sie den Equalizer noch einmal."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The previous output device is not connected. Reconnect it and disable the equalizer again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El dispositivo de salida anterior no está conectado. Vuelve a conectarlo y desactiva el ecualizador de nuevo."
+          }
+        }
+      }
+    },
     "eq.error.driverNotLoadedYet": {
       "extractionState": "manual",
       "localizations": {
