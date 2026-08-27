@@ -14,7 +14,7 @@ protocol MacDefaultAudioOutputProviding: AnyObject {
 
 /// Reads the system default **output** device name and notifies when it changes (e.g. Control Center output switch).
 final class MacDefaultAudioOutputNameProvider: MacDefaultAudioOutputProviding {
-    private var listenerBlock: AudioObjectPropertyListenerBlock?
+    private(set) var listenerBlock: AudioObjectPropertyListenerBlock?
     private let callbackQueue: DispatchQueue
 
     init(callbackQueue: DispatchQueue = .main) {

@@ -267,6 +267,41 @@ final class EqualizerHALPluginTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: defaultOutputBackupURL.path))
     }
 
+    // MARK: - Default-output observation
+
+    func testDefaultOutputProviderReportsDeviceAndDispatchesOutputChanges() {
+        let callbackQueue = DispatchQueue(label: "spotiglass-eq-default-output-test")
+        let provider = MacDefaultAudioOutputNameProvider(callbackQueue: callbackQueue)
+        let change = expectation(description: "default output change")
+        defer { provider.stopListening() }
+
+        provider.startListening {
+            change.fulfill()
+        }
+
+        XCTAssertNotNil(provider.listenerBlock)
+        XCTAssertEqual(
+            provider.currentOutputDeviceID,
+            MacAudioOutputHardware.defaultOutputDeviceID()
+        )
+
+        guard let listener = provider.listenerBlock else {
+            return XCTFail("the provider should retain its Core Audio listener")
+        }
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        withUnsafePointer(to: &address) { addressPointer in
+            listener(1, addressPointer)
+        }
+
+        wait(for: [change], timeout: 1)
+        provider.stopListening()
+        XCTAssertNil(provider.listenerBlock)
+    }
+
     // MARK: - Router readiness and system-output reconciliation
 
     func testRouterStatusParserReadsReadyAndFailureRecords() throws {
