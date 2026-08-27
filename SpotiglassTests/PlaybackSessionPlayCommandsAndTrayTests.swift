@@ -1,3 +1,4 @@
+import CoreAudio
 import XCTest
 @testable import Spotiglass
 
@@ -489,6 +490,7 @@ final class PlaybackSessionPlayCommandsAndTrayTests: XCTestCase {
 
 private final class MockMacAudioOutputProvider: MacDefaultAudioOutputProviding {
     let currentOutputDisplayName: String
+    var currentOutputDeviceID: AudioDeviceID?
     init(displayName: String) { currentOutputDisplayName = displayName }
     func startListening(_ onChange: @escaping () -> Void) {}
     func stopListening() {}

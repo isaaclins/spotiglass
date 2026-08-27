@@ -61,13 +61,15 @@ struct PlaylistBrowserView: View {
         playbackTokenProvider: PlaybackAccessTokenProviding,
         searchTokenProvider: SpotifyAccessTokenProviding,
         commandPaletteManager: CommandPaletteManager,
-        signOut: @escaping () -> Void
+        signOut: @escaping () -> Void,
+        equalizerEngine: AudioEqualizerEngine? = nil
     ) {
         let commander = WebPlaybackViewCommander()
         let playbackAPI = SpotifyPlaybackAPI(tokenProvider: playbackTokenProvider)
         let playbackViewModel = PlaybackSessionViewModel(
             playbackAPI: playbackAPI,
-            webCommander: commander
+            webCommander: commander,
+            equalizerEngine: equalizerEngine
         )
         let queueViewModel = QueueViewModel(
             playbackAPI: playbackAPI,

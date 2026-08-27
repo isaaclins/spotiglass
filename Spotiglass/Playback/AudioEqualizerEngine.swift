@@ -1,4 +1,5 @@
 import Combine
+import CoreAudio
 import Foundation
 
 /// Orchestrates the realtime 10-band graphic equalizer that filters Spotify
@@ -24,12 +25,63 @@ import Foundation
 /// The pieces that load and drive the actual `.driver` bundle live in
 /// ``EqualizerHALPluginController``; this engine is the SwiftUI-facing front
 /// end and the place that translates dB gains into biquad coefficients.
+enum EqualizerRouteState: Equatable {
+    case disabled
+    case starting(targetUID: String?)
+    case live(targetUID: String, errorMessage: String?)
+    case failed(message: String, isEngaged: Bool)
+
+    var isLive: Bool {
+        if case .live = self { return true }
+        return false
+    }
+
+    /// Whether the EQ is engaged or still needs a route attempt. A failed
+    /// target swap stays engaged so a later output selection can retry it.
+    var isEngaged: Bool {
+        switch self {
+        case .starting, .live:
+            return true
+        case let .failed(_, isEngaged):
+            return isEngaged
+        case .disabled:
+            return false
+        }
+    }
+
+    var targetUID: String? {
+        switch self {
+        case let .starting(targetUID):
+            return targetUID
+        case let .live(targetUID, _):
+            return targetUID
+        case .disabled, .failed:
+            return nil
+        }
+    }
+
+    var errorMessage: String? {
+        switch self {
+        case let .live(_, errorMessage): return errorMessage
+        case let .failed(message, _): return message
+        case .disabled, .starting: return nil
+        }
+    }
+}
+
 @MainActor
 final class AudioEqualizerEngine: ObservableObject {
-    /// Surfaces install/route/IPC errors to the Settings → Equalizer UI.
-    @Published private(set) var lastError: String?
-    /// Whether the EQ is currently routing audio through the HAL plugin.
-    @Published private(set) var isRunning: Bool = false
+    /// One authoritative lifecycle/readiness state for both UI status and
+    /// system-output reconciliation. The driver is not considered live until
+    /// its router worker reports a matching ready target.
+    @Published private(set) var routeState: EqualizerRouteState = .disabled
+
+    /// Compatibility projections used by existing settings/playback surfaces.
+    /// They intentionally derive from ``routeState`` rather than storing a
+    /// second interpretation of whether the route is active.
+    var lastError: String? { routeState.errorMessage }
+    var isRunning: Bool { routeState.isLive }
+    var isEngaged: Bool { routeState.isEngaged }
 
     private let pluginController: EqualizerHALPluginController
     private let coefficientPublisher: EQCoefficientPublisher
@@ -64,21 +116,15 @@ final class AudioEqualizerEngine: ObservableObject {
     /// user's pick survives a disable→enable cycle instead of resetting to
     /// the built-in speaker.
     func start(forwardingTargetUID: String? = nil) throws {
+        guard !routeState.isLive else { return }
+        routeState = .starting(targetUID: nil)
         do {
-            try pluginController.enable(preferredForwardingUID: forwardingTargetUID)
-            isRunning = true
-            lastError = nil
+            let targetUID = try pluginController.enable(preferredForwardingUID: forwardingTargetUID)
+            routeState = .live(targetUID: targetUID, errorMessage: nil)
             publishCoefficients()
         } catch {
-            // The OSStatus, the bundle name and the staged paths are kept off
-            // the settings pane, so the log is where a bug report picks them up
-            // (#186).
-            if let pluginError = error as? EqualizerHALPluginError,
-               let details = pluginError.diagnosticDetails {
-                SpotiglassLog.error(.playback, details)
-            }
-            lastError = error.localizedDescription
-            isRunning = false
+            recordFailure(error)
+            routeState = .failed(message: error.localizedDescription, isEngaged: false)
             throw error
         }
     }
@@ -90,19 +136,21 @@ final class AudioEqualizerEngine: ObservableObject {
     /// If restoration fails, the error is surfaced and ``isRunning`` remains
     /// true because the EQ may still be the system default output.
     func stop() throws {
+        let stateBeforeStop = routeState
         do {
             try pluginController.disable()
-            isRunning = false
-            lastError = nil
+            routeState = .disabled
         } catch {
             // Keep the active state until the controller confirms that the
             // system default output was restored. This is the recovery path
             // for a failed transactional disable.
-            if let pluginError = error as? EqualizerHALPluginError,
-               let details = pluginError.diagnosticDetails {
-                SpotiglassLog.error(.playback, details)
+            recordFailure(error)
+            switch stateBeforeStop {
+            case let .live(targetUID, _):
+                routeState = .live(targetUID: targetUID, errorMessage: error.localizedDescription)
+            default:
+                routeState = .failed(message: error.localizedDescription, isEngaged: false)
             }
-            lastError = error.localizedDescription
             throw error
         }
     }
@@ -137,11 +185,51 @@ final class AudioEqualizerEngine: ObservableObject {
         pluginController.availableForwardingTargets()
     }
 
-    /// Updates where EQ-processed audio is sent. Writes the UID to the
-    /// driver's target file; the driver's background watcher (~500 ms)
-    /// swaps its `AudioDeviceIOProc` atomically — no need to toggle EQ.
+    /// Updates where EQ-processed audio is sent. While active, the route stays
+    /// non-live until the driver's background watcher confirms the new target.
+    /// Before activation this only stores the user's preference for enable().
     func setForwardingTarget(uid: String) {
-        pluginController.setForwardingTarget(uid: uid)
+        guard routeState.isLive else {
+            pluginController.setForwardingTarget(uid: uid)
+            return
+        }
+        let previousTarget = routeState.targetUID
+        routeState = .starting(targetUID: previousTarget)
+        do {
+            let targetUID = try pluginController.setForwardingTargetAndWait(uid: uid)
+            routeState = .live(targetUID: targetUID, errorMessage: nil)
+        } catch {
+            recordFailure(error)
+            routeState = .failed(message: error.localizedDescription, isEngaged: true)
+        }
+    }
+
+    /// Makes a hardware selection the EQRouter's target and restores the
+    /// virtual device as macOS's default output. This is the user-selection
+    /// path used by the playback device menu while EQ is engaged.
+    func selectOutputDevice(_ outputDeviceID: AudioObjectID) {
+        guard routeState.isEngaged else { return }
+        guard !isStarting else { return }
+        let previousTarget = routeState.targetUID
+        routeState = .starting(targetUID: previousTarget)
+        do {
+            let targetUID = try pluginController.routeEqualizerThroughOutputDevice(outputDeviceID)
+            routeState = .live(targetUID: targetUID, errorMessage: nil)
+        } catch {
+            recordFailure(error)
+            routeState = .failed(message: error.localizedDescription, isEngaged: true)
+        }
+    }
+
+    /// Handles a default-output change made outside the EQ settings. A
+    /// hardware default is adopted as the forwarding target, then the virtual
+    /// EQ device is restored as the system default.
+    func reconcileSystemDefaultOutputDevice(_ outputDeviceID: AudioObjectID) {
+        guard routeState.isLive else { return }
+        guard let virtualDeviceID = pluginController.lookupSpotiglassEQDeviceID(),
+              outputDeviceID != virtualDeviceID
+        else { return }
+        selectOutputDevice(outputDeviceID)
     }
 
     /// The UID currently written to the target file (whatever the driver
@@ -152,6 +240,21 @@ final class AudioEqualizerEngine: ObservableObject {
     }
 
     // MARK: - Internals
+
+    private var isStarting: Bool {
+        if case .starting = routeState { return true }
+        return false
+    }
+
+    private func recordFailure(_ error: Error) {
+        // The OSStatus, the bundle name and the staged paths are kept off the
+        // settings pane, so the log is where a bug report picks them up
+        // (#186).
+        if let pluginError = error as? EqualizerHALPluginError,
+           let details = pluginError.diagnosticDetails {
+            SpotiglassLog.error(.playback, details)
+        }
+    }
 
     private func publishCoefficients() {
         let sampleRate = sampleRateProvider.activeSampleRate
