@@ -154,7 +154,11 @@ struct CommandPaletteSettingsView: View {
                                 do {
                                     try keymapStore.clearBinding(commandID: spec.commandID)
                                 } catch {
-                                    keymapStore.lastError = error.localizedDescription
+                                    keymapStore.lastError = CommandPaletteKeymapErrorPresenter.message(
+                                        for: error,
+                                        source: keymapStore.fileURL.path,
+                                        operation: "clear shortcut"
+                                    )
                                 }
                             } label: {
                                 Image(systemName: "xmark.circle.fill")
@@ -204,7 +208,11 @@ struct CommandPaletteSettingsView: View {
                             )
                             pendingConflictByCommand[spec.commandID] = nil
                         } catch {
-                            keymapStore.lastError = error.localizedDescription
+                            keymapStore.lastError = CommandPaletteKeymapErrorPresenter.message(
+                                for: error,
+                                source: keymapStore.fileURL.path,
+                                operation: "replace shortcut"
+                            )
                         }
                     }
                     .buttonStyle(.borderedProminent)

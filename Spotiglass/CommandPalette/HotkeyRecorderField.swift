@@ -106,7 +106,11 @@ struct HotkeyRecorderField: NSViewRepresentable {
                     try parent.keymapStore.clearBinding(commandID: parent.commandID)
                     parent.onApplied()
                 } catch {
-                    parent.keymapStore.lastError = error.localizedDescription
+                    parent.keymapStore.lastError = CommandPaletteKeymapErrorPresenter.message(
+                        for: error,
+                        source: parent.keymapStore.fileURL.path,
+                        operation: "clear shortcut"
+                    )
                 }
                 view.finishRecordingAndResign()
                 return
@@ -126,7 +130,11 @@ struct HotkeyRecorderField: NSViewRepresentable {
                 }
                 view.finishRecordingAndResign()
             } catch {
-                parent.keymapStore.lastError = error.localizedDescription
+                parent.keymapStore.lastError = CommandPaletteKeymapErrorPresenter.message(
+                    for: error,
+                    source: parent.keymapStore.fileURL.path,
+                    operation: "record shortcut"
+                )
                 view.finishRecordingAndResign()
             }
         }

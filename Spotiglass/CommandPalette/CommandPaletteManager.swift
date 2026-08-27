@@ -48,6 +48,7 @@ final class CommandPaletteManager: ObservableObject {
     var playURI: ((String) async -> Void)?
     var openPlaylist: ((String) async -> Void)?
     var openArtist: ((String) async -> Void)?
+    var openAlbum: ((String, String, String, URL?) async -> Void)?
     /// Opens the dedicated catalog Search view. Wired by the browser host.
     var openSearch: (() -> Void)?
     var spotifySearch: ((String, CommandPaletteSearchCategory) async throws -> CommandPaletteSearchResults)?
@@ -299,6 +300,18 @@ final class CommandPaletteManager: ObservableObject {
             if case let .string(artistID)? = args?["artistID"] {
                 Task { await openArtist?(artistID) }
             }
+        case CommandPaletteCommandID.openAlbum:
+            guard case let .string(albumID)? = args?["albumID"],
+                  case let .string(title)? = args?["title"],
+                  case let .string(subtitle)? = args?["subtitle"]
+            else { break }
+            let artworkURL: URL?
+            if case let .string(rawURL)? = args?["artworkURL"] {
+                artworkURL = URL(string: rawURL)
+            } else {
+                artworkURL = nil
+            }
+            Task { await openAlbum?(albumID, title, subtitle, artworkURL) }
         case CommandPaletteCommandID.openSearch:
             openSearch?()
         case CommandPaletteCommandID.filterByArtist:

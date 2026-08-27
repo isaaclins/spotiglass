@@ -24,6 +24,30 @@ final class CommandPaletteManagerTests: XCTestCase {
         XCTAssertEqual(receivedID, "abc123")
     }
 
+    func testOpenAlbumCommandInvokesHandlerWithMetadata() async {
+        let manager = CommandPaletteManager()
+        let opened = expectation(description: "openAlbum")
+        var received: (id: String, title: String, subtitle: String, artworkURL: URL?)?
+        manager.openAlbum = { id, title, subtitle, artworkURL in
+            received = (id, title, subtitle, artworkURL)
+            opened.fulfill()
+        }
+        manager.execute(
+            commandID: CommandPaletteCommandID.openAlbum,
+            args: [
+                "albumID": .string("album-1"),
+                "title": .string("Night Drive"),
+                "subtitle": .string("M83"),
+                "artworkURL": .string("https://example.com/album.png"),
+            ]
+        )
+        await fulfillment(of: [opened], timeout: 2)
+        XCTAssertEqual(received?.id, "album-1")
+        XCTAssertEqual(received?.title, "Night Drive")
+        XCTAssertEqual(received?.subtitle, "M83")
+        XCTAssertEqual(received?.artworkURL, URL(string: "https://example.com/album.png"))
+    }
+
     func testToggleLyricsCommandInvokesHandler() {
         let manager = CommandPaletteManager()
         manager.setLyricsToggleAvailability(true)

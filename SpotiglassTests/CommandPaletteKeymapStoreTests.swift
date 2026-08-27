@@ -108,4 +108,93 @@ final class CommandPaletteKeymapStoreTests: XCTestCase {
         XCTAssertEqual(store.primaryShortcut(for: CommandPaletteCommandID.openPalette), rebound)
     }
 
+    func testApplyEditorTextMapsMalformedJSONToLocalizedMessage() throws {
+        let url = makeCommandPaletteTestsTempSettingsURL()
+        let settingsStore = SpotiglassSettingsStore(fileURL: url)
+        let store = CommandPaletteKeymapStore(settingsStore: settingsStore)
+        let previousL10nStore = SpotiglassL10n.settingsStore
+        SpotiglassL10n.settingsStore = settingsStore
+        defer { SpotiglassL10n.settingsStore = previousL10nStore }
+
+        store.editorText = "{not valid JSON"
+        store.applyEditorText()
+
+        XCTAssertEqual(
+            store.lastError,
+            SpotiglassL10n.format(
+                "keymap.error.invalidJSON",
+                SpotiglassL10n.string("palette.settings.advanced")
+            )
+        )
+        XCTAssertFalse(store.lastError?.contains("dataCorrupted") == true)
+        XCTAssertFalse(store.lastError?.contains("not valid JSON") == true)
+    }
+
+    func testApplyEditorTextNamesMissingValueAndJSONLocation() throws {
+        let url = makeCommandPaletteTestsTempSettingsURL()
+        let settingsStore = SpotiglassSettingsStore(fileURL: url)
+        let store = CommandPaletteKeymapStore(settingsStore: settingsStore)
+        let previousL10nStore = SpotiglassL10n.settingsStore
+        SpotiglassL10n.settingsStore = settingsStore
+        defer { SpotiglassL10n.settingsStore = previousL10nStore }
+
+        store.editorText = #"{"bindings":[{"keystrokes":["cmd-k"]}]}"#
+        store.applyEditorText()
+
+        let source = SpotiglassL10n.string("palette.settings.advanced")
+        let location = SpotiglassL10n.format("keymap.error.location", source, "bindings[0].command")
+        XCTAssertEqual(
+            store.lastError,
+            SpotiglassL10n.format("keymap.error.missingValue", location)
+        )
+    }
+
+    func testInvalidStoredKeymapUsesLocalizedRecoveryMessage() throws {
+        let url = makeCommandPaletteTestsTempSettingsURL()
+        var file = SpotiglassSettingsStore.bootstrapDefaults()
+        file.keybinds = [
+            CommandPaletteKeyBinding(
+                keystrokes: ["cmd-unknown"],
+                command: "custom.command",
+                when: .always,
+                args: nil
+            )
+        ]
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .prettyPrinted]
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try encoder.encode(file).write(to: url)
+
+        let settingsStore = SpotiglassSettingsStore(fileURL: url)
+        let previousL10nStore = SpotiglassL10n.settingsStore
+        SpotiglassL10n.settingsStore = settingsStore
+        defer { SpotiglassL10n.settingsStore = previousL10nStore }
+        let store = CommandPaletteKeymapStore(settingsStore: settingsStore)
+
+        let detail = SpotiglassL10n.format("keymap.error.unsupportedToken", "unknown")
+        XCTAssertEqual(
+            store.lastError,
+            SpotiglassL10n.format("keymap.error.invalidStored", url.path, detail)
+        )
+        XCTAssertFalse(store.lastError?.contains("unsupportedToken") == true)
+        XCTAssertNotNil(store.primaryShortcut(for: CommandPaletteCommandID.openPalette))
+    }
+
+    func testReloadFromDiskDoesNotExposeRawSettingsDecoderError() throws {
+        let url = makeCommandPaletteTestsTempSettingsURL()
+        let settingsStore = SpotiglassSettingsStore(fileURL: url)
+        let store = CommandPaletteKeymapStore(settingsStore: settingsStore)
+        let previousL10nStore = SpotiglassL10n.settingsStore
+        SpotiglassL10n.settingsStore = settingsStore
+        defer { SpotiglassL10n.settingsStore = previousL10nStore }
+
+        try "{not valid JSON".write(to: url, atomically: true, encoding: .utf8)
+        store.reloadFromDisk()
+
+        XCTAssertEqual(
+            store.lastError,
+            SpotiglassL10n.format("keymap.error.reloadFailed", url.path)
+        )
+        XCTAssertFalse(store.lastError?.contains("dataCorrupted") == true)
+    }
 }
