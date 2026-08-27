@@ -160,6 +160,9 @@ final class PlaybackSessionViewModel: ObservableObject {
     let playbackAPI: SpotifyPlaybackControlling
     let webCommander: WebPlaybackCommanding
     let macAudioOutput: MacDefaultAudioOutputProviding
+    /// Shared EQ route state used to keep system-output selections inside the
+    /// equalizer instead of bypassing its virtual device.
+    let equalizerEngine: AudioEqualizerEngine?
     /// Backing store for the persisted playback volume. Production uses
     /// `.standard`; tests inject an ephemeral suite so a test run cannot
     /// overwrite the real user's stored volume.
@@ -472,6 +475,7 @@ final class PlaybackSessionViewModel: ObservableObject {
         playbackAPI: SpotifyPlaybackControlling,
         webCommander: WebPlaybackCommanding,
         macAudioOutput: MacDefaultAudioOutputProviding = MacDefaultAudioOutputNameProvider(),
+        equalizerEngine: AudioEqualizerEngine? = nil,
         defaults: UserDefaults = .standard,
         pendingShuffleTimeout: Duration = .seconds(2),
         pendingRepeatTimeout: Duration = .seconds(2),
@@ -500,6 +504,7 @@ final class PlaybackSessionViewModel: ObservableObject {
         self.playbackAPI = playbackAPI
         self.webCommander = webCommander
         self.macAudioOutput = macAudioOutput
+        self.equalizerEngine = equalizerEngine
         self.defaults = defaults
         self.pendingShuffleTimeout = pendingShuffleTimeout
         self.pendingRepeatTimeout = pendingRepeatTimeout
@@ -528,8 +533,7 @@ final class PlaybackSessionViewModel: ObservableObject {
 
         macAudioOutput.startListening { [weak self] in
             Task { @MainActor in
-                self?.refreshTrayOutputSymbol()
-                self?.refreshMacAudioOutputDevices()
+                self?.handleMacAudioOutputChange()
             }
         }
         becameActiveObserver = NotificationCenter.default.addObserver(

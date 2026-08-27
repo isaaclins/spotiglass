@@ -121,6 +121,15 @@ enum PlaylistBrowserCommandPaletteConfiguration {
         manager.openArtist = { [weak viewModel = dependencies.viewModel] artistID in
             await viewModel?.selectArtist(id: artistID, origin: .reset, displayName: nil)
         }
+        manager.openAlbum = { [weak viewModel = dependencies.viewModel] id, title, subtitle, artworkURL in
+            await viewModel?.selectAlbum(
+                id: id,
+                displayTitle: title,
+                displaySubtitle: subtitle,
+                artworkURL: artworkURL,
+                origin: .reset
+            )
+        }
         // The Search view owns no API client; it borrows the browser's search
         // client. `/v1/search` caps `limit` at 10 per type, so depth comes from offset.
         let searchClient = dependencies.spotifySearchClient
@@ -224,6 +233,20 @@ enum PlaylistBrowserCommandPaletteConfiguration {
                 commandPaletteManager.execute(
                     commandID: CommandPaletteCommandID.openArtist,
                     args: ["artistID": .string(artistID)]
+                )
+            },
+            openAlbum: { albumID, title, subtitle, artworkURL in
+                var args: [String: JSONValue] = [
+                    "albumID": .string(albumID),
+                    "title": .string(title),
+                    "subtitle": .string(subtitle),
+                ]
+                if let artworkURL {
+                    args["artworkURL"] = .string(artworkURL.absoluteString)
+                }
+                commandPaletteManager.execute(
+                    commandID: CommandPaletteCommandID.openAlbum,
+                    args: args
                 )
             },
             addToQueue: { uri in

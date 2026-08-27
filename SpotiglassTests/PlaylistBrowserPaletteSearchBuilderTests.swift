@@ -19,6 +19,7 @@ final class PlaylistBrowserPaletteSearchBuilderTests: XCTestCase {
             playURI: { playedURIs.append($0) },
             openPlaylist: { _ in },
             openArtist: { _ in },
+            openAlbum: { _, _, _, _ in },
             addToQueue: { _ in }
         )
         return (env, playedURIs, pinnedItems, pinnedIDs)
@@ -154,6 +155,66 @@ final class PlaylistBrowserPaletteSearchBuilderTests: XCTestCase {
         XCTAssertEqual(result.artists.count, 1)
         XCTAssertEqual(result.albums.count, 1)
         XCTAssertEqual(result.catalogPlaylists.count, 1)
+    }
+
+    func testAlbumResultActionOpensAlbumWithMetadata() async throws {
+        var openedAlbum: (id: String, title: String, subtitle: String, artworkURL: URL?)?
+        let environment = PlaylistBrowserPaletteSearchEnvironment(
+            isPinnedByID: { _ in false },
+            pin: { _ in },
+            unpin: { _ in },
+            playURI: { _ in },
+            openPlaylist: { _ in },
+            openArtist: { _ in },
+            openAlbum: { id, title, subtitle, artworkURL in
+                openedAlbum = (id, title, subtitle, artworkURL)
+            },
+            addToQueue: { _ in }
+        )
+        let http = QueueHTTPClient([
+            .json(#"""
+            {
+              "albums": {
+                "limit": 1,
+                "next": null,
+                "total": 1,
+                "items": [
+                  {
+                    "id": "album-1",
+                    "name": "Night Drive",
+                    "artists": [{ "name": "M83" }],
+                    "images": [{ "url": "https://example.com/album.png", "height": 640, "width": 640 }],
+                    "uri": "spotify:album:album-1"
+                  }
+                ]
+              }
+            }
+            """#)
+        ])
+        let client = SpotifyAPIClient(
+            tokenProvider: StaticSpotifyAccessTokenProvider(token: "tok"),
+            httpClient: http
+        )
+
+        let result = try await PlaylistBrowserPaletteSearchBuilder.search(
+            query: "night",
+            category: .all,
+            spotifySearchClient: client,
+            environment: environment,
+            loadedContextTracks: nil,
+            visiblePlaylists: [],
+            currentUserSpotifyID: nil
+        )
+        let album = try XCTUnwrap(result.albums.first)
+        await album.action()
+
+        XCTAssertEqual(
+            openedAlbum?.id,
+            "album-1"
+        )
+        XCTAssertEqual(openedAlbum?.title, "Night Drive")
+        XCTAssertEqual(openedAlbum?.subtitle, "M83")
+        XCTAssertEqual(openedAlbum?.artworkURL, URL(string: "https://example.com/album.png"))
     }
 
     func testMyPlaylistsCategorySkipsNetworkSearch() async throws {

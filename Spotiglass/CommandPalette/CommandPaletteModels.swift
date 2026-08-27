@@ -37,6 +37,9 @@ enum CommandPaletteCommandID {
     static let toggleQueue = "queue.toggle"
     static let toggleLyrics = "lyrics.toggle"
     static let openArtist = "navigation.artist.open"
+    /// Opens an album result through the browser's existing album-detail path.
+    /// This is an internal palette-result action, not an editable keymap command.
+    static let openAlbum = "navigation.album.open"
     /// Opens the dedicated full-window catalog Search view. Default ⌘F.
     static let openSearch = "navigation.search.open"
     /// Pin the currently-selected palette result. Default ⌘↩ in `.paletteOpen`.
