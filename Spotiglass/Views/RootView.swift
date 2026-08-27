@@ -5,14 +5,23 @@ struct RootView: View {
     @EnvironmentObject private var viewModel: AuthViewModel
     @EnvironmentObject private var pinnedStore: PinnedItemsStore
     @StateObject private var commandPaletteManager: CommandPaletteManager
+    /// Passed straight through to the playback session so a hardware output
+    /// selection can be re-routed through the EQ instead of bypassing it
+    /// (#253). Nil in previews/tests, where no engine owns the system route.
+    private let equalizerEngine: AudioEqualizerEngine?
     @Environment(\.openSettings) private var openSettingsAction
 
     init() {
         _commandPaletteManager = StateObject(wrappedValue: CommandPaletteManager())
+        equalizerEngine = nil
     }
 
-    init(commandPaletteManager: CommandPaletteManager) {
+    init(
+        commandPaletteManager: CommandPaletteManager,
+        equalizerEngine: AudioEqualizerEngine? = nil
+    ) {
         _commandPaletteManager = StateObject(wrappedValue: commandPaletteManager)
+        self.equalizerEngine = equalizerEngine
     }
 
     var body: some View {
@@ -76,7 +85,8 @@ struct RootView: View {
                 signOut: {
                     pinnedStore.clearForSignOut()
                     Task { await viewModel.signOut() }
-                }
+                },
+                equalizerEngine: equalizerEngine
             )
         case .refreshing(.none):
             ZStack {

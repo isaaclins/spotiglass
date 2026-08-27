@@ -4,6 +4,10 @@ import Foundation
 
 protocol MacDefaultAudioOutputProviding: AnyObject {
     var currentOutputDisplayName: String { get }
+    /// Identity of the device behind ``currentOutputDisplayName``. The
+    /// equalizer route reconciliation needs the ID, not the name, to tell an
+    /// external hardware selection from its own virtual device (#253).
+    var currentOutputDeviceID: AudioDeviceID? { get }
     func startListening(_ onChange: @escaping () -> Void)
     func stopListening()
 }
@@ -19,6 +23,10 @@ final class MacDefaultAudioOutputNameProvider: MacDefaultAudioOutputProviding {
 
     var currentOutputDisplayName: String {
         Self.copyDefaultOutputDeviceName() ?? ""
+    }
+
+    var currentOutputDeviceID: AudioDeviceID? {
+        MacAudioOutputHardware.defaultOutputDeviceID()
     }
 
     func startListening(_ onChange: @escaping () -> Void) {

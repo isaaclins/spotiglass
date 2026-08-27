@@ -3701,6 +3701,52 @@
         }
       }
     },
+    "eq.error.routerReadinessTimedOut": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Equalizer-Audio-Router wurde nicht rechtzeitig bereit. Versuchen Sie es erneut."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The equalizer audio router did not become ready. Try again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El enrutador de audio del ecualizador no estuvo listo. Inténtalo de nuevo."
+          }
+        }
+      }
+    },
+    "eq.error.routerTargetOpenFailed": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Ausgabegerät des Equalizers konnte nicht geöffnet werden. Wählen Sie ein anderes Gerät und versuchen Sie es erneut."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The equalizer could not open its output device. Choose another device and try again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El ecualizador no pudo abrir su dispositivo de salida. Elige otro dispositivo e inténtalo de nuevo."
+          }
+        }
+      }
+    },
     "eq.error.driverNotLoadedYet": {
       "extractionState": "manual",
       "localizations": {

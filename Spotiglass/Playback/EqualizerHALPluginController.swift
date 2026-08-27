@@ -6,6 +6,11 @@ protocol EqualizerSampleRateProviding: AnyObject {
     var activeSampleRateDidChange: ((UInt32) -> Void)? { get set }
 }
 
+enum EqualizerRouterStatus: Equatable {
+    case ready(targetUID: String)
+    case failed(targetUID: String, reasonCode: Int)
+}
+
 /// Owns the lifecycle of the bundled `SpotiglassEQDriver.driver` CoreAudio
 /// AudioServerPlugIn. Responsibilities:
 ///
@@ -69,7 +74,14 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
     private let fileManager: FileManager
     private let outputBackupURL: URL
     private let outputDeviceIDForUID: (String) -> AudioObjectID?
+    private let outputDeviceUID: (AudioObjectID) -> String?
+    private let virtualDeviceIDProvider: () -> AudioObjectID?
+    private let defaultOutputDeviceIDProvider: () throws -> AudioObjectID
     private let defaultOutputSetter: (AudioObjectID) throws -> Void
+    private let routerStatusURL: URL
+    private let routerStatusReader: () -> EqualizerRouterStatus?
+    private let routerReadinessTimeout: TimeInterval
+    private let activeSampleRateObservationStarter: ((AudioObjectID) throws -> Void)?
     private var activeSampleRateListener: AudioObjectPropertyListenerBlock?
     private var observedSampleRateDeviceID: AudioObjectID?
 
@@ -90,7 +102,14 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
         bundle: Bundle = .main,
         defaultOutputBackupURL: URL = EqualizerHALPluginController.defaultOutputBackupURL,
         outputDeviceIDForUID: ((String) -> AudioObjectID?)? = nil,
-        defaultOutputSetter: ((AudioObjectID) throws -> Void)? = nil
+        outputDeviceUID: ((AudioObjectID) -> String?)? = nil,
+        defaultOutputDeviceIDProvider: (() throws -> AudioObjectID)? = nil,
+        virtualDeviceIDProvider: (() -> AudioObjectID?)? = nil,
+        defaultOutputSetter: ((AudioObjectID) throws -> Void)? = nil,
+        routerStatusURL: URL = EqualizerHALPluginController.routerStatusURL,
+        routerStatusReader: (() -> EqualizerRouterStatus?)? = nil,
+        routerReadinessTimeout: TimeInterval = 2.0,
+        activeSampleRateObservationStarter: ((AudioObjectID) throws -> Void)? = nil
     ) {
         self.halDirectory = halDirectory
         self.fileManager = fileManager
@@ -98,9 +117,26 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
         self.outputDeviceIDForUID = outputDeviceIDForUID ?? { uid in
             AudioDeviceEnumerator.deviceID(forUID: uid)
         }
+        self.outputDeviceUID = outputDeviceUID ?? { deviceID in
+            AudioDeviceEnumerator.uid(of: deviceID)
+        }
+        self.virtualDeviceIDProvider = virtualDeviceIDProvider ?? {
+            AudioDeviceEnumerator.allOutputDevices().first { device in
+                device.name == Self.virtualDeviceName
+            }?.id
+        }
+        self.defaultOutputDeviceIDProvider = defaultOutputDeviceIDProvider ?? {
+            try Self.currentDefaultOutputDeviceIDInCoreAudio()
+        }
         self.defaultOutputSetter = defaultOutputSetter ?? { deviceID in
             try Self.setDefaultOutputDeviceInCoreAudio(to: deviceID)
         }
+        self.routerStatusURL = routerStatusURL
+        self.routerStatusReader = routerStatusReader ?? {
+            Self.readRouterStatus(from: routerStatusURL)
+        }
+        self.routerReadinessTimeout = max(0, routerReadinessTimeout)
+        self.activeSampleRateObservationStarter = activeSampleRateObservationStarter
         self.embeddedDriverURL = Self.locateEmbeddedDriver(in: bundle)
         self.previousDefaultOutputID = nil
         self.previousDefaultOutputUID = Self.readDefaultOutputBackup(
@@ -133,7 +169,8 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
     /// Settings → "Send EQ'd audio to" picker survive a disable→enable cycle.
     /// When nil, falls back to the previous default output (or the built-in
     /// speaker if that would loop Spotiglass EQ back to itself).
-    func enable(preferredForwardingUID: String? = nil) throws {
+    @discardableResult
+    func enable(preferredForwardingUID: String? = nil) throws -> String {
         try installIfNeeded()
         if let deviceID = lookupSpotiglassEQDeviceID() {
             try captureCurrentDefaultOutput(virtualDeviceID: deviceID)
@@ -144,20 +181,27 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
             let previousUID: String? = {
                 if previousDefaultOutputID == deviceID { return nil }
                 if let uid = previousDefaultOutputUID, !uid.isEmpty { return uid }
-                return previousDefaultOutputID.flatMap { AudioDeviceEnumerator.uid(of: $0) }
+                return previousDefaultOutputID.flatMap { outputDeviceUID($0) }
             }()
             let targetUID = Self.resolveForwardingTargetUID(
                 preferred: preferredForwardingUID,
                 previousUID: previousUID
             )
+            prepareRouterReadiness(for: targetUID)
             Self.writeForwardingTarget(uid: targetUID)
-            try beginActiveSampleRateObservation(for: deviceID)
+            if let activeSampleRateObservationStarter {
+                try activeSampleRateObservationStarter(deviceID)
+            } else {
+                try beginActiveSampleRateObservation(for: deviceID)
+            }
             do {
                 try setDefaultOutputDevice(to: deviceID)
+                try waitForRouterReadiness(targetUID: targetUID)
             } catch {
                 removeActiveSampleRateObservation()
                 throw error
             }
+            return targetUID
         } else {
             throw EqualizerHALPluginError.driverNotLoadedYet(
                 installedPath: installedDriverURL.path
@@ -182,6 +226,7 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
         removeActiveSampleRateObservation()
         previousDefaultOutputID = nil
         previousDefaultOutputUID = nil
+        clearRouterStatus()
         do {
             try Self.clearDefaultOutputBackup(at: outputBackupURL, fileManager: fileManager)
         } catch {
@@ -221,6 +266,37 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
         }
     }
 
+    /// Re-routes an explicitly selected hardware output through the EQ device.
+    /// The selected device becomes both the router target and the output to
+    /// restore when the EQ is later disabled.
+    @discardableResult
+    func routeEqualizerThroughOutputDevice(_ outputDeviceID: AudioObjectID) throws -> String {
+        guard let virtualDeviceID = lookupSpotiglassEQDeviceID() else {
+            throw EqualizerHALPluginError.driverNotLoadedYet(
+                installedPath: installedDriverURL.path
+            )
+        }
+        if outputDeviceID == virtualDeviceID {
+            return currentForwardingTargetUID() ?? Self.fallbackForwardingUID
+        }
+        guard let uid = outputDeviceUID(outputDeviceID), !uid.isEmpty else {
+            throw EqualizerHALPluginError.outputDeviceUIDUnavailable
+        }
+
+        previousDefaultOutputID = outputDeviceID
+        previousDefaultOutputUID = uid
+        try Self.writeDefaultOutputBackup(
+            uid: uid,
+            to: outputBackupURL,
+            fileManager: fileManager
+        )
+        prepareRouterReadiness(for: uid)
+        Self.writeForwardingTarget(uid: uid)
+        try setDefaultOutputDevice(to: virtualDeviceID)
+        try waitForRouterReadiness(targetUID: uid)
+        return uid
+    }
+
     /// Path of the one-shot file the C++ driver reads in StartIO to learn
     /// which real hardware output to forward EQ-processed audio to. Fixed
     /// path with no uid suffix: the Swift host writes as the logged-in user,
@@ -228,6 +304,13 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
     /// `_coreaudiod`'s uid (202), so a shared path side-steps that mismatch.
     nonisolated static var forwardingTargetURL: URL {
         URL(fileURLWithPath: "/tmp/com.isaaclins.spotiglass.eq.target")
+    }
+
+    /// Status written by the HAL driver's router worker. The file is shared
+    /// through /tmp for the same reason as ``forwardingTargetURL``: the Swift
+    /// app and coreaudiod run as different users.
+    nonisolated static var routerStatusURL: URL {
+        URL(fileURLWithPath: "/tmp/com.isaaclins.spotiglass.eq.router.status")
     }
 
     /// Pure precedence rule for the EQRouter's forwarding target: an
@@ -265,6 +348,18 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
     func setForwardingTarget(uid: String) {
         let resolved = uid.isEmpty ? Self.fallbackForwardingUID : uid
         Self.writeForwardingTarget(uid: resolved)
+    }
+
+    /// Writes a new target and waits until the driver confirms that its router
+    /// has opened it. This is used only while EQ is active; the non-throwing
+    /// method above remains the pre-enable preference path.
+    @discardableResult
+    func setForwardingTargetAndWait(uid: String) throws -> String {
+        let resolved = uid.isEmpty ? Self.fallbackForwardingUID : uid
+        prepareRouterReadiness(for: resolved)
+        Self.writeForwardingTarget(uid: resolved)
+        try waitForRouterReadiness(targetUID: resolved)
+        return resolved
     }
 
     /// Enumerates output-only devices the user can plausibly route EQ'd
@@ -464,9 +559,7 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
     /// Returns the AudioObjectID for the Spotiglass EQ virtual device, or nil
     /// if coreaudiod hasn't picked up the new `.driver` yet.
     func lookupSpotiglassEQDeviceID() -> AudioObjectID? {
-        AudioDeviceEnumerator.allOutputDevices().first { device in
-            device.name == Self.virtualDeviceName
-        }?.id
+        virtualDeviceIDProvider()
     }
 
     private func captureCurrentDefaultOutput(virtualDeviceID: AudioObjectID) throws {
@@ -483,7 +576,7 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
             return
         }
 
-        guard let uid = AudioDeviceEnumerator.uid(of: deviceID), !uid.isEmpty else {
+        guard let uid = outputDeviceUID(deviceID), !uid.isEmpty else {
             throw EqualizerHALPluginError.outputDeviceUIDUnavailable
         }
         previousDefaultOutputID = deviceID
@@ -496,6 +589,10 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
     }
 
     private func currentDefaultOutputDeviceID() throws -> AudioObjectID {
+        try defaultOutputDeviceIDProvider()
+    }
+
+    private static func currentDefaultOutputDeviceIDInCoreAudio() throws -> AudioObjectID {
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioHardwarePropertyDefaultOutputDevice,
             mScope: kAudioObjectPropertyScopeGlobal,
@@ -541,7 +638,61 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
         }
     }
 
-    // MARK: - Pre-EQ output backup persistence
+    // MARK: - Router readiness
+
+    /// Waits for the driver's worker to report a ready router for this exact
+    /// target. A status for a different UID belongs to an older target swap and
+    /// is intentionally ignored.
+    func waitForRouterReadiness(targetUID: String) throws {
+        let deadline = Date().addingTimeInterval(routerReadinessTimeout)
+        repeat {
+            if let status = routerStatusReader() {
+                switch status {
+                case let .ready(readyUID) where readyUID == targetUID:
+                    return
+                case let .failed(failedUID, reasonCode) where failedUID == targetUID:
+                    throw EqualizerHALPluginError.routerTargetOpenFailed(
+                        targetUID: targetUID,
+                        reasonCode: reasonCode
+                    )
+                default:
+                    break
+                }
+            }
+            if Date() >= deadline { break }
+            Thread.sleep(forTimeInterval: min(0.025, max(0, deadline.timeIntervalSinceNow)))
+        } while true
+
+        throw EqualizerHALPluginError.routerReadinessTimedOut(targetUID: targetUID)
+    }
+
+    private func prepareRouterReadiness(for targetUID: String) {
+        if case let .ready(readyUID)? = routerStatusReader(), readyUID == targetUID {
+            return
+        }
+        clearRouterStatus()
+    }
+
+    private func clearRouterStatus() {
+        try? fileManager.removeItem(at: routerStatusURL)
+    }
+
+    nonisolated static func readRouterStatus(from url: URL) -> EqualizerRouterStatus? {
+        guard let contents = try? String(contentsOf: url, encoding: .utf8) else { return nil }
+        let lines = contents.split(whereSeparator: \.isNewline)
+        guard lines.count >= 2 else { return nil }
+        let targetUID = String(lines[1])
+        guard !targetUID.isEmpty else { return nil }
+        switch lines[0] {
+        case "ready":
+            return .ready(targetUID: targetUID)
+        case "failed":
+            let reasonCode = lines.count >= 3 ? Int(lines[2]) ?? 0 : 0
+            return .failed(targetUID: targetUID, reasonCode: reasonCode)
+        default:
+            return nil
+        }
+    }
 
     /// Reads a previously captured output UID. A missing or unreadable backup
     /// is treated as no backup; restore reports that state explicitly.
@@ -589,6 +740,8 @@ enum EqualizerHALPluginError: LocalizedError {
     case previousOutputBackupMissing
     case previousOutputDeviceUnavailable(uid: String)
     case previousOutputRestoreFailed(underlying: Error)
+    case routerTargetOpenFailed(targetUID: String, reasonCode: Int)
+    case routerReadinessTimedOut(targetUID: String)
     case requiresSudoInstall(stagedPath: String, destinationPath: String)
 
     // These reach the user: EqualizerSettingsView assigns localizedDescription
@@ -611,6 +764,10 @@ enum EqualizerHALPluginError: LocalizedError {
             return SpotiglassL10n.string("eq.error.previousOutputDeviceUnavailable")
         case .previousOutputRestoreFailed:
             return SpotiglassL10n.string("eq.error.previousOutputRestoreFailed")
+        case .routerTargetOpenFailed:
+            return SpotiglassL10n.string("eq.error.routerTargetOpenFailed")
+        case .routerReadinessTimedOut:
+            return SpotiglassL10n.string("eq.error.routerReadinessTimedOut")
         case let .requiresSudoInstall(staged, destination):
             // The commands stay in the sentence, because running them is the
             // action being asked for.
@@ -646,6 +803,10 @@ enum EqualizerHALPluginError: LocalizedError {
             let details = (underlying as? EqualizerHALPluginError)?.diagnosticDetails
                 ?? String(describing: underlying)
             return "CoreAudio failed while restoring the previous default output: \(details)"
+        case let .routerTargetOpenFailed(targetUID, reasonCode):
+            return "EQRouter could not open target UID \(targetUID) (reason \(reasonCode))"
+        case let .routerReadinessTimedOut(targetUID):
+            return "EQRouter did not report readiness for target UID \(targetUID)"
         case let .requiresSudoInstall(staged, destination):
             return "staged: \(staged)\ndestination: \(destination)"
         }
