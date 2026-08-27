@@ -102,6 +102,20 @@ final class SpotiglassSettingsStoreTests: XCTestCase {
         XCTAssertEqual(try decodeScale(1.4), 1.4)
     }
 
+    func testOutOfRangeEqualizerPreampClampsOnDecode() throws {
+        func decodePreamp(_ raw: Double) throws -> Double {
+            let json = """
+            { "keybinds" : [], "equalizer" : { "preamp" : \(raw) } }
+            """
+            return try JSONDecoder()
+                .decode(SpotiglassSettingsFile.self, from: Data(json.utf8))
+                .equalizer.preamp
+        }
+        XCTAssertEqual(try decodePreamp(100.0), EqualizerSettings.preampRangeDB.upperBound)
+        XCTAssertEqual(try decodePreamp(-100.0), EqualizerSettings.preampRangeDB.lowerBound)
+        XCTAssertEqual(try decodePreamp(3.5), 3.5)
+    }
+
     func testLyricsTextMetricsScaleMultipliesPresetValues() {
         let base = LyricsTextSize.medium.metrics()
         let doubled = LyricsTextSize.medium.metrics(scale: 2.0)

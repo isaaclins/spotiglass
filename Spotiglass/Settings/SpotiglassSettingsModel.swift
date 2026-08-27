@@ -483,7 +483,7 @@ struct EqualizerSettings: Codable, Equatable {
         forwardingTargetUID: String? = nil
     ) {
         self.enabled = enabled
-        self.preamp = preamp
+        self.preamp = EqualizerSettings.clampPreamp(preamp)
         self.bands = EqualizerSettings.normalizedBands(bands)
         self.activePresetName = activePresetName
         self.userPresets = userPresets
@@ -499,13 +499,17 @@ struct EqualizerSettings: Codable, Equatable {
             default: false,
             tracker: tracker
         )
-        // Keep this scalar assignment separate from the #249 preamp clamp so that
-        // that change can be merged independently without changing this repair seam.
-        preamp = container.decodeRepairing(
-            Double.self,
-            forKey: .preamp,
-            default: 0,
-            tracker: tracker
+        // Both fixes apply here and are complementary: #278 repairs a malformed
+        // field instead of failing the whole document, and #249 clamps whatever
+        // survives to the declared dB range. Repair first, then clamp — otherwise
+        // a repaired-to-default value would still bypass the range contract.
+        preamp = EqualizerSettings.clampPreamp(
+            container.decodeRepairing(
+                Double.self,
+                forKey: .preamp,
+                default: 0,
+                tracker: tracker
+            )
         )
         let defaultBands = Array(repeating: 0.0, count: EqualizerSettings.bandCount)
         let raw = container.decodeRepairingArray(
