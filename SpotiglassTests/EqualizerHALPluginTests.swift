@@ -161,7 +161,7 @@ final class EqualizerHALPluginTests: XCTestCase {
             defaultOutputSetter: { restoredIDs.append($0) }
         )
 
-        controller.disable()
+        try controller.disable()
 
         XCTAssertEqual(restoredIDs, [AudioObjectID(73)])
         XCTAssertNil(controller.previousDefaultOutputUID)
@@ -204,12 +204,66 @@ final class EqualizerHALPluginTests: XCTestCase {
         )
 
         XCTAssertThrowsError(try controller.restorePreviousDefaultOutput()) { error in
-            guard case EqualizerHALPluginError.coreAudioStatus(-1) = error else {
-                return XCTFail("expected injected CoreAudio failure, got \(error)")
+            guard case EqualizerHALPluginError.previousOutputRestoreFailed(underlying: let underlying) = error else {
+                return XCTFail("expected previousOutputRestoreFailed, got \(error)")
+            }
+            guard case EqualizerHALPluginError.coreAudioStatus(-1) = underlying else {
+                return XCTFail("expected injected CoreAudio failure, got \(underlying)")
             }
         }
         XCTAssertEqual(controller.previousDefaultOutputUID, uid)
         XCTAssertTrue(FileManager.default.fileExists(atPath: defaultOutputBackupURL.path))
+    }
+
+    func testDisableSurfacesSetterFailureAndRetainsRecoveryState() throws {
+        let uid = "ExternalUSBDevice"
+        try EqualizerHALPluginController.writeDefaultOutputBackup(
+            uid: uid,
+            to: defaultOutputBackupURL
+        )
+
+        let forwardingURL = EqualizerHALPluginController.forwardingTargetURL
+        let originalForwardingTarget = try? String(contentsOf: forwardingURL, encoding: .utf8)
+        defer {
+            if let originalForwardingTarget {
+                try? originalForwardingTarget.write(to: forwardingURL, atomically: true, encoding: .utf8)
+            } else {
+                try? FileManager.default.removeItem(at: forwardingURL)
+            }
+        }
+        EqualizerHALPluginController.writeForwardingTarget(uid: "TargetDevice")
+
+        var shouldFail = true
+        var restoredIDs: [AudioObjectID] = []
+        let controller = EqualizerHALPluginController(
+            defaultOutputBackupURL: defaultOutputBackupURL,
+            outputDeviceIDForUID: { $0 == uid ? AudioObjectID(91) : nil },
+            defaultOutputSetter: { deviceID in
+                if shouldFail {
+                    shouldFail = false
+                    throw EqualizerHALPluginError.coreAudioStatus(-1)
+                }
+                restoredIDs.append(deviceID)
+            }
+        )
+
+        XCTAssertThrowsError(try controller.disable()) { error in
+            guard case EqualizerHALPluginError.previousOutputRestoreFailed(underlying: let underlying) = error else {
+                return XCTFail("expected previousOutputRestoreFailed, got \(error)")
+            }
+            guard case EqualizerHALPluginError.coreAudioStatus(-1) = underlying else {
+                return XCTFail("expected injected CoreAudio failure, got \(underlying)")
+            }
+        }
+        XCTAssertEqual(controller.previousDefaultOutputUID, uid)
+        XCTAssertEqual(controller.previousDefaultOutputID, AudioObjectID(91))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: defaultOutputBackupURL.path))
+        XCTAssertEqual(controller.currentForwardingTargetUID(), "TargetDevice")
+
+        try controller.disable()
+        XCTAssertEqual(restoredIDs, [AudioObjectID(91)])
+        XCTAssertNil(controller.previousDefaultOutputUID)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: defaultOutputBackupURL.path))
     }
 
     // MARK: - Built-in preset → coefficient frame round-trip

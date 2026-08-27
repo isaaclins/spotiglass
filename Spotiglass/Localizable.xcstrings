@@ -3678,6 +3678,29 @@
         }
       }
     },
+    "eq.error.previousOutputRestoreFailed": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das vorherige Ausgabegerät konnte nicht wiederhergestellt werden. Versuchen Sie es erneut."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The previous output device could not be restored. Try again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo restaurar el dispositivo de salida anterior. Inténtalo de nuevo."
+          }
+        }
+      }
+    },
     "eq.error.driverNotLoadedYet": {
       "extractionState": "manual",
       "localizations": {

@@ -173,27 +173,26 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
 
     /// Restores the previously-active default output device. Does NOT remove
     /// the `.driver` from disk — call ``uninstall()`` for that.
-    func disable() {
+    ///
+    /// Restoration is transactional: the persisted UID and forwarding target
+    /// remain available when CoreAudio rejects the restore, so a later disable
+    /// can retry it. The state is cleared only after the setter succeeds.
+    func disable() throws {
+        try restorePreviousDefaultOutput()
         removeActiveSampleRateObservation()
-        guard let previousUID = previousDefaultOutputUID ?? Self.readDefaultOutputBackup(
-            from: outputBackupURL,
-            fileManager: fileManager
-        ) else { return }
-        previousDefaultOutputUID = previousUID
-
-        guard let previous = outputDeviceIDForUID(previousUID) else {
-            let error = EqualizerHALPluginError.previousOutputDeviceUnavailable(uid: previousUID)
-            SpotiglassLog.error(
-                .playback,
-                error.diagnosticDetails ?? error.localizedDescription
-            )
-            return
-        }
-        previousDefaultOutputID = previous
-        try? setDefaultOutputDevice(to: previous)
         previousDefaultOutputID = nil
         previousDefaultOutputUID = nil
-        try? Self.clearDefaultOutputBackup(at: outputBackupURL, fileManager: fileManager)
+        do {
+            try Self.clearDefaultOutputBackup(at: outputBackupURL, fileManager: fileManager)
+        } catch {
+            // The route is already restored. Keep cleanup best-effort so a
+            // filesystem problem cannot make the engine claim the EQ is still
+            // active; enable() will replace a stale backup on its next run.
+            SpotiglassLog.error(
+                .playback,
+                "Could not clear the pre-EQ output backup: \(error.localizedDescription)"
+            )
+        }
         // Forget the forwarding target so the next enable() captures a fresh
         // pre-EQ default (in case the user changed it in the meantime).
         Self.clearForwardingTarget()
@@ -215,7 +214,11 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
             throw EqualizerHALPluginError.previousOutputDeviceUnavailable(uid: previousUID)
         }
         previousDefaultOutputID = previous
-        try setDefaultOutputDevice(to: previous)
+        do {
+            try setDefaultOutputDevice(to: previous)
+        } catch {
+            throw EqualizerHALPluginError.previousOutputRestoreFailed(underlying: error)
+        }
     }
 
     /// Path of the one-shot file the C++ driver reads in StartIO to learn
@@ -585,6 +588,7 @@ enum EqualizerHALPluginError: LocalizedError {
     case outputDeviceUIDUnavailable
     case previousOutputBackupMissing
     case previousOutputDeviceUnavailable(uid: String)
+    case previousOutputRestoreFailed(underlying: Error)
     case requiresSudoInstall(stagedPath: String, destinationPath: String)
 
     // These reach the user: EqualizerSettingsView assigns localizedDescription
@@ -605,6 +609,8 @@ enum EqualizerHALPluginError: LocalizedError {
             return SpotiglassL10n.string("eq.error.previousOutputBackupMissing")
         case .previousOutputDeviceUnavailable:
             return SpotiglassL10n.string("eq.error.previousOutputDeviceUnavailable")
+        case .previousOutputRestoreFailed:
+            return SpotiglassL10n.string("eq.error.previousOutputRestoreFailed")
         case let .requiresSudoInstall(staged, destination):
             // The commands stay in the sentence, because running them is the
             // action being asked for.
@@ -636,6 +642,10 @@ enum EqualizerHALPluginError: LocalizedError {
             return "No persisted pre-EQ output device UID is available"
         case let .previousOutputDeviceUnavailable(uid):
             return "Persisted pre-EQ output device UID is not currently available: \(uid)"
+        case .previousOutputRestoreFailed(let underlying):
+            let details = (underlying as? EqualizerHALPluginError)?.diagnosticDetails
+                ?? String(describing: underlying)
+            return "CoreAudio failed while restoring the previous default output: \(details)"
         case let .requiresSudoInstall(staged, destination):
             return "staged: \(staged)\ndestination: \(destination)"
         }
