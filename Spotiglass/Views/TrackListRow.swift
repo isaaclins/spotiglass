@@ -18,6 +18,26 @@ enum TrackRowMetrics {
     static let hoverTintOpacity: Double = 0.05
 }
 
+enum TrackRowVisualState: Equatable {
+    case unselected
+    case selected
+    case current
+    case selectedAndCurrent
+
+    static func resolve(isSelected: Bool, isCurrent: Bool) -> Self {
+        switch (isSelected, isCurrent) {
+        case (true, true): .selectedAndCurrent
+        case (true, false): .selected
+        case (false, true): .current
+        case (false, false): .unselected
+        }
+    }
+
+    var showsSelectionIndicator: Bool {
+        self == .selected || self == .selectedAndCurrent
+    }
+}
+
 enum TrackRowPlaybackAction: Equatable {
     case play
     case pause
@@ -88,11 +108,16 @@ struct TrackListRow: View {
     let openArtist: (String) -> Void
     /// When set, the row participates in drag-to-pin for this surface (e.g. `pl:<playlistId>` or `ar:<artistID>`).
     var tracksSurfaceID: String? = nil
+    /// Selection is normally painted by the enclosing native `List`. The value
+    /// is also used for a small accent rail so selection cannot be mistaken for
+    /// the current-track waveform.
+    var isSelected: Bool = false
     /// Whether the row paints its own now-playing and hover tint. Inside a
-    /// `List` the table owns the row background, and drawing a second fill on
-    /// top of the system selection muddies it, so the playlist table passes
-    /// `false` and lets the waveform glyph mark the playing row the way Music
-    /// does. Surfaces that still stack rows in a plain stack keep it on.
+    /// `List` the table owns the selected-row background, and drawing a second
+    /// fill on top of it muddies selection. The playlist table passes `false`:
+    /// an unselected current row may still get the neutral current tint, while
+    /// a selected current row is identified by the waveform and selection rail.
+    /// Surfaces that still stack rows in a plain stack keep it on.
     var drawsRowHighlights: Bool = true
     /// Whether the row takes keyboard focus itself. Inside the playlist table the
     /// `List` owns focus and arrow-key traversal, so it passes `false`. The
@@ -137,6 +162,10 @@ struct TrackListRow: View {
             isPlaying: isPlaying,
             playableURI: track.playableURI
         )
+    }
+
+    private var visualState: TrackRowVisualState {
+        TrackRowVisualState.resolve(isSelected: isSelected, isCurrent: isCurrent)
     }
 
     private var isTrackPinned: Bool {
@@ -207,6 +236,16 @@ struct TrackListRow: View {
         .padding(.vertical, TrackRowMetrics.verticalPadding)
         .padding(.horizontal, TrackRowMetrics.horizontalPadding)
         .background(rowBackground)
+        .overlay(alignment: .leading) {
+            if visualState.showsSelectionIndicator {
+                Capsule(style: .continuous)
+                    .fill(.spotiglassAccent)
+                    .frame(width: SpotiglassDesign.trackSelectionIndicatorWidth)
+                    .padding(.vertical, TrackRowMetrics.verticalPadding)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+        }
         .contentShape(Rectangle())
         .onHover { hovering in
             isHovering = hovering
@@ -357,13 +396,16 @@ struct TrackListRow: View {
 
     @ViewBuilder
     private var rowBackground: some View {
-        if drawsRowHighlights {
+        // Do not tint a selected row a second time inside the native table. The
+        // neutral tint remains on an unselected current row so playback is
+        // visible even when the selected row is a different track (#211).
+        if drawsRowHighlights || visualState == .current {
             ZStack {
                 if isCurrent {
                     RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
                         .fill(Color.primary.opacity(TrackRowMetrics.currentTintOpacity))
                 }
-                if isHovering {
+                if drawsRowHighlights, isHovering {
                     RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
                         .fill(Color.primary.opacity(TrackRowMetrics.hoverTintOpacity))
                 }
