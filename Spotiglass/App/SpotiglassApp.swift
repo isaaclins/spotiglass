@@ -5,9 +5,11 @@ struct SpotiglassApp: App {
     private let sparkleUpdater = SparkleUpdaterController()
     @StateObject private var authViewModel: AuthViewModel
     @StateObject private var settingsStore: SpotiglassSettingsStore
-    @StateObject private var commandPaletteManager: CommandPaletteManager
+    /// Main-window palette state lives in each ``SpotiglassSceneHost``; the
+    /// keymap store is the shared persisted dependency.
+    @StateObject private var keymapStore: CommandPaletteKeymapStore
+    @StateObject private var sceneRegistry = SpotiglassSceneRegistry()
     @StateObject private var pinnedStore: PinnedItemsStore
-    @StateObject private var lyricsOverlayController = LyricsOverlayController()
     @StateObject private var equalizerEngine: AudioEqualizerEngine
     /// Same storage key ``PlaylistBrowserView`` writes, read here so the View menu
     /// can say "Show Queue" or "Hide Queue" instead of a stateless "Toggle".
@@ -32,7 +34,7 @@ struct SpotiglassApp: App {
         }
         let keymapStore = CommandPaletteKeymapStore(settingsStore: store)
         _settingsStore = StateObject(wrappedValue: store)
-        _commandPaletteManager = StateObject(wrappedValue: CommandPaletteManager(keymapStore: keymapStore))
+        _keymapStore = StateObject(wrappedValue: keymapStore)
         let pinningCache: PinnedItemsCache
         if let diskCache = try? SpotifyLocalCache() {
             pinningCache = diskCache
@@ -103,11 +105,10 @@ struct SpotiglassApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView(commandPaletteManager: commandPaletteManager)
+            RootView(keymapStore: keymapStore, sceneRegistry: sceneRegistry)
                 .environmentObject(authViewModel)
                 .environmentObject(settingsStore)
                 .environmentObject(pinnedStore)
-                .environmentObject(lyricsOverlayController)
                 .environment(\.locale, settingsStore.appLocale)
                 .preferredColorScheme(preferredColorScheme)
                 .frame(minWidth: 520, minHeight: 360)
@@ -117,34 +118,42 @@ struct SpotiglassApp: App {
             CommandGroup(after: .appInfo) {
                 CheckForUpdatesView(updater: sparkleUpdater.updater)
                 Button(SpotiglassL10n.string("app.menu.openPalette")) {
-                    commandPaletteManager.execute(commandID: CommandPaletteCommandID.openPalette)
+                    sceneRegistry.activeScene?.commandPaletteManager.execute(
+                        commandID: CommandPaletteCommandID.openPalette
+                    )
                 }
                 // Derived from the keymap like every other menu item, so a
                 // rebind moves the chord instead of leaving Command-K alive as
                 // a second, undisclosed trigger (#131).
                 .keyboardShortcut(
-                    commandPaletteManager.keymapStore.menuShortcut(
+                    keymapStore.menuShortcut(
                         for: CommandPaletteCommandID.openPalette
                     )
                 )
             }
 
             SpotiglassMenuCommands(
-                commandPaletteManager: commandPaletteManager,
+                sceneRegistry: sceneRegistry,
+                keymapStore: keymapStore,
                 isSignedIn: isSignedIn,
-                isQueueVisible: isQueueVisible,
-                isLyricsPresented: lyricsOverlayController.isPresented,
-                canNavigateBack: commandPaletteManager.canNavigateBack,
-                canEnqueueTrackSelection: commandPaletteManager.canEnqueueTrackSelection,
-                trackSelectionPinState: commandPaletteManager.trackSelectionPinState
+                isQueueVisible: isQueueVisible
             )
         }
 
         Settings {
             SpotiglassSettingsView(
-                commandPaletteManager: commandPaletteManager,
+                keymapStore: keymapStore,
                 settingsStore: settingsStore,
-                equalizerEngine: equalizerEngine
+                equalizerEngine: equalizerEngine,
+                onSignOut: {
+                    // The account view starts AuthViewModel.signOut() after this
+                    // synchronous preparation; RootView also clears account-bound
+                    // stores when the auth state publishes its loss.
+                    sceneRegistry.resetTransientState()
+                },
+                onHotkeyRecordingChange: { isRecording in
+                    sceneRegistry.setHotkeyRecording(isRecording)
+                }
             )
             .environmentObject(authViewModel)
             .environment(\.locale, settingsStore.appLocale)

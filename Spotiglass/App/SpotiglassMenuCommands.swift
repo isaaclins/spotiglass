@@ -10,7 +10,8 @@ import SwiftUI
 /// menu never re-implements a command, it only exposes one.
 @MainActor
 struct SpotiglassMenuCommands: Commands {
-    @ObservedObject var commandPaletteManager: CommandPaletteManager
+    @ObservedObject var sceneRegistry: SpotiglassSceneRegistry
+    @ObservedObject var keymapStore: CommandPaletteKeymapStore
 
     /// Playback, queue, lyrics and refresh only have a target while a Spotify
     /// session is live, so those items dim instead of silently doing nothing.
@@ -18,24 +19,40 @@ struct SpotiglassMenuCommands: Commands {
     /// Drives the "Show Queue" / "Hide Queue" title, read from the same
     /// `queue.panel.visible` app storage the browser writes.
     let isQueueVisible: Bool
-    /// Drives the "Show Lyrics" / "Hide Lyrics" title, read from ``LyricsOverlayController``.
-    let isLyricsPresented: Bool
-    /// Back dims when the browser's navigation stack is empty, so the menu item
-    /// reflects the same state the toolbar button does.
-    let canNavigateBack: Bool
-    /// Whether the selection can be queued at all. Dims the item when nothing is
-    /// selected, when no selected row is playable, or when there is no device to
-    /// queue onto, matching the row context menu (#132).
-    let canEnqueueTrackSelection: Bool
-    /// Whether the selection offers Pin, Unpin, or neither.
-    let trackSelectionPinState: TrackSelectionPinState
+
+    /// Every menu item targets the key main window's scene. One active-scene
+    /// policy drives the menu, the palette and the lyrics overlay, so a second
+    /// window can never be commanded through the first window's menu bar.
+    private var activeCommandPaletteManager: CommandPaletteManager? {
+        sceneRegistry.activeScene?.commandPaletteManager
+    }
+
+    /// Back dims when the active browser's navigation stack is empty.
+    private var canNavigateBack: Bool {
+        activeCommandPaletteManager?.canNavigateBack ?? false
+    }
+
+    /// Whether the active browser selection can be queued at all.
+    private var canEnqueueTrackSelection: Bool {
+        activeCommandPaletteManager?.canEnqueueTrackSelection ?? false
+    }
+
+    /// Whether the active browser selection offers Pin, Unpin, or neither.
+    private var trackSelectionPinState: TrackSelectionPinState {
+        activeCommandPaletteManager?.trackSelectionPinState ?? .unavailable
+    }
+
+    /// Drives the "Show Lyrics" / "Hide Lyrics" title for the active scene.
+    private var isLyricsPresented: Bool {
+        sceneRegistry.activeScene?.lyricsOverlayController.isPresented ?? false
+    }
 
     var isPlaybackToggleEnabled: Bool {
-        isSignedIn && commandPaletteManager.canTogglePlayback
+        isSignedIn && (activeCommandPaletteManager?.canTogglePlayback ?? false)
     }
 
     var isLyricsToggleEnabled: Bool {
-        isSignedIn && commandPaletteManager.canToggleLyrics
+        isSignedIn && (activeCommandPaletteManager?.canToggleLyrics ?? false)
     }
 
     var body: some Commands {
@@ -125,13 +142,13 @@ struct SpotiglassMenuCommands: Commands {
                 run(CommandPaletteCommandID.toggleShuffle)
             }
             .keyboardShortcut("s", modifiers: [.option, .command])
-            .disabled(!isSignedIn || !commandPaletteManager.canMutatePlaybackTransport)
+            .disabled(!isSignedIn || !(activeCommandPaletteManager?.canMutatePlaybackTransport ?? false))
 
             Button(SpotiglassL10n.string("menu.playback.repeat")) {
                 run(CommandPaletteCommandID.cycleRepeat)
             }
             .keyboardShortcut("r", modifiers: [.option, .command])
-            .disabled(!isSignedIn || !commandPaletteManager.canMutatePlaybackTransport)
+            .disabled(!isSignedIn || !(activeCommandPaletteManager?.canMutatePlaybackTransport ?? false))
 
             Divider()
 
@@ -228,10 +245,10 @@ struct SpotiglassMenuCommands: Commands {
     }
 
     private func run(_ commandID: String) {
-        commandPaletteManager.execute(commandID: commandID)
+        activeCommandPaletteManager?.execute(commandID: commandID)
     }
 
     private func keymapShortcut(for commandID: String) -> KeyboardShortcut? {
-        commandPaletteManager.keymapStore.menuShortcut(for: commandID)
+        keymapStore.menuShortcut(for: commandID)
     }
 }

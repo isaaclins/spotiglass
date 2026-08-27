@@ -46,4 +46,42 @@ final class AccountSettingsViewTests: XCTestCase {
             try view.inspect().find(text: SpotiglassL10n.string("settings.account.details"))
         )
     }
+
+    func testSettingsSignOutRunsSceneCleanupBeforeAuthTransition() throws {
+        let session = AuthenticatedSession(
+            accessToken: "token",
+            tokenType: "Bearer",
+            scope: "streaming",
+            expiresAt: Date(timeIntervalSince1970: 4_000_000)
+        )
+        let viewModel = AuthViewModel(
+            settings: SpotifyAuthSettings(defaults: makeEphemeralDefaults()),
+            refreshTokenStore: MemoryOnlyRefreshTokenStore(),
+            signOutDataCleaner: {},
+            artworkCacheClearer: {},
+            initialState: .signedIn(session)
+        )
+        let scene = SpotiglassSceneHost(commandPaletteManager: CommandPaletteManager())
+        let registry = SpotiglassSceneRegistry()
+        registry.activate(scene)
+        scene.commandPaletteManager.viewModel.show()
+        scene.commandPaletteManager.viewModel.query = "stale query"
+        scene.lyricsOverlayController.isPresented = true
+        var cleanupCalled = false
+        let view = AccountSettingsView(
+            viewModel: viewModel,
+            onSignOut: {
+                cleanupCalled = true
+                registry.resetTransientState()
+            }
+        )
+        ViewTestHost.host(view)
+
+        try view.inspect().find(button: SpotiglassL10n.string("auth.disconnect.button")).tap()
+
+        XCTAssertTrue(cleanupCalled)
+        XCTAssertFalse(scene.commandPaletteManager.viewModel.isPresented)
+        XCTAssertEqual(scene.commandPaletteManager.viewModel.query, "")
+        XCTAssertFalse(scene.lyricsOverlayController.isPresented)
+    }
 }

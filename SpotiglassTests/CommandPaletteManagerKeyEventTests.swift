@@ -98,8 +98,15 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
             backing: .buffered,
             defer: false
         )
+        // `NSWindow` created in code defaults to `isReleasedWhenClosed`, so
+        // `close()` would release a window ARC still owns here and the test
+        // process would segfault popping the autorelease pool at test scope end.
+        window.isReleasedWhenClosed = false
         window.contentView = owner
-        defer { window.close() }
+        defer {
+            window.makeFirstResponder(nil)
+            window.close()
+        }
 
         AppKitTestSupport.activateAppIfNeeded()
         window.makeKeyAndOrderFront(nil)

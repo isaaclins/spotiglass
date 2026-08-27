@@ -47,6 +47,11 @@ final class SpotiglassSettingsStoreTests: XCTestCase {
         let decoded = try JSONDecoder().decode(SpotiglassSettingsFile.self, from: Data(legacyJSON.utf8))
         XCTAssertEqual(decoded.appearance.lyricsTextScale, 1.0)
         XCTAssertEqual(decoded.appearance.colorScheme, .dark)
+        XCTAssertEqual(decoded.version, SpotiglassSettingsFile.legacyVersion)
+        XCTAssertEqual(
+            decoded.keybindSeedBaselineVersion,
+            SpotiglassSettingsFile.legacyKeybindSeedBaselineVersion
+        )
     }
 
     /// A saved binding names its command by string, so renaming the constant
@@ -116,6 +121,27 @@ final class SpotiglassSettingsStoreTests: XCTestCase {
         XCTAssertEqual(try decodePreamp(3.5), 3.5)
     }
 
+    func testOutOfRangeEqualizerPreampIsWrittenBackClamped() throws {
+        let url = makeTempFileURL()
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("""
+        { "keybinds" : [], "equalizer" : { "preamp" : 100 } }
+        """.utf8).write(to: url)
+
+        let store = SpotiglassSettingsStore(fileURL: url)
+
+        XCTAssertEqual(store.settings.equalizer.preamp, EqualizerSettings.preampRangeDB.upperBound)
+        XCTAssertNil(store.lastError)
+        // Read the raw number: decoding would clamp again and hide a stale file.
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        let equalizer = try XCTUnwrap(object["equalizer"] as? [String: Any])
+        XCTAssertEqual(
+            try XCTUnwrap(equalizer["preamp"] as? Double),
+            EqualizerSettings.preampRangeDB.upperBound,
+            "A clamped value is a repair, so the document should be rewritten in range"
+        )
+    }
+
     func testLyricsTextMetricsScaleMultipliesPresetValues() {
         let base = LyricsTextSize.medium.metrics()
         let doubled = LyricsTextSize.medium.metrics(scale: 2.0)
@@ -139,6 +165,99 @@ final class SpotiglassSettingsStoreTests: XCTestCase {
         try store.persistStagedSettings()
         onDisk = try JSONDecoder().decode(SpotiglassSettingsFile.self, from: Data(contentsOf: url))
         XCTAssertEqual(onDisk.appearance.lyricsTextScale, 2.2)
+    }
+
+    func testMalformedNestedFieldRepairsOnlyThatFieldAndPreservesSiblingSettings() throws {
+        let url = makeTempFileURL()
+        var original = SpotiglassSettingsStore.bootstrapDefaults()
+        original.appearance = AppearanceSettings(
+            language: .german,
+            colorScheme: .dark,
+            lyricsTextSize: .large,
+            lyricsOffsetMilliseconds: 750,
+            lyricsTextScale: 1.8
+        )
+        original.keybinds = [
+            CommandPaletteKeyBinding(
+                keystrokes: ["shift-cmd-y"],
+                command: CommandPaletteCommandID.openSettings,
+                when: .always,
+                args: nil
+            )
+        ]
+        original.equalizer = EqualizerSettings(
+            enabled: true,
+            preamp: -3,
+            bands: [6, 3.5, 1, 0, -1, -2.5, -4, 0, 2, 4.5],
+            activePresetName: nil,
+            userPresets: [
+                EqualizerPreset(name: "Warm", preamp: -1, bands: Array(repeating: 2, count: 10))
+            ],
+            forwardingTargetUID: "external-device"
+        )
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .prettyPrinted]
+        let validData = try encoder.encode(original)
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: validData) as? [String: Any])
+        var commandPalette = try XCTUnwrap(object["commandPalette"] as? [String: Any])
+        commandPalette["backdropBlur"] = "not-a-boolean"
+        object["commandPalette"] = commandPalette
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted]).write(to: url)
+
+        let store = SpotiglassSettingsStore(fileURL: url)
+
+        XCTAssertEqual(store.settings.appearance, original.appearance)
+        XCTAssertEqual(store.settings.keybinds, original.keybinds)
+        XCTAssertEqual(store.settings.equalizer, original.equalizer)
+        XCTAssertTrue(store.settings.commandPalette.backdropBlur, "The malformed field should use its field default")
+        XCTAssertNil(store.lastError)
+
+        let repairedObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
+        )
+        let repairedPalette = try XCTUnwrap(repairedObject["commandPalette"] as? [String: Any])
+        XCTAssertEqual(repairedPalette["backdropBlur"] as? Bool, true)
+        XCTAssertEqual(
+            try JSONDecoder().decode(SpotiglassSettingsFile.self, from: Data(contentsOf: url)).appearance,
+            original.appearance
+        )
+    }
+
+    func testStagedSettingsMergeWithNewerExternalEdits() throws {
+        let url = makeTempFileURL()
+        let store = SpotiglassSettingsStore(fileURL: url)
+        let externalKeybinds = [
+            CommandPaletteKeyBinding(
+                keystrokes: ["shift-cmd-y"],
+                command: CommandPaletteCommandID.openSettings,
+                when: .always,
+                args: nil
+            )
+        ]
+
+        store.stage { $0.appearance.lyricsTextScale = 2.2 }
+
+        var external = try JSONDecoder().decode(
+            SpotiglassSettingsFile.self,
+            from: Data(contentsOf: url)
+        )
+        external.appearance.colorScheme = .dark
+        external.equalizer.enabled = true
+        external.keybinds = externalKeybinds
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .prettyPrinted]
+        try encoder.encode(external).write(to: url, options: .atomic)
+
+        try store.persistStagedSettings()
+
+        let onDisk = try JSONDecoder().decode(SpotiglassSettingsFile.self, from: Data(contentsOf: url))
+        XCTAssertEqual(onDisk.appearance.lyricsTextScale, 2.2)
+        XCTAssertEqual(onDisk.appearance.colorScheme, .dark)
+        XCTAssertTrue(onDisk.equalizer.enabled)
+        XCTAssertEqual(onDisk.keybinds, externalKeybinds)
+        XCTAssertEqual(store.settings, onDisk)
     }
 
     func testUpdateAppearanceColorSchemePersistsAtomically() throws {
@@ -286,8 +405,10 @@ final class SpotiglassSettingsStoreTests: XCTestCase {
     }
 
     func testLoadSeedsDefaultBindingForCommandAddedAfterFileWasWritten() throws {
-        // Simulates a settings.json written before palette.enqueue existed: the command
-        // has neither a binding nor a seeded-list entry, so its ⇧↩ default must be added.
+        // Simulates a current-schema file written before palette.enqueue existed: the
+        // command has neither a binding nor a seeded-list entry, so its ⇧↩ default must
+        // be added. The explicit empty metadata is intentionally different from a
+        // pre-metadata file, whose legacy baseline is tested below.
         let url = makeTempFileURL()
         let oldKeybinds = SpotiglassSettingsStore.defaultKeybinds()
             .filter { $0.command != CommandPaletteCommandID.enqueueSelected }
@@ -305,6 +426,81 @@ final class SpotiglassSettingsStoreTests: XCTestCase {
         XCTAssertTrue(store.settings.seededKeybindCommands.contains(CommandPaletteCommandID.enqueueSelected))
         let onDisk = try JSONDecoder().decode(SpotiglassSettingsFile.self, from: Data(contentsOf: url))
         XCTAssertTrue(onDisk.keybinds.contains { $0.command == CommandPaletteCommandID.enqueueSelected })
+    }
+
+    func testPreMetadataFixturePreservesClearedLegacyCommandAndSeedsNewCommand() throws {
+        // This is the shape written before seededKeybindCommands existed. The missing
+        // palette.enqueue row is deliberate: it was an old command the user cleared,
+        // not a command that was added after this file was created.
+        let legacyJSON = """
+        {
+          "version" : 1,
+          "keybinds" : [
+            { "keystrokes" : ["cmd-,"], "command" : "app.openSettings", "when" : "always" }
+          ],
+          "appearance" : { "colorScheme" : "dark" },
+          "commandPalette" : { "backdropBlur" : false },
+          "equalizer" : { }
+        }
+        """
+        let url = makeTempFileURL()
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try legacyJSON.write(to: url, atomically: true, encoding: .utf8)
+
+        let decoded = try JSONDecoder().decode(SpotiglassSettingsFile.self, from: Data(legacyJSON.utf8))
+        XCTAssertEqual(
+            decoded.keybindSeedBaselineVersion,
+            SpotiglassSettingsFile.legacyKeybindSeedBaselineVersion
+        )
+
+        let store = SpotiglassSettingsStore(fileURL: url)
+
+        XCTAssertFalse(
+            store.settings.keybinds.contains { $0.command == CommandPaletteCommandID.enqueueSelected },
+            "A cleared command from the pre-metadata catalog must stay cleared"
+        )
+        XCTAssertTrue(
+            store.settings.keybinds.contains { $0.command == CommandPaletteCommandID.openSearch },
+            "A command added after the legacy baseline should still receive its default"
+        )
+        XCTAssertEqual(store.settings.appearance.colorScheme, .dark)
+        XCTAssertFalse(store.settings.commandPalette.backdropBlur)
+
+        let onDisk = try JSONDecoder().decode(SpotiglassSettingsFile.self, from: Data(contentsOf: url))
+        XCTAssertEqual(onDisk.version, SpotiglassSettingsFile.currentVersion)
+        XCTAssertEqual(
+            onDisk.keybindSeedBaselineVersion,
+            SpotiglassSettingsFile.currentKeybindSeedBaselineVersion
+        )
+        XCTAssertTrue(onDisk.seededKeybindCommands.contains(CommandPaletteCommandID.enqueueSelected))
+        XCTAssertFalse(onDisk.keybinds.contains { $0.command == CommandPaletteCommandID.enqueueSelected })
+    }
+
+    func testExplicitEmptySeedMetadataDoesNotUseLegacyBaseline() throws {
+        let url = makeTempFileURL()
+        let explicitEmptyJSON = """
+        {
+          "version" : 1,
+          "keybinds" : [],
+          "seededKeybindCommands" : [],
+          "appearance" : { },
+          "commandPalette" : { },
+          "equalizer" : { }
+        }
+        """
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try explicitEmptyJSON.write(to: url, atomically: true, encoding: .utf8)
+
+        let store = SpotiglassSettingsStore(fileURL: url)
+
+        XCTAssertTrue(
+            store.settings.keybinds.contains { $0.command == CommandPaletteCommandID.enqueueSelected },
+            "An explicit empty tracked list means every current default is eligible for seeding"
+        )
+        XCTAssertEqual(
+            store.settings.keybindSeedBaselineVersion,
+            SpotiglassSettingsFile.currentKeybindSeedBaselineVersion
+        )
     }
 
     func testLoadDoesNotResurrectBindingTheUserCleared() throws {

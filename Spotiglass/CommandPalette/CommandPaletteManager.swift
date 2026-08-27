@@ -24,6 +24,9 @@ final class CommandPaletteManager: ObservableObject {
     @Published var canNavigateBack = false
 
     var isSignedIn = false
+    /// Event monitors exist in every main-window scene. Only the key scene may
+    /// consume a shortcut, while standalone manager tests keep the default.
+    var isCurrentScene: () -> Bool = { true }
     var signOut: (() -> Void)?
     var openSettings: (() -> Void)?
     /// Reloads the focused surface (library, playlist or artist detail, or queue when the queue column has focus).
@@ -150,6 +153,8 @@ final class CommandPaletteManager: ObservableObject {
     }
 
     func handleKeyEvent(_ event: NSEvent) -> Bool {
+        guard isCurrentScene() else { return false }
+
         if viewModel.isPresented {
             // Bare Tab / Shift+Tab cycle the Spotify search category (footer segments)
             // while the query field stays focused. Modifier-bearing Tab events
@@ -264,6 +269,8 @@ final class CommandPaletteManager: ObservableObject {
         case CommandPaletteCommandID.openSettings:
             openSettings?()
         case CommandPaletteCommandID.signOut:
+            let signOut = signOut
+            detach()
             signOut?()
         case CommandPaletteCommandID.connectPlayback:
             connectPlayback?()
@@ -338,6 +345,60 @@ final class CommandPaletteManager: ObservableObject {
         default:
             break
         }
+    }
+
+    /// Detaches all scene-specific palette state and callbacks. This is called
+    /// before auth content replaces the browser and when the scene disappears,
+    /// so a later scene cannot inherit a search task or a closure retaining the
+    /// old browser.
+    func detach() {
+        viewModel.hide()
+        viewModel.showAllResults = nil
+        viewModel.setAvailableSearchCategories(
+            CommandPaletteSearchCategory.footerOrder(includeThisPlaylist: false),
+            refreshIfFilterInvalidated: false
+        )
+        viewModel.prefetchProgress = nil
+
+        isSignedIn = false
+        isRecordingHotkey = false
+        canNavigateBack = false
+        canEnqueueTrackSelection = false
+        trackSelectionPinState = .unavailable
+        canTogglePlayback = false
+        canToggleLyrics = false
+        canMutatePlaybackTransport = false
+        playbackReadinessCancellables.removeAll()
+
+        signOut = nil
+        openSettings = nil
+        unifiedRefresh = nil
+        selectNextPlaylist = nil
+        selectPreviousPlaylist = nil
+        connectPlayback = nil
+        togglePlayback = nil
+        nextTrack = nil
+        previousTrack = nil
+        disconnectPlayback = nil
+        toggleShuffle = nil
+        cycleRepeat = nil
+        enqueueTrackSelection = nil
+        pinTrackSelection = nil
+        navigateBack = nil
+        seekBy = nil
+        playURI = nil
+        openPlaylist = nil
+        openArtist = nil
+        openSearch = nil
+        spotifySearch = nil
+        localSpotifySearch = nil
+        filterByArtist = nil
+        toggleQueue = nil
+        toggleLyrics = nil
+        prefetchAllPlaylists = nil
+        dismissLyricsOverlayIfPresented = nil
+        playbackTogglePrerequisite = nil
+        playbackTransportMutationPrerequisite = nil
     }
 
     private func baseItems() -> [CommandPaletteItem] {

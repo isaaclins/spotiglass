@@ -20,7 +20,11 @@ protocol FocusedKeyEventOwner: AnyObject {
 enum FocusedKeyEventDispatcher {
     static func shouldDeferGlobalDispatch(for event: NSEvent) -> Bool {
         var responder = event.window?.firstResponder
+        var visited = Set<ObjectIdentifier>()
         while let current = responder {
+            // AppKit can expose a responder cycle through a window/delegate
+            // chain. Never let an ownership lookup hang the app-wide monitor.
+            guard visited.insert(ObjectIdentifier(current)).inserted else { break }
             if let owner = current as? FocusedKeyEventOwner, owner.ownsKeyEvent(event) {
                 return true
             }

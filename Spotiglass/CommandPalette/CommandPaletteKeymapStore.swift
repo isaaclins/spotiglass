@@ -73,23 +73,28 @@ final class CommandPaletteKeymapStore: ObservableObject {
         if replaceConflicting {
             list.removeAll { existing in
                 guard existing.command != commandID else { return false }
-                guard let first = existing.keystrokes.first, let sh = try? CommandShortcut(keystroke: first) else {
-                    return false
-                }
-                guard sh == shortcut else { return false }
+                guard Self.bindingContains(shortcut, in: existing) else { return false }
                 return CommandPaletteContext.bindingsOverlapInRuntime(existing.when, spec.defaultWhen)
             }
         }
-        let preservedArgs = list.first { $0.command == commandID }?.args
-        list.removeAll { $0.command == commandID }
-        list.append(
-            CommandPaletteKeyBinding(
-                keystrokes: [try shortcut.canonicalToken()],
-                command: commandID,
-                when: spec.defaultWhen,
-                args: preservedArgs
+        let token = try shortcut.canonicalToken()
+        // The settings GUI shows one row per command, so it edits the command's
+        // primary row in place and leaves any additional context-specific rows
+        // (and every row's `args`) untouched. Replacing all rows here would
+        // silently delete bindings the runtime still dispatches by `when` (#279).
+        if let primaryIndex = list.firstIndex(where: { $0.command == commandID }) {
+            list[primaryIndex].keystrokes = [token]
+            list[primaryIndex].when = spec.defaultWhen
+        } else {
+            list.append(
+                CommandPaletteKeyBinding(
+                    keystrokes: [token],
+                    command: commandID,
+                    when: spec.defaultWhen,
+                    args: nil
+                )
             )
-        )
+        }
         try applyNormalizedPersisting(list)
         lastError = nil
     }
@@ -97,6 +102,10 @@ final class CommandPaletteKeymapStore: ObservableObject {
     func clearBinding(commandID: String) throws {
         guard CommandPaletteCommandCatalog.editable.contains(where: { $0.commandID == commandID }) else { return }
         var list = try decodedBindingsFromEditor()
+        // Clearing a catalog command is an explicit user action, so it removes
+        // every context-specific row for that command. Automatic normalization and
+        // primary-row edits preserve those rows; this is the deliberate "disable
+        // this command everywhere" operation exposed by the one-row settings UI.
         list.removeAll { $0.command == commandID }
         try applyNormalizedPersisting(list)
         lastError = nil
@@ -106,22 +115,30 @@ final class CommandPaletteKeymapStore: ObservableObject {
         try JSONDecoder().decode(CommandPaletteKeymapFile.self, from: Data(editorText.utf8)).bindings
     }
 
+    /// Orders rows for display without dropping any of them: catalog commands first in
+    /// catalog order, then non-catalog rows sorted by command. A command may legitimately
+    /// own several rows scoped to different `when` contexts — the runtime indexes all of
+    /// them and filters by context at dispatch time — so normalization must be a stable
+    /// reordering, never a de-duplication (#279).
     private func normalizedBindingList(_ bindings: [CommandPaletteKeyBinding]) -> [CommandPaletteKeyBinding] {
         let catalogIDs = Set(CommandPaletteCommandCatalog.editable.map(\.commandID))
         let extras = bindings.filter { !catalogIDs.contains($0.command) }.sorted { $0.command < $1.command }
-        let catalogOrdered = CommandPaletteCommandCatalog.editable.compactMap { spec in
-            bindings.first { $0.command == spec.commandID }
+        let catalogOrdered = CommandPaletteCommandCatalog.editable.flatMap { spec in
+            bindings.filter { $0.command == spec.commandID }
         }
         return catalogOrdered + extras
     }
 
     private func applyNormalizedPersisting(_ bindings: [CommandPaletteKeyBinding]) throws {
         let normalized = normalizedBindingList(bindings)
+        // Indexing validates every row and every keystroke. Do it before the settings
+        // store writes so an invalid advanced edit cannot partially replace the file.
+        let indexed = try Self.indexBindings(normalized)
         try settingsStore.updateKeybinds(normalized)
         // Re-render the focused JSON snippet from the canonical normalized list so the
         // editor view always matches what is on disk.
         editorText = Self.editorTextRepresentation(normalized)
-        try indexCurrent(normalized)
+        self.bindings = indexed
     }
 
     private static func conflictingCommandID(
@@ -132,15 +149,19 @@ final class CommandPaletteKeymapStore: ObservableObject {
     ) -> String? {
         for binding in list {
             guard binding.command != excludingCommand else { continue }
-            guard let first = binding.keystrokes.first, let sh = try? CommandShortcut(keystroke: first) else {
-                continue
-            }
-            guard sh == shortcut else { continue }
+            guard bindingContains(shortcut, in: binding) else { continue }
             if CommandPaletteContext.bindingsOverlapInRuntime(binding.when, proposedWhen) {
                 return binding.command
             }
         }
         return nil
+    }
+
+    private static func bindingContains(
+        _ shortcut: CommandShortcut,
+        in binding: CommandPaletteKeyBinding
+    ) -> Bool {
+        binding.keystrokes.contains { (try? CommandShortcut(keystroke: $0)) == shortcut }
     }
 
     func commandBindings(for event: NSEvent, context: CommandPaletteContext) -> [CommandPaletteKeyBinding] {

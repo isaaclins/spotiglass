@@ -18,7 +18,7 @@ final class SettingsShellViewsTests: XCTestCase {
             refreshTokenStore: MemoryOnlyRefreshTokenStore()
         )
         let view = SpotiglassSettingsView(
-            commandPaletteManager: manager,
+            keymapStore: manager.keymapStore,
             settingsStore: store,
             equalizerEngine: AudioEqualizerEngine()
         )
@@ -47,7 +47,7 @@ final class SettingsShellViewsTests: XCTestCase {
             refreshTokenStore: MemoryOnlyRefreshTokenStore()
         )
         let view = SpotiglassSettingsView(
-            commandPaletteManager: manager,
+            keymapStore: manager.keymapStore,
             settingsStore: store,
             equalizerEngine: AudioEqualizerEngine()
         )
@@ -118,7 +118,6 @@ final class SettingsShellViewsTests: XCTestCase {
 
         let keyboard = CommandPaletteSettingsView(
             keymapStore: manager.keymapStore,
-            commandPaletteManager: manager,
             presentation: .settingsTabs
         )
         ViewTestHost.host(keyboard)
@@ -126,7 +125,6 @@ final class SettingsShellViewsTests: XCTestCase {
 
         let standaloneKeyboard = CommandPaletteSettingsView(
             keymapStore: manager.keymapStore,
-            commandPaletteManager: manager,
             presentation: .standalone
         )
         ViewTestHost.host(standaloneKeyboard)
