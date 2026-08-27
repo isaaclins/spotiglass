@@ -116,6 +116,27 @@ final class SpotiglassSettingsStoreTests: XCTestCase {
         XCTAssertEqual(try decodePreamp(3.5), 3.5)
     }
 
+    func testOutOfRangeEqualizerPreampIsWrittenBackClamped() throws {
+        let url = makeTempFileURL()
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("""
+        { "keybinds" : [], "equalizer" : { "preamp" : 100 } }
+        """.utf8).write(to: url)
+
+        let store = SpotiglassSettingsStore(fileURL: url)
+
+        XCTAssertEqual(store.settings.equalizer.preamp, EqualizerSettings.preampRangeDB.upperBound)
+        XCTAssertNil(store.lastError)
+        // Read the raw number: decoding would clamp again and hide a stale file.
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        let equalizer = try XCTUnwrap(object["equalizer"] as? [String: Any])
+        XCTAssertEqual(
+            try XCTUnwrap(equalizer["preamp"] as? Double),
+            EqualizerSettings.preampRangeDB.upperBound,
+            "A clamped value is a repair, so the document should be rewritten in range"
+        )
+    }
+
     func testLyricsTextMetricsScaleMultipliesPresetValues() {
         let base = LyricsTextSize.medium.metrics()
         let doubled = LyricsTextSize.medium.metrics(scale: 2.0)
