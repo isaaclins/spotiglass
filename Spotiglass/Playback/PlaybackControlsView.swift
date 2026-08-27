@@ -34,6 +34,11 @@ enum PlaybackArtistLineScrollPolicy {
         max(0, contentWidth - viewportWidth)
     }
 
+    static func clampedScrollOffset(_ offset: CGFloat, maxScrollOffset: CGFloat) -> CGFloat {
+        let upperBound = max(0, maxScrollOffset)
+        return min(max(0, offset), upperBound)
+    }
+
     static func duration(for scrollDistance: CGFloat) -> TimeInterval {
         guard scrollDistance > 0 else { return 0 }
         let distanceDuration = Double(
@@ -42,8 +47,20 @@ enum PlaybackArtistLineScrollPolicy {
         return max(distanceDuration, SpotiglassDesign.nowPlayingArtistLineMinimumScrollDuration)
     }
 
-    static func shouldAutoScroll(maxScrollOffset: CGFloat, reduceMotion: Bool) -> Bool {
-        maxScrollOffset > 0 && !reduceMotion
+    static func shouldAutoScroll(
+        maxScrollOffset: CGFloat,
+        reduceMotion: Bool,
+        isUserInteracting: Bool = false
+    ) -> Bool {
+        maxScrollOffset > 0 && !reduceMotion && !isUserInteracting
+    }
+
+    static func animation(duration: TimeInterval, reduceMotion: Bool) -> Animation? {
+        reduceMotion ? nil : .linear(duration: duration)
+    }
+
+    static func resetOffset(previousResetID: String, resetID: String) -> CGFloat? {
+        previousResetID == resetID ? nil : 0
     }
 }
 
@@ -593,6 +610,13 @@ private struct PlaybackArtistLineScrollTaskID: Equatable {
     let maxScrollOffset: CGFloat
     let reduceMotion: Bool
     let isUserInteracting: Bool
+
+    /// Periphery cannot infer that SwiftUI consumes an Equatable task ID. Make
+    /// the dependency explicit so every part of the key participates in task
+    /// cancellation when the scroll state changes.
+    var signature: String {
+        "\(resetID)\u{1F}\(maxScrollOffset)\u{1F}\(reduceMotion)\u{1F}\(isUserInteracting)"
+    }
 }
 
 /// A one-line artist credit surface that stays horizontally scrollable while
@@ -608,13 +632,13 @@ private struct PlaybackArtistLine: View {
     @State private var maxScrollOffset: CGFloat = 0
     @State private var isUserInteracting = false
 
-    private var autoScrollTaskID: PlaybackArtistLineScrollTaskID {
+    private var autoScrollTaskID: String {
         PlaybackArtistLineScrollTaskID(
             resetID: resetID,
             maxScrollOffset: maxScrollOffset,
             reduceMotion: reduceMotion,
             isUserInteracting: isUserInteracting
-        )
+        ).signature
     }
 
     var body: some View {
@@ -648,8 +672,26 @@ private struct PlaybackArtistLine: View {
             }
             .fixedSize(horizontal: true, vertical: false)
         }
+        // Changing identity is a second line of defence for track changes: it
+        // prevents the native scroll view from retaining an old content offset
+        // while the explicit reset below takes effect.
+        .id(resetID)
         .frame(maxWidth: .infinity, alignment: .leading)
         .scrollPosition($scrollPosition)
+        .scrollDisabled(maxScrollOffset <= 0)
+        .transaction { transaction in
+            // The marquee and content transition must not introduce motion when
+            // Reduce Motion is enabled. User-driven scrolling also needs an
+            // animation-free transaction so it cannot fight the gesture.
+            if reduceMotion || isUserInteracting {
+                transaction.animation = nil
+                transaction.disablesAnimations = true
+            }
+        }
+        .animation(
+            reduceMotion || isUserInteracting ? nil : .smooth(duration: 0.28),
+            value: resetID
+        )
         .onScrollGeometryChange(
             for: CGFloat.self,
             of: { geometry in
@@ -676,45 +718,88 @@ private struct PlaybackArtistLine: View {
         .onAppear {
             scrollPosition.scrollTo(x: 0)
         }
-        .onChange(of: resetID) { _, _ in
+        .onChange(of: resetID) { oldID, newID in
+            guard
+                let resetOffset = PlaybackArtistLineScrollPolicy.resetOffset(
+                    previousResetID: oldID,
+                    resetID: newID
+                )
+            else { return }
             // Track changes should never inherit the previous song's offset.
             // Keep the measured range: a different track can have the same
             // content width, in which case GeometryChange quite correctly has
             // no new value to report.
             isUserInteracting = false
-            scrollPosition.scrollTo(x: 0)
+            scroll(to: resetOffset)
+        }
+        .onChange(of: reduceMotion) { _, nowReduced in
+            guard nowReduced else { return }
+            // Stop an in-flight marquee immediately and without an animated
+            // jump when the system setting changes while the view is visible.
+            scroll(to: 0)
         }
         .task(id: autoScrollTaskID) {
+            guard
+                PlaybackArtistLineScrollPolicy.shouldAutoScroll(
+                    maxScrollOffset: maxScrollOffset,
+                    reduceMotion: reduceMotion,
+                    isUserInteracting: isUserInteracting
+                )
+            else { return }
             await autoScroll(to: maxScrollOffset)
         }
     }
 
+    private func scroll(to requestedOffset: CGFloat, animation: Animation? = nil) {
+        let offset = PlaybackArtistLineScrollPolicy.clampedScrollOffset(
+            requestedOffset,
+            maxScrollOffset: maxScrollOffset
+        )
+        if let animation {
+            withAnimation(animation) {
+                scrollPosition.scrollTo(x: offset)
+            }
+        } else {
+            var transaction = Transaction()
+            transaction.animation = nil
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                scrollPosition.scrollTo(x: offset)
+            }
+        }
+    }
+
     private func autoScroll(to maxOffset: CGFloat) async {
+        let clampedMaxOffset = PlaybackArtistLineScrollPolicy.clampedScrollOffset(
+            maxOffset,
+            maxScrollOffset: maxScrollOffset
+        )
         guard
             PlaybackArtistLineScrollPolicy.shouldAutoScroll(
-                maxScrollOffset: maxOffset,
+                maxScrollOffset: clampedMaxOffset,
+                reduceMotion: reduceMotion,
+                isUserInteracting: isUserInteracting
+            ),
+            let animation = PlaybackArtistLineScrollPolicy.animation(
+                duration: PlaybackArtistLineScrollPolicy.duration(for: clampedMaxOffset),
                 reduceMotion: reduceMotion
             )
         else { return }
 
-        let duration = PlaybackArtistLineScrollPolicy.duration(for: maxOffset)
+        let duration = PlaybackArtistLineScrollPolicy.duration(for: clampedMaxOffset)
         do {
             while !Task.isCancelled {
                 try await Task.sleep(for: SpotiglassDesign.nowPlayingArtistLineScrollPause)
                 guard !Task.isCancelled else { return }
 
-                withAnimation(.linear(duration: duration)) {
-                    scrollPosition.scrollTo(x: maxOffset)
-                }
+                scroll(to: clampedMaxOffset, animation: animation)
                 try await Task.sleep(for: .seconds(duration))
                 guard !Task.isCancelled else { return }
 
                 try await Task.sleep(for: SpotiglassDesign.nowPlayingArtistLineScrollPause)
                 guard !Task.isCancelled else { return }
 
-                withAnimation(.linear(duration: duration)) {
-                    scrollPosition.scrollTo(x: 0)
-                }
+                scroll(to: 0, animation: animation)
                 try await Task.sleep(for: .seconds(duration))
             }
         } catch {

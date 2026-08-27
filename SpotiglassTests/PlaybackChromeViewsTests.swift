@@ -231,14 +231,53 @@ final class PlaybackChromeViewsTests: XCTestCase {
             PlaybackArtistLineScrollPolicy.maxScrollOffset(contentWidth: 360, viewportWidth: 240),
             120
         )
+        XCTAssertEqual(
+            PlaybackArtistLineScrollPolicy.clampedScrollOffset(-1, maxScrollOffset: 120),
+            0
+        )
+        XCTAssertEqual(
+            PlaybackArtistLineScrollPolicy.clampedScrollOffset(240, maxScrollOffset: 120),
+            120
+        )
         XCTAssertTrue(
-            PlaybackArtistLineScrollPolicy.shouldAutoScroll(maxScrollOffset: 120, reduceMotion: false)
+            PlaybackArtistLineScrollPolicy.shouldAutoScroll(
+                maxScrollOffset: 120,
+                reduceMotion: false,
+                isUserInteracting: false
+            )
         )
         XCTAssertFalse(
-            PlaybackArtistLineScrollPolicy.shouldAutoScroll(maxScrollOffset: 120, reduceMotion: true)
+            PlaybackArtistLineScrollPolicy.shouldAutoScroll(
+                maxScrollOffset: 120,
+                reduceMotion: true,
+                isUserInteracting: false
+            )
         )
         XCTAssertFalse(
-            PlaybackArtistLineScrollPolicy.shouldAutoScroll(maxScrollOffset: 0, reduceMotion: false)
+            PlaybackArtistLineScrollPolicy.shouldAutoScroll(
+                maxScrollOffset: 120,
+                reduceMotion: false,
+                isUserInteracting: true
+            )
+        )
+        XCTAssertFalse(
+            PlaybackArtistLineScrollPolicy.shouldAutoScroll(
+                maxScrollOffset: 0,
+                reduceMotion: false,
+                isUserInteracting: false
+            )
+        )
+        XCTAssertNil(PlaybackArtistLineScrollPolicy.animation(duration: 2, reduceMotion: true))
+        XCTAssertNotNil(PlaybackArtistLineScrollPolicy.animation(duration: 2, reduceMotion: false))
+        XCTAssertNil(
+            PlaybackArtistLineScrollPolicy.resetOffset(
+                previousResetID: "track-1",
+                resetID: "track-1"
+            )
+        )
+        XCTAssertEqual(
+            PlaybackArtistLineScrollPolicy.resetOffset(previousResetID: "track-1", resetID: "track-2"),
+            0
         )
         XCTAssertEqual(PlaybackArtistLineScrollPolicy.duration(for: 0), 0)
         XCTAssertEqual(
