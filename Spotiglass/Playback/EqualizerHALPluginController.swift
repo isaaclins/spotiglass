@@ -68,8 +68,14 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
     private let embeddedDriverURL: URL?
     private let fileManager: FileManager
     private let outputBackupURL: URL
+    // Keep the CoreAudio route lookups/setter injectable so lifecycle tests can
+    // exercise a running engine without changing the host's real output.
     private let outputDeviceIDForUID: (String) -> AudioObjectID?
+    private let outputDeviceUID: (AudioObjectID) -> String?
+    private let virtualDeviceIDProvider: () -> AudioObjectID?
+    private let defaultOutputDeviceIDProvider: () throws -> AudioObjectID
     private let defaultOutputSetter: (AudioObjectID) throws -> Void
+    private let activeSampleRateObservationStarter: ((AudioObjectID) throws -> Void)?
     private var activeSampleRateListener: AudioObjectPropertyListenerBlock?
     private var observedSampleRateDeviceID: AudioObjectID?
 
@@ -90,7 +96,11 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
         bundle: Bundle = .main,
         defaultOutputBackupURL: URL = EqualizerHALPluginController.defaultOutputBackupURL,
         outputDeviceIDForUID: ((String) -> AudioObjectID?)? = nil,
-        defaultOutputSetter: ((AudioObjectID) throws -> Void)? = nil
+        outputDeviceUID: ((AudioObjectID) -> String?)? = nil,
+        virtualDeviceIDProvider: (() -> AudioObjectID?)? = nil,
+        defaultOutputDeviceIDProvider: (() throws -> AudioObjectID)? = nil,
+        defaultOutputSetter: ((AudioObjectID) throws -> Void)? = nil,
+        activeSampleRateObservationStarter: ((AudioObjectID) throws -> Void)? = nil
     ) {
         self.halDirectory = halDirectory
         self.fileManager = fileManager
@@ -98,9 +108,21 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
         self.outputDeviceIDForUID = outputDeviceIDForUID ?? { uid in
             AudioDeviceEnumerator.deviceID(forUID: uid)
         }
+        self.outputDeviceUID = outputDeviceUID ?? { deviceID in
+            AudioDeviceEnumerator.uid(of: deviceID)
+        }
+        self.virtualDeviceIDProvider = virtualDeviceIDProvider ?? {
+            AudioDeviceEnumerator.allOutputDevices().first { device in
+                device.name == Self.virtualDeviceName
+            }?.id
+        }
+        self.defaultOutputDeviceIDProvider = defaultOutputDeviceIDProvider ?? {
+            try Self.currentDefaultOutputDeviceIDInCoreAudio()
+        }
         self.defaultOutputSetter = defaultOutputSetter ?? { deviceID in
             try Self.setDefaultOutputDeviceInCoreAudio(to: deviceID)
         }
+        self.activeSampleRateObservationStarter = activeSampleRateObservationStarter
         self.embeddedDriverURL = Self.locateEmbeddedDriver(in: bundle)
         self.previousDefaultOutputID = nil
         self.previousDefaultOutputUID = Self.readDefaultOutputBackup(
@@ -144,14 +166,18 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
             let previousUID: String? = {
                 if previousDefaultOutputID == deviceID { return nil }
                 if let uid = previousDefaultOutputUID, !uid.isEmpty { return uid }
-                return previousDefaultOutputID.flatMap { AudioDeviceEnumerator.uid(of: $0) }
+                return previousDefaultOutputID.flatMap(outputDeviceUID)
             }()
             let targetUID = Self.resolveForwardingTargetUID(
                 preferred: preferredForwardingUID,
                 previousUID: previousUID
             )
             Self.writeForwardingTarget(uid: targetUID)
-            try beginActiveSampleRateObservation(for: deviceID)
+            if let activeSampleRateObservationStarter {
+                try activeSampleRateObservationStarter(deviceID)
+            } else {
+                try beginActiveSampleRateObservation(for: deviceID)
+            }
             do {
                 try setDefaultOutputDevice(to: deviceID)
             } catch {
@@ -464,9 +490,7 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
     /// Returns the AudioObjectID for the Spotiglass EQ virtual device, or nil
     /// if coreaudiod hasn't picked up the new `.driver` yet.
     func lookupSpotiglassEQDeviceID() -> AudioObjectID? {
-        AudioDeviceEnumerator.allOutputDevices().first { device in
-            device.name == Self.virtualDeviceName
-        }?.id
+        virtualDeviceIDProvider()
     }
 
     private func captureCurrentDefaultOutput(virtualDeviceID: AudioObjectID) throws {
@@ -483,7 +507,7 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
             return
         }
 
-        guard let uid = AudioDeviceEnumerator.uid(of: deviceID), !uid.isEmpty else {
+        guard let uid = outputDeviceUID(deviceID), !uid.isEmpty else {
             throw EqualizerHALPluginError.outputDeviceUIDUnavailable
         }
         previousDefaultOutputID = deviceID
@@ -496,6 +520,10 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
     }
 
     private func currentDefaultOutputDeviceID() throws -> AudioObjectID {
+        try defaultOutputDeviceIDProvider()
+    }
+
+    private static func currentDefaultOutputDeviceIDInCoreAudio() throws -> AudioObjectID {
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioHardwarePropertyDefaultOutputDevice,
             mScope: kAudioObjectPropertyScopeGlobal,
