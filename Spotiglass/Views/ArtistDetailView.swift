@@ -33,6 +33,7 @@ final class AlbumCardTapRouter: ObservableObject {
 
 struct ArtistDetailContent: View {
     let detail: ArtistDetailViewModel
+    @ObservedObject var browserViewModel: PlaylistBrowserViewModel
     /// Starts playback of one track; caller supplies playlist-style queue of URIs.
     let playTrack: (String) -> Void
     let openAlbum: (ArtistAlbumRowViewModel) -> Void
@@ -44,6 +45,9 @@ struct ArtistDetailContent: View {
     let addToQueue: (String) async -> Void
     let openArtist: (String) -> Void
     let loadMoreAlbums: () -> Void
+    /// Presented by the shared browser detail host so the same Add submenu can
+    /// create a playlist from artist rows as it can from playlist rows.
+    let onRequestCreatePlaylist: (([TrackRowViewModel]) -> Void)?
 
     @EnvironmentObject private var pinnedStore: PinnedItemsStore
     @Environment(\.colorScheme) private var colorScheme
@@ -64,6 +68,36 @@ struct ArtistDetailContent: View {
             && detail.appearsOn.isEmpty
             && !detail.canLoadMoreAlbums
             && !detail.isLoadingMoreAlbums
+    }
+
+    init(
+        detail: ArtistDetailViewModel,
+        browserViewModel: PlaylistBrowserViewModel,
+        playTrack: @escaping (String) -> Void,
+        openAlbum: @escaping (ArtistAlbumRowViewModel) -> Void,
+        playAlbumContext: @escaping (String) -> Void,
+        currentPlaybackURI: String?,
+        isPlaying: Bool,
+        togglePlayPause: @escaping () -> Void,
+        hasPlaybackDevice: Bool,
+        addToQueue: @escaping (String) async -> Void,
+        openArtist: @escaping (String) -> Void,
+        loadMoreAlbums: @escaping () -> Void,
+        onRequestCreatePlaylist: (([TrackRowViewModel]) -> Void)? = nil
+    ) {
+        self.detail = detail
+        _browserViewModel = ObservedObject(wrappedValue: browserViewModel)
+        self.playTrack = playTrack
+        self.openAlbum = openAlbum
+        self.playAlbumContext = playAlbumContext
+        self.currentPlaybackURI = currentPlaybackURI
+        self.isPlaying = isPlaying
+        self.togglePlayPause = togglePlayPause
+        self.hasPlaybackDevice = hasPlaybackDevice
+        self.addToQueue = addToQueue
+        self.openArtist = openArtist
+        self.loadMoreAlbums = loadMoreAlbums
+        self.onRequestCreatePlaylist = onRequestCreatePlaylist
     }
 
     var body: some View {
@@ -168,7 +202,15 @@ struct ArtistDetailContent: View {
                     hasPlaybackDevice: hasPlaybackDevice,
                     addToQueue: addToQueue,
                     openArtist: openArtist,
-                    tracksSurfaceID: tracksSurfaceID
+                    tracksSurfaceID: tracksSurfaceID,
+                    trackOpsMenuItems: {
+                        AnyView(TrackOpsMenuItems(
+                            targets: [track],
+                            browserViewModel: browserViewModel,
+                            sourcePlaylistID: nil,
+                            onRequestCreatePlaylist: onRequestCreatePlaylist
+                        ))
+                    }
                 )
             }
         }
