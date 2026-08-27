@@ -203,6 +203,70 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
         XCTAssertNoThrow(try view.inspect())
     }
 
+    func testBackgroundLayerBuildsAllTransparencyAndArtworkBranches() {
+        let url = URL(string: "https://example.com/cover.png")!
+
+        _ = ImmersiveLyricsBackgroundLayer(
+            reduceTransparency: true,
+            albumArtURL: nil
+        ).body
+        _ = ImmersiveLyricsBackgroundLayer(
+            reduceTransparency: false,
+            albumArtURL: nil
+        ).body
+        _ = ImmersiveLyricsBackgroundLayer(
+            reduceTransparency: false,
+            albumArtURL: url
+        ).body
+    }
+
+    func testBlurredArtworkRendersInitialImageWithoutInspection() {
+        let url = URL(string: "https://example.com/initial-cover.png")!
+        let artwork = ImmersiveBlurredArtwork(
+            url: url,
+            initialImage: NSImage(size: NSSize(width: 64, height: 64))
+        )
+
+        // Hosting renders the GeometryReader closure and image branch, but does
+        // not rely on ViewInspector (which is incompatible with this machine's
+        // macOS 27 SwiftUI for some other lyrics views).
+        _ = ViewTestHost.host(artwork, size: CGSize(width: 360, height: 280))
+    }
+
+    func testBlurredArtworkSizingAndDownscalingBranches() {
+        XCTAssertEqual(
+            ImmersiveBlurredArtwork.coverScaleForBlurredBackdrop(
+                tile: 0,
+                blurRadius: 24,
+                target: .zero
+            ),
+            1
+        )
+        XCTAssertEqual(
+            ImmersiveBlurredArtwork.coverScaleForBlurredBackdrop(
+                tile: 1_000,
+                blurRadius: 0,
+                target: CGSize(width: 2_000, height: 500)
+            ),
+            2
+        )
+
+        let zero = NSImage(size: .zero)
+        XCTAssertTrue(
+            ImmersiveBlurredArtwork.downscaledForBlur(zero, maxEdge: 576) === zero
+        )
+
+        let small = NSImage(size: NSSize(width: 100, height: 50))
+        XCTAssertTrue(
+            ImmersiveBlurredArtwork.downscaledForBlur(small, maxEdge: 576) === small
+        )
+
+        let large = NSImage(size: NSSize(width: 1_200, height: 600))
+        let downscaled = ImmersiveBlurredArtwork.downscaledForBlur(large, maxEdge: 576)
+        XCTAssertEqual(downscaled.size.width, 576, accuracy: 0.001)
+        XCTAssertEqual(downscaled.size.height, 288, accuracy: 0.001)
+    }
+
     func testBlurredArtworkHostsAndLoadsFromDiskCache() async throws {
         let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
             .appendingPathComponent(AppMetadata.displayName, isDirectory: true)
