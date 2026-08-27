@@ -1,4 +1,6 @@
+import SwiftUI
 import XCTest
+
 @testable import Spotiglass
 
 /// Rules the Equalizer pane's rows depend on, asserted directly so they do not
@@ -63,5 +65,76 @@ final class EqualizerSettingsRowTests: XCTestCase {
         let formatted = spoken.map { SpotiglassL10n.format("settings.eq.bandGain.accessibility", $0) }
         XCTAssertEqual(Set(formatted).count, bands.count)
         XCTAssertTrue(formatted[5].contains("1 kHz"), "expected the band in the label, got \(formatted[5])")
+    }
+
+    func testBandFaderKeyboardArrowsUseTheSharedHalfDecibelStep() throws {
+        XCTAssertEqual(
+            EqualizerSettingsView.bandGainKeyboardKeys,
+            Set([KeyEquivalent.upArrow, .downArrow, .leftArrow, .rightArrow])
+        )
+
+        XCTAssertEqual(
+            try XCTUnwrap(EqualizerSettingsView.bandGainKeyboardAdjustment(value: 0, key: .upArrow)),
+            EqualizerSettingsView.bandGainStep
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(EqualizerSettingsView.bandGainKeyboardAdjustment(value: 0, key: .rightArrow)),
+            EqualizerSettingsView.bandGainStep
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(EqualizerSettingsView.bandGainKeyboardAdjustment(value: 0, key: .downArrow)),
+            -EqualizerSettingsView.bandGainStep
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(EqualizerSettingsView.bandGainKeyboardAdjustment(value: 0, key: .leftArrow)),
+            -EqualizerSettingsView.bandGainStep
+        )
+
+        XCTAssertNil(
+            EqualizerSettingsView.bandGainKeyboardAdjustment(value: 0, key: .return),
+            "non-arrow keys must remain available to their owning controls"
+        )
+        XCTAssertNil(
+            EqualizerSettingsView.bandGainKeyboardAdjustment(value: 0, key: .rightArrow, modifiers: .command),
+            "application shortcuts using command arrows must not be swallowed by a fader"
+        )
+    }
+
+    func testBandFaderKeyboardAdjustmentClampsToTheGainRange() throws {
+        let upper = EqualizerSettings.gainRangeDB.upperBound
+        let lower = EqualizerSettings.gainRangeDB.lowerBound
+
+        XCTAssertEqual(
+            try XCTUnwrap(
+                EqualizerSettingsView.bandGainKeyboardAdjustment(
+                    value: upper,
+                    key: .upArrow
+                )),
+            upper
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(
+                EqualizerSettingsView.bandGainKeyboardAdjustment(
+                    value: lower,
+                    key: .downArrow
+                )),
+            lower
+        )
+    }
+
+    func testBandFaderKeepsDragAndVoiceOverPathsAlongsideKeyboardFocus() throws {
+        let testsDirectory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        let sourceURL =
+            testsDirectory
+            .deletingLastPathComponent()
+            .appendingPathComponent("Spotiglass/Settings/EqualizerSettingsView.swift")
+        let source = try String(contentsOf: sourceURL, encoding: .utf8)
+        let faderStart = try XCTUnwrap(source.range(of: "private struct CenterOriginGainFader"))
+        let faderSource = source[faderStart.lowerBound...]
+
+        XCTAssertTrue(faderSource.contains(".focusable()"))
+        XCTAssertTrue(faderSource.contains(".onKeyPress(keys: EqualizerSettingsView.bandGainKeyboardKeys)"))
+        XCTAssertTrue(faderSource.contains("DragGesture(minimumDistance: 0)"))
+        XCTAssertTrue(faderSource.contains(".accessibilityAdjustableAction"))
     }
 }

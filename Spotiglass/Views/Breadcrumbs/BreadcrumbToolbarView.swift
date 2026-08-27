@@ -1,6 +1,20 @@
 import SwiftUI
 
-/// Principal toolbar breadcrumb for the browser shell (`Spotiglass` + typed segments).
+/// Keeps the browser's visible breadcrumb path separate from its window title.
+/// The last breadcrumb is the current location and belongs to the title; only
+/// its ancestors remain as actionable toolbar controls.
+enum BrowserToolbarPresentation {
+    static func ancestors(of path: [BrowserBreadcrumb]) -> [BrowserBreadcrumb] {
+        Array(path.dropLast())
+    }
+
+    static func windowTitle(for path: [BrowserBreadcrumb]) -> String {
+        path.last?.label ?? AppMetadata.displayName
+    }
+}
+
+/// Principal toolbar breadcrumb for the browser shell (`Spotiglass` + navigable ancestors).
+/// The current location is the window title, so it is not repeated as a leaf.
 struct BreadcrumbToolbarView: View {
     private static let segmentFont = Font.system(size: 13)
 
@@ -21,22 +35,24 @@ struct BreadcrumbToolbarView: View {
         HStack(spacing: 8) {
             homeCrumb
 
-            ForEach(Array(viewModel.breadcrumbPath.enumerated()), id: \.element.id) { index, crumb in
+            ForEach(Array(ancestorPath.enumerated()), id: \.element.id) { index, crumb in
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .accessibilityHidden(true)
 
-                crumbRow(
-                    crumb: crumb,
-                    isLeaf: index == viewModel.breadcrumbPath.count - 1,
-                    breadcrumbIndex: index
-                )
+                crumbRow(crumb: crumb, breadcrumbIndex: index)
             }
         }
         .padding(.vertical, 2)
         .padding(.trailing, 4)
         .fixedSize(horizontal: true, vertical: false)
+    }
+
+    /// The navigation title owns the current location. Only its ancestors stay
+    /// in the breadcrumb so the same label is not printed twice in the toolbar.
+    private var ancestorPath: [BrowserBreadcrumb] {
+        BrowserToolbarPresentation.ancestors(of: viewModel.breadcrumbPath)
     }
 
     /// At the root there is nowhere to go, so the app name is plain text. Once a
@@ -59,32 +75,19 @@ struct BreadcrumbToolbarView: View {
         .help(SpotiglassL10n.string("tooltip.breadcrumb.home"))
     }
 
-    @ViewBuilder
-    private func crumbRow(crumb: BrowserBreadcrumb, isLeaf: Bool, breadcrumbIndex index: Int) -> some View {
-        if isLeaf {
-            crumbLabel(crumb: crumb, isLeaf: true)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(crumb.label)
-                // Without this the hosted leaf reports AXUnknown, which reads as
-                // an anonymous element rather than the current location.
-                .accessibilityAddTraits(.isStaticText)
-                // Segments truncate at 220pt, so even the leaf earns a tooltip: it
-                // is the only way to read a long playlist or album name in full.
-                .help(crumb.label)
-        } else {
-            Button {
-                Task { await viewModel.jumpToBreadcrumb(at: index) }
-            } label: {
-                crumbLabel(crumb: crumb, isLeaf: false)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(crumb.label)
-            .accessibilityHint(SpotiglassL10n.string("breadcrumb.hint"))
-            .help(SpotiglassL10n.format("tooltip.breadcrumb.jump", crumb.label))
+    private func crumbRow(crumb: BrowserBreadcrumb, breadcrumbIndex index: Int) -> some View {
+        Button {
+            Task { await viewModel.jumpToBreadcrumb(at: index) }
+        } label: {
+            crumbLabel(crumb: crumb)
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel(crumb.label)
+        .accessibilityHint(SpotiglassL10n.string("breadcrumb.hint"))
+        .help(SpotiglassL10n.format("tooltip.breadcrumb.jump", crumb.label))
     }
 
-    private func crumbLabel(crumb: BrowserBreadcrumb, isLeaf: Bool) -> some View {
+    private func crumbLabel(crumb: BrowserBreadcrumb) -> some View {
         HStack(spacing: 5) {
             Image(systemName: crumb.systemImage)
                 .font(Self.segmentFont)
@@ -95,7 +98,7 @@ struct BreadcrumbToolbarView: View {
                 .truncationMode(.tail)
         }
         .frame(maxWidth: 220, alignment: .leading)
-        .foregroundStyle(isLeaf ? Color.primary : Color.secondary)
+        .foregroundStyle(Color.secondary)
         .contentShape(Rectangle())
     }
 }

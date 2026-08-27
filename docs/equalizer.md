@@ -245,8 +245,9 @@ copy, the user reloads coreaudiod with `sudo killall coreaudiod` (the
 After activation, `"Spotiglass EQ"` appears in **System Settings → Sound →
 Output**. Spotiglass flips the system default output to it via
 `AudioObjectSetPropertyData` (kAudioHardwarePropertyDefaultOutputDevice) and
-records the previous default in `~/.config/spotiglass/settings.json` so
-disable can restore it.
+persists the previous default's stable device UID in
+`~/Library/Application Support/Spotiglass/eq-default-output.uid` so disable
+can restore it after a relaunch.
 
 ## Adding a new preset
 

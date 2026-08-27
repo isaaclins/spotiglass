@@ -132,6 +132,41 @@ struct EqualizerSettingsView: View {
         return String(format: "%.0f Hz", hz)
     }
 
+    /// The adjustment granularity shared by drag, VoiceOver, and keyboard input.
+    static let bandGainStep = 0.5
+
+    /// The arrow keys a band fader claims once it has keyboard focus.
+    static let bandGainKeyboardKeys: Set<KeyEquivalent> = [
+        .upArrow,
+        .downArrow,
+        .leftArrow,
+        .rightArrow,
+    ]
+
+    /// Returns the gain after one keyboard arrow adjustment, or `nil` for a key
+    /// that belongs to another control. Command/control arrows are left alone so
+    /// focused faders do not swallow application-level shortcuts. The EQ has no
+    /// separate coarse/fine keyboard convention, so shift/option keep the same
+    /// half-dB step as drag and VoiceOver adjustment.
+    static func bandGainKeyboardAdjustment(
+        value: Double,
+        key: KeyEquivalent,
+        modifiers: EventModifiers = []
+    ) -> Double? {
+        guard !modifiers.contains(.command), !modifiers.contains(.control) else { return nil }
+
+        let delta: Double
+        switch key {
+        case .upArrow, .rightArrow:
+            delta = bandGainStep
+        case .downArrow, .leftArrow:
+            delta = -bandGainStep
+        default:
+            return nil
+        }
+        return EqualizerSettings.clampGain(value + delta)
+    }
+
     /// The saved forwarding target when it is not among the connected devices.
     ///
     /// Static so the rule can be asserted without building the view.
@@ -294,7 +329,14 @@ struct EqualizerSettingsView: View {
                         mutateEqualizer { $0.enabled = false }
                     }
                 } else {
-                    engine.stop()
+                    do {
+                        try engine.stop()
+                    } catch {
+                        // A failed restore leaves the EQ routed through the
+                        // virtual device. Keep the persisted switch on so the
+                        // UI does not claim that audio has been restored.
+                        mutateEqualizer { $0.enabled = true }
+                    }
                 }
             }
         )
@@ -488,7 +530,7 @@ private struct CenterOriginGainFader: View {
     let bandLabel: String
 
     private let range = EqualizerSettings.gainRangeDB
-    private let step = 0.5
+    private let step = EqualizerSettingsView.bandGainStep
     private let trackWidth: CGFloat = 5
     private let thumbDiameter: CGFloat = 16
 
@@ -545,6 +587,21 @@ private struct CenterOriginGainFader: View {
             )
         }
         .frame(width: 28, height: 200)
+        // Replacing Slider with a custom drag surface removed macOS key-view
+        // focus. Opt back into keyboard traversal and handle repeats here while
+        // leaving the drag gesture and VoiceOver action below intact (#263).
+        .focusable()
+        .onKeyPress(keys: EqualizerSettingsView.bandGainKeyboardKeys) { press in
+            guard
+                let adjusted = EqualizerSettingsView.bandGainKeyboardAdjustment(
+                    value: value,
+                    key: press.key,
+                    modifiers: press.modifiers
+                )
+            else { return .ignored }
+            value = adjusted
+            return .handled
+        }
         .accessibilityElement()
         .accessibilityLabel(Text(SpotiglassL10n.format("settings.eq.bandGain.accessibility", bandLabel)))
         .accessibilityValue(Text(String(format: "%.1f dB", value)))
