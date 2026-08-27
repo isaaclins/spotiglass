@@ -316,6 +316,87 @@ enum KeymapConflictError: LocalizedError, Equatable {
     }
 }
 
+/// Converts keymap failures into stable, localized copy while retaining the
+/// original error in the settings log for diagnostics.
+enum CommandPaletteKeymapErrorPresenter {
+    static func message(for error: Error, source: String, operation: String) -> String {
+        log(error, operation: operation)
+
+        if let conflict = error as? KeymapConflictError {
+            return conflict.errorDescription ?? SpotiglassL10n.format("keymap.error.updateFailed", source)
+        }
+        if let validation = error as? KeymapValidationError {
+            let detail = validation.errorDescription ?? SpotiglassL10n.format("keymap.error.invalidValue", source)
+            return SpotiglassL10n.format("keymap.error.invalidBinding", source, detail)
+        }
+        if let decoding = error as? DecodingError {
+            return decodingMessage(decoding, source: source)
+        }
+        return SpotiglassL10n.format("keymap.error.updateFailed", source)
+    }
+
+    static func recoveredDefaultsMessage(for error: Error, source: String, operation: String) -> String {
+        log(error, operation: operation)
+        let detail: String
+        if let validation = error as? KeymapValidationError {
+            detail = validation.errorDescription ?? SpotiglassL10n.format("keymap.error.invalidValue", source)
+        } else if let decoding = error as? DecodingError {
+            detail = decodingMessage(decoding, source: source)
+        } else {
+            detail = SpotiglassL10n.format("keymap.error.invalidValue", source)
+        }
+        return SpotiglassL10n.format("keymap.error.invalidStored", source, detail)
+    }
+
+    static func settingsReloadFailureMessage(source: String) -> String {
+        SpotiglassL10n.format("keymap.error.reloadFailed", source)
+    }
+
+    private static func decodingMessage(_ error: DecodingError, source: String) -> String {
+        switch error {
+        case let .dataCorrupted(context):
+            let location = location(source: source, codingPath: context.codingPath)
+            if context.codingPath.isEmpty {
+                return SpotiglassL10n.format("keymap.error.invalidJSON", location)
+            }
+            return SpotiglassL10n.format("keymap.error.invalidValue", location)
+        case let .keyNotFound(key, context):
+            let location = location(source: source, codingPath: context.codingPath + [key])
+            return SpotiglassL10n.format("keymap.error.missingValue", location)
+        case let .typeMismatch(_, context):
+            let location = location(source: source, codingPath: context.codingPath)
+            return SpotiglassL10n.format("keymap.error.invalidValue", location)
+        case let .valueNotFound(_, context):
+            let location = location(source: source, codingPath: context.codingPath)
+            return SpotiglassL10n.format("keymap.error.missingValue", location)
+        @unknown default:
+            return SpotiglassL10n.format("keymap.error.invalidJSON", source)
+        }
+    }
+
+    private static func location(source: String, codingPath: [CodingKey]) -> String {
+        var path = ""
+        for component in codingPath {
+            if let index = component.intValue {
+                path += "[\(index)]"
+            } else if path.isEmpty {
+                path = component.stringValue
+            } else {
+                path += ".\(component.stringValue)"
+            }
+        }
+        guard !path.isEmpty else { return source }
+        return SpotiglassL10n.format("keymap.error.location", source, path)
+    }
+
+    private static func log(_ error: Error, operation: String) {
+        SpotiglassLog.error(
+            .settings,
+            "Command palette \(operation) failed: \(String(reflecting: error))"
+        )
+    }
+}
+
 extension CommandPaletteContext {
     /// Context values passed from `CommandPaletteManager.handleKeyEvent` into `commandBindings`.
     static let conflictCheckContexts: [CommandPaletteContext] = [.signedIn, .signedOut, .paletteOpen]

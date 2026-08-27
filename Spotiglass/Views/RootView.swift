@@ -184,6 +184,10 @@ struct RootView: View {
     @EnvironmentObject private var pinnedStore: PinnedItemsStore
     @StateObject private var sceneHost: SpotiglassSceneHost
     private let sceneRegistry: SpotiglassSceneRegistry?
+    /// Passed straight through to the playback session so a hardware output
+    /// selection can be re-routed through the EQ instead of bypassing it
+    /// (#253). Nil in previews/tests, where no engine owns the system route.
+    private let equalizerEngine: AudioEqualizerEngine?
     @Environment(\.openSettings) private var openSettingsAction
 
     private var commandPaletteManager: CommandPaletteManager {
@@ -196,18 +200,24 @@ struct RootView: View {
 
     /// Standalone host (previews and view tests): no registry, so this scene
     /// always considers itself current.
-    init(commandPaletteManager: CommandPaletteManager) {
+    init(commandPaletteManager: CommandPaletteManager, equalizerEngine: AudioEqualizerEngine? = nil) {
         _sceneHost = StateObject(wrappedValue: SpotiglassSceneHost(commandPaletteManager: commandPaletteManager))
         sceneRegistry = nil
+        self.equalizerEngine = equalizerEngine
     }
 
-    init(keymapStore: CommandPaletteKeymapStore, sceneRegistry: SpotiglassSceneRegistry) {
+    init(
+        keymapStore: CommandPaletteKeymapStore,
+        sceneRegistry: SpotiglassSceneRegistry,
+        equalizerEngine: AudioEqualizerEngine? = nil
+    ) {
         _sceneHost = StateObject(
             wrappedValue: SpotiglassSceneHost(
                 commandPaletteManager: CommandPaletteManager(keymapStore: keymapStore)
             )
         )
         self.sceneRegistry = sceneRegistry
+        self.equalizerEngine = equalizerEngine
     }
 
     /// Clears all scene-local state before the shared auth state can replace a
@@ -332,7 +342,8 @@ struct RootView: View {
                 playbackTokenProvider: viewModel,
                 searchTokenProvider: viewModel,
                 commandPaletteManager: commandPaletteManager,
-                signOut: signOutAction
+                signOut: signOutAction,
+                equalizerEngine: equalizerEngine
             )
         case .refreshing(.none):
             ZStack {

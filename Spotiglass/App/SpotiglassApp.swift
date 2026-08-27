@@ -106,7 +106,11 @@ struct SpotiglassApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView(keymapStore: keymapStore, sceneRegistry: sceneRegistry)
+            RootView(
+                keymapStore: keymapStore,
+                sceneRegistry: sceneRegistry,
+                equalizerEngine: equalizerEngine
+            )
                 .environmentObject(authViewModel)
                 .environmentObject(settingsStore)
                 .environmentObject(pinnedStore)

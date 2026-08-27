@@ -41,6 +41,7 @@ final class EqualizerHALPluginTests: XCTestCase {
     }
 
     override func tearDown() {
+        EqualizerHALPluginController.clearForwardingTarget()
         try? FileManager.default.removeItem(at: halDirectory)
         try? FileManager.default.removeItem(at: defaultOutputBackupURL.deletingLastPathComponent())
         super.tearDown()
@@ -266,6 +267,193 @@ final class EqualizerHALPluginTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: defaultOutputBackupURL.path))
     }
 
+    // MARK: - Default-output observation
+
+    func testDefaultOutputProviderReportsDeviceAndDispatchesOutputChanges() {
+        let callbackQueue = DispatchQueue(label: "spotiglass-eq-default-output-test")
+        let provider = MacDefaultAudioOutputNameProvider(callbackQueue: callbackQueue)
+        let change = expectation(description: "default output change")
+        defer { provider.stopListening() }
+
+        provider.startListening {
+            change.fulfill()
+        }
+
+        XCTAssertNotNil(provider.listenerBlock)
+        XCTAssertEqual(
+            provider.currentOutputDeviceID,
+            MacAudioOutputHardware.defaultOutputDeviceID()
+        )
+
+        guard let listener = provider.listenerBlock else {
+            return XCTFail("the provider should retain its Core Audio listener")
+        }
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        withUnsafePointer(to: &address) { addressPointer in
+            listener(1, addressPointer)
+        }
+
+        wait(for: [change], timeout: 1)
+        provider.stopListening()
+        XCTAssertNil(provider.listenerBlock)
+    }
+
+    // MARK: - Router readiness and system-output reconciliation
+
+    func testRouterStatusParserReadsReadyAndFailureRecords() throws {
+        let statusURL = makeTempDirectory().appendingPathComponent("router.status")
+        try "ready\nAirPodsMaxUID\n".write(to: statusURL, atomically: true, encoding: .utf8)
+        XCTAssertEqual(
+            EqualizerHALPluginController.readRouterStatus(from: statusURL),
+            .ready(targetUID: "AirPodsMaxUID")
+        )
+
+        try "failed\nDisconnectedUSBDevice\n3\n".write(
+            to: statusURL,
+            atomically: true,
+            encoding: .utf8
+        )
+        XCTAssertEqual(
+            EqualizerHALPluginController.readRouterStatus(from: statusURL),
+            .failed(targetUID: "DisconnectedUSBDevice", reasonCode: 3)
+        )
+    }
+
+    func testRouterReadinessFailureIsSurfacedWithTheLocalizedEQError() {
+        let uid = "DisconnectedUSBDevice"
+        let controller = EqualizerHALPluginController(
+            routerStatusURL: makeTempDirectory().appendingPathComponent("router.status"),
+            routerStatusReader: {
+                .failed(targetUID: uid, reasonCode: 3)
+            },
+            routerReadinessTimeout: 0
+        )
+
+        XCTAssertThrowsError(try controller.waitForRouterReadiness(targetUID: uid)) { error in
+            guard case let EqualizerHALPluginError.routerTargetOpenFailed(
+                targetUID: foundUID,
+                reasonCode
+            ) = error else {
+                return XCTFail("expected routerTargetOpenFailed, got \(error)")
+            }
+            XCTAssertEqual(foundUID, uid)
+            XCTAssertEqual(reasonCode, 3)
+            XCTAssertEqual(
+                error.localizedDescription,
+                SpotiglassL10n.string("eq.error.routerTargetOpenFailed")
+            )
+        }
+    }
+
+    @MainActor
+    func testStartDoesNotReportLiveWhenRouterOpenFails() throws {
+        let originalID = AudioObjectID(41)
+        let virtualID = AudioObjectID(99)
+        let uid = "OriginalOutputUID"
+        var setIDs: [AudioObjectID] = []
+        let controller = EqualizerHALPluginController(
+            halDirectory: halDirectory,
+            bundle: fakeAppBundle,
+            defaultOutputBackupURL: defaultOutputBackupURL,
+            outputDeviceUID: { $0 == originalID ? uid : nil },
+            defaultOutputDeviceIDProvider: { originalID },
+            virtualDeviceIDProvider: { virtualID },
+            defaultOutputSetter: { setIDs.append($0) },
+            routerStatusURL: makeTempDirectory().appendingPathComponent("router.status"),
+            routerStatusReader: {
+                .failed(targetUID: uid, reasonCode: 2)
+            },
+            routerReadinessTimeout: 0,
+            activeSampleRateObservationStarter: { _ in }
+        )
+        try controller.install()
+        let engine = AudioEqualizerEngine(pluginController: controller)
+
+        XCTAssertThrowsError(try engine.start()) { error in
+            XCTAssertEqual(
+                error.localizedDescription,
+                SpotiglassL10n.string("eq.error.routerTargetOpenFailed")
+            )
+        }
+        XCTAssertEqual(setIDs, [virtualID])
+        XCTAssertFalse(engine.isRunning)
+        guard case .failed = engine.routeState else {
+            return XCTFail("a failed router must not publish Live state")
+        }
+    }
+
+    @MainActor
+    func testSelectingHardwareOutputWhileEQIsEnabledKeepsVirtualOutputAsDefault() async throws {
+        let originalID = AudioObjectID(41)
+        let selectedID = AudioObjectID(42)
+        let virtualID = AudioObjectID(99)
+        let originalUID = "OriginalOutputUID"
+        let selectedUID = "SelectedOutputUID"
+        var statusTarget = originalUID
+        var setIDs: [AudioObjectID] = []
+        let controller = EqualizerHALPluginController(
+            halDirectory: halDirectory,
+            bundle: fakeAppBundle,
+            defaultOutputBackupURL: defaultOutputBackupURL,
+            outputDeviceUID: { deviceID in
+                switch deviceID {
+                case originalID: originalUID
+                case selectedID: selectedUID
+                default: nil
+                }
+            },
+            defaultOutputDeviceIDProvider: { originalID },
+            virtualDeviceIDProvider: { virtualID },
+            defaultOutputSetter: { setIDs.append($0) },
+            routerStatusURL: makeTempDirectory().appendingPathComponent("router.status"),
+            routerStatusReader: {
+                .ready(targetUID: statusTarget)
+            },
+            activeSampleRateObservationStarter: { _ in }
+        )
+        try controller.install()
+        let engine = AudioEqualizerEngine(pluginController: controller)
+        try engine.start()
+
+        let macOutput = TestEqualizerMacOutputProvider(deviceID: selectedID)
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: MockPlaybackAPI(),
+            webCommander: MockWebPlaybackCommander(),
+            macAudioOutput: macOutput,
+            equalizerEngine: engine,
+            defaults: UserDefaults(suiteName: "spotiglass-eq-routing-\(UUID().uuidString)")!
+        )
+        statusTarget = selectedUID
+        viewModel.setSystemDefaultOutputDevice(selectedID)
+
+        XCTAssertEqual(setIDs, [virtualID, virtualID])
+        XCTAssertEqual(controller.currentForwardingTargetUID(), selectedUID)
+        XCTAssertEqual(
+            engine.routeState,
+            .live(targetUID: selectedUID, errorMessage: nil)
+        )
+
+        // A later Control Center-style notification follows the same route
+        // state machine rather than bypassing the EQ or creating a second
+        // status interpretation in the playback model.
+        statusTarget = originalUID
+        macOutput.currentOutputDeviceID = originalID
+        macOutput.emitOutputChange()
+        for _ in 0..<3 { await Task.yield() }
+
+        XCTAssertEqual(setIDs, [virtualID, virtualID, virtualID])
+        XCTAssertEqual(controller.currentForwardingTargetUID(), originalUID)
+        XCTAssertEqual(
+            engine.routeState,
+            .live(targetUID: originalUID, errorMessage: nil)
+        )
+        XCTAssertTrue(engine.isRunning)
+    }
+
     // MARK: - Built-in preset → coefficient frame round-trip
 
     func testAllSevenBuiltInPresetsProduceUniqueCoefficientFrames() {
@@ -386,9 +574,13 @@ final class EqualizerHALPluginTests: XCTestCase {
             outputDeviceUID: { deviceID in
                 deviceID == originalOutputID ? originalOutputUID : nil
             },
-            virtualDeviceIDProvider: { virtualOutputID },
             defaultOutputDeviceIDProvider: { originalOutputID },
+            virtualDeviceIDProvider: { virtualOutputID },
             defaultOutputSetter: { routedOutputIDs.append($0) },
+            routerStatusReader: {
+                .ready(targetUID: originalOutputUID)
+            },
+            routerReadinessTimeout: 0,
             activeSampleRateObservationStarter: { _ in }
         )
         let coefficientPath = (NSTemporaryDirectory() as NSString)
@@ -405,7 +597,10 @@ final class EqualizerHALPluginTests: XCTestCase {
         )
         try engine.start()
         engine.observe(settingsStore: settingsStore)
-        XCTAssertTrue(engine.isRunning)
+        XCTAssertEqual(
+            engine.routeState,
+            .live(targetUID: originalOutputUID, errorMessage: nil)
+        )
         XCTAssertEqual(routedOutputIDs, [virtualOutputID])
 
         let beforeReload = try XCTUnwrap(publisher.readForTesting())
@@ -420,7 +615,11 @@ final class EqualizerHALPluginTests: XCTestCase {
             settings: externalSettings.equalizer,
             sampleRateHz: controller.activeSampleRate
         )
-        XCTAssertTrue(engine.isRunning, "a curve reload must not restart or disable the running EQ")
+        XCTAssertEqual(
+            engine.routeState,
+            .live(targetUID: originalOutputUID, errorMessage: nil),
+            "a curve reload must not restart or disable the running EQ"
+        )
         XCTAssertEqual(afterReload.preampLinear, expected.preampLinear)
         XCTAssertEqual(afterReload.bands, expected.bands)
         XCTAssertEqual(afterReload.sampleRateHz, expected.sampleRateHz)
@@ -442,5 +641,27 @@ final class EqualizerHALPluginTests: XCTestCase {
             .appendingPathComponent("spotiglass-eq-\(UUID().uuidString)", isDirectory: true)
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
+    }
+}
+
+private final class TestEqualizerMacOutputProvider: MacDefaultAudioOutputProviding {
+    let currentOutputDisplayName = "Test output"
+    var currentOutputDeviceID: AudioDeviceID?
+    private var onChange: (() -> Void)?
+
+    init(deviceID: AudioDeviceID) {
+        currentOutputDeviceID = deviceID
+    }
+
+    func startListening(_ onChange: @escaping () -> Void) {
+        self.onChange = onChange
+    }
+
+    func stopListening() {
+        onChange = nil
+    }
+
+    func emitOutputChange() {
+        onChange?()
     }
 }
