@@ -35,6 +35,18 @@ final class EqualizerPresetsTests: XCTestCase {
         XCTAssertEqual(EqualizerPreset.flat.preamp, 0)
     }
 
+    func testEqualizerInitializerClampsPreampToRange() {
+        XCTAssertEqual(
+            EqualizerSettings(preamp: 100).preamp,
+            EqualizerSettings.preampRangeDB.upperBound
+        )
+        XCTAssertEqual(
+            EqualizerSettings(preamp: -100).preamp,
+            EqualizerSettings.preampRangeDB.lowerBound
+        )
+        XCTAssertEqual(EqualizerSettings(preamp: 3.5).preamp, 3.5)
+    }
+
     func testApplyPresetUpdatesBandsPreampAndActiveName() {
         var settings = EqualizerSettings()
         let preset = EqualizerPreset(name: "Custom", preamp: -1, bands: [3, 2, 1, 0, -1, -2, -3, 0, 0, 0])

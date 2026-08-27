@@ -22,6 +22,15 @@ final class ArtworkViewTests: XCTestCase {
         XCTAssertNoThrow(try view.inspect().find(ViewType.Group.self))
     }
 
+    func testCircularArtworkViewUsesCircularPlaceholder() throws {
+        let view = CircularArtworkView(
+            url: nil,
+            size: SpotiglassDesign.detailHeaderArtworkSize
+        )
+        ViewTestHost.host(view, size: CGSize(width: 160, height: 160))
+        XCTAssertNoThrow(try view.inspect().find(ViewType.Image.self))
+    }
+
     /// Loading, missing and failed all drew the same static glyph, so a cover
     /// that was still downloading looked exactly like one that would never
     /// arrive (#146).

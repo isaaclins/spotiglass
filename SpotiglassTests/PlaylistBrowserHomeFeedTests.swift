@@ -1,3 +1,4 @@
+import SwiftUI
 import XCTest
 @testable import Spotiglass
 
@@ -130,5 +131,17 @@ final class PlaylistBrowserHomeFeedTests: XCTestCase {
         XCTAssertEqual(vm.homeGreeting(now: date(hour: 8)), "Good morning")
         XCTAssertEqual(vm.homeGreeting(now: date(hour: 14)), "Good afternoon")
         XCTAssertEqual(vm.homeGreeting(now: date(hour: 22)), "Good evening")
+    }
+
+    func testHomeGreetingUsesPageTitleStyleWhileSectionsUseSectionStyle() {
+        let greeting = HomeSectionHeader(title: "Good morning", style: .pageTitle)
+        let section = HomeSectionHeader(title: "Recently played")
+
+        XCTAssertEqual(greeting.style, .pageTitle)
+        XCTAssertEqual(section.style, .section)
+        XCTAssertEqual(greeting.style.textStyle, .largeTitle)
+        XCTAssertEqual(section.style.textStyle, .title2)
+        XCTAssertEqual(greeting.style.font, .largeTitle.weight(.bold))
+        XCTAssertEqual(section.style.font, .title2.weight(.bold))
     }
 }
