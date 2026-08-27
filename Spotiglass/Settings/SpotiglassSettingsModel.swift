@@ -367,7 +367,15 @@ struct CommandPaletteSettings: Codable, Equatable {
 /// Keeps every user-editable Spotiglass setting in one file so the user has a single
 /// source of truth under the app's Application Support directory.
 struct SpotiglassSettingsFile: Codable, Equatable {
-    static let currentVersion = 1
+    /// Version of the complete settings document. Version 2 adds an explicit
+    /// keybind-seeding marker so pre-metadata files can be migrated losslessly.
+    static let currentVersion = 2
+    static let legacyVersion = 1
+
+    /// Version of the catalog baseline represented by ``seededKeybindCommands``.
+    /// A zero value means the file predates seeded-keybind metadata.
+    static let legacyKeybindSeedBaselineVersion = 0
+    static let currentKeybindSeedBaselineVersion = 1
 
     /// Persisted schema marker; compared against ``currentVersion`` during migrations.
     // periphery:ignore
@@ -378,6 +386,10 @@ struct SpotiglassSettingsFile: Codable, Equatable {
     /// file was created are absent here, which lets the load-time migration seed their
     /// default binding exactly once without resurrecting bindings the user removed.
     var seededKeybindCommands: [String]
+    /// Explicit marker for the historical catalog baseline used by the seeded list.
+    /// Decoder inference for old files distinguishes a missing metadata field from an
+    /// explicitly empty list before the store runs its migration.
+    var keybindSeedBaselineVersion: Int
     var appearance: AppearanceSettings
     var commandPalette: CommandPaletteSettings
     var equalizer: EqualizerSettings
@@ -386,6 +398,7 @@ struct SpotiglassSettingsFile: Codable, Equatable {
         version: Int = SpotiglassSettingsFile.currentVersion,
         keybinds: [CommandPaletteKeyBinding],
         seededKeybindCommands: [String] = [],
+        keybindSeedBaselineVersion: Int = SpotiglassSettingsFile.currentKeybindSeedBaselineVersion,
         appearance: AppearanceSettings = AppearanceSettings(),
         commandPalette: CommandPaletteSettings = CommandPaletteSettings(),
         equalizer: EqualizerSettings = EqualizerSettings()
@@ -393,6 +406,7 @@ struct SpotiglassSettingsFile: Codable, Equatable {
         self.version = version
         self.keybinds = keybinds
         self.seededKeybindCommands = seededKeybindCommands
+        self.keybindSeedBaselineVersion = keybindSeedBaselineVersion
         self.appearance = appearance
         self.commandPalette = commandPalette
         self.equalizer = equalizer
@@ -404,7 +418,7 @@ struct SpotiglassSettingsFile: Codable, Equatable {
         version = container.decodeRepairing(
             Int.self,
             forKey: .version,
-            default: SpotiglassSettingsFile.currentVersion,
+            default: SpotiglassSettingsFile.legacyVersion,
             tracker: tracker
         )
         keybinds = container.decodeRepairingArray(
@@ -413,10 +427,24 @@ struct SpotiglassSettingsFile: Codable, Equatable {
             default: [],
             tracker: tracker
         )
+        // Files written before seededKeybindCommands existed must not be treated as
+        // an empty tracked list: their rows cannot tell us which old defaults the
+        // user deliberately removed. An explicit empty array, however, is valid
+        // current-schema metadata and intentionally means nothing was seeded yet.
+        let hasSeededMetadata = container.contains(.seededKeybindCommands)
+            && (try? container.decodeNil(forKey: .seededKeybindCommands)) != true
         seededKeybindCommands = container.decodeRepairingArray(
             String.self,
             forKey: .seededKeybindCommands,
             default: [],
+            tracker: tracker
+        )
+        keybindSeedBaselineVersion = container.decodeRepairing(
+            Int.self,
+            forKey: .keybindSeedBaselineVersion,
+            default: hasSeededMetadata
+                ? SpotiglassSettingsFile.currentKeybindSeedBaselineVersion
+                : SpotiglassSettingsFile.legacyKeybindSeedBaselineVersion,
             tracker: tracker
         )
         appearance = container.decodeRepairing(
@@ -443,6 +471,7 @@ struct SpotiglassSettingsFile: Codable, Equatable {
         case version
         case keybinds
         case seededKeybindCommands
+        case keybindSeedBaselineVersion
         case appearance
         case commandPalette
         case equalizer
@@ -499,12 +528,8 @@ struct EqualizerSettings: Codable, Equatable {
             default: false,
             tracker: tracker
         )
-        // Both fixes apply here and are complementary: #278 repairs a malformed
-        // field instead of failing the whole document, and #249 clamps whatever
-        // survives to the declared dB range. Repair first, then clamp — otherwise
-        // a repaired-to-default value would still bypass the range contract. An
-        // out-of-range value counts as a repair, so the clamped document is
-        // written back like the lyrics-scale and band clamps below.
+        // Repair malformed values first, then clamp out-of-range values to the
+        // declared dB range. Both repairs are persisted after a successful load.
         let rawPreamp = container.decodeRepairing(
             Double.self,
             forKey: .preamp,
