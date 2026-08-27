@@ -107,6 +107,19 @@ enum SpotiglassDesign {
     static let spacingL: CGFloat = 24
     static let spacingXL: CGFloat = 36
 
+    // MARK: - Playback chrome
+
+    /// Width of the accent rail that marks a selected track without reusing the
+    /// current-track waveform affordance.
+    static let trackSelectionIndicatorWidth: CGFloat = 3
+
+    /// Marquee speed for an overflowing now-playing artist line. Keeping the
+    /// value with the other visual tokens prevents a view from inventing its
+    /// own motion scale.
+    static let nowPlayingArtistLineScrollPointsPerSecond: CGFloat = 24
+    static let nowPlayingArtistLineMinimumScrollDuration: TimeInterval = 2
+    static let nowPlayingArtistLineScrollPause: Duration = .seconds(1)
+
     /// Artwork size for the playlist, Liked Songs and artist detail headers.
     /// One value so equivalent headers cannot drift apart (#145).
     static let detailHeaderArtworkSize: CGFloat = 120

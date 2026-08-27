@@ -163,6 +163,21 @@ final class ListDetailViewsTests: XCTestCase {
         XCTAssertNoThrow(try view.inspect().find(text: "Now Playing"))
     }
 
+    func testTrackListRowSelectedCurrentStateRendersBothStateMarkers() throws {
+        let store = pinnedStore()
+        let track = trackRow(id: "t3-selected", title: "Selected Current", explicit: false)
+        let view = trackListRow(
+            track: track,
+            trackNumber: 3,
+            isCurrent: true,
+            isPlaying: true,
+            store: store,
+            isSelected: true
+        )
+        ViewTestHost.host(view, size: CGSize(width: 640, height: 56))
+        XCTAssertNoThrow(try view.inspect().find(text: "Selected Current"))
+    }
+
     func testTrackListRowArtistRefButtons() throws {
         let store = pinnedStore()
         let base = PlaylistBrowsingTestFixtures.fallbackTrack(id: "t4", name: "Collab", artistId: "a0")
@@ -565,7 +580,8 @@ private extension ListDetailViewsTests {
         isCurrent: Bool,
         isPlaying: Bool,
         store: PinnedItemsStore,
-        surfaceID: String? = nil
+        surfaceID: String? = nil,
+        isSelected: Bool = false
     ) -> some View {
         TrackListRow(
             trackNumber: trackNumber,
@@ -577,7 +593,8 @@ private extension ListDetailViewsTests {
             hasPlaybackDevice: true,
             addToQueue: { _ in },
             openArtist: { _ in },
-            tracksSurfaceID: surfaceID
+            tracksSurfaceID: surfaceID,
+            isSelected: isSelected
         )
         .environmentObject(store)
     }
