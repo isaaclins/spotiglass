@@ -180,8 +180,11 @@ final class LoopbackOAuthCallbackTests: XCTestCase {
         var response = Data()
         var buffer = [UInt8](repeating: 0, count: 4096)
         while true {
+            // Read the length from the borrowed pointer, not from `buffer`:
+            // touching `buffer` inside withUnsafeMutableBytes is an overlapping
+            // access to a value already exclusively borrowed.
             let count = buffer.withUnsafeMutableBytes { pointer in
-                read(fd, pointer.baseAddress, buffer.count)
+                read(fd, pointer.baseAddress, pointer.count)
             }
             guard count >= 0 else {
                 throw NSError(domain: "LoopbackOAuthCallbackTests", code: 5)
