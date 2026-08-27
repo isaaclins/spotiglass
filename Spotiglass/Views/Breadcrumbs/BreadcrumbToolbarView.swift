@@ -16,8 +16,6 @@ enum BrowserToolbarPresentation {
 /// Principal toolbar breadcrumb for the browser shell (`Spotiglass` + navigable ancestors).
 /// The current location is the window title, so it is not repeated as a leaf.
 struct BreadcrumbToolbarView: View {
-    private static let segmentFont = Font.system(size: 13)
-
     @ObservedObject var viewModel: PlaylistBrowserViewModel
 
     var body: some View {
@@ -65,7 +63,7 @@ struct BreadcrumbToolbarView: View {
             Task { await viewModel.jumpToHome() }
         } label: {
             Text(AppMetadata.displayName)
-                .font(Self.segmentFont)
+                .font(SpotiglassDesign.Typography.breadcrumb)
                 .foregroundStyle(Color.primary)
                 .lineLimit(1)
         }
@@ -90,10 +88,10 @@ struct BreadcrumbToolbarView: View {
     private func crumbLabel(crumb: BrowserBreadcrumb) -> some View {
         HStack(spacing: 5) {
             Image(systemName: crumb.systemImage)
-                .font(Self.segmentFont)
+                .font(SpotiglassDesign.Typography.breadcrumb)
 
             Text(crumb.label)
-                .font(Self.segmentFont)
+                .font(SpotiglassDesign.Typography.breadcrumb)
                 .lineLimit(1)
                 .truncationMode(.tail)
         }

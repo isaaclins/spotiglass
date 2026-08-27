@@ -1,7 +1,9 @@
 import SwiftUI
 
+/// Settings routes are backed by editable local state. Playback is owned by
+/// Spotify's transport and has no local preference model, so it is intentionally
+/// not a Settings route until a real control belongs there (#167).
 enum SpotiglassSettingsSection: String, CaseIterable, Identifiable {
-    case playback
     case equalizer
     case appearance
     case account
@@ -11,7 +13,6 @@ enum SpotiglassSettingsSection: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .playback: SpotiglassL10n.string("settings.section.playback")
         case .equalizer: SpotiglassL10n.string("settings.section.equalizer")
         case .appearance: SpotiglassL10n.string("settings.section.appearance")
         case .account: SpotiglassL10n.string("settings.section.account")
@@ -21,7 +22,6 @@ enum SpotiglassSettingsSection: String, CaseIterable, Identifiable {
 
     var systemImage: String {
         switch self {
-        case .playback: "play.circle.fill"
         case .equalizer: "slider.horizontal.3"
         case .appearance: "paintpalette.fill"
         case .account: "person.crop.circle.fill"
@@ -35,7 +35,6 @@ enum SpotiglassSettingsSection: String, CaseIterable, Identifiable {
     /// the localized title is matched separately.
     var searchTerms: [String] {
         switch self {
-        case .playback: ["playback", "premium", "web", "device", "reconnect", "sessions", "connect"]
         case .equalizer: ["equalizer", "eq", "bands", "preamp", "gain", "preset", "output", "device"]
         case .appearance:
             ["appearance", "language", "theme", "color", "scheme", "dark", "light", "lyrics", "text size", "command palette", "blur", "offset"]
@@ -53,7 +52,6 @@ enum SpotiglassSettingsSection: String, CaseIterable, Identifiable {
     /// mirrors macOS Tahoe System Settings.
     var iconAccent: Color {
         switch self {
-        case .playback: .green
         case .equalizer: .orange
         case .appearance: .purple
         case .account: .blue
@@ -76,7 +74,7 @@ struct SpotiglassSettingsView: View {
     /// captures a shortcut.
     var onHotkeyRecordingChange: (Bool) -> Void = { _ in }
 
-    @State private var section: SpotiglassSettingsSection? = .playback
+    @State private var section: SpotiglassSettingsSection? = .equalizer
     @State private var searchText: String = ""
     /// Opening the window always starts with the navigation list on screen.
     /// AppKit autosaves the split view's collapsed flag per window identifier,
@@ -112,7 +110,11 @@ struct SpotiglassSettingsView: View {
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             sidebar
-                .navigationSplitViewColumnWidth(min: 220, ideal: 240, max: 280)
+                .navigationSplitViewColumnWidth(
+                    min: SpotiglassDesign.settingsSidebarMinWidth,
+                    ideal: SpotiglassDesign.settingsSidebarIdealWidth,
+                    max: SpotiglassDesign.settingsSidebarMaxWidth
+                )
         } detail: {
             detail
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -124,8 +126,8 @@ struct SpotiglassSettingsView: View {
         // it also pulls a stale autosaved frame back to the same size. The
         // Settings scene's window is not user-resizable, so this width is what
         // every pane shows; only the height grows with the content.
-        .frame(width: 980)
-        .frame(minHeight: 660)
+        .frame(width: SpotiglassDesign.settingsWindowWidth)
+        .frame(minHeight: SpotiglassDesign.settingsWindowMinHeight)
     }
 
     // MARK: - Sidebar (left pane)
@@ -134,9 +136,9 @@ struct SpotiglassSettingsView: View {
         VStack(alignment: .leading, spacing: 0) {
             if showsProfileChip {
                 profileChip
-                    .padding(.horizontal, 12)
-                    .padding(.top, 12)
-                    .padding(.bottom, 10)
+                    .padding(.horizontal, SpotiglassDesign.spacingM)
+                    .padding(.top, SpotiglassDesign.spacingM)
+                    .padding(.bottom, SpotiglassDesign.spacingS)
             }
 
             if isSearching, visibleSections.isEmpty {
@@ -174,7 +176,7 @@ struct SpotiglassSettingsView: View {
     }
 
     private var noSearchResults: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: SpotiglassDesign.spacingXS) {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(.secondary)
             Text(SpotiglassL10n.string("settings.search.noResults"))
@@ -183,7 +185,7 @@ struct SpotiglassSettingsView: View {
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(.horizontal, 16)
+        .padding(.horizontal, SpotiglassDesign.spacingM)
     }
 
     /// Account is deliberately kept out of the navigation list, so this chip is
@@ -206,13 +208,16 @@ struct SpotiglassSettingsView: View {
     }
 
     private var profileChipLabel: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: SpotiglassDesign.spacingS) {
             Image(systemName: "person.crop.circle.fill")
                 .resizable()
-                .frame(width: 34, height: 34)
+                .frame(
+                    width: SpotiglassDesign.settingsProfileAvatarSize,
+                    height: SpotiglassDesign.settingsProfileAvatarSize
+                )
                 .foregroundStyle(.tint, .quaternary)
                 .symbolRenderingMode(.palette)
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: 0) {
                 Text(SpotiglassL10n.string("settings.account.maintainer"))
                     .font(.callout.weight(.semibold))
                 Text(SpotiglassL10n.string("settings.account.section"))
@@ -221,11 +226,13 @@ struct SpotiglassSettingsView: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(.quaternary.opacity(0.35))
+        .padding(.horizontal, SpotiglassDesign.spacingS)
+        .padding(.vertical, SpotiglassDesign.spacingXS)
+        .spotiglassSurface(
+            corner: .s,
+            fill: .quaternary.opacity(0.35),
+            stroke: .clear,
+            strokeWidth: 0
         )
         // Ahead of the button wrapper, so the whole padded chip is the hit area
         // rather than just the text and glyph.
@@ -240,7 +247,7 @@ struct SpotiglassSettingsView: View {
             detailHeader
 
             Divider()
-                .padding(.horizontal, 24)
+                .padding(.horizontal, SpotiglassDesign.spacingL)
 
             // No ScrollView here on purpose. Every pane is a grouped Form, which
             // scrolls itself, and wrapping one in a ScrollView is exactly the
@@ -249,9 +256,7 @@ struct SpotiglassSettingsView: View {
             // pane owns its scrolling and its group insets.
             Group {
                 SettingsPaneContainer {
-                    switch section ?? .playback {
-                    case .playback:
-                        PlaybackSettingsView()
+                    switch section ?? .equalizer {
                     case .equalizer:
                         EqualizerSettingsView(
                             settingsStore: settingsStore,
@@ -280,25 +285,30 @@ struct SpotiglassSettingsView: View {
     }
 
     private var detailHeader: some View {
-        let active = section ?? .playback
-        return HStack(spacing: 12) {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(active.iconAccent.gradient)
-                .frame(width: 28, height: 28)
-                .overlay {
-                    Image(systemName: active.systemImage)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.white)
-                }
-                .shadow(color: active.iconAccent.opacity(0.35), radius: 6, x: 0, y: 2)
+        let active = section ?? .equalizer
+        return HStack(spacing: SpotiglassDesign.spacingS) {
+            Image(systemName: active.systemImage)
+                .font(SpotiglassDesign.Typography.settingsHeaderIcon)
+                .foregroundStyle(.white)
+                .frame(
+                    width: SpotiglassDesign.settingsHeaderIconSize,
+                    height: SpotiglassDesign.settingsHeaderIconSize
+                )
+                .spotiglassSurface(
+                    corner: .s,
+                    fill: active.iconAccent.gradient,
+                    stroke: .clear,
+                    strokeWidth: 0
+                )
+                .shadow(color: active.iconAccent.opacity(0.35), radius: SpotiglassDesign.spacingXS, x: 0, y: 2)
 
             Text(active.title)
                 .font(.title2.weight(.semibold))
             Spacer()
         }
-        .padding(.horizontal, 24)
-        .padding(.top, 18)
-        .padding(.bottom, 14)
+        .padding(.horizontal, SpotiglassDesign.spacingL)
+        .padding(.top, SpotiglassDesign.spacingM)
+        .padding(.bottom, SpotiglassDesign.spacingS)
     }
 }
 
@@ -323,15 +333,20 @@ private struct SettingsSidebarRow: View {
     let section: SpotiglassSettingsSection
 
     var body: some View {
-        HStack(spacing: 10) {
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(section.iconAccent.gradient)
-                .frame(width: 22, height: 22)
-                .overlay {
-                    Image(systemName: section.systemImage)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.white)
-                }
+        HStack(spacing: SpotiglassDesign.spacingS) {
+            Image(systemName: section.systemImage)
+                .font(SpotiglassDesign.Typography.settingsSidebarIcon)
+                .foregroundStyle(.white)
+                .frame(
+                    width: SpotiglassDesign.settingsSidebarIconSize,
+                    height: SpotiglassDesign.settingsSidebarIconSize
+                )
+                .spotiglassSurface(
+                    corner: .s,
+                    fill: section.iconAccent.gradient,
+                    stroke: .clear,
+                    strokeWidth: 0
+                )
 
             Text(section.title)
                 .font(.body)
@@ -342,8 +357,7 @@ private struct SettingsSidebarRow: View {
             if let badge = pillBadge {
                 Text(badge)
                     .font(.caption2.weight(.semibold))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 1)
+                    .padding(.horizontal, SpotiglassDesign.spacingXS)
                     .background(
                         Capsule().fill(section.iconAccent.opacity(0.18))
                     )
