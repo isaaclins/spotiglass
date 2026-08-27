@@ -84,7 +84,7 @@ struct PlaylistBrowserView: View {
 
     /// Where you are, falling back to the app name at the root.
     private var windowTitle: String {
-        viewModel.breadcrumbPath.last?.label ?? AppMetadata.displayName
+        BrowserToolbarPresentation.windowTitle(for: viewModel.breadcrumbPath)
     }
 
     // The browser body is split into sequential stages on purpose. As one
