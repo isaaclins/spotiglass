@@ -326,7 +326,7 @@ struct EqualizerSettings: Codable, Equatable {
         forwardingTargetUID: String? = nil
     ) {
         self.enabled = enabled
-        self.preamp = preamp
+        self.preamp = EqualizerSettings.clampPreamp(preamp)
         self.bands = EqualizerSettings.normalizedBands(bands)
         self.activePresetName = activePresetName
         self.userPresets = userPresets
@@ -336,7 +336,9 @@ struct EqualizerSettings: Codable, Equatable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? false
-        preamp = try container.decodeIfPresent(Double.self, forKey: .preamp) ?? 0
+        preamp = EqualizerSettings.clampPreamp(
+            try container.decodeIfPresent(Double.self, forKey: .preamp) ?? 0
+        )
         let raw = try container.decodeIfPresent([Double].self, forKey: .bands)
             ?? Array(repeating: 0, count: EqualizerSettings.bandCount)
         bands = EqualizerSettings.normalizedBands(raw)
