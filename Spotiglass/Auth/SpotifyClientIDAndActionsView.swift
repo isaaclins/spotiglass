@@ -11,6 +11,9 @@ struct SpotifyClientIDAndActionsView: View {
 
     @ObservedObject var viewModel: AuthViewModel
     var layout: Layout = .welcome
+    /// Lets the hosting scene clear transient browser state before auth loss
+    /// replaces its content. Settings uses the same hook as the welcome screen.
+    var onSignOut: (() -> Void)? = nil
 
     @FocusState private var isClientIDFocused: Bool
     @State private var lastSignInTriggerAt: Date?
@@ -43,6 +46,7 @@ struct SpotifyClientIDAndActionsView: View {
                     .accessibilityHint(SpotiglassL10n.string("auth.cancel.hint"))
                 } else {
                     Button {
+                        onSignOut?()
                         Task { await viewModel.signOut() }
                     } label: {
                         Label(SpotiglassL10n.string("auth.disconnect.button"), systemImage: "rectangle.portrait.and.arrow.right")

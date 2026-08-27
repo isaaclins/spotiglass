@@ -41,10 +41,9 @@ final class CommandPaletteViewsBatchTests: XCTestCase {
     }
 
     func testSettingsViewStandaloneAndTabs() throws {
-        let (_, keymap, manager) = try makeHarness()
+        let (_, keymap, _) = try makeHarness()
         let standalone = CommandPaletteSettingsView(
             keymapStore: keymap,
-            commandPaletteManager: manager,
             presentation: .standalone
         )
         ViewTestHost.host(standalone, size: CGSize(width: 760, height: 560))
@@ -52,7 +51,6 @@ final class CommandPaletteViewsBatchTests: XCTestCase {
 
         let tabs = CommandPaletteSettingsView(
             keymapStore: keymap,
-            commandPaletteManager: manager,
             presentation: .settingsTabs
         )
         ViewTestHost.host(tabs, size: CGSize(width: 760, height: 560))

@@ -9,8 +9,11 @@ struct CommandPaletteSettingsView: View {
     }
 
     @ObservedObject var keymapStore: CommandPaletteKeymapStore
-    @ObservedObject var commandPaletteManager: CommandPaletteManager
     var presentation: Presentation = .standalone
+    /// Settings has no palette of its own now that palette state is scene-owned,
+    /// so it reports recording state outwards and the scene registry suspends
+    /// every live main-window key monitor for the duration.
+    var onRecordingChange: (Bool) -> Void = { _ in }
 
     @State private var pendingConflictByCommand: [String: PendingHotkeyConflict] = [:]
     /// Command whose field is currently recording, so the "Esc cancels / Delete
@@ -40,7 +43,7 @@ struct CommandPaletteSettingsView: View {
             }
         }
         .onDisappear {
-            commandPaletteManager.isRecordingHotkey = false
+            onRecordingChange(false)
             recordingCommandID = nil
         }
     }
@@ -127,7 +130,7 @@ struct CommandPaletteSettingsView: View {
                             commandID: spec.commandID,
                             keymapStore: keymapStore,
                             onRecordingChange: { active in
-                                commandPaletteManager.isRecordingHotkey = active
+                                onRecordingChange(active)
                                 recordingCommandID = active ? spec.commandID : nil
                                 if active {
                                     pendingConflictByCommand[spec.commandID] = nil
