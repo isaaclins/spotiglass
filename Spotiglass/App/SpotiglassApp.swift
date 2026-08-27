@@ -53,6 +53,7 @@ struct SpotiglassApp: App {
 
         let equalizer = AudioEqualizerEngine()
         Self.restoreEqualizerIfEnabled(settingsStore: store, engine: equalizer)
+        equalizer.observe(settingsStore: store)
         _equalizerEngine = StateObject(wrappedValue: equalizer)
         SpotiglassL10n.settingsStore = store
     }

@@ -134,6 +134,7 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
         playback.handle(.stateChanged(track, isPaused: false, nextTracks: []))
         let lyrics = ImmersiveLyricsViewModel { _ in .instrumental }
         await lyrics.load(track: track)
+        var dismissed = false
 
         let view = ImmersiveLyricsView(
             playbackViewModel: playback,
@@ -141,13 +142,42 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
             lyricsModel: lyrics,
             navigateToArtist: { _ in },
             navigateToAlbum: { _, _, _ in },
-            onDismiss: {}
+            onDismiss: { dismissed = true }
         )
         .environmentObject(settings)
         .frame(width: 800, height: 600)
 
         ViewTestHost.host(view, size: CGSize(width: 800, height: 600))
         XCTAssertNoThrow(try view.inspect().find(text: "Title"))
+        let closeLyrics = ViewTestHost.localizedString("browser.closeLyrics")
+        try view.inspect().find(button: closeLyrics).tap()
+        XCTAssertTrue(dismissed)
+    }
+
+    func testLyricsOverlayAccessibilityContract() throws {
+        let projectRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let lyricsSource = try String(
+            contentsOf: projectRoot.appendingPathComponent("Spotiglass/Views/ImmersiveLyricsView.swift"),
+            encoding: .utf8
+        )
+        let rootSource = try String(
+            contentsOf: projectRoot.appendingPathComponent("Spotiglass/Views/RootView.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(lyricsSource.contains(".accessibilityAddTraits(.isModal)"))
+        XCTAssertTrue(lyricsSource.contains(".focusScope(focusNamespace)"))
+        XCTAssertTrue(lyricsSource.contains(".defaultFocus($focusedControl, .close)"))
+        XCTAssertTrue(
+            lyricsSource.contains(".accessibilityDefaultFocus($accessibilityFocusedControl, .close)")
+        )
+        XCTAssertTrue(
+            lyricsSource.contains(".accessibilityFocused($accessibilityFocusedControl, equals: .close)")
+        )
+        XCTAssertTrue(rootSource.contains(".accessibilityHidden(lyricsOverlayController.isPresented)"))
+        XCTAssertTrue(rootSource.contains("LyricsOverlayFocusContainer"))
     }
 
     func testBackgroundLayerInspectable() throws {
