@@ -438,6 +438,7 @@ final class ListDetailViewsTests: XCTestCase {
         ViewTestHost.host(view, size: CGSize(width: 800, height: 700))
         let inspected = try view.inspect()
         XCTAssertNoThrow(try inspected.find(text: "Sample Artist"))
+        XCTAssertNoThrow(try inspected.find(CircularArtworkView.self))
         XCTAssertNoThrow(try inspected.find(text: "Tracks"))
         XCTAssertNoThrow(try inspected.find(text: "Albums"))
     }
@@ -458,6 +459,25 @@ final class ListDetailViewsTests: XCTestCase {
             .environmentObject(pinnedStore())
         ViewTestHost.host(view, size: CGSize(width: 800, height: 800))
         XCTAssertNoThrow(try view.inspect().find(text: "Loading more releases..."))
+    }
+
+    func testArtistDetailContentUsesTheSharedShelfForEveryReleaseGroup() throws {
+        let detail = sampleArtistDetail(canLoadMore: false, allReleaseGroups: true)
+        let view = artistDetailContent(detail: detail)
+            .environmentObject(pinnedStore())
+        ViewTestHost.host(view, size: CGSize(width: 800, height: 1000))
+        let inspected = try view.inspect()
+
+        for key in [
+            "browser.albums",
+            "browser.singles",
+            "browser.compilations",
+            "browser.appearsOn"
+        ] {
+            ViewTestHost.assertFindLocalizedText(key, in: view)
+        }
+        XCTAssertNoThrow(try inspected.find(text: "Compilation"))
+        XCTAssertNoThrow(try inspected.find(text: "Appears On Release"))
     }
 
     // MARK: - Auth chrome
@@ -562,7 +582,11 @@ private extension ListDetailViewsTests {
         .environmentObject(store)
     }
 
-    func sampleArtistDetail(canLoadMore: Bool, loadingMore: Bool = false) -> ArtistDetailViewModel {
+    func sampleArtistDetail(
+        canLoadMore: Bool,
+        loadingMore: Bool = false,
+        allReleaseGroups: Bool = false
+    ) -> ArtistDetailViewModel {
         let artist = SpotifyArtistDetail(
             id: "artist1",
             name: "Sample Artist",
@@ -584,10 +608,22 @@ private extension ListDetailViewsTests {
                 totalTracks: 1, group: .single, uri: "spotify:album:single1"
             )
         ]
+        let allAlbums = allReleaseGroups
+            ? albums + [
+                SpotifyArtistAlbum(
+                    id: "compilation1", name: "Compilation", imageURL: nil, releaseYear: "2022",
+                    totalTracks: 8, group: .compilation, uri: "spotify:album:compilation1"
+                ),
+                SpotifyArtistAlbum(
+                    id: "appears1", name: "Appears On Release", imageURL: nil, releaseYear: "2023",
+                    totalTracks: 9, group: .appearsOn, uri: "spotify:album:appears1"
+                ),
+            ]
+            : albums
         return ArtistDetailViewModel(
             artist: artist,
             tracks: tracks,
-            albums: albums,
+            albums: allAlbums,
             canLoadMoreAlbums: canLoadMore,
             isLoadingMoreAlbums: loadingMore
         )

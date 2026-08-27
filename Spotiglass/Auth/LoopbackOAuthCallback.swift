@@ -5,6 +5,24 @@ struct OAuthCallback: Equatable {
     let code: String
 }
 
+/// User-facing copy for the browser response. It is resolved before the socket
+/// worker starts because ``SpotiglassL10n`` intentionally falls back to English
+/// when queried off the main thread.
+struct LoopbackOAuthResponseCopy: Equatable, Sendable {
+    let invalidRequest: String
+    let success: String
+    let failure: String
+
+    @MainActor
+    static var localized: Self {
+        Self(
+            invalidRequest: SpotiglassL10n.string("auth.callback.response.invalidRequest"),
+            success: SpotiglassL10n.string("auth.callback.response.success"),
+            failure: SpotiglassL10n.string("auth.callback.response.failure")
+        )
+    }
+}
+
 enum LoopbackOAuthCallbackError: Error, Equatable, LocalizedError {
     case invalidRequest
     case oauthError(String, String?)
@@ -80,14 +98,22 @@ final class ActiveLoopbackOAuthListener {
     private let socketDescriptor: Int32
     private let expectedState: String
     private let timeout: TimeInterval
+    private let responseCopy: LoopbackOAuthResponseCopy
     private var didClose = false
     private let closeLock = NSLock()
 
-    init(socketDescriptor: Int32, port: UInt16, expectedState: String, timeout: TimeInterval) {
+    init(
+        socketDescriptor: Int32,
+        port: UInt16,
+        expectedState: String,
+        timeout: TimeInterval,
+        responseCopy: LoopbackOAuthResponseCopy
+    ) {
         self.socketDescriptor = socketDescriptor
         self.redirectURI = SpotifyAuthConfiguration.loopbackRedirectURI(port: port)
         self.expectedState = expectedState
         self.timeout = timeout
+        self.responseCopy = responseCopy
     }
 
     deinit {
@@ -115,7 +141,8 @@ final class ActiveLoopbackOAuthListener {
     }
 
     private func acceptSingleCallback() async throws -> OAuthCallback {
-        try await Task.detached(priority: .userInitiated) {
+        let responseCopy = self.responseCopy
+        return try await Task.detached(priority: .userInitiated) {
             var address = sockaddr()
             var length = socklen_t(MemoryLayout<sockaddr>.size)
             let client = Darwin.accept(self.socketDescriptor, &address, &length)
@@ -132,7 +159,7 @@ final class ActiveLoopbackOAuthListener {
             guard count > 0,
                   let request = String(bytes: buffer.prefix(count), encoding: .utf8),
                   let requestLine = request.components(separatedBy: "\r\n").first else {
-                self.writeResponse(to: client, status: "400 Bad Request", body: "Invalid Spotify callback.")
+                self.writeResponse(to: client, status: "400 Bad Request", body: responseCopy.invalidRequest)
                 throw LoopbackOAuthCallbackError.invalidRequest
             }
 
@@ -140,16 +167,16 @@ final class ActiveLoopbackOAuthListener {
             guard parts.count >= 2,
                   parts[0] == "GET",
                   let callbackURL = URL(string: "http://127.0.0.1\(parts[1])") else {
-                self.writeResponse(to: client, status: "400 Bad Request", body: "Invalid Spotify callback.")
+                self.writeResponse(to: client, status: "400 Bad Request", body: responseCopy.invalidRequest)
                 throw LoopbackOAuthCallbackError.invalidRequest
             }
 
             do {
                 let callback = try LoopbackOAuthCallbackValidator.validate(url: callbackURL, expectedState: self.expectedState)
-                self.writeResponse(to: client, status: "200 OK", body: "Spotify sign-in is complete. You can return to Spotiglass.")
+                self.writeResponse(to: client, status: "200 OK", body: responseCopy.success)
                 return callback
             } catch {
-                self.writeResponse(to: client, status: "400 Bad Request", body: "Spotify sign-in could not be completed.")
+                self.writeResponse(to: client, status: "400 Bad Request", body: responseCopy.failure)
                 throw error
             }
         }.value
@@ -184,7 +211,8 @@ struct LoopbackOAuthListenerFactory {
     func start(
         expectedState: String,
         timeout: TimeInterval = 120,
-        port: UInt16 = SpotifyAuthConfiguration.defaultLoopbackPort
+        port: UInt16 = SpotifyAuthConfiguration.defaultLoopbackPort,
+        responseCopy: LoopbackOAuthResponseCopy
     ) throws -> ActiveLoopbackOAuthListener {
         let descriptor = Darwin.socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)
         guard descriptor >= 0 else {
@@ -236,7 +264,8 @@ struct LoopbackOAuthListenerFactory {
             socketDescriptor: descriptor,
             port: UInt16(bigEndian: boundAddress.sin_port),
             expectedState: expectedState,
-            timeout: timeout
+            timeout: timeout,
+            responseCopy: responseCopy
         )
     }
 }

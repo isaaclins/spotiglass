@@ -46,7 +46,15 @@ struct SpotifyAuthorizationFlow: SpotifyAuthorizationFlowing {
         let state = try PKCE.makeCodeVerifier(byteCount: 32)
         let codeVerifier = try PKCE.makeCodeVerifier()
         let codeChallenge = PKCE.makeCodeChallenge(for: codeVerifier)
-        let listener = try listenerFactory.start(expectedState: state, timeout: timeout)
+        // Capture the selected app language before the listener's detached
+        // socket worker starts; SpotiglassL10n intentionally falls back to
+        // English when queried off the main thread.
+        let responseCopy = await LoopbackOAuthResponseCopy.localized
+        let listener = try listenerFactory.start(
+            expectedState: state,
+            timeout: timeout,
+            responseCopy: responseCopy
+        )
         let configuration = try SpotifyAuthConfiguration(clientID: clientID, redirectURI: listener.redirectURI)
         let authorizationURL = try configuration.authorizationURL(state: state, codeChallenge: codeChallenge)
 

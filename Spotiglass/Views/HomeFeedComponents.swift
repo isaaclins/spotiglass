@@ -4,11 +4,37 @@ import SwiftUI
 
 /// Title row above a home section ("Recently played", "Your top tracks").
 struct HomeSectionHeader: View {
+    /// The page title is explicit so a caller cannot lose its hierarchy to the
+    /// reusable section-heading default (#212).
+    enum Style: Equatable {
+        case pageTitle
+        case section
+
+        var textStyle: Font.TextStyle {
+            switch self {
+            case .pageTitle:
+                .largeTitle
+            case .section:
+                .title2
+            }
+        }
+
+        var font: Font {
+            .system(textStyle).weight(.bold)
+        }
+    }
+
     let title: String
+    let style: Style
+
+    init(title: String, style: Style = .section) {
+        self.title = title
+        self.style = style
+    }
 
     var body: some View {
         Text(title)
-            .font(.title2.weight(.bold))
+            .font(style.font)
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityAddTraits(.isHeader)
     }
