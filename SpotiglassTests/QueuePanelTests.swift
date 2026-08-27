@@ -1,8 +1,53 @@
+import SwiftUI
+import ViewInspector
 import XCTest
 @testable import Spotiglass
 
 @MainActor
 final class QueuePanelTests: XCTestCase {
+    func testQueueTrackProjectsIntoSharedMutationTarget() {
+        let item = QueueItem(
+            id: "queue:rest:occurrence:0",
+            name: "Queued Track",
+            subtitle: "Artist",
+            albumArtURL: nil,
+            durationMilliseconds: 180_000,
+            uri: "  spotify:track:queued  ",
+            artistTapTargets: [ArtistTapTarget(id: "artist-1", name: "Artist")]
+        )
+
+        let row = TrackRowViewModel(queueItem: item)
+
+        XCTAssertEqual(row.id, item.id)
+        XCTAssertEqual(row.spotifyTrackID, "queued")
+        XCTAssertEqual(row.playableURI, "spotify:track:queued")
+        XCTAssertEqual(row.artistRefs, [SpotifyArtistRef(id: "artist-1", name: "Artist")])
+    }
+
+    func testQueueTrackOptionsUseTheProjectedRowWithoutMove() throws {
+        let item = QueueItem(
+            name: "Queued Track",
+            subtitle: "Artist",
+            albumArtURL: nil,
+            durationMilliseconds: 180_000,
+            uri: "spotify:track:queued"
+        )
+        let browserViewModel = PlaylistBrowserViewModel(
+            api: MockBrowsingAPI(playlistResults: [], trackResults: [:]),
+            cache: MockBrowsingCache()
+        )
+        let menu = TrackOpsMenuItems(
+            targets: [TrackRowViewModel(queueItem: item)],
+            browserViewModel: browserViewModel,
+            sourcePlaylistID: nil
+        )
+
+        XCTAssertNoThrow(try menu.inspect().find(text: SpotiglassL10n.string("Add to playlist")))
+        XCTAssertThrowsError(
+            try menu.inspect().find(text: SpotiglassL10n.string("Move to playlist"))
+        )
+    }
+
     func testQueueItemArtistTapTargetsPreferArtistRefs() {
         let track = SpotifyTrack(
             id: "track-1",

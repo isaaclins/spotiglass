@@ -116,7 +116,35 @@ struct TrackRowViewModel: Equatable, Identifiable {
         self.artistRefs = track.artistRefs
     }
 
-
+    /// Projects a queue item into the row shape used by the shared Spotify
+    /// mutation menu. Queue occurrences have their own IDs, so the catalog
+    /// track ID is derived from the URI instead.
+    init(queueItem item: QueueItem, listPosition: Int = 1) {
+        self.listPosition = listPosition
+        self.id = item.id
+        let uri = item.playableURI
+        if let uri, uri.hasPrefix("spotify:track:") {
+            let trackID = String(uri.dropFirst("spotify:track:".count))
+            self.spotifyTrackID = trackID.isEmpty ? nil : trackID
+        } else {
+            self.spotifyTrackID = nil
+        }
+        self.title = item.name
+        self.subtitle = item.subtitle
+        self.artworkURL = item.albumArtURL
+        self.durationText = TrackDuration.text(milliseconds: item.durationMilliseconds)
+        self.durationMilliseconds = max(0, item.durationMilliseconds)
+        self.badgeText = uri?.hasPrefix("spotify:episode:") == true
+            ? SpotiglassL10n.string("browser.trackBadge.episode")
+            : nil
+        self.isUnavailable = uri == nil
+        self.isExplicit = false
+        self.playableURI = uri
+        self.artistRefs = item.artistTapTargets.compactMap { target in
+            guard let id = target.id else { return nil }
+            return SpotifyArtistRef(id: id, name: target.name)
+        }
+    }
 
     /// Domain track for palette pinning and draggable pins; `nil` for episodes, locals, and unavailable rows.
     func spotifyTrackForPinning() -> SpotifyTrack? {
