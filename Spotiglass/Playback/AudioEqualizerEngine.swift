@@ -86,9 +86,25 @@ final class AudioEqualizerEngine: ObservableObject {
     /// Restores the previous default output device. The `.driver` itself
     /// remains installed; ``EqualizerHALPluginController/uninstall()`` is the
     /// way to fully remove the plugin from disk.
-    func stop() {
-        pluginController.disable()
-        isRunning = false
+    ///
+    /// If restoration fails, the error is surfaced and ``isRunning`` remains
+    /// true because the EQ may still be the system default output.
+    func stop() throws {
+        do {
+            try pluginController.disable()
+            isRunning = false
+            lastError = nil
+        } catch {
+            // Keep the active state until the controller confirms that the
+            // system default output was restored. This is the recovery path
+            // for a failed transactional disable.
+            if let pluginError = error as? EqualizerHALPluginError,
+               let details = pluginError.diagnosticDetails {
+                SpotiglassLog.error(.playback, details)
+            }
+            lastError = error.localizedDescription
+            throw error
+        }
     }
 
     // MARK: - Coefficient updates

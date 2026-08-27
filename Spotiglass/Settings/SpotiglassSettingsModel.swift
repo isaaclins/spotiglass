@@ -27,7 +27,7 @@ extension KeyedDecodingContainer {
             return defaultValue
         }
         do {
-            return try decode(T.self, forKey: key)
+            return try decode(type, forKey: key)
         } catch {
             tracker?.didRepair = true
             return defaultValue
@@ -43,7 +43,7 @@ extension KeyedDecodingContainer {
             return nil
         }
         do {
-            return try decode(T.self, forKey: key)
+            return try decode(type, forKey: key)
         } catch {
             tracker?.didRepair = true
             return nil
@@ -73,7 +73,7 @@ extension KeyedDecodingContainer {
                 break
             }
             do {
-                values.append(try T(from: itemDecoder))
+                values.append(try type.init(from: itemDecoder))
             } catch {
                 tracker?.didRepair = true
             }
@@ -483,7 +483,7 @@ struct EqualizerSettings: Codable, Equatable {
         forwardingTargetUID: String? = nil
     ) {
         self.enabled = enabled
-        self.preamp = preamp
+        self.preamp = EqualizerSettings.clampPreamp(preamp)
         self.bands = EqualizerSettings.normalizedBands(bands)
         self.activePresetName = activePresetName
         self.userPresets = userPresets
@@ -499,14 +499,18 @@ struct EqualizerSettings: Codable, Equatable {
             default: false,
             tracker: tracker
         )
-        // Keep this scalar assignment separate from the #249 preamp clamp so that
-        // that change can be merged independently without changing this repair seam.
-        preamp = container.decodeRepairing(
+        // Repair malformed values first, then clamp out-of-range values to the
+        // declared dB range. Both repairs are persisted after a successful load.
+        let rawPreamp = container.decodeRepairing(
             Double.self,
             forKey: .preamp,
             default: 0,
             tracker: tracker
         )
+        preamp = EqualizerSettings.clampPreamp(rawPreamp)
+        if rawPreamp != preamp {
+            tracker?.didRepair = true
+        }
         let defaultBands = Array(repeating: 0.0, count: EqualizerSettings.bandCount)
         let raw = container.decodeRepairingArray(
             Double.self,

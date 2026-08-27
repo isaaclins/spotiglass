@@ -52,6 +52,20 @@ final class LocalizationCoverageTests: XCTestCase {
         ("playback.controls.state.ready.title", "playback.controls.state.ready.title", "Ready to play", "Listo para reproducir", "Bereit zur Wiedergabe"),
         ("playback.nowPlaying.unknownArtist", "playback.nowPlaying.unknownArtist", "Unknown artist", "Artista desconocido", "Unbekannter Künstler"),
 
+        // Appearance
+        ("settings.appearance.lyricsSize.large", "settings.appearance.lyricsSize.large", "Large", "Grande", "Gross"),
+        ("settings.appearance.lyricsSize.medium", "settings.appearance.lyricsSize.medium", "Medium", "Mediano", "Mittel"),
+        ("settings.appearance.lyricsSize.small", "settings.appearance.lyricsSize.small", "Small", "Pequeño", "Klein"),
+        ("settings.appearance.scheme.dark", "settings.appearance.scheme.dark", "Dark", "Oscuro", "Dunkel"),
+        ("settings.appearance.scheme.light", "settings.appearance.scheme.light", "Light", "Claro", "Hell"),
+        ("settings.appearance.scheme.system", "settings.appearance.scheme.system", "System", "Sistema", "System"),
+
+        // Authentication
+        ("auth.clientID.hint", "auth.clientID.hint", "Paste the client ID from your Spotify Developer Dashboard app. This public identifier is always visible so you can verify it before signing in.", "Pega el ID de cliente de tu app en el Spotify Developer Dashboard. Este identificador público siempre está visible para que puedas verificarlo antes de iniciar sesión.", "Fügen Sie die Client-ID aus Ihrer App im Spotify Developer Dashboard ein. Diese öffentliche Kennung ist immer sichtbar, damit Sie sie vor der Anmeldung prüfen können."),
+        ("auth.callback.response.invalidRequest", "auth.callback.response.invalidRequest", "Invalid Spotify callback.", "Respuesta de Spotify no válida.", "Ungültiger Spotify-Rückruf."),
+        ("auth.callback.response.success", "auth.callback.response.success", "Spotify sign-in is complete. You can return to Spotiglass.", "El inicio de sesión de Spotify se completó. Puedes volver a Spotiglass.", "Die Spotify-Anmeldung ist abgeschlossen. Sie können zu Spotiglass zurückkehren."),
+        ("auth.callback.response.failure", "auth.callback.response.failure", "Spotify sign-in could not be completed.", "No se pudo completar el inicio de sesión de Spotify.", "Die Spotify-Anmeldung konnte nicht abgeschlossen werden."),
+
         // Breadcrumb / Account
         ("breadcrumb.back", "breadcrumb.back", "Back", "Atrás", "Zurück"),
         ("settings.account.diagnostics.header", "settings.account.diagnostics.header", "Diagnostics", "Diagnóstico", "Diagnose")
@@ -76,6 +90,46 @@ final class LocalizationCoverageTests: XCTestCase {
                 XCTAssertEqual(actual, expected, "[\(language.rawValue)] \(row.name)")
                 print("  \(row.name) -> \(actual)")
             }
+        }
+    }
+
+    /// The listener receives a pre-resolved copy because its socket worker runs
+    /// off the main thread, where SpotiglassL10n intentionally falls back to English.
+    func testOAuthCallbackResponseCopyUsesActiveLocale() throws {
+        for language in [AppLanguage.english, .spanish, .german] {
+            try store.mutate { $0.appearance.language = language }
+            let copy = LoopbackOAuthResponseCopy.localized
+            XCTAssertEqual(
+                copy.invalidRequest,
+                SpotiglassL10n.string("auth.callback.response.invalidRequest"),
+                "invalid-request browser copy in \(language.rawValue)"
+            )
+            XCTAssertEqual(
+                copy.success,
+                SpotiglassL10n.string("auth.callback.response.success"),
+                "success browser copy in \(language.rawValue)"
+            )
+            XCTAssertEqual(
+                copy.failure,
+                SpotiglassL10n.string("auth.callback.response.failure"),
+                "failure browser copy in \(language.rawValue)"
+            )
+        }
+    }
+
+    func testPlaylistMutationToastCopyFollowsSelectedLocale() throws {
+        let expected: [AppLanguage: String] = [
+            .english: "Added 1 track to Mix",
+            .spanish: "Se añadió 1 canción a Mix",
+            .german: "1 Titel zu Mix hinzugefügt"
+        ]
+        for language in [AppLanguage.english, .spanish, .german] {
+            try store.mutate { $0.appearance.language = language }
+            XCTAssertEqual(
+                SpotiglassL10n.format("playlist.mutation.addedToPlaylist", Int64(1), "Mix"),
+                expected[language],
+                "playlist mutation toast in \(language.rawValue)"
+            )
         }
     }
 
