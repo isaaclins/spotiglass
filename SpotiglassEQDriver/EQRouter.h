@@ -17,6 +17,16 @@ typedef enum EQRouterOutputLayout {
     EQRouterOutputLayoutNonInterleavedStereo = 2
 } EQRouterOutputLayout;
 
+typedef enum EQRouterOpenError {
+    EQRouterOpenErrorNone = 0,
+    EQRouterOpenErrorInvalidTarget = 1,
+    EQRouterOpenErrorDeviceNotFound = 2,
+    EQRouterOpenErrorUnsupportedFormat = 3,
+    EQRouterOpenErrorAllocationFailed = 4,
+    EQRouterOpenErrorCreateIOProcFailed = 5,
+    EQRouterOpenErrorStartFailed = 6
+} EQRouterOpenError;
+
 // Classify the output layout supplied to the target IOProc. Only packed
 // Float32 stereo is supported by the router payload: one two-channel buffer
 // or two one-channel buffers.
@@ -32,10 +42,17 @@ int EQRouter_WriteFrames(const float* frames,
                          size_t output_frame_offset);
 
 // Open a router that forwards interleaved float32 stereo frames to the
-// CoreAudio output device with the given UID. Returns NULL on failure.
-EQRouter* EQRouter_Open(const char* target_uid);
+// CoreAudio output device with the given UID. Returns NULL on failure and
+// reports a machine-readable reason for the host's readiness status file.
+EQRouter* EQRouter_OpenWithError(const char* target_uid, EQRouterOpenError* out_error);
 
-// Push interleaved float32 stereo frames from the EQ device's IO callback
+// Publish the result of the asynchronous open worker for the Swift host. The
+// status file is atomically replaced and is keyed by target UID, so stale
+// results for an older target cannot be mistaken for readiness of a new one.
+void EQRouter_PublishReadyStatus(const char* target_uid);
+void EQRouter_PublishFailureStatus(const char* target_uid, int reason_code);
+
+// Push interleaved stereo Float32 frames from the EQ device's IO callback
 // into the router's lock-free ring. Drops oldest frames if the ring is full.
 void EQRouter_Push(EQRouter* router, const float* frames, size_t n_frames);
 

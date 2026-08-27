@@ -5,7 +5,7 @@
 # target and CI never compiled it. The router's layout handling and its
 # lifetime guard are the two pieces that fail silently (wrong stereo, or a
 # router closed while a render callback still holds it), so they are tested
-# here against the real EQRouter.cpp. EQRouter_Open is never called, so this
+# here against the real EQRouter.cpp. EQRouter_OpenWithError is never called, so this
 # touches no audio hardware and is safe to run in CI.
 set -euo pipefail
 

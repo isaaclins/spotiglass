@@ -430,9 +430,14 @@ void* TargetWatcherMain(void* /*unused*/) {
         // Open the replacement before publishing it. The exchange itself is
         // atomic, and PublishRouter waits off the realtime path before it
         // stops or deletes the retired router.
-        EQRouter* opened = EQRouter_Open(new_uid);
-        if (!opened) continue;
+        EQRouterOpenError open_error = EQRouterOpenErrorNone;
+        EQRouter* opened = EQRouter_OpenWithError(new_uid, &open_error);
+        if (!opened) {
+            EQRouter_PublishFailureStatus(new_uid, static_cast<int>(open_error));
+            continue;
+        }
         PublishRouter(opened);
+        EQRouter_PublishReadyStatus(new_uid);
     }
     return nullptr;
 }
@@ -574,6 +579,13 @@ OSStatus StartIO(AudioServerPlugInDriverRef /*self*/,
     bool need_open_router = !gPlugin.routerLifetime.hasRouter();
     pthread_mutex_unlock(&gPlugin.stateLock);
 
+    if (!need_open_router) {
+        RouterLease routerLease;
+        if (routerLease) {
+            EQRouter_PublishReadyStatus(EQRouter_TargetUID(routerLease.get()));
+        }
+    }
+
     if (need_open_router) {
         // Open the router on a detached worker thread so coreaudiod's IO
         // setup for OUR device finishes first. Calling
@@ -602,9 +614,14 @@ OSStatus StartIO(AudioServerPlugInDriverRef /*self*/,
                                    uid[--len] = '\0';
                                }
                                if (len == 0) return nullptr;
-                               EQRouter* opened = EQRouter_Open(uid);
-                               if (!opened) return nullptr;
+                               EQRouterOpenError open_error = EQRouterOpenErrorNone;
+                               EQRouter* opened = EQRouter_OpenWithError(uid, &open_error);
+                               if (!opened) {
+                                   EQRouter_PublishFailureStatus(uid, static_cast<int>(open_error));
+                                   return nullptr;
+                               }
                                PublishRouter(opened);
+                               EQRouter_PublishReadyStatus(uid);
                                return nullptr;
                            },
                            nullptr) == 0) {

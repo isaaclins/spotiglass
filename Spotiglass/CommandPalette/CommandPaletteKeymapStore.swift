@@ -23,6 +23,9 @@ final class CommandPaletteKeymapStore: ObservableObject {
     init(settingsStore: SpotiglassSettingsStore) {
         self.settingsStore = settingsStore
         applyFromStore(settingsStore.settings.keybinds)
+        if settingsStore.lastError != nil {
+            lastError = CommandPaletteKeymapErrorPresenter.settingsReloadFailureMessage(source: fileURL.path)
+        }
         settingsCancellable = settingsStore.$settings
             .removeDuplicates { $0.keybinds == $1.keybinds }
             .sink { [weak self] file in
@@ -176,17 +179,21 @@ final class CommandPaletteKeymapStore: ObservableObject {
             try applyNormalizedPersisting(parsed.bindings)
             lastError = nil
         } catch {
-            lastError = error.localizedDescription
+            lastError = CommandPaletteKeymapErrorPresenter.message(
+                for: error,
+                source: SpotiglassL10n.string("palette.settings.advanced"),
+                operation: "apply"
+            )
         }
     }
 
     func reloadFromDisk() {
         settingsStore.reloadFromDisk()
         applyFromStore(settingsStore.settings.keybinds)
-        if let storeError = settingsStore.lastError {
-            lastError = storeError
-        } else {
-            lastError = nil
+        if settingsStore.lastError != nil {
+            // SpotiglassSettingsStore logs the underlying decode or I/O error. Do
+            // not forward its raw description into the command-palette UI.
+            lastError = CommandPaletteKeymapErrorPresenter.settingsReloadFailureMessage(source: fileURL.path)
         }
     }
 
@@ -195,7 +202,11 @@ final class CommandPaletteKeymapStore: ObservableObject {
             try applyNormalizedPersisting(SpotiglassSettingsStore.defaultKeybinds())
             lastError = nil
         } catch {
-            lastError = error.localizedDescription
+            lastError = CommandPaletteKeymapErrorPresenter.message(
+                for: error,
+                source: fileURL.path,
+                operation: "reset"
+            )
         }
     }
 
@@ -213,7 +224,11 @@ final class CommandPaletteKeymapStore: ObservableObject {
             let fallback = SpotiglassSettingsStore.defaultKeybinds()
             (try? indexCurrent(fallback)) ?? ()
             editorText = Self.editorTextRepresentation(fallback)
-            lastError = "Keybinds in settings.json were invalid and have been reset to defaults. \(error.localizedDescription)"
+            lastError = CommandPaletteKeymapErrorPresenter.recoveredDefaultsMessage(
+                for: error,
+                source: fileURL.path,
+                operation: "load"
+            )
         }
     }
 

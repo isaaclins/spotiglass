@@ -4,7 +4,7 @@
 //
 // The driver is built by build-driver.sh rather than Xcode, so it has no test
 // target. run-driver-tests.sh compiles this against EQRouter.cpp and runs it.
-// EQRouter_Open is never called, so nothing here touches CoreAudio devices.
+// EQRouter_OpenWithError is never called, so nothing here touches CoreAudio devices.
 
 #include "../EQRouter.h"
 

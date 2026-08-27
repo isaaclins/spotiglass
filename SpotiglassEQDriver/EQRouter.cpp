@@ -29,6 +29,7 @@
 #include <cstring>
 #include <new>
 #include <sched.h>
+#include <unistd.h>
 
 // Diagnostic log path used during bring-up. Writes from inside coreaudiod
 // otherwise vanish into the audio-driver subsystem; a flat file is the
@@ -51,6 +52,36 @@ static void EQR_log(const char* fmt, ...) {
 }
 
 namespace {
+
+constexpr const char* kRouterStatusPath = "/tmp/com.isaaclins.spotiglass.eq.router.status";
+std::atomic<unsigned long long> gStatusSerial{0};
+
+void WriteRouterStatus(const char* state, const char* target_uid, int reason_code) {
+    if (!state || !target_uid || target_uid[0] == '\0') return;
+
+    const unsigned long long serial =
+        gStatusSerial.fetch_add(1, std::memory_order_relaxed);
+    char temporary_path[256] = {0};
+    std::snprintf(
+        temporary_path,
+        sizeof(temporary_path),
+        "%s.tmp.%d.%llu",
+        kRouterStatusPath,
+        static_cast<int>(getpid()),
+        serial
+    );
+    FILE* f = fopen(temporary_path, "w");
+    if (!f) return;
+    if (strcmp(state, "ready") == 0) {
+        fprintf(f, "ready\n%s\n", target_uid);
+    } else {
+        fprintf(f, "failed\n%s\n%d\n", target_uid, reason_code);
+    }
+    fclose(f);
+    if (rename(temporary_path, kRouterStatusPath) != 0) {
+        unlink(temporary_path);
+    }
+}
 
 // 32 KiB of stereo float32 frames = 4096 frames = ~85 ms at 48 kHz. Large
 // enough to absorb a few IO cycles of skew between the EQ device and the
@@ -329,22 +360,30 @@ int EQRouter_WriteFrames(const float* frames,
     return 0;
 }
 
-EQRouter* EQRouter_Open(const char* target_uid) {
+EQRouter* EQRouter_OpenWithError(const char* target_uid, EQRouterOpenError* out_error) {
+    if (out_error) *out_error = EQRouterOpenErrorNone;
     EQR_log("EQRouter_Open: target_uid=%s", target_uid ? target_uid : "(null)");
+    if (!target_uid || target_uid[0] == '\0') {
+        if (out_error) *out_error = EQRouterOpenErrorInvalidTarget;
+        return nullptr;
+    }
     AudioObjectID device = FindDeviceByUID(target_uid);
     EQR_log("  FindDeviceByUID → AudioObjectID=%u", device);
     if (device == kAudioObjectUnknown) {
         EQR_log("  FAIL: device not found for UID");
+        if (out_error) *out_error = EQRouterOpenErrorDeviceNotFound;
         return nullptr;
     }
     if (!SupportsFloat32StereoOutput(device)) {
         EQR_log("  FAIL: target is not packed Float32 stereo");
+        if (out_error) *out_error = EQRouterOpenErrorUnsupportedFormat;
         return nullptr;
     }
 
     EQRouter* router = new (std::nothrow) EQRouter();
     if (!router) {
         EQR_log("  FAIL: failed to allocate EQRouter");
+        if (out_error) *out_error = EQRouterOpenErrorAllocationFailed;
         return nullptr;
     }
     router->device = device;
@@ -355,12 +394,14 @@ EQRouter* EQRouter_Open(const char* target_uid) {
     EQR_log("  AudioDeviceCreateIOProcID → status=%d ioProc=%p",
             (int)status, (void*)router->ioProc);
     if (status != noErr || !router->ioProc) {
+        if (out_error) *out_error = EQRouterOpenErrorCreateIOProcFailed;
         delete router;
         return nullptr;
     }
     status = AudioDeviceStart(device, router->ioProc);
     EQR_log("  AudioDeviceStart → status=%d", (int)status);
     if (status != noErr) {
+        if (out_error) *out_error = EQRouterOpenErrorStartFailed;
         AudioDeviceDestroyIOProcID(device, router->ioProc);
         delete router;
         return nullptr;
@@ -369,6 +410,14 @@ EQRouter* EQRouter_Open(const char* target_uid) {
     strncpy(router->target_uid, target_uid, sizeof(router->target_uid) - 1);
     EQR_log("  OK: router started on device %u", device);
     return router;
+}
+
+void EQRouter_PublishReadyStatus(const char* target_uid) {
+    WriteRouterStatus("ready", target_uid, 0);
+}
+
+void EQRouter_PublishFailureStatus(const char* target_uid, int reason_code) {
+    WriteRouterStatus("failed", target_uid, reason_code);
 }
 
 const char* EQRouter_TargetUID(EQRouter* router) {

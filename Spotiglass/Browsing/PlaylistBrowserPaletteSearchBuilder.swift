@@ -9,6 +9,7 @@ struct PlaylistBrowserPaletteSearchEnvironment {
     var playURI: (String) -> Void
     var openPlaylist: (String) -> Void
     var openArtist: (String) -> Void
+    var openAlbum: (String, String, String, URL?) -> Void
     var addToQueue: (String) async -> Void
 }
 
@@ -117,16 +118,17 @@ enum PlaylistBrowserPaletteSearchBuilder {
         mapped.albums = results.albums.map { album in
             let pinPayload = PinnedItem.album(album)
             let pinPair = pinUnpinClosures(for: pinPayload)
+            let artistSubtitle = album.artists.joined(separator: ", ")
             return CommandPaletteItem(
                 id: "album-\(album.id)",
                 title: album.name,
-                subtitle: album.artists.joined(separator: ", "),
+                subtitle: artistSubtitle,
                 iconSystemName: "opticaldisc",
                 section: .albums,
                 keywords: album.artists + [album.uri],
                 pinAction: pinPair.pin,
                 unpinAction: pinPair.unpin,
-                action: {}
+                action: { environment.openAlbum(album.id, album.name, artistSubtitle, album.imageURL) }
             )
         }
 

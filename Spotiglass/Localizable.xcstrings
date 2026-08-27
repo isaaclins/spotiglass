@@ -3770,6 +3770,52 @@
         }
       }
     },
+    "eq.error.routerReadinessTimedOut": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Equalizer-Audio-Router wurde nicht rechtzeitig bereit. Versuchen Sie es erneut."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The equalizer audio router did not become ready. Try again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El enrutador de audio del ecualizador no estuvo listo. Inténtalo de nuevo."
+          }
+        }
+      }
+    },
+    "eq.error.routerTargetOpenFailed": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Ausgabegerät des Equalizers konnte nicht geöffnet werden. Wählen Sie ein anderes Gerät und versuchen Sie es erneut."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The equalizer could not open its output device. Choose another device and try again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El ecualizador no pudo abrir su dispositivo de salida. Elige otro dispositivo e inténtalo de nuevo."
+          }
+        }
+      }
+    },
     "eq.error.driverNotLoadedYet": {
       "extractionState": "manual",
       "localizations": {
@@ -5721,6 +5767,190 @@
           "stringUnit": {
             "state": "translated",
             "value": "Spotiglass no reconoce la tecla «%@»."
+          }
+        }
+      }
+    },
+    "keymap.error.invalidBinding": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Befehls-Palette enthält bei %@ ein ungültiges Tastenkürzel: %@"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The command palette has an invalid shortcut at %@: %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La paleta de comandos tiene un atajo no válido en %@: %@"
+          }
+        }
+      }
+    },
+    "keymap.error.invalidJSON": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das JSON der Befehls-Palette ist in %@ ungültig."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The command palette JSON is invalid in %@."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El JSON de la paleta de comandos no es válido en %@."
+          }
+        }
+      }
+    },
+    "keymap.error.invalidStored": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Tastenkürzel-Einstellungen in %@ sind ungültig: %@ Daher werden die Standard-Tastenkürzel verwendet."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The command palette settings in %@ are invalid: %@ The default shortcuts are being used."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La configuración de la paleta de comandos en %@ no es válida: %@ Se usan los atajos predeterminados."
+          }
+        }
+      }
+    },
+    "keymap.error.invalidValue": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das JSON der Befehls-Palette enthält bei %@ einen ungültigen Wert."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The command palette JSON has an invalid value at %@."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El JSON de la paleta de comandos tiene un valor no válido en %@."
+          }
+        }
+      }
+    },
+    "keymap.error.location": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (bei %@)"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (at %@)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ (en %@)"
+          }
+        }
+      }
+    },
+    "keymap.error.missingValue": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Im JSON der Befehls-Palette fehlt ein Wert bei %@."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The command palette JSON is missing a value at %@."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Falta un valor en el JSON de la paleta de comandos en %@."
+          }
+        }
+      }
+    },
+    "keymap.error.reloadFailed": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Tastenkürzel-Einstellungen konnten nicht aus %@ gelesen werden."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The command palette settings could not be read from %@."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo leer la configuración de la paleta de comandos desde %@."
+          }
+        }
+      }
+    },
+    "keymap.error.updateFailed": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Tastenkürzel-Einstellungen konnten nicht in %@ gespeichert werden."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The command palette settings could not be saved to %@."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo guardar la configuración de la paleta de comandos en %@."
           }
         }
       }
