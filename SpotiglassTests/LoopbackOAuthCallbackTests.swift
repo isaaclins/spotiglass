@@ -4,6 +4,11 @@ import XCTest
 
 final class LoopbackOAuthCallbackTests: XCTestCase {
   private static let listenerLock = NSLock()
+  private static let responseCopy = LoopbackOAuthResponseCopy(
+    invalidRequest: "invalid response",
+    success: "localized sign-in complete",
+    failure: "localized sign-in failure"
+  )
 
   private func withExclusiveListener<T>(_ body: () async throws -> T) async rethrows -> T {
     Self.listenerLock.lock()
@@ -100,7 +105,12 @@ final class LoopbackOAuthCallbackTests: XCTestCase {
 
     private func startListener(state: String, timeout: TimeInterval = 5) throws -> ActiveLoopbackOAuthListener {
         // Use port=0 to let the kernel pick a free port for parallelism safety.
-        try LoopbackOAuthListenerFactory().start(expectedState: state, timeout: timeout, port: 0)
+        try LoopbackOAuthListenerFactory().start(
+            expectedState: state,
+            timeout: timeout,
+            port: 0,
+            responseCopy: Self.responseCopy
+        )
     }
 
     func testFactoryStartReturnsListenerWithBoundPort() throws {
@@ -135,12 +145,14 @@ final class LoopbackOAuthCallbackTests: XCTestCase {
 
         async let waited = listener.waitForCallback()
         try await Task.sleep(nanoseconds: 150_000_000)
-        try Self.sendHTTPGet(path: "/callback?code=CODE42&state=MYSTATE", port: port)
+        let response = try Self.sendHTTPGet(path: "/callback?code=CODE42&state=MYSTATE", port: port)
         let callback = try await waited
         XCTAssertEqual(callback.code, "CODE42")
+        XCTAssertTrue(response.contains(Self.responseCopy.success))
     }
 
-    private static func sendHTTPGet(path: String, port: Int) throws {
+    @discardableResult
+    private static func sendHTTPGet(path: String, port: Int) throws -> String {
         let fd = socket(AF_INET, SOCK_STREAM, 0)
         guard fd >= 0 else {
             throw NSError(domain: "LoopbackOAuthCallbackTests", code: 3)
@@ -164,6 +176,20 @@ final class LoopbackOAuthCallbackTests: XCTestCase {
         let request = "GET \(path) HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n"
         _ = request.withCString { write(fd, $0, strlen($0)) }
         shutdown(fd, SHUT_WR)
+
+        var response = Data()
+        var buffer = [UInt8](repeating: 0, count: 4096)
+        while true {
+            let count = buffer.withUnsafeMutableBytes { pointer in
+                read(fd, pointer.baseAddress, buffer.count)
+            }
+            guard count >= 0 else {
+                throw NSError(domain: "LoopbackOAuthCallbackTests", code: 5)
+            }
+            guard count > 0 else { break }
+            response.append(contentsOf: buffer.prefix(count))
+        }
+        return String(data: response, encoding: .utf8) ?? ""
     }
 
     private func waitUntilPortAcceptsConnections(_ port: Int, timeout: TimeInterval = 3) async throws {
@@ -206,7 +232,8 @@ final class LoopbackOAuthCallbackTests: XCTestCase {
 
             async let waited = listener.waitForCallback()
             try await Task.sleep(nanoseconds: 150_000_000)
-            try Self.sendHTTPGet(path: "/callback?code=C&state=NOPE", port: port)
+            let response = try Self.sendHTTPGet(path: "/callback?code=C&state=NOPE", port: port)
+            XCTAssertTrue(response.contains(Self.responseCopy.failure))
 
             do {
                 _ = try await waited

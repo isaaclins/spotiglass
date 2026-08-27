@@ -675,6 +675,75 @@
         }
       }
     },
+    "auth.callback.response.failure": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Spotify-Anmeldung konnte nicht abgeschlossen werden."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify sign-in could not be completed."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo completar el inicio de sesión de Spotify."
+          }
+        }
+      }
+    },
+    "auth.callback.response.invalidRequest": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ungültiger Spotify-Rückruf."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Invalid Spotify callback."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Respuesta de Spotify no válida."
+          }
+        }
+      }
+    },
+    "auth.callback.response.success": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Spotify-Anmeldung ist abgeschlossen. Sie können zu Spotiglass zurückkehren."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify sign-in is complete. You can return to Spotiglass."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El inicio de sesión de Spotify se completó. Puedes volver a Spotiglass."
+          }
+        }
+      }
+    },
     "auth.cancel.button": {
       "extractionState": "stale",
       "localizations": {
@@ -727,19 +796,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Füge die Client-ID aus deiner App im Spotify Developer Dashboard ein. Der Wert ist verborgen, bis du in dieses Feld klickst oder es fokussierst."
+            "value": "Fügen Sie die Client-ID aus Ihrer App im Spotify Developer Dashboard ein. Diese öffentliche Kennung ist immer sichtbar, damit Sie sie vor der Anmeldung prüfen können."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Paste the client ID from your Spotify Developer Dashboard app. Value is hidden until you click or tab into this field."
+            "value": "Paste the client ID from your Spotify Developer Dashboard app. This public identifier is always visible so you can verify it before signing in."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pega el ID de cliente de tu app en el Spotify Developer Dashboard. El valor está oculto hasta que hagas clic o entres en este campo."
+            "value": "Pega el ID de cliente de tu app en el Spotify Developer Dashboard. Este identificador público siempre está visible para que puedas verificarlo antes de iniciar sesión."
           }
         }
       }
@@ -12090,7 +12159,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Large"
+            "value": "Grande"
           }
         }
       }
@@ -12113,7 +12182,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Medium"
+            "value": "Mediano"
           }
         }
       }
@@ -12136,7 +12205,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Small"
+            "value": "Pequeño"
           }
         }
       }
@@ -12228,7 +12297,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dark"
+            "value": "Oscuro"
           }
         }
       }
@@ -12251,7 +12320,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Light"
+            "value": "Claro"
           }
         }
       }
