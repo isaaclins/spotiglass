@@ -298,10 +298,6 @@ struct PlaylistBrowserView: View {
             commandPaletteManager.canNavigateBack = viewModel.canNavigateBack
             syncTrackSelectionMenuState()
         }
-        .onDisappear {
-            commandPaletteManager.dismissLyricsOverlayIfPresented = nil
-            lyricsOverlay.detach()
-        }
     }
 
     private var browserCommandBindings: some View {
@@ -334,6 +330,10 @@ struct PlaylistBrowserView: View {
             commandPaletteManager.canMutatePlaybackTransport = playbackViewModel.isTransportMutationReady
         }
         .onChange(of: pinnedStore.items) { _, _ in
+            // Auth teardown detaches this scene before clearing account-bound
+            // pins. Do not let that published clear rebind browser callbacks
+            // after the palette has been reset.
+            guard commandPaletteManager.isSignedIn else { return }
             syncTrackSelectionMenuState()
             syncLibraryRowOrder()
             bindCommandPalette(queueVisible: $isQueueVisible, lyricsPresented: isLyricsPresentedBinding)

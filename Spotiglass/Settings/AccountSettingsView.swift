@@ -3,6 +3,7 @@ import AppKit
 
 struct AccountSettingsView: View {
     @ObservedObject var viewModel: AuthViewModel
+    var onSignOut: () -> Void = {}
 
     var body: some View {
         Form {
@@ -26,7 +27,11 @@ struct AccountSettingsView: View {
             }
 
             Section {
-                SpotifyClientIDAndActionsView(viewModel: viewModel, layout: .settings)
+                SpotifyClientIDAndActionsView(
+                    viewModel: viewModel,
+                    layout: .settings,
+                    onSignOut: onSignOut
+                )
             } header: {
                 Text(SpotiglassL10n.string("settings.account.developerApp"))
             } footer: {

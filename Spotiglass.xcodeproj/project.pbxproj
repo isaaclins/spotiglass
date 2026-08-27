@@ -160,6 +160,7 @@
 		G70000000000000000000005 /* CommandPaletteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = G70000000000000000000015 /* CommandPaletteView.swift */; };
 		G70000000000000000000006 /* CommandPaletteManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = G70000000000000000000016 /* CommandPaletteManager.swift */; };
 		SRC000000000000000000001A /* CommandShortcutMenuKeyEquivalent.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC000000000000000008001A /* CommandShortcutMenuKeyEquivalent.swift */; };
+		G70000000000000000000023 /* FocusedKeyEventOwner.swift in Sources */ = {isa = PBXBuildFile; fileRef = G70000000000000000000022 /* FocusedKeyEventOwner.swift */; };
 		G70000000000000000000007 /* CommandPaletteEventMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = G70000000000000000000017 /* CommandPaletteEventMonitor.swift */; };
 		G70000000000000000000008 /* CommandPaletteSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = G70000000000000000000018 /* CommandPaletteSettingsView.swift */; };
 		G70000000000000000000009 /* CommandPaletteView+Backdrop.swift in Sources */ = {isa = PBXBuildFile; fileRef = G7000000000000000000001C /* CommandPaletteView+Backdrop.swift */; };
@@ -519,6 +520,7 @@
 		G70000000000000000000015 /* CommandPaletteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteView.swift; sourceTree = "<group>"; };
 		G70000000000000000000016 /* CommandPaletteManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteManager.swift; sourceTree = "<group>"; };
 		SRC000000000000000008001A /* CommandShortcutMenuKeyEquivalent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandShortcutMenuKeyEquivalent.swift; sourceTree = "<group>"; };
+		G70000000000000000000022 /* FocusedKeyEventOwner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusedKeyEventOwner.swift; sourceTree = "<group>"; };
 		G70000000000000000000017 /* CommandPaletteEventMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteEventMonitor.swift; sourceTree = "<group>"; };
 		G70000000000000000000018 /* CommandPaletteSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteSettingsView.swift; sourceTree = "<group>"; };
 		G7000000000000000000001A /* CommandPaletteCommandCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteCommandCatalog.swift; sourceTree = "<group>"; };
@@ -1194,6 +1196,7 @@
 				RSV000000000000000000002 /* CommandPaletteReservedShortcuts.swift */,
 				G70000000000000000000011 /* CommandPaletteModels.swift */,
 				G70000000000000000000017 /* CommandPaletteEventMonitor.swift */,
+				G70000000000000000000022 /* FocusedKeyEventOwner.swift */,
 				G70000000000000000000014 /* CommandPaletteViewModel.swift */,
 				G70000000000000000000015 /* CommandPaletteView.swift */,
 				G7000000000000000000001C /* CommandPaletteView+Backdrop.swift */,
@@ -1554,6 +1557,7 @@
 				G70000000000000000000010 /* CommandPaletteView+RowArtwork.swift in Sources */,
 				G70000000000000000000006 /* CommandPaletteManager.swift in Sources */,
 				SRC000000000000000000001A /* CommandShortcutMenuKeyEquivalent.swift in Sources */,
+				G70000000000000000000023 /* FocusedKeyEventOwner.swift in Sources */,
 				G70000000000000000000007 /* CommandPaletteEventMonitor.swift in Sources */,
 				728E7A062FEAA68E00FB3C01 /* PlaylistBrowserViewModel+Home.swift in Sources */,
 				G70000000000000000000008 /* CommandPaletteSettingsView.swift in Sources */,

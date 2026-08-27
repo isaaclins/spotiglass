@@ -1,33 +1,271 @@
+import AppKit
+import Combine
 import SwiftUI
+
+/// The transient controllers belong to one main-window scene together. Keeping
+/// them in this scene host prevents one `WindowGroup` root from replacing or
+/// tearing down another root's palette or lyrics state.
+@MainActor
+final class SpotiglassSceneHost: ObservableObject {
+    let commandPaletteManager: CommandPaletteManager
+    let lyricsOverlayController: LyricsOverlayController
+
+    private var childCancellables: Set<AnyCancellable> = []
+
+    init(commandPaletteManager: CommandPaletteManager) {
+        self.commandPaletteManager = commandPaletteManager
+        self.lyricsOverlayController = LyricsOverlayController()
+
+        commandPaletteManager.objectWillChange
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
+            }
+            .store(in: &childCancellables)
+        lyricsOverlayController.objectWillChange
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
+            }
+            .store(in: &childCancellables)
+    }
+
+    /// Clears all scene-local presentation state and callbacks before the scene
+    /// is replaced by signed-out content or is torn down.
+    func resetTransientState() {
+        commandPaletteManager.detach()
+        lyricsOverlayController.detach()
+    }
+}
+
+/// Tracks the current main-window scene for app-level menu commands. The menu
+/// and both transient controllers use this same active-scene policy; the
+/// registry never detaches an inactive scene while another scene is alive.
+@MainActor
+final class SpotiglassSceneRegistry: ObservableObject {
+    @Published private(set) var activeScene: SpotiglassSceneHost? = nil
+
+    private var scenes: [SpotiglassSceneHost] = []
+    private var activeSceneCancellable: AnyCancellable?
+
+    /// Registers a live scene without changing which scene owns app-level
+    /// commands. The activation probe promotes a scene only when its window is
+    /// actually key; the first registered scene is the fallback until then.
+    func register(_ scene: SpotiglassSceneHost) {
+        if !scenes.contains(where: { $0 === scene }) {
+            scenes.append(scene)
+        }
+        if activeScene == nil {
+            setActiveScene(scene)
+        }
+    }
+
+    /// Marks a scene as the current command host. This is called by the key
+    /// window probe and is also useful to callers that explicitly select a
+    /// scene (including tests).
+    func activate(_ scene: SpotiglassSceneHost) {
+        register(scene)
+        setActiveScene(scene)
+    }
+
+    /// Removes a scene from the live registry. Only the current host is
+    /// detached: an inactive scene may disappear without tearing down the
+    /// controller that still belongs to another live scene.
+    func deactivate(_ scene: SpotiglassSceneHost) {
+        let wasCurrentHost = activeScene === scene
+        scenes.removeAll { $0 === scene }
+        guard wasCurrentHost else { return }
+        scene.resetTransientState()
+        setActiveScene(scenes.last)
+    }
+
+    /// Auth loss can be initiated from the Settings scene, so every live main
+    /// window is reset before the shared auth state replaces its browser.
+    func resetTransientState() {
+        for scene in scenes {
+            scene.resetTransientState()
+        }
+    }
+
+    /// Hotkey recording belongs to the Settings scene, but every main-window
+    /// event monitor must yield while it is active.
+    func setHotkeyRecording(_ isRecording: Bool) {
+        for scene in scenes {
+            scene.commandPaletteManager.isRecordingHotkey = isRecording
+        }
+    }
+
+    private func setActiveScene(_ scene: SpotiglassSceneHost?) {
+        if activeScene == nil, scene == nil { return }
+        if let activeScene, let scene, activeScene === scene { return }
+
+        activeSceneCancellable?.cancel()
+        activeScene = scene
+        guard let scene else { return }
+        activeSceneCancellable = scene.objectWillChange
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
+            }
+    }
+}
+
+/// A zero-sized AppKit probe makes menu routing follow the key main window,
+/// rather than only the last window that happened to appear.
+private struct SceneHostActivationView: NSViewRepresentable {
+    let activate: () -> Void
+
+    func makeNSView(context: Context) -> SceneHostActivationProbeView {
+        SceneHostActivationProbeView(activate: activate)
+    }
+
+    func updateNSView(_ nsView: SceneHostActivationProbeView, context: Context) {
+        nsView.activate = activate
+        nsView.observeWindowIfNeeded()
+    }
+}
+
+private final class SceneHostActivationProbeView: NSView {
+    var activate: () -> Void
+    private weak var observedWindow: NSWindow?
+    private var keyWindowObserver: NSObjectProtocol?
+
+    init(activate: @escaping () -> Void) {
+        self.activate = activate
+        super.init(frame: .zero)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        observeWindowIfNeeded()
+    }
+
+    func observeWindowIfNeeded() {
+        guard window !== observedWindow else { return }
+        stopObservingWindow()
+        guard let window else { return }
+
+        observedWindow = window
+        if window.isKeyWindow {
+            activate()
+        }
+        keyWindowObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didBecomeKeyNotification,
+            object: window,
+            queue: .main
+        ) { [weak self] _ in
+            self?.activate()
+        }
+    }
+
+    override func removeFromSuperview() {
+        stopObservingWindow()
+        super.removeFromSuperview()
+    }
+
+    deinit {
+        stopObservingWindow()
+    }
+
+    private func stopObservingWindow() {
+        if let keyWindowObserver {
+            NotificationCenter.default.removeObserver(keyWindowObserver)
+        }
+        keyWindowObserver = nil
+        observedWindow = nil
+    }
+}
 
 @MainActor
 struct RootView: View {
     @EnvironmentObject private var viewModel: AuthViewModel
     @EnvironmentObject private var pinnedStore: PinnedItemsStore
-    @StateObject private var commandPaletteManager: CommandPaletteManager
+    @StateObject private var sceneHost: SpotiglassSceneHost
+    private let sceneRegistry: SpotiglassSceneRegistry?
     /// Passed straight through to the playback session so a hardware output
     /// selection can be re-routed through the EQ instead of bypassing it
     /// (#253). Nil in previews/tests, where no engine owns the system route.
     private let equalizerEngine: AudioEqualizerEngine?
     @Environment(\.openSettings) private var openSettingsAction
 
-    init() {
-        _commandPaletteManager = StateObject(wrappedValue: CommandPaletteManager())
-        equalizerEngine = nil
+    private var commandPaletteManager: CommandPaletteManager {
+        sceneHost.commandPaletteManager
+    }
+
+    private var lyricsOverlayController: LyricsOverlayController {
+        sceneHost.lyricsOverlayController
+    }
+
+    /// Standalone host (previews and view tests): no registry, so this scene
+    /// always considers itself current.
+    init(commandPaletteManager: CommandPaletteManager, equalizerEngine: AudioEqualizerEngine? = nil) {
+        _sceneHost = StateObject(wrappedValue: SpotiglassSceneHost(commandPaletteManager: commandPaletteManager))
+        sceneRegistry = nil
+        self.equalizerEngine = equalizerEngine
     }
 
     init(
-        commandPaletteManager: CommandPaletteManager,
+        keymapStore: CommandPaletteKeymapStore,
+        sceneRegistry: SpotiglassSceneRegistry,
         equalizerEngine: AudioEqualizerEngine? = nil
     ) {
-        _commandPaletteManager = StateObject(wrappedValue: commandPaletteManager)
+        _sceneHost = StateObject(
+            wrappedValue: SpotiglassSceneHost(
+                commandPaletteManager: CommandPaletteManager(keymapStore: keymapStore)
+            )
+        )
+        self.sceneRegistry = sceneRegistry
         self.equalizerEngine = equalizerEngine
+    }
+
+    /// Clears all scene-local state before the shared auth state can replace a
+    /// browser. Settings and the welcome screen use this preparation callback
+    /// before invoking `AuthViewModel.signOut()` themselves.
+    private var authLossPreparationAction: () -> Void {
+        let host = self.sceneHost
+        let registry = self.sceneRegistry
+        return { [weak registry, weak host] in
+            if let registry {
+                registry.resetTransientState()
+            } else {
+                host?.resetTransientState()
+            }
+        }
+    }
+
+    /// Shared by the palette and browser disconnect button. The auth view's
+    /// disconnect button invokes ``authLossPreparationAction`` and performs
+    /// its own sign-out, so it does not receive this callback (which would
+    /// otherwise start the auth transition twice).
+    private var signOutAction: () -> Void {
+        let authViewModel = self.viewModel
+        let prepareForAuthLoss = authLossPreparationAction
+        return {
+            prepareForAuthLoss()
+            Task { await authViewModel.signOut() }
+        }
+    }
+
+    /// Callbacks this scene owns regardless of auth state. ``detach`` clears
+    /// them, so every path that detaches has to be able to restore them.
+    private func wireSceneCallbacks() {
+        commandPaletteManager.signOut = signOutAction
+        commandPaletteManager.openSettings = {
+            openSettingsAction()
+        }
+    }
+
+    private func resetTransientStateForAuthLoss() {
+        authLossPreparationAction()
     }
 
     var body: some View {
         content
+            .environmentObject(lyricsOverlayController)
             .overlay {
-                LyricsOverlayLayer()
+                LyricsOverlayLayer(lyricsOverlay: lyricsOverlayController)
             }
             .overlay {
                 ZStack {
@@ -50,23 +288,45 @@ struct RootView: View {
                 CommandPaletteEventMonitor(manager: commandPaletteManager)
                     .frame(width: 0, height: 0)
             }
+            .background {
+                if let sceneRegistry {
+                    SceneHostActivationView {
+                        sceneRegistry.activate(sceneHost)
+                    }
+                    .frame(width: 0, height: 0)
+                }
+            }
             .task {
                 await viewModel.restoreSessionIfAvailable()
             }
             .onAppear {
-                commandPaletteManager.signOut = { [viewModel] in
-                    pinnedStore.clearForSignOut()
-                    Task { await viewModel.signOut() }
+                commandPaletteManager.isCurrentScene = { [weak sceneHost, weak sceneRegistry] in
+                    guard let sceneRegistry else { return true }
+                    guard let sceneHost else { return false }
+                    return sceneRegistry.activeScene === sceneHost
                 }
-                commandPaletteManager.openSettings = {
-                    openSettingsAction()
+                sceneRegistry?.register(sceneHost)
+                wireSceneCallbacks()
+            }
+            .onDisappear {
+                if let sceneRegistry {
+                    sceneRegistry.deactivate(sceneHost)
+                } else {
+                    // Preview/test roots have no registry, so their host is the
+                    // only possible current scene.
+                    sceneHost.resetTransientState()
                 }
             }
             .onChange(of: viewModel.state) { _, newState in
                 switch newState {
                 case .signedIn, .refreshing(.some):
+                    // A previous sign-out cleared every closure on this scene's
+                    // palette, and `onAppear` does not run again for a root that
+                    // stayed mounted. Re-arm them before the browser returns.
+                    wireSceneCallbacks()
                     commandPaletteManager.isSignedIn = true
                 case .signedOut, .signingIn, .failed, .refreshing(.none):
+                    resetTransientStateForAuthLoss()
                     commandPaletteManager.isSignedIn = false
                     pinnedStore.clearForSignOut()
                 }
@@ -82,10 +342,7 @@ struct RootView: View {
                 playbackTokenProvider: viewModel,
                 searchTokenProvider: viewModel,
                 commandPaletteManager: commandPaletteManager,
-                signOut: {
-                    pinnedStore.clearForSignOut()
-                    Task { await viewModel.signOut() }
-                },
+                signOut: signOutAction,
                 equalizerEngine: equalizerEngine
             )
         case .refreshing(.none):
@@ -127,7 +384,11 @@ struct RootView: View {
 
                     authStatusMessage
 
-                    SpotifyClientIDAndActionsView(viewModel: viewModel, layout: .welcome)
+                    SpotifyClientIDAndActionsView(
+                        viewModel: viewModel,
+                        layout: .welcome,
+                        onSignOut: authLossPreparationAction
+                    )
                 }
                 .padding(SpotiglassDesign.spacingL)
             }
@@ -171,7 +432,7 @@ struct RootView: View {
 
 /// Renders ``ImmersiveLyricsView`` above the whole window (not only the split-view detail column).
 private struct LyricsOverlayLayer: View {
-    @EnvironmentObject private var lyricsOverlay: LyricsOverlayController
+    @ObservedObject var lyricsOverlay: LyricsOverlayController
 
     /// Avoid blocking the window when `isPresented` is true before browse VC has called `attach` (nil models).
     private var immersiveLyricsReady: Bool {
@@ -217,5 +478,4 @@ private struct LyricsOverlayLayer: View {
         .environmentObject(SpotiglassSettingsStore(fileURL: settingsURL))
         .environmentObject(AuthViewModel.preview())
         .environmentObject(PinnedItemsStore(cache: InMemoryPinnedItemsCache()))
-        .environmentObject(LyricsOverlayController())
 }

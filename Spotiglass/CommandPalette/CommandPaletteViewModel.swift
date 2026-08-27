@@ -114,6 +114,7 @@ final class CommandPaletteViewModel: ObservableObject {
         cachedResultsQuery = nil
         suppressLegacyPrefixQueryRefresh = false
         rateLimitCooldownUntil = .distantPast
+        prefetchProgress = nil
     }
 
     func hide() {
@@ -121,6 +122,7 @@ final class CommandPaletteViewModel: ObservableObject {
         query = ""
         searchCategoryFilter = .all
         selectedIndex = 0
+        sections = []
         errorText = nil
         isLoading = false
         lastSuccessfulSongSearchQuery = nil
@@ -128,8 +130,11 @@ final class CommandPaletteViewModel: ObservableObject {
         cachedResultsQuery = nil
         suppressLegacyPrefixQueryRefresh = false
         rateLimitCooldownUntil = .distantPast
+        prefetchProgress = nil
         searchTask?.cancel()
         searchTask = nil
+        let restoreFocus = restoreFocus
+        self.restoreFocus = nil
         restoreFocus?()
     }
 
