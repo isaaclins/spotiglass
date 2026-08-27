@@ -547,6 +547,93 @@ final class EqualizerHALPluginTests: XCTestCase {
         XCTAssertNotEqual(at44k.bands, at48k.bands)
     }
 
+    // MARK: - Settings reload observation
+
+    @MainActor
+    func testExternalSettingsReloadReappliesCoefficientsWhileEngineIsRunning() throws {
+        let settingsURL = makeTempDirectory().appendingPathComponent("settings.json")
+        var initialSettings = SpotiglassSettingsStore.bootstrapDefaults()
+        initialSettings.equalizer.enabled = true
+        initialSettings.equalizer.bands[0] = -2
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .prettyPrinted]
+        try encoder.encode(initialSettings).write(to: settingsURL)
+        let settingsStore = SpotiglassSettingsStore(fileURL: settingsURL)
+
+        let originalOutputID = AudioObjectID(41)
+        let virtualOutputID = AudioObjectID(99)
+        let originalOutputUID = "OriginalOutputUID"
+        var routedOutputIDs: [AudioObjectID] = []
+        let controller = EqualizerHALPluginController(
+            halDirectory: halDirectory,
+            bundle: fakeAppBundle,
+            defaultOutputBackupURL: defaultOutputBackupURL,
+            outputDeviceIDForUID: { uid in
+                uid == originalOutputUID ? originalOutputID : nil
+            },
+            outputDeviceUID: { deviceID in
+                deviceID == originalOutputID ? originalOutputUID : nil
+            },
+            defaultOutputDeviceIDProvider: { originalOutputID },
+            virtualDeviceIDProvider: { virtualOutputID },
+            defaultOutputSetter: { routedOutputIDs.append($0) },
+            routerStatusReader: {
+                .ready(targetUID: originalOutputUID)
+            },
+            routerReadinessTimeout: 0,
+            activeSampleRateObservationStarter: { _ in }
+        )
+        let coefficientPath = (NSTemporaryDirectory() as NSString)
+            .appendingPathComponent("spotiglass-eq-settings-\(UUID().uuidString).shm")
+        defer {
+            try? FileManager.default.removeItem(atPath: coefficientPath)
+            EqualizerHALPluginController.clearForwardingTarget()
+        }
+
+        let publisher = EQCoefficientPublisher(shmPath: coefficientPath)
+        let engine = AudioEqualizerEngine(
+            pluginController: controller,
+            coefficientPublisher: publisher
+        )
+        try engine.start()
+        engine.observe(settingsStore: settingsStore)
+        XCTAssertEqual(
+            engine.routeState,
+            .live(targetUID: originalOutputUID, errorMessage: nil)
+        )
+        XCTAssertEqual(routedOutputIDs, [virtualOutputID])
+
+        let beforeReload = try XCTUnwrap(publisher.readForTesting())
+        var externalSettings = initialSettings
+        externalSettings.equalizer.bands[0] = 8
+        try encoder.encode(externalSettings).write(to: settingsURL, options: .atomic)
+
+        settingsStore.reloadFromDisk()
+
+        let afterReload = try XCTUnwrap(publisher.readForTesting())
+        let expected = EQCoefficientFrame.build(
+            settings: externalSettings.equalizer,
+            sampleRateHz: controller.activeSampleRate
+        )
+        XCTAssertEqual(
+            engine.routeState,
+            .live(targetUID: originalOutputUID, errorMessage: nil),
+            "a curve reload must not restart or disable the running EQ"
+        )
+        XCTAssertEqual(afterReload.preampLinear, expected.preampLinear)
+        XCTAssertEqual(afterReload.bands, expected.bands)
+        XCTAssertEqual(afterReload.sampleRateHz, expected.sampleRateHz)
+        XCTAssertEqual(afterReload.enabledMask, expected.enabledMask)
+        XCTAssertNotEqual(afterReload.bands, beforeReload.bands)
+        XCTAssertEqual(routedOutputIDs, [virtualOutputID], "reloading a curve must not reroute the output")
+
+        // The injected #252 routing seams keep cleanup in-process and prove the
+        // running engine still has a recoverable pre-EQ output after the reload.
+        try engine.stop()
+        XCTAssertFalse(engine.isRunning)
+        XCTAssertEqual(routedOutputIDs, [virtualOutputID, originalOutputID])
+    }
+
     // MARK: - Helpers
 
     private func makeTempDirectory() -> URL {
