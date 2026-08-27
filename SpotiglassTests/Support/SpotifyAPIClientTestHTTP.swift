@@ -67,21 +67,29 @@ final class DisconnectedHTTPClient: HTTPClient {
     }
 }
 
-/// `QueueHTTPClient` variant that awaits a `Task.yield()` (and a tiny sleep) after the first response
-/// is dispatched. Lets a test observe the post-first-page state and cancel before subsequent pages
-/// run, so we can verify pagination respects cancellation rather than racing all pages to completion.
+/// `QueueHTTPClient` variant that gives a test an explicit gate after the first response
+/// is dispatched. This lets a test cancel before subsequent pages run, without racing a
+/// wall-clock delay.
 final class YieldAfterFirstResponseHTTPClient: HTTPClient {
     private var responses: [QueueHTTPClient.Response]
     private(set) var requests: [URLRequest] = []
     private var hasYielded = false
+    private let firstRequestStarted: AsyncSignal?
+    private let releaseFirstResponse: AsyncSignal?
 
-    init(_ responses: [QueueHTTPClient.Response]) {
+    init(
+        _ responses: [QueueHTTPClient.Response],
+        firstRequestStarted: AsyncSignal? = nil,
+        releaseFirstResponse: AsyncSignal? = nil
+    ) {
         self.responses = responses
+        self.firstRequestStarted = firstRequestStarted
+        self.releaseFirstResponse = releaseFirstResponse
     }
 
     func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         if hasYielded {
-            try await Task.sleep(nanoseconds: 50_000_000)
+            await Task.yield()
             try Task.checkCancellation()
         }
         requests.append(request)
@@ -97,7 +105,13 @@ final class YieldAfterFirstResponseHTTPClient: HTTPClient {
         )!
         if !hasYielded {
             hasYielded = true
-            await Task.yield()
+            firstRequestStarted?.signal()
+            if let releaseFirstResponse {
+                await releaseFirstResponse.wait()
+                try Task.checkCancellation()
+            } else {
+                await Task.yield()
+            }
         }
         return (response.data, httpResponse)
     }
@@ -118,7 +132,14 @@ final class RefreshingTokenProvider: SpotifyAccessTokenProviding {
 
 actor SingleFlightRefreshingTokenProvider: SpotifyAccessTokenProviding {
     private var inFlightRefresh: Task<String, Error>?
+    private let refreshStarted: AsyncSignal?
+    private let releaseRefresh: AsyncSignal?
     private(set) var refreshCount = 0
+
+    init(refreshStarted: AsyncSignal? = nil, releaseRefresh: AsyncSignal? = nil) {
+        self.refreshStarted = refreshStarted
+        self.releaseRefresh = releaseRefresh
+    }
 
     func accessToken() async throws -> String {
         "stale-token"
@@ -128,8 +149,11 @@ actor SingleFlightRefreshingTokenProvider: SpotifyAccessTokenProviding {
         if let inFlightRefresh {
             return try await inFlightRefresh.value
         }
+        let refreshStarted = self.refreshStarted
+        let releaseRefresh = self.releaseRefresh
         let task = Task<String, Error> {
-            try await Task.sleep(nanoseconds: 100_000_000)
+            refreshStarted?.signal()
+            await releaseRefresh?.wait()
             return "fresh-token"
         }
         inFlightRefresh = task
@@ -151,15 +175,26 @@ struct FailingRefreshTokenProvider: SpotifyAccessTokenProviding {
 
 actor DelayedCountingHTTPClient: HTTPClient {
     private let responseData: Data
+    private let firstRequestStarted: AsyncSignal?
+    private let releaseFirstRequest: AsyncSignal?
     private(set) var requestCount: Int = 0
 
-    init(responseJSON: String) {
+    init(
+        responseJSON: String,
+        firstRequestStarted: AsyncSignal? = nil,
+        releaseFirstRequest: AsyncSignal? = nil
+    ) {
         self.responseData = Data(responseJSON.utf8)
+        self.firstRequestStarted = firstRequestStarted
+        self.releaseFirstRequest = releaseFirstRequest
     }
 
     func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         requestCount += 1
-        try await Task.sleep(nanoseconds: 40_000_000)
+        if requestCount == 1 {
+            firstRequestStarted?.signal()
+            await releaseFirstRequest?.wait()
+        }
         let response = HTTPURLResponse(
             url: request.url!,
             statusCode: 200,
@@ -172,29 +207,44 @@ actor DelayedCountingHTTPClient: HTTPClient {
 
 final class TokenAwareUnauthorizedHTTPClient: HTTPClient {
     private let lock = NSLock()
+    private let unauthorizedRequestsReady: AsyncSignal?
     private(set) var unauthorizedRequestCount = 0
     private(set) var refreshedRequestCount = 0
 
+    init(unauthorizedRequestsReady: AsyncSignal? = nil) {
+        self.unauthorizedRequestsReady = unauthorizedRequestsReady
+    }
+
     func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         let auth = request.value(forHTTPHeaderField: "Authorization") ?? ""
-        let statusCode: Int
-        let payload: String
-
-        lock.lock()
-        if auth == "Bearer stale-token" {
-            unauthorizedRequestCount += 1
-            statusCode = 401
-            payload = #"{"error":{"status":401,"message":"Expired"}}"#
-        } else {
-            refreshedRequestCount += 1
-            statusCode = 200
-            payload = #"{"id":"user-1","display_name":"AfterRefresh","images":[],"country":null,"product":"premium"}"#
+        let response = recordResponse(for: auth)
+        if response.signalWhenReady {
+            unauthorizedRequestsReady?.signal()
         }
-        lock.unlock()
 
         return (
-            Data(payload.utf8),
-            HTTPURLResponse(url: request.url!, statusCode: statusCode, httpVersion: nil, headerFields: nil)!
+            Data(response.payload.utf8),
+            HTTPURLResponse(url: request.url!, statusCode: response.statusCode, httpVersion: nil, headerFields: nil)!
+        )
+    }
+
+    private func recordResponse(for auth: String) -> (statusCode: Int, payload: String, signalWhenReady: Bool) {
+        lock.lock()
+        defer { lock.unlock() }
+        if auth == "Bearer stale-token" {
+            unauthorizedRequestCount += 1
+            return (
+                statusCode: 401,
+                payload: #"{"error":{"status":401,"message":"Expired"}}"#,
+                signalWhenReady: unauthorizedRequestCount >= 2
+            )
+        }
+
+        refreshedRequestCount += 1
+        return (
+            statusCode: 200,
+            payload: #"{"id":"user-1","display_name":"AfterRefresh","images":[],"country":null,"product":"premium"}"#,
+            signalWhenReady: false
         )
     }
 }

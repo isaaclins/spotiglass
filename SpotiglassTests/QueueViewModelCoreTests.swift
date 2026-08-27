@@ -24,6 +24,10 @@ final class QueueViewModelCoreTests: XCTestCase {
 
     func testHandleSdkQueueSnapshotChangeRefreshesWhenPanelVisible() async {
         let api = MockPlaybackAPI()
+        let fetchQueueStarted = AsyncSignal()
+        api.onFetchQueue = {
+            fetchQueueStarted.signal()
+        }
         let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: MockWebPlaybackCommander())
         let queue = QueueViewModel(playbackAPI: api, playbackSession: playback, pollIntervalNanoseconds: 60_000_000_000)
         playback.setConnectionState(.playing(PlaybackNowPlaying(
@@ -38,7 +42,11 @@ final class QueueViewModelCoreTests: XCTestCase {
         )))
         queue.setPanelVisible(true)
         queue.handleSdkQueueSnapshotChanged()
-        try? await Task.sleep(nanoseconds: 200_000_000)
+        let didStartFetchQueue = await fetchQueueStarted.wait(timeout: .seconds(2))
+        XCTAssertTrue(
+            didStartFetchQueue,
+            "visible queue updates should fetch the REST queue"
+        )
         XCTAssertTrue(api.actions.contains("fetchQueue"))
     }
 

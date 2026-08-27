@@ -492,8 +492,9 @@ final class ListDetailViewsTests: XCTestCase {
         var singleCount = 0
         var doubleCount = 0
         router.handleSingleTap(albumID: "alb") { singleCount += 1 }
+        let pendingSingleTap = router.pendingSingleTapTask
         router.handleDoubleTap { doubleCount += 1 }
-        try? await Task.sleep(nanoseconds: 120_000_000)
+        await pendingSingleTap?.value
         XCTAssertEqual(singleCount, 0)
         XCTAssertEqual(doubleCount, 1)
     }
@@ -502,7 +503,7 @@ final class ListDetailViewsTests: XCTestCase {
         let router = AlbumCardTapRouter(doubleClickDelayNanoseconds: 50_000_000)
         var singleCount = 0
         router.handleSingleTap(albumID: "alb") { singleCount += 1 }
-        try? await Task.sleep(nanoseconds: 80_000_000)
+        await router.pendingSingleTapTask?.value
         XCTAssertEqual(singleCount, 1)
     }
 }
@@ -683,7 +684,7 @@ private struct TrackListScrollRestoreHarness: View {
         )
         .frame(width: 800, height: 600)
         .task {
-            try? await Task.sleep(nanoseconds: 60_000_000)
+            await Task.yield()
             pending = targetTrackID
         }
     }

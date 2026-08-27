@@ -70,11 +70,22 @@ final class PlaylistBrowserPrefetchAllTracksTests: XCTestCase {
         let playlists = (1...8).map { PlaylistBrowsingTestFixtures.playlist(id: "p\($0)", name: "P\($0)") }
         let cache = MockBrowsingCache(cachedPlaylists: playlists, cachedTracks: [:], playlistListCacheAge: 5)
         let counter = ConcurrencyCounter()
-        let api = ConcurrencyTrackingBrowsingAPI(playlists: playlists, counter: counter)
+        let playlistTracksStarted = AsyncSignal()
+        let releasePlaylistTracks = AsyncSignal()
+        let api = ConcurrencyTrackingBrowsingAPI(
+            playlists: playlists,
+            counter: counter,
+            playlistTracksStarted: playlistTracksStarted,
+            releasePlaylistTracks: releasePlaylistTracks
+        )
 
         let vm = PlaylistBrowserViewModel(api: api, cache: cache)
         seed(vm, with: playlists)
-        await vm.runBulkPlaylistTrackPrefetch()
+        let run = Task { await vm.runBulkPlaylistTrackPrefetch() }
+        let didStartPlaylistTracks = await playlistTracksStarted.wait(timeout: .seconds(1))
+        XCTAssertTrue(didStartPlaylistTracks)
+        releasePlaylistTracks.signal()
+        await run.value
 
         let peak = await counter.peak
         XCTAssertLessThanOrEqual(peak, PlaylistBrowserViewModel.prefetchAllPlaylistsConcurrency,
@@ -178,12 +189,20 @@ final class PlaylistBrowserPrefetchAllTracksTests: XCTestCase {
     func testToggleBulkPrefetchCancelsInFlightRun() async throws {
         let playlists = (1...4).map { PlaylistBrowsingTestFixtures.playlist(id: "p\($0)", name: "P\($0)") }
         let cache = MockBrowsingCache(cachedPlaylists: playlists, cachedTracks: [:], playlistListCacheAge: 5)
-        let api = ConcurrencyTrackingBrowsingAPI(playlists: playlists, counter: ConcurrencyCounter())
+        let firstTrackStarted = AsyncSignal()
+        let releaseTrack = AsyncSignal()
+        let api = ConcurrencyTrackingBrowsingAPI(
+            playlists: playlists,
+            counter: ConcurrencyCounter(),
+            playlistTracksStarted: firstTrackStarted,
+            releasePlaylistTracks: releaseTrack
+        )
         let vm = PlaylistBrowserViewModel(api: api, cache: cache)
         seed(vm, with: playlists)
 
         let run = Task { await vm.toggleBulkPlaylistTrackPrefetch() }
-        try await Task.sleep(nanoseconds: 30_000_000)
+        let didStartTrack = await firstTrackStarted.wait(timeout: .seconds(1))
+        XCTAssertTrue(didStartTrack)
         await vm.toggleBulkPlaylistTrackPrefetch()
         await run.value
 
@@ -234,6 +253,8 @@ private final class ConcurrencyTrackingBrowsingAPI: SpotifyBrowsingAPI, @uncheck
     private let counter: ConcurrencyCounter
     private let trackFactory: @Sendable (String) -> [SpotifyPlaylistTrackItem]
     private let savedTracksFactory: @Sendable () -> SpotifySavedTracksResult
+    private let playlistTracksStarted: AsyncSignal?
+    private let releasePlaylistTracks: AsyncSignal?
 
     init(
         playlists: [SpotifyPlaylistSummary],
@@ -241,12 +262,16 @@ private final class ConcurrencyTrackingBrowsingAPI: SpotifyBrowsingAPI, @uncheck
         trackFactory: @escaping @Sendable (String) -> [SpotifyPlaylistTrackItem] = { _ in [] },
         savedTracksFactory: @escaping @Sendable () -> SpotifySavedTracksResult = {
             SpotifySavedTracksResult(tracks: [], totalAvailable: 0)
-        }
+        },
+        playlistTracksStarted: AsyncSignal? = nil,
+        releasePlaylistTracks: AsyncSignal? = nil
     ) {
         self.playlistsList = playlists
         self.counter = counter
         self.trackFactory = trackFactory
         self.savedTracksFactory = savedTracksFactory
+        self.playlistTracksStarted = playlistTracksStarted
+        self.releasePlaylistTracks = releasePlaylistTracks
     }
 
     func currentUserPlaylists(limit: Int) async throws -> [SpotifyPlaylistSummary] { playlistsList }
@@ -254,15 +279,23 @@ private final class ConcurrencyTrackingBrowsingAPI: SpotifyBrowsingAPI, @uncheck
 
     func playlistTracks(playlistID: String, limit: Int, maxPages: Int) async throws -> [SpotifyPlaylistTrackItem] {
         await counter.enter()
-        try await Task.sleep(nanoseconds: 20_000_000)
-        await counter.recordPlaylist(playlistID)
-        await counter.exit()
-        return trackFactory(playlistID)
+        do {
+            playlistTracksStarted?.signal()
+            if let releasePlaylistTracks {
+                await releasePlaylistTracks.wait()
+                try Task.checkCancellation()
+            }
+            await counter.recordPlaylist(playlistID)
+            await counter.exit()
+            return trackFactory(playlistID)
+        } catch {
+            await counter.exit()
+            throw error
+        }
     }
 
     func currentUserSavedTracks(limit: Int, maxPages: Int?) async throws -> SpotifySavedTracksResult {
         await counter.enter()
-        try await Task.sleep(nanoseconds: 20_000_000)
         await counter.recordSavedTracks()
         await counter.exit()
         return savedTracksFactory()

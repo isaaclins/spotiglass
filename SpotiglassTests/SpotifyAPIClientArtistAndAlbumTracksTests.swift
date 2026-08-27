@@ -88,20 +88,26 @@ final class SpotifyAPIClientArtistAndAlbumTracksTests: XCTestCase {
             """
         }
         let next = "https://api.spotify.com/v1/albums/al1/tracks?offset=1&limit=1"
+        let firstRequestStarted = AsyncSignal()
+        let releaseFirstRequest = AsyncSignal()
         let httpClient = AlbumTracksPageRoutingHTTPClient(
             firstPage: page(trackID: "tr1", next: next),
-            secondPage: page(trackID: "tr2", next: nil)
+            secondPage: page(trackID: "tr2", next: nil),
+            firstRequestStarted: firstRequestStarted,
+            releaseFirstRequest: releaseFirstRequest
         )
         let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
         let fullTask = Task {
             try await client.albumTracks(albumID: "al1", market: "US", limit: 1, maxPages: 2)
         }
-        for _ in 0..<100 {
-            if await httpClient.requestCount >= 1 { break }
-            try await Task.sleep(nanoseconds: 1_000_000)
-        }
+        let didStartFirstRequest = await firstRequestStarted.wait(timeout: .seconds(1))
+        XCTAssertTrue(
+            didStartFirstRequest,
+            "the multi-page request should start before the first-page request"
+        )
 
         let firstPage = try await client.albumTracksFirstPage(albumID: "al1", market: "US", limit: 1)
+        releaseFirstRequest.signal()
         let full = try await fullTask.value
 
         XCTAssertEqual(firstPage.map(\.id), ["tr1"])
@@ -111,6 +117,8 @@ final class SpotifyAPIClientArtistAndAlbumTracksTests: XCTestCase {
     }
 
     func testAlbumTracksConcurrentRequestsCoalesceByAlbumKey() async throws {
+        let requestStarted = AsyncSignal()
+        let releaseRequest = AsyncSignal()
         let httpClient = DelayedCountingHTTPClient(
             responseJSON: """
             {
@@ -132,12 +140,20 @@ final class SpotifyAPIClientArtistAndAlbumTracksTests: XCTestCase {
                 }
               ]
             }
-            """
+            """,
+            firstRequestStarted: requestStarted,
+            releaseFirstRequest: releaseRequest
         )
         let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
 
         async let first = client.albumTracks(albumID: "al1", market: "US", limit: 50)
+        let didStartRequest = await requestStarted.wait(timeout: .seconds(1))
+        XCTAssertTrue(
+            didStartRequest,
+            "the coalesced album request should start before releasing the response"
+        )
         async let second = client.albumTracks(albumID: "al1", market: "US", limit: 50)
+        releaseRequest.signal()
         let (a, b) = try await (first, second)
 
         XCTAssertEqual(a.map(\.id), ["tr1"])
@@ -175,16 +191,28 @@ final class SpotifyAPIClientArtistAndAlbumTracksTests: XCTestCase {
 private actor AlbumTracksPageRoutingHTTPClient: HTTPClient {
     private let firstPage: Data
     private let secondPage: Data
+    private let firstRequestStarted: AsyncSignal
+    private let releaseFirstRequest: AsyncSignal
     private(set) var requestCount = 0
 
-    init(firstPage: String, secondPage: String) {
+    init(
+        firstPage: String,
+        secondPage: String,
+        firstRequestStarted: AsyncSignal,
+        releaseFirstRequest: AsyncSignal
+    ) {
         self.firstPage = Data(firstPage.utf8)
         self.secondPage = Data(secondPage.utf8)
+        self.firstRequestStarted = firstRequestStarted
+        self.releaseFirstRequest = releaseFirstRequest
     }
 
     func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         requestCount += 1
-        try await Task.sleep(nanoseconds: 20_000_000)
+        if requestCount == 1 {
+            firstRequestStarted.signal()
+            await releaseFirstRequest.wait()
+        }
         let isSecondPage = request.url?.query?.contains("offset=1") == true
         let data = isSecondPage ? secondPage : firstPage
         let response = HTTPURLResponse(

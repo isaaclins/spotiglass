@@ -135,12 +135,7 @@ final class PlaybackChromeViewsTests: XCTestCase {
             webCommander: MockWebPlaybackCommander()
         )
         playback.handle(.ready(deviceID: "device-1"))
-
-        let deadline = Date().addingTimeInterval(1.0)
-        while Date() < deadline,
-              !api.actions.contains("fetchPlayerSnapshot") {
-            try? await Task.sleep(nanoseconds: 10_000_000)
-        }
+        await playback.syncTransportFromSpotify()
 
         let view = PlaybackControlsView(
             viewModel: playback,

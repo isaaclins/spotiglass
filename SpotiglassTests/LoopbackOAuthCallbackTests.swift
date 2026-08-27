@@ -113,17 +113,7 @@ final class LoopbackOAuthCallbackTests: XCTestCase {
 
     func testListenerAcceptsValidCallbackAndReturnsCode() async throws {
         try await withExclusiveListener {
-            var lastError: Error?
-            for _ in 0 ..< 5 {
-                do {
-                    try await exerciseValidOAuthCallback()
-                    return
-                } catch {
-                    lastError = error
-                    try await Task.sleep(nanoseconds: 100_000_000)
-                }
-            }
-            throw lastError ?? NSError(domain: "LoopbackOAuthCallbackTests", code: 1)
+            try await exerciseValidOAuthCallback()
         }
     }
 
@@ -134,7 +124,6 @@ final class LoopbackOAuthCallbackTests: XCTestCase {
         let port = listener.redirectURI.port!
 
         async let waited = listener.waitForCallback()
-        try await Task.sleep(nanoseconds: 150_000_000)
         try Self.sendHTTPGet(path: "/callback?code=CODE42&state=MYSTATE", port: port)
         let callback = try await waited
         XCTAssertEqual(callback.code, "CODE42")
@@ -166,38 +155,6 @@ final class LoopbackOAuthCallbackTests: XCTestCase {
         shutdown(fd, SHUT_WR)
     }
 
-    private func waitUntilPortAcceptsConnections(_ port: Int, timeout: TimeInterval = 3) async throws {
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            if Self.canConnect(toPort: port) { return }
-            try await Task.sleep(nanoseconds: 25_000_000)
-        }
-        throw NSError(
-            domain: "LoopbackOAuthCallbackTests",
-            code: 2,
-            userInfo: [NSLocalizedDescriptionKey: "Timed out waiting for loopback listener on port \(port)"]
-        )
-    }
-
-    private static func canConnect(toPort port: Int) -> Bool {
-        let fd = socket(AF_INET, SOCK_STREAM, 0)
-        guard fd >= 0 else { return false }
-        defer { close(fd) }
-
-        var addr = sockaddr_in()
-        addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
-        addr.sin_family = sa_family_t(AF_INET)
-        addr.sin_port = in_port_t(UInt16(port).bigEndian)
-        addr.sin_addr.s_addr = inet_addr("127.0.0.1")
-
-        let connected = withUnsafePointer(to: &addr) {
-            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                connect(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
-            }
-        }
-        return connected == 0
-    }
-
     func testListenerRejectsStateMismatch() async throws {
         try await withExclusiveListener {
             let listener = try startListener(state: "EXPECTED", timeout: 10)
@@ -205,7 +162,6 @@ final class LoopbackOAuthCallbackTests: XCTestCase {
             let port = listener.redirectURI.port!
 
             async let waited = listener.waitForCallback()
-            try await Task.sleep(nanoseconds: 150_000_000)
             try Self.sendHTTPGet(path: "/callback?code=C&state=NOPE", port: port)
 
             do {

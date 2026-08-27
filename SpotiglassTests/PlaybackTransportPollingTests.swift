@@ -14,7 +14,6 @@ final class PlaybackTransportPollingTests: XCTestCase {
         let baselineFetchCount = playbackAPI.actions.filter { $0 == "fetchPlayerSnapshot" }.count
 
         viewModel.restartTransportPollingIfNeeded()
-        try? await Task.sleep(nanoseconds: 50_000_000)
 
         let fetchCountAfterCancel = playbackAPI.actions.filter { $0 == "fetchPlayerSnapshot" }.count
         XCTAssertEqual(
@@ -69,7 +68,6 @@ final class PlaybackTransportPollingTests: XCTestCase {
                 nextTracks: []
             ))
         }
-        try? await Task.sleep(nanoseconds: 50_000_000)
 
         let fetchCountAfterTicks = playbackAPI.actions.filter { $0 == "fetchPlayerSnapshot" }.count
         XCTAssertEqual(
@@ -127,7 +125,6 @@ final class PlaybackTransportPollingTests: XCTestCase {
             viewModel.handle(.stateChanged(track, isPaused: true, nextTracks: []))
             viewModel.handle(.stateChanged(track, isPaused: false, nextTracks: []))
         }
-        try? await Task.sleep(nanoseconds: 50_000_000)
 
         let fetchCountAfterOscillation = playbackAPI.actions.filter { $0 == "fetchPlayerSnapshot" }.count
         XCTAssertEqual(

@@ -2,7 +2,9 @@ import SwiftUI
 
 @MainActor
 final class AlbumCardTapRouter: ObservableObject {
-    private var pendingSingleTapTask: Task<Void, Never>?
+    // Internal so tests can await the deferred single-tap completion without
+    // substituting a wall-clock delay for the double-click window.
+    var pendingSingleTapTask: Task<Void, Never>?
     private var pendingSingleTapID: String?
     private let doubleClickDelayNanoseconds: UInt64
 
@@ -13,8 +15,9 @@ final class AlbumCardTapRouter: ObservableObject {
     func handleSingleTap(albumID: String, onOpen: @escaping () -> Void) {
         pendingSingleTapTask?.cancel()
         pendingSingleTapID = albumID
+        let delayNanoseconds = doubleClickDelayNanoseconds
         pendingSingleTapTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: doubleClickDelayNanoseconds)
+            try? await Task.sleep(nanoseconds: delayNanoseconds)
             guard let self else { return }
             guard !Task.isCancelled, self.pendingSingleTapID == albumID else { return }
             onOpen()

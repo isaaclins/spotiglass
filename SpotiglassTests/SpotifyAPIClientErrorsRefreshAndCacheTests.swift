@@ -198,12 +198,23 @@ final class SpotifyAPIClientErrorsRefreshAndCacheTests: XCTestCase {
     }
 
     func testConcurrentUnauthorizedRequestsShareSingleRefresh() async throws {
-        let httpClient = TokenAwareUnauthorizedHTTPClient()
-        let tokenProvider = SingleFlightRefreshingTokenProvider()
+        let unauthorizedRequestsReady = AsyncSignal()
+        let httpClient = TokenAwareUnauthorizedHTTPClient(unauthorizedRequestsReady: unauthorizedRequestsReady)
+        let refreshStarted = AsyncSignal()
+        let releaseRefresh = AsyncSignal()
+        let tokenProvider = SingleFlightRefreshingTokenProvider(
+            refreshStarted: refreshStarted,
+            releaseRefresh: releaseRefresh
+        )
         let client = SpotifyAPIClient(tokenProvider: tokenProvider, httpClient: httpClient)
 
         async let first = client.currentUserProfile()
+        let didStartRefresh = await refreshStarted.wait(timeout: .seconds(1))
+        XCTAssertTrue(didStartRefresh)
         async let second = client.currentUserProfile()
+        let didStartBothRequests = await unauthorizedRequestsReady.wait(timeout: .seconds(1))
+        XCTAssertTrue(didStartBothRequests)
+        releaseRefresh.signal()
         let (a, b) = try await (first, second)
         let refreshCount = await tokenProvider.refreshCount
 

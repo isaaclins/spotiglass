@@ -85,6 +85,10 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
 
     func testReadyAutoResumeUsesInitialSnapshotWithoutDuplicatePlayerRead() async {
         let playbackAPI = MockPlaybackAPI()
+        let transferCompleted = AsyncSignal()
+        playbackAPI.onTransferPlaybackCompleted = { _, _ in
+            transferCompleted.signal()
+        }
         let staleDevice = SpotifyConnectDevice(
             deviceID: "stale-spotiglass",
             isActive: true,
@@ -105,12 +109,11 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
         viewModel.autoResumeOnNextReady = true
         viewModel.handle(.ready(deviceID: "new-spotiglass"))
 
-        let deadline = Date().addingTimeInterval(1.0)
-        while Date() < deadline,
-              !playbackAPI.actions.contains("transfer:new-spotiglass:true") {
-            try? await Task.sleep(nanoseconds: 10_000_000)
-        }
-
+        let didCompleteTransfer = await transferCompleted.wait(timeout: .seconds(1))
+        XCTAssertTrue(
+            didCompleteTransfer,
+            "startup auto-resume should complete its transfer"
+        )
         XCTAssertTrue(playbackAPI.actions.contains("transfer:new-spotiglass:true"))
         XCTAssertEqual(
             playbackAPI.actions.filter { $0 == "fetchPlayerSnapshot" }.count,
@@ -497,7 +500,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
             "Burst within the cooldown should result in exactly one POST."
         )
 
-        try await Task.sleep(nanoseconds: 600_000_000)
+        viewModel.lastSkipDispatchInstant = viewModel.clock.now.advanced(by: .seconds(-1))
 
         await viewModel.previous()
         let previousActionsAfterCooldown = playbackAPI.actions.filter { $0.hasPrefix("previous:") }
@@ -824,7 +827,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
 
         await viewModel.next()
         await viewModel.next()
-        try? await Task.sleep(for: .milliseconds(120))
+        viewModel.pendingNextSkipLockout?.lockoutDeadline = viewModel.clock.now
         await viewModel.next()
 
         XCTAssertGreaterThanOrEqual(playbackAPI.actions.filter { $0 == "next:device-1" }.count, 2)
@@ -954,13 +957,21 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
 
     func testConcurrentPlayRequestsCollapseToASingleTransferPUT() async {
         let playbackAPI = MockPlaybackAPI()
+        let transferStarted = AsyncSignal()
+        playbackAPI.onTransferPlayback = { _, _ in
+            transferStarted.signal()
+        }
         // Stretch the transfer enough that two `play()` calls overlap the in-flight PUT.
         playbackAPI.transferPlaybackDelayNanoseconds = 150_000_000
         let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander())
         viewModel.handle(.ready(deviceID: "device-1"))
 
         async let first: Void = viewModel.play(uri: "spotify:track:1")
-        try? await Task.sleep(nanoseconds: 15_000_000)
+        let didStartTransfer = await transferStarted.wait(timeout: .seconds(1))
+        XCTAssertTrue(
+            didStartTransfer,
+            "the first play should enter transfer before the second starts"
+        )
         async let second: Void = viewModel.play(uri: "spotify:track:2")
         _ = await (first, second)
 
@@ -970,11 +981,6 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
             ["transfer:device-1:false"],
             "Concurrent `play()` calls must funnel through a single in-flight transfer PUT."
         )
-        let playDeadline = Date().addingTimeInterval(1.5)
-        while Date() < playDeadline,
-              playbackAPI.actions.filter({ $0.hasPrefix("play:") }).count < 2 {
-            try? await Task.sleep(nanoseconds: 25_000_000)
-        }
         let playActions = playbackAPI.actions.filter { $0.hasPrefix("play:") }
         XCTAssertEqual(playActions.count, 2, "Both play requests should still issue their own /v1/me/player/play call.")
     }
@@ -992,10 +998,8 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
         viewModel.handle(.ready(deviceID: "device-1"))
         // Prime `latestPlayerSnapshot` so the idempotency check reads a fresh active device.
         await viewModel.syncTransportFromSpotify()
-        try? await Task.sleep(nanoseconds: 50_000_000)
 
         await viewModel.play(uri: "spotify:track:1")
-        try? await Task.sleep(nanoseconds: 50_000_000)
 
         XCTAssertFalse(
             playbackAPI.actions.contains { $0.hasPrefix("transfer") },

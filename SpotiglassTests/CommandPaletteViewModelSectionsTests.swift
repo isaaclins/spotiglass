@@ -19,16 +19,10 @@ final class CommandPaletteViewModelSectionsTests: XCTestCase {
 
     private func waitForPaletteSearch(
         _ viewModel: CommandPaletteViewModel,
-        until sectionsCount: Int,
-        timeout: TimeInterval = 2
+        until sectionsCount: Int
     ) async {
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            if !viewModel.isLoading, viewModel.sections.count == sectionsCount {
-                return
-            }
-            try? await Task.sleep(for: .milliseconds(25))
-        }
+        await viewModel.waitForSearchCompletion()
+        XCTAssertEqual(viewModel.sections.count, sectionsCount)
     }
 
     func testLegacyAtPrefixSetsArtistCategoryAndStripsQuery() async {
@@ -39,7 +33,7 @@ final class CommandPaletteViewModelSectionsTests: XCTestCase {
         viewModel.show()
         viewModel.query = "@m83"
         viewModel.refresh()
-        try? await Task.sleep(for: .milliseconds(50))
+        await viewModel.waitForSearchCompletion()
 
         XCTAssertEqual(viewModel.searchCategoryFilter, .artists)
         XCTAssertEqual(viewModel.query, "m83")

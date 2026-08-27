@@ -12,17 +12,22 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
     }
 
     func testLyricsPhaseColumnLoadingState() async throws {
+        let fetchStarted = AsyncSignal()
+        let releaseFetch = AsyncSignal()
         let lyrics = ImmersiveLyricsViewModel { _ in
-            try await Task.sleep(nanoseconds: 200_000_000)
+            fetchStarted.signal()
+            await releaseFetch.wait()
             return .instrumental
         }
         let track = sampleTrack()
         let loadTask = Task { await lyrics.load(track: track) }
 
-        for _ in 0 ..< 30 {
-            if case .loading = lyrics.phase { break }
-            try await Task.sleep(nanoseconds: 2_000_000)
-        }
+        let fetchDidStart = await fetchStarted.wait(timeout: .seconds(2))
+        XCTAssertTrue(
+            fetchDidStart,
+            "lyrics fetch should start before the loading assertion"
+        )
+        XCTAssertTrue(lyrics.phase == .loading, "lyrics should enter loading before the fetch completes")
         guard case .loading = lyrics.phase else {
             return XCTFail("expected .loading, got \(lyrics.phase)")
         }
@@ -30,7 +35,8 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
         let view = phaseColumn(lyricsModel: lyrics, track: track)
         ViewTestHost.host(view, size: CGSize(width: 420, height: 500))
         XCTAssertNoThrow(try view.inspect().find(text: "Loading lyrics…"))
-        loadTask.cancel()
+        releaseFetch.signal()
+        await loadTask.value
     }
 
     func testLyricsPhaseColumnFailedShowsRetry() async throws {
@@ -190,7 +196,7 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
         let view = ImmersiveBlurredArtwork(url: url)
             .frame(width: 360, height: 280)
         ViewTestHost.host(view, size: CGSize(width: 360, height: 280))
-        try await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertNotNil(ArtworkImageStore.cachedImageIfAvailable(for: url))
         XCTAssertNoThrow(try view.inspect())
     }
 
@@ -205,10 +211,17 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
         XCTAssertTrue(controller.isAutoCentering)
 
         controller.noteUserScrollActivity()
-        let resumeDeadline = Date().addingTimeInterval(3.0)
-        while Date() < resumeDeadline, !controller.isAutoCentering {
-            try? await Task.sleep(for: .milliseconds(50))
+        let resumeSignal = AsyncSignal()
+        withObservationTracking {
+            _ = controller.isAutoCentering
+        } onChange: {
+            resumeSignal.signal()
         }
+        let didResume = await resumeSignal.wait(timeout: .seconds(3))
+        XCTAssertTrue(
+            didResume,
+            "auto-centering should resume after the idle period"
+        )
         XCTAssertTrue(controller.isAutoCentering)
     }
 
