@@ -301,6 +301,21 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
         XCTAssertNoThrow(try view.inspect().find(text: "Second"))
     }
 
+    func testTappableLyricLineSeeksWhenTapped() throws {
+        var tapped = false
+        let line = TappableLyricLine(
+            isActive: false,
+            reduceMotion: true,
+            onTap: { tapped = true }
+        ) {
+            Text("First")
+        }
+
+        ViewTestHost.host(line, size: CGSize(width: 400, height: 80))
+        try line.inspect().button().tap()
+        XCTAssertTrue(tapped)
+    }
+
     func testPlainLyricsScrollViewRendersLines() throws {
         let view = ImmersiveLyricsPlainLyricsScrollView(
             lines: ["Alpha", "Beta"],
