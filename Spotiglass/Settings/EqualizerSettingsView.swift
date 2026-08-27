@@ -294,7 +294,14 @@ struct EqualizerSettingsView: View {
                         mutateEqualizer { $0.enabled = false }
                     }
                 } else {
-                    engine.stop()
+                    do {
+                        try engine.stop()
+                    } catch {
+                        // A failed restore leaves the EQ routed through the
+                        // virtual device. Keep the persisted switch on so the
+                        // UI does not claim that audio has been restored.
+                        mutateEqualizer { $0.enabled = true }
+                    }
                 }
             }
         )
