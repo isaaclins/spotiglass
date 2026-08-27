@@ -20,8 +20,7 @@ struct HomeView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: SpotiglassDesign.spacingL) {
-                HomeSectionHeader(title: viewModel.homeGreeting())
-                    .font(.largeTitle.weight(.bold))
+                HomeSectionHeader(title: viewModel.homeGreeting(), style: .pageTitle)
 
                 quickAccessGrid
                 recentlyPlayedSection
