@@ -39,7 +39,7 @@ extension PlaybackSessionViewModel {
         inflightTransferSerial &+= 1
         clearPendingSkipCommand()
         lastSkipDispatchInstant = nil
-        pendingPlayTransition = nil
+        clearPendingPlay()
         inFlightPlayCommandID = nil
         inFlightPlayCommandKey = nil
         lastDispatchedPlayCommandKey = nil

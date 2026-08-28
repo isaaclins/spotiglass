@@ -95,15 +95,15 @@ extension PlaybackSessionViewModel {
         guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
         SpotiglassLog.info(.playback, "playFromPlaylist entry clickedURI=\(clickedURI) playlistID=\(playlistID ?? "<nil>") playableCount=\(playableURIs.count) currentURI=\(currentNowPlayingURI ?? "<nil>") hasTransferred=\(hasTransferredPlaybackToCurrentDevice)")
 
-        guard let startIndex = playableURIs.firstIndex(of: clickedURI) else {
+        guard playableURIs.contains(clickedURI) else {
             SpotiglassLog.info(.playback, "playFromPlaylist: clicked URI not in list, falling back to single-URI play. clickedURI=\(clickedURI)")
             await play(uri: clickedURI)
             return
         }
 
-        let queue = Array(playableURIs[startIndex...])
+        let queue = playableURIs
         guard !queue.isEmpty else {
-            SpotiglassLog.info(.playback, "playFromPlaylist: sliced queue is empty, falling back to single-URI play. clickedURI=\(clickedURI)")
+            SpotiglassLog.info(.playback, "playFromPlaylist: URI list is empty, falling back to single-URI play. clickedURI=\(clickedURI)")
             await play(uri: clickedURI)
             return
         }
@@ -123,7 +123,11 @@ extension PlaybackSessionViewModel {
         do {
             try await performPrioritizedControlCommand {
                 try await ensurePlaybackTransferredIfNeeded(deviceID: commandDeviceID)
-                try await playbackAPI.play(uris: queue, deviceID: commandDeviceID)
+                try await playbackAPI.play(
+                    uris: queue,
+                    offsetURI: clickedURI,
+                    deviceID: commandDeviceID
+                )
             }
             SpotiglassLog.info(.playback, "playFromPlaylist API ok clickedURI=\(clickedURI) queueCount=\(queue.count)")
             guard ownsPlaybackHostGeneration(generation), !Task.isCancelled,
@@ -171,22 +175,47 @@ extension PlaybackSessionViewModel {
         ownerID: UInt64?,
         kind: PendingPlayTransition.Kind
     ) {
+        clearPendingPlay()
+        let hostGeneration = playbackHostGeneration
+        let deadline = clock.now.advanced(by: pendingPlayURITimeout)
         pendingPlayTransition = PendingPlayTransition(
             ownerID: ownerID,
-            hostGeneration: playbackHostGeneration,
+            hostGeneration: hostGeneration,
             kind: kind,
-            deadline: clock.now.advanced(by: pendingPlayURITimeout),
+            deadline: deadline,
             firstContextURI: nil
         )
+        let serial = pendingPlayTransitionSerial
+        let clock = self.clock
+        pendingPlayTransitionTimeoutTask = Task { @MainActor [weak self, clock] in
+            do {
+                try await clock.sleep(until: deadline, tolerance: nil)
+            } catch {
+                return
+            }
+            guard !Task.isCancelled, let self else { return }
+            guard self.pendingPlayTransitionSerial == serial,
+                  let transition = self.pendingPlayTransition,
+                  transition.ownerID == ownerID,
+                  transition.hostGeneration == hostGeneration,
+                  self.clock.now >= transition.deadline else { return }
+            self.clearPendingPlay()
+        }
+        objectWillChange.send()
     }
 
     func clearPendingPlay() {
+        pendingPlayTransitionTimeoutTask?.cancel()
+        pendingPlayTransitionTimeoutTask = nil
+        pendingPlayTransitionSerial &+= 1
+        guard pendingPlayTransition != nil else { return }
         pendingPlayTransition = nil
+        objectWillChange.send()
     }
 
     func clearPendingPlay(ifOwnedBy ownerID: UInt64) {
         guard pendingPlayTransition?.ownerID == ownerID else { return }
-        pendingPlayTransition = nil
+        clearPendingPlay()
     }
 
     func beginPlayCommandDispatchIfNeeded(for key: PlayCommandKey) -> PlayCommandDispatch? {
@@ -240,11 +269,11 @@ extension PlaybackSessionViewModel {
             return false
         }
         guard transition.hostGeneration == playbackHostGeneration else {
-            pendingPlayTransition = nil
+            clearPendingPlay()
             return false
         }
         if clock.now >= transition.deadline {
-            pendingPlayTransition = nil
+            clearPendingPlay()
             return false
         }
         guard let eventURI = nowPlaying?.uri else {
@@ -254,7 +283,7 @@ extension PlaybackSessionViewModel {
         switch transition.kind {
         case let .uri(expectedURI):
             if eventURI == expectedURI {
-                pendingPlayTransition = nil
+                clearPendingPlay()
                 return false
             }
             return true

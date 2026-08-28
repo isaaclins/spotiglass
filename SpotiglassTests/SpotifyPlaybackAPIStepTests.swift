@@ -53,6 +53,35 @@ final class SpotifyPlaybackAPIStepTests: XCTestCase {
         )
     }
 
+    func testPlayQueueRequestUsesExplicitOffsetAndCompleteURIList() async throws {
+        let tokenProvider = StaticPlaybackAccessTokenProvider(token: "token")
+        let httpClient = RecordingPlaybackHTTPClient()
+        let api = SpotifyPlaybackAPI(
+            baseURL: URL(string: "https://api.spotify.com")!,
+            tokenProvider: tokenProvider,
+            httpClient: httpClient
+        )
+        let uris = [
+            "spotify:track:before",
+            "spotify:track:clicked",
+            "spotify:track:after",
+        ]
+
+        try await api.play(
+            uris: uris,
+            offsetURI: "spotify:track:clicked",
+            deviceID: "device-1"
+        )
+
+        let request = try XCTUnwrap(httpClient.requests.first)
+        let body = try XCTUnwrap(request.httpBody)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        XCTAssertEqual(object["uris"] as? [String], uris)
+        let offset = try XCTUnwrap(object["offset"] as? [String: Any])
+        XCTAssertEqual(offset["uri"] as? String, "spotify:track:clicked")
+        XCTAssertEqual(object["position_ms"] as? Int, 0)
+    }
+
     func testPlayQueueTrimsToSafeURIRequestLimit() async throws {
         let tokenProvider = StaticPlaybackAccessTokenProvider(token: "token")
         let httpClient = RecordingPlaybackHTTPClient()

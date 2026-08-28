@@ -2,6 +2,13 @@ import AppKit
 import CoreAudio
 import Foundation
 
+protocol PlaybackClock: Sendable {
+    var now: ContinuousClock.Instant { get }
+    func sleep(until deadline: ContinuousClock.Instant, tolerance: Duration?) async throws
+}
+
+extension ContinuousClock: PlaybackClock {}
+
 struct PlaybackSeekOwnershipKey: Equatable, Sendable {
     let hostGeneration: PlaybackHostGeneration
     let trackURI: String?
@@ -172,7 +179,7 @@ final class PlaybackSessionViewModel: ObservableObject {
     var latestPlayerSnapshot: SpotifyPlayerSnapshot?
     private var becameActiveObserver: NSObjectProtocol?
     private var resignedActiveObserver: NSObjectProtocol?
-    let clock = ContinuousClock()
+    let clock: any PlaybackClock
     let pendingShuffleTimeout: Duration
     let pendingRepeatTimeout: Duration
     let pendingSeekTimeout: Duration
@@ -315,6 +322,8 @@ final class PlaybackSessionViewModel: ObservableObject {
     }
 
     var pendingPlayTransition: PendingPlayTransition?
+    var pendingPlayTransitionTimeoutTask: Task<Void, Never>?
+    var pendingPlayTransitionSerial: UInt64 = 0
     /// Compatibility projection for diagnostics and existing tests. The
     /// transition itself is the only stored play-fence state.
     var pendingPlayURI: String? {
@@ -477,6 +486,7 @@ final class PlaybackSessionViewModel: ObservableObject {
         macAudioOutput: MacDefaultAudioOutputProviding = MacDefaultAudioOutputNameProvider(),
         equalizerEngine: AudioEqualizerEngine? = nil,
         defaults: UserDefaults = .standard,
+        clock: any PlaybackClock = ContinuousClock(),
         pendingShuffleTimeout: Duration = .seconds(2),
         pendingRepeatTimeout: Duration = .seconds(2),
         pendingSeekTimeout: Duration = .seconds(2),
@@ -506,6 +516,7 @@ final class PlaybackSessionViewModel: ObservableObject {
         self.macAudioOutput = macAudioOutput
         self.equalizerEngine = equalizerEngine
         self.defaults = defaults
+        self.clock = clock
         self.pendingShuffleTimeout = pendingShuffleTimeout
         self.pendingRepeatTimeout = pendingRepeatTimeout
         self.pendingSeekTimeout = pendingSeekTimeout
@@ -652,6 +663,7 @@ final class PlaybackSessionViewModel: ObservableObject {
         repeatSyncTask?.cancel()
         seekDispatchTask?.cancel()
         playbackVolumeSendTask?.cancel()
+        pendingPlayTransitionTimeoutTask?.cancel()
         deferredTransportSyncTask?.cancel()
         transportSyncSchedulerTask?.cancel()
         macAudioOutput.stopListening()

@@ -432,7 +432,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
         XCTAssertEqual(nowPlaying.uri, "spotify:track:1")
     }
 
-    func testPlayFromPlaylistQueuesRemainingURIsInOrderFromClickedTrack() async {
+    func testPlayFromPlaylistSendsCompleteURIListWithClickedTrackOffset() async {
         let commander = MockWebPlaybackCommander()
         let playbackAPI = MockPlaybackAPI()
         let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: commander)
@@ -451,8 +451,15 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
 
         XCTAssertEqual(playbackAPI.actions.filter { $0 != "fetchPlayerSnapshot" }, [
             "transfer:device-1:false",
-            "play-list:device-1:spotify:track:2,spotify:episode:3,spotify:track:4"
+            "play-list:device-1:spotify:track:1,spotify:track:2,spotify:episode:3,spotify:track:4"
         ])
+        XCTAssertEqual(playbackAPI.lastPlayedURIQueue, [
+            "spotify:track:1",
+            "spotify:track:2",
+            "spotify:episode:3",
+            "spotify:track:4"
+        ])
+        XCTAssertEqual(playbackAPI.lastPlayedOffsetURI, "spotify:track:2")
         XCTAssertEqual(commander.commands.last?.payload["uri"] as? String, "spotify:track:2")
     }
 
@@ -476,7 +483,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
 
         XCTAssertEqual(playbackAPI.actions.filter { $0 != "fetchPlayerSnapshot" }, [
             "transfer:device-1:false",
-            "play-list:device-1:spotify:episode:2,spotify:track:3"
+            "play-list:device-1:spotify:track:1,spotify:episode:2,spotify:track:3"
         ])
     }
 
