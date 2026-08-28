@@ -270,7 +270,10 @@ struct RootView: View {
             // tree while the overlay is visible.
             .accessibilityHidden(lyricsOverlayController.isPresented)
             .overlay {
-                LyricsOverlayLayer(lyricsOverlay: lyricsOverlayController)
+                LyricsOverlayLayer(
+                    lyricsOverlay: lyricsOverlayController,
+                    keymapStore: commandPaletteManager.keymapStore
+                )
             }
             .overlay {
                 ZStack {
@@ -439,6 +442,7 @@ struct RootView: View {
 /// Renders ``ImmersiveLyricsView`` above the whole window (not only the split-view detail column).
 private struct LyricsOverlayLayer: View {
     @ObservedObject var lyricsOverlay: LyricsOverlayController
+    let keymapStore: CommandPaletteKeymapStore
     @EnvironmentObject private var settingsStore: SpotiglassSettingsStore
 
     /// Avoid blocking the window when `isPresented` is true before browse VC has called `attach` (nil models).
@@ -470,7 +474,8 @@ private struct LyricsOverlayLayer: View {
                         onDismiss: { lyricsOverlay.dismiss() }
                     )
                     .environmentObject(settingsStore),
-                    isActive: immersiveLyricsReady
+                    isActive: immersiveLyricsReady,
+                    keymapStore: keymapStore
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .transition(.opacity.combined(with: .scale(scale: 0.98)))

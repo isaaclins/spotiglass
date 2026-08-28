@@ -5,6 +5,26 @@ import XCTest
 
 @MainActor
 final class LyricsOverlayControllerTests: XCTestCase {
+    private func keyDown(
+        keyCode: UInt16,
+        characters: String = "",
+        modifiers: NSEvent.ModifierFlags = [],
+        windowNumber: Int
+    ) -> NSEvent {
+        NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: modifiers,
+            timestamp: 0,
+            windowNumber: windowNumber,
+            context: nil,
+            characters: characters,
+            charactersIgnoringModifiers: characters,
+            isARepeat: false,
+            keyCode: keyCode
+        )!
+    }
+
     override func tearDown() {
         ImmersiveLyricsViewModel.resetSharedStateForTesting()
         super.tearDown()
@@ -49,9 +69,11 @@ final class LyricsOverlayControllerTests: XCTestCase {
         let previousResponder = LyricsTestFirstResponderView(frame: NSRect(x: 0, y: 0, width: 100, height: 32))
         root.addSubview(previousResponder)
 
+        let keymapStore = CommandPaletteKeymapStore(fileURL: makeCommandPaletteTestsTempSettingsURL())
         let focusContainer = LyricsOverlayFocusContainerView(
             content: Text("Lyrics"),
-            isActive: false
+            isActive: false,
+            keymapStore: keymapStore
         )
         focusContainer.frame = root.bounds
         focusContainer.autoresizingMask = [.width, .height]
@@ -79,35 +101,44 @@ final class LyricsOverlayControllerTests: XCTestCase {
             "expected lyrics focus, got \(String(describing: window.firstResponder))"
         )
 
-        let space = NSEvent.keyEvent(
-            with: .keyDown,
-            location: .zero,
-            modifierFlags: [],
-            timestamp: 0,
-            windowNumber: window.windowNumber,
-            context: nil,
+        let lyricsToggle = keyDown(
+            keyCode: 37,
+            characters: "l",
+            modifiers: [.option, .command],
+            windowNumber: window.windowNumber
+        )
+        let space = keyDown(
+            keyCode: 49,
             characters: " ",
-            charactersIgnoringModifiers: " ",
-            isARepeat: false,
-            keyCode: 49
-        )!
-        let escape = NSEvent.keyEvent(
-            with: .keyDown,
-            location: .zero,
-            modifierFlags: [],
-            timestamp: 0,
-            windowNumber: window.windowNumber,
-            context: nil,
-            characters: "",
-            charactersIgnoringModifiers: "",
-            isARepeat: false,
-            keyCode: 53
-        )!
-        XCTAssertTrue(focusContainer.ownsKeyEvent(space))
+            windowNumber: window.windowNumber
+        )
+        let commandPalette = keyDown(
+            keyCode: 40,
+            characters: "k",
+            modifiers: [.command],
+            windowNumber: window.windowNumber
+        )
+        let escape = keyDown(
+            keyCode: 53,
+            windowNumber: window.windowNumber
+        )
+        let plainX = keyDown(
+            keyCode: 7,
+            characters: "x",
+            windowNumber: window.windowNumber
+        )
+
+        XCTAssertFalse(focusContainer.ownsKeyEvent(lyricsToggle))
+        XCTAssertFalse(focusContainer.ownsKeyEvent(space))
+        XCTAssertFalse(focusContainer.ownsKeyEvent(commandPalette))
         XCTAssertFalse(focusContainer.ownsKeyEvent(escape))
-        focusContainer.keyDown(with: space)
-        XCTAssertTrue(focusContainer.performKeyEquivalent(with: space))
+        XCTAssertTrue(focusContainer.ownsKeyEvent(plainX))
+        focusContainer.keyDown(with: plainX)
+        XCTAssertFalse(focusContainer.performKeyEquivalent(with: lyricsToggle))
+        XCTAssertFalse(focusContainer.performKeyEquivalent(with: space))
+        XCTAssertFalse(focusContainer.performKeyEquivalent(with: commandPalette))
         XCTAssertFalse(focusContainer.performKeyEquivalent(with: escape))
+        XCTAssertTrue(focusContainer.performKeyEquivalent(with: plainX))
 
         focusContainer.setActive(false)
         AppKitTestSupport.pumpRunLoop()
@@ -118,7 +149,11 @@ final class LyricsOverlayControllerTests: XCTestCase {
     }
 
     func testLyricsFocusContainerRepresentableLifecycle() {
-        let wrapper = LyricsOverlayFocusContainer(content: Text("Lyrics"), isActive: false)
+        let wrapper = LyricsOverlayFocusContainer(
+            content: Text("Lyrics"),
+            isActive: false,
+            keymapStore: CommandPaletteKeymapStore(fileURL: makeCommandPaletteTestsTempSettingsURL())
+        )
         _ = ViewTestHost.host(wrapper, size: CGSize(width: 160, height: 80))
         ViewTestHost.tearDownAll()
     }
