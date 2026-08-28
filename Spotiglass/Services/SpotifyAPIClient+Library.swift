@@ -36,6 +36,22 @@ extension SpotifyAPIClient {
         }
     }
 
+    /// Returns whether each catalog track is in the user's Liked Songs. Spotify
+    /// accepts at most 50 IDs per `/contains` request.
+    func savedTrackStatuses(ids: [String]) async throws -> [Bool] {
+        let unique = uniqueOrderedIDs(ids)
+        guard !unique.isEmpty else { return [] }
+        var statuses: [Bool] = []
+        for chunk in unique.chunked(into: Self.savedTracksMutationBatchSize) {
+            let result: [Bool] = try await send(
+                path: "/v1/me/tracks/contains",
+                queryItems: [URLQueryItem(name: "ids", value: chunk.joined(separator: ","))]
+            )
+            statuses.append(contentsOf: result)
+        }
+        return statuses
+    }
+
     // MARK: - Playlist track membership
 
     /// Appends the given tracks to a playlist, batched into ≤100-URI chunks.

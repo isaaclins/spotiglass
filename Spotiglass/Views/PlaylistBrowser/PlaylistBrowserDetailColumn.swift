@@ -68,7 +68,13 @@ struct QueuePanelColumn: View {
                     browserViewModel: browserViewModel,
                     sourcePlaylistID: nil,
                     onRequestCreatePlaylist: onRequestCreatePlaylist,
-                    onRequestLibraryContinuation: onRequestLibraryContinuation
+                    onRequestLibraryContinuation: onRequestLibraryContinuation,
+                    openArtist: openArtist,
+                    artistTargetsOverride: item.artistTapTargets,
+                    // Spotify exposes no Web API endpoint to remove a queue
+                    // item, so do not add a misleading Remove from Queue action;
+                    // Add to Queue is also meaningless for an existing row.
+                    copyableURI: item.uri
                 ))
             }
         )

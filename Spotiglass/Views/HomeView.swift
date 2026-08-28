@@ -162,10 +162,6 @@ struct HomeView: View {
                     },
                     isCurrent: track.playableURI != nil && track.playableURI == currentPlaybackURI,
                     isPlaying: isPlaying,
-                    hasPlaybackDevice: hasPlaybackDevice,
-                    addToQueue: { uri in
-                        await queueViewModel.addToQueue(uri: uri)
-                    },
                     openArtist: { artistID in
                         Task { await viewModel.selectArtist(id: artistID, origin: .extend, displayName: nil) }
                     },
@@ -175,7 +171,17 @@ struct HomeView: View {
                             browserViewModel: viewModel,
                             sourcePlaylistID: nil,
                             onRequestCreatePlaylist: onRequestCreatePlaylist,
-                            onRequestLibraryContinuation: onRequestLibraryContinuation
+                            onRequestLibraryContinuation: onRequestLibraryContinuation,
+                            openArtist: { target in
+                                if let id = target.id {
+                                    Task { await viewModel.selectArtist(id: id, origin: .extend, displayName: nil) }
+                                }
+                            },
+                            addToQueue: { uri in
+                                await queueViewModel.addToQueue(uri: uri)
+                            },
+                            hasPlaybackDevice: hasPlaybackDevice,
+                            copyableURI: track.playableURI
                         ))
                     }
                 )

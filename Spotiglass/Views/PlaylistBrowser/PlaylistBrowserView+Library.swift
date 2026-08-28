@@ -51,6 +51,23 @@ extension PlaylistBrowserView {
         return items.allSatisfy { isPinned($0.id) } ? .unpin : .pin
     }
 
+    /// Unsave only when every catalog track in the selection is already saved.
+    /// A mixed selection offers Add, so one command cannot both save and unsave
+    /// tracks in a single press.
+    static func trackSelectionLikedState(
+        for rows: [TrackRowViewModel],
+        isSaved: (String) -> Bool
+    ) -> TrackSelectionLikedState {
+        let ids = rows.compactMap { row -> String? in
+            guard let uri = row.playableURI,
+                  uri.hasPrefix("spotify:track:") else { return nil }
+            let id = String(uri.dropFirst("spotify:track:".count))
+            return id.isEmpty ? nil : id
+        }
+        guard !ids.isEmpty else { return .unavailable }
+        return ids.allSatisfy(isSaved) ? .remove : .add
+    }
+
     func syncLibraryRowOrder() {
         if pinnedStore.isPinned(id: PinnedItem.likedSongsID) {
             pinnedStore.unpin(id: PinnedItem.likedSongsID)
