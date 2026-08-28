@@ -42,6 +42,8 @@ final class CommandPaletteManager: ObservableObject {
     /// menu bar reorders **Up next** exactly like the queue panel's shuffle button.
     var toggleShuffle: (() async -> Void)?
     var cycleRepeat: (() async -> Void)?
+    /// Sets a specific repeat mode from the Playback menu's native Picker.
+    var setRepeatModeAction: ((SpotifyRepeatMode) async -> Void)?
     /// Menu bar equivalents of the row context menu, acting on the track
     /// table's selection (#132).
     var enqueueTrackSelection: (() async -> Void)?
@@ -74,8 +76,15 @@ final class CommandPaletteManager: ObservableObject {
     @Published private(set) var canTogglePlayback = false
     /// Mirrors whether a current Spotify music track can open immersive lyrics.
     @Published private(set) var canToggleLyrics = false
+    /// Mirrors the session's live shuffle state for the Playback menu.
+    @Published private(set) var shuffleEnabled = false
+    /// Mirrors the session's live repeat mode for the Playback menu.
+    @Published private(set) var repeatMode: SpotifyRepeatMode = .off
     /// Mirrors the session's confirmed shuffle/repeat readiness for the menu bar.
     @Published var canMutatePlaybackTransport = false
+    /// Bulk prefetch state is owned by the browser, but the app menu and palette
+    /// both need the same scene-local projection to render its toggle state.
+    @Published private(set) var prefetchProgress: PrefetchAllPlaylistsProgress?
     /// Guards shuffle/repeat commands from the command palette and menu key equivalents.
     var playbackTransportMutationPrerequisite: (() -> Bool)?
 
@@ -129,17 +138,37 @@ final class CommandPaletteManager: ObservableObject {
         viewModel.refresh()
     }
 
+    /// Keeps menu state and command enablement on the same live playback
+    /// projection. The browser is the source of truth; this manager only
+    /// forwards it to the app-level menu for the active scene.
+    func setPrefetchProgress(_ progress: PrefetchAllPlaylistsProgress?) {
+        guard prefetchProgress != progress || viewModel.prefetchProgress != progress else { return }
+        prefetchProgress = progress
+        viewModel.prefetchProgress = progress
+    }
+
+    /// Requests a concrete repeat mode from the native Picker. The command
+    /// remains guarded by the same readiness predicate as the cycling shortcut.
+    func requestRepeatMode(_ mode: SpotifyRepeatMode) {
+        guard playbackTransportMutationPrerequisite?() ?? false else { return }
+        Task { await setRepeatModeAction?(mode) }
+    }
+
     func bindPlaybackReadiness(to playback: PlaybackSessionViewModel) {
         playbackReadinessCancellables.removeAll()
         setPlaybackToggleAvailability(playback.isPlaybackToggleReady)
         setLyricsToggleAvailability(playback.currentLyricTrack != nil)
+        shuffleEnabled = playback.shuffleEnabled
+        repeatMode = playback.repeatMode
+        canMutatePlaybackTransport = playback.isTransportMutationReady
 
-        Publishers.CombineLatest3(
+        Publishers.CombineLatest4(
             playback.$connectionState,
             playback.$deviceID,
-            playback.$activePlaybackDeviceID
+            playback.$activePlaybackDeviceID,
+            playback.$isTransportStateKnown
         )
-        .sink { [weak self] connectionState, deviceID, activePlaybackDeviceID in
+        .sink { [weak self] connectionState, deviceID, activePlaybackDeviceID, isTransportStateKnown in
             self?.setPlaybackToggleAvailability(
                 PlaybackSessionViewModel.isPlaybackToggleReady(
                     connectionState: connectionState,
@@ -148,8 +177,22 @@ final class CommandPaletteManager: ObservableObject {
                 )
             )
             self?.setLyricsToggleAvailability(connectionState.currentLyricTrack != nil)
+            self?.canMutatePlaybackTransport = isTransportStateKnown
+                && PlaybackSessionViewModel.isPlaybackTransportReady(for: connectionState)
+                && (activePlaybackDeviceID ?? deviceID) != nil
         }
         .store(in: &playbackReadinessCancellables)
+
+        playback.$shuffleEnabled
+            .sink { [weak self] enabled in
+                self?.shuffleEnabled = enabled
+            }
+            .store(in: &playbackReadinessCancellables)
+        playback.$repeatMode
+            .sink { [weak self] mode in
+                self?.repeatMode = mode
+            }
+            .store(in: &playbackReadinessCancellables)
     }
 
     func handleKeyEvent(_ event: NSEvent) -> Bool {
@@ -373,7 +416,10 @@ final class CommandPaletteManager: ObservableObject {
         trackSelectionPinState = .unavailable
         canTogglePlayback = false
         canToggleLyrics = false
+        shuffleEnabled = false
+        repeatMode = .off
         canMutatePlaybackTransport = false
+        prefetchProgress = nil
         playbackReadinessCancellables.removeAll()
 
         signOut = nil
@@ -388,6 +434,7 @@ final class CommandPaletteManager: ObservableObject {
         disconnectPlayback = nil
         toggleShuffle = nil
         cycleRepeat = nil
+        setRepeatModeAction = nil
         enqueueTrackSelection = nil
         pinTrackSelection = nil
         navigateBack = nil

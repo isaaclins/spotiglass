@@ -76,6 +76,45 @@ struct PrefetchAllPlaylistsProgress: Equatable {
     }
 }
 
+extension PrefetchAllPlaylistsProgress {
+    var processedCount: Int {
+        completed + skipped + failed
+    }
+
+    /// Shared copy for the command palette and the always-visible browser
+    /// toolbar indicator. A zero-total running state is the preparing phase.
+    var localizedStatusLabel: String {
+        switch phase {
+        case .running:
+            if total == 0 { return SpotiglassL10n.string("palette.prefetch.preparing") }
+            return SpotiglassL10n.format(
+                "palette.prefetch.loading",
+                Int64(processedCount),
+                Int64(total)
+            )
+        case .finished:
+            if failed == 0 {
+                return SpotiglassL10n.format(
+                    "palette.prefetch.loadedAll",
+                    Int64(completed + skipped)
+                )
+            }
+            return SpotiglassL10n.format(
+                "palette.prefetch.loadedPartial",
+                Int64(completed + skipped),
+                Int64(total),
+                Int64(failed)
+            )
+        case .cancelled:
+            return SpotiglassL10n.format(
+                "palette.prefetch.cancelled",
+                Int64(processedCount),
+                Int64(total)
+            )
+        }
+    }
+}
+
 enum CommandPaletteSection: String {
     case commands = "Commands"
     case playlists = "Playlists"

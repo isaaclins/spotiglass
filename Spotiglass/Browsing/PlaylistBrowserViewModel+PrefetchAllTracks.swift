@@ -21,7 +21,7 @@ extension PlaylistBrowserViewModel {
             prefetchAllPlaylistsTask = nil
             if var progress = prefetchAllPlaylistsProgress {
                 progress.phase = .cancelled
-                prefetchAllPlaylistsProgress = progress
+                publishPrefetchProgress(progress, event: "cancelled")
             }
             scheduleTerminalProgressClear()
             return
@@ -37,20 +37,33 @@ extension PlaylistBrowserViewModel {
     /// Core prefetch loop. Public for tests; production callers should use
     /// `toggleBulkPlaylistTrackPrefetch()`.
     func runBulkPlaylistTrackPrefetch() async {
+        SpotiglassLog.debug(.browsing, "Bulk playlist track prefetch started")
+        publishPrefetchProgress(
+            PrefetchAllPlaylistsProgress(
+                phase: .running, total: 0, completed: 0, skipped: 0, failed: 0
+            ),
+            event: "preparing"
+        )
         await loadIfNeeded()
 
         let worklist = buildPrefetchWorklist()
         guard !worklist.isEmpty else {
-            prefetchAllPlaylistsProgress = PrefetchAllPlaylistsProgress(
-                phase: .finished, total: 0, completed: 0, skipped: 0, failed: 0
+            publishPrefetchProgress(
+                PrefetchAllPlaylistsProgress(
+                    phase: .finished, total: 0, completed: 0, skipped: 0, failed: 0
+                ),
+                event: "finished"
             )
             scheduleTerminalProgressClear()
             prefetchAllPlaylistsTask = nil
             return
         }
 
-        prefetchAllPlaylistsProgress = PrefetchAllPlaylistsProgress(
-            phase: .running, total: worklist.count, completed: 0, skipped: 0, failed: 0
+        publishPrefetchProgress(
+            PrefetchAllPlaylistsProgress(
+                phase: .running, total: worklist.count, completed: 0, skipped: 0, failed: 0
+            ),
+            event: "progress"
         )
 
         let concurrency = min(Self.prefetchAllPlaylistsConcurrency, worklist.count)
@@ -89,12 +102,12 @@ extension PlaylistBrowserViewModel {
         if Task.isCancelled {
             if var progress = prefetchAllPlaylistsProgress {
                 progress.phase = .cancelled
-                prefetchAllPlaylistsProgress = progress
+                publishPrefetchProgress(progress, event: "cancelled")
             }
         } else {
             if var progress = prefetchAllPlaylistsProgress {
                 progress.phase = .finished
-                prefetchAllPlaylistsProgress = progress
+                publishPrefetchProgress(progress, event: "finished")
             }
         }
         scheduleTerminalProgressClear()
@@ -109,7 +122,18 @@ extension PlaylistBrowserViewModel {
         case .failed:    progress.failed += 1
         case .cancelled: break
         }
+        publishPrefetchProgress(progress, event: "progress")
+    }
+
+    private func publishPrefetchProgress(
+        _ progress: PrefetchAllPlaylistsProgress,
+        event: String
+    ) {
         prefetchAllPlaylistsProgress = progress
+        SpotiglassLog.debug(
+            .browsing,
+            "Bulk playlist track prefetch \(event): phase=\(progress.phase) processed=\(progress.processedCount)/\(progress.total) completed=\(progress.completed) skipped=\(progress.skipped) failed=\(progress.failed)"
+        )
     }
 
     /// Single-item worker; safe to run off the main actor (only the API + cache touches happen here).

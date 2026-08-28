@@ -3,6 +3,7 @@ import XCTest
 
 final class SpotiglassLogTests: XCTestCase {
     func testInfoAndErrorOnAllCategories() {
+        SpotiglassLog.debug(SpotiglassLog.browsing, "browsing debug")
         SpotiglassLog.info(SpotiglassLog.auth, "auth info")
         SpotiglassLog.error(SpotiglassLog.auth, "auth error")
         SpotiglassLog.info(SpotiglassLog.api, "api info")

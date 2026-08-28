@@ -1,3 +1,5 @@
+import SwiftUI
+import ViewInspector
 import XCTest
 @testable import Spotiglass
 
@@ -208,6 +210,18 @@ final class PlaylistBrowserPrefetchAllTracksTests: XCTestCase {
 
         let progress = try XCTUnwrap(vm.prefetchAllPlaylistsProgress)
         XCTAssertEqual(progress.phase, .cancelled)
+    }
+
+    func testBrowserPrefetchProgressToolbarItemShowsStatusWithoutPalette() throws {
+        let view = PlaylistBrowserPrefetchProgressToolbarItem(
+            progress: PrefetchAllPlaylistsProgress(
+                phase: .running, total: 10, completed: 2, skipped: 1, failed: 0
+            ),
+            onCancel: {}
+        )
+
+        ViewTestHost.host(view)
+        XCTAssertNoThrow(try view.inspect().find(text: "Loading 3 of 10 playlists…"))
     }
 
     func testCoalescesWithRecentRevalidation() async throws {

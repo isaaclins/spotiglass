@@ -72,15 +72,20 @@ extension PlaybackSessionViewModel {
     }
 
     func cycleRepeat() async {
+        await setRepeatMode(repeatMode.next)
+    }
+
+    /// Applies an explicitly selected repeat mode. The Playback menu uses this
+    /// instead of forcing users to cycle through unknown intermediate states.
+    func setRepeatMode(_ mode: SpotifyRepeatMode) async {
         guard isTransportStateKnown else { return }
         guard let commandDeviceID else {
             setConnectionState(.error(Self.playbackDeviceReconnectRequiredError()))
             return
         }
-        let nextMode = repeatMode.next
-        repeatMode = nextMode
-        desiredRepeatMode = nextMode
-        setPendingRepeat(mode: nextMode)
+        repeatMode = mode
+        desiredRepeatMode = mode
+        setPendingRepeat(mode: mode)
         await flushDesiredRepeatWrites(deviceID: commandDeviceID)
     }
 
