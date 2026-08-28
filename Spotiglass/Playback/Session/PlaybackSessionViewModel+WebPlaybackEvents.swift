@@ -21,6 +21,7 @@ extension PlaybackSessionViewModel {
                 }
                 supersededSDKDeviceIDs.remove(deviceID)
             }
+            cancelPlaybackHostConnectTimeout()
             reclaimableSDKDeviceID = nil
             let previousSDKDeviceID = self.deviceID
             let shouldRefreshTransportState = !(previousSDKDeviceID == deviceID && isTransportStateKnown)
@@ -123,6 +124,7 @@ extension PlaybackSessionViewModel {
             if suppressed {
                 return
             }
+            cancelPlaybackHostConnectTimeout()
             let authoritativeState: PlaybackConnectionState = isPaused
                 ? .paused(nowPlaying)
                 : .playing(nowPlaying ?? fallbackNowPlaying())
@@ -141,6 +143,8 @@ extension PlaybackSessionViewModel {
                 clearTogglePlayPauseAckWait()
             }
         case let .initializationError(message):
+            cancelPlaybackHostConnectTimeout()
+            SpotiglassLog.error(.playback, "Spotify playback SDK initialization failed: \(message)")
             setConnectionState(.error(PlaybackDisplayError(
                 title: SpotiglassL10n.string("error.playback.couldNotStart.title"),
                 message: message,
@@ -162,26 +166,32 @@ extension PlaybackSessionViewModel {
                 await self.attemptPlaybackHostRecovery(cause: .initializationError, generation: generation)
             }
         case let .authenticationError(message):
+            cancelPlaybackHostConnectTimeout()
+            SpotiglassLog.error(.playback, "Spotify playback SDK authentication failed: \(message)")
             setConnectionState(.error(PlaybackDisplayError(
                 title: SpotiglassL10n.string("error.playback.signInAgain.title"),
                 message: message,
                 recoveryAction: .reauthenticate
             )))
         case let .accountError(message):
+            cancelPlaybackHostConnectTimeout()
+            SpotiglassLog.error(.playback, "Spotify playback SDK account error: \(message)")
             setConnectionState(.error(PlaybackDisplayError(
                 title: SpotiglassL10n.string("error.playback.premium.title"),
                 message: message,
                 recoveryAction: nil
             )))
         case let .playbackError(message):
+            cancelPlaybackHostConnectTimeout()
+            SpotiglassLog.error(.playback, "Spotify playback SDK playback error: \(message)")
             clearTogglePlayPauseAckWait()
             setConnectionState(.error(PlaybackDisplayError(
                 title: SpotiglassL10n.string("error.playback.error.title"),
                 message: message,
                 recoveryAction: .retryTransfer
             )))
-        case .log:
-            break
+        case let .log(message):
+            SpotiglassLog.info(.playback, "Spotify playback SDK: \(message)")
         }
     }
 

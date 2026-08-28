@@ -4575,6 +4575,52 @@
         }
       }
     },
+    "error.playback.connectionTimeout.message": {
+      "comment": "Actionable message shown when the Spotify Web Playback SDK remains connecting past its timeout.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass konnte keine Verbindung zur Spotify-Wiedergabe herstellen. Prüfen Sie die Verbindung und wählen Sie „Erneut verbinden“ aus."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass could not connect to Spotify playback. Check your connection and choose Reconnect to try again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass no pudo conectarse a la reproducción de Spotify. Comprueba la conexión y elige Reconectar para intentarlo de nuevo."
+          }
+        }
+      }
+    },
+    "error.playback.connectionTimeout.title": {
+      "comment": "Title shown when the Spotify Web Playback SDK remains connecting past its timeout.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zeitüberschreitung bei der Wiedergabeverbindung"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playback connection timed out"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se agotó el tiempo de conexión de reproducción"
+          }
+        }
+      }
+    },
     "error.playback.commandFailed.message": {
       "extractionState": "stale",
       "localizations": {
@@ -9912,24 +9958,25 @@
       }
     },
     "playback.controls.state.connecting.subtitle": {
+      "comment": "Status copy shown while the SDK is connecting; it must not imply a Premium failure before Spotify reports one.",
       "extractionState": "stale",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Für die Wiedergabe in der App ist Spotify Premium erforderlich."
+            "value": "Spotiglass verbindet sich mit Spotify. Wenn es zu lange dauert, wird „Erneut verbinden“ verfügbar."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotify Premium is required for in-app playback."
+            "value": "Spotiglass is connecting to Spotify. If it takes too long, choose Reconnect when it appears."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Se requiere Spotify Premium para la reproducción en la app."
+            "value": "Spotiglass se está conectando a Spotify. Si tarda demasiado, elige Reconectar cuando aparezca."
           }
         }
       }

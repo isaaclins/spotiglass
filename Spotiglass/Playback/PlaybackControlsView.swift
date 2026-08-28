@@ -209,6 +209,7 @@ struct PlaybackControlsView: View {
                         .lineLimit(1)
                         .contentTransition(.opacity)
                         .animation(.smooth(duration: 0.28), value: subtitle)
+                        .help(subtitle)
                 } else {
                     artistLine
                 }

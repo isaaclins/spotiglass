@@ -173,13 +173,10 @@ final class PlaybackChromeViewsTests: XCTestCase {
 
     func testRealizedTransportAccessibilityTreeExposesLabeledControls() throws {
         let playback = makePlayingPlayback(artists: ["M83", "The Weeknd"])
-        let commander = WebPlaybackViewCommander()
-        let coordinator = SpotifyPlaybackWebViewCoordinator(
-            tokenBridge: PlaybackTokenBridge(
-                provider: MockPlaybackTokenProvider(
-                    accessToken: "a",
-                    refreshedAccessToken: "b"
-                )
+        let playbackHost = SpotiglassPlaybackHost(
+            tokenProvider: MockPlaybackTokenProvider(
+                accessToken: "a",
+                refreshedAccessToken: "b"
             )
         )
         let view = ZStack {
@@ -188,7 +185,7 @@ final class PlaybackChromeViewsTests: XCTestCase {
                 isLyricsPresented: .constant(false),
                 openArtist: { _ in }
             )
-            HiddenPlaybackWebView(commander: commander, coordinator: coordinator)
+            SpotiglassPlaybackHostView(host: playbackHost)
                 .frame(width: 1, height: 1)
                 .opacity(0.01)
                 .accessibilityHidden(true)

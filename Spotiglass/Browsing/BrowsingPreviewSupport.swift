@@ -113,13 +113,15 @@ final class PreviewPlaybackTokenProvider: PlaybackAccessTokenProviding, SpotifyA
 
 #if DEBUG
 #Preview {
-    PlaylistBrowserView(
+    let tokens = PreviewPlaybackTokenProvider()
+    let playbackHost = SpotiglassPlaybackHost(tokenProvider: tokens)
+    return PlaylistBrowserView(
         viewModel: PlaylistBrowserViewModel(
             api: PreviewBrowsingAPI(),
             cache: PreviewBrowsingCache()
         ),
-        playbackTokenProvider: PreviewPlaybackTokenProvider(),
-        searchTokenProvider: PreviewPlaybackTokenProvider(),
+        playbackHost: playbackHost,
+        searchTokenProvider: tokens,
         commandPaletteManager: CommandPaletteManager(),
         signOut: {}
     )

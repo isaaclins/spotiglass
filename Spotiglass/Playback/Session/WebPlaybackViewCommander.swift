@@ -24,8 +24,9 @@ extension WebPlaybackCommanding {
 final class WebPlaybackViewCommander: WebPlaybackCommanding {
     private weak var webView: WKWebView?
     private var loadedHostGeneration: PlaybackHostGeneration?
-    /// Set when ``loadHost()`` runs before the `WKWebView` has been installed by
-    /// `HiddenPlaybackWebView.makeNSView` (a real race on window reopen). The
+    /// Set when ``loadHost()`` runs before the app-scoped `WKWebView` has been
+    /// installed by `SpotiglassPlaybackHostView.makeNSView` (a real race on
+    /// window reopen). The
     /// load is replayed in ``attach(webView:)`` once the WebView is available so
     /// the SDK host page is guaranteed to load.
     private var hostLoadPendingGeneration: PlaybackHostGeneration?

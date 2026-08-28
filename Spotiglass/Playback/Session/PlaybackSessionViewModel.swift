@@ -237,6 +237,8 @@ final class PlaybackSessionViewModel: ObservableObject {
     /// Events and asynchronous completions from an older generation cannot publish into this one.
     var playbackHostGeneration = PlaybackHostGeneration.initial
     var playbackHostConnectTask: Task<Void, Never>?
+    var playbackHostConnectTimeoutTask: Task<Void, Never>?
+    var playbackHostConnectTimeoutSerial: UInt64 = 0
     var playbackHostRecoveryTask: Task<Void, Never>?
     var playbackHostRecoverySerial: UInt64 = 0
     var playbackHostAutoResumeTask: Task<Void, Never>?
@@ -289,6 +291,9 @@ final class PlaybackSessionViewModel: ObservableObject {
     let playbackHostHardReloadWindowMax: Int
     let playbackHostRecoveryConnectTimeout: Duration
     let playbackHostRecoverySoftResetTimeout: Duration
+    /// Maximum time the SDK host may remain in `.connecting` before the UI
+    /// receives a retryable error instead of an unbounded spinner.
+    let playbackHostConnectTimeout: Duration
     var playbackHostHardReloadInstants: [ContinuousClock.Instant] = []
 
     /// Owns the SDK state-change fence for one accepted play command. The
@@ -508,6 +513,7 @@ final class PlaybackSessionViewModel: ObservableObject {
         playbackHostHardReloadWindowMax: Int = 2,
         playbackHostRecoveryConnectTimeout: Duration = .seconds(1),
         playbackHostRecoverySoftResetTimeout: Duration = .seconds(2),
+        playbackHostConnectTimeout: Duration = .seconds(15),
         pendingVolumeTimeout: Duration = .seconds(3),
         volumeMatchTolerance: Double = 0.01
     ) {
@@ -540,6 +546,7 @@ final class PlaybackSessionViewModel: ObservableObject {
         self.playbackHostHardReloadWindowMax = playbackHostHardReloadWindowMax
         self.playbackHostRecoveryConnectTimeout = playbackHostRecoveryConnectTimeout
         self.playbackHostRecoverySoftResetTimeout = playbackHostRecoverySoftResetTimeout
+        self.playbackHostConnectTimeout = playbackHostConnectTimeout
         self.playbackVolume = Self.loadStoredPlaybackVolume(from: defaults)
 
         macAudioOutput.startListening { [weak self] in
@@ -653,6 +660,7 @@ final class PlaybackSessionViewModel: ObservableObject {
 
     deinit {
         playbackHostConnectTask?.cancel()
+        playbackHostConnectTimeoutTask?.cancel()
         playbackHostRecoveryTask?.cancel()
         playbackHostAutoResumeTask?.cancel()
         connectDevicesRefreshTask?.cancel()
@@ -688,6 +696,22 @@ final class PlaybackSessionViewModel: ObservableObject {
         PlaybackDisplayError(
             title: SpotiglassL10n.string("error.playback.deviceUnavailable.title"),
             message: SpotiglassL10n.string("error.playback.deviceUnavailable.reconnect"),
+            recoveryAction: .reconnect
+        )
+    }
+
+    static func playbackHostConnectionTimedOutError() -> PlaybackDisplayError {
+        PlaybackDisplayError(
+            title: SpotiglassL10n.string("error.playback.connectionTimeout.title"),
+            message: SpotiglassL10n.string("error.playback.connectionTimeout.message"),
+            recoveryAction: .reconnect
+        )
+    }
+
+    static func playbackHostConnectionFailedError(for error: Error) -> PlaybackDisplayError {
+        PlaybackDisplayError(
+            title: SpotiglassL10n.string("error.playback.couldNotStart.title"),
+            message: String(format: SpotiglassL10n.string("error.playback.commandFailed.message"), error.localizedDescription),
             recoveryAction: .reconnect
         )
     }
