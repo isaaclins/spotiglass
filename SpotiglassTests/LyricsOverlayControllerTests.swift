@@ -159,6 +159,17 @@ final class LyricsOverlayControllerTests: XCTestCase {
         ViewTestHost.tearDownAll()
     }
 
+    func testLyricsFocusContainerDismantlesAnActiveView() {
+        let keymapStore = CommandPaletteKeymapStore(fileURL: makeCommandPaletteTestsTempSettingsURL())
+        let view = LyricsOverlayFocusContainerView(
+            content: Text("Lyrics"),
+            isActive: true,
+            keymapStore: keymapStore
+        )
+
+        LyricsOverlayFocusContainer<Text>.dismantleNSView(view, coordinator: ())
+    }
+
     func testDetachingOneSceneLeavesAnotherSceneOverlayAttached() {
         let first = LyricsOverlayController()
         let second = LyricsOverlayController()
