@@ -6576,6 +6576,29 @@
         }
       }
     },
+    "menu.file.stopLoadingSongs": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Laden deiner Titel stoppen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stop Loading Your Songs"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dejar de cargar tus canciones"
+          }
+        }
+      }
+    },
     "menu.help.reportIssue": {
       "extractionState": "manual",
       "localizations": {
