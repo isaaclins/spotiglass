@@ -9336,6 +9336,52 @@
         }
       }
     },
+    "playback.controls.connectDevices": {
+      "comment": "Heading for the Spotify Connect device selection group in the playback device menu.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect-Geräte"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect devices"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dispositivos Connect"
+          }
+        }
+      }
+    },
+    "playback.controls.macAudioOutputs": {
+      "comment": "Heading for the Mac audio output selection group in the playback device menu.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac-Audioausgaben"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac audio outputs"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Salidas de audio del Mac"
+          }
+        }
+      }
+    },
     "playback.controls.lyrics": {
       "extractionState": "stale",
       "localizations": {

@@ -1,3 +1,5 @@
+import AppKit
+import CoreAudio
 import SwiftUI
 
 /// Tooltip copy for the transport toggles, shared by the now-playing bar, the
@@ -23,6 +25,38 @@ enum PlaybackTransportTooltips {
         isEnabled
             ? SpotiglassL10n.string("tooltip.playback.shuffle.turnOff")
             : SpotiglassL10n.string("tooltip.playback.shuffle.turnOn")
+    }
+}
+
+/// Responsive geometry policy for the playback transport.
+enum PlaybackTransportLayoutPolicy {
+    static let scrubberMinimumWidth: CGFloat = 180
+    static let compactVolumeBreakpoint: CGFloat = 760
+    static let stackedScrubberBreakpoint: CGFloat = 680
+
+    static func usesCompactVolume(for width: CGFloat) -> Bool {
+        width < compactVolumeBreakpoint
+    }
+
+    static func usesStackedScrubber(for width: CGFloat) -> Bool {
+        width < stackedScrubberBreakpoint
+    }
+
+    /// The compact transport's fixed controls and ideal summary leave this
+    /// much room for the scrubber. Once that room is smaller than the floor,
+    /// the summary yields before the scrubber does.
+    static func scrubberWidth(in windowWidth: CGFloat) -> CGFloat {
+        let compactTrailingWidth =
+            (4 * 28)
+            + (3 * SpotiglassDesign.spacingS)
+            + 28 + 28
+            + (2 * SpotiglassDesign.spacingM)
+        let fixedWidth =
+            (4 * SpotiglassDesign.spacingM)
+            + (2 * SpotiglassDesign.spacingM)
+            + compactTrailingWidth
+            + 280
+        return max(scrubberMinimumWidth, windowWidth - fixedWidth)
     }
 }
 
@@ -69,27 +103,68 @@ struct PlaybackControlsView: View {
     @Binding var isLyricsPresented: Bool
     let openArtist: (ArtistTapTarget) -> Void
     @State private var dragFraction: Double?
+    @State private var transportWidth: CGFloat = 0
+    @State private var isVolumePopoverPresented = false
 
     var body: some View {
         GlassPanel {
-            HStack(spacing: SpotiglassDesign.spacingM) {
-                nowPlayingSummary
-                    .frame(minWidth: 240, idealWidth: 280, maxWidth: 320, alignment: .leading)
-
-                centerScrubberGroup
-                    .frame(maxWidth: .infinity)
-
-                HStack(spacing: SpotiglassDesign.spacingM) {
-                    controlsCluster
-                    connectDeviceMenuGroup
-                    volumeGroup
-                }
-            }
+            transportRow(
+                useCompactVolume: PlaybackTransportLayoutPolicy.usesCompactVolume(for: transportWidth),
+                stackScrubber: PlaybackTransportLayoutPolicy.usesStackedScrubber(for: transportWidth)
+            )
             .padding(.horizontal, SpotiglassDesign.spacingM)
             .padding(.vertical, SpotiglassDesign.spacingS)
         }
+        .onGeometryChange(for: CGFloat.self, of: \.size.width) { _, newWidth in
+            guard newWidth != transportWidth else { return }
+            transportWidth = newWidth
+        }
         .padding(.horizontal, SpotiglassDesign.spacingM)
         .padding(.bottom, SpotiglassDesign.spacingM)
+    }
+
+    @ViewBuilder
+    private func transportRow(useCompactVolume: Bool, stackScrubber: Bool) -> some View {
+        Group {
+            if stackScrubber {
+                VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
+                    transportActions(useCompactVolume: useCompactVolume, includeSummary: true)
+                    centerScrubberGroup
+                        .frame(maxWidth: .infinity)
+                }
+            } else {
+                HStack(spacing: SpotiglassDesign.spacingM) {
+                    nowPlayingSummary
+                        .frame(minWidth: 0, idealWidth: 280, maxWidth: 320, alignment: .leading)
+
+                    centerScrubberGroup
+                        .frame(
+                            minWidth: PlaybackTransportLayoutPolicy.scrubberWidth(in: transportWidth),
+                            maxWidth: .infinity
+                        )
+                        .layoutPriority(1)
+
+                    transportActions(useCompactVolume: useCompactVolume, includeSummary: false)
+                }
+            }
+        }
+    }
+
+    private func transportActions(useCompactVolume: Bool, includeSummary: Bool) -> some View {
+        HStack(spacing: SpotiglassDesign.spacingM) {
+            if includeSummary {
+                nowPlayingSummary
+                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+            }
+
+            controlsCluster
+            connectDeviceMenuGroup
+            if useCompactVolume {
+                compactVolumeGroup
+            } else {
+                volumeGroup
+            }
+        }
     }
 
     private var nowPlayingSummary: some View {
@@ -104,17 +179,18 @@ struct PlaybackControlsView: View {
                         .contentTransition(.opacity)
                         .animation(.smooth(duration: 0.28), value: title)
                     if showsLyricsButton {
-                        Button {
-                            isLyricsPresented = true
-                        } label: {
+                        PlaybackTransportButton(
+                            accessibilityLabel: SpotiglassL10n.string("playback.controls.lyrics"),
+                            accessibilityHint: SpotiglassL10n.string("playback.controls.lyrics.hint"),
+                            size: CGSize(width: 22, height: 22),
+                            action: { isLyricsPresented = true }
+                        ) {
                             Image(systemName: "music.note.list")
                                 .font(.body.weight(.medium))
                                 .foregroundStyle(.secondary)
                         }
-                        .buttonStyle(.plain)
+                        .frame(width: 22, height: 22)
                         .help(SpotiglassL10n.string("tooltip.playback.lyrics"))
-                        .accessibilityLabel(SpotiglassL10n.string("playback.controls.lyrics"))
-                        .accessibilityHint(SpotiglassL10n.string("playback.controls.lyrics.hint"))
                     }
                     if shouldShowPausedIndicator {
                         Text(SpotiglassL10n.string("playback.paused.label"))
@@ -149,17 +225,22 @@ struct PlaybackControlsView: View {
         ZStack {
             if let item = nowPlaying {
                 if showsLyricsButton {
-                    Button {
-                        isLyricsPresented = true
-                    } label: {
+                    ZStack {
                         ArtworkView(url: item.albumArtURL, size: 44)
+                        PlaybackTransportButton(
+                            accessibilityLabel: SpotiglassL10n.string("playback.controls.openLyrics"),
+                            accessibilityHint: SpotiglassL10n.string("playback.controls.lyrics.hint"),
+                            size: CGSize(width: 44, height: 44),
+                            action: { isLyricsPresented = true }
+                        ) {
+                            EmptyView()
+                        }
+                        .opacity(0.001)
                     }
-                    .buttonStyle(.plain)
+                    .frame(width: 44, height: 44)
                     .id("artwork:\(item.uri ?? item.name)")
                     .transition(.opacity.combined(with: .scale(scale: 0.94)))
                     .help(SpotiglassL10n.string("tooltip.playback.lyrics"))
-                    .accessibilityLabel(SpotiglassL10n.string("playback.controls.openLyrics"))
-                    .accessibilityHint(SpotiglassL10n.string("playback.controls.lyrics.hint"))
                 } else {
                     ArtworkView(url: item.albumArtURL, size: 44)
                         .id("artwork:\(item.uri ?? item.name)")
@@ -206,43 +287,55 @@ struct PlaybackControlsView: View {
             recoveryLeadingControl
                 .animation(.smooth(duration: 0.22), value: recoveryControlKey)
 
-            Button {
-                Task { await viewModel.previous() }
-            } label: {
+            PlaybackTransportButton(
+                accessibilityLabel: SpotiglassL10n.string("playback.controls.previous"),
+                accessibilityHint: SpotiglassL10n.string("playback.controls.previous.hint"),
+                size: CGSize(width: 28, height: 28),
+                isEnabled: hasReadyDevice && !viewModel.isSkipCommandPending,
+                action: { Task { await viewModel.previous() } }
+            ) {
                 Image(systemName: "backward.fill")
             }
-            .disabled(!hasReadyDevice || viewModel.isSkipCommandPending)
+            .frame(width: 28, height: 28)
             .help(SpotiglassL10n.string("tooltip.playback.previous"))
-            .accessibilityLabel(SpotiglassL10n.string("playback.controls.previous"))
-            .accessibilityHint(SpotiglassL10n.string("playback.controls.previous.hint"))
 
-            Button {
-                Task { await viewModel.togglePlayPause() }
-            } label: {
+            PlaybackTransportButton(
+                accessibilityLabel: playPauseAccessibilityLabel,
+                accessibilityHint: SpotiglassL10n.string("playback.controls.playPause.hint"),
+                size: CGSize(width: 28, height: 28),
+                isEnabled: viewModel.isPlaybackToggleReady,
+                action: { Task { await viewModel.togglePlayPause() } }
+            ) {
                 Image(systemName: playPauseIcon)
                     .contentTransition(.symbolEffect(.replace))
                     .animation(.smooth(duration: 0.18), value: playPauseIcon)
             }
-            .disabled(!viewModel.isPlaybackToggleReady)
+            .frame(width: 28, height: 28)
             // Label and tooltip agree here: the state and the next action are
             // the same word, so "Pause" shows while something is playing.
             .help(playPauseAccessibilityLabel)
-            .accessibilityLabel(playPauseAccessibilityLabel)
-            .accessibilityHint(SpotiglassL10n.string("playback.controls.playPause.hint"))
 
-            Button {
-                Task { await viewModel.next() }
-            } label: {
+            PlaybackTransportButton(
+                accessibilityLabel: SpotiglassL10n.string("playback.controls.next"),
+                accessibilityHint: SpotiglassL10n.string("playback.controls.next.hint"),
+                size: CGSize(width: 28, height: 28),
+                isEnabled: hasReadyDevice
+                    && !viewModel.isSkipCommandPending
+                    && !viewModel.isNextCommandLockedOut,
+                action: { Task { await viewModel.next() } }
+            ) {
                 Image(systemName: "forward.fill")
             }
-            .disabled(!hasReadyDevice || viewModel.isSkipCommandPending || viewModel.isNextCommandLockedOut)
+            .frame(width: 28, height: 28)
             .help(SpotiglassL10n.string("tooltip.playback.next"))
-            .accessibilityLabel(SpotiglassL10n.string("playback.controls.next"))
-            .accessibilityHint(SpotiglassL10n.string("playback.controls.next.hint"))
 
-            Button {
-                Task { await viewModel.cycleRepeat() }
-            } label: {
+            PlaybackTransportButton(
+                accessibilityLabel: repeatAccessibilityLabel,
+                accessibilityHint: SpotiglassL10n.string("playback.controls.repeat.hint"),
+                size: CGSize(width: 28, height: 28),
+                isEnabled: viewModel.isTransportMutationReady,
+                action: { Task { await viewModel.cycleRepeat() } }
+            ) {
                 Image(systemName: repeatButtonIcon)
                     .foregroundStyle(
                         repeatButtonUsesAccent
@@ -250,10 +343,8 @@ struct PlaybackControlsView: View {
                             : AnyShapeStyle(.secondary)
                     )
             }
-            .disabled(!viewModel.isTransportMutationReady)
+            .frame(width: 28, height: 28)
             .help(PlaybackTransportTooltips.repeatTooltip(currentMode: viewModel.repeatMode))
-            .accessibilityLabel(repeatAccessibilityLabel)
-            .accessibilityHint(SpotiglassL10n.string("playback.controls.repeat.hint"))
         }
         .controlSize(.regular)
     }
@@ -287,46 +378,36 @@ struct PlaybackControlsView: View {
         if viewModel.deviceID != nil {
             Menu {
                 Group {
-                    ForEach(viewModel.connectDevices) { device in
-                        Button {
-                            Task { await viewModel.transferPlayback(toConnectDevice: device.deviceID) }
-                        } label: {
-                            HStack(spacing: 8) {
-                                if device.isActive {
-                                    Image(systemName: "checkmark")
-                                        .foregroundStyle(.secondary)
-                                        .frame(width: 12)
-                                } else {
-                                    Color.clear.frame(width: 12)
-                                }
-                                Image(systemName: connectDeviceRowSymbol(for: device))
-                                Text(device.name)
-                                    .lineLimit(1)
-                            }
+                    Picker(selection: connectDeviceSelection) {
+                        ForEach(viewModel.connectDevices) { device in
+                            Label(
+                                device.name,
+                                systemImage: connectDeviceRowSymbol(for: device)
+                            )
+                            .lineLimit(1)
+                            .tag(device.deviceID)
+                            .disabled(device.isRestricted)
                         }
-                        .disabled(device.isRestricted)
+                    } label: {
+                        Text(SpotiglassL10n.string("playback.controls.connectDevices"))
                     }
+                    .pickerStyle(.inline)
 
                     Divider()
 
-                    ForEach(viewModel.macAudioOutputDevices) { device in
-                        Button {
-                            viewModel.setSystemDefaultOutputDevice(device.id)
-                        } label: {
-                            HStack(spacing: 8) {
-                                if viewModel.systemDefaultOutputDeviceID == device.id {
-                                    Image(systemName: "checkmark")
-                                        .foregroundStyle(.secondary)
-                                        .frame(width: 12)
-                                } else {
-                                    Color.clear.frame(width: 12)
-                                }
-                                Image(systemName: macAudioOutputRowSymbol(for: device))
-                                Text(device.name)
-                                    .lineLimit(1)
-                            }
+                    Picker(selection: macAudioOutputSelection) {
+                        ForEach(viewModel.macAudioOutputDevices) { device in
+                            Label(
+                                device.name,
+                                systemImage: macAudioOutputRowSymbol(for: device)
+                            )
+                            .lineLimit(1)
+                            .tag(device.id)
                         }
+                    } label: {
+                        Text(SpotiglassL10n.string("playback.controls.macAudioOutputs"))
                     }
+                    .pickerStyle(.inline)
                 }
                 .onAppear {
                     Task { @MainActor in
@@ -338,9 +419,13 @@ struct PlaybackControlsView: View {
                 ZStack {
                     Circle()
                         .fill(Color.primary.opacity(0.08))
-                    Image(systemName: viewModel.trayOutputSymbolName)
-                        .font(.body.weight(.medium))
-                        .foregroundStyle(.primary)
+                    Label(
+                        SpotiglassL10n.string("playback.controls.device"),
+                        systemImage: viewModel.trayOutputSymbolName
+                    )
+                    .labelStyle(.iconOnly)
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(.primary)
                 }
                 .frame(width: 28, height: 28)
             }
@@ -353,12 +438,64 @@ struct PlaybackControlsView: View {
         }
     }
 
+    private var connectDeviceSelection: Binding<String> {
+        Binding(
+            get: {
+                viewModel.connectDevices.first(where: \.isActive)?.deviceID ?? ""
+            },
+            set: { deviceID in
+                guard
+                    let device = viewModel.connectDevices.first(where: { $0.deviceID == deviceID }),
+                    !device.isRestricted
+                else { return }
+                Task { await viewModel.transferPlayback(toConnectDevice: deviceID) }
+            }
+        )
+    }
+
+    private var macAudioOutputSelection: Binding<AudioDeviceID> {
+        Binding(
+            get: { viewModel.systemDefaultOutputDeviceID ?? 0 },
+            set: { deviceID in
+                guard deviceID != 0 else { return }
+                viewModel.setSystemDefaultOutputDevice(deviceID)
+            }
+        )
+    }
+
     private func connectDeviceRowSymbol(for device: SpotifyConnectDevice) -> String {
         PlaybackOutputSFResolver.symbolName(deviceName: device.name, spotifyDeviceType: device.type)
     }
 
     private func macAudioOutputRowSymbol(for device: MacAudioOutputDevice) -> String {
         PlaybackOutputSFResolver.symbolName(deviceName: device.name, spotifyDeviceType: nil)
+    }
+
+    private var compactVolumeGroup: some View {
+        PlaybackTransportButton(
+            accessibilityLabel: SpotiglassL10n.string("playback.controls.volume"),
+            accessibilityHint: SpotiglassL10n.string("playback.controls.volume.hint"),
+            size: CGSize(width: 28, height: 28),
+            isEnabled: hasReadyDevice,
+            action: { isVolumePopoverPresented.toggle() }
+        ) {
+            Image(systemName: "speaker.wave.2")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(width: 28, height: 28)
+        .popover(isPresented: $isVolumePopoverPresented) {
+            Slider(value: playbackVolumeBinding, in: 0 ... 1)
+                .controlSize(.small)
+                .frame(width: 140)
+                .padding()
+        }
+        .help(SpotiglassL10n.string("playback.controls.volume"))
+        .accessibilityLabel(SpotiglassL10n.string("playback.controls.volume"))
+        .accessibilityValue(
+            (viewModel.playbackVolume).formatted(.percent.precision(.fractionLength(0)))
+        )
+        .accessibilityHint(SpotiglassL10n.string("playback.controls.volume.hint"))
     }
 
     private var volumeGroup: some View {
@@ -406,13 +543,15 @@ struct PlaybackControlsView: View {
     private var recoveryLeadingControl: some View {
         switch viewModel.connectionState {
         case .disconnected, .unavailable:
-            Button {
-                viewModel.start()
-            } label: {
+            PlaybackTransportButton(
+                accessibilityLabel: SpotiglassL10n.string("playback.controls.reconnect.label"),
+                accessibilityHint: SpotiglassL10n.string("playback.controls.reconnect.hint"),
+                size: CGSize(width: 170, height: 28),
+                action: { viewModel.start() }
+            ) {
                 Label(SpotiglassL10n.string("playback.controls.reconnect"), systemImage: "dot.radiowaves.left.and.right")
             }
-            .accessibilityLabel(SpotiglassL10n.string("playback.controls.reconnect.label"))
-            .accessibilityHint(SpotiglassL10n.string("playback.controls.reconnect.hint"))
+            .frame(width: 170, height: 28)
         case .connecting:
             ProgressView()
                 .controlSize(.small)
@@ -420,21 +559,25 @@ struct PlaybackControlsView: View {
         case let .error(error):
             switch error.recoveryAction {
             case .reconnect:
-                Button {
-                    viewModel.start()
-                } label: {
+                PlaybackTransportButton(
+                    accessibilityLabel: SpotiglassL10n.string("playback.controls.reconnect.label"),
+                    accessibilityHint: SpotiglassL10n.string("playback.controls.reconnect.sdk.hint"),
+                    size: CGSize(width: 170, height: 28),
+                    action: { viewModel.start() }
+                ) {
                     Label(SpotiglassL10n.string("playback.controls.reconnect"), systemImage: "dot.radiowaves.left.and.right")
                 }
-                .accessibilityLabel(SpotiglassL10n.string("playback.controls.reconnect.label"))
-                .accessibilityHint(SpotiglassL10n.string("playback.controls.reconnect.sdk.hint"))
+                .frame(width: 170, height: 28)
             case .retryTransfer:
-                Button {
-                    Task { await viewModel.retryPlaybackTransfer() }
-                } label: {
+                PlaybackTransportButton(
+                    accessibilityLabel: SpotiglassL10n.string("playback.controls.retry.label"),
+                    accessibilityHint: SpotiglassL10n.string("playback.controls.retry.hint"),
+                    size: CGSize(width: 170, height: 28),
+                    action: { Task { await viewModel.retryPlaybackTransfer() } }
+                ) {
                     Label(SpotiglassL10n.string("playback.controls.retry"), systemImage: "arrow.clockwise")
                 }
-                .accessibilityLabel(SpotiglassL10n.string("playback.controls.retry.label"))
-                .accessibilityHint(SpotiglassL10n.string("playback.controls.retry.hint"))
+                .frame(width: 170, height: 28)
             case .reauthenticate, .none:
                 EmptyView()
             }
@@ -605,6 +748,111 @@ struct PlaybackControlsView: View {
     }
 }
 
+/// SwiftUI's macOS 26 button bridge does not publish its accessibility label
+/// for ordinary hosted buttons. Keep the visual SwiftUI content and put a
+/// transparent native button beside it so AppKit gets a real AXButton (#334).
+private struct PlaybackTransportButton<Content: View>: View {
+    let accessibilityLabel: String
+    let accessibilityHint: String
+    let size: CGSize
+    let isEnabled: Bool
+    let action: () -> Void
+    let content: Content
+
+    init(
+        accessibilityLabel: String,
+        accessibilityHint: String,
+        size: CGSize = CGSize(width: 28, height: 28),
+        isEnabled: Bool = true,
+        action: @escaping () -> Void,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.accessibilityLabel = accessibilityLabel
+        self.accessibilityHint = accessibilityHint
+        self.size = size
+        self.isEnabled = isEnabled
+        self.action = action
+        self.content = content()
+    }
+
+    var body: some View {
+        ZStack {
+            content
+                .accessibilityHidden(true)
+
+            Button(action: {}) {
+                EmptyView()
+            }
+            .frame(width: size.width, height: size.height)
+            .hidden()
+            .allowsHitTesting(false)
+            .disabled(!isEnabled)
+            .accessibilityLabel(accessibilityLabel)
+            .accessibilityHint(accessibilityHint)
+            .accessibilityHidden(true)
+
+            PlaybackNativeButton(
+                accessibilityLabel: accessibilityLabel,
+                accessibilityHint: accessibilityHint,
+                isEnabled: isEnabled,
+                action: action
+            )
+            .frame(width: size.width, height: size.height)
+            .opacity(0.001)
+        }
+        .frame(width: size.width, height: size.height)
+        .contentShape(Rectangle())
+    }
+}
+
+private struct PlaybackNativeButton: NSViewRepresentable {
+    let accessibilityLabel: String
+    let accessibilityHint: String
+    let isEnabled: Bool
+    let action: () -> Void
+
+    final class Coordinator: NSObject {
+        var action: () -> Void
+
+        init(action: @escaping () -> Void) {
+            self.action = action
+        }
+
+        @objc func performAction(_ sender: NSButton) {
+            _ = sender
+            action()
+        }
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(action: action)
+    }
+
+    func makeNSView(context: Context) -> NSButton {
+        let button = NSButton(frame: .zero)
+        button.title = ""
+        button.isBordered = false
+        configure(button, coordinator: context.coordinator)
+        return button
+    }
+
+    func updateNSView(_ nsView: NSButton, context: Context) {
+        context.coordinator.action = action
+        configure(nsView, coordinator: context.coordinator)
+    }
+
+    private func configure(_ button: NSButton, coordinator: Coordinator) {
+        button.target = coordinator
+        button.action = #selector(Coordinator.performAction(_:))
+        button.isEnabled = isEnabled
+        button.setAccessibilityElement(true)
+        button.setAccessibilityRole(.button)
+        button.setAccessibilityLabel(accessibilityLabel)
+        button.setAccessibilityHelp(accessibilityHint)
+        button.toolTip = accessibilityHint
+    }
+}
+
 private struct PlaybackArtistLineScrollTaskID: Equatable {
     let resetID: String
     let maxScrollOffset: CGFloat
@@ -649,6 +897,7 @@ private struct PlaybackArtistLine: View {
                         Text(SpotiglassL10n.string("common.comma"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                            .accessibilityHidden(true)
                     }
                     Button {
                         openArtist(target)
@@ -671,6 +920,10 @@ private struct PlaybackArtistLine: View {
                 }
             }
             .fixedSize(horizontal: true, vertical: false)
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel(
+                targets.map(\.name).joined(separator: SpotiglassL10n.string("common.comma"))
+            )
         }
         // Changing identity is a second line of defence for track changes: it
         // prevents the native scroll view from retaining an old content offset

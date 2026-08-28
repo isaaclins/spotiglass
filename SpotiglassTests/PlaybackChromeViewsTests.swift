@@ -1,3 +1,6 @@
+import AppKit
+import ApplicationServices
+import CoreAudio
 import SwiftUI
 import ViewInspector
 import XCTest
@@ -166,6 +169,133 @@ final class PlaybackChromeViewsTests: XCTestCase {
         XCTAssertNoThrow(try view.inspect().find(text: "Ready to play"))
         XCTAssertNoThrow(try view.inspect().find(viewWithAccessibilityLabel: "Previous track"))
         XCTAssertNoThrow(try view.inspect().find(viewWithAccessibilityLabel: "Repeat playlist"))
+    }
+
+    func testRealizedTransportAccessibilityTreeExposesLabeledButtons() throws {
+        let playback = makePlayingPlayback(artists: ["M83", "The Weeknd"])
+        let commander = WebPlaybackViewCommander()
+        let coordinator = SpotifyPlaybackWebViewCoordinator(
+            tokenBridge: PlaybackTokenBridge(
+                provider: MockPlaybackTokenProvider(
+                    accessToken: "a",
+                    refreshedAccessToken: "b"
+                )
+            )
+        )
+        let view = ZStack {
+            PlaybackControlsView(
+                viewModel: playback,
+                isLyricsPresented: .constant(false),
+                openArtist: { _ in }
+            )
+            HiddenPlaybackWebView(commander: commander, coordinator: coordinator)
+                .frame(width: 1, height: 1)
+                .opacity(0.01)
+                .accessibilityHidden(true)
+        }
+
+        let controller = ViewTestHost.host(view, size: CGSize(width: 700, height: 500))
+        let window = try XCTUnwrap(controller.view.window)
+        window.title = "AXTestTransport"
+        window.makeKeyAndOrderFront(nil)
+        AppKitTestSupport.pumpRunLoop(for: 0.5)
+
+        let elements = try realizedAccessibilityTree(in: window)
+        let buttons = elements.filter { $0.role == "AXButton" }
+        let buttonLabels = Set(buttons.map(\.axDescription))
+        for label in ["Open lyrics", "Lyrics", "Previous track", "Pause", "Next track", "Repeat off", "Playback volume"] {
+            XCTAssertTrue(
+                buttonLabels.contains(label),
+                "Expected realised AXButton labelled \(label); got \(elements)"
+            )
+        }
+        XCTAssertTrue(
+            elements.contains { $0.role == "AXMenuButton" && $0.title == "Playback device" }
+        )
+        XCTAssertFalse(elements.contains { $0.role == "AXWebArea" })
+        XCTAssertFalse(buttons.contains { $0.axDescription == "button" })
+        XCTAssertFalse(elements.contains { $0.role == "AXStaticText" && $0.value == ", " })
+    }
+
+    func testPlaybackTransportLayoutAtWindowMinimumKeepsScrubberUsable() throws {
+        XCTAssertEqual(PlaybackTransportLayoutPolicy.scrubberWidth(in: 520), 180)
+        XCTAssertEqual(PlaybackTransportLayoutPolicy.scrubberWidth(in: 700), 180)
+        XCTAssertTrue(PlaybackTransportLayoutPolicy.usesCompactVolume(for: 520))
+        XCTAssertTrue(PlaybackTransportLayoutPolicy.usesCompactVolume(for: 700))
+        XCTAssertFalse(PlaybackTransportLayoutPolicy.usesCompactVolume(for: 900))
+
+        for size in [CGSize(width: 520, height: 360), CGSize(width: 700, height: 500)] {
+            let controller = ViewTestHost.host(
+                PlaybackControlsView(
+                    viewModel: makePlayingPlayback(),
+                    isLyricsPresented: .constant(false),
+                    openArtist: { _ in }
+                )
+                .frame(width: size.width, height: size.height),
+                size: size
+            )
+            let window = try XCTUnwrap(controller.view.window)
+            window.title = "AXTestLayout\(Int(size.width))"
+            controller.view.frame = window.contentView?.bounds ?? NSRect(origin: .zero, size: size)
+            window.makeKeyAndOrderFront(nil)
+            AppKitTestSupport.pumpRunLoop(for: 0.25)
+
+            let elements = try realizedAccessibilityTree(in: window)
+            let scrubber = try XCTUnwrap(
+                elements.first { $0.axDescription == "Playback progress" },
+                "Missing realised scrubber at \(size): \(elements)"
+            )
+            XCTAssertGreaterThanOrEqual(
+                scrubber.size.width,
+                PlaybackTransportLayoutPolicy.scrubberMinimumWidth,
+                "Scrubber collapsed at \(size)"
+            )
+            XCTAssertTrue(
+                elements.contains { $0.role == "AXButton" && $0.axDescription == "Playback volume" },
+                "Expected compact volume control at \(size)"
+            )
+        }
+    }
+
+    func testConnectDeviceMenuUsesNativePickerRowsAndSelectionState() throws {
+        let playback = makePlayingPlayback()
+        playback.connectDevices = [
+            SpotifyConnectDevice(
+                deviceID: "connect-1",
+                isActive: true,
+                isRestricted: false,
+                name: "Living Room",
+                type: "speaker"
+            ),
+            SpotifyConnectDevice(
+                deviceID: "connect-2",
+                isActive: false,
+                isRestricted: true,
+                name: "Office Mac",
+                type: "computer"
+            ),
+        ]
+        playback.macAudioOutputDevices = [
+            MacAudioOutputDevice(id: 11, name: "Built-in Output"),
+            MacAudioOutputDevice(id: 12, name: "Headphones"),
+        ]
+        playback.systemDefaultOutputDeviceID = 12
+
+        let view = PlaybackControlsView(
+            viewModel: playback,
+            isLyricsPresented: .constant(false),
+            openArtist: { _ in }
+        )
+        let picker = try view.inspect().find(ViewType.Picker.self)
+        XCTAssertEqual(try picker.labelView().text().string(), "Connect devices")
+        XCTAssertEqual(try picker.selectedValue(String.self), "connect-1")
+        XCTAssertEqual(picker.findAll(ViewType.Label.self).count, 2)
+        XCTAssertNoThrow(try picker.find(text: "Living Room"))
+        let macPicker = try view.inspect().find(ViewType.Picker.self, skipFound: 1)
+        XCTAssertEqual(try macPicker.labelView().text().string(), "Mac audio outputs")
+        XCTAssertEqual(try macPicker.selectedValue(AudioDeviceID.self), 12)
+        XCTAssertEqual(macPicker.findAll(ViewType.Label.self).count, 2)
+        XCTAssertNoThrow(try macPicker.find(text: "Headphones"))
     }
 
     func testPlaybackControlsDisablesPlayPauseForRemotePlayback() throws {
@@ -489,6 +619,76 @@ final class PlaybackChromeViewsTests: XCTestCase {
         // string broke it for a reason that had nothing to do with the behavior
         // under test.
         ViewTestHost.assertFindLocalizedText("queue.subtitle.repeatOne", in: view)
+    }
+
+    private struct RealizedAccessibilityElement: CustomStringConvertible {
+        let role: String
+        let axDescription: String
+        let title: String
+        let value: String
+        let size: CGSize
+
+        var description: String {
+            "role=\(role) description=\(axDescription) title=\(title) value=\(value) size=\(size)"
+        }
+    }
+
+    private func realizedAccessibilityTree(in window: NSWindow) throws -> [RealizedAccessibilityElement] {
+        let application = AXUIElementCreateApplication(ProcessInfo.processInfo.processIdentifier)
+        let windows = try axChildren(of: application, attribute: kAXWindowsAttribute)
+        let windowElement = try XCTUnwrap(
+            windows.first { axString($0, attribute: kAXTitleAttribute) == window.title },
+            "Could not find AX window \(window.title); got \(windows.map { axString($0, attribute: kAXTitleAttribute) })"
+        )
+        return axDescendants(of: windowElement)
+    }
+
+    private func axDescendants(of element: AXUIElement) -> [RealizedAccessibilityElement] {
+        let snapshot = RealizedAccessibilityElement(
+            role: axString(element, attribute: kAXRoleAttribute),
+            axDescription: axString(element, attribute: kAXDescriptionAttribute),
+            title: axString(element, attribute: kAXTitleAttribute),
+            value: axValueString(element),
+            size: axSize(element)
+        )
+        let children = (try? axChildren(of: element, attribute: kAXChildrenAttribute)) ?? []
+        return [snapshot] + children.flatMap(axDescendants)
+    }
+
+    private func axChildren(of element: AXUIElement, attribute: String) throws -> [AXUIElement] {
+        var value: CFTypeRef?
+        let result = AXUIElementCopyAttributeValue(element, attribute as CFString, &value)
+        guard result == .success else {
+            throw NSError(domain: "Accessibility", code: Int(result.rawValue))
+        }
+        return (value as? [AXUIElement]) ?? []
+    }
+
+    private func axString(_ element: AXUIElement, attribute: String) -> String {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success else {
+            return ""
+        }
+        return value as? String ?? ""
+    }
+
+    private func axSize(_ element: AXUIElement) -> CGSize {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &value) == .success,
+              let value
+        else { return .zero }
+        let axValue = value as! AXValue
+        var size = CGSize.zero
+        guard AXValueGetValue(axValue, .cgSize, &size) else { return .zero }
+        return size
+    }
+
+    private func axValueString(_ element: AXUIElement) -> String {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &value) == .success else {
+            return ""
+        }
+        return value.map(String.init(describing:)) ?? ""
     }
 
     private func makePlayingPlayback(
