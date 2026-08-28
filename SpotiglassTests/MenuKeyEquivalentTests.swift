@@ -152,6 +152,23 @@ final class MenuKeyEquivalentTests: XCTestCase {
         XCTAssertTrue(commands.isLyricsToggleEnabled)
     }
 
+    func testLyricsMenuTitleReflectsPresentedState() {
+        let manager = CommandPaletteManager(keymapStore: makeStore())
+        let scene = SpotiglassSceneHost(commandPaletteManager: manager)
+        let registry = SpotiglassSceneRegistry()
+        registry.activate(scene)
+        let commands = SpotiglassMenuCommands(
+            sceneRegistry: registry,
+            keymapStore: manager.keymapStore,
+            isSignedIn: true,
+            isQueueVisible: false
+        )
+
+        XCTAssertEqual(commands.lyricsItemTitle, SpotiglassL10n.string("menu.view.showLyrics"))
+        scene.lyricsOverlayController.isPresented = true
+        XCTAssertEqual(commands.lyricsItemTitle, SpotiglassL10n.string("menu.view.hideLyrics"))
+    }
+
     // MARK: - Help menu (#177)
 
     /// The default Help item was a silent no-op: the bundle declares no

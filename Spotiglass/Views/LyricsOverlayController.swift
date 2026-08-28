@@ -2,15 +2,30 @@ import AppKit
 import Combine
 import SwiftUI
 
-/// Hosts the lyrics surface in an AppKit responder parent. This keeps the modal
+/// Hosts the lyrics surface in an AppKit responder parent. This keeps the overlay
 /// owner in the focused responder's chain even when a SwiftUI child button or
 /// scroll view takes keyboard focus.
 struct LyricsOverlayFocusContainer<Content: View>: NSViewRepresentable {
     let content: Content
     let isActive: Bool
+    let keymapStore: CommandPaletteKeymapStore?
+
+    init(
+        content: Content,
+        isActive: Bool,
+        keymapStore: CommandPaletteKeymapStore? = nil
+    ) {
+        self.content = content
+        self.isActive = isActive
+        self.keymapStore = keymapStore
+    }
 
     func makeNSView(context: Context) -> LyricsOverlayFocusContainerView<Content> {
-        LyricsOverlayFocusContainerView(content: content, isActive: isActive)
+        LyricsOverlayFocusContainerView(
+            content: content,
+            isActive: isActive,
+            keymapStore: keymapStore ?? CommandPaletteKeymapStore()
+        )
     }
 
     func updateNSView(_ nsView: LyricsOverlayFocusContainerView<Content>, context: Context) {
@@ -26,19 +41,33 @@ struct LyricsOverlayFocusContainer<Content: View>: NSViewRepresentable {
     }
 }
 
+private enum LyricsOverlayGlobalCommands {
+    static let commandIDs: Set<String> = [
+        CommandPaletteCommandID.toggleLyrics,
+        CommandPaletteCommandID.togglePlayback,
+        CommandPaletteCommandID.nextTrack,
+        CommandPaletteCommandID.previousTrack,
+        CommandPaletteCommandID.toggleQueue,
+        CommandPaletteCommandID.openPalette,
+        CommandPaletteCommandID.openSettings,
+    ]
+}
+
 /// Owns the keyboard focus while the lyrics overlay is presented and returns it
-/// to the responder that was focused before the modal opened.
+/// to the responder that was focused before the presentation opened.
 @MainActor
 final class LyricsOverlayFocusContainerView<Content: View>: NSView, FocusedKeyEventOwner {
     private let hostingView: NSHostingView<Content>
+    private let keymapStore: CommandPaletteKeymapStore
     private var overlayIsActive: Bool
     private var capturedPreviousResponder = false
     private weak var previousWindow: NSWindow?
     private var previousResponder: NSResponder?
     private var focusRequestScheduled = false
 
-    init(content: Content, isActive: Bool) {
+    init(content: Content, isActive: Bool, keymapStore: CommandPaletteKeymapStore) {
         hostingView = NSHostingView(rootView: content)
+        self.keymapStore = keymapStore
         overlayIsActive = isActive
         super.init(frame: .zero)
 
@@ -50,6 +79,14 @@ final class LyricsOverlayFocusContainerView<Content: View>: NSView, FocusedKeyEv
             hostingView.topAnchor.constraint(equalTo: topAnchor),
             hostingView.bottomAnchor.constraint(equalTo: bottomAnchor),
         ])
+    }
+
+    convenience init(content: Content, isActive: Bool) {
+        self.init(
+            content: content,
+            isActive: isActive,
+            keymapStore: CommandPaletteKeymapStore()
+        )
     }
 
     @available(*, unavailable)
@@ -92,23 +129,30 @@ final class LyricsOverlayFocusContainerView<Content: View>: NSView, FocusedKeyEv
         super.removeFromSuperview()
     }
 
-    /// The Escape event is deliberately left to ``CommandPaletteManager``'s
-    /// existing lyrics dismissal hook. Every other event stays in this modal's
-    /// responder chain instead of reaching an app-wide command binding.
+    /// Escape remains available to ``CommandPaletteManager``'s existing lyrics
+    /// dismissal hook. Transport and global commands also stay with the app-wide
+    /// keymap; only events with no matching command remain in the overlay chain.
     func ownsKeyEvent(_ event: NSEvent) -> Bool {
-        overlayIsActive && event.keyCode != 53
+        guard overlayIsActive, event.keyCode != 53 else { return false }
+        return !matchesGlobalCommandBinding(event)
     }
 
     /// The local monitor has yielded to this focused owner. Do not let AppKit's
-    /// default key-view traversal escape the modal when this container itself
+    /// default key-view traversal escape the overlay when this container itself
     /// is the first responder.
     override func keyDown(with event: NSEvent) {}
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        guard overlayIsActive, event.keyCode != 53 else {
+        guard ownsKeyEvent(event) else {
             return super.performKeyEquivalent(with: event)
         }
         return true
+    }
+
+    private func matchesGlobalCommandBinding(_ event: NSEvent) -> Bool {
+        keymapStore
+            .commandBindings(for: event, context: .signedIn)
+            .contains { LyricsOverlayGlobalCommands.commandIDs.contains($0.command) }
     }
 
     private func capturePreviousResponderIfNeeded() {

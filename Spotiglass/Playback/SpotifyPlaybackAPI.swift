@@ -159,6 +159,7 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
     private static let maxGETRetryAttempts = 3
     private let baseURL: URL
     private let tokenProvider: PlaybackAccessTokenProviding
+    private let scopeProvider: (any SpotifyScopeProviding)?
     private let httpClient: HTTPClient
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
@@ -167,10 +168,12 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
     init(
         baseURL: URL = URL(string: "https://api.spotify.com")!,
         tokenProvider: PlaybackAccessTokenProviding,
-        httpClient: HTTPClient = URLSession.shared
+        httpClient: HTTPClient = URLSession.shared,
+        scopeProvider: (any SpotifyScopeProviding)? = nil
     ) {
         self.baseURL = baseURL
         self.tokenProvider = tokenProvider
+        self.scopeProvider = scopeProvider ?? (tokenProvider as? any SpotifyScopeProviding)
         self.httpClient = httpClient
     }
 
@@ -299,6 +302,7 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
     }
 
     private func performGET(path: String, queryItems: [URLQueryItem]) async throws -> (Data, HTTPURLResponse) {
+        try await enforceScopeRequirement(path: path, method: "GET")
         let accessToken = try await tokenProvider.playbackAccessToken()
         var components = URLComponents(url: baseURL.appendingPathComponent(path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))), resolvingAgainstBaseURL: false)!
         components.queryItems = queryItems.isEmpty ? nil : queryItems
@@ -371,6 +375,7 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
         body: Body,
         queryItems: [URLQueryItem]
     ) async throws {
+        try await enforceScopeRequirement(path: path, method: method)
         let accessToken = try await tokenProvider.playbackAccessToken()
         var components = URLComponents(url: baseURL.appendingPathComponent(path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))), resolvingAgainstBaseURL: false)!
         components.queryItems = queryItems.isEmpty ? nil : queryItems
@@ -408,6 +413,37 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
         default:
             return .server(statusCode: statusCode, message: message, details: nil)
         }
+    }
+
+    private func enforceScopeRequirement(path: String, method: String) async throws {
+        guard let scopeProvider else { return }
+        let normalisedMethod = method.uppercased()
+        let requirement: SpotifyScopeRequirement
+        if path == "/v1/me/player" || path == "/v1/me/player/devices" || path == "/v1/me/player/queue" {
+            requirement = SpotifyScopeRequirement(
+                allOf: normalisedMethod == "GET"
+                    ? SpotifyAuthConfiguration.requiredPlaybackReadScopes
+                    : SpotifyAuthConfiguration.requiredPlaybackModifyScopes
+            )
+        } else if path.hasPrefix("/v1/me/player/") {
+            requirement = SpotifyScopeRequirement(
+                allOf: normalisedMethod == "GET"
+                    ? SpotifyAuthConfiguration.requiredPlaybackReadScopes
+                    : SpotifyAuthConfiguration.requiredPlaybackModifyScopes
+            )
+        } else {
+            return
+        }
+
+        let missing = requirement.missingScopes(from: await scopeProvider.grantedScopes())
+        guard !missing.isEmpty else { return }
+        let details = "Scope preflight denied \(normalisedMethod) \(path): missing \(missing.joined(separator: ", "))"
+        SpotiglassLog.error(.api, details)
+        throw SpotifyAPIError.insufficientScope(
+            requiredScopes: missing,
+            message: nil,
+            details: details
+        )
     }
 
     private func retryAfterSeconds(from response: HTTPURLResponse) -> TimeInterval? {

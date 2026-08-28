@@ -197,6 +197,56 @@ final class SpotifyAPIClientErrorsRefreshAndCacheTests: XCTestCase {
         XCTAssertEqual(httpClient.requests[0].httpBody, httpClient.requests[1].httpBody)
     }
 
+    func testMissingLibraryModifyScopeStopsWriteBeforeHTTP() async throws {
+        let httpClient = QueueHTTPClient([])
+        let tokenProvider = ScopedSpotifyAccessTokenProvider(
+            token: "token",
+            scopes: Set([
+                "playlist-read-private",
+                "playlist-read-collaborative",
+                "user-library-read"
+            ])
+        )
+        let client = SpotifyAPIClient(tokenProvider: tokenProvider, httpClient: httpClient)
+
+        do {
+            try await client.saveTracks(ids: ["track-1"])
+            XCTFail("Expected the missing library-modify scope to stop the request")
+        } catch let error as SpotifyAPIError {
+            guard case let .insufficientScope(requiredScopes, _, _) = error else {
+                return XCTFail("Expected insufficient scope, got \(error)")
+            }
+            XCTAssertEqual(requiredScopes, ["user-library-modify"])
+        }
+        XCTAssertTrue(httpClient.requests.isEmpty)
+    }
+
+    func testLibraryWrite403MapsToScopeErrorWithRequestDiagnostics() async throws {
+        let httpClient = QueueHTTPClient([
+            .json(
+                #"{"error":{"status":403,"message":"Spotify denied access to this resource."}}"#,
+                statusCode: 403
+            )
+        ])
+        let client = SpotifyAPIClient(
+            tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"),
+            httpClient: httpClient
+        )
+
+        do {
+            try await client.saveTracks(ids: ["track-1"])
+            XCTFail("Expected library write to fail")
+        } catch let error as SpotifyAPIError {
+            guard case let .insufficientScope(requiredScopes, message, details) = error else {
+                return XCTFail("Expected insufficient scope, got \(error)")
+            }
+            XCTAssertEqual(requiredScopes, ["user-library-modify"])
+            XCTAssertEqual(message, "Spotify denied access to this resource.")
+            XCTAssertTrue(details?.contains("PUT https://api.spotify.com/v1/me/tracks") == true)
+            XCTAssertTrue(details?.contains("HTTP 403") == true)
+        }
+    }
+
     func testConcurrentUnauthorizedRequestsShareSingleRefresh() async throws {
         let unauthorizedRequestsReady = AsyncSignal()
         let httpClient = TokenAwareUnauthorizedHTTPClient(unauthorizedRequestsReady: unauthorizedRequestsReady)

@@ -113,6 +113,44 @@ final class AuthViewModelCoverageTests: XCTestCase {
         }
         XCTAssertEqual(session.accessToken, "new-access-token")
         XCTAssertTrue(session.includesRequiredBrowsingScopes())
+        XCTAssertEqual(
+            settings.grantedScope,
+            "playlist-read-private playlist-read-collaborative user-library-read streaming"
+        )
+        let grantedScopes = await viewModel.grantedScopes()
+        XCTAssertEqual(
+            grantedScopes,
+            Set(["playlist-read-private", "playlist-read-collaborative", "user-library-read", "streaming"])
+        )
+    }
+
+    func testRefreshPersistsScopeReturnedBySpotify() async throws {
+        let store = InMemoryRefreshTokenStore()
+        try store.saveRefreshToken("refresh-token")
+        let settings = makeSettings(clientID: "client-id")
+        let scope = "playlist-read-private playlist-read-collaborative user-library-read user-library-modify streaming"
+        let httpClient = AuthCoverageHTTPClient(
+            data: """
+            {
+              "access_token": "new-access-token",
+              "token_type": "Bearer",
+              "expires_in": 1800,
+              "scope": "\(scope)"
+            }
+            """.data(using: .utf8)!,
+            statusCode: 200
+        )
+        let viewModel = AuthViewModel(
+            settings: settings,
+            tokenClient: SpotifyTokenClient(httpClient: httpClient),
+            refreshTokenStore: store
+        )
+
+        await viewModel.restoreSessionIfAvailable()
+
+        XCTAssertEqual(settings.grantedScope, scope)
+        let grantedScopes = await viewModel.grantedScopes()
+        XCTAssertEqual(grantedScopes, Set(scope.split(separator: " ").map(String.init)))
     }
 
     func testSignOutInvalidatesDelayedRefreshCompletion() async throws {

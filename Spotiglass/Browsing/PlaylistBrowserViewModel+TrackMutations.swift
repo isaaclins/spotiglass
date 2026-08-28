@@ -1,5 +1,15 @@
 import Foundation
 
+enum PlaylistMutationOperation: Equatable {
+    case generic
+    case addToPlaylist
+    case moveBetweenPlaylists
+    case addToLikedSongs
+    case removeFromLikedSongs
+    case createPlaylist
+    case renamePlaylist
+}
+
 extension PlaylistBrowserViewModel {
     /// Track IDs the menu actions should apply to: the active table selection,
     /// or just the row the menu was opened on when no selection exists.
@@ -122,6 +132,10 @@ extension PlaylistBrowserViewModel {
             return
         }
         guard !playlistID.isEmpty else { return }
+        guard await ensureScope(
+            SpotifyScopeRequirement(anyOf: SpotifyAuthConfiguration.requiredPlaylistModifyScopes),
+            operation: .addToPlaylist
+        ) else { return }
         do {
             try await api.addTracksToPlaylist(playlistID: playlistID, uris: uris)
             invalidateTracksCache(playlistID: playlistID)
@@ -131,7 +145,7 @@ extension PlaylistBrowserViewModel {
                 playlistName
             )
         } catch {
-            trackMutationToast = describeFailure(error)
+            trackMutationToast = Self.describeFailure(error, operation: .addToPlaylist)
         }
     }
 
@@ -150,6 +164,10 @@ extension PlaylistBrowserViewModel {
             return
         }
         guard !destinationPlaylistID.isEmpty else { return }
+        guard await ensureScope(
+            SpotifyScopeRequirement(anyOf: SpotifyAuthConfiguration.requiredPlaylistModifyScopes),
+            operation: .moveBetweenPlaylists
+        ) else { return }
 
         do {
             try await api.addTracksToPlaylist(playlistID: destinationPlaylistID, uris: uris)
@@ -168,10 +186,12 @@ extension PlaylistBrowserViewModel {
                     await refreshCurrentPlaylistMutationDetail(
                         for: [sourcePlaylistID, destinationPlaylistID]
                     )
-                    trackMutationToast = SpotiglassL10n.format(
-                        "playlist.mutation.partialMove",
-                        destinationName
-                    )
+                    trackMutationToast = Self.isScopeFailure(error)
+                        ? Self.describeFailure(error, operation: .moveBetweenPlaylists)
+                        : SpotiglassL10n.format(
+                            "playlist.mutation.partialMove",
+                            destinationName
+                        )
                     return
                 }
                 invalidateTracksCache(playlistID: sourcePlaylistID)
@@ -186,7 +206,7 @@ extension PlaylistBrowserViewModel {
                 destinationName
             )
         } catch {
-            trackMutationToast = describeFailure(error)
+            trackMutationToast = Self.describeFailure(error, operation: .moveBetweenPlaylists)
         }
     }
 
@@ -196,6 +216,10 @@ extension PlaylistBrowserViewModel {
             trackMutationToast = SpotiglassL10n.string("playlist.mutation.noEligibleTracks")
             return
         }
+        guard await ensureScope(
+            SpotifyScopeRequirement(allOf: SpotifyAuthConfiguration.requiredSavedTracksModifyScopes),
+            operation: .addToLikedSongs
+        ) else { return }
         do {
             try await api.saveTracks(ids: ids)
             for id in ids {
@@ -208,7 +232,7 @@ extension PlaylistBrowserViewModel {
                 Int64(ids.count)
             )
         } catch {
-            trackMutationToast = describeFailure(error)
+            trackMutationToast = Self.describeFailure(error, operation: .addToLikedSongs)
         }
     }
 
@@ -218,6 +242,10 @@ extension PlaylistBrowserViewModel {
             trackMutationToast = SpotiglassL10n.string("playlist.mutation.noEligibleTracks")
             return
         }
+        guard await ensureScope(
+            SpotifyScopeRequirement(allOf: SpotifyAuthConfiguration.requiredSavedTracksModifyScopes),
+            operation: .removeFromLikedSongs
+        ) else { return }
         do {
             try await api.removeSavedTracks(ids: ids)
             for id in ids {
@@ -230,7 +258,7 @@ extension PlaylistBrowserViewModel {
                 Int64(ids.count)
             )
         } catch {
-            trackMutationToast = describeFailure(error)
+            trackMutationToast = Self.describeFailure(error, operation: .removeFromLikedSongs)
         }
     }
 
@@ -242,6 +270,10 @@ extension PlaylistBrowserViewModel {
             trackMutationToast = SpotiglassL10n.string("playlist.mutation.signInToCreate")
             return
         }
+        guard await ensureScope(
+            SpotifyScopeRequirement(allOf: [SpotifyAuthConfiguration.requiredPlaylistModifyScopes[0]]),
+            operation: .createPlaylist
+        ) else { return }
         do {
             let created = try await api.createPlaylist(userID: userID, name: name, isPublic: false)
             let uris = playableURIs(for: rows)
@@ -257,7 +289,7 @@ extension PlaylistBrowserViewModel {
                     Int64(uris.count)
                 )
         } catch {
-            trackMutationToast = describeFailure(error)
+            trackMutationToast = Self.describeFailure(error, operation: .createPlaylist)
         }
     }
 
@@ -284,11 +316,19 @@ extension PlaylistBrowserViewModel {
         )
         applyPlaylistName(renamed)
 
+        guard await ensureScope(
+            SpotifyScopeRequirement(anyOf: SpotifyAuthConfiguration.requiredPlaylistModifyScopes),
+            operation: .renamePlaylist
+        ) else {
+            applyPlaylistName(previous)
+            return
+        }
+
         do {
             try await api.updatePlaylist(playlistID: id, name: trimmedName)
         } catch {
             applyPlaylistName(previous)
-            trackMutationToast = describeFailure(error)
+            trackMutationToast = Self.describeFailure(error, operation: .renamePlaylist)
         }
     }
 
@@ -304,11 +344,59 @@ extension PlaylistBrowserViewModel {
 
     // MARK: - Internal helpers
 
-    private func describeFailure(_ error: Error) -> String {
+    /// Stops a known-missing capability before an API implementation can issue
+    /// the request. This is intentionally a redirecting toast rather than a
+    /// silent no-op so the existing Settings ▸ Account ▸ Reconnect path is
+    /// discoverable.
+    private func ensureScope(
+        _ requirement: SpotifyScopeRequirement,
+        operation: PlaylistMutationOperation
+    ) async -> Bool {
+        guard let scopeProvider, !requirement.isEmpty else { return true }
+        let granted = await scopeProvider.grantedScopes()
+        let missing = requirement.missingScopes(from: granted)
+        guard !missing.isEmpty else { return true }
+
+        let error = SpotifyAPIError.insufficientScope(
+            requiredScopes: missing,
+            message: nil,
+            details: "Scope preflight denied a playlist mutation: missing \(missing.joined(separator: ", "))."
+        )
+        trackMutationToast = Self.describeFailure(error, operation: operation)
+        return false
+    }
+
+    /// Converts a mutation failure into user copy without leaking Spotify's
+    /// generic 403 reason phrase. The operation-specific variants name the
+    /// capability and point at the existing reconnect control.
+    static func describeFailure(_ error: Error, operation: PlaylistMutationOperation = .generic) -> String {
         if let apiError = error as? SpotifyAPIError {
+            switch apiError {
+            case .insufficientScope, .forbidden:
+                switch operation {
+                case .addToLikedSongs, .removeFromLikedSongs:
+                    return SpotiglassL10n.string("playlist.mutation.likedSongsRequiresReconnect")
+                case .addToPlaylist, .moveBetweenPlaylists, .createPlaylist, .renamePlaylist:
+                    return SpotiglassL10n.string("playlist.mutation.playlistRequiresReconnect")
+                case .generic:
+                    break
+                }
+            default:
+                break
+            }
             return apiError.localizedDescription
         }
         return error.localizedDescription
+    }
+
+    private static func isScopeFailure(_ error: Error) -> Bool {
+        guard let apiError = error as? SpotifyAPIError else { return false }
+        return switch apiError {
+        case .insufficientScope, .forbidden:
+            true
+        default:
+            false
+        }
     }
 
     private func applyPlaylistName(_ playlist: SpotifyPlaylistSummary) {

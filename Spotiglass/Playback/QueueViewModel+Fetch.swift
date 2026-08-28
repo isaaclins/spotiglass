@@ -348,6 +348,13 @@ extension QueueViewModel {
                     message: SpotiglassL10n.string("error.queue.signInAgain.message"),
                     canRetry: false
                 )
+            case .insufficientScope:
+                return BrowsingDisplayError(
+                    title: SpotiglassL10n.string("error.queue.loadFailed.title"),
+                    message: SpotiglassL10n.string("error.spotify.insufficientPermissions"),
+                    canRetry: false,
+                    diagnosticDetails: apiError.diagnosticDetails
+                )
             case let .forbidden(message, _):
                 return BrowsingDisplayError(
                     title: SpotiglassL10n.string("error.queue.loadFailed.title"),

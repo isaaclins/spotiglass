@@ -8,8 +8,11 @@ extension PlaylistBrowserViewModel {
     }
 
     func load() async {
-        if let bundle = try? cache.loadPlaylistsBundle(now: now()), !bundle.playlists.isEmpty {
-            apply(playlists: bundle.playlists, state: .loaded(bundle.playlists.map(PlaylistRowViewModel.init)), preserveSelection: true)
+        if let bundle = try? cache.loadPlaylistsBundle(now: now()),
+           !bundle.playlists.isEmpty,
+           let cachedPlaylists = try? validatedPlaylistSummaries(bundle.playlists),
+           !cachedPlaylists.isEmpty {
+            apply(playlists: cachedPlaylists, state: .loaded(cachedPlaylists.map(PlaylistRowViewModel.init)), preserveSelection: true)
             if bundle.age >= playlistListAutoRefreshMinInterval {
                 await refreshPlaylists(trigger: .automatic)
             } else {
@@ -33,7 +36,9 @@ extension PlaylistBrowserViewModel {
         }
 
         do {
-            let playlists = try await fetchPlaylistsForRefresh(trigger: trigger)
+            let playlists = try validatedPlaylistSummaries(
+                try await fetchPlaylistsForRefresh(trigger: trigger)
+            )
             try? cache.savePlaylists(playlists, cachedAt: now())
             invalidateLibraryContinuationCache()
             if playlists.isEmpty {
@@ -144,6 +149,26 @@ extension PlaylistBrowserViewModel {
         guard let rows = playlistState.currentValue, !rows.isEmpty else { return nil }
         let ordered = rows.compactMap { playlistsByID[$0.id] }
         return ordered.isEmpty ? nil : ordered
+    }
+
+    /// A transport failure must stay an error state, never become a synthetic
+    /// playlist row. This also rejects error-shaped objects accepted by the
+    /// permissive Spotify DTO fallback before they reach disk or SwiftUI.
+    private func validatedPlaylistSummaries(_ playlists: [SpotifyPlaylistSummary]) throws -> [SpotifyPlaylistSummary] {
+        let forbiddenMessage = SpotiglassL10n.string("error.spotify.forbidden")
+        let accessDeniedMessage = SpotiglassL10n.string("error.browsing.accessDenied.message")
+        let invalid = playlists.contains { playlist in
+            let name = playlist.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            return name.isEmpty
+                || playlist.id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                || playlist.id == "unknown-playlist"
+                || name == forbiddenMessage
+                || name == accessDeniedMessage
+        }
+        guard !invalid else {
+            throw SpotifyAPIError.decoding("Playlist response contained an error item.")
+        }
+        return playlists
     }
 
     private func apply(
