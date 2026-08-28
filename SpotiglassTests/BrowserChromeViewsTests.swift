@@ -68,9 +68,14 @@ final class BrowserChromeViewsTests: XCTestCase {
         // The home crumb is a real Button now, not a tap gesture, so that the
         // trait it advertises matches a working action (#113).
         try view.inspect().find(button: AppMetadata.displayName).tap()
-        try await Task.sleep(nanoseconds: 50_000_000)
-
-        XCTAssertTrue(viewModel.breadcrumbPath.isEmpty)
+        let deadline = ContinuousClock.now.advanced(by: .seconds(2))
+        while !viewModel.breadcrumbPath.isEmpty, ContinuousClock.now < deadline {
+            await Task.yield()
+        }
+        XCTAssertTrue(
+            viewModel.breadcrumbPath.isEmpty,
+            "the home breadcrumb should clear the navigation trail"
+        )
         XCTAssertEqual(viewModel.sidebarSelection, .home)
     }
 

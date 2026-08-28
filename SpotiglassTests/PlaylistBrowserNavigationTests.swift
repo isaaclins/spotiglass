@@ -205,17 +205,18 @@ final class PlaylistBrowserNavigationTests: XCTestCase {
         router.handleSingleTap(albumID: "album-1") {
             openedIDs.append("album-1")
         }
-        try? await Task.sleep(nanoseconds: 35_000_000)
+        await router.pendingSingleTapTask?.value
         XCTAssertEqual(openedIDs, ["album-1"])
 
         router.handleSingleTap(albumID: "album-2") {
             openedIDs.append("album-2")
         }
+        let pendingSingleTap = router.pendingSingleTapTask
         router.handleDoubleTap {
             openedIDs.append("album-2")
             openAndPlayCount += 1
         }
-        try? await Task.sleep(nanoseconds: 35_000_000)
+        await pendingSingleTap?.value
         XCTAssertEqual(openAndPlayCount, 1)
         XCTAssertEqual(openedIDs.filter { $0 == "album-2" }.count, 1, "Double-tap should cancel pending single-tap open.")
     }

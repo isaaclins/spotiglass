@@ -2,7 +2,8 @@ import SwiftUI
 
 /// Settings → Equalizer pane: enable toggle, preset picker (built-ins + user-saved),
 /// preamp slider, ten vertical band sliders. Mutations write through the shared
-/// ``SpotiglassSettingsStore`` and are forwarded live to ``AudioEqualizerEngine``.
+/// ``SpotiglassSettingsStore``; the app-level engine observer forwards them live
+/// to ``AudioEqualizerEngine``.
 struct EqualizerSettingsView: View {
     @ObservedObject var settingsStore: SpotiglassSettingsStore
     @ObservedObject var engine: AudioEqualizerEngine
@@ -203,9 +204,6 @@ struct EqualizerSettingsView: View {
             get: { settingsStore.settings.equalizer.forwardingTargetUID },
             set: { newValue in
                 mutateEqualizer { $0.forwardingTargetUID = newValue }
-                if let uid = newValue, !uid.isEmpty {
-                    engine.setForwardingTarget(uid: uid)
-                }
                 // nil ("Auto") leaves the file alone — next enable() will
                 // capture the current default and write a fresh fallback.
             }
@@ -317,27 +315,11 @@ struct EqualizerSettingsView: View {
         Binding(
             get: { settingsStore.settings.equalizer.enabled },
             set: { newValue in
+                // Lifecycle transitions are performed by the engine's single
+                // settings-store observer. Keeping this setter persistence-only
+                // avoids racing a transactional stop or starting the engine
+                // twice when the value came from an external file reload.
                 mutateEqualizer { $0.enabled = newValue }
-                if newValue {
-                    do {
-                        try engine.start(
-                            forwardingTargetUID: settingsStore.settings.equalizer.forwardingTargetUID
-                        )
-                        engine.apply(settings: settingsStore.settings.equalizer)
-                    } catch {
-                        // Revert toggle if engine could not start.
-                        mutateEqualizer { $0.enabled = false }
-                    }
-                } else {
-                    do {
-                        try engine.stop()
-                    } catch {
-                        // A failed restore leaves the EQ routed through the
-                        // virtual device. Keep the persisted switch on so the
-                        // UI does not claim that audio has been restored.
-                        mutateEqualizer { $0.enabled = true }
-                    }
-                }
             }
         )
     }
@@ -397,7 +379,6 @@ struct EqualizerSettingsView: View {
         mutateEqualizer { eq in
             eq.apply(preset: preset)
         }
-        engine.apply(settings: settingsStore.settings.equalizer)
     }
 
     private func saveCurrentAsPreset(named rawName: String) throws {

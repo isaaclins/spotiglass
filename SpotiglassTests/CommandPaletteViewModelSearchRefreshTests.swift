@@ -13,7 +13,7 @@ final class CommandPaletteViewModelSearchRefreshTests: XCTestCase {
         viewModel.show()
         viewModel.query = "a"
         viewModel.refresh()
-        try? await Task.sleep(for: .milliseconds(450))
+        await viewModel.waitForSearchCompletion()
         XCTAssertEqual(callCount, 0)
     }
 
@@ -38,10 +38,10 @@ final class CommandPaletteViewModelSearchRefreshTests: XCTestCase {
         viewModel.show()
         viewModel.query = "ab"
         viewModel.refresh()
-        try? await Task.sleep(for: .milliseconds(450))
+        await viewModel.waitForSearchCompletion()
         XCTAssertEqual(callCount, 1)
         viewModel.refresh()
-        try? await Task.sleep(for: .milliseconds(80))
+        await viewModel.waitForSearchCompletion()
         XCTAssertEqual(callCount, 1)
     }
 
@@ -66,14 +66,14 @@ final class CommandPaletteViewModelSearchRefreshTests: XCTestCase {
         viewModel.show()
         viewModel.query = "ab"
         viewModel.refresh()
-        try? await Task.sleep(for: .milliseconds(450))
+        await viewModel.waitForSearchCompletion()
         XCTAssertEqual(callCount, 1)
         viewModel.query = "a"
         viewModel.refresh()
-        try? await Task.sleep(for: .milliseconds(120))
+        await viewModel.waitForSearchCompletion()
         viewModel.query = "ab"
         viewModel.refresh()
-        try? await Task.sleep(for: .milliseconds(450))
+        await viewModel.waitForSearchCompletion()
         XCTAssertEqual(callCount, 2)
     }
 
@@ -90,7 +90,7 @@ final class CommandPaletteViewModelSearchRefreshTests: XCTestCase {
         for _ in 0 ..< 5 {
             viewModel.cycleSearchCategory(forward: true)
         }
-        try? await Task.sleep(for: .milliseconds(450))
+        await viewModel.waitForSearchCompletion()
         XCTAssertEqual(callCount, 1)
     }
 
@@ -104,14 +104,14 @@ final class CommandPaletteViewModelSearchRefreshTests: XCTestCase {
         viewModel.show()
         viewModel.query = "ab"
         viewModel.refresh()
-        try? await Task.sleep(for: .milliseconds(450))
+        await viewModel.waitForSearchCompletion()
         XCTAssertEqual(callCount, 1)
         viewModel.searchProvider = { _, _ in
             callCount += 1
             return CommandPaletteSearchResults()
         }
         viewModel.refresh()
-        try? await Task.sleep(for: .milliseconds(80))
+        await viewModel.waitForSearchCompletion()
         XCTAssertEqual(callCount, 1, "Palette should honor cooldown and not dispatch another search immediately")
     }
 
@@ -125,7 +125,7 @@ final class CommandPaletteViewModelSearchRefreshTests: XCTestCase {
         viewModel.show()
         viewModel.query = "@m83"
         viewModel.refresh()
-        try? await Task.sleep(for: .milliseconds(450))
+        await viewModel.waitForSearchCompletion()
         XCTAssertEqual(invocations, ["m83"])
     }
 
@@ -147,9 +147,10 @@ final class CommandPaletteViewModelSearchRefreshTests: XCTestCase {
             )
         }
         var networkCalls = 0
+        let releaseNetworkCall = AsyncSignal()
         viewModel.searchProvider = { _, _ in
             networkCalls += 1
-            try? await Task.sleep(for: .milliseconds(2000))
+            await releaseNetworkCall.wait()
             return CommandPaletteSearchResults()
         }
         viewModel.show()
@@ -160,6 +161,8 @@ final class CommandPaletteViewModelSearchRefreshTests: XCTestCase {
         // refresh() paints local matches synchronously — before the debounce/network fires.
         XCTAssertEqual(viewModel.visibleItems.map(\.id), ["playlist-local"])
         XCTAssertEqual(networkCalls, 0)
+        releaseNetworkCall.signal()
+        await viewModel.waitForSearchCompletion()
     }
 
     func testSwitchingCategoryAfterSearchFiltersFromCacheWithoutRefetch() async {
@@ -196,7 +199,7 @@ final class CommandPaletteViewModelSearchRefreshTests: XCTestCase {
         viewModel.searchCategoryFilter = .all
         viewModel.query = "midnight"
         viewModel.refresh()
-        try? await Task.sleep(for: .milliseconds(450))
+        await viewModel.waitForSearchCompletion()
         XCTAssertEqual(networkCalls, 1)
 
         viewModel.selectCategory(.artists)
@@ -241,7 +244,7 @@ final class CommandPaletteViewModelSearchRefreshTests: XCTestCase {
         viewModel.searchCategoryFilter = .all
         viewModel.query = "kanye"
         viewModel.refresh()
-        try? await Task.sleep(for: .milliseconds(450))
+        await viewModel.waitForSearchCompletion()
 
         // "kanye" matches the artist (prefix) but not the track, so Artists floats above Tracks.
         XCTAssertEqual(viewModel.sections.map(\.section), [.artists, .tracks])

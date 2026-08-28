@@ -16,8 +16,8 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         await viewModel.next()
         await viewModel.previous()
         await viewModel.seek(to: 12_000)
+        await viewModel.seekDispatchTask?.value
 
-        try? await Task.sleep(nanoseconds: 100_000_000)
         XCTAssertEqual(playbackAPI.actions.filter { $0.hasPrefix("next:") || $0.hasPrefix("previous:") || $0.hasPrefix("seek:") }, [
             "next:device-1",
             "previous:device-1",
@@ -44,12 +44,8 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         await viewModel.seek(to: 10_000)
         await viewModel.seek(to: 20_000)
         await viewModel.seek(to: 30_000)
-        let seekDeadline = Date().addingTimeInterval(1.5)
-        while Date() < seekDeadline {
-            let seeks = api.actions.filter { $0.hasPrefix("seek:") }
-            if seeks == ["seek:device-1:10000", "seek:device-1:30000"] { return }
-            try? await Task.sleep(nanoseconds: 25_000_000)
-        }
+        await viewModel.seekDispatchTask?.value
+
         let seeks = api.actions.filter { $0.hasPrefix("seek:") }
         XCTAssertEqual(seeks, ["seek:device-1:10000", "seek:device-1:30000"])
     }
@@ -66,10 +62,7 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
 
         await viewModel.seek(to: 8_000)
         await viewModel.seek(to: 32_000)
-        let seekDeadline = Date().addingTimeInterval(1.5)
-        while Date() < seekDeadline, api.seekCallTimestamps.count < 2 {
-            try? await Task.sleep(nanoseconds: 25_000_000)
-        }
+        await viewModel.seekDispatchTask?.value
 
         XCTAssertEqual(api.seekCallTimestamps.count, 2)
         let spacing = api.seekCallTimestamps[1].timeIntervalSince(api.seekCallTimestamps[0])
@@ -98,11 +91,7 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         viewModel.handle(.stateChanged(track, isPaused: false, nextTracks: []))
 
         await viewModel.seek(to: 92_000)
-        let errorDeadline = Date().addingTimeInterval(1.0)
-        while Date() < errorDeadline {
-            if viewModel.connectionStateError != nil { break }
-            try? await Task.sleep(nanoseconds: 10_000_000)
-        }
+        await viewModel.seekDispatchTask?.value
         XCTAssertEqual(api.seekCallTimestamps.count, 1)
         XCTAssertNotNil(viewModel.connectionStateError)
 
@@ -133,10 +122,7 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         )
         viewModel.handle(.stateChanged(track, isPaused: false, nextTracks: []))
         await viewModel.seek(to: 92_000)
-        let errorDeadline = Date().addingTimeInterval(1.0)
-        while Date() < errorDeadline, viewModel.connectionStateError == nil {
-            try? await Task.sleep(nanoseconds: 10_000_000)
-        }
+        await viewModel.seekDispatchTask?.value
         XCTAssertNotNil(viewModel.connectionStateError)
 
         viewModel.handle(.stateChanged(nil, isPaused: true, nextTracks: []))
@@ -178,11 +164,8 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         XCTAssertTrue(didEnterFirstSeek)
         await viewModel.seek(to: 93_000)
         releaseFirstSeek.signal()
+        await viewModel.seekDispatchTask?.value
 
-        let errorDeadline = Date().addingTimeInterval(1.0)
-        while Date() < errorDeadline, viewModel.connectionStateError == nil {
-            try? await Task.sleep(nanoseconds: 10_000_000)
-        }
         XCTAssertNotNil(viewModel.connectionStateError)
         XCTAssertEqual(api.seekCallTimestamps.count, 1)
     }
@@ -218,10 +201,7 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         )
         viewModel.handle(.stateChanged(trackA, isPaused: false, nextTracks: []))
         await viewModel.seek(to: 92_000)
-        let errorDeadline = Date().addingTimeInterval(1.0)
-        while Date() < errorDeadline, viewModel.connectionStateError == nil {
-            try? await Task.sleep(nanoseconds: 10_000_000)
-        }
+        await viewModel.seekDispatchTask?.value
 
         viewModel.handle(.stateChanged(trackB, isPaused: false, nextTracks: []))
 
@@ -262,20 +242,12 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         )
         viewModel.handle(.stateChanged(trackA, isPaused: false, nextTracks: []))
         await viewModel.seek(to: 30_000)
+        await viewModel.seekDispatchTask?.value
 
-        let firstSeekDeadline = Date().addingTimeInterval(1.0)
-        while Date() < firstSeekDeadline,
-              api.actions.filter({ $0.hasPrefix("seek:") }).count < 1 {
-            try? await Task.sleep(nanoseconds: 10_000_000)
-        }
         viewModel.handle(.stateChanged(trackB, isPaused: false, nextTracks: []))
         await viewModel.seek(to: 30_100)
+        await viewModel.seekDispatchTask?.value
 
-        let secondSeekDeadline = Date().addingTimeInterval(1.0)
-        while Date() < secondSeekDeadline,
-              api.actions.filter({ $0.hasPrefix("seek:") }).count < 2 {
-            try? await Task.sleep(nanoseconds: 10_000_000)
-        }
         XCTAssertEqual(
             api.actions.filter { $0.hasPrefix("seek:") },
             ["seek:device-1:30000", "seek:device-1:30100"]
@@ -328,12 +300,8 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         viewModel.handle(.stateChanged(trackB, isPaused: false, nextTracks: []))
         await viewModel.seek(to: 30_000)
         releaseFirstSeek.signal()
+        await viewModel.seekDispatchTask?.value
 
-        let seekDeadline = Date().addingTimeInterval(1.0)
-        while Date() < seekDeadline,
-              api.actions.filter({ $0.hasPrefix("seek:") }).count < 1 {
-            try? await Task.sleep(nanoseconds: 10_000_000)
-        }
         XCTAssertEqual(
             api.actions.filter { $0.hasPrefix("seek:") },
             ["seek:device-1:30000"]
@@ -394,12 +362,8 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         viewModel.handle(.stateChanged(trackB, isPaused: false, nextTracks: []))
         await viewModel.seek(to: 30_000)
         releaseFirstSeek.signal()
+        await viewModel.seekDispatchTask?.value
 
-        let seekDeadline = Date().addingTimeInterval(1.0)
-        while Date() < seekDeadline,
-              api.actions.filter({ $0.hasPrefix("seek:") }).count < 1 {
-            try? await Task.sleep(nanoseconds: 10_000_000)
-        }
         XCTAssertEqual(
             api.actions.filter { $0.hasPrefix("seek:") },
             ["seek:device-2:30000"]
@@ -478,14 +442,10 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         let fetchCountBeforeMutation = api.actions.filter { $0 == "fetchPlayerSnapshot" }.count
 
         await viewModel.cycleRepeat()
+        await viewModel.repeatSyncTask?.value
 
         XCTAssertEqual(viewModel.repeatMode, .context)
         XCTAssertTrue(api.actions.contains("setRepeat:device-1:context"))
-        let syncDeadline = Date().addingTimeInterval(1.0)
-        while Date() < syncDeadline,
-              api.actions.filter({ $0 == "fetchPlayerSnapshot" }).count == fetchCountBeforeMutation {
-            try? await Task.sleep(nanoseconds: 25_000_000)
-        }
         XCTAssertGreaterThan(
             api.actions.filter { $0 == "fetchPlayerSnapshot" }.count,
             fetchCountBeforeMutation,
@@ -625,7 +585,7 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         await viewModel.cycleRepeat()
         XCTAssertEqual(viewModel.repeatMode, .context)
 
-        try? await Task.sleep(nanoseconds: 90_000_000)
+        viewModel.pendingRepeatDeadline = viewModel.clock.now
         await viewModel.syncTransportFromSpotify()
         XCTAssertEqual(viewModel.repeatMode, .off, "After timeout, transport value should be accepted to avoid long-lived drift.")
     }
@@ -706,14 +666,10 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         let fetchCountBeforeMutation = api.actions.filter { $0 == "fetchPlayerSnapshot" }.count
 
         await viewModel.toggleShuffle()
+        await viewModel.shuffleSyncTask?.value
 
         XCTAssertTrue(viewModel.shuffleEnabled)
         XCTAssertTrue(api.actions.contains("setShuffle:device-1:true"))
-        let syncDeadline = Date().addingTimeInterval(1.0)
-        while Date() < syncDeadline,
-              api.actions.filter({ $0 == "fetchPlayerSnapshot" }).count == fetchCountBeforeMutation {
-            try? await Task.sleep(nanoseconds: 25_000_000)
-        }
         XCTAssertGreaterThan(
             api.actions.filter { $0 == "fetchPlayerSnapshot" }.count,
             fetchCountBeforeMutation
@@ -828,7 +784,7 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         await viewModel.toggleShuffle()
         XCTAssertTrue(viewModel.shuffleEnabled)
 
-        try? await Task.sleep(nanoseconds: 90_000_000)
+        viewModel.pendingShuffleDeadline = viewModel.clock.now
         await viewModel.syncTransportFromSpotify()
         XCTAssertFalse(viewModel.shuffleEnabled, "After timeout, transport shuffle should be accepted to avoid drift.")
     }
@@ -850,8 +806,16 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         await viewModel.syncTransportFromSpotify()
         XCTAssertFalse(viewModel.shuffleEnabled)
 
+        let firstShuffleStarted = AsyncSignal()
+        api.onSetShuffle = { enabled in
+            if enabled { firstShuffleStarted.signal() }
+        }
         let firstToggle = Task { await viewModel.toggleShuffle() }
-        try? await Task.sleep(nanoseconds: 20_000_000)
+        let didStartFirstShuffle = await firstShuffleStarted.wait(timeout: .seconds(1))
+        XCTAssertTrue(
+            didStartFirstShuffle,
+            "the first shuffle write should be in flight before the second toggle"
+        )
         let secondToggle = Task { await viewModel.toggleShuffle() }
         await firstToggle.value
         await secondToggle.value

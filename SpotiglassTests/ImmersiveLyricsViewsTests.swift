@@ -12,17 +12,22 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
     }
 
     func testLyricsPhaseColumnLoadingState() async throws {
+        let fetchStarted = AsyncSignal()
+        let releaseFetch = AsyncSignal()
         let lyrics = ImmersiveLyricsViewModel { _ in
-            try await Task.sleep(nanoseconds: 200_000_000)
+            fetchStarted.signal()
+            await releaseFetch.wait()
             return .instrumental
         }
         let track = sampleTrack()
         let loadTask = Task { await lyrics.load(track: track) }
 
-        for _ in 0 ..< 30 {
-            if case .loading = lyrics.phase { break }
-            try await Task.sleep(nanoseconds: 2_000_000)
-        }
+        let fetchDidStart = await fetchStarted.wait(timeout: .seconds(2))
+        XCTAssertTrue(
+            fetchDidStart,
+            "lyrics fetch should start before the loading assertion"
+        )
+        XCTAssertTrue(lyrics.phase == .loading, "lyrics should enter loading before the fetch completes")
         guard case .loading = lyrics.phase else {
             return XCTFail("expected .loading, got \(lyrics.phase)")
         }
@@ -30,7 +35,8 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
         let view = phaseColumn(lyricsModel: lyrics, track: track)
         ViewTestHost.host(view, size: CGSize(width: 420, height: 500))
         XCTAssertNoThrow(try view.inspect().find(text: "Loading lyrics…"))
-        loadTask.cancel()
+        releaseFetch.signal()
+        await loadTask.value
     }
 
     func testLyricsPhaseColumnFailedShowsRetry() async throws {
@@ -128,6 +134,7 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
         playback.handle(.stateChanged(track, isPaused: false, nextTracks: []))
         let lyrics = ImmersiveLyricsViewModel { _ in .instrumental }
         await lyrics.load(track: track)
+        var dismissed = false
 
         let view = ImmersiveLyricsView(
             playbackViewModel: playback,
@@ -135,13 +142,42 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
             lyricsModel: lyrics,
             navigateToArtist: { _ in },
             navigateToAlbum: { _, _, _ in },
-            onDismiss: {}
+            onDismiss: { dismissed = true }
         )
         .environmentObject(settings)
         .frame(width: 800, height: 600)
 
         ViewTestHost.host(view, size: CGSize(width: 800, height: 600))
         XCTAssertNoThrow(try view.inspect().find(text: "Title"))
+        let closeLyrics = ViewTestHost.localizedString("browser.closeLyrics")
+        try view.inspect().find(button: closeLyrics).tap()
+        XCTAssertTrue(dismissed)
+    }
+
+    func testLyricsOverlayAccessibilityContract() throws {
+        let projectRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let lyricsSource = try String(
+            contentsOf: projectRoot.appendingPathComponent("Spotiglass/Views/ImmersiveLyricsView.swift"),
+            encoding: .utf8
+        )
+        let rootSource = try String(
+            contentsOf: projectRoot.appendingPathComponent("Spotiglass/Views/RootView.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(lyricsSource.contains(".accessibilityAddTraits(.isModal)"))
+        XCTAssertTrue(lyricsSource.contains(".focusScope(focusNamespace)"))
+        XCTAssertTrue(lyricsSource.contains(".defaultFocus($focusedControl, .close)"))
+        XCTAssertTrue(
+            lyricsSource.contains(".accessibilityDefaultFocus($accessibilityFocusedControl, .close)")
+        )
+        XCTAssertTrue(
+            lyricsSource.contains(".accessibilityFocused($accessibilityFocusedControl, equals: .close)")
+        )
+        XCTAssertTrue(rootSource.contains(".accessibilityHidden(lyricsOverlayController.isPresented)"))
+        XCTAssertTrue(rootSource.contains("LyricsOverlayFocusContainer"))
     }
 
     func testBackgroundLayerInspectable() throws {
@@ -167,6 +203,70 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
         XCTAssertNoThrow(try view.inspect())
     }
 
+    func testBackgroundLayerBuildsAllTransparencyAndArtworkBranches() {
+        let url = URL(string: "https://example.com/cover.png")!
+
+        _ = ImmersiveLyricsBackgroundLayer(
+            reduceTransparency: true,
+            albumArtURL: nil
+        ).body
+        _ = ImmersiveLyricsBackgroundLayer(
+            reduceTransparency: false,
+            albumArtURL: nil
+        ).body
+        _ = ImmersiveLyricsBackgroundLayer(
+            reduceTransparency: false,
+            albumArtURL: url
+        ).body
+    }
+
+    func testBlurredArtworkRendersInitialImageWithoutInspection() {
+        let url = URL(string: "https://example.com/initial-cover.png")!
+        let artwork = ImmersiveBlurredArtwork(
+            url: url,
+            initialImage: NSImage(size: NSSize(width: 64, height: 64))
+        )
+
+        // Hosting renders the GeometryReader closure and image branch, but does
+        // not rely on ViewInspector (which is incompatible with this machine's
+        // macOS 27 SwiftUI for some other lyrics views).
+        _ = ViewTestHost.host(artwork, size: CGSize(width: 360, height: 280))
+    }
+
+    func testBlurredArtworkSizingAndDownscalingBranches() {
+        XCTAssertEqual(
+            ImmersiveBlurredArtwork.coverScaleForBlurredBackdrop(
+                tile: 0,
+                blurRadius: 24,
+                target: .zero
+            ),
+            1
+        )
+        XCTAssertEqual(
+            ImmersiveBlurredArtwork.coverScaleForBlurredBackdrop(
+                tile: 1_000,
+                blurRadius: 0,
+                target: CGSize(width: 2_000, height: 500)
+            ),
+            2
+        )
+
+        let zero = NSImage(size: .zero)
+        XCTAssertTrue(
+            ImmersiveBlurredArtwork.downscaledForBlur(zero, maxEdge: 576) === zero
+        )
+
+        let small = NSImage(size: NSSize(width: 100, height: 50))
+        XCTAssertTrue(
+            ImmersiveBlurredArtwork.downscaledForBlur(small, maxEdge: 576) === small
+        )
+
+        let large = NSImage(size: NSSize(width: 1_200, height: 600))
+        let downscaled = ImmersiveBlurredArtwork.downscaledForBlur(large, maxEdge: 576)
+        XCTAssertEqual(downscaled.size.width, 576, accuracy: 0.001)
+        XCTAssertEqual(downscaled.size.height, 288, accuracy: 0.001)
+    }
+
     func testBlurredArtworkHostsAndLoadsFromDiskCache() async throws {
         let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
             .appendingPathComponent(AppMetadata.displayName, isDirectory: true)
@@ -190,7 +290,7 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
         let view = ImmersiveBlurredArtwork(url: url)
             .frame(width: 360, height: 280)
         ViewTestHost.host(view, size: CGSize(width: 360, height: 280))
-        try await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertNotNil(ArtworkImageStore.cachedImageIfAvailable(for: url))
         XCTAssertNoThrow(try view.inspect())
     }
 
@@ -205,10 +305,17 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
         XCTAssertTrue(controller.isAutoCentering)
 
         controller.noteUserScrollActivity()
-        let resumeDeadline = Date().addingTimeInterval(3.0)
-        while Date() < resumeDeadline, !controller.isAutoCentering {
-            try? await Task.sleep(for: .milliseconds(50))
+        let resumeSignal = AsyncSignal()
+        withObservationTracking {
+            _ = controller.isAutoCentering
+        } onChange: {
+            resumeSignal.signal()
         }
+        let didResume = await resumeSignal.wait(timeout: .seconds(3))
+        XCTAssertTrue(
+            didResume,
+            "auto-centering should resume after the idle period"
+        )
         XCTAssertTrue(controller.isAutoCentering)
     }
 
@@ -256,6 +363,21 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
         ViewTestHost.host(view, size: CGSize(width: 400, height: 360))
         XCTAssertNoThrow(try view.inspect().find(text: "First"))
         XCTAssertNoThrow(try view.inspect().find(text: "Second"))
+    }
+
+    func testTappableLyricLineSeeksWhenTapped() throws {
+        var tapped = false
+        let line = TappableLyricLine(
+            isActive: false,
+            reduceMotion: true,
+            onTap: { tapped = true }
+        ) {
+            Text("First")
+        }
+
+        ViewTestHost.host(line, size: CGSize(width: 400, height: 80))
+        try line.inspect().button().tap()
+        XCTAssertTrue(tapped)
     }
 
     func testPlainLyricsScrollViewRendersLines() throws {

@@ -34,15 +34,39 @@ struct PlaylistBrowserDetailWithQueueSplit<Main: View, Queue: View>: View {
 }
 
 struct QueuePanelColumn: View {
+    @ObservedObject var browserViewModel: PlaylistBrowserViewModel
     @ObservedObject var queueViewModel: QueueViewModel
     @ObservedObject var playbackViewModel: PlaybackSessionViewModel
     let openArtist: (ArtistTapTarget) -> Void
+    let onRequestCreatePlaylist: (([TrackRowViewModel]) -> Void)?
+
+    init(
+        browserViewModel: PlaylistBrowserViewModel,
+        queueViewModel: QueueViewModel,
+        playbackViewModel: PlaybackSessionViewModel,
+        openArtist: @escaping (ArtistTapTarget) -> Void,
+        onRequestCreatePlaylist: (([TrackRowViewModel]) -> Void)? = nil
+    ) {
+        _browserViewModel = ObservedObject(wrappedValue: browserViewModel)
+        _queueViewModel = ObservedObject(wrappedValue: queueViewModel)
+        _playbackViewModel = ObservedObject(wrappedValue: playbackViewModel)
+        self.openArtist = openArtist
+        self.onRequestCreatePlaylist = onRequestCreatePlaylist
+    }
 
     var body: some View {
         QueuePanelView(
             queueViewModel: queueViewModel,
             playbackViewModel: playbackViewModel,
-            openArtist: openArtist
+            openArtist: openArtist,
+            trackOpsMenuItems: { item in
+                AnyView(TrackOpsMenuItems(
+                    targets: [TrackRowViewModel(queueItem: item)],
+                    browserViewModel: browserViewModel,
+                    sourcePlaylistID: nil,
+                    onRequestCreatePlaylist: onRequestCreatePlaylist
+                ))
+            }
         )
         .background(.background)
         .frame(
@@ -57,6 +81,9 @@ struct PlaylistBrowserMainDetailColumn: View {
     @ObservedObject var viewModel: PlaylistBrowserViewModel
     @ObservedObject var playbackViewModel: PlaybackSessionViewModel
     @ObservedObject var queueViewModel: QueueViewModel
+    /// Shared creation prompt owned by the browser shell for non-playlist
+    /// surfaces. Playlist detail retains its inline prompt for now.
+    let onRequestCreatePlaylist: (([TrackRowViewModel]) -> Void)?
     @EnvironmentObject private var lyricsOverlay: LyricsOverlayController
 
     @Binding var pendingPlaylistListScrollRestoreID: String?
@@ -65,6 +92,28 @@ struct PlaylistBrowserMainDetailColumn: View {
     let currentPlaybackURI: String?
     let isCurrentlyPlaying: Bool
     let hasPlaybackDevice: Bool
+
+    init(
+        viewModel: PlaylistBrowserViewModel,
+        playbackViewModel: PlaybackSessionViewModel,
+        queueViewModel: QueueViewModel,
+        pendingPlaylistListScrollRestoreID: Binding<String?>,
+        detailLastVisibleTrackID: Binding<String?>,
+        currentPlaybackURI: String?,
+        isCurrentlyPlaying: Bool,
+        hasPlaybackDevice: Bool,
+        onRequestCreatePlaylist: (([TrackRowViewModel]) -> Void)? = nil
+    ) {
+        _viewModel = ObservedObject(wrappedValue: viewModel)
+        _playbackViewModel = ObservedObject(wrappedValue: playbackViewModel)
+        _queueViewModel = ObservedObject(wrappedValue: queueViewModel)
+        self.onRequestCreatePlaylist = onRequestCreatePlaylist
+        _pendingPlaylistListScrollRestoreID = pendingPlaylistListScrollRestoreID
+        _detailLastVisibleTrackID = detailLastVisibleTrackID
+        self.currentPlaybackURI = currentPlaybackURI
+        self.isCurrentlyPlaying = isCurrentlyPlaying
+        self.hasPlaybackDevice = hasPlaybackDevice
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -87,7 +136,8 @@ struct PlaylistBrowserMainDetailColumn: View {
                                 queueViewModel: queueViewModel,
                                 currentPlaybackURI: currentPlaybackURI,
                                 isPlaying: isCurrentlyPlaying,
-                                hasPlaybackDevice: hasPlaybackDevice
+                                hasPlaybackDevice: hasPlaybackDevice,
+                                onRequestCreatePlaylist: onRequestCreatePlaylist
                             )
                         case .search:
                             CatalogSearchView(
@@ -97,7 +147,8 @@ struct PlaylistBrowserMainDetailColumn: View {
                                 queueViewModel: queueViewModel,
                                 currentPlaybackURI: currentPlaybackURI,
                                 isPlaying: isCurrentlyPlaying,
-                                hasPlaybackDevice: hasPlaybackDevice
+                                hasPlaybackDevice: hasPlaybackDevice,
+                                onRequestCreatePlaylist: onRequestCreatePlaylist
                             )
                         case let .playlist(detail):
                             PlaylistDetailContent(
@@ -133,6 +184,7 @@ struct PlaylistBrowserMainDetailColumn: View {
                         case let .artist(detail):
                             ArtistDetailContent(
                                 detail: detail,
+                                browserViewModel: viewModel,
                                 playTrack: { uri in
                                     let playableURIs = detail.tracks.compactMap(\.playableURI)
                                     Task {
@@ -171,7 +223,8 @@ struct PlaylistBrowserMainDetailColumn: View {
                                 },
                                 loadMoreAlbums: {
                                     Task { await viewModel.loadMoreArtistAlbums() }
-                                }
+                                },
+                                onRequestCreatePlaylist: onRequestCreatePlaylist
                             )
                         }
                     }

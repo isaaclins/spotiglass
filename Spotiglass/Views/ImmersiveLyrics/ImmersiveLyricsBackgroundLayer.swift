@@ -44,10 +44,12 @@ struct ImmersiveBlurredArtwork: View {
     private let blurRadius: CGFloat = 24
     @StateObject private var artworkLoader: ArtworkImageLoader
 
-    init(url: URL) {
+    init(url: URL, initialImage: NSImage? = nil) {
         self.url = url
         _artworkLoader = StateObject(
             wrappedValue: ArtworkImageLoader(
+                initialImage: initialImage,
+                initialURL: initialImage == nil ? nil : url,
                 imageTransformer: { image in
                     Self.downscaledForBlur(image, maxEdge: 576)
                 }
@@ -88,7 +90,8 @@ struct ImmersiveBlurredArtwork: View {
     }
 
     /// Minimum uniform scale so the blurred tile (plus fringe from `blurRadius`) covers `target` without letterboxing.
-    private static func coverScaleForBlurredBackdrop(tile: CGFloat, blurRadius: CGFloat, target: CGSize) -> CGFloat {
+    // Internal so tests can verify the aspect-fill policy without relying on view inspection.
+    static func coverScaleForBlurredBackdrop(tile: CGFloat, blurRadius: CGFloat, target: CGSize) -> CGFloat {
         let fringe = blurRadius * 2.5
         let eff = tile + fringe
         guard eff > 0, target.width > 0, target.height > 0 else { return 1 }
@@ -97,7 +100,8 @@ struct ImmersiveBlurredArtwork: View {
         return max(sx, sy, 1)
     }
 
-    private static func downscaledForBlur(_ image: NSImage, maxEdge: CGFloat) -> NSImage {
+    // Internal so tests can exercise both the pass-through and rasterization paths directly.
+    static func downscaledForBlur(_ image: NSImage, maxEdge: CGFloat) -> NSImage {
         let s = image.size
         let w = s.width
         let h = s.height

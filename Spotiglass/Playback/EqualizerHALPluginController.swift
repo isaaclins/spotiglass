@@ -73,6 +73,8 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
     private let embeddedDriverURL: URL?
     private let fileManager: FileManager
     private let outputBackupURL: URL
+    // Keep the CoreAudio route lookups/setter injectable so lifecycle tests can
+    // exercise a running engine without changing the host's real output.
     private let outputDeviceIDForUID: (String) -> AudioObjectID?
     private let outputDeviceUID: (AudioObjectID) -> String?
     private let virtualDeviceIDProvider: () -> AudioObjectID?

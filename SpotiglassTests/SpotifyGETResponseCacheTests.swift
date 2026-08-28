@@ -58,8 +58,7 @@ final class SpotifyGETResponseCacheTests: XCTestCase {
 
     func testExpiredEntryHiddenUnlessAllowed() {
         let cache = SpotifyGETResponseCache(diskCache: nil)
-        cache.store(body: Data([0]), cacheKey: "exp", ttl: 0.01)
-        Thread.sleep(forTimeInterval: 0.05)
+        cache.store(body: Data([0]), cacheKey: "exp", ttl: 0)
         XCTAssertNil(cache.cachedEntry(forCacheKey: "exp", allowExpired: false))
         XCTAssertNotNil(cache.cachedEntry(forCacheKey: "exp", allowExpired: true)?.data)
     }

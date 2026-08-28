@@ -86,6 +86,8 @@ final class AudioEqualizerEngine: ObservableObject {
     private let pluginController: EqualizerHALPluginController
     private let coefficientPublisher: EQCoefficientPublisher
     private let sampleRateProvider: any EqualizerSampleRateProviding
+    private var settingsCancellable: AnyCancellable?
+    private var lastObservedSettings: EqualizerSettings?
 
     /// In-memory mirror of the most recently applied settings. The persisted
     /// copy lives in ``SpotiglassSettingsStore``; this mirror is what's used
@@ -102,6 +104,89 @@ final class AudioEqualizerEngine: ObservableObject {
         self.sampleRateProvider = sampleRateProvider ?? pluginController
         self.sampleRateProvider.activeSampleRateDidChange = { [weak self] _ in
             self?.publishCoefficients()
+        }
+    }
+
+    // MARK: - Settings observation
+
+    /// Keeps the running engine synchronized with the settings store, including
+    /// changes loaded by its external-file watcher. The settings view writes to
+    /// the store; this single subscription is the bridge that applies those
+    /// values to the audio path and owns reload-driven lifecycle changes.
+    func observe(settingsStore: SpotiglassSettingsStore) {
+        settingsCancellable?.cancel()
+        lastObservedSettings = settingsStore.settings.equalizer
+        settingsCancellable = settingsStore.$settings
+            .map(\.equalizer)
+            .removeDuplicates()
+            .sink { [weak self, weak settingsStore] settings in
+                self?.reconcile(settings: settings, in: settingsStore)
+            }
+        reconcile(settings: settingsStore.settings.equalizer, in: settingsStore)
+    }
+
+    private func reconcile(settings: EqualizerSettings, in settingsStore: SpotiglassSettingsStore?) {
+        guard let settingsStore else { return }
+        let previousSettings = lastObservedSettings
+        lastObservedSettings = settings
+
+        if settings.enabled {
+            apply(settings: settings)
+            switch routeState {
+            case let .live(_, _):
+                if let previousSettings,
+                   previousSettings.forwardingTargetUID != settings.forwardingTargetUID,
+                   let forwardingTargetUID = settings.forwardingTargetUID,
+                   !forwardingTargetUID.isEmpty {
+                    setForwardingTarget(uid: forwardingTargetUID)
+                }
+            case .starting, .failed(_, true):
+                // A route transition or an engaged-but-not-ready route owns
+                // lifecycle changes until it reaches a terminal state.
+                return
+            case .disabled, .failed(_, false):
+                do {
+                    try start(forwardingTargetUID: settings.forwardingTargetUID)
+                } catch {
+                    disablePersistedEqualizer(in: settingsStore)
+                }
+            }
+        } else {
+            switch routeState {
+            case .disabled, .starting, .failed(_, false):
+                return
+            case .live, .failed(_, true):
+                do {
+                    try stop()
+                } catch {
+                    // A transactional disable failure leaves the virtual device as
+                    // the possible system default. Keep the persisted switch on so
+                    // the UI cannot claim that audio was restored.
+                    enablePersistedEqualizer(in: settingsStore)
+                }
+            }
+        }
+    }
+
+    private func disablePersistedEqualizer(in settingsStore: SpotiglassSettingsStore) {
+        do {
+            try settingsStore.mutate { $0.equalizer.enabled = false }
+        } catch {
+            SpotiglassLog.error(
+                .settings,
+                "Could not persist the disabled EQ state after settings-driven start failed: \(error.localizedDescription)"
+            )
+        }
+    }
+
+    private func enablePersistedEqualizer(in settingsStore: SpotiglassSettingsStore) {
+        do {
+            try settingsStore.mutate { $0.equalizer.enabled = true }
+        } catch {
+            SpotiglassLog.error(
+                .settings,
+                "Could not persist the enabled EQ state after settings-driven stop failed: \(error.localizedDescription)"
+            )
         }
     }
 
@@ -148,6 +233,8 @@ final class AudioEqualizerEngine: ObservableObject {
             switch stateBeforeStop {
             case let .live(targetUID, _):
                 routeState = .live(targetUID: targetUID, errorMessage: error.localizedDescription)
+            case let .failed(_, isEngaged):
+                routeState = .failed(message: error.localizedDescription, isEngaged: isEngaged)
             default:
                 routeState = .failed(message: error.localizedDescription, isEngaged: false)
             }
@@ -158,7 +245,8 @@ final class AudioEqualizerEngine: ObservableObject {
     // MARK: - Coefficient updates
 
     /// Replaces the in-memory mirror and pushes a fresh coefficient frame.
-    /// Called by the view when a preset is applied or `enabled` flips on.
+    /// Called by the settings observer when a preset or external document edit
+    /// changes the persisted equalizer curve.
     func apply(settings: EqualizerSettings) {
         currentSettings = settings
         publishCoefficients()

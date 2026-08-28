@@ -1,4 +1,5 @@
 import SwiftUI
+import ViewInspector
 import XCTest
 @testable import Spotiglass
 
@@ -36,6 +37,27 @@ final class PlaylistBrowserHomeFeedTests: XCTestCase {
         XCTAssertEqual(cards.first?.destination, .likedSongs)
         XCTAssertEqual(cards.map(\.title), ["Liked Songs", "One", "Two"])
         XCTAssertEqual(cards.dropFirst().map(\.destination), [.playlist(id: "one"), .playlist(id: "two")])
+    }
+
+    func testHomeTopTrackOptionsUseTheRowTargetWithoutMove() throws {
+        let track = TrackRowViewModel.numberedTopTracks([
+            recentlyPlayedTrack(id: "home-track", albumID: "home-album", albumName: "Home Album")
+        ])[0]
+        let browserViewModel = PlaylistBrowserViewModel(
+            api: MockBrowsingAPI(playlistResults: [], trackResults: [:]),
+            cache: MockBrowsingCache()
+        )
+        browserViewModel.detailState = .loaded(.home)
+        let menu = TrackOpsMenuItems(
+            targets: [track],
+            browserViewModel: browserViewModel,
+            sourcePlaylistID: nil
+        )
+
+        XCTAssertNoThrow(try menu.inspect().find(text: SpotiglassL10n.string("Add to playlist")))
+        XCTAssertThrowsError(
+            try menu.inspect().find(text: SpotiglassL10n.string("Move to playlist"))
+        )
     }
 
     func testSelectingHomeLoadsTopTracksAndMarksHomeContent() async {

@@ -211,6 +211,77 @@ final class ListDetailViewsTests: XCTestCase {
         XCTAssertNoThrow(try view.inspect().find(text: "Pinned to sidebar"))
     }
 
+    // MARK: - Track operations menu
+
+    func testTrackOpsMenuUsesSuppliedTargetsAndOmitsMoveWithoutSource() throws {
+        let browserViewModel = PlaylistBrowserViewModel(
+            api: MockBrowsingAPI(playlistResults: [], trackResults: [:]),
+            cache: MockBrowsingCache()
+        )
+        // Home/search rows are not in this palette context. The menu must still
+        // use the row supplied by its surface rather than looking it up again.
+        browserViewModel.detailState = .loaded(.home)
+        let target = TrackRowViewModel.numberedPlaylistRows([
+            PlaylistBrowsingTestFixtures.track(id: "surface-track")
+        ])[0]
+        var requestedRows: [TrackRowViewModel] = []
+        let view = TrackOpsMenuItems(
+            targets: [target],
+            browserViewModel: browserViewModel,
+            sourcePlaylistID: nil,
+            onRequestCreatePlaylist: { requestedRows = $0 }
+        )
+
+        ViewTestHost.host(view)
+        XCTAssertNoThrow(try view.inspect().find(text: SpotiglassL10n.string("Add to playlist")))
+        XCTAssertNoThrow(
+            try view.inspect().find(
+                button: SpotiglassL10n.string("playlist.detail.newPlaylist.menuItem")
+            ).tap()
+        )
+        XCTAssertEqual(requestedRows.map(\.id), ["surface-track"])
+        XCTAssertNoThrow(
+            try view.inspect().find(
+                text: SpotiglassL10n.format(
+                    "playlist.detail.likedSongs.add",
+                    SpotiglassL10n.format("playlist.mutation.trackLabel", Int64(1))
+                )
+            )
+        )
+        XCTAssertThrowsError(
+            try view.inspect().find(text: SpotiglassL10n.string("Move to playlist"))
+        )
+    }
+
+    func testTrackOpsMenuIncludesMoveOnlyWhenSourcePlaylistExists() throws {
+        let source = PlaylistBrowsingTestFixtures.playlist(id: "source", name: "Source")
+        let destination = PlaylistBrowsingTestFixtures.playlist(id: "destination", name: "Destination")
+        let browserViewModel = PlaylistBrowserViewModel(
+            api: MockBrowsingAPI(playlistResults: [], trackResults: [:]),
+            cache: MockBrowsingCache()
+        )
+        browserViewModel.currentUserSpotifyID = source.ownerID
+        browserViewModel.playlistsByID = [source.id: source, destination.id: destination]
+        browserViewModel.playlistState = .loaded([
+            PlaylistRowViewModel(source),
+            PlaylistRowViewModel(destination)
+        ])
+        let target = TrackRowViewModel.numberedPlaylistRows([
+            PlaylistBrowsingTestFixtures.track(id: "source-track")
+        ])[0]
+        let view = TrackOpsMenuItems(
+            targets: [target],
+            browserViewModel: browserViewModel,
+            sourcePlaylistID: source.id,
+            onRequestCreatePlaylist: { _ in }
+        )
+
+        ViewTestHost.host(view)
+        XCTAssertNoThrow(try view.inspect().find(text: SpotiglassL10n.string("Move to playlist")))
+        XCTAssertThrowsError(try view.inspect().find(text: source.name))
+        XCTAssertNoThrow(try view.inspect().find(text: destination.name))
+    }
+
     // MARK: - Native track list
 
     func testTrackListViewMountsRows() throws {
@@ -315,7 +386,7 @@ final class ListDetailViewsTests: XCTestCase {
         )
     }
 
-    func testTrackListViewScrollsToPendingRestoreTrackAndClearsIt() throws {
+    func testTrackListViewScrollsToPendingRestoreTrackAndClearsIt() async throws {
         let store = pinnedStore()
         let tracks = (1 ... 400).map { index in
             trackRow(id: "rs\(index)", title: "Track \(index)", explicit: false, listPosition: index)
@@ -329,7 +400,11 @@ final class ListDetailViewsTests: XCTestCase {
         .frame(width: 800, height: 600)
         .environmentObject(store)
         let controller = ViewTestHost.host(view, size: CGSize(width: 800, height: 600))
-        AppKitTestSupport.pumpRunLoop(for: 0.4)
+        let didClearRestore = await recorder.restoreCleared.wait(timeout: .seconds(2))
+        XCTAssertTrue(
+            didClearRestore,
+            "the pending restore binding should be cleared after the list handles the request"
+        )
 
         let scrollView = try XCTUnwrap(
             Self.firstScrollView(in: controller.view),
@@ -458,6 +533,32 @@ final class ListDetailViewsTests: XCTestCase {
         XCTAssertNoThrow(try inspected.find(text: "Albums"))
     }
 
+    func testArtistTrackMenuUsesTheArtistRowAsItsTarget() throws {
+        let detail = sampleArtistDetail(canLoadMore: false)
+        let browserViewModel = PlaylistBrowserViewModel(
+            api: MockBrowsingAPI(playlistResults: [], trackResults: [:]),
+            cache: MockBrowsingCache()
+        )
+        let view = TrackOpsMenuItems(
+            targets: [detail.tracks[0]],
+            browserViewModel: browserViewModel,
+            sourcePlaylistID: nil,
+            onRequestCreatePlaylist: { rows in
+                XCTAssertEqual(rows.map(\.id), [detail.tracks[0].id])
+            }
+        )
+
+        ViewTestHost.host(view)
+        XCTAssertNoThrow(
+            try view.inspect().find(
+                button: SpotiglassL10n.string("playlist.detail.newPlaylist.menuItem")
+            )
+        )
+        XCTAssertThrowsError(
+            try view.inspect().find(text: SpotiglassL10n.string("Move to playlist"))
+        )
+    }
+
     func testArtistDetailContentSinglesAndLoadMore() throws {
         let detail = sampleArtistDetail(canLoadMore: true, loadingMore: false)
         let view = artistDetailContent(detail: detail)
@@ -527,8 +628,9 @@ final class ListDetailViewsTests: XCTestCase {
         var singleCount = 0
         var doubleCount = 0
         router.handleSingleTap(albumID: "alb") { singleCount += 1 }
+        let pendingSingleTap = router.pendingSingleTapTask
         router.handleDoubleTap { doubleCount += 1 }
-        try? await Task.sleep(nanoseconds: 120_000_000)
+        await pendingSingleTap?.value
         XCTAssertEqual(singleCount, 0)
         XCTAssertEqual(doubleCount, 1)
     }
@@ -537,7 +639,7 @@ final class ListDetailViewsTests: XCTestCase {
         let router = AlbumCardTapRouter(doubleClickDelayNanoseconds: 50_000_000)
         var singleCount = 0
         router.handleSingleTap(albumID: "alb") { singleCount += 1 }
-        try? await Task.sleep(nanoseconds: 80_000_000)
+        await router.pendingSingleTapTask?.value
         XCTAssertEqual(singleCount, 1)
     }
 }
@@ -649,6 +751,10 @@ private extension ListDetailViewsTests {
     func artistDetailContent(detail: ArtistDetailViewModel) -> ArtistDetailContent {
         ArtistDetailContent(
             detail: detail,
+            browserViewModel: PlaylistBrowserViewModel(
+                api: MockBrowsingAPI(playlistResults: [], trackResults: [:]),
+                cache: MockBrowsingCache()
+            ),
             playTrack: { _ in },
             openAlbum: { _ in },
             playAlbumContext: { _ in },
@@ -707,6 +813,8 @@ enum TrackListTestRows {
 
 @MainActor
 final class ScrollRestoreRecorder: ObservableObject {
+    let listMounted = AsyncSignal()
+    let restoreCleared = AsyncSignal()
     var wasCleared = false
 }
 
@@ -728,15 +836,18 @@ private struct TrackListScrollRestoreHarness: View {
             pendingScrollRestoreTrackID: Binding(
                 get: { pending },
                 set: { newValue in
-                    if newValue == nil, pending != nil { recorder.wasCleared = true }
+                    if newValue == nil, pending != nil {
+                        recorder.wasCleared = true
+                        recorder.restoreCleared.signal()
+                    }
                     pending = newValue
                 }
             ),
-            onFirstVisibleTrackChanged: { _ in }
+            onFirstVisibleTrackChanged: { _ in recorder.listMounted.signal() }
         )
         .frame(width: 800, height: 600)
         .task {
-            try? await Task.sleep(nanoseconds: 60_000_000)
+            await recorder.listMounted.wait()
             pending = targetTrackID
         }
     }

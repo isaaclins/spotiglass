@@ -18,6 +18,10 @@ struct PlaylistBrowserView: View {
     /// Disconnecting clears the session and costs a full OAuth round trip to undo, and the
     /// control sits next to Refresh, so it asks first.
     @State var isConfirmingDisconnect = false
+    /// Shared prompt used when a track menu is opened outside playlist detail.
+    @State var isPromptingNewPlaylist = false
+    @State var newPlaylistName = ""
+    @State var newPlaylistInitialRows: [TrackRowViewModel] = []
     /// Drives the narrow-window mutual-exclusion rule: when this drops below
     /// ``SpotiglassDesign/dualSidebarComfortableMinWidth`` the playlist sidebar and queue panel can no
     /// longer coexist (opening one closes the other; resizing wide→narrow auto-closes the LRU one).
@@ -45,6 +49,12 @@ struct PlaylistBrowserView: View {
     @ObservedObject var commandPaletteManager: CommandPaletteManager
     let spotifySearchClient: SpotifyAPIClient
     let signOut: () -> Void
+
+    private func requestCreatePlaylist(_ rows: [TrackRowViewModel]) {
+        newPlaylistInitialRows = rows
+        newPlaylistName = ""
+        isPromptingNewPlaylist = true
+    }
 
     init(
         viewModel: PlaylistBrowserViewModel,
@@ -133,13 +143,16 @@ struct PlaylistBrowserView: View {
                         detailLastVisibleTrackID: $detailLastVisibleTrackID,
                         currentPlaybackURI: currentPlaybackURI,
                         isCurrentlyPlaying: isCurrentlyPlaying,
-                        hasPlaybackDevice: hasPlaybackDevice
+                        hasPlaybackDevice: hasPlaybackDevice,
+                        onRequestCreatePlaylist: requestCreatePlaylist
                     )
                 } queueColumn: {
                     QueuePanelColumn(
+                        browserViewModel: viewModel,
                         queueViewModel: queueViewModel,
                         playbackViewModel: playbackViewModel,
-                        openArtist: { openArtistFromTapTarget($0) }
+                        openArtist: { openArtistFromTapTarget($0) },
+                        onRequestCreatePlaylist: requestCreatePlaylist
                     )
                 }
             }
@@ -386,6 +399,28 @@ struct PlaylistBrowserView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
             queueViewModel.setAppActive(false)
+        }
+        .alert(SpotiglassL10n.string("playlist.detail.newPlaylist.title"), isPresented: $isPromptingNewPlaylist) {
+            TextField(SpotiglassL10n.string("playlist.detail.newPlaylist.field"), text: $newPlaylistName)
+            Button(SpotiglassL10n.string("playlist.detail.newPlaylist.cancel"), role: .cancel) {
+                newPlaylistInitialRows = []
+                newPlaylistName = ""
+            }
+            Button(SpotiglassL10n.string("playlist.detail.newPlaylist.create")) {
+                let rows = newPlaylistInitialRows
+                let name = newPlaylistName
+                newPlaylistInitialRows = []
+                newPlaylistName = ""
+                Task { await viewModel.createPlaylistWithRows(name: name, rows: rows) }
+            }
+            .disabled(newPlaylistName.trimmingCharacters(in: .whitespaces).isEmpty)
+        } message: {
+            Text(newPlaylistInitialRows.isEmpty
+                 ? SpotiglassL10n.string("playlist.detail.newPlaylist.empty")
+                 : SpotiglassL10n.format(
+                    "playlist.detail.newPlaylist.withTracks",
+                    Int64(newPlaylistInitialRows.count)
+                   ))
         }
     }
 }

@@ -101,6 +101,8 @@ final class MockBrowsingAPI: SpotifyBrowsingAPI {
     private(set) var saveTracksCalls: [[String]] = []
     private(set) var removeSavedTracksCalls: [[String]] = []
     var playlistTracksDelayOnInvocation: UInt64?
+    var onPlaylistTracksInvocation: ((String) -> Void)?
+    var onCurrentUserPlaylistsInvocation: (() async -> Void)?
 
     init(
         playlistResults: [Result<[SpotifyPlaylistSummary], Error>],
@@ -167,6 +169,7 @@ final class MockBrowsingAPI: SpotifyBrowsingAPI {
 
     func currentUserPlaylists(limit: Int) async throws -> [SpotifyPlaylistSummary] {
         currentUserPlaylistsCallCount += 1
+        await onCurrentUserPlaylistsInvocation?()
         if let playlistsHandler {
             return try await playlistsHandler()
         }
@@ -175,6 +178,7 @@ final class MockBrowsingAPI: SpotifyBrowsingAPI {
     }
 
     func playlistTracks(playlistID: String, limit: Int, maxPages: Int) async throws -> [SpotifyPlaylistTrackItem] {
+        onPlaylistTracksInvocation?(playlistID)
         if let playlistTracksDelayOnInvocation {
             try await Task.sleep(nanoseconds: playlistTracksDelayOnInvocation)
         }

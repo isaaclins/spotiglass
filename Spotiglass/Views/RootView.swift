@@ -264,6 +264,11 @@ struct RootView: View {
     var body: some View {
         content
             .environmentObject(lyricsOverlayController)
+            // The lyrics surface is a full-window modal. Hide the complete
+            // browser tree here, rather than only replacing the detail column,
+            // so the sidebar, queue and playback chrome leave the VoiceOver
+            // tree while the overlay is visible.
+            .accessibilityHidden(lyricsOverlayController.isPresented)
             .overlay {
                 LyricsOverlayLayer(lyricsOverlay: lyricsOverlayController)
             }
@@ -283,6 +288,7 @@ struct RootView: View {
                     .spring(response: 0.32, dampingFraction: 0.86),
                     value: commandPaletteManager.viewModel.isPresented
                 )
+                .accessibilityHidden(lyricsOverlayController.isPresented)
             }
             .background {
                 CommandPaletteEventMonitor(manager: commandPaletteManager)
@@ -433,6 +439,7 @@ struct RootView: View {
 /// Renders ``ImmersiveLyricsView`` above the whole window (not only the split-view detail column).
 private struct LyricsOverlayLayer: View {
     @ObservedObject var lyricsOverlay: LyricsOverlayController
+    @EnvironmentObject private var settingsStore: SpotiglassSettingsStore
 
     /// Avoid blocking the window when `isPresented` is true before browse VC has called `attach` (nil models).
     private var immersiveLyricsReady: Bool {
@@ -447,19 +454,25 @@ private struct LyricsOverlayLayer: View {
     var body: some View {
         ZStack {
             if immersiveLyricsReady,
-               let playback = lyricsOverlay.playbackViewModel,
-               let queue = lyricsOverlay.queueViewModel,
-               let lyrics = lyricsOverlay.lyricsModel,
-               let navigateArtist = lyricsOverlay.navigateToArtist,
-               let navigateAlbum = lyricsOverlay.navigateToAlbum {
-                ImmersiveLyricsView(
-                    playbackViewModel: playback,
-                    queueViewModel: queue,
-                    lyricsModel: lyrics,
-                    navigateToArtist: navigateArtist,
-                    navigateToAlbum: navigateAlbum,
-                    onDismiss: { lyricsOverlay.dismiss() }
+                let playback = lyricsOverlay.playbackViewModel,
+                let queue = lyricsOverlay.queueViewModel,
+                let lyrics = lyricsOverlay.lyricsModel,
+                let navigateArtist = lyricsOverlay.navigateToArtist,
+                let navigateAlbum = lyricsOverlay.navigateToAlbum
+            {
+                LyricsOverlayFocusContainer(
+                    content: ImmersiveLyricsView(
+                        playbackViewModel: playback,
+                        queueViewModel: queue,
+                        lyricsModel: lyrics,
+                        navigateToArtist: navigateArtist,
+                        navigateToAlbum: navigateAlbum,
+                        onDismiss: { lyricsOverlay.dismiss() }
+                    )
+                    .environmentObject(settingsStore),
+                    isActive: immersiveLyricsReady
                 )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .transition(.opacity.combined(with: .scale(scale: 0.98)))
                 .zIndex(200)
             }

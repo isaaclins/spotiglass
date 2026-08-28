@@ -53,7 +53,8 @@ extension PlaybackSessionViewModel {
         return stableTransportTrackURI ?? ""
     }
 
-    private func currentTransportPollDelay() -> Duration {
+    // Internal so tests can exercise each scheduling branch without waiting for the real interval.
+    func currentTransportPollDelay() -> Duration {
         if let rateLimitedUntil = transportRateLimitedUntil, rateLimitedUntil <= clock.now {
             transportRateLimitedUntil = nil
         }

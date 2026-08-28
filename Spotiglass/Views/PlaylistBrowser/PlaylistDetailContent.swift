@@ -119,9 +119,9 @@ struct PlaylistDetailContent: View {
                             isKeyboardFocusable: false,
                             trackOpsMenuItems: {
                                 AnyView(TrackOpsMenuItems(
-                                    rowID: track.id,
+                                    targets: browserViewModel.effectiveTrackTargets(forRowID: track.id),
                                     browserViewModel: browserViewModel,
-                                    currentPlaylistID: detail.playlist.id,
+                                    sourcePlaylistID: detail.playlist.isAlbumDetail ? nil : detail.playlist.id,
                                     onRequestCreatePlaylist: { rows in
                                         newPlaylistInitialRows = rows
                                         newPlaylistName = ""
@@ -301,33 +301,55 @@ enum PlaylistRenameEditingPolicy {
     }
 }
 
-/// Spotify track-ops submenu rendered inside `TrackListRow.contextMenu`.
-/// Targets either the active shift-click selection or the row alone — kept
-/// outside the cell so the row body type-checks fast and the menu's expensive
-/// playlist enumeration runs only when the menu is actually opened.
+/// Spotify track-ops submenu rendered inside a track-row context menu.
+/// The caller supplies the targets so playlist selection, catalog results, and
+/// queue occurrences can all share this one action list. It stays outside the
+/// cell so the row body type-checks fast and playlist enumeration runs only
+/// when the menu is actually opened.
 struct TrackOpsMenuItems: View {
-    let rowID: String
+    /// Rows supplied by the surface that opened the menu. Playlist detail may
+    /// provide its active selection; other surfaces pass the row directly.
+    let targets: [TrackRowViewModel]
     @ObservedObject var browserViewModel: PlaylistBrowserViewModel
-    /// Playlist ID currently shown; used to mark "Move" as relative to "this"
-    /// playlist and to filter the source out of "Move to…" destinations.
-    let currentPlaylistID: String
-    let onRequestCreatePlaylist: ([TrackRowViewModel]) -> Void
+    /// The playlist the targets came from, when there is one. Without a source
+    /// there is no meaningful removal operation, so the Move menu is omitted.
+    let sourcePlaylistID: String?
+    /// The playlist detail supplies its inline creation prompt. Other surfaces
+    /// can provide the same callback from their shared browser host.
+    let onRequestCreatePlaylist: (([TrackRowViewModel]) -> Void)?
+
+    init(
+        targets: [TrackRowViewModel],
+        browserViewModel: PlaylistBrowserViewModel,
+        sourcePlaylistID: String? = nil,
+        onRequestCreatePlaylist: (([TrackRowViewModel]) -> Void)? = nil
+    ) {
+        self.targets = targets
+        self.browserViewModel = browserViewModel
+        self.sourcePlaylistID = sourcePlaylistID
+        self.onRequestCreatePlaylist = onRequestCreatePlaylist
+    }
+
+    private var sourcePlaylistForMove: String? {
+        guard let sourcePlaylistID, !sourcePlaylistID.isEmpty else { return nil }
+        return sourcePlaylistID
+    }
 
     var body: some View {
-        let targets = browserViewModel.effectiveTrackTargets(forRowID: rowID)
         let playlistTargets = browserViewModel.playlistMutationRows(for: targets)
         let likedSongsTargets = browserViewModel.likedSongsMutationRows(for: targets)
-        let playlistLabel = SpotiglassL10n.format("playlist.mutation.trackLabel", Int64(playlistTargets.count))
         let likedSongsLabel = SpotiglassL10n.format("playlist.mutation.trackLabel", Int64(likedSongsTargets.count))
         let destinations = browserViewModel.userOwnedPlaylistsForMenu(
-            excludingPlaylistID: currentPlaylistID
+            excludingPlaylistID: sourcePlaylistID
         )
 
         Menu(SpotiglassL10n.string("Add to playlist")) {
-            Button(SpotiglassL10n.string("playlist.detail.newPlaylist.menuItem")) {
-                onRequestCreatePlaylist(playlistTargets)
+            if let onRequestCreatePlaylist {
+                Button(SpotiglassL10n.string("playlist.detail.newPlaylist.menuItem")) {
+                    onRequestCreatePlaylist(playlistTargets)
+                }
+                if !destinations.isEmpty { Divider() }
             }
-            if !destinations.isEmpty { Divider() }
             ForEach(destinations, id: \.id) { dest in
                 Button(dest.name) {
                     Task {
@@ -342,21 +364,23 @@ struct TrackOpsMenuItems: View {
         }
         .disabled(playlistTargets.isEmpty)
 
-        Menu(SpotiglassL10n.string("Move to playlist")) {
-            ForEach(destinations, id: \.id) { dest in
-                Button(dest.name) {
-                    Task {
-                        await browserViewModel.moveRowsBetweenPlaylists(
-                            playlistTargets,
-                            from: currentPlaylistID,
-                            to: dest.id,
-                            destinationName: dest.name
-                        )
+        if let sourcePlaylistID = sourcePlaylistForMove {
+            Menu(SpotiglassL10n.string("Move to playlist")) {
+                ForEach(destinations, id: \.id) { dest in
+                    Button(dest.name) {
+                        Task {
+                            await browserViewModel.moveRowsBetweenPlaylists(
+                                playlistTargets,
+                                from: sourcePlaylistID,
+                                to: dest.id,
+                                destinationName: dest.name
+                            )
+                        }
                     }
                 }
             }
+            .disabled(playlistTargets.isEmpty || destinations.isEmpty)
         }
-        .disabled(playlistTargets.isEmpty || destinations.isEmpty)
 
         Button(SpotiglassL10n.format("playlist.detail.likedSongs.add", likedSongsLabel)) {
             Task { await browserViewModel.favoriteRows(likedSongsTargets) }

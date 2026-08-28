@@ -543,11 +543,14 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
 
     func testLikedSongsConcurrentSelectionsShareSingleRevalidationRequest() async {
         let liked = PlaylistBrowsingTestFixtures.track(id: "liked-shared")
+        let savedTracksStarted = AsyncSignal()
+        let releaseSavedTracks = AsyncSignal()
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
             trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]],
             savedTracksHandler: {
-                try await Task.sleep(nanoseconds: 80_000_000)
+                savedTracksStarted.signal()
+                await releaseSavedTracks.wait()
                 return SpotifySavedTracksResult(tracks: [liked], totalAvailable: 1)
             }
         )
@@ -555,18 +558,22 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
 
         await viewModel.load()
         async let first: Void = viewModel.selectSidebar(.likedSongs)
+        let didStartSavedTracks = await savedTracksStarted.wait(timeout: .seconds(1))
+        XCTAssertTrue(didStartSavedTracks)
         async let second: Void = viewModel.selectSidebar(.likedSongs)
+        releaseSavedTracks.signal()
         _ = await (first, second)
 
         XCTAssertEqual(api.savedTracksCallCount, 1, "Concurrent liked-songs refreshes should dedupe into one in-flight request.")
     }
 
     func testConcurrentPlaylistRefreshesShareSingleInFlightRequest() async {
+        let playlistsStarted = AsyncSignal()
+        let releasePlaylists = AsyncSignal()
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
             trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]],
             playlistsHandler: {
-                try await Task.sleep(nanoseconds: 120_000_000)
                 return [PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")]
             }
         )
@@ -574,8 +581,15 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
 
         await viewModel.load()
         await viewModel.selectSidebar(.home)
+        api.onCurrentUserPlaylistsInvocation = {
+            playlistsStarted.signal()
+            await releasePlaylists.wait()
+        }
         async let first: Void = viewModel.unifiedRefreshMainSurface()
+        let didStartPlaylists = await playlistsStarted.wait(timeout: .seconds(1))
+        XCTAssertTrue(didStartPlaylists)
         async let second: Void = viewModel.unifiedRefreshMainSurface()
+        releasePlaylists.signal()
         _ = await (first, second)
 
         XCTAssertEqual(api.currentUserPlaylistsCallCount, 2, "Initial load + one coalesced home refresh should issue exactly two playlist list requests.")

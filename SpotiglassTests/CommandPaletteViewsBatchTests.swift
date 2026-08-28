@@ -292,10 +292,7 @@ final class CommandPaletteViewsBatchTests: XCTestCase {
         }
         vm.query = "ab"
         vm.refresh()
-        let deadline = ContinuousClock.now + .seconds(3)
-        while vm.errorText == nil, ContinuousClock.now < deadline {
-            try await Task.sleep(for: .milliseconds(25))
-        }
+        await vm.waitForSearchCompletion()
         XCTAssertNotNil(vm.errorText)
         ViewTestHost.host(host, size: CGSize(width: 700, height: 420))
         XCTAssertNoThrow(try host.inspect())

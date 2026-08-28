@@ -155,6 +155,28 @@ final class CommandPaletteManager: ObservableObject {
     func handleKeyEvent(_ event: NSEvent) -> Bool {
         guard isCurrentScene() else { return false }
 
+        // Escape keeps the existing dismissal priority: close the command
+        // palette first, then the lyrics modal. It is intentionally handled
+        // before the focused-owner seam so the modal's Escape escape hatch
+        // remains available.
+        if event.keyCode == 53 {
+            if viewModel.isPresented {
+                viewModel.hide()
+                return true
+            }
+            if dismissLyricsOverlayIfPresented?() == true {
+                return true
+            }
+        }
+
+        // The local monitor runs before AppKit sends the event to the focused
+        // responder. Let a focused control claim the events it handles before
+        // any app-wide or palette command handling (for example, Space arms
+        // the shortcut recorder instead of toggling playback).
+        if FocusedKeyEventDispatcher.shouldDeferGlobalDispatch(for: event) {
+            return false
+        }
+
         if viewModel.isPresented {
             // Bare Tab / Shift+Tab cycle the Spotify search category (footer segments)
             // while the query field stays focused. Modifier-bearing Tab events
@@ -164,10 +186,6 @@ final class CommandPaletteManager: ObservableObject {
                CommandPaletteScope.parse(viewModel.query).scope != .commands,
                event.modifierFlags.intersection([.control, .option, .command]).isEmpty {
                 viewModel.cycleSearchCategory(forward: !event.modifierFlags.contains(.shift))
-                return true
-            }
-            if event.keyCode == 53 { // esc
-                viewModel.hide()
                 return true
             }
             if event.keyCode == 125 { // down
@@ -188,18 +206,6 @@ final class CommandPaletteManager: ObservableObject {
                     return true
                 }
             }
-        }
-
-        if event.keyCode == 53, dismissLyricsOverlayIfPresented?() == true {
-            return true
-        }
-
-        // The local monitor runs before AppKit sends the event to the focused
-        // responder. Let a focused control claim the events it handles before
-        // matching app-wide commands (for example, Space arms the shortcut
-        // recorder instead of toggling playback).
-        if FocusedKeyEventDispatcher.shouldDeferGlobalDispatch(for: event) {
-            return false
         }
 
         if isRecordingHotkey {
