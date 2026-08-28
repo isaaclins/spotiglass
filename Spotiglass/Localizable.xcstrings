@@ -8715,6 +8715,121 @@
         }
       }
     },
+    "palette.settings.alsoUsed": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ebenfalls von %@ verwendet, wenn %@."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Also used by %@ when %@."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "También lo usa %@ cuando %@."
+          }
+        }
+      }
+    },
+    "palette.settings.context.always": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "die App geöffnet ist"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "the app is open"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "la app está abierta"
+          }
+        }
+      }
+    },
+    "palette.settings.context.paletteOpen": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "die Palette geöffnet ist"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "the palette is open"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "la paleta está abierta"
+          }
+        }
+      }
+    },
+    "palette.settings.context.signedIn": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "du angemeldet bist"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "you are signed in"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "has iniciado sesión"
+          }
+        }
+      }
+    },
+    "palette.settings.context.signedOut": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "du abgemeldet bist"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "you are signed out"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "has cerrado sesión"
+          }
+        }
+      }
+    },
     "palette.settings.file": {
       "extractionState": "stale",
       "localizations": {
@@ -8849,6 +8964,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "Pulsa un atajo · Esc cancela · Supr borra"
+          }
+        }
+      }
+    },
+    "palette.settings.recordingUnsupported": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Taste kann nicht als Tastenkürzel verwendet werden."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That key cannot be used as a shortcut."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esa tecla no se puede usar como atajo."
           }
         }
       }

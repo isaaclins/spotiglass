@@ -43,6 +43,37 @@ final class CommandPaletteKeymapStoreTests: XCTestCase {
         XCTAssertNil(store.primaryShortcut(for: CommandPaletteCommandID.openPalette))
     }
 
+    func testCrossContextDuplicateIsAllowedAndReported() throws {
+        let url = makeCommandPaletteTestsTempSettingsURL()
+        let settingsStore = SpotiglassSettingsStore(fileURL: url)
+        let store = CommandPaletteKeymapStore(settingsStore: settingsStore)
+        let shared = try CommandShortcut(keystroke: "cmd-return")
+
+        // Search runs while signed in; Pin runs only while the palette is open.
+        // Those contexts do not overlap, so the save succeeds, but Settings must
+        // still be able to explain why two rows display the same chord.
+        try store.setBinding(
+            commandID: CommandPaletteCommandID.openSearch,
+            shortcut: shared,
+            replaceConflicting: false
+        )
+
+        XCTAssertEqual(store.primaryShortcut(for: CommandPaletteCommandID.openSearch), shared)
+        XCTAssertEqual(
+            store.crossContextUsages(
+                of: shared,
+                excludingCommand: CommandPaletteCommandID.openSearch,
+                proposedWhen: .signedIn
+            ),
+            [
+                CommandPaletteShortcutUsage(
+                    commandID: CommandPaletteCommandID.pinSelected,
+                    context: .paletteOpen
+                ),
+            ]
+        )
+    }
+
     /// The key monitor consumes a matched event before AppKit reaches the menu,
     /// so binding a menu-owned chord would kill a menu item that keeps showing
     /// it. Those chords are refused, not silently accepted (#129).
