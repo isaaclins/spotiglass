@@ -62,24 +62,63 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
     func testLyricsPhaseColumnReadySyncedLines() async throws {
         let lines = [
             SyncedLyricLine(id: 0, startTimeMs: 0, words: "Line one"),
-            SyncedLyricLine(id: 1, startTimeMs: 5_000, words: "Line two")
+            SyncedLyricLine(id: 1, startTimeMs: 5_000, words: "Line two"),
         ]
-        let lyrics = ImmersiveLyricsViewModel { _ in .synced(lines) }
+        let fetched: FetchedLyrics = .synced(lines)
+        let lyrics = ImmersiveLyricsViewModel { _ in fetched }
         await lyrics.load(track: sampleTrack(spotifyID: "syncedView"))
 
         let view = phaseColumn(lyricsModel: lyrics, positionMs: 4_500)
         ViewTestHost.host(view, size: CGSize(width: 420, height: 500))
-        XCTAssertNoThrow(try view.inspect().find(text: "Line one"))
-        XCTAssertNoThrow(try view.inspect().find(text: "Line two"))
+
+        guard case .ready(let actual) = lyrics.phase else {
+            return XCTFail("expected ready lyrics, got \(lyrics.phase)")
+        }
+        XCTAssertEqual(actual, fetched)
+        guard
+            case .timed(let renderModel) = ImmersiveLyricsReadyContentModel.renderModel(
+                for: actual,
+                positionMs: 4_500,
+                trackDurationMs: sampleTrack().durationMilliseconds
+            )
+        else {
+            return XCTFail("expected synced lyrics render model, got \(actual)")
+        }
+
+        XCTAssertEqual(renderModel.activeID, 0)
+        XCTAssertEqual(renderModel.lines.map(\.text), ["Line one", "Line two"])
+        XCTAssertEqual(renderModel.lines.map(\.distance), [0, 1])
+        XCTAssertEqual(renderModel.lines.map(\.isActive), [true, false])
+        XCTAssertEqual(renderModel.lines.map(\.seekPositionMs), [0, 5_000])
     }
 
     func testLyricsPhaseColumnReadyPlainLyrics() async throws {
-        let lyrics = ImmersiveLyricsViewModel { _ in .unsyncedPlain(["Verse A", "Verse B"]) }
+        let fetched: FetchedLyrics = .unsyncedPlain(["Verse A", "Verse B"])
+        let lyrics = ImmersiveLyricsViewModel { _ in fetched }
         await lyrics.load(track: sampleTrack(spotifyID: "plainView"))
 
         let view = phaseColumn(lyricsModel: lyrics)
         ViewTestHost.host(view, size: CGSize(width: 420, height: 500))
-        XCTAssertNoThrow(try view.inspect().find(text: "Verse A"))
+
+        guard case .ready(let actual) = lyrics.phase else {
+            return XCTFail("expected ready lyrics, got \(lyrics.phase)")
+        }
+        XCTAssertEqual(actual, fetched)
+        guard
+            case .plain(let renderModel) = ImmersiveLyricsReadyContentModel.renderModel(
+                for: actual,
+                positionMs: 0,
+                trackDurationMs: sampleTrack().durationMilliseconds
+            )
+        else {
+            return XCTFail("expected plain lyrics render model, got \(actual)")
+        }
+
+        XCTAssertEqual(renderModel.activeID, 0)
+        XCTAssertEqual(renderModel.lines.map(\.text), ["Verse A", "Verse B"])
+        XCTAssertEqual(renderModel.lines.map(\.distance), [0, 1])
+        XCTAssertEqual(renderModel.lines.map(\.isActive), [true, false])
+        XCTAssertTrue(renderModel.lines.allSatisfy { $0.seekPositionMs == nil })
     }
 
     func testMainLayoutWideShowsTrackTitle() async throws {
@@ -348,21 +387,26 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
     func testTimedLyricsScrollViewRendersLines() throws {
         let lines = [
             SyncedLyricLine(id: 0, startTimeMs: 0, words: "First"),
-            SyncedLyricLine(id: 1, startTimeMs: 4_000, words: "Second")
+            SyncedLyricLine(id: 1, startTimeMs: 4_000, words: "Second"),
         ]
+        let renderModel = LyricsScrollRenderModel.timed(lines: lines, positionMs: 2_000)
         let view = ImmersiveLyricsTimedLyricsScrollView(
-            lines: lines,
+            renderModel: renderModel,
             maxHeight: 320,
-            positionMs: 2_000,
             reduceMotion: true,
             usesLyricsScrollEdgeFade: false,
             lyricsTextSize: .medium
         )
         .frame(width: 400, height: 360)
-
         ViewTestHost.host(view, size: CGSize(width: 400, height: 360))
-        XCTAssertNoThrow(try view.inspect().find(text: "First"))
-        XCTAssertNoThrow(try view.inspect().find(text: "Second"))
+
+        // Assert the semantic rows consumed by the view, not ViewInspector's
+        // OS-dependent ScrollView/LazyVStack representation.
+        XCTAssertEqual(renderModel.activeID, 0)
+        XCTAssertEqual(renderModel.lines.map(\.text), ["First", "Second"])
+        XCTAssertEqual(renderModel.lines.map(\.distance), [0, 1])
+        XCTAssertEqual(renderModel.lines.map(\.isActive), [true, false])
+        XCTAssertEqual(renderModel.lines.map(\.seekPositionMs), [0, 4_000])
     }
 
     func testTappableLyricLineSeeksWhenTapped() throws {
@@ -381,19 +425,28 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
     }
 
     func testPlainLyricsScrollViewRendersLines() throws {
-        let view = ImmersiveLyricsPlainLyricsScrollView(
+        let renderModel = LyricsScrollRenderModel.plain(
             lines: ["Alpha", "Beta"],
-            maxHeight: 280,
             positionMs: 30_000,
-            trackDurationMs: 120_000,
+            durationMs: 120_000
+        )
+        let view = ImmersiveLyricsPlainLyricsScrollView(
+            renderModel: renderModel,
+            maxHeight: 280,
             reduceMotion: true,
             usesLyricsScrollEdgeFade: true,
             lyricsTextSize: .small
         )
         .frame(width: 400, height: 320)
-
         ViewTestHost.host(view, size: CGSize(width: 400, height: 320))
-        XCTAssertNoThrow(try view.inspect().find(text: "Alpha"))
+
+        // Plain lyrics have no per-line timestamp, but still highlight and
+        // render every line in source order.
+        XCTAssertEqual(renderModel.activeID, 0)
+        XCTAssertEqual(renderModel.lines.map(\.text), ["Alpha", "Beta"])
+        XCTAssertEqual(renderModel.lines.map(\.distance), [0, 1])
+        XCTAssertEqual(renderModel.lines.map(\.isActive), [true, false])
+        XCTAssertTrue(renderModel.lines.allSatisfy { $0.seekPositionMs == nil })
     }
 
     func testNextInQueueSectionEmptyAndPopulated() async throws {

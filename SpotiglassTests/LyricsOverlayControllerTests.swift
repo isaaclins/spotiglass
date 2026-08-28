@@ -89,8 +89,7 @@ final class LyricsOverlayControllerTests: XCTestCase {
         window.contentView = root
         defer {
             focusContainer.deactivate()
-            window.makeFirstResponder(nil)
-            window.close()
+            AppKitTestSupport.closeWindowSafely(window)
         }
 
         XCTAssertTrue(AppKitTestSupport.makeFirstResponder(previousResponder, in: window))
