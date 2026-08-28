@@ -207,18 +207,29 @@ final class PlaybackChromeViewsTests: XCTestCase {
         }
         let buttons = elements.filter { $0.role == "AXButton" }
         let buttonLabels = Set(buttons.map(\.axDescription))
+        let treeDump = realizedAccessibilityTreeDescription(elements)
         for label in ["Open lyrics", "Lyrics", "Previous track", "Pause", "Next track", "Repeat off", "Playback volume"] {
             XCTAssertTrue(
                 buttonLabels.contains(label),
-                "Expected realised AXButton labelled \(label); got \(elements)"
+                "Expected realised AXButton labelled \(label).\nRealised accessibility tree:\n\(treeDump)"
             )
         }
         XCTAssertTrue(
-            elements.contains { $0.role == "AXMenuButton" && $0.title == "Playback device" }
+            elements.contains { $0.role == "AXMenuButton" && $0.title == "Playback device" },
+            "Expected realised AXMenuButton titled Playback device.\nRealised accessibility tree:\n\(treeDump)"
         )
-        XCTAssertFalse(elements.contains { $0.role == "AXWebArea" })
-        XCTAssertFalse(buttons.contains { $0.axDescription == "button" })
-        XCTAssertFalse(elements.contains { $0.role == "AXStaticText" && $0.value == ", " })
+        XCTAssertFalse(
+            elements.contains { $0.role == "AXWebArea" },
+            "The realised accessibility tree must not contain AXWebArea.\nRealised accessibility tree:\n\(treeDump)"
+        )
+        XCTAssertFalse(
+            buttons.contains { $0.axDescription == "button" },
+            "The realised transport must not expose a generic button label.\nRealised accessibility tree:\n\(treeDump)"
+        )
+        XCTAssertFalse(
+            elements.contains { $0.role == "AXStaticText" && $0.value == ", " },
+            "The realised accessibility tree must not expose the artist separator as static text.\nRealised accessibility tree:\n\(treeDump)"
+        )
     }
 
     func testPlaybackTransportLayoutAtWindowMinimumKeepsScrubberUsable() throws {
@@ -630,11 +641,23 @@ final class PlaybackChromeViewsTests: XCTestCase {
         let axDescription: String
         let title: String
         let value: String
+        let position: CGPoint?
         let size: CGSize
+        let depth: Int
 
         var description: String {
-            "role=\(role) description=\(axDescription) title=\(title) value=\(value) size=\(size)"
+            let positionDescription = position.map { String(describing: $0) } ?? "<unavailable>"
+            return "role=\(role.debugDescription) description=\(axDescription.debugDescription) title=\(title.debugDescription) value=\(value.debugDescription) position=\(positionDescription) size=\(size)"
         }
+    }
+
+    private func realizedAccessibilityTreeDescription(
+        _ elements: [RealizedAccessibilityElement]
+    ) -> String {
+        guard !elements.isEmpty else { return "<empty>" }
+        return elements.map { element in
+            String(repeating: "  ", count: element.depth) + element.description
+        }.joined(separator: "\n")
     }
 
     private func realizedAccessibilityTree(in window: NSWindow) throws -> [RealizedAccessibilityElement] {
@@ -659,16 +682,21 @@ final class PlaybackChromeViewsTests: XCTestCase {
         return axDescendants(of: windowElement)
     }
 
-    private func axDescendants(of element: AXUIElement) -> [RealizedAccessibilityElement] {
+    private func axDescendants(
+        of element: AXUIElement,
+        depth: Int = 0
+    ) -> [RealizedAccessibilityElement] {
         let snapshot = RealizedAccessibilityElement(
             role: axString(element, attribute: kAXRoleAttribute),
             axDescription: axString(element, attribute: kAXDescriptionAttribute),
             title: axString(element, attribute: kAXTitleAttribute),
             value: axValueString(element),
-            size: axSize(element)
+            position: axPosition(element),
+            size: axSize(element),
+            depth: depth
         )
         let children = (try? axChildren(of: element, attribute: kAXChildrenAttribute)) ?? []
-        return [snapshot] + children.flatMap(axDescendants)
+        return [snapshot] + children.flatMap { axDescendants(of: $0, depth: depth + 1) }
     }
 
     private func axChildren(of element: AXUIElement, attribute: String) throws -> [AXUIElement] {
@@ -686,6 +714,19 @@ final class PlaybackChromeViewsTests: XCTestCase {
             return ""
         }
         return value as? String ?? ""
+    }
+
+    private func axPosition(_ element: AXUIElement) -> CGPoint? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &value) == .success,
+              let value,
+              CFGetTypeID(value) == AXValueGetTypeID()
+        else { return nil }
+        let axValue = value as! AXValue
+        guard AXValueGetType(axValue) == .cgPoint else { return nil }
+        var position = CGPoint.zero
+        guard AXValueGetValue(axValue, .cgPoint, &position) else { return nil }
+        return position
     }
 
     private func axSize(_ element: AXUIElement) -> CGSize {
