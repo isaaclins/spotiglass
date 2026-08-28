@@ -210,21 +210,26 @@ final class SpotifyAPIClientPlaylistTracksItemsTests: XCTestCase {
         """
         // Yield after the first page so this test task can cancel before `collectPaged` issues page 2
         // (otherwise both requests can complete synchronously before we observe `requests.count == 1`).
-        let httpClient = YieldAfterFirstResponseHTTPClient([
-            .json(page1),
-            .json(page2)
-        ])
+        let firstRequestStarted = AsyncSignal()
+        let releaseFirstResponse = AsyncSignal()
+        let httpClient = YieldAfterFirstResponseHTTPClient(
+            [.json(page1), .json(page2)],
+            firstRequestStarted: firstRequestStarted,
+            releaseFirstResponse: releaseFirstResponse
+        )
         let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
 
         let task = Task {
             try await client.playlistTracks(playlistID: "p1", limit: 1, maxPages: 10)
         }
-        for _ in 0..<500 {
-            if httpClient.requests.count >= 1 { break }
-            try await Task.sleep(nanoseconds: 100_000)
-        }
+        let didStartFirstRequest = await firstRequestStarted.wait(timeout: .seconds(1))
+        XCTAssertTrue(
+            didStartFirstRequest,
+            "the first page request should start before cancellation"
+        )
         XCTAssertEqual(httpClient.requests.count, 1, "Expected exactly one request before cancellation")
         task.cancel()
+        releaseFirstResponse.signal()
 
         do {
             _ = try await task.value

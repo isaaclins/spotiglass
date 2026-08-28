@@ -44,7 +44,11 @@ final class CommandPaletteViewModelPinAndKeyEventsTests: XCTestCase {
         let manager = CommandPaletteManager()
         manager.isSignedIn = true
         var invocations = 0
-        manager.previousTrack = { invocations += 1 }
+        let invocationSignal = AsyncSignal()
+        manager.previousTrack = {
+            invocations += 1
+            invocationSignal.signal()
+        }
 
         // shift-cmd-left default binding from CommandPaletteCommandCatalog. The
         // keymap parser normalizes "left" to NSLeftArrowFunctionKey, so the
@@ -80,14 +84,14 @@ final class CommandPaletteViewModelPinAndKeyEventsTests: XCTestCase {
         }
 
         XCTAssertTrue(manager.handleKeyEvent(firstPress), "First press must be consumed by the keymap.")
+        let didInvokeFirstPress = await invocationSignal.wait(timeout: .seconds(1))
+        XCTAssertTrue(didInvokeFirstPress, "The initial key press should invoke previousTrack.")
         for _ in 0..<8 {
             XCTAssertFalse(
                 manager.handleKeyEvent(repeatedPress),
                 "Auto-repeat events for a transport hotkey must not be consumed; they must fall through to AppKit."
             )
         }
-
-        try? await Task.sleep(nanoseconds: 80_000_000)
 
         XCTAssertEqual(
             invocations,

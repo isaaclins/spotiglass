@@ -11,11 +11,16 @@ final class PlaylistBrowserConcurrencyTests: XCTestCase {
         let page2 = SpotifyArtistAlbum(
             id: "alb-2", name: "Second", imageURL: nil, releaseYear: "2023", totalTracks: 1, group: .album, uri: "spotify:album:alb-2"
         )
+        let firstPageStarted = AsyncSignal()
+        let releaseFirstPage = AsyncSignal()
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
             trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]],
             artistAlbumsPageHandler: { _, _, _, offset, _ in
-                try await Task.sleep(nanoseconds: 50_000_000)
+                if offset == 0 {
+                    firstPageStarted.signal()
+                    await releaseFirstPage.wait()
+                }
                 if offset == 0 {
                     return SpotifyAPIClient.SpotifyArtistAlbumsPage(
                         items: [page1],
@@ -29,7 +34,10 @@ final class PlaylistBrowserConcurrencyTests: XCTestCase {
 
         await viewModel.load()
         async let first: Void = viewModel.selectArtist(id: "artist-xyz")
+        let didStartFirstPage = await firstPageStarted.wait(timeout: .seconds(1))
+        XCTAssertTrue(didStartFirstPage, "the first artist load should be in flight before the duplicate")
         async let second: Void = viewModel.selectArtist(id: "artist-xyz")
+        releaseFirstPage.signal()
         _ = await (first, second)
 
         XCTAssertEqual(api.artistAlbumsPageCallCount, 2, "Concurrent same-artist opens should share one in-flight artist load.")

@@ -50,12 +50,7 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
 
         XCTAssertNil(viewModel.latestPlayerSnapshot)
         viewModel.handle(.ready(deviceID: "device-1"))
-
-        let deadline = Date().addingTimeInterval(1.0)
-        while Date() < deadline,
-              !playbackAPI.actions.contains("fetchPlayerSnapshot") {
-            try? await Task.sleep(nanoseconds: 10_000_000)
-        }
+        await viewModel.syncTransportFromSpotify()
 
         XCTAssertTrue(
             playbackAPI.actions.contains("fetchPlayerSnapshot"),
@@ -107,13 +102,14 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
             webCommander: MockWebPlaybackCommander()
         )
         viewModel.handle(.ready(deviceID: "old-device"))
+        let initialTransportSyncTask = viewModel.transportSyncSchedulerTask
 
         let didStart = await fetchStarted.wait(timeout: .seconds(1))
         XCTAssertTrue(didStart)
         await viewModel.disconnect()
         playbackAPI.onFetchPlayerSnapshot = nil
         releaseFetch.signal()
-        try? await Task.sleep(for: .milliseconds(30))
+        await initialTransportSyncTask?.value
 
         XCTAssertEqual(viewModel.connectionState, .disconnected)
         XCTAssertNil(viewModel.latestPlayerSnapshot)
@@ -139,7 +135,6 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
         let fetchCountAfterInitialSync = playbackAPI.actions.filter { $0 == "fetchPlayerSnapshot" }.count
 
         viewModel.handle(.ready(deviceID: "device-1"))
-        try? await Task.sleep(nanoseconds: 50_000_000)
 
         XCTAssertTrue(viewModel.isTransportStateKnown)
         XCTAssertTrue(viewModel.shuffleEnabled)
@@ -207,17 +202,21 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
 
     func testReadySyncsPlaybackVolumeToWebPlayer() async {
         let commander = MockWebPlaybackCommander()
+        let volumeSent = AsyncSignal()
+        commander.onSend = { command in
+            if command == .setVolume { volumeSent.signal() }
+        }
         let viewModel = PlaybackSessionViewModel(
             playbackAPI: MockPlaybackAPI(),
             webCommander: commander,
             defaults: makeEphemeralDefaults()
         )
         viewModel.handle(.ready(deviceID: "device-1"))
-        let volumeDeadline = Date().addingTimeInterval(1.0)
-        while Date() < volumeDeadline,
-              commander.commands.filter({ $0.command == .setVolume }).isEmpty {
-            try? await Task.sleep(nanoseconds: 20_000_000)
-        }
+        let didSendReadyVolume = await volumeSent.wait(timeout: .seconds(1))
+        XCTAssertTrue(
+            didSendReadyVolume,
+            "ready should send the persisted playback volume"
+        )
         let volumeCommands = commander.commands.filter { $0.command == .setVolume }
         XCTAssertEqual(volumeCommands.count, 1)
         let sent = volumeCommands[0].payload["volume"] as? Double
@@ -258,8 +257,16 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
             webCommander: commander,
             defaults: defaults
         )
+        let volumeSent = AsyncSignal()
+        commander.onSend = { command in
+            if command == .setVolume { volumeSent.signal() }
+        }
         viewModel.setPlaybackVolume(0.56)
-        try? await Task.sleep(nanoseconds: 50_000_000)
+        let didSendVolume = await volumeSent.wait(timeout: .seconds(1))
+        XCTAssertTrue(
+            didSendVolume,
+            "setting playback volume should send its bridge command"
+        )
         XCTAssertEqual(viewModel.playbackVolume, 0.56, accuracy: 0.000_001)
         XCTAssertEqual(commander.commands.last?.command, .setVolume)
         let lastVolume = commander.commands.last?.payload["volume"] as? Double
@@ -526,9 +533,23 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
         viewModel.handle(.ready(deviceID: "device-1"))
         await viewModel.syncTransportFromSpotify()
         let initialFetchCount = playbackAPI.actions.filter { $0 == "fetchPlayerSnapshot" }.count
+        let playStarted = AsyncSignal()
+        let deferredSyncStarted = AsyncSignal()
+        playbackAPI.onPlay = { _ in
+            playStarted.signal()
+        }
+        playbackAPI.onFetchPlayerSnapshot = {
+            if playbackAPI.actions.filter({ $0 == "fetchPlayerSnapshot" }).count > initialFetchCount {
+                deferredSyncStarted.signal()
+            }
+        }
 
         let playTask = Task { await viewModel.play(uri: "spotify:track:1") }
-        try? await Task.sleep(nanoseconds: 20_000_000)
+        let didStartPlay = await playStarted.wait(timeout: .seconds(1))
+        XCTAssertTrue(
+            didStartPlay,
+            "the play command should be in flight before the transport sync"
+        )
         await viewModel.syncTransportFromSpotify()
         XCTAssertEqual(
             playbackAPI.actions.filter { $0 == "fetchPlayerSnapshot" }.count,
@@ -536,11 +557,11 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
             "Transport reads should defer while the play command is in flight."
         )
         await playTask.value
-        let syncDeadline = Date().addingTimeInterval(1.0)
-        while Date() < syncDeadline,
-              playbackAPI.actions.filter({ $0 == "fetchPlayerSnapshot" }).count == initialFetchCount {
-            try? await Task.sleep(nanoseconds: 20_000_000)
-        }
+        let didStartDeferredSync = await deferredSyncStarted.wait(timeout: .seconds(1))
+        XCTAssertTrue(
+            didStartDeferredSync,
+            "a deferred transport sync should run after the play command completes"
+        )
         XCTAssertGreaterThan(
             playbackAPI.actions.filter { $0 == "fetchPlayerSnapshot" }.count,
             initialFetchCount

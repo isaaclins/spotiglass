@@ -21,10 +21,10 @@ final class CommandPaletteViewModelActionsTests: XCTestCase {
         viewModel.show()
         viewModel.query = "@artist"
         viewModel.refresh()
-        try? await Task.sleep(for: .milliseconds(450))
+        await viewModel.waitForSearchCompletion()
         let afterLegacy = callCount
         viewModel.queryDidChangeFromTextField()
-        try? await Task.sleep(for: .milliseconds(80))
+        await viewModel.waitForSearchCompletion()
         XCTAssertEqual(callCount, afterLegacy, "Suppress flag should skip duplicate refresh after @ normalization")
     }
 
@@ -139,7 +139,7 @@ final class CommandPaletteViewModelActionsTests: XCTestCase {
         viewModel.query = "abc"
         viewModel.setAvailableSearchCategories([.artists, .myPlaylists], refreshIfFilterInvalidated: true)
         XCTAssertEqual(viewModel.searchCategoryFilter, .artists)
-        try? await Task.sleep(for: .milliseconds(450))
+        await viewModel.waitForSearchCompletion()
         XCTAssertGreaterThanOrEqual(callCount, 1)
     }
 
@@ -154,7 +154,7 @@ final class CommandPaletteViewModelActionsTests: XCTestCase {
         viewModel.show()
         viewModel.query = ">play"
         viewModel.refresh()
-        try? await Task.sleep(for: .milliseconds(80))
+        await viewModel.waitForSearchCompletion()
         XCTAssertEqual(viewModel.sections.count, 1)
         XCTAssertEqual(viewModel.sections.first?.items.map(\.id), ["match"])
     }
@@ -168,7 +168,7 @@ final class CommandPaletteViewModelActionsTests: XCTestCase {
         viewModel.show()
         viewModel.query = "abcd"
         viewModel.refresh()
-        try? await Task.sleep(for: .milliseconds(450))
+        await viewModel.waitForSearchCompletion()
         XCTAssertNotNil(viewModel.errorText)
         XCTAssertTrue(viewModel.sections.isEmpty)
     }

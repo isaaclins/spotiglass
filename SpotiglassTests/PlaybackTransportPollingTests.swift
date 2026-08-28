@@ -14,7 +14,6 @@ final class PlaybackTransportPollingTests: XCTestCase {
         let baselineFetchCount = playbackAPI.actions.filter { $0 == "fetchPlayerSnapshot" }.count
 
         viewModel.restartTransportPollingIfNeeded()
-        try? await Task.sleep(nanoseconds: 50_000_000)
 
         let fetchCountAfterCancel = playbackAPI.actions.filter { $0 == "fetchPlayerSnapshot" }.count
         XCTAssertEqual(
@@ -69,7 +68,6 @@ final class PlaybackTransportPollingTests: XCTestCase {
                 nextTracks: []
             ))
         }
-        try? await Task.sleep(nanoseconds: 50_000_000)
 
         let fetchCountAfterTicks = playbackAPI.actions.filter { $0 == "fetchPlayerSnapshot" }.count
         XCTAssertEqual(
@@ -127,7 +125,6 @@ final class PlaybackTransportPollingTests: XCTestCase {
             viewModel.handle(.stateChanged(track, isPaused: true, nextTracks: []))
             viewModel.handle(.stateChanged(track, isPaused: false, nextTracks: []))
         }
-        try? await Task.sleep(nanoseconds: 50_000_000)
 
         let fetchCountAfterOscillation = playbackAPI.actions.filter { $0 == "fetchPlayerSnapshot" }.count
         XCTAssertEqual(
@@ -135,6 +132,66 @@ final class PlaybackTransportPollingTests: XCTestCase {
             baselineFetchCount,
             "Rapid play/pause SDK ticks must not restart transport polling or issue GET /v1/me/player reads."
         )
+    }
+
+    func testCurrentTransportPollDelayUsesViewModelState() {
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: MockPlaybackAPI(),
+            webCommander: MockWebPlaybackCommander()
+        )
+        let track = PlaybackNowPlaying(
+            name: "Track",
+            artists: ["Artist"],
+            albumName: nil,
+            albumID: nil,
+            albumArtURL: nil,
+            durationMilliseconds: 200_000,
+            positionMilliseconds: 0,
+            uri: "spotify:track:1"
+        )
+
+        viewModel.transportRateLimitedUntil = viewModel.clock.now.advanced(by: .milliseconds(100))
+        XCTAssertEqual(viewModel.currentTransportPollDelay(), .seconds(1))
+
+        viewModel.transportRateLimitedUntil = viewModel.clock.now.advanced(by: .seconds(-1))
+        XCTAssertEqual(viewModel.currentTransportPollDelay(), .seconds(20))
+        XCTAssertNil(viewModel.transportRateLimitedUntil)
+
+        viewModel.localMutationSettleTicksRemaining = 1
+        XCTAssertEqual(viewModel.currentTransportPollDelay(), .seconds(1))
+        viewModel.localMutationSettleTicksRemaining = 0
+
+        viewModel.beginPendingPlaybackVolumeMutation(target: 0.5)
+        XCTAssertEqual(viewModel.currentTransportPollDelay(), .seconds(1))
+        viewModel.pendingVolumeMutation = nil
+
+        viewModel.transportTransientErrorCount = 3
+        XCTAssertEqual(viewModel.currentTransportPollDelay(), .seconds(8))
+        viewModel.transportTransientErrorCount = 0
+
+        XCTAssertEqual(viewModel.currentTransportPollDelay(), .seconds(20))
+
+        viewModel.latestPlayerSnapshot = SpotifyPlayerSnapshot(
+            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+            activeDevice: nil,
+            isPlaying: true
+        )
+        viewModel.setConnectionState(.playing(track))
+        XCTAssertEqual(viewModel.currentTransportPollDelay(), .seconds(2))
+
+        viewModel.latestPlayerSnapshot = SpotifyPlayerSnapshot(
+            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+            activeDevice: nil,
+            isPlaying: false
+        )
+        viewModel.setConnectionState(.paused(track))
+        XCTAssertEqual(viewModel.currentTransportPollDelay(), .seconds(8))
+
+        viewModel.setConnectionState(.ready(deviceID: "device-1"))
+        XCTAssertEqual(viewModel.currentTransportPollDelay(), .seconds(20))
+
+        viewModel.setConnectionState(.disconnected)
+        XCTAssertEqual(viewModel.currentTransportPollDelay(), .seconds(30))
     }
 
     func testResolvedTransportTrackURIFallsBackToStableURI() {

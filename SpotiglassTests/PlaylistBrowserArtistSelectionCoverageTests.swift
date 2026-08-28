@@ -104,11 +104,14 @@ final class PlaylistBrowserArtistSelectionCoverageTests: XCTestCase {
     }
 
     func testSelectArtistCoalescesRapidRepeatRequests() async {
+        let searchStarted = AsyncSignal()
+        let releaseSearch = AsyncSignal()
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
             trackResults: [:],
             searchHandler: { _, _ in
-                try await Task.sleep(nanoseconds: 300_000_000)
+                searchStarted.signal()
+                await releaseSearch.wait()
                 return SpotifySearchResults(tracks: [], artists: [], albums: [], playlists: [])
             },
             artistAlbumsHandler: { _, _, _ in [] }
@@ -117,8 +120,13 @@ final class PlaylistBrowserArtistSelectionCoverageTests: XCTestCase {
         await vm.load()
 
         async let first: Void = vm.selectArtist(id: "coalesce")
-        try? await Task.sleep(nanoseconds: 10_000_000)
+        let didStartSearch = await searchStarted.wait(timeout: .seconds(1))
+        XCTAssertTrue(
+            didStartSearch,
+            "the first artist request should be in flight before the duplicate"
+        )
         await vm.selectArtist(id: "coalesce")
+        releaseSearch.signal()
         await first
         XCTAssertGreaterThanOrEqual(vm.artistFetchMetrics.coalescedRequests, 1)
     }

@@ -21,7 +21,7 @@ final class CommandPaletteViewModelChromeAugmentationTests: XCTestCase {
         viewModel.show()
         viewModel.query = ">"
         viewModel.refresh()
-        try? await Task.sleep(for: .milliseconds(400))
+        await viewModel.waitForSearchCompletion()
 
         XCTAssertEqual(viewModel.visibleItems.count, 1)
         await viewModel.executeSelection()
