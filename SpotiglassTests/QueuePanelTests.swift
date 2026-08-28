@@ -41,6 +41,7 @@ final class QueuePanelTests: XCTestCase {
             browserViewModel: browserViewModel,
             sourcePlaylistID: nil
         )
+        .environmentObject(PinnedItemsStore(cache: InMemoryPinnedItemsCache()))
 
         XCTAssertNoThrow(try menu.inspect().find(text: SpotiglassL10n.string("Add to playlist")))
         XCTAssertThrowsError(

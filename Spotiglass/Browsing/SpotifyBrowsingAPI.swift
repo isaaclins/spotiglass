@@ -51,6 +51,7 @@ protocol SpotifyBrowsingAPI {
     func createPlaylist(userID: String, name: String, isPublic: Bool) async throws -> SpotifyPlaylistSummary
     func saveTracks(ids: [String]) async throws
     func removeSavedTracks(ids: [String]) async throws
+    func savedTrackStatuses(ids: [String]) async throws -> [Bool]
 }
 
 extension SpotifyAPIClient: SpotifyBrowsingAPI {}
@@ -93,5 +94,8 @@ extension SpotifyBrowsingAPI {
     }
     func removeSavedTracks(ids: [String]) async throws {
         throw SpotifyAPIError.invalidRequest("Library unsave is not supported by this API implementation.")
+    }
+    func savedTrackStatuses(ids: [String]) async throws -> [Bool] {
+        throw SpotifyAPIError.invalidRequest("Saved-track status lookup is not supported by this API implementation.")
     }
 }

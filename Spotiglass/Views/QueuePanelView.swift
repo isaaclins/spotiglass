@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 
 struct QueuePanelView: View {
@@ -146,7 +145,6 @@ struct QueuePanelView: View {
                             Task { await queueViewModel.playItem(item) }
                         },
                         openArtist: openArtist,
-                        onCopyURI: { copyURI(item.uri) },
                         trackOpsMenuItems: trackOpsMenuItems.map { builder in
                             { builder(item) }
                         }
@@ -189,7 +187,6 @@ struct QueuePanelView: View {
                             Task { await queueViewModel.playItem(item) }
                         },
                         openArtist: openArtist,
-                        onCopyURI: { copyURI(item.uri) },
                         trackOpsMenuItems: trackOpsMenuItems.map { builder in
                             { builder(item) }
                         }
@@ -213,12 +210,6 @@ struct QueuePanelView: View {
         }
         return SpotiglassL10n.string("queue.upNext.empty.default")
     }
-
-    private func copyURI(_ uri: String?) {
-        guard let uri = SpotifyPlayableURI.canonical(uri) else { return }
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(uri, forType: .string)
-    }
 }
 
 private struct QueueRowView: View {
@@ -227,7 +218,6 @@ private struct QueueRowView: View {
     let isPlaying: Bool
     let onSelect: () -> Void
     let openArtist: (ArtistTapTarget) -> Void
-    let onCopyURI: () -> Void
     let trackOpsMenuItems: (() -> AnyView)?
 
     var body: some View {
@@ -268,7 +258,6 @@ private struct QueueRowView: View {
         .contextMenu {
             if item.playableURI != nil {
                 Button(SpotiglassL10n.string("queue.playNow"), action: onSelect)
-                Button(SpotiglassL10n.string("queue.copyURI"), action: onCopyURI)
             }
             if let trackOpsMenuItems {
                 Divider()
