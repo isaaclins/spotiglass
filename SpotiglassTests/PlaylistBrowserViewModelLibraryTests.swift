@@ -518,6 +518,89 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         XCTAssertEqual(viewModel.likedSongsMutationRows(for: rows).map(\.id), ["playable"])
     }
 
+    func testMissingLikedSongsModifyScopeDoesNotIssueMutation() async {
+        let api = MockBrowsingAPI(playlistResults: [], trackResults: [:])
+        let scopeProvider = StaticSpotifyScopeProvider(
+            scopes: Set([
+                "playlist-read-private",
+                "playlist-read-collaborative",
+                "user-library-read"
+            ])
+        )
+        let viewModel = PlaylistBrowserViewModel(
+            api: api,
+            cache: MockBrowsingCache(),
+            scopeProvider: scopeProvider
+        )
+        let row = TrackRowViewModel.numberedPlaylistRows([
+            PlaylistBrowsingTestFixtures.track(id: "needs-scope")
+        ])[0]
+
+        await viewModel.favoriteRows([row])
+
+        XCTAssertTrue(api.saveTracksCalls.isEmpty)
+        XCTAssertEqual(
+            viewModel.trackMutationToast,
+            SpotiglassL10n.string("playlist.mutation.likedSongsRequiresReconnect")
+        )
+    }
+
+    func testDescribeFailureForLikedSongs403NamesOperationAndReconnects() {
+        let message = PlaylistBrowserViewModel.describeFailure(
+            SpotifyAPIError.forbidden(message: "Spotify denied access to this resource.", details: "HTTP 403"),
+            operation: .addToLikedSongs
+        )
+
+        XCTAssertEqual(message, SpotiglassL10n.string("playlist.mutation.likedSongsRequiresReconnect"))
+        XCTAssertTrue(message.contains("Liked Songs"))
+        XCTAssertTrue(message.contains("Reconnect"))
+        XCTAssertFalse(message == SpotiglassL10n.string("error.spotify.forbidden"))
+    }
+
+    func testFailedPlaylistFetchUsesErrorStateWithoutCreatingARow() async {
+        let api = MockBrowsingAPI(
+            playlistResults: [.failure(SpotifyAPIError.forbidden(
+                message: "Spotify denied access to this resource.",
+                details: "GET /v1/me/playlists"
+            ))],
+            trackResults: [:]
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+
+        await viewModel.load()
+
+        guard case let .error(error) = viewModel.playlistState else {
+            return XCTFail("A failed playlist fetch should surface through the error state.")
+        }
+        XCTAssertTrue(viewModel.playlistState.currentValue == nil)
+        XCTAssertEqual(error.message, "Spotify denied access to this resource.")
+    }
+
+    func testErrorShapedPlaylistResultIsNotRenderedAsARow() async {
+        let errorName = SpotiglassL10n.string("error.spotify.forbidden")
+        let errorSummary = SpotifyPlaylistSummary(
+            id: "error-item",
+            name: errorName,
+            ownerID: "unknown-owner",
+            ownerName: "unknown-owner",
+            imageURL: nil,
+            trackCount: nil,
+            snapshotID: "error-item"
+        )
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([errorSummary])],
+            trackResults: [:]
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+
+        await viewModel.load()
+
+        guard case .error = viewModel.playlistState else {
+            return XCTFail("An error-shaped item should become an error state.")
+        }
+        XCTAssertNil(viewModel.playlistState.currentValue)
+    }
+
     func testIneligibleTrackMutationReportsWhyNothingWasSent() async {
         let localItem = SpotifyPlaylistTrackItem(
             id: "local:track:0",
@@ -637,7 +720,7 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         }
         XCTAssertEqual(error.title, "Reconnect Spotify")
         // "scopes" is a developer word; the sentence says what to do (#157).
-        XCTAssertEqual(error.message, "Your current Spotify session is missing playlist or Liked Songs permissions. Disconnect and connect again to restore them.")
+        XCTAssertEqual(error.message, "Your current Spotify session is missing playlist or Liked Songs permissions. Open Settings ▸ Account ▸ Reconnect to grant them.")
         // The scope names moved out of the sentence and into diagnostics, so the
         // blob now carries them alongside the server's own text.
         XCTAssertEqual(error.diagnosticDetails?.contains("status 403 insufficient scope"), true)

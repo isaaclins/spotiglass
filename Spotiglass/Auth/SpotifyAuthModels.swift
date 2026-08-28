@@ -21,10 +21,27 @@ struct SpotifyAuthConfiguration: Equatable {
         "streaming"
     ]
 
-    static let requiredBrowsingScopes = [
+    /// Scopes needed to populate the signed-in playlist library. These are
+    /// intentionally kept separate from the optional feature scopes below:
+    /// an older token can still browse while an individual feature is
+    /// unavailable until the user reconnects.
+    static let requiredPlaylistReadScopes = [
         "playlist-read-private",
         "playlist-read-collaborative"
     ]
+    static let requiredBrowsingScopes = requiredPlaylistReadScopes
+
+    static let requiredSavedTracksReadScopes = ["user-library-read"]
+    static let requiredSavedTracksModifyScopes = ["user-library-modify"]
+    static let requiredPlaylistModifyScopes = [
+        "playlist-modify-private",
+        "playlist-modify-public"
+    ]
+    static let requiredPlaybackReadScopes = ["user-read-playback-state"]
+    static let requiredPlaybackModifyScopes = ["user-modify-playback-state"]
+    static let requiredTopReadScopes = ["user-top-read"]
+    static let requiredFollowReadScopes = ["user-follow-read"]
+    static let requiredRecentlyPlayedScopes = ["user-read-recently-played"]
 
     let clientID: String
     let redirectURI: URL
@@ -112,6 +129,47 @@ struct SpotifyAuthSettings {
     }
 }
 
+/// A feature may require every scope in `allOf`, or one scope from `anyOf`
+/// when Spotify has separate permissions for public and private resources.
+struct SpotifyScopeRequirement: Equatable {
+    let allOf: [String]
+    let anyOf: [String]
+
+    init(allOf: [String] = [], anyOf: [String] = []) {
+        self.allOf = allOf
+        self.anyOf = anyOf
+    }
+
+    var isEmpty: Bool { allOf.isEmpty && anyOf.isEmpty }
+
+    /// Scope names that are useful in diagnostics. For an `anyOf` requirement
+    /// all alternatives are retained so a reconnect can grant the right one.
+    var listedScopes: [String] {
+        var result = allOf
+        for scope in anyOf where !result.contains(scope) {
+            result.append(scope)
+        }
+        return result
+    }
+
+    func missingScopes(from grantedScopes: Set<String>) -> [String] {
+        var missing = allOf.filter { !grantedScopes.contains($0) }
+        if !anyOf.isEmpty, !anyOf.contains(where: grantedScopes.contains) {
+            missing.append(contentsOf: anyOf.filter { !missing.contains($0) })
+        }
+        return missing
+    }
+}
+
+/// Supplies the scopes associated with the current access token. Returning an
+/// empty set is deliberate: a signed-in session with no recorded OAuth scope
+/// must not optimistically issue feature requests. Types that only provide a
+/// token (for example lightweight test doubles) do not conform and therefore
+/// remain scope-agnostic.
+protocol SpotifyScopeProviding {
+    func grantedScopes() async -> Set<String>
+}
+
 struct AuthenticatedSession: Equatable {
     let accessToken: String
     let tokenType: String
@@ -119,12 +177,19 @@ struct AuthenticatedSession: Equatable {
     let expiresAt: Date
 
     var grantedScopes: Set<String> {
-        Set((scope ?? "").split(separator: " ").map(String.init))
+        Set((scope ?? "").split(whereSeparator: \.isWhitespace).map(String.init))
+    }
+
+    func missingScopes(_ requiredScopes: [String]) -> [String] {
+        requiredScopes.filter { !grantedScopes.contains($0) }
+    }
+
+    func includesScopes(_ requiredScopes: [String]) -> Bool {
+        missingScopes(requiredScopes).isEmpty
     }
 
     func includesRequiredBrowsingScopes(_ requiredScopes: [String] = SpotifyAuthConfiguration.requiredBrowsingScopes) -> Bool {
-        let grantedScopes = grantedScopes
-        return requiredScopes.allSatisfy { grantedScopes.contains($0) }
+        includesScopes(requiredScopes)
     }
 
     func expires(within interval: TimeInterval, now: Date = Date()) -> Bool {
@@ -132,10 +197,11 @@ struct AuthenticatedSession: Equatable {
     }
 
     func refreshed(with grant: SpotifyTokenGrant) -> AuthenticatedSession {
-        AuthenticatedSession(
+        let returnedScope = grant.scope?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return AuthenticatedSession(
             accessToken: grant.accessToken,
             tokenType: grant.tokenType,
-            scope: grant.scope ?? scope,
+            scope: returnedScope?.isEmpty == false ? returnedScope : scope,
             expiresAt: grant.expiresAt
         )
     }

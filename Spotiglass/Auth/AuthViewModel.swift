@@ -137,8 +137,12 @@ final class AuthViewModel: ObservableObject {
                 try refreshTokenStore.saveRefreshToken(refreshToken)
             }
             let session = grant.authenticatedSession
-            try validateBrowsingScopes(in: session)
+            // Persist the server's scope result before validation. A newly
+            // authorized token can legitimately omit an optional feature
+            // scope; the feature gate needs to remember that fact instead of
+            // allowing the next request to discover it through a 403.
             settings.grantedScope = session.scope
+            try validateBrowsingScopes(in: session)
             currentSession = session
             signInRetryCooldownUntil = nil
             state = .signedIn(session)
@@ -194,8 +198,16 @@ final class AuthViewModel: ObservableObject {
         }
         let restoredSession = previousSession?.refreshed(with: grant) ?? grant.authenticatedSession
         let session = sessionWithPersistedScopeIfNeeded(restoredSession)
+        // Spotify may omit `scope` on refresh. In that case the previous
+        // session (or the persisted grant used during restore) remains the
+        // source of truth. When Spotify does return a scope, save it even if
+        // validation below rejects a stale/incomplete session.
+        if let returnedScope = grant.scope?.trimmingCharacters(in: .whitespacesAndNewlines), !returnedScope.isEmpty {
+            settings.grantedScope = returnedScope
+        } else if let sessionScope = session.scope {
+            settings.grantedScope = sessionScope
+        }
         try validateBrowsingScopes(in: session)
-        settings.grantedScope = session.scope
         currentSession = session
         state = .signedIn(session)
     }
@@ -309,13 +321,15 @@ final class AuthViewModel: ObservableObject {
     }
 
     private func sessionWithPersistedScopeIfNeeded(_ session: AuthenticatedSession) -> AuthenticatedSession {
-        guard session.scope == nil, let grantedScope = settings.grantedScope else {
+        guard session.scope == nil,
+              let persistedScope = settings.grantedScope?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !persistedScope.isEmpty else {
             return session
         }
         return AuthenticatedSession(
             accessToken: session.accessToken,
             tokenType: session.tokenType,
-            scope: grantedScope,
+            scope: persistedScope,
             expiresAt: session.expiresAt
         )
     }
@@ -412,6 +426,20 @@ extension AuthViewModel: PlaybackAccessTokenProviding {
             // token gets revoked mid-session.
             await handleRefreshFailure(error: error)
             throw SpotifyAPIError.unauthorized
+        }
+    }
+}
+
+extension AuthViewModel: SpotifyScopeProviding {
+    func grantedScopes() async -> Set<String> {
+        if let currentSession {
+            return currentSession.grantedScopes
+        }
+        return switch state {
+        case let .signedIn(session), let .refreshing(.some(session)):
+            session.grantedScopes
+        case .signedOut, .signingIn, .failed, .refreshing(.none):
+            []
         }
     }
 }
