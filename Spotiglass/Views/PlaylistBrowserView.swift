@@ -214,6 +214,7 @@ struct PlaylistBrowserView: View {
             HiddenPlaybackWebView(commander: commander, coordinator: playbackCoordinator)
                 .frame(width: 1, height: 1)
                 .opacity(0.01)
+                .accessibilityHidden(true)
         }
         // An empty title left the window untitled: blank in the Window menu, in
         // Mission Control and to assistive tech, while the Settings window was

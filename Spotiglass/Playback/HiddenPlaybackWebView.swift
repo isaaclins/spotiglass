@@ -17,23 +17,53 @@ enum HiddenPlaybackWebViewConfiguration {
     }
 }
 
+final class AccessibilityHiddenPlaybackWebView: WKWebView {
+    override func isAccessibilityElement() -> Bool {
+        false
+    }
+
+    override func accessibilityChildren() -> [Any]? {
+        []
+    }
+
+    override func accessibilityContents() -> [Any]? {
+        []
+    }
+
+    override func accessibilityAttributeValue(_ attribute: NSAccessibility.Attribute) -> Any? {
+        switch attribute {
+        case .children, .contents:
+            []
+        default:
+            super.accessibilityAttributeValue(attribute)
+        }
+    }
+}
+
 struct HiddenPlaybackWebView: NSViewRepresentable {
     let commander: WebPlaybackViewCommander
     let coordinator: SpotifyPlaybackWebViewCoordinator
 
-    func makeNSView(context: Context) -> WKWebView {
+    func makeNSView(context: Context) -> AccessibilityHiddenPlaybackWebView {
         let configuration = HiddenPlaybackWebViewConfiguration.make(coordinator: coordinator)
-        let webView = WKWebView(frame: .zero, configuration: configuration)
+        let webView = AccessibilityHiddenPlaybackWebView(frame: .zero, configuration: configuration)
         webView.setValue(false, forKey: "drawsBackground")
+        hideFromAccessibility(webView)
         commander.attach(webView: webView)
         return webView
     }
 
-    func updateNSView(_ nsView: WKWebView, context: Context) {
+    func updateNSView(_ nsView: AccessibilityHiddenPlaybackWebView, context: Context) {
+        hideFromAccessibility(nsView)
         commander.attach(webView: nsView)
     }
 
-    static func dismantleNSView(_ nsView: WKWebView, coordinator: ()) {
+    private func hideFromAccessibility(_ webView: AccessibilityHiddenPlaybackWebView) {
+        webView.setAccessibilityElement(false)
+        webView.setAccessibilityHidden(true)
+    }
+
+    static func dismantleNSView(_ nsView: AccessibilityHiddenPlaybackWebView, coordinator: ()) {
         nsView.configuration.userContentController.removeScriptMessageHandler(
             forName: HiddenPlaybackWebViewConfiguration.playbackHandlerName
         )

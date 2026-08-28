@@ -8,6 +8,9 @@ struct HotkeyRecorderField: NSViewRepresentable {
     var onRecordingChange: (Bool) -> Void
     /// Invoked when the chosen shortcut is already bound to another catalog command.
     var onCaptureConflict: (CommandShortcut, String) -> Void
+    /// Invoked when a key event cannot be recorded and a reason should be shown
+    /// next to the field instead of leaving the user with no feedback.
+    var onCaptureFailure: (String) -> Void = { _ in }
     /// Invoked after a successful apply or clear from this field.
     var onApplied: () -> Void
 
@@ -36,6 +39,9 @@ struct HotkeyRecorderField: NSViewRepresentable {
         var parent: HotkeyRecorderField
         private var mouseMonitor: Any?
         private var flagsMonitor: Any?
+        private var keyDownMonitor: Any?
+        private var shouldSuspendMenuKeyEquivalents = false
+        private var suspendedMenuKeyEquivalents: [(item: NSMenuItem, key: String, modifiers: NSEvent.ModifierFlags)] = []
 
         init(_ parent: HotkeyRecorderField) {
             self.parent = parent
@@ -50,6 +56,12 @@ struct HotkeyRecorderField: NSViewRepresentable {
                 NSEvent.removeMonitor(flagsMonitor)
             }
             flagsMonitor = nil
+            if let keyDownMonitor {
+                NSEvent.removeMonitor(keyDownMonitor)
+            }
+            keyDownMonitor = nil
+            shouldSuspendMenuKeyEquivalents = false
+            restoreMenuKeyEquivalents()
         }
 
         func recordingBegan(in view: RecorderKeyContainerView) {
@@ -58,6 +70,16 @@ struct HotkeyRecorderField: NSViewRepresentable {
             // Local event monitors destabilize the XCTest host on headless CI; key paths are
             // exercised via injected keyDown events in HotkeyRecorderFieldTests instead.
             guard !Self.isRunningUnderXCTest else { return }
+            shouldSuspendMenuKeyEquivalents = true
+            suspendMenuKeyEquivalents()
+            // SwiftUI may finish rebuilding its Commands menu on the next run
+            // loop after the Settings state changes. Re-apply the suspension
+            // after that rebuild so the menu cannot restore a live equivalent.
+            DispatchQueue.main.async { [weak self, weak view] in
+                guard let self, let view else { return }
+                guard self.shouldSuspendMenuKeyEquivalents, view.isRecording else { return }
+                self.suspendMenuKeyEquivalents()
+            }
             mouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak view] event in
                 guard let view, view.isRecording else { return event }
                 guard event.window === view.window else { return event }
@@ -75,6 +97,50 @@ struct HotkeyRecorderField: NSViewRepresentable {
                     view.updateLiveModifierChips(event.modifierFlags)
                 }
                 return event
+            }
+            // AppKit checks menu key equivalents before it sends keyDown to the
+            // first responder. Handle the event at the local-monitor boundary
+            // while this field is armed, so a live menu chord such as Cmd-R or
+            // Cmd-K cannot be swallowed by NSMenu first.
+            keyDownMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self, weak view] event in
+                guard let self, let view else { return event }
+                let handled = MainActor.assumeIsolated {
+                    guard let window = view.window,
+                          view.isRecording,
+                          window.isKeyWindow,
+                          event.window == nil || event.window === window
+                    else { return false }
+                    self.handleKeyDown(event, in: view)
+                    return true
+                }
+                return handled ? nil : event
+            }
+        }
+
+        private func suspendMenuKeyEquivalents() {
+            guard let mainMenu = NSApp.mainMenu else { return }
+            for item in menuItems(in: mainMenu) where !item.keyEquivalent.isEmpty {
+                if !suspendedMenuKeyEquivalents.contains(where: { $0.item === item }) {
+                    suspendedMenuKeyEquivalents.append(
+                        (item: item, key: item.keyEquivalent, modifiers: item.keyEquivalentModifierMask)
+                    )
+                }
+                item.keyEquivalent = ""
+                item.keyEquivalentModifierMask = []
+            }
+        }
+
+        private func restoreMenuKeyEquivalents() {
+            for suspended in suspendedMenuKeyEquivalents {
+                suspended.item.keyEquivalent = suspended.key
+                suspended.item.keyEquivalentModifierMask = suspended.modifiers
+            }
+            suspendedMenuKeyEquivalents.removeAll()
+        }
+
+        private func menuItems(in menu: NSMenu) -> [NSMenuItem] {
+            menu.items.flatMap { item in
+                [item] + (item.submenu.map(menuItems(in:)) ?? [])
             }
         }
 
@@ -106,16 +172,24 @@ struct HotkeyRecorderField: NSViewRepresentable {
                     try parent.keymapStore.clearBinding(commandID: parent.commandID)
                     parent.onApplied()
                 } catch {
-                    parent.keymapStore.lastError = CommandPaletteKeymapErrorPresenter.message(
+                    let message = CommandPaletteKeymapErrorPresenter.message(
                         for: error,
                         source: parent.keymapStore.fileURL.path,
                         operation: "clear shortcut"
                     )
+                    parent.keymapStore.lastError = message
+                    parent.onCaptureFailure(message)
                 }
                 view.finishRecordingAndResign()
                 return
             }
-            guard let shortcut = CommandShortcut(recordingKeyDown: event) else { return }
+            guard let shortcut = CommandShortcut(recordingKeyDown: event) else {
+                let message = SpotiglassL10n.string("palette.settings.recordingUnsupported")
+                parent.keymapStore.lastError = message
+                parent.onCaptureFailure(message)
+                view.finishRecordingAndResign()
+                return
+            }
             do {
                 try parent.keymapStore.setBinding(
                     commandID: parent.commandID,
@@ -125,16 +199,27 @@ struct HotkeyRecorderField: NSViewRepresentable {
                 parent.onApplied()
                 view.finishRecordingAndResign()
             } catch let conflict as KeymapConflictError {
-                if case let .conflict(otherID) = conflict {
+                switch conflict {
+                case let .conflict(otherID):
                     parent.onCaptureConflict(shortcut, otherID)
+                case .reservedByMenuItem:
+                    let message = CommandPaletteKeymapErrorPresenter.message(
+                        for: conflict,
+                        source: parent.keymapStore.fileURL.path,
+                        operation: "record shortcut"
+                    )
+                    parent.keymapStore.lastError = message
+                    parent.onCaptureFailure(message)
                 }
                 view.finishRecordingAndResign()
             } catch {
-                parent.keymapStore.lastError = CommandPaletteKeymapErrorPresenter.message(
+                let message = CommandPaletteKeymapErrorPresenter.message(
                     for: error,
                     source: parent.keymapStore.fileURL.path,
                     operation: "record shortcut"
                 )
+                parent.keymapStore.lastError = message
+                parent.onCaptureFailure(message)
                 view.finishRecordingAndResign()
             }
         }
@@ -272,6 +357,17 @@ final class RecorderKeyContainerView: NSView, FocusedKeyEventOwner {
         }
         let mods = event.modifierFlags.intersection([.command, .control, .option, .shift])
         return mods.isEmpty && Self.isArmingKeyCode(event.keyCode)
+    }
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        guard isRecording, let coordinator else {
+            return super.performKeyEquivalent(with: event)
+        }
+        // This is a second line of defense for paths that reach the responder
+        // chain without passing through the recorder's local monitor. The local
+        // monitor is what wins against an actual matching menu item.
+        coordinator.handleKeyDown(event, in: self)
+        return true
     }
 
     override func keyDown(with event: NSEvent) {

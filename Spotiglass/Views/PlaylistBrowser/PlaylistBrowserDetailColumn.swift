@@ -168,83 +168,9 @@ struct PlaylistBrowserMainDetailColumn: View {
                                 onRequestLibraryContinuation: onRequestLibraryContinuation
                             )
                         case let .playlist(detail):
-                            PlaylistDetailContent(
-                                detail: detail,
-                                currentUserSpotifyID: viewModel.currentUserSpotifyID,
-                                pendingScrollRestoreTrackID: $pendingPlaylistListScrollRestoreID,
-                                onTrackEnteredViewportApproximation: { detailLastVisibleTrackID = $0 },
-                                playURI: { uri in
-                                    let playableURIs = detail.tracks.compactMap(\.playableURI)
-                                    let playlistID = detail.playlist.id
-                                    Task {
-                                        await playbackViewModel.playFromPlaylist(
-                                            clickedURI: uri,
-                                            playableURIs: playableURIs,
-                                            playlistID: playlistID
-                                        )
-                                    }
-                                },
-                                currentPlaybackURI: currentPlaybackURI,
-                                isPlaying: isCurrentlyPlaying,
-                                togglePlayPause: {
-                                    Task { await playbackViewModel.togglePlayPause() }
-                                },
-                                hasPlaybackDevice: hasPlaybackDevice,
-                                addToQueue: { uri in
-                                    await queueViewModel.addToQueue(uri: uri)
-                                },
-                                openArtist: { artistID in
-                                    Task { await viewModel.selectArtist(id: artistID, origin: .extend, displayName: nil) }
-                                },
-                                onRequestLibraryContinuation: onRequestLibraryContinuation,
-                                browserViewModel: viewModel
-                            )
+                            playlistDetailView(detail)
                         case let .artist(detail):
-                            ArtistDetailContent(
-                                detail: detail,
-                                browserViewModel: viewModel,
-                                playTrack: { uri in
-                                    let playableURIs = detail.tracks.compactMap(\.playableURI)
-                                    Task {
-                                        await playbackViewModel.playFromPlaylist(
-                                            clickedURI: uri,
-                                            playableURIs: playableURIs,
-                                            playlistID: nil
-                                        )
-                                    }
-                                },
-                                openAlbum: { album in
-                                    Task {
-                                        await viewModel.selectAlbum(
-                                            id: album.id,
-                                            displayTitle: album.title,
-                                            displaySubtitle: detail.artist.name,
-                                            artworkURL: album.artworkURL,
-                                            origin: .extend
-                                        )
-                                    }
-                                },
-                                playAlbumContext: { albumURI in
-                                    Task { await playbackViewModel.play(contextURI: albumURI) }
-                                },
-                                currentPlaybackURI: currentPlaybackURI,
-                                isPlaying: isCurrentlyPlaying,
-                                togglePlayPause: {
-                                    Task { await playbackViewModel.togglePlayPause() }
-                                },
-                                hasPlaybackDevice: hasPlaybackDevice,
-                                addToQueue: { uri in
-                                    await queueViewModel.addToQueue(uri: uri)
-                                },
-                                openArtist: { artistID in
-                                    Task { await viewModel.selectArtist(id: artistID, origin: .extend, displayName: nil) }
-                                },
-                                loadMoreAlbums: {
-                                    Task { await viewModel.loadMoreArtistAlbums() }
-                                },
-                                onRequestCreatePlaylist: onRequestCreatePlaylist,
-                                onRequestLibraryContinuation: onRequestLibraryContinuation
-                            )
+                            artistDetailView(detail)
                         }
                     }
                 }
@@ -288,5 +214,115 @@ struct PlaylistBrowserMainDetailColumn: View {
                 }
             }
         }
+    }
+
+    private func playlistDetailView(_ detail: PlaylistDetailViewModel) -> some View {
+        let headerPlaybackTarget = DetailHeaderPlayback.target(for: detail)
+        return PlaylistDetailContent(
+            detail: detail,
+            currentUserSpotifyID: viewModel.currentUserSpotifyID,
+            pendingScrollRestoreTrackID: $pendingPlaylistListScrollRestoreID,
+            onTrackEnteredViewportApproximation: { detailLastVisibleTrackID = $0 },
+            playURI: { uri in
+                let playableURIs = detail.tracks.compactMap(\.playableURI)
+                let playlistID = detail.playlist.id
+                Task {
+                    await playbackViewModel.playFromPlaylist(
+                        clickedURI: uri,
+                        playableURIs: playableURIs,
+                        playlistID: playlistID
+                    )
+                }
+            },
+            currentPlaybackURI: currentPlaybackURI,
+            isPlaying: isCurrentlyPlaying,
+            togglePlayPause: {
+                Task { await playbackViewModel.togglePlayPause() }
+            },
+            hasPlaybackDevice: hasPlaybackDevice,
+            addToQueue: { uri in
+                await queueViewModel.addToQueue(uri: uri)
+            },
+            openArtist: { artistID in
+                Task { await viewModel.selectArtist(id: artistID, origin: .extend, displayName: nil) }
+            },
+            onRequestLibraryContinuation: onRequestLibraryContinuation,
+            playHeaderAction: {
+                await DetailHeaderPlayback.play(
+                    target: headerPlaybackTarget,
+                    using: playbackViewModel
+                )
+            },
+            shuffleHeaderAction: {
+                await DetailHeaderPlayback.shuffleAndPlay(
+                    target: headerPlaybackTarget,
+                    using: playbackViewModel
+                )
+            },
+            areHeaderActionsAvailable: headerPlaybackTarget.isPlayable,
+            browserViewModel: viewModel
+        )
+    }
+
+    private func artistDetailView(_ detail: ArtistDetailViewModel) -> some View {
+        let headerPlaybackTarget = DetailHeaderPlayback.target(for: detail)
+        return ArtistDetailContent(
+            detail: detail,
+            browserViewModel: viewModel,
+            playTrack: { uri in
+                let playableURIs = detail.tracks.compactMap(\.playableURI)
+                Task {
+                    await playbackViewModel.playFromPlaylist(
+                        clickedURI: uri,
+                        playableURIs: playableURIs,
+                        playlistID: nil
+                    )
+                }
+            },
+            openAlbum: { album in
+                Task {
+                    await viewModel.selectAlbum(
+                        id: album.id,
+                        displayTitle: album.title,
+                        displaySubtitle: detail.artist.name,
+                        artworkURL: album.artworkURL,
+                        origin: .extend
+                    )
+                }
+            },
+            playAlbumContext: { albumURI in
+                Task { await playbackViewModel.play(contextURI: albumURI) }
+            },
+            currentPlaybackURI: currentPlaybackURI,
+            isPlaying: isCurrentlyPlaying,
+            togglePlayPause: {
+                Task { await playbackViewModel.togglePlayPause() }
+            },
+            hasPlaybackDevice: hasPlaybackDevice,
+            addToQueue: { uri in
+                await queueViewModel.addToQueue(uri: uri)
+            },
+            openArtist: { artistID in
+                Task { await viewModel.selectArtist(id: artistID, origin: .extend, displayName: nil) }
+            },
+            loadMoreAlbums: {
+                Task { await viewModel.loadMoreArtistAlbums() }
+            },
+            onRequestCreatePlaylist: onRequestCreatePlaylist,
+            onRequestLibraryContinuation: onRequestLibraryContinuation,
+            playHeaderAction: {
+                await DetailHeaderPlayback.play(
+                    target: headerPlaybackTarget,
+                    using: playbackViewModel
+                )
+            },
+            shuffleHeaderAction: {
+                await DetailHeaderPlayback.shuffleAndPlay(
+                    target: headerPlaybackTarget,
+                    using: playbackViewModel
+                )
+            },
+            areHeaderActionsAvailable: headerPlaybackTarget.isPlayable
+        )
     }
 }

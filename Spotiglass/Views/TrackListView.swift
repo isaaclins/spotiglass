@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Playlist track table.
+/// Native track collection used by playlist-like detail surfaces.
 ///
 /// `List` on macOS is backed by `NSTableView`, so it virtualizes rows itself:
 /// only the rows inside the clip view plus a small reuse margin are ever
@@ -10,12 +10,20 @@ import SwiftUI
 /// select, shift-click to extend a range, command-click to toggle, selection
 /// that de-emphasizes when the window stops being key, arrow key navigation,
 /// and a focus ring on the row a context menu was opened on.
+///
+/// Optional header and footer content lets a detail surface keep its metadata
+/// and release shelves in the same native collection instead of nesting a
+/// selectable table inside another scroll view.
 struct TrackListView: View {
     let tracks: [TrackRowViewModel]
     /// Bound straight through to the browser view model's selection set, which
     /// stays the source of truth every context menu action reads.
     @Binding var selection: Set<String>
     let rowBuilder: (TrackRowViewModel) -> TrackListRow
+    /// Optional content rendered above the track rows in the native list.
+    let headerContent: AnyView?
+    /// Optional content rendered below the track rows in the native list.
+    let footerContent: AnyView?
     /// Set externally (e.g. when lyrics dismiss) to a track id; the list scrolls
     /// that row to the middle of the viewport, then clears the binding.
     @Binding var pendingScrollRestoreTrackID: String?
@@ -27,6 +35,26 @@ struct TrackListView: View {
     /// never start it (#122).
     var playSelection: ((Set<String>) -> Void)? = nil
 
+    init(
+        tracks: [TrackRowViewModel],
+        selection: Binding<Set<String>>,
+        rowBuilder: @escaping (TrackRowViewModel) -> TrackListRow,
+        pendingScrollRestoreTrackID: Binding<String?>,
+        onFirstVisibleTrackChanged: @escaping (String) -> Void,
+        playSelection: ((Set<String>) -> Void)? = nil,
+        headerContent: AnyView? = nil,
+        footerContent: AnyView? = nil
+    ) {
+        self.tracks = tracks
+        _selection = selection
+        self.rowBuilder = rowBuilder
+        self.headerContent = headerContent
+        self.footerContent = footerContent
+        _pendingScrollRestoreTrackID = pendingScrollRestoreTrackID
+        self.onFirstVisibleTrackChanged = onFirstVisibleTrackChanged
+        self.playSelection = playSelection
+    }
+
     /// Deliberately a reference type rather than stored-in-state values. Rows
     /// report every time the table realizes or drops one, and keeping that in
     /// view state would invalidate the body on each report, re-walking the whole
@@ -35,26 +63,41 @@ struct TrackListView: View {
 
     var body: some View {
         ScrollViewReader { proxy in
-            List(tracks, selection: $selection) { track in
-                rowBuilder(track)
-                    .frame(height: TrackListRow.listRowHeight)
-                    .listRowInsets(EdgeInsets(
-                        top: 0,
-                        leading: SpotiglassDesign.spacingXS,
-                        bottom: 0,
-                        trailing: SpotiglassDesign.spacingXS
-                    ))
-                    // Row lifecycle is what tells us where the list is. Deriving
-                    // it from the scroll offset instead reads the wrong row,
-                    // because NSTableView estimates the height of rows it has
-                    // not measured yet, so a jump down a long playlist leaves
-                    // the offset covering more rows than the arithmetic thinks.
-                    // onScrollVisibilityChange would be the precise answer but
-                    // it never fires inside a macOS List, so this settles for
-                    // the table's realized rows, which run one row wide of the
-                    // visible ones. The consumer wants an approximation.
-                    .onAppear { setRowRealized(true, track: track) }
-                    .onDisappear { setRowRealized(false, track: track) }
+            List(selection: $selection) {
+                if let headerContent {
+                    headerContent
+                        .listRowInsets(EdgeInsets())
+                        .listRowSeparator(.hidden)
+                }
+
+                ForEach(tracks) { track in
+                    rowBuilder(track)
+                        .frame(height: TrackListRow.listRowHeight)
+                        .listRowInsets(EdgeInsets(
+                            top: 0,
+                            leading: SpotiglassDesign.spacingXS,
+                            bottom: 0,
+                            trailing: SpotiglassDesign.spacingXS
+                        ))
+                        .tag(track.id)
+                        // Row lifecycle is what tells us where the list is. Deriving
+                        // it from the scroll offset instead reads the wrong row,
+                        // because NSTableView estimates the height of rows it has
+                        // not measured yet, so a jump down a long playlist leaves
+                        // the offset covering more rows than the arithmetic thinks.
+                        // onScrollVisibilityChange would be the precise answer but
+                        // it never fires inside a macOS List, so this settles for the
+                        // table's realized rows, which run one row wide of the
+                        // visible ones. The consumer wants an approximation.
+                        .onAppear { setRowRealized(true, track: track) }
+                        .onDisappear { setRowRealized(false, track: track) }
+                }
+
+                if let footerContent {
+                    footerContent
+                        .listRowInsets(EdgeInsets())
+                        .listRowSeparator(.hidden)
+                }
             }
             .listStyle(.inset)
             .onKeyPress(.return) {

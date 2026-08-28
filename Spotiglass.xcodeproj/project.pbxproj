@@ -134,6 +134,7 @@
 		SRC0000000000000000000016 /* FollowedPlaylistLockedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC0000000000000000080016 /* FollowedPlaylistLockedView.swift */; };
 		E60000000000000000000004 /* PlaylistListRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = E60000000000000000000054 /* PlaylistListRow.swift */; };
 		E60000000000000000000005 /* PlaylistDetailContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = E60000000000000000000055 /* PlaylistDetailContent.swift */; };
+		SRC0000000000000000000022 /* DetailHeaderActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC0000000000000000080022 /* DetailHeaderActions.swift */; };
 		SRC000000000000000000001D /* CatalogSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC000000000000000008001D /* CatalogSearchView.swift */; };
 		E60000000000000000000006 /* PlaylistsSidebarSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = E60000000000000000000056 /* PlaylistsSidebarSection.swift */; };
 		E60000000000000000000007 /* LibrarySidebarRowViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = E60000000000000000000057 /* LibrarySidebarRowViews.swift */; };
@@ -346,6 +347,7 @@
 		TST0000000000000000009101 /* TestOnlyConvenienceAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010129 /* TestOnlyConvenienceAPI.swift */; };
 		TST000000000000000000C1 /* PlaybackProgressAnchorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000000C0 /* PlaybackProgressAnchorTests.swift */; };
 		TST000000000000000000C2 /* PlaylistBrowserPrefetchAllTracksTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */; };
+		TST000000000000000000012B /* DetailSurfaceRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000001012B /* DetailSurfaceRegressionTests.swift */; };
 		TST0000000000000000000127 /* PlaylistBrowserLibraryContinuationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010127 /* PlaylistBrowserLibraryContinuationTests.swift */; };
 		TST000000000000000000012A /* LibraryContinuationRankingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000001012A /* LibraryContinuationRankingTests.swift */; };
 		TST0000000000000000000126 /* CatalogSearchViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010126 /* CatalogSearchViewTests.swift */; };
@@ -497,6 +499,7 @@
 		SRC0000000000000000080016 /* FollowedPlaylistLockedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FollowedPlaylistLockedView.swift; sourceTree = "<group>"; };
 		E60000000000000000000054 /* PlaylistListRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistListRow.swift; sourceTree = "<group>"; };
 		E60000000000000000000055 /* PlaylistDetailContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistDetailContent.swift; sourceTree = "<group>"; };
+		SRC0000000000000000080022 /* DetailHeaderActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailHeaderActions.swift; sourceTree = "<group>"; };
 		SRC000000000000000008001D /* CatalogSearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogSearchView.swift; sourceTree = "<group>"; };
 		E60000000000000000000056 /* PlaylistsSidebarSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistsSidebarSection.swift; sourceTree = "<group>"; };
 		E60000000000000000000057 /* LibrarySidebarRowViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibrarySidebarRowViews.swift; sourceTree = "<group>"; };
@@ -625,6 +628,7 @@
 		TST0000000000000000010129 /* TestOnlyConvenienceAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestOnlyConvenienceAPI.swift; sourceTree = "<group>"; };
 		TST000000000000000000C0 /* PlaybackProgressAnchorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackProgressAnchorTests.swift; sourceTree = "<group>"; };
 		TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserPrefetchAllTracksTests.swift; sourceTree = "<group>"; };
+		TST000000000000000001012B /* DetailSurfaceRegressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailSurfaceRegressionTests.swift; sourceTree = "<group>"; };
 		TST0000000000000000010127 /* PlaylistBrowserLibraryContinuationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserLibraryContinuationTests.swift; sourceTree = "<group>"; };
 		TST000000000000000001012A /* LibraryContinuationRankingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryContinuationRankingTests.swift; sourceTree = "<group>"; };
 		TST0000000000000000010126 /* CatalogSearchViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogSearchViewTests.swift; sourceTree = "<group>"; };
@@ -902,6 +906,7 @@
 				TST00000000000000000064 /* PlaylistBrowserNavigationTests.swift */,
 				TST00000000000000000065 /* PlaylistBrowserArtistFallbackTests.swift */,
 				TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */,
+				TST000000000000000001012B /* DetailSurfaceRegressionTests.swift */,
 				TST0000000000000000010127 /* PlaylistBrowserLibraryContinuationTests.swift */,
 				TST000000000000000001012A /* LibraryContinuationRankingTests.swift */,
 				TST0000000000000000010126 /* CatalogSearchViewTests.swift */,
@@ -1179,6 +1184,7 @@
 				SRC0000000000000000080016 /* FollowedPlaylistLockedView.swift */,
 				E60000000000000000000054 /* PlaylistListRow.swift */,
 				E60000000000000000000055 /* PlaylistDetailContent.swift */,
+				SRC0000000000000000080022 /* DetailHeaderActions.swift */,
 				SRC000000000000000008001D /* CatalogSearchView.swift */,
 				E60000000000000000000056 /* PlaylistsSidebarSection.swift */,
 				E60000000000000000000057 /* LibrarySidebarRowViews.swift */,
@@ -1492,6 +1498,7 @@
 				SRC0000000000000000000016 /* FollowedPlaylistLockedView.swift in Sources */,
 				E60000000000000000000004 /* PlaylistListRow.swift in Sources */,
 				E60000000000000000000005 /* PlaylistDetailContent.swift in Sources */,
+				SRC0000000000000000000022 /* DetailHeaderActions.swift in Sources */,
 				SRC000000000000000000001D /* CatalogSearchView.swift in Sources */,
 				E60000000000000000000006 /* PlaylistsSidebarSection.swift in Sources */,
 				E60000000000000000000007 /* LibrarySidebarRowViews.swift in Sources */,
@@ -1617,6 +1624,7 @@
 				TST00000000000000000014 /* PlaylistBrowserNavigationTests.swift in Sources */,
 				TST00000000000000000015 /* PlaylistBrowserArtistFallbackTests.swift in Sources */,
 				TST000000000000000000C2 /* PlaylistBrowserPrefetchAllTracksTests.swift in Sources */,
+				TST000000000000000000012B /* DetailSurfaceRegressionTests.swift in Sources */,
 				TST0000000000000000000127 /* PlaylistBrowserLibraryContinuationTests.swift in Sources */,
 				TST000000000000000000012A /* LibraryContinuationRankingTests.swift in Sources */,
 				TST0000000000000000000126 /* CatalogSearchViewTests.swift in Sources */,
