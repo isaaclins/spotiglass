@@ -50,6 +50,11 @@ struct PlaylistDetailContent: View {
     /// Starts a continuation from the selected row through the browser's queue
     /// orchestration.
     var onRequestLibraryContinuation: ((TrackRowViewModel) -> Void)? = nil
+    /// Header playback actions are supplied by the browser host so this view
+    /// does not own a second playback session.
+    let playHeaderAction: () async -> Void
+    let shuffleHeaderAction: () async -> Void
+    let areHeaderActionsAvailable: Bool
     /// View-model passed in so the row context-menu can call the high-level
     /// mutation helpers (`addRowsToPlaylist`, `favoriteRows`, etc.) and so the
     /// track table can bind `List` selection to `selectedDetailTrackIDs`.
@@ -64,6 +69,42 @@ struct PlaylistDetailContent: View {
     @State private var editingPlaylistID: String?
     @State private var editedPlaylistName = ""
     @FocusState private var isPlaylistNameFocused: Bool
+
+    init(
+        detail: PlaylistDetailViewModel,
+        currentUserSpotifyID: String? = nil,
+        pendingScrollRestoreTrackID: Binding<String?>,
+        onTrackEnteredViewportApproximation: @escaping (String) -> Void,
+        playURI: @escaping (String) -> Void,
+        currentPlaybackURI: String?,
+        isPlaying: Bool,
+        togglePlayPause: @escaping () -> Void,
+        hasPlaybackDevice: Bool,
+        addToQueue: @escaping (String) async -> Void,
+        openArtist: @escaping (String) -> Void,
+        onRequestLibraryContinuation: ((TrackRowViewModel) -> Void)? = nil,
+        playHeaderAction: @escaping () async -> Void = {},
+        shuffleHeaderAction: @escaping () async -> Void = {},
+        areHeaderActionsAvailable: Bool = true,
+        browserViewModel: PlaylistBrowserViewModel
+    ) {
+        self.detail = detail
+        self.currentUserSpotifyID = currentUserSpotifyID
+        _pendingScrollRestoreTrackID = pendingScrollRestoreTrackID
+        self.onTrackEnteredViewportApproximation = onTrackEnteredViewportApproximation
+        self.playURI = playURI
+        self.currentPlaybackURI = currentPlaybackURI
+        self.isPlaying = isPlaying
+        self.togglePlayPause = togglePlayPause
+        self.hasPlaybackDevice = hasPlaybackDevice
+        self.addToQueue = addToQueue
+        self.openArtist = openArtist
+        self.onRequestLibraryContinuation = onRequestLibraryContinuation
+        self.playHeaderAction = playHeaderAction
+        self.shuffleHeaderAction = shuffleHeaderAction
+        self.areHeaderActionsAvailable = areHeaderActionsAvailable
+        _browserViewModel = ObservedObject(wrappedValue: browserViewModel)
+    }
 
     private var tracksSurfaceKey: String { "pl:\(detail.playlist.id)" }
 
@@ -217,6 +258,13 @@ struct PlaylistDetailContent: View {
 
                 Text(detail.playlist.ownerTracksLine(currentUserID: currentUserSpotifyID))
                     .foregroundStyle(.secondary)
+
+                DetailHeaderActions(
+                    play: playHeaderAction,
+                    shuffle: shuffleHeaderAction,
+                    hasPlaybackDevice: hasPlaybackDevice,
+                    isAvailable: areHeaderActionsAvailable
+                )
             }
 
             Spacer()
