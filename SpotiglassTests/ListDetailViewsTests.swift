@@ -386,7 +386,7 @@ final class ListDetailViewsTests: XCTestCase {
         )
     }
 
-    func testTrackListViewScrollsToPendingRestoreTrackAndClearsIt() throws {
+    func testTrackListViewScrollsToPendingRestoreTrackAndClearsIt() async throws {
         let store = pinnedStore()
         let tracks = (1 ... 400).map { index in
             trackRow(id: "rs\(index)", title: "Track \(index)", explicit: false, listPosition: index)
@@ -400,7 +400,11 @@ final class ListDetailViewsTests: XCTestCase {
         .frame(width: 800, height: 600)
         .environmentObject(store)
         let controller = ViewTestHost.host(view, size: CGSize(width: 800, height: 600))
-        AppKitTestSupport.pumpRunLoop(for: 0.4)
+        let didClearRestore = await recorder.restoreCleared.wait(timeout: .seconds(2))
+        XCTAssertTrue(
+            didClearRestore,
+            "the pending restore binding should be cleared after the list handles the request"
+        )
 
         let scrollView = try XCTUnwrap(
             Self.firstScrollView(in: controller.view),
@@ -809,6 +813,8 @@ enum TrackListTestRows {
 
 @MainActor
 final class ScrollRestoreRecorder: ObservableObject {
+    let listMounted = AsyncSignal()
+    let restoreCleared = AsyncSignal()
     var wasCleared = false
 }
 
@@ -830,15 +836,18 @@ private struct TrackListScrollRestoreHarness: View {
             pendingScrollRestoreTrackID: Binding(
                 get: { pending },
                 set: { newValue in
-                    if newValue == nil, pending != nil { recorder.wasCleared = true }
+                    if newValue == nil, pending != nil {
+                        recorder.wasCleared = true
+                        recorder.restoreCleared.signal()
+                    }
                     pending = newValue
                 }
             ),
-            onFirstVisibleTrackChanged: { _ in }
+            onFirstVisibleTrackChanged: { _ in recorder.listMounted.signal() }
         )
         .frame(width: 800, height: 600)
         .task {
-            await Task.yield()
+            await recorder.listMounted.wait()
             pending = targetTrackID
         }
     }
