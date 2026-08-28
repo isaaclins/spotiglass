@@ -13,33 +13,52 @@ struct EqualizerSettingsView: View {
     @State private var saveSheetError: String?
 
     var body: some View {
+        let equalizer = settingsStore.settings.equalizer
+
         // Grouped Form matches System Settings: rounded group boxes, one shared
         // label column, switches trailing, explanatory copy in section footers.
         Form {
             Section {
                 statusRow
             } footer: {
-                Text(SpotiglassL10n.string("settings.eq.description"))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                Text(
+                    SpotiglassL10n.string(
+                        equalizer.enabled
+                            ? "settings.eq.description"
+                            : "settings.eq.description.disabled"
+                    )
+                )
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             }
 
             Section {
+                // Output routing is useful to configure before enabling the EQ,
+                // so it deliberately remains available while the editor is off.
                 forwardingTargetRow
                 presetRow
+                    .disabled(isEditorDisabled)
             }
 
             Section(SpotiglassL10n.string("settings.eq.preamp")) {
                 preampRow
             }
+            .disabled(isEditorDisabled)
 
             Section(SpotiglassL10n.string("settings.eq.bands")) {
                 bandsRow
             }
+            .disabled(isEditorDisabled)
 
             Section {
                 footerActions
+                // A spacer inside the Form's document (rather than a frame on
+                // the pane) makes the trailing row part of the scrollable range.
+                Color.clear
+                    .frame(height: SpotiglassDesign.spacingL)
+                    .accessibilityHidden(true)
             }
+            .disabled(isEditorDisabled)
         }
         .formStyle(.grouped)
         .sheet(isPresented: $isPresentingSaveSheet) {
@@ -310,6 +329,10 @@ struct EqualizerSettingsView: View {
     }
 
     // MARK: - Bindings
+
+    private var isEditorDisabled: Bool {
+        !settingsStore.settings.equalizer.enabled
+    }
 
     private var equalizerEnabledBinding: Binding<Bool> {
         Binding(

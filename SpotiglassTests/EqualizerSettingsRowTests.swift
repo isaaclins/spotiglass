@@ -1,4 +1,5 @@
 import SwiftUI
+import ViewInspector
 import XCTest
 
 @testable import Spotiglass
@@ -136,5 +137,59 @@ final class EqualizerSettingsRowTests: XCTestCase {
         XCTAssertTrue(faderSource.contains(".onKeyPress(keys: EqualizerSettingsView.bandGainKeyboardKeys)"))
         XCTAssertTrue(faderSource.contains("DragGesture(minimumDistance: 0)"))
         XCTAssertTrue(faderSource.contains(".accessibilityAdjustableAction"))
+    }
+
+    @MainActor
+    func testEqualizerEditorControlsFollowMasterSwitch() throws {
+        let disabledStore = try ViewTestHost.makeSettingsStore()
+        try disabledStore.mutate { $0.equalizer.enabled = false }
+        let disabledView = EqualizerSettingsView(
+            settingsStore: disabledStore,
+            engine: AudioEqualizerEngine()
+        )
+        ViewTestHost.host(disabledView, size: CGSize(width: 980, height: 641))
+        let disabledForm = try disabledView.inspect().find(ViewType.Form.self)
+
+        // Output routing is intentionally independent of the editor switch.
+        let disabledPresetSection = try disabledForm.section(1)
+        let disabledOutputPicker = try disabledPresetSection.find(ViewType.Picker.self)
+        XCTAssertFalse(disabledOutputPicker.isDisabled())
+        let disabledPresetRow = try disabledPresetSection.find(ViewType.LabeledContent.self)
+        XCTAssertTrue(disabledPresetRow.isDisabled())
+        XCTAssertTrue(try disabledPresetRow.find(ViewType.Picker.self).isDisabled())
+        XCTAssertTrue(
+            try disabledPresetRow
+                .find(button: SpotiglassL10n.string("settings.eq.preset.save"))
+                .isDisabled()
+        )
+        XCTAssertTrue(try disabledForm.section(2).find(ViewType.Slider.self).isDisabled())
+        XCTAssertTrue(try disabledForm.section(3).isDisabled())
+        XCTAssertTrue(try disabledForm.section(4).isDisabled())
+        XCTAssertNoThrow(
+            try disabledView.inspect().find(
+                text: SpotiglassL10n.string("settings.eq.description.disabled")
+            )
+        )
+
+        let enabledStore = try ViewTestHost.makeSettingsStore()
+        try enabledStore.mutate { $0.equalizer.enabled = true }
+        let enabledView = EqualizerSettingsView(
+            settingsStore: enabledStore,
+            engine: AudioEqualizerEngine()
+        )
+        ViewTestHost.host(enabledView, size: CGSize(width: 980, height: 641))
+        let enabledForm = try enabledView.inspect().find(ViewType.Form.self)
+        let enabledPresetSection = try enabledForm.section(1)
+        XCTAssertFalse(try enabledPresetSection.find(ViewType.Picker.self).isDisabled())
+        let enabledPresetRow = try enabledPresetSection.find(ViewType.LabeledContent.self)
+        XCTAssertFalse(enabledPresetRow.isDisabled())
+        XCTAssertFalse(
+            try enabledPresetRow
+                .find(button: SpotiglassL10n.string("settings.eq.preset.save"))
+                .isDisabled()
+        )
+        XCTAssertFalse(try enabledForm.section(2).find(ViewType.Slider.self).isDisabled())
+        XCTAssertFalse(try enabledForm.section(3).isDisabled())
+        XCTAssertFalse(try enabledForm.section(4).isDisabled())
     }
 }

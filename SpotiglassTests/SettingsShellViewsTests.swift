@@ -99,4 +99,91 @@ final class SettingsShellViewsTests: XCTestCase {
         ViewTestHost.host(standaloneKeyboard)
         XCTAssertNoThrow(try standaloneKeyboard.inspect().find(ViewType.ScrollView.self))
     }
+
+    /// The production Settings window is 980×748 including its 52-point titlebar.
+    /// Its 55-point detail header leaves this 641-point pane viewport. Host each
+    /// real pane at that same viewport and move its native Form scroll view to
+    /// the maximum offset, then assert its last focusable control is wholly
+    /// inside the visible content rect. This covers the EQ footer as well as the
+    /// Account, Appearance, and Keyboard panes at the realised window size (#331).
+    func testSettingsPanesKeepTheirLastControlVisibleAtMaximumScroll() throws {
+        let store = try ViewTestHost.makeSettingsStore()
+        let manager = CommandPaletteManager()
+        let auth = AuthViewModel(
+            settings: SpotifyAuthSettings(defaults: makeEphemeralDefaults()),
+            refreshTokenStore: MemoryOnlyRefreshTokenStore()
+        )
+        let realisedWindowSize = CGSize(
+            width: SpotiglassDesign.settingsWindowWidth,
+            height: 748
+        )
+        let paneSize = CGSize(
+            width: realisedWindowSize.width,
+            height: realisedWindowSize.height - 52 - 55
+        )
+        let panes: [(String, AnyView)] = [
+            ("Equalizer", AnyView(EqualizerSettingsView(settingsStore: store, engine: AudioEqualizerEngine()))),
+            ("Appearance", AnyView(AppearanceSettingsView(settingsStore: store))),
+            ("Account", AnyView(AccountSettingsView(viewModel: auth))),
+            (
+                "Keyboard",
+                AnyView(
+                    CommandPaletteSettingsView(
+                        keymapStore: manager.keymapStore,
+                        presentation: .settingsTabs
+                    )
+                )
+            ),
+        ]
+
+        for (name, pane) in panes {
+            let controller = ViewTestHost.host(pane, size: paneSize)
+            controller.view.frame = NSRect(origin: .zero, size: paneSize)
+            controller.view.layoutSubtreeIfNeeded()
+
+            let scrollView = try XCTUnwrap(
+                allSubviews(of: controller.view)
+                    .compactMap { $0 as? NSScrollView }
+                    .first(where: { $0.documentView != nil })
+            )
+            let document = try XCTUnwrap(scrollView.documentView)
+            let maximumOffset = max(0, document.frame.height - scrollView.contentView.bounds.height)
+            scrollView.contentView.scroll(to: NSPoint(x: 0, y: maximumOffset))
+            scrollView.reflectScrolledClipView(scrollView.contentView)
+
+            let lastControlFrame = try XCTUnwrap(
+                lastFocusableControlFrame(in: document),
+                "\(name) has no focusable control"
+            )
+            let visibleRect = scrollView.contentView.convert(
+                scrollView.contentView.bounds,
+                to: document
+            )
+
+            XCTAssertTrue(
+                visibleRect.contains(lastControlFrame),
+                "\(name)'s last control \(lastControlFrame) is outside the visible rect \(visibleRect) at offset \(maximumOffset)"
+            )
+            XCTAssertGreaterThanOrEqual(
+                document.frame.maxY - lastControlFrame.maxY,
+                32,
+                "\(name)'s last control needs a bottom safety margin in the scroll document"
+            )
+        }
+    }
+
+    private func lastFocusableControlFrame(in document: NSView) -> NSRect? {
+        allSubviews(of: document)
+            .filter {
+                String(describing: type(of: $0)).contains("FocusRingView")
+                    && $0.frame.width < document.frame.width * 0.5
+                    && $0.frame.height < 60
+            }
+            .compactMap { $0.superview?.convert($0.frame, to: document) }
+            .max { $0.maxY < $1.maxY }
+    }
+
+    private func allSubviews(of view: NSView) -> [NSView] {
+        view.subviews + view.subviews.flatMap { allSubviews(of: $0) }
+    }
 }
