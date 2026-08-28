@@ -13,12 +13,11 @@ final class CommandPaletteEventMonitorTests: XCTestCase {
 
     func testEventMonitorNSHostingLifecycle() {
         let manager = CommandPaletteManager()
-        let host = NSHostingController(
-            rootView: CommandPaletteEventMonitor(manager: manager).frame(width: 1, height: 1)
+        let host = ViewTestHost.host(
+            CommandPaletteEventMonitor(manager: manager).frame(width: 1, height: 1),
+            size: CGSize(width: 4, height: 4)
         )
-        host.view.frame = NSRect(x: 0, y: 0, width: 4, height: 4)
-        host.view.layoutSubtreeIfNeeded()
-        host.view.removeFromSuperview()
+        XCTAssertGreaterThan(host.view.bounds.width, 0)
     }
 
     func testEventMonitorHostsAndDismantles() throws {
@@ -132,8 +131,7 @@ final class CommandPaletteEventMonitorTests: XCTestCase {
         defer {
             monitor.stop()
             recorder.cancelRecording()
-            window.makeFirstResponder(nil)
-            window.close()
+            AppKitTestSupport.closeWindowSafely(window)
         }
 
         AppKitTestSupport.activateAppIfNeeded()

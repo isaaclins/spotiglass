@@ -30,7 +30,7 @@ final class SettingsWindowChromeTests: XCTestCase {
         XCTAssertEqual(window.toolbar?.identifier, UnifiedTitlebarProbeView.toolbarIdentifier)
         XCTAssertEqual(window.toolbarStyle, .unified)
         XCTAssertEqual(window.toolbar?.allowsUserCustomization, false)
-        window.close()
+        AppKitTestSupport.closeWindowSafely(window)
     }
 
     func testApplyUnifiedTitlebarIsIdempotent() {
@@ -42,7 +42,7 @@ final class SettingsWindowChromeTests: XCTestCase {
 
         XCTAssertTrue(first === window.toolbar)
         XCTAssertEqual(window.toolbarStyle, .unified)
-        window.close()
+        AppKitTestSupport.closeWindowSafely(window)
     }
 
     func testProbeViewConfiguresItsWindowOnceAttached() {
@@ -53,7 +53,7 @@ final class SettingsWindowChromeTests: XCTestCase {
 
         XCTAssertEqual(window.toolbar?.identifier, UnifiedTitlebarProbeView.toolbarIdentifier)
         XCTAssertEqual(window.toolbarStyle, .unified)
-        window.close()
+        AppKitTestSupport.closeWindowSafely(window)
     }
 
     func testProbeViewIgnoresDetachedState() {
@@ -65,7 +65,7 @@ final class SettingsWindowChromeTests: XCTestCase {
         AppKitTestSupport.pumpRunLoop()
 
         XCTAssertNil(probe.window)
-        window.close()
+        AppKitTestSupport.closeWindowSafely(window)
     }
 
     func testChromeHostsInSettingsWindowAndAppliesUnifiedTitlebar() throws {

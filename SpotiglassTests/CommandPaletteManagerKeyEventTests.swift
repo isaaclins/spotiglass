@@ -105,8 +105,7 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
         window.isReleasedWhenClosed = false
         window.contentView = owner
         defer {
-            window.makeFirstResponder(nil)
-            window.close()
+            AppKitTestSupport.closeWindowSafely(window)
         }
 
         AppKitTestSupport.activateAppIfNeeded()
@@ -154,8 +153,7 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
         window.contentView = focusContainer
         defer {
             focusContainer.deactivate()
-            window.makeFirstResponder(nil)
-            window.close()
+            AppKitTestSupport.closeWindowSafely(window)
         }
 
         XCTAssertTrue(AppKitTestSupport.makeFirstResponder(focusContainer, in: window))
