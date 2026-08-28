@@ -85,6 +85,16 @@ struct CommandPaletteKeyBinding: Codable, Equatable {
     }
 }
 
+/// A non-blocking duplicate reported by the Keyboard settings UI. The context
+/// is the runtime condition of the other command's binding; the proposed row's
+/// context is supplied separately when the store computes these uses.
+struct CommandPaletteShortcutUsage: Equatable, Identifiable {
+    let commandID: String
+    let context: CommandPaletteContext
+
+    var id: String { "\(commandID)|\(context.rawValue)" }
+}
+
 struct CommandShortcut: Hashable {
     let key: String
     let modifiers: NSEvent.ModifierFlags

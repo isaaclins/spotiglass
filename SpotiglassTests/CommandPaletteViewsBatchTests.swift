@@ -57,6 +57,27 @@ final class CommandPaletteViewsBatchTests: XCTestCase {
         XCTAssertNoThrow(try tabs.inspect().find(text: "Shortcuts"))
     }
 
+    func testSettingsViewSurfacesCrossContextDuplicate() throws {
+        let (_, keymap, _) = try makeHarness()
+        try keymap.setBinding(
+            commandID: CommandPaletteCommandID.openSearch,
+            shortcut: try CommandShortcut(keystroke: "cmd-return"),
+            replaceConflicting: false
+        )
+        let view = CommandPaletteSettingsView(
+            keymapStore: keymap,
+            presentation: .standalone
+        )
+        ViewTestHost.host(view, size: CGSize(width: 760, height: 560))
+
+        let expected = SpotiglassL10n.format(
+            "palette.settings.alsoUsed",
+            SpotiglassL10n.string("palette.command.\(CommandPaletteCommandID.pinSelected).title"),
+            SpotiglassL10n.string("palette.settings.context.paletteOpen")
+        )
+        XCTAssertNoThrow(try view.inspect().find(text: expected))
+    }
+
     func testBackdropBlurVariants() throws {
         var dismissed = false
         let blurred = CommandPaletteBackdropView(

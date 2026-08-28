@@ -16,6 +16,9 @@ struct CommandPaletteSettingsView: View {
     var onRecordingChange: (Bool) -> Void = { _ in }
 
     @State private var pendingConflictByCommand: [String: PendingHotkeyConflict] = [:]
+    /// A failed capture still ends recording, but keeps its localized reason on
+    /// the row so an unsupported key or a menu-owned chord is never silent.
+    @State private var captureErrorByCommand: [String: String] = [:]
     /// Command whose field is currently recording, so the "Esc cancels / Delete
     /// clears" hint can be shown inline on the active row instead of only at the top.
     @State private var recordingCommandID: String?
@@ -45,6 +48,7 @@ struct CommandPaletteSettingsView: View {
         .onDisappear {
             onRecordingChange(false)
             recordingCommandID = nil
+            captureErrorByCommand = [:]
         }
     }
 
@@ -81,6 +85,7 @@ struct CommandPaletteSettingsView: View {
             HStack(spacing: SpotiglassDesign.spacingS) {
                 Button(SpotiglassL10n.string("palette.settings.reset")) {
                     pendingConflictByCommand = [:]
+                    captureErrorByCommand = [:]
                     keymapStore.resetToDefaults()
                 }
             }
@@ -134,16 +139,23 @@ struct CommandPaletteSettingsView: View {
                                 recordingCommandID = active ? spec.commandID : nil
                                 if active {
                                     pendingConflictByCommand[spec.commandID] = nil
+                                    captureErrorByCommand[spec.commandID] = nil
                                 }
                             },
                             onCaptureConflict: { shortcut, otherID in
+                                captureErrorByCommand[spec.commandID] = nil
                                 pendingConflictByCommand[spec.commandID] = PendingHotkeyConflict(
                                     shortcut: shortcut,
                                     otherCommandID: otherID
                                 )
                             },
+                            onCaptureFailure: { message in
+                                pendingConflictByCommand[spec.commandID] = nil
+                                captureErrorByCommand[spec.commandID] = message
+                            },
                             onApplied: {
                                 pendingConflictByCommand[spec.commandID] = nil
+                                captureErrorByCommand[spec.commandID] = nil
                             }
                         )
                         // Consistent field width so assigned (chip) and unassigned
@@ -154,6 +166,7 @@ struct CommandPaletteSettingsView: View {
                         if keymapStore.primaryShortcut(for: spec.commandID) != nil {
                             Button {
                                 pendingConflictByCommand[spec.commandID] = nil
+                                captureErrorByCommand[spec.commandID] = nil
                                 do {
                                     try keymapStore.clearBinding(commandID: spec.commandID)
                                 } catch {
@@ -188,6 +201,15 @@ struct CommandPaletteSettingsView: View {
                 Text(SpotiglassL10n.string("palette.settings.recordingHint"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .padding(.leading, 28 + SpotiglassDesign.spacingM)
+                    .transition(.opacity)
+            }
+
+            if let captureError = captureErrorByCommand[spec.commandID] {
+                Label(captureError, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
                     .padding(.leading, 28 + SpotiglassDesign.spacingM)
                     .transition(.opacity)
             }
@@ -229,6 +251,18 @@ struct CommandPaletteSettingsView: View {
                     )
                 )
             }
+
+            ForEach(crossContextUsages(for: spec)) { usage in
+                Label(
+                    usageNote(for: usage),
+                    systemImage: "info.circle"
+                )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.leading, 28 + SpotiglassDesign.spacingM)
+                    .transition(.opacity)
+            }
         }
         .padding(.vertical, 4)
         .animation(
@@ -239,6 +273,36 @@ struct CommandPaletteSettingsView: View {
 
     private func displayTitle(for commandID: String) -> String {
         CommandPaletteCommandCatalog.editable.first { $0.commandID == commandID }?.title ?? commandID
+    }
+
+    private func crossContextUsages(for spec: CommandPaletteCommandSpec) -> [CommandPaletteShortcutUsage] {
+        guard let shortcut = keymapStore.primaryShortcut(for: spec.commandID) else { return [] }
+        return keymapStore.crossContextUsages(
+            of: shortcut,
+            excludingCommand: spec.commandID,
+            proposedWhen: spec.defaultWhen
+        )
+    }
+
+    private func usageNote(for usage: CommandPaletteShortcutUsage) -> String {
+        SpotiglassL10n.format(
+            "palette.settings.alsoUsed",
+            displayTitle(for: usage.commandID),
+            contextDescription(for: usage.context)
+        )
+    }
+
+    private func contextDescription(for context: CommandPaletteContext) -> String {
+        switch context {
+        case .always:
+            SpotiglassL10n.string("palette.settings.context.always")
+        case .signedIn:
+            SpotiglassL10n.string("palette.settings.context.signedIn")
+        case .signedOut:
+            SpotiglassL10n.string("palette.settings.context.signedOut")
+        case .paletteOpen:
+            SpotiglassL10n.string("palette.settings.context.paletteOpen")
+        }
     }
 
     private var advancedJSONSection: some View {
@@ -277,10 +341,12 @@ struct CommandPaletteSettingsView: View {
                 }
                 Button(SpotiglassL10n.string("palette.settings.revert")) {
                     pendingConflictByCommand = [:]
+                    captureErrorByCommand = [:]
                     keymapStore.reloadFromDisk()
                 }
                 Button(SpotiglassL10n.string("palette.settings.resetDefaults")) {
                     pendingConflictByCommand = [:]
+                    captureErrorByCommand = [:]
                     keymapStore.resetToDefaults()
                 }
                 Button(SpotiglassL10n.string("palette.settings.openJSON")) {
