@@ -136,10 +136,13 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
         XCTAssertTrue(manager.viewModel.isPresented)
     }
 
-    func testLyricsModalOwnerDefersGlobalCommandsButLeavesEscapeAvailable() throws {
+    func testLyricsOverlayPassesGlobalCommandsThroughButLeavesEscapeAvailable() throws {
+        let settings = SpotiglassSettingsStore(fileURL: makeCommandPaletteTestsTempSettingsURL())
+        let keymap = CommandPaletteKeymapStore(settingsStore: settings)
         let focusContainer = LyricsOverlayFocusContainerView(
             content: EmptyView(),
-            isActive: true
+            isActive: true,
+            keymapStore: keymap
         )
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 80, height: 40),
@@ -156,8 +159,6 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
         }
 
         XCTAssertTrue(AppKitTestSupport.makeFirstResponder(focusContainer, in: window))
-        let settings = SpotiglassSettingsStore(fileURL: makeCommandPaletteTestsTempSettingsURL())
-        let keymap = CommandPaletteKeymapStore(settingsStore: settings)
         let manager = CommandPaletteManager(keymapStore: keymap)
         manager.isSignedIn = true
         try keymap.setBinding(
@@ -172,14 +173,15 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
             modifiers: [.command],
             windowNumber: window.windowNumber
         )
-        XCTAssertFalse(manager.handleKeyEvent(command))
-        XCTAssertFalse(manager.viewModel.isPresented)
+        XCTAssertTrue(manager.handleKeyEvent(command))
+        XCTAssertTrue(manager.viewModel.isPresented)
 
         var dismissed = false
         manager.dismissLyricsOverlayIfPresented = {
             dismissed = true
             return true
         }
+        manager.viewModel.hide()
         let escape = keyDown(keyCode: 53, windowNumber: window.windowNumber)
         XCTAssertTrue(manager.handleKeyEvent(escape))
         XCTAssertTrue(dismissed)
