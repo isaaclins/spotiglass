@@ -238,7 +238,7 @@ struct SpotiglassMenuCommands: Commands {
             : SpotiglassL10n.string("browser.pin")
     }
 
-    private var lyricsItemTitle: String {
+    var lyricsItemTitle: String {
         isLyricsPresented
             ? SpotiglassL10n.string("menu.view.hideLyrics")
             : SpotiglassL10n.string("menu.view.showLyrics")
