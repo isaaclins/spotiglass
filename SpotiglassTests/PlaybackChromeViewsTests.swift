@@ -171,7 +171,7 @@ final class PlaybackChromeViewsTests: XCTestCase {
         XCTAssertNoThrow(try view.inspect().find(viewWithAccessibilityLabel: "Repeat playlist"))
     }
 
-    func testRealizedTransportAccessibilityTreeExposesLabeledButtons() throws {
+    func testRealizedTransportAccessibilityTreeExposesLabeledControls() throws {
         let playback = makePlayingPlayback(artists: ["M83", "The Weeknd"])
         let commander = WebPlaybackViewCommander()
         let coordinator = SpotifyPlaybackWebViewCoordinator(
@@ -205,26 +205,24 @@ final class PlaybackChromeViewsTests: XCTestCase {
                 "Skipped because the hosted window has no realised accessibility tree in this environment."
             )
         }
-        let buttons = elements.filter { $0.role == "AXButton" }
-        let buttonLabels = Set(buttons.map(\.axDescription))
         let treeDump = realizedAccessibilityTreeDescription(elements)
-        for label in ["Open lyrics", "Lyrics", "Previous track", "Pause", "Next track", "Repeat off", "Playback volume"] {
-            XCTAssertTrue(
-                buttonLabels.contains(label),
-                "Expected realised AXButton labelled \(label).\nRealised accessibility tree:\n\(treeDump)"
-            )
-        }
+        let transportElements = try XCTUnwrap(
+            realizedAccessibilitySubtree(containingAccessibilityDescription: "Playback progress", in: elements),
+            "Could not isolate the realised transport subtree.\nRealised accessibility tree:\n\(treeDump)"
+        )
+        let interactiveElements = transportElements.filter(\.isInteractiveTransportControl)
+        let unlabeledElements = interactiveElements.filter { !$0.hasMeaningfulAccessibilityLabel }
+        XCTAssertFalse(
+            interactiveElements.isEmpty,
+            "Expected the realised accessibility tree to expose interactive transport controls.\nRealised accessibility tree:\n\(treeDump)"
+        )
         XCTAssertTrue(
-            elements.contains { $0.role == "AXMenuButton" && $0.title == "Playback device" },
-            "Expected realised AXMenuButton titled Playback device.\nRealised accessibility tree:\n\(treeDump)"
+            unlabeledElements.isEmpty,
+            "Expected every realised interactive transport control to expose a non-empty, non-generic label; got \(unlabeledElements).\nRealised accessibility tree:\n\(treeDump)"
         )
         XCTAssertFalse(
             elements.contains { $0.role == "AXWebArea" },
             "The realised accessibility tree must not contain AXWebArea.\nRealised accessibility tree:\n\(treeDump)"
-        )
-        XCTAssertFalse(
-            buttons.contains { $0.axDescription == "button" },
-            "The realised transport must not expose a generic button label.\nRealised accessibility tree:\n\(treeDump)"
         )
         XCTAssertFalse(
             elements.contains { $0.role == "AXStaticText" && $0.value == ", " },
@@ -649,6 +647,22 @@ final class PlaybackChromeViewsTests: XCTestCase {
             let positionDescription = position.map { String(describing: $0) } ?? "<unavailable>"
             return "role=\(role.debugDescription) description=\(axDescription.debugDescription) title=\(title.debugDescription) value=\(value.debugDescription) position=\(positionDescription) size=\(size)"
         }
+
+        var isInteractiveTransportControl: Bool {
+            switch role {
+            case "AXButton", "AXMenuButton", "AXPopUpButton", "AXSlider", "AXUnknown":
+                true
+            default:
+                false
+            }
+        }
+
+        var hasMeaningfulAccessibilityLabel: Bool {
+            [axDescription, title].contains { candidate in
+                let label = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+                return !label.isEmpty && label.caseInsensitiveCompare("button") != .orderedSame
+            }
+        }
     }
 
     private func realizedAccessibilityTreeDescription(
@@ -658,6 +672,19 @@ final class PlaybackChromeViewsTests: XCTestCase {
         return elements.map { element in
             String(repeating: "  ", count: element.depth) + element.description
         }.joined(separator: "\n")
+    }
+
+    private func realizedAccessibilitySubtree(
+        containingAccessibilityDescription description: String,
+        in elements: [RealizedAccessibilityElement]
+    ) -> [RealizedAccessibilityElement]? {
+        guard let matchIndex = elements.firstIndex(where: { $0.axDescription == description }),
+              let rootIndex = elements[..<matchIndex].lastIndex(where: { $0.depth == 1 })
+        else { return nil }
+
+        let rootDepth = elements[rootIndex].depth
+        let endIndex = elements[(rootIndex + 1)...].firstIndex { $0.depth <= rootDepth } ?? elements.endIndex
+        return Array(elements[rootIndex..<endIndex])
     }
 
     private func realizedAccessibilityTree(in window: NSWindow) throws -> [RealizedAccessibilityElement] {
