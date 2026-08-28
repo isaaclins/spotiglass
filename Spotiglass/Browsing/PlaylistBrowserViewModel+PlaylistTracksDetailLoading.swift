@@ -62,6 +62,7 @@ extension PlaylistBrowserViewModel {
             // invalid_request and breaks any playlist with more than 50 tracks.
             let tracks = try await api.playlistTracks(playlistID: playlist.id, limit: 50, maxPages: 200)
             try? cache.saveTracks(tracks, playlistID: playlist.id, snapshotID: playlist.snapshotID, cachedAt: now())
+            invalidateLibraryContinuationCache()
             lastTracksRevalidationByID[playlist.id] = (playlist.snapshotID, now())
             guard session == detailSession else { return }
             if tracks.isEmpty {

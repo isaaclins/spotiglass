@@ -17,6 +17,29 @@ extension SpotifyAPIClient {
         return CachedResponse(value: cached.value.domainModel(), isStale: cached.isStale)
     }
 
+    /// Top tracks for one artist (`GET /v1/artists/{id}/top-tracks`). This is
+    /// optional breadth for library ranking; callers decide which returned
+    /// tracks are eligible to enter a continuation.
+    func artistTopTracks(
+        id: String,
+        market: String? = nil,
+        cacheMode: SpotifyRequestCacheMode = .freshOnly
+    ) async throws -> [SpotifyTrack] {
+        guard !id.isEmpty else {
+            throw SpotifyAPIError.invalidRequest("Artist ID is required.")
+        }
+        var queryItems: [URLQueryItem] = []
+        if let market, !market.isEmpty {
+            queryItems.append(URLQueryItem(name: "market", value: market))
+        }
+        let response: SpotifyArtistTopTracksResponseDTO = try await send(
+            path: "/v1/artists/\(id)/top-tracks",
+            queryItems: queryItems,
+            cacheMode: cacheMode
+        )
+        return response.tracks.compactMap { $0.domainModel() }
+    }
+
     /// Single page from `GET /v1/artists/{id}/albums`, using either explicit
     /// offset pagination (first page) or Spotify-provided `next` URLs.
     func artistAlbumsPage(

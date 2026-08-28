@@ -26,6 +26,14 @@ protocol SpotifyBrowsingAPI {
     func recentlyPlayedTracks(limit: Int, cacheMode: SpotifyRequestCacheMode) async throws -> [SpotifyTrack]
     /// Home feed: the user's top tracks (`user-top-read` scope).
     func topTracks(limit: Int, timeRange: String, cacheMode: SpotifyRequestCacheMode) async throws -> [SpotifyTrack]
+    /// The user's top artists (`user-top-read` scope), used as a ranking signal
+    /// for tracks already present in the library.
+    func topArtists(limit: Int, timeRange: String, cacheMode: SpotifyRequestCacheMode) async throws -> [SpotifyArtist]
+    /// Artists followed by the current user (`user-follow-read` scope).
+    func followedArtists(limit: Int, maxPages: Int?) async throws -> [SpotifyArtist]
+    /// Artist top tracks are optional breadth data. The continuation collector
+    /// intersects them with the user's own tracks before ranking.
+    func artistTopTracks(id: String, market: String?, cacheMode: SpotifyRequestCacheMode) async throws -> [SpotifyTrack]
     func albumTracks(albumID: String, market: String?, limit: Int) async throws -> [SpotifyTrack]
     /// Single-page album tracks fetch for the artist fallback. Default-implemented against
     /// `albumTracks` for mocks; the live client uses a true `maxPages: 1` call so each selected
@@ -57,6 +65,9 @@ extension SpotifyBrowsingAPI {
     // `SpotifyAPIClient` provides real implementations.
     func recentlyPlayedTracks(limit: Int, cacheMode: SpotifyRequestCacheMode) async throws -> [SpotifyTrack] { [] }
     func topTracks(limit: Int, timeRange: String, cacheMode: SpotifyRequestCacheMode) async throws -> [SpotifyTrack] { [] }
+    func topArtists(limit: Int, timeRange: String, cacheMode: SpotifyRequestCacheMode) async throws -> [SpotifyArtist] { [] }
+    func followedArtists(limit: Int, maxPages: Int?) async throws -> [SpotifyArtist] { [] }
+    func artistTopTracks(id: String, market: String?, cacheMode: SpotifyRequestCacheMode) async throws -> [SpotifyTrack] { [] }
 
     // Default no-op implementations for library mutations. Mocks/previews that
     // never exercise the menu can ignore these; the live `SpotifyAPIClient`

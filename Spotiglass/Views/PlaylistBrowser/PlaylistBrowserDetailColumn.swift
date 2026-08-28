@@ -39,19 +39,22 @@ struct QueuePanelColumn: View {
     @ObservedObject var playbackViewModel: PlaybackSessionViewModel
     let openArtist: (ArtistTapTarget) -> Void
     let onRequestCreatePlaylist: (([TrackRowViewModel]) -> Void)?
+    let onRequestLibraryContinuation: ((TrackRowViewModel) -> Void)?
 
     init(
         browserViewModel: PlaylistBrowserViewModel,
         queueViewModel: QueueViewModel,
         playbackViewModel: PlaybackSessionViewModel,
         openArtist: @escaping (ArtistTapTarget) -> Void,
-        onRequestCreatePlaylist: (([TrackRowViewModel]) -> Void)? = nil
+        onRequestCreatePlaylist: (([TrackRowViewModel]) -> Void)? = nil,
+        onRequestLibraryContinuation: ((TrackRowViewModel) -> Void)? = nil
     ) {
         _browserViewModel = ObservedObject(wrappedValue: browserViewModel)
         _queueViewModel = ObservedObject(wrappedValue: queueViewModel)
         _playbackViewModel = ObservedObject(wrappedValue: playbackViewModel)
         self.openArtist = openArtist
         self.onRequestCreatePlaylist = onRequestCreatePlaylist
+        self.onRequestLibraryContinuation = onRequestLibraryContinuation
     }
 
     var body: some View {
@@ -64,7 +67,8 @@ struct QueuePanelColumn: View {
                     targets: [TrackRowViewModel(queueItem: item)],
                     browserViewModel: browserViewModel,
                     sourcePlaylistID: nil,
-                    onRequestCreatePlaylist: onRequestCreatePlaylist
+                    onRequestCreatePlaylist: onRequestCreatePlaylist,
+                    onRequestLibraryContinuation: onRequestLibraryContinuation
                 ))
             }
         )
@@ -84,6 +88,9 @@ struct PlaylistBrowserMainDetailColumn: View {
     /// Shared creation prompt owned by the browser shell for non-playlist
     /// surfaces. Playlist detail retains its inline prompt for now.
     let onRequestCreatePlaylist: (([TrackRowViewModel]) -> Void)?
+    /// Queue orchestration owned by the browser shell and shared by every track
+    /// surface's context menu.
+    let onRequestLibraryContinuation: ((TrackRowViewModel) -> Void)?
     @EnvironmentObject private var lyricsOverlay: LyricsOverlayController
 
     @Binding var pendingPlaylistListScrollRestoreID: String?
@@ -102,12 +109,14 @@ struct PlaylistBrowserMainDetailColumn: View {
         currentPlaybackURI: String?,
         isCurrentlyPlaying: Bool,
         hasPlaybackDevice: Bool,
-        onRequestCreatePlaylist: (([TrackRowViewModel]) -> Void)? = nil
+        onRequestCreatePlaylist: (([TrackRowViewModel]) -> Void)? = nil,
+        onRequestLibraryContinuation: ((TrackRowViewModel) -> Void)? = nil
     ) {
         _viewModel = ObservedObject(wrappedValue: viewModel)
         _playbackViewModel = ObservedObject(wrappedValue: playbackViewModel)
         _queueViewModel = ObservedObject(wrappedValue: queueViewModel)
         self.onRequestCreatePlaylist = onRequestCreatePlaylist
+        self.onRequestLibraryContinuation = onRequestLibraryContinuation
         _pendingPlaylistListScrollRestoreID = pendingPlaylistListScrollRestoreID
         _detailLastVisibleTrackID = detailLastVisibleTrackID
         self.currentPlaybackURI = currentPlaybackURI
@@ -137,7 +146,8 @@ struct PlaylistBrowserMainDetailColumn: View {
                                 currentPlaybackURI: currentPlaybackURI,
                                 isPlaying: isCurrentlyPlaying,
                                 hasPlaybackDevice: hasPlaybackDevice,
-                                onRequestCreatePlaylist: onRequestCreatePlaylist
+                                onRequestCreatePlaylist: onRequestCreatePlaylist,
+                                onRequestLibraryContinuation: onRequestLibraryContinuation
                             )
                         case .search:
                             CatalogSearchView(
@@ -148,7 +158,8 @@ struct PlaylistBrowserMainDetailColumn: View {
                                 currentPlaybackURI: currentPlaybackURI,
                                 isPlaying: isCurrentlyPlaying,
                                 hasPlaybackDevice: hasPlaybackDevice,
-                                onRequestCreatePlaylist: onRequestCreatePlaylist
+                                onRequestCreatePlaylist: onRequestCreatePlaylist,
+                                onRequestLibraryContinuation: onRequestLibraryContinuation
                             )
                         case let .playlist(detail):
                             PlaylistDetailContent(
@@ -179,6 +190,7 @@ struct PlaylistBrowserMainDetailColumn: View {
                                 openArtist: { artistID in
                                     Task { await viewModel.selectArtist(id: artistID, origin: .extend, displayName: nil) }
                                 },
+                                onRequestLibraryContinuation: onRequestLibraryContinuation,
                                 browserViewModel: viewModel
                             )
                         case let .artist(detail):
@@ -224,7 +236,8 @@ struct PlaylistBrowserMainDetailColumn: View {
                                 loadMoreAlbums: {
                                     Task { await viewModel.loadMoreArtistAlbums() }
                                 },
-                                onRequestCreatePlaylist: onRequestCreatePlaylist
+                                onRequestCreatePlaylist: onRequestCreatePlaylist,
+                                onRequestLibraryContinuation: onRequestLibraryContinuation
                             )
                         }
                     }

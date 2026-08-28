@@ -8,6 +8,17 @@ protocol SpotifyBrowsingCache {
     func loadTracksIgnoringAge(playlistID: String, snapshotID: String) throws -> [SpotifyPlaylistTrackItem]?
     func saveTracks(_ tracks: [SpotifyPlaylistTrackItem], playlistID: String, snapshotID: String, cachedAt: Date) throws
     func invalidateTracks(playlistID: String) throws
+    func loadLibraryContinuationIndex(now: Date, maxAge: TimeInterval) throws -> LibraryContinuationLibrary?
+    func loadLibraryContinuationIndexIgnoringAge() throws -> LibraryContinuationLibrary?
+    func saveLibraryContinuationIndex(_ library: LibraryContinuationLibrary, cachedAt: Date) throws
+    func invalidateLibraryContinuationIndex() throws
+}
+
+extension SpotifyBrowsingCache {
+    func loadLibraryContinuationIndex(now _: Date, maxAge _: TimeInterval) throws -> LibraryContinuationLibrary? { nil }
+    func loadLibraryContinuationIndexIgnoringAge() throws -> LibraryContinuationLibrary? { nil }
+    func saveLibraryContinuationIndex(_: LibraryContinuationLibrary, cachedAt _: Date) throws {}
+    func invalidateLibraryContinuationIndex() throws {}
 }
 
 extension SpotifyLocalCache: SpotifyBrowsingCache {}

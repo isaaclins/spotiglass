@@ -281,6 +281,13 @@ final class MockBrowsingAPI: SpotifyBrowsingAPI {
     private(set) var recentlyPlayedCacheModes: [SpotifyRequestCacheMode] = []
     private(set) var topTracksCallCount = 0
     private(set) var topTracksCacheModes: [SpotifyRequestCacheMode] = []
+    var topArtistsHandler: ((Int, String) async throws -> [SpotifyArtist])?
+    var followedArtistsHandler: ((Int, Int?) async throws -> [SpotifyArtist])?
+    var artistTopTracksHandler: ((String, String?) async throws -> [SpotifyTrack])?
+    private(set) var topArtistsCallCount = 0
+    private(set) var followedArtistsCallCount = 0
+    private(set) var artistTopTracksCallCount = 0
+    private(set) var artistTopTracksRequestedIDs: [String] = []
 
     func recentlyPlayedTracks(
         limit: Int,
@@ -306,6 +313,39 @@ final class MockBrowsingAPI: SpotifyBrowsingAPI {
         }
         return []
     }
+
+    func topArtists(
+        limit: Int,
+        timeRange: String,
+        cacheMode: SpotifyRequestCacheMode
+    ) async throws -> [SpotifyArtist] {
+        topArtistsCallCount += 1
+        if let topArtistsHandler {
+            return try await topArtistsHandler(limit, timeRange)
+        }
+        return []
+    }
+
+    func followedArtists(limit: Int, maxPages: Int?) async throws -> [SpotifyArtist] {
+        followedArtistsCallCount += 1
+        if let followedArtistsHandler {
+            return try await followedArtistsHandler(limit, maxPages)
+        }
+        return []
+    }
+
+    func artistTopTracks(
+        id: String,
+        market: String?,
+        cacheMode: SpotifyRequestCacheMode
+    ) async throws -> [SpotifyTrack] {
+        artistTopTracksCallCount += 1
+        artistTopTracksRequestedIDs.append(id)
+        if let artistTopTracksHandler {
+            return try await artistTopTracksHandler(id, market)
+        }
+        return []
+    }
 }
 
 final class MockBrowsingCache: SpotifyBrowsingCache {
@@ -323,6 +363,8 @@ final class MockBrowsingCache: SpotifyBrowsingCache {
     /// Records every `invalidateTracks` call, since a reload immediately
     /// repopulates the cache and would otherwise hide the invalidation.
     private(set) var invalidatedTrackPlaylistIDs: [String] = []
+    var cachedLibraryContinuation: LibraryContinuationLibrary?
+    private(set) var savedLibraryContinuation: LibraryContinuationLibrary?
 
     init(
         cachedPlaylists: [SpotifyPlaylistSummary]? = nil,
@@ -379,5 +421,22 @@ final class MockBrowsingCache: SpotifyBrowsingCache {
         invalidatedTrackPlaylistIDs.append(playlistID)
         cachedTracks[playlistID] = nil
         trackSnapshotByPlaylistID[playlistID] = nil
+    }
+
+    func loadLibraryContinuationIndex(now: Date, maxAge: TimeInterval) throws -> LibraryContinuationLibrary? {
+        cachedLibraryContinuation
+    }
+
+    func loadLibraryContinuationIndexIgnoringAge() throws -> LibraryContinuationLibrary? {
+        cachedLibraryContinuation
+    }
+
+    func saveLibraryContinuationIndex(_ library: LibraryContinuationLibrary, cachedAt: Date) throws {
+        savedLibraryContinuation = library
+        cachedLibraryContinuation = library
+    }
+
+    func invalidateLibraryContinuationIndex() throws {
+        cachedLibraryContinuation = nil
     }
 }

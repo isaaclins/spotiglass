@@ -78,6 +78,7 @@ extension PlaylistBrowserViewModel {
                 snapshotID: SpotiglassSidebarLibrary.likedSongsCacheSnapshotID,
                 cachedAt: now()
             )
+            invalidateLibraryContinuationCache()
             lastLikedSongsRevalidationAt = now()
             lastTracksRevalidationByID[SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID] = (
                 SpotiglassSidebarLibrary.likedSongsCacheSnapshotID,

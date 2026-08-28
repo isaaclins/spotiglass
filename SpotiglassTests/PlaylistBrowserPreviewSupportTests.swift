@@ -16,6 +16,12 @@ final class PlaylistBrowserPreviewSupportTests: XCTestCase {
 
         let saved = try await api.currentUserSavedTracks(limit: 50, maxPages: 1)
         XCTAssertEqual(saved.totalAvailable, 0)
+        let topArtists = try await api.topArtists(limit: 10, timeRange: "short_term", cacheMode: .freshOnly)
+        let followedArtists = try await api.followedArtists(limit: 10, maxPages: 1)
+        let artistTopTracks = try await api.artistTopTracks(id: "a", market: nil, cacheMode: .freshOnly)
+        XCTAssertEqual(topArtists, [])
+        XCTAssertEqual(followedArtists, [])
+        XCTAssertEqual(artistTopTracks, [])
 
         do {
             _ = try await api.artist(id: "a", cacheMode: .freshOnly)
@@ -33,6 +39,10 @@ final class PlaylistBrowserPreviewSupportTests: XCTestCase {
         XCTAssertNil(try cache.loadTracksIgnoringAge(playlistID: "p", snapshotID: "s"))
         try cache.saveTracks([], playlistID: "p", snapshotID: "s", cachedAt: Date())
         try cache.invalidateTracks(playlistID: "p")
+        XCTAssertNil(try cache.loadLibraryContinuationIndex(now: Date(), maxAge: 60))
+        XCTAssertNil(try cache.loadLibraryContinuationIndexIgnoringAge())
+        try cache.saveLibraryContinuationIndex(LibraryContinuationLibrary(), cachedAt: Date())
+        try cache.invalidateLibraryContinuationIndex()
 
         let tokens = PreviewPlaybackTokenProvider()
         let access = try await tokens.accessToken()

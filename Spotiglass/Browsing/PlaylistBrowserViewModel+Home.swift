@@ -55,6 +55,7 @@ extension PlaylistBrowserViewModel {
         let cacheMode: SpotifyRequestCacheMode = forceRefresh ? .bypassCache : .freshOnly
         homeRecentlyPlayed = .loading
         homeTopTracks = .loading
+        homeTopTrackData = []
         async let recently: Void = loadHomeRecentlyPlayed(generation: generation, cacheMode: cacheMode)
         async let top: Void = loadHomeTopTracks(generation: generation, cacheMode: cacheMode)
         _ = await (recently, top)
@@ -93,6 +94,8 @@ extension PlaylistBrowserViewModel {
                 cacheMode: cacheMode
             )
             guard generation == homeFeedGeneration else { return }
+            homeTopTrackData = tracks
+            invalidateLibraryContinuationCache()
             homeTopTracks = .loaded(TrackRowViewModel.numberedTopTracks(tracks))
         } catch is CancellationError {
             return

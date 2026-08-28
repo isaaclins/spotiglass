@@ -44,6 +44,14 @@ struct SpotifySearchArtistDTO: Decodable {
     }
 }
 
+struct SpotifyFollowedArtistsResponseDTO: Decodable {
+    let artists: SpotifyPagingDTO<SpotifySearchArtistDTO>
+
+    enum CodingKeys: String, CodingKey {
+        case artists
+    }
+}
+
 struct SpotifySearchAlbumDTO: Decodable {
     let id: String?
     let name: String
@@ -68,6 +76,14 @@ struct SpotifySearchAlbumDTO: Decodable {
             imageURL: images?.largestImageURL,
             uri: uri ?? "spotify:album:\(resolvedID)"
         )
+    }
+}
+
+struct SpotifyArtistTopTracksResponseDTO: Decodable {
+    let tracks: [SpotifyTrackDTO]
+
+    enum CodingKeys: String, CodingKey {
+        case tracks
     }
 }
 

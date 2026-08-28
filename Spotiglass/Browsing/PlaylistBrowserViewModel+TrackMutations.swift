@@ -323,6 +323,7 @@ extension PlaylistBrowserViewModel {
     private func invalidateTracksCache(playlistID: String) {
         guard !playlistID.isEmpty else { return }
         try? cache.invalidateTracks(playlistID: playlistID)
+        invalidateLibraryContinuationCache()
         lastTracksRevalidationByID.removeValue(forKey: playlistID)
         if playlistID == SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID {
             likedSongsMutationGeneration += 1
@@ -377,5 +378,6 @@ extension PlaylistBrowserViewModel {
             }
         }
         try? cache.savePlaylists(Array(playlistsByID.values), cachedAt: now())
+        invalidateLibraryContinuationCache()
     }
 }

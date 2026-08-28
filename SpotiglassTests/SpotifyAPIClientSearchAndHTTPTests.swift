@@ -22,6 +22,66 @@ final class SpotifyAPIClientSearchAndHTTPTests: XCTestCase {
         XCTAssertEqual(httpClient.requests.count, 4)
     }
 
+    func testTopArtistsClampsLimitAndMapsArtists() async throws {
+        let httpClient = QueueHTTPClient([
+            .json(#"{"items":[{"id":"artist-1","name":"Artist 1","images":[],"uri":"spotify:artist:artist-1"}],"total":1,"limit":50,"offset":0,"next":null}"#)
+        ])
+        let client = SpotifyAPIClient(
+            tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"),
+            httpClient: httpClient
+        )
+
+        let artists = try await client.topArtists(limit: 999, timeRange: "long_term")
+
+        XCTAssertEqual(artists.map(\.id), ["artist-1"])
+        XCTAssertEqual(
+            httpClient.requests.first?.url?.absoluteString,
+            "https://api.spotify.com/v1/me/top/artists?limit=50&time_range=long_term"
+        )
+    }
+
+    func testFollowedArtistsFollowsAfterCursorUpToPageLimit() async throws {
+        let next = "https://api.spotify.com/v1/me/following?type=artist&limit=50&after=artist-1"
+        let httpClient = QueueHTTPClient([
+            .json("""
+            {"artists":{"items":[{"id":"artist-1","name":"Artist 1"}],"total":2,"limit":50,"next":"\(next)"}}
+            """),
+            .json("""
+            {"artists":{"items":[{"id":"artist-2","name":"Artist 2"}],"total":2,"limit":50,"next":null}}
+            """),
+        ])
+        let client = SpotifyAPIClient(
+            tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"),
+            httpClient: httpClient
+        )
+
+        let artists = try await client.followedArtists(limit: 50, maxPages: nil)
+
+        XCTAssertEqual(artists.map(\.id), ["artist-1", "artist-2"])
+        XCTAssertEqual(httpClient.requests.count, 2)
+        XCTAssertEqual(httpClient.requests[1].url?.absoluteString, next)
+    }
+
+    func testArtistTopTracksMapsPlayableTracksAndMarket() async throws {
+        let httpClient = QueueHTTPClient([
+            .json("""
+            {"tracks":[{"id":"track-1","name":"Track 1","artists":[{"id":"artist-1","name":"Artist 1"}],"album":{"id":"album-1","name":"Album","images":[]},"duration_ms":180000,"explicit":false,"is_playable":true,"uri":"spotify:track:track-1"}]}
+            """),
+        ])
+        let client = SpotifyAPIClient(
+            tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"),
+            httpClient: httpClient
+        )
+
+        let tracks = try await client.artistTopTracks(id: "artist-1", market: "US")
+
+        XCTAssertEqual(tracks.map(\.id), ["track-1"])
+        XCTAssertEqual(
+            httpClient.requests.first?.url?.absoluteString,
+            "https://api.spotify.com/v1/artists/artist-1/top-tracks?market=US"
+        )
+    }
+
     func testSearchClampsRequestedLimitToSpotifyMaximum() async throws {
         let httpClient = QueueHTTPClient([
             .json("""

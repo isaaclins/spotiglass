@@ -14,6 +14,8 @@ struct HomeView: View {
     let hasPlaybackDevice: Bool
     /// Shared playlist-creation prompt supplied by the browser detail host.
     let onRequestCreatePlaylist: (([TrackRowViewModel]) -> Void)?
+    /// Shared continuation action supplied by the browser host.
+    let onRequestLibraryContinuation: ((TrackRowViewModel) -> Void)?
 
     private let quickAccessColumns = [
         GridItem(.adaptive(minimum: 220), spacing: SpotiglassDesign.spacingS)
@@ -26,7 +28,8 @@ struct HomeView: View {
         currentPlaybackURI: String?,
         isPlaying: Bool,
         hasPlaybackDevice: Bool,
-        onRequestCreatePlaylist: (([TrackRowViewModel]) -> Void)? = nil
+        onRequestCreatePlaylist: (([TrackRowViewModel]) -> Void)? = nil,
+        onRequestLibraryContinuation: ((TrackRowViewModel) -> Void)? = nil
     ) {
         self.viewModel = viewModel
         self.playbackViewModel = playbackViewModel
@@ -35,6 +38,7 @@ struct HomeView: View {
         self.isPlaying = isPlaying
         self.hasPlaybackDevice = hasPlaybackDevice
         self.onRequestCreatePlaylist = onRequestCreatePlaylist
+        self.onRequestLibraryContinuation = onRequestLibraryContinuation
     }
 
     var body: some View {
@@ -170,7 +174,8 @@ struct HomeView: View {
                             targets: [track],
                             browserViewModel: viewModel,
                             sourcePlaylistID: nil,
-                            onRequestCreatePlaylist: onRequestCreatePlaylist
+                            onRequestCreatePlaylist: onRequestCreatePlaylist,
+                            onRequestLibraryContinuation: onRequestLibraryContinuation
                         ))
                     }
                 )

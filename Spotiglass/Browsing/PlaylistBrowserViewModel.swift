@@ -39,6 +39,9 @@ final class PlaylistBrowserViewModel: ObservableObject {
     @Published internal(set) var homeRecentlyPlayed: HomeSectionState<[HomeMediaCard]> = .loading
     /// Home surface: "Your top tracks" list rows. Loaded lazily when Home is shown.
     @Published internal(set) var homeTopTracks: HomeSectionState<[TrackRowViewModel]> = .loading
+    /// Raw top tracks retained alongside the display rows so library continuation
+    /// can use the already-loaded Home response without another request.
+    var homeTopTrackData: [SpotifyTrack] = []
     /// Generation token so a stale home section load can't overwrite a newer one.
     var homeFeedGeneration = 0
     @Published internal(set) var canNavigateBack = false
@@ -120,6 +123,9 @@ final class PlaylistBrowserViewModel: ObservableObject {
     /// In-flight bulk "Load all your songs into Spotiglass" prefetch run. Holding the
     /// task lets the same command toggle cancellation on re-invocation.
     var prefetchAllPlaylistsTask: Task<Void, Never>?
+    /// Invalidates an in-flight library continuation when the account changes
+    /// or the browser is signed out.
+    var libraryContinuationGeneration = 0
     /// Published progress for the bulk prefetch run. Mirrored onto the command
     /// palette view-model by the view-side binding so the palette header can
     /// render "Loading N of M playlists…".
@@ -204,6 +210,7 @@ final class PlaylistBrowserViewModel: ObservableObject {
         detailLoadTask = nil
         prefetchAllPlaylistsTask?.cancel()
         prefetchAllPlaylistsTask = nil
+        libraryContinuationGeneration += 1
         prefetchAllPlaylistsProgress = nil
         likedSongsRevalidationTask?.cancel()
         likedSongsRevalidationTask = nil
@@ -211,6 +218,7 @@ final class PlaylistBrowserViewModel: ObservableObject {
         likedSongsMutationGeneration += 1
         lastLikedSongsRevalidationAt = nil
         sidebarSelection = nil
+        trackMutationToast = nil
         playlistsByID = [:]
         knownPlaylistSummariesByID = [:]
         lastTracksRevalidationByID = [:]
@@ -223,6 +231,7 @@ final class PlaylistBrowserViewModel: ObservableObject {
         homeFeedGeneration += 1
         homeRecentlyPlayed = .loading
         homeTopTracks = .loading
+        homeTopTrackData = []
         playlistState = .empty(SpotiglassL10n.string("browser.empty.connectToBrowse"))
         detailState = .empty(SpotiglassL10n.string("browser.empty.signInToBrowse"))
     }

@@ -16,6 +16,8 @@ struct CatalogSearchView: View {
     let hasPlaybackDevice: Bool
     /// Shared playlist-creation prompt supplied by the browser detail host.
     let onRequestCreatePlaylist: (([TrackRowViewModel]) -> Void)?
+    /// Shared continuation action supplied by the browser host.
+    let onRequestLibraryContinuation: ((TrackRowViewModel) -> Void)?
 
     @FocusState private var isQueryFieldFocused: Bool
 
@@ -31,7 +33,8 @@ struct CatalogSearchView: View {
         currentPlaybackURI: String?,
         isPlaying: Bool,
         hasPlaybackDevice: Bool,
-        onRequestCreatePlaylist: (([TrackRowViewModel]) -> Void)? = nil
+        onRequestCreatePlaylist: (([TrackRowViewModel]) -> Void)? = nil,
+        onRequestLibraryContinuation: ((TrackRowViewModel) -> Void)? = nil
     ) {
         self.viewModel = viewModel
         self.searchViewModel = searchViewModel
@@ -41,6 +44,7 @@ struct CatalogSearchView: View {
         self.isPlaying = isPlaying
         self.hasPlaybackDevice = hasPlaybackDevice
         self.onRequestCreatePlaylist = onRequestCreatePlaylist
+        self.onRequestLibraryContinuation = onRequestLibraryContinuation
     }
 
     var body: some View {
@@ -252,7 +256,8 @@ struct CatalogSearchView: View {
                             targets: [track],
                             browserViewModel: viewModel,
                             sourcePlaylistID: nil,
-                            onRequestCreatePlaylist: onRequestCreatePlaylist
+                            onRequestCreatePlaylist: onRequestCreatePlaylist,
+                            onRequestLibraryContinuation: onRequestLibraryContinuation
                         ))
                     }
                 )

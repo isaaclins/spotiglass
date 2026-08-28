@@ -115,6 +115,36 @@ struct SpotifyLocalCache {
         try removeIfPresent(tracksURL(playlistID: playlistID))
     }
 
+    func saveLibraryContinuationIndex(
+        _ library: LibraryContinuationLibrary,
+        cachedAt: Date = Date()
+    ) throws {
+        try write(
+            LibraryContinuationCacheEntry(library: library, cachedAt: cachedAt),
+            to: libraryContinuationURL
+        )
+    }
+
+    func loadLibraryContinuationIndex(
+        now: Date = Date(),
+        maxAge: TimeInterval = 900
+    ) throws -> LibraryContinuationLibrary? {
+        guard let cached: LibraryContinuationCacheEntry = try read(from: libraryContinuationURL),
+              cached.isValid(now: now, maxAge: maxAge) else {
+            return nil
+        }
+        return cached.library
+    }
+
+    func loadLibraryContinuationIndexIgnoringAge() throws -> LibraryContinuationLibrary? {
+        let cached: LibraryContinuationCacheEntry? = try read(from: libraryContinuationURL)
+        return cached?.library
+    }
+
+    func invalidateLibraryContinuationIndex() throws {
+        try removeIfPresent(libraryContinuationURL)
+    }
+
     /// Persists a successful GET response body for `SpotifyGETResponseCache` (keyed by SHA256 hex `digest`).
     func saveGETResponse(digest: String, body: Data, ttl: TimeInterval, cachedAt: Date = Date()) throws {
         let payload = CachedGETResponsePayload(
@@ -165,6 +195,7 @@ struct SpotifyLocalCache {
     func clearPrivateAccountData() throws {
         try removeIfPresent(playlistsURL)
         try removeIfPresent(settingsURL)
+        try removeIfPresent(libraryContinuationURL)
         let tracksDirectory = self.tracksDirectory
         if fileManager.fileExists(atPath: tracksDirectory.path) {
             try fileManager.removeItem(at: tracksDirectory)
@@ -177,6 +208,10 @@ struct SpotifyLocalCache {
 
     private var settingsURL: URL {
         rootDirectory.appendingPathComponent("settings.json")
+    }
+
+    private var libraryContinuationURL: URL {
+        rootDirectory.appendingPathComponent("library-continuation.json")
     }
 
     private var tracksDirectory: URL {

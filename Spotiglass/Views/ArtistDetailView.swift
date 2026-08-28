@@ -51,6 +51,8 @@ struct ArtistDetailContent: View {
     /// Presented by the shared browser detail host so the same Add submenu can
     /// create a playlist from artist rows as it can from playlist rows.
     let onRequestCreatePlaylist: (([TrackRowViewModel]) -> Void)?
+    /// Starts a continuation through the browser host's queue orchestration.
+    let onRequestLibraryContinuation: ((TrackRowViewModel) -> Void)?
 
     @EnvironmentObject private var pinnedStore: PinnedItemsStore
     @Environment(\.colorScheme) private var colorScheme
@@ -86,7 +88,8 @@ struct ArtistDetailContent: View {
         addToQueue: @escaping (String) async -> Void,
         openArtist: @escaping (String) -> Void,
         loadMoreAlbums: @escaping () -> Void,
-        onRequestCreatePlaylist: (([TrackRowViewModel]) -> Void)? = nil
+        onRequestCreatePlaylist: (([TrackRowViewModel]) -> Void)? = nil,
+        onRequestLibraryContinuation: ((TrackRowViewModel) -> Void)? = nil
     ) {
         self.detail = detail
         _browserViewModel = ObservedObject(wrappedValue: browserViewModel)
@@ -101,6 +104,7 @@ struct ArtistDetailContent: View {
         self.openArtist = openArtist
         self.loadMoreAlbums = loadMoreAlbums
         self.onRequestCreatePlaylist = onRequestCreatePlaylist
+        self.onRequestLibraryContinuation = onRequestLibraryContinuation
     }
 
     var body: some View {
@@ -211,7 +215,8 @@ struct ArtistDetailContent: View {
                             targets: [track],
                             browserViewModel: browserViewModel,
                             sourcePlaylistID: nil,
-                            onRequestCreatePlaylist: onRequestCreatePlaylist
+                            onRequestCreatePlaylist: onRequestCreatePlaylist,
+                            onRequestLibraryContinuation: onRequestLibraryContinuation
                         ))
                     }
                 )

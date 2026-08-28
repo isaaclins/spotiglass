@@ -24,6 +24,10 @@ final class SpotifyAPIClientArtistsEndpointTests: XCTestCase {
             try await client.artistAlbumsCached(id: ""),
             .invalidRequest("Artist ID is required.")
         )
+        await XCTAssertThrowsSpotifyAPIError(
+            try await client.artistTopTracks(id: ""),
+            .invalidRequest("Artist ID is required.")
+        )
     }
 
     func testArtistCachedDecodesAndReportsStaleFlag() async throws {

@@ -56,6 +56,14 @@ struct PlaylistBrowserView: View {
         isPromptingNewPlaylist = true
     }
 
+    private func requestLibraryContinuation(_ row: TrackRowViewModel) {
+        Task { @MainActor in
+            await viewModel.enqueueLibraryContinuation(from: row) { uris in
+                await queueViewModel.addToQueue(uris: uris)
+            }
+        }
+    }
+
     init(
         viewModel: PlaylistBrowserViewModel,
         playbackTokenProvider: PlaybackAccessTokenProviding,
@@ -144,7 +152,8 @@ struct PlaylistBrowserView: View {
                         currentPlaybackURI: currentPlaybackURI,
                         isCurrentlyPlaying: isCurrentlyPlaying,
                         hasPlaybackDevice: hasPlaybackDevice,
-                        onRequestCreatePlaylist: requestCreatePlaylist
+                        onRequestCreatePlaylist: requestCreatePlaylist,
+                        onRequestLibraryContinuation: requestLibraryContinuation
                     )
                 } queueColumn: {
                     QueuePanelColumn(
@@ -152,7 +161,8 @@ struct PlaylistBrowserView: View {
                         queueViewModel: queueViewModel,
                         playbackViewModel: playbackViewModel,
                         openArtist: { openArtistFromTapTarget($0) },
-                        onRequestCreatePlaylist: requestCreatePlaylist
+                        onRequestCreatePlaylist: requestCreatePlaylist,
+                        onRequestLibraryContinuation: requestLibraryContinuation
                     )
                 }
             }
