@@ -188,6 +188,8 @@ private final class MockPlaybackActionRecorder: @unchecked Sendable {
 final class MockPlaybackAPI: SpotifyPlaybackControlling {
     private let actionRecorder = MockPlaybackActionRecorder()
     var actions: [String] { actionRecorder.snapshot() }
+    private(set) var lastPlayedURIQueue: [String]?
+    private(set) var lastPlayedOffsetURI: String?
     /// Runs at the top of every `play*` call (before the artificial delay), with the
     /// URI / context URI / first list URI. Suspending here keeps that play in flight
     /// from the view model's perspective until the closure returns.
@@ -269,7 +271,17 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
     }
 
     func play(uris: [String], deviceID: String) async throws {
-        await onPlay?(uris.first ?? "")
+        try await playQueue(uris: uris, offsetURI: nil, deviceID: deviceID)
+    }
+
+    func play(uris: [String], offsetURI: String, deviceID: String) async throws {
+        try await playQueue(uris: uris, offsetURI: offsetURI, deviceID: deviceID)
+    }
+
+    private func playQueue(uris: [String], offsetURI: String?, deviceID: String) async throws {
+        lastPlayedURIQueue = uris
+        lastPlayedOffsetURI = offsetURI
+        await onPlay?(offsetURI ?? uris.first ?? "")
         if playDelayNanoseconds > 0 {
             try? await Task.sleep(nanoseconds: playDelayNanoseconds)
         }

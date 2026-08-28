@@ -79,7 +79,13 @@ enum ViewTestHost {
     }
 
     static func tearDownAll() {
-        for window in windows { window.close() }
+        for window in windows {
+            // A hosted AppKit view can still be first responder when its test
+            // window is closed. Clear that relationship before tearing down the
+            // window, otherwise AppKit may message a released responder later.
+            window.makeFirstResponder(nil)
+            window.close()
+        }
         windows.removeAll()
         appStorageDefaults.removePersistentDomain(forName: appStorageSuiteName)
     }

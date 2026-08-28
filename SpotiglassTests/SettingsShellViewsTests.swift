@@ -99,4 +99,57 @@ final class SettingsShellViewsTests: XCTestCase {
         ViewTestHost.host(standaloneKeyboard)
         XCTAssertNoThrow(try standaloneKeyboard.inspect().find(ViewType.ScrollView.self))
     }
+
+    /// A Form's trailing spacer is part of its scroll document, so it must be
+    /// large enough to let a last-row control clear the window edge at maximum
+    /// scroll. Keep this assertion on the SwiftUI layout model rather than on
+    /// AppKit's realised view hierarchy: macOS 26's headless runner does not
+    /// expose the private focus-ring views that macOS 27 creates (#331).
+    func testEqualizerScrollContentProvidesTrailingClearance() throws {
+        let store = try ViewTestHost.makeSettingsStore()
+        let view = EqualizerSettingsView(
+            settingsStore: store,
+            engine: AudioEqualizerEngine()
+        )
+        let form = try view.inspect().find(ViewType.Form.self)
+        let footerSection = try form.section(4)
+        let trailingSpacer = try footerSection.find(ViewType.Color.self)
+        let trailingInset = try trailingSpacer.fixedHeight()
+
+        // Model the worst case: the Reset to Flat row ends exactly at the pane's
+        // 641-point viewport edge before the trailing inset is added. The Form
+        // document must then grow by the inset, making that row clearable at its
+        // maximum scroll position.
+        let layout = SettingsPaneScrollLayout(
+            viewportHeight: 748 - 52 - 55,
+            lastControlBottom: 748 - 52 - 55,
+            trailingInset: trailingInset
+        )
+
+        XCTAssertGreaterThanOrEqual(trailingInset, SpotiglassDesign.spacingL)
+        XCTAssertGreaterThan(layout.documentHeight, layout.viewportHeight)
+        XCTAssertGreaterThan(layout.bottomClearanceAtMaximumScroll, 0)
+        XCTAssertGreaterThanOrEqual(
+            layout.bottomClearanceAtMaximumScroll,
+            SpotiglassDesign.spacingL
+        )
+    }
+
+    private struct SettingsPaneScrollLayout {
+        let viewportHeight: CGFloat
+        let lastControlBottom: CGFloat
+        let trailingInset: CGFloat
+
+        var documentHeight: CGFloat {
+            lastControlBottom + trailingInset
+        }
+
+        var maximumScrollOffset: CGFloat {
+            max(0, documentHeight - viewportHeight)
+        }
+
+        var bottomClearanceAtMaximumScroll: CGFloat {
+            maximumScrollOffset + viewportHeight - lastControlBottom
+        }
+    }
 }

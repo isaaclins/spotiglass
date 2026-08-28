@@ -70,6 +70,68 @@ final class TrackSelectionMenuStateTests: XCTestCase {
         )
     }
 
+    // MARK: - Liked Songs state
+
+    func testFullySavedSelectionOffersRemove() {
+        let rows = [makeRow(id: "t1", playable: true), makeRow(id: "t2", playable: true)]
+        XCTAssertEqual(
+            PlaylistBrowserView.trackSelectionLikedState(
+                for: rows,
+                isSaved: { _ in true }
+            ),
+            .remove
+        )
+    }
+
+    func testUnsavedSelectionOffersAdd() {
+        let rows = [makeRow(id: "t1", playable: true), makeRow(id: "t2", playable: true)]
+        XCTAssertEqual(
+            PlaylistBrowserView.trackSelectionLikedState(
+                for: rows,
+                isSaved: { _ in false }
+            ),
+            .add
+        )
+    }
+
+    func testMixedSavedSelectionOffersAddRatherThanBoth() {
+        let rows = [makeRow(id: "t1", playable: true), makeRow(id: "t2", playable: true)]
+        XCTAssertEqual(
+            PlaylistBrowserView.trackSelectionLikedState(
+                for: rows,
+                isSaved: { $0 == "t1" }
+            ),
+            .add
+        )
+    }
+
+    func testSelectionWithNoCatalogURIIsUnavailable() {
+        XCTAssertEqual(
+            PlaylistBrowserView.trackSelectionLikedState(
+                for: [makeRow(id: "episode", playable: false)],
+                isSaved: { _ in true }
+            ),
+            .unavailable
+        )
+    }
+
+    func testSavedTrackStatusesAreStoredPerCatalogRow() async {
+        let api = MockBrowsingAPI(
+            playlistResults: [],
+            trackResults: [:],
+            savedTrackStatusesHandler: { ids in
+                ids.map { $0 == "saved" }
+            }
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+        let rows = [makeRow(id: "saved", playable: true), makeRow(id: "new", playable: true)]
+
+        await viewModel.loadSavedTrackStates(for: rows)
+
+        XCTAssertEqual(viewModel.savedTrackStates, ["saved": true, "new": false])
+        XCTAssertEqual(api.savedTrackStatusesCalls, [["saved", "new"]])
+    }
+
     // MARK: - Add to Queue availability
 
     private func makeRow(id: String, playable: Bool) -> TrackRowViewModel {

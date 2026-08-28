@@ -41,6 +41,7 @@ final class QueuePanelTests: XCTestCase {
             browserViewModel: browserViewModel,
             sourcePlaylistID: nil
         )
+        .environmentObject(PinnedItemsStore(cache: InMemoryPinnedItemsCache()))
 
         XCTAssertNoThrow(try menu.inspect().find(text: SpotiglassL10n.string("Add to playlist")))
         XCTAssertThrowsError(
@@ -1122,6 +1123,10 @@ private final class QueueTestPlaybackAPI: SpotifyPlaybackControlling {
     }
 
     func play(uris: [String], deviceID: String) async throws {
+        appendAction("play-list:\(deviceID):\(uris.joined(separator: ","))")
+    }
+
+    func play(uris: [String], offsetURI: String, deviceID: String) async throws {
         appendAction("play-list:\(deviceID):\(uris.joined(separator: ","))")
     }
 

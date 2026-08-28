@@ -233,6 +233,7 @@ final class ListDetailViewsTests: XCTestCase {
             onRequestCreatePlaylist: { requestedRows = $0 },
             onRequestLibraryContinuation: { continuationSeed = $0 }
         )
+        .environmentObject(pinnedStore())
 
         ViewTestHost.host(view)
         XCTAssertNoThrow(try view.inspect().find(text: SpotiglassL10n.string("Add to playlist")))
@@ -259,6 +260,61 @@ final class ListDetailViewsTests: XCTestCase {
         )
     }
 
+    func testTrackOpsMenuOffersOnlyTheSavedStateAction() throws {
+        let api = MockBrowsingAPI(playlistResults: [], trackResults: [:])
+        let browserViewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+        let target = TrackRowViewModel.numberedPlaylistRows([
+            PlaylistBrowsingTestFixtures.track(id: "saved-track")
+        ])[0]
+        browserViewModel.savedTrackStates = ["saved-track": true]
+        let view = TrackOpsMenuItems(
+            targets: [target],
+            browserViewModel: browserViewModel,
+            sourcePlaylistID: nil
+        )
+        .environmentObject(pinnedStore())
+
+        ViewTestHost.host(view)
+        let label = SpotiglassL10n.format(
+            "playlist.detail.likedSongs.remove",
+            SpotiglassL10n.format("playlist.mutation.trackLabel", Int64(1))
+        )
+        XCTAssertNoThrow(try view.inspect().find(text: label))
+        XCTAssertThrowsError(
+            try view.inspect().find(
+                text: SpotiglassL10n.format(
+                    "playlist.detail.likedSongs.add",
+                    SpotiglassL10n.format("playlist.mutation.trackLabel", Int64(1))
+                )
+            )
+        )
+    }
+
+    func testLikedSongsMenuUsesLocalMembershipWithoutContainsRequest() throws {
+        let api = MockBrowsingAPI(playlistResults: [], trackResults: [:])
+        let browserViewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+        let target = TrackRowViewModel.numberedPlaylistRows([
+            PlaylistBrowsingTestFixtures.track(id: "locally-saved")
+        ])[0]
+        let view = TrackOpsMenuItems(
+            targets: [target],
+            browserViewModel: browserViewModel,
+            sourcePlaylistID: SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID
+        )
+        .environmentObject(pinnedStore())
+
+        ViewTestHost.host(view)
+        XCTAssertNoThrow(
+            try view.inspect().find(
+                text: SpotiglassL10n.format(
+                    "playlist.detail.likedSongs.remove",
+                    SpotiglassL10n.format("playlist.mutation.trackLabel", Int64(1))
+                )
+            )
+        )
+        XCTAssertTrue(api.savedTrackStatusesCalls.isEmpty)
+    }
+
     func testTrackOpsMenuIncludesMoveOnlyWhenSourcePlaylistExists() throws {
         let source = PlaylistBrowsingTestFixtures.playlist(id: "source", name: "Source")
         let destination = PlaylistBrowsingTestFixtures.playlist(id: "destination", name: "Destination")
@@ -281,11 +337,99 @@ final class ListDetailViewsTests: XCTestCase {
             sourcePlaylistID: source.id,
             onRequestCreatePlaylist: { _ in }
         )
+        .environmentObject(pinnedStore())
 
         ViewTestHost.host(view)
         XCTAssertNoThrow(try view.inspect().find(text: SpotiglassL10n.string("Move to playlist")))
         XCTAssertThrowsError(try view.inspect().find(text: source.name))
         XCTAssertNoThrow(try view.inspect().find(text: destination.name))
+    }
+
+    func testTrackMenuActionsStaySharedAcrossEverySurface() throws {
+        let row = trackRow(id: "menu-track", title: "Menu Track", explicit: false)
+        let browserViewModel = PlaylistBrowserViewModel(
+            api: MockBrowsingAPI(playlistResults: [], trackResults: [:]),
+            cache: MockBrowsingCache()
+        )
+        let store = pinnedStore()
+        let addToQueue: (String) async -> Void = { _ in }
+        let openArtist: (ArtistTapTarget) -> Void = { _ in }
+        let menus: [(String, AnyView, Bool)] = [
+            (
+                "playlist",
+                AnyView(TrackOpsMenuItems(
+                    targets: [row], browserViewModel: browserViewModel,
+                    openArtist: openArtist, addToQueue: addToQueue,
+                    hasPlaybackDevice: true, copyableURI: row.playableURI
+                ).environmentObject(store)),
+                true
+            ),
+            (
+                "artist",
+                AnyView(TrackOpsMenuItems(
+                    targets: [row], browserViewModel: browserViewModel,
+                    openArtist: openArtist, addToQueue: addToQueue,
+                    hasPlaybackDevice: true, copyableURI: row.playableURI
+                ).environmentObject(store)),
+                true
+            ),
+            (
+                "catalog search",
+                AnyView(TrackOpsMenuItems(
+                    targets: [row], browserViewModel: browserViewModel,
+                    openArtist: openArtist, addToQueue: addToQueue,
+                    hasPlaybackDevice: true, copyableURI: row.playableURI
+                ).environmentObject(store)),
+                true
+            ),
+            (
+                "Home",
+                AnyView(TrackOpsMenuItems(
+                    targets: [row], browserViewModel: browserViewModel,
+                    openArtist: openArtist, addToQueue: addToQueue,
+                    hasPlaybackDevice: true, copyableURI: row.playableURI
+                ).environmentObject(store)),
+                true
+            ),
+            (
+                "queue",
+                AnyView(TrackOpsMenuItems(
+                    targets: [row], browserViewModel: browserViewModel,
+                    openArtist: openArtist,
+                    artistTargetsOverride: [ArtistTapTarget(id: "ar1", name: "Artist")],
+                    copyableURI: row.playableURI
+                ).environmentObject(store)),
+                false
+            )
+        ]
+
+        for (surface, menu, includesAddToQueue) in menus {
+            ViewTestHost.host(menu)
+            let inspected = try menu.inspect()
+            XCTAssertNoThrow(
+                try inspected.find(text: SpotiglassL10n.string("browser.track.openArtist")),
+                "\(surface) menu should offer Open Artist"
+            )
+            if includesAddToQueue {
+                XCTAssertNoThrow(
+                    try inspected.find(button: SpotiglassL10n.string("browser.addToQueue")),
+                    "\(surface) menu should offer Add to Queue"
+                )
+            } else {
+                XCTAssertThrowsError(
+                    try inspected.find(button: SpotiglassL10n.string("browser.addToQueue")),
+                    "\(surface) menu should suppress Add to Queue"
+                )
+            }
+            XCTAssertNoThrow(
+                try inspected.find(button: SpotiglassL10n.string("browser.pin")),
+                "\(surface) menu should offer Pin"
+            )
+            XCTAssertNoThrow(
+                try inspected.find(button: SpotiglassL10n.string("queue.copyURI")),
+                "\(surface) menu should offer Copy URI"
+            )
+        }
     }
 
     // MARK: - Native track list
@@ -553,6 +697,7 @@ final class ListDetailViewsTests: XCTestCase {
                 XCTAssertEqual(rows.map(\.id), [detail.tracks[0].id])
             }
         )
+        .environmentObject(pinnedStore())
 
         ViewTestHost.host(view)
         XCTAssertNoThrow(
@@ -698,8 +843,6 @@ private extension ListDetailViewsTests {
             togglePlayPause: {},
             isCurrent: isCurrent,
             isPlaying: isPlaying,
-            hasPlaybackDevice: true,
-            addToQueue: { _ in },
             openArtist: { _ in },
             tracksSurfaceID: surfaceID,
             isSelected: isSelected
@@ -809,8 +952,6 @@ enum TrackListTestRows {
             togglePlayPause: {},
             isCurrent: false,
             isPlaying: false,
-            hasPlaybackDevice: true,
-            addToQueue: { _ in },
             openArtist: { _ in },
             drawsRowHighlights: false
         )

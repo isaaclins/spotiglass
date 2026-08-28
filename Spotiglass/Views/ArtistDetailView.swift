@@ -206,8 +206,6 @@ struct ArtistDetailContent: View {
                     togglePlayPause: togglePlayPause,
                     isCurrent: track.playableURI != nil && track.playableURI == currentPlaybackURI,
                     isPlaying: isPlaying,
-                    hasPlaybackDevice: hasPlaybackDevice,
-                    addToQueue: addToQueue,
                     openArtist: openArtist,
                     tracksSurfaceID: tracksSurfaceID,
                     trackOpsMenuItems: {
@@ -216,7 +214,13 @@ struct ArtistDetailContent: View {
                             browserViewModel: browserViewModel,
                             sourcePlaylistID: nil,
                             onRequestCreatePlaylist: onRequestCreatePlaylist,
-                            onRequestLibraryContinuation: onRequestLibraryContinuation
+                            onRequestLibraryContinuation: onRequestLibraryContinuation,
+                            openArtist: { target in
+                                if let id = target.id { openArtist(id) }
+                            },
+                            addToQueue: addToQueue,
+                            hasPlaybackDevice: hasPlaybackDevice,
+                            copyableURI: track.playableURI
                         ))
                     }
                 )
