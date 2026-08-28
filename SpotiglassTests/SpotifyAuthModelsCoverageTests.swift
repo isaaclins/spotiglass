@@ -68,6 +68,35 @@ final class SpotifyAuthModelsCoverageTests: XCTestCase {
         XCTAssertEqual(refreshed.scope, "streaming")
     }
 
+    func testAuthenticatedSessionReportsMissingFeatureScopes() {
+        let session = AuthenticatedSession(
+            accessToken: "token",
+            tokenType: "Bearer",
+            scope: "playlist-read-private playlist-read-collaborative user-library-read",
+            expiresAt: Date().addingTimeInterval(3_600)
+        )
+
+        XCTAssertEqual(
+            session.missingScopes(SpotifyAuthConfiguration.requiredSavedTracksModifyScopes),
+            ["user-library-modify"]
+        )
+        XCTAssertFalse(session.includesScopes(SpotifyAuthConfiguration.requiredSavedTracksModifyScopes))
+        XCTAssertTrue(session.includesScopes(SpotifyAuthConfiguration.requiredSavedTracksReadScopes))
+    }
+
+    func testScopeRequirementAcceptsOnePlaylistModificationScope() {
+        let requirement = SpotifyScopeRequirement(anyOf: SpotifyAuthConfiguration.requiredPlaylistModifyScopes)
+
+        XCTAssertEqual(
+            requirement.missingScopes(from: ["playlist-modify-private"]),
+            []
+        )
+        XCTAssertEqual(
+            requirement.missingScopes(from: []),
+            SpotifyAuthConfiguration.requiredPlaylistModifyScopes
+        )
+    }
+
     func testAuthDisplayErrorEqualityIgnoresID() {
         let a = AuthDisplayError(message: "Same")
         let b = AuthDisplayError(message: "Same")

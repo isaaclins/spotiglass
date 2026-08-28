@@ -205,15 +205,27 @@ extension SpotifyAPIClient {
         queryItems: [URLQueryItem],
         jsonBody: Any?
     ) async throws -> Data {
-        let accessToken = try await tokenProvider.accessToken()
-        let request = try makeWriteRequest(
-            method: method,
-            path: path,
-            queryItems: queryItems,
-            jsonBody: jsonBody,
-            accessToken: accessToken
-        )
-        return try await performWrite(request: request, didRetryAuth: false, rateRetryCount: 0)
+        var request: URLRequest?
+        do {
+            let accessToken = try await tokenProvider.accessToken()
+            let builtRequest = try makeWriteRequest(
+                method: method,
+                path: path,
+                queryItems: queryItems,
+                jsonBody: jsonBody,
+                accessToken: accessToken
+            )
+            request = builtRequest
+            try await enforceScopeRequirement(for: builtRequest)
+            return try await performWrite(request: builtRequest, didRetryAuth: false, rateRetryCount: 0)
+        } catch {
+            let target = request?.url?.absoluteString ?? path
+            SpotiglassLog.error(
+                .api,
+                "Spotify API failure: \(method) \(target) — \(error.localizedDescription)\(errorDiagnosticSuffix(error))"
+            )
+            throw error
+        }
     }
 
     private func makeWriteRequest(
@@ -241,6 +253,18 @@ extension SpotifyAPIClient {
         rateRetryCount: Int
     ) async throws -> Data {
         let (data, response) = try await httpClient.data(for: request)
+        if !(200..<300).contains(response.statusCode) {
+            let details = diagnosticDetails(
+                statusCode: response.statusCode,
+                data: data,
+                headers: response.allHeaderFields,
+                request: request
+            )
+            SpotiglassLog.error(
+                .api,
+                "Spotify API failure: \(request.httpMethod ?? "GET") \(request.url?.absoluteString ?? "<missing URL>")\n\(details)"
+            )
+        }
         if response.statusCode == 401 && !didRetryAuth {
             let refreshedToken = try await tokenProvider.refreshAccessTokenAfterUnauthorized()
             var refreshed = request
@@ -258,16 +282,41 @@ extension SpotifyAPIClient {
             )
         }
         guard (200..<300).contains(response.statusCode) else {
-            let message = (try? decoder.decode(SpotifyAPIErrorResponse.self, from: data).error.message)
-            switch response.statusCode {
-            case 401: throw SpotifyAPIError.unauthorized
-            case 400: throw SpotifyAPIError.badRequest(message: message, details: nil)
-            case 403: throw SpotifyAPIError.forbidden(message: message, details: nil)
-            case 404: throw SpotifyAPIError.notFound(message: message)
-            default:  throw SpotifyAPIError.server(statusCode: response.statusCode, message: message, details: nil)
-            }
+            throw mapHTTPError(
+                statusCode: response.statusCode,
+                data: data,
+                headers: response.allHeaderFields,
+                request: request
+            )
         }
         return data
+    }
+
+    private func diagnosticDetails(
+        statusCode: Int,
+        data: Data,
+        headers: [AnyHashable: Any],
+        request: URLRequest
+    ) -> String {
+        let body = String(data: data, encoding: .utf8) ?? "<non-UTF8 response body>"
+        let headerDump = headers.map { key, value in
+            "\(String(describing: key)): \(String(describing: value))"
+        }.sorted().joined(separator: "\n")
+        return """
+        \(request.httpMethod ?? "GET") \(request.url?.absoluteString ?? "<missing URL>")
+        HTTP \(statusCode)
+
+        Response headers:
+        \(headerDump.isEmpty ? "<none>" : headerDump)
+
+        Response body:
+        \(body)
+        """
+    }
+
+    private func errorDiagnosticSuffix(_ error: Error) -> String {
+        guard let details = (error as? SpotifyAPIError)?.diagnosticDetails else { return "" }
+        return "\n\(details)"
     }
 }
 

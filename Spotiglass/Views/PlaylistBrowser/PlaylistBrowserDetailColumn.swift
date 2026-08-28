@@ -263,6 +263,8 @@ struct PlaylistBrowserMainDetailColumn: View {
                     if let toast = viewModel.trackMutationToast {
                         Text(toast)
                             .font(.callout.weight(.medium))
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
                             .padding(.horizontal, SpotiglassDesign.spacingM)
                             .padding(.vertical, SpotiglassDesign.spacingS)
                             .background(.regularMaterial, in: Capsule())
