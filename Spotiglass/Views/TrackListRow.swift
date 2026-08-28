@@ -103,8 +103,6 @@ struct TrackListRow: View {
     let togglePlayPause: () -> Void
     let isCurrent: Bool
     let isPlaying: Bool
-    let hasPlaybackDevice: Bool
-    let addToQueue: (String) async -> Void
     let openArtist: (String) -> Void
     /// When set, the row participates in drag-to-pin for this surface (e.g. `pl:<playlistId>` or `ar:<artistID>`).
     var tracksSurfaceID: String? = nil
@@ -277,33 +275,7 @@ struct TrackListRow: View {
                 Button(rowPlaybackInvocation.label, action: activate)
                 Divider()
             }
-            if !track.artistRefs.isEmpty {
-                Menu(SpotiglassL10n.string("browser.track.openArtist")) {
-                    ForEach(track.artistRefs) { ref in
-                        Button(ref.name) {
-                            openArtist(ref.id)
-                        }
-                    }
-                }
-            }
-            Button(SpotiglassL10n.string("browser.addToQueue")) {
-                guard let uri = track.playableURI else { return }
-                Task { await addToQueue(uri) }
-            }
-            .disabled(!hasPlaybackDevice || track.playableURI == nil)
-            if let pinned = track.pinnedTrackItem() {
-                if isTrackPinned {
-                    Button(SpotiglassL10n.string("browser.unpin")) {
-                        pinnedStore.unpin(id: pinned.id)
-                    }
-                } else {
-                    Button(SpotiglassL10n.string("browser.pin")) {
-                        pinnedStore.pin(pinned)
-                    }
-                }
-            }
             if let trackOpsMenuItems {
-                Divider()
                 trackOpsMenuItems()
             }
         }

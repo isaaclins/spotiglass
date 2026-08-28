@@ -59,6 +59,32 @@ extension PlaylistBrowserViewModel {
         }
     }
 
+    /// Returns the cached saved state for a catalog track, if the menu has
+    /// already resolved it with `/v1/me/tracks/contains`.
+    func savedTrackState(for id: String) -> Bool? {
+        savedTrackStates[id]
+    }
+
+    /// Resolves the missing saved states for a menu's catalog rows. The Liked
+    /// Songs surface skips this entirely because membership is known locally.
+    func loadSavedTrackStates(for rows: [TrackRowViewModel]) async {
+        let ids = catalogTrackIDs(for: rows)
+        let missing = ids.filter { savedTrackStates[$0] == nil }
+        guard !missing.isEmpty else { return }
+        do {
+            let statuses = try await api.savedTrackStatuses(ids: missing)
+            guard !Task.isCancelled, statuses.count == missing.count else { return }
+            for (id, status) in zip(missing, statuses) {
+                savedTrackStates[id] = status
+            }
+        } catch is CancellationError {
+            return
+        } catch {
+            // Leave an unresolved row unavailable rather than guessing and
+            // offering the wrong mutation.
+        }
+    }
+
     /// Exact source playlist positions for a row-level Move operation. Duplicate
     /// catalog tracks stay grouped by URI while retaining every selected slot.
     func playlistTrackRemovals(for rows: [TrackRowViewModel]) -> [SpotifyPlaylistTrackRemoval] {
@@ -172,6 +198,9 @@ extension PlaylistBrowserViewModel {
         }
         do {
             try await api.saveTracks(ids: ids)
+            for id in ids {
+                savedTrackStates[id] = true
+            }
             invalidateLikedSongsCache()
             await refreshLikedSongsDetailAfterMutation()
             trackMutationToast = SpotiglassL10n.format(
@@ -191,6 +220,9 @@ extension PlaylistBrowserViewModel {
         }
         do {
             try await api.removeSavedTracks(ids: ids)
+            for id in ids {
+                savedTrackStates[id] = false
+            }
             invalidateLikedSongsCache()
             await refreshLikedSongsDetailAfterMutation()
             trackMutationToast = SpotiglassL10n.format(

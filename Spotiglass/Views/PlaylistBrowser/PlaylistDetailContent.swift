@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 enum PlaylistDetailHeaderPinning {
@@ -113,8 +114,6 @@ struct PlaylistDetailContent: View {
                             togglePlayPause: togglePlayPause,
                             isCurrent: track.playableURI != nil && track.playableURI == currentPlaybackURI,
                             isPlaying: isPlaying,
-                            hasPlaybackDevice: hasPlaybackDevice,
-                            addToQueue: addToQueue,
                             openArtist: openArtist,
                             tracksSurfaceID: tracksSurfaceKey,
                             isSelected: browserViewModel.selectedDetailTrackIDs.contains(track.id),
@@ -130,7 +129,13 @@ struct PlaylistDetailContent: View {
                                         newPlaylistName = ""
                                         isPromptingNewPlaylist = true
                                     },
-                                    onRequestLibraryContinuation: onRequestLibraryContinuation
+                                    onRequestLibraryContinuation: onRequestLibraryContinuation,
+                                    openArtist: { target in
+                                        if let id = target.id { openArtist(id) }
+                                    },
+                                    addToQueue: addToQueue,
+                                    hasPlaybackDevice: hasPlaybackDevice,
+                                    copyableURI: track.playableURI
                                 ))
                             }
                         )
@@ -305,7 +310,17 @@ enum PlaylistRenameEditingPolicy {
     }
 }
 
-/// Spotify track-ops submenu rendered inside a track-row context menu.
+/// Actions owned by the shared track context menu. Play remains on each
+/// surface because its label and playback orchestration are surface-specific.
+enum TrackOpsMenuAction: Hashable {
+    case openArtist
+    case addToQueue
+    case pin
+    case unpin
+    case copyURI
+}
+
+/// Spotify track-ops menu rendered inside a track-row context menu.
 /// The caller supplies the targets so playlist selection, catalog results, and
 /// queue occurrences can all share this one action list. It stays outside the
 /// cell so the row body type-checks fast and playlist enumeration runs only
@@ -324,19 +339,66 @@ struct TrackOpsMenuItems: View {
     /// Starts a library continuation using the row as its seed. The browser
     /// host injects queue orchestration so this menu stays reusable.
     let onRequestLibraryContinuation: ((TrackRowViewModel) -> Void)?
+    /// Opens an artist from the shared context-menu submenu.
+    let openArtist: ((ArtistTapTarget) -> Void)?
+    /// Queue occurrences retain artist names even when Spotify omitted an ID.
+    /// Other surfaces derive this list from their row's artist references.
+    let artistTargetsOverride: [ArtistTapTarget]?
+    /// Adds all playable target rows to the queue. Queue rows leave this nil
+    /// because they are already in the queue.
+    let addToQueue: ((String) async -> Void)?
+    let hasPlaybackDevice: Bool
+    /// A non-nil URI enables Copy Spotify URI on surfaces that have one.
+    let copyableURI: String?
+
+    @EnvironmentObject private var pinnedStore: PinnedItemsStore
 
     init(
         targets: [TrackRowViewModel],
         browserViewModel: PlaylistBrowserViewModel,
         sourcePlaylistID: String? = nil,
         onRequestCreatePlaylist: (([TrackRowViewModel]) -> Void)? = nil,
-        onRequestLibraryContinuation: ((TrackRowViewModel) -> Void)? = nil
+        onRequestLibraryContinuation: ((TrackRowViewModel) -> Void)? = nil,
+        openArtist: ((ArtistTapTarget) -> Void)? = nil,
+        artistTargetsOverride: [ArtistTapTarget]? = nil,
+        addToQueue: ((String) async -> Void)? = nil,
+        hasPlaybackDevice: Bool = false,
+        copyableURI: String? = nil
     ) {
         self.targets = targets
         self.browserViewModel = browserViewModel
         self.sourcePlaylistID = sourcePlaylistID
         self.onRequestCreatePlaylist = onRequestCreatePlaylist
         self.onRequestLibraryContinuation = onRequestLibraryContinuation
+        self.openArtist = openArtist
+        self.artistTargetsOverride = artistTargetsOverride
+        self.addToQueue = addToQueue
+        self.hasPlaybackDevice = hasPlaybackDevice
+        self.copyableURI = copyableURI
+    }
+
+    /// The action set is intentionally inspectable so every track surface can
+    /// test the shared contract without depending on AppKit's context-menu host.
+    var menuActionKinds: Set<TrackOpsMenuAction> {
+        var actions: Set<TrackOpsMenuAction> = []
+        if openArtist != nil, !artistTargets.isEmpty {
+            actions.insert(.openArtist)
+        }
+        if addToQueue != nil {
+            actions.insert(.addToQueue)
+        }
+        switch pinState {
+        case .pin:
+            actions.insert(.pin)
+        case .unpin:
+            actions.insert(.unpin)
+        case .unavailable:
+            break
+        }
+        if SpotifyPlayableURI.canonical(copyableURI) != nil {
+            actions.insert(.copyURI)
+        }
+        return actions
     }
 
     private var sourcePlaylistForMove: String? {
@@ -344,13 +406,120 @@ struct TrackOpsMenuItems: View {
         return sourcePlaylistID
     }
 
+    private var artistTargets: [ArtistTapTarget] {
+        var seen: Set<String> = []
+        let supplied = artistTargetsOverride ?? targets.flatMap { row in
+            row.artistRefs.map { ArtistTapTarget(id: $0.id, name: $0.name) }
+        }
+        return supplied.filter { seen.insert($0.stableID).inserted }
+    }
+
+    private var pinnableItems: [PinnedItem] {
+        var seen: Set<String> = []
+        return targets.compactMap { $0.pinnedTrackItem() }
+            .filter { seen.insert($0.id).inserted }
+    }
+
+    private var pinState: TrackSelectionPinState {
+        PlaylistBrowserView.trackSelectionPinState(
+            for: pinnableItems,
+            isPinned: { pinnedStore.isPinned(id: $0) }
+        )
+    }
+
+    private var likedSongsTargets: [TrackRowViewModel] {
+        browserViewModel.likedSongsMutationRows(for: targets)
+    }
+
+    private var likedSongsState: TrackSelectionLikedState {
+        guard !likedSongsTargets.isEmpty else { return .unavailable }
+        if sourcePlaylistID == SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID {
+            // Every catalog track displayed by Liked Songs is saved already;
+            // do not turn a locally-known fact into a `/contains` request.
+            return PlaylistBrowserView.trackSelectionLikedState(
+                for: likedSongsTargets,
+                isSaved: { _ in true }
+            )
+        }
+        let ids = browserViewModel.catalogTrackIDs(for: likedSongsTargets)
+        guard ids.count == likedSongsTargets.count,
+              ids.allSatisfy({ browserViewModel.savedTrackState(for: $0) != nil })
+        else { return .unavailable }
+        return PlaylistBrowserView.trackSelectionLikedState(
+            for: likedSongsTargets,
+            isSaved: { browserViewModel.savedTrackState(for: $0) ?? false }
+        )
+    }
+
+    private var savedTrackLookupIDs: [String] {
+        guard sourcePlaylistID != SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID else { return [] }
+        return browserViewModel.catalogTrackIDs(for: likedSongsTargets)
+    }
+
     var body: some View {
+        menuContent
+            .task(id: savedTrackLookupIDs) {
+                guard sourcePlaylistID != SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID else { return }
+                await browserViewModel.loadSavedTrackStates(for: likedSongsTargets)
+            }
+    }
+
+    @ViewBuilder
+    private var menuContent: some View {
         let playlistTargets = browserViewModel.playlistMutationRows(for: targets)
-        let likedSongsTargets = browserViewModel.likedSongsMutationRows(for: targets)
-        let likedSongsLabel = SpotiglassL10n.format("playlist.mutation.trackLabel", Int64(likedSongsTargets.count))
+        let likedSongsLabel = SpotiglassL10n.format(
+            "playlist.mutation.trackLabel",
+            Int64(likedSongsTargets.count)
+        )
         let destinations = browserViewModel.userOwnedPlaylistsForMenu(
             excludingPlaylistID: sourcePlaylistID
         )
+
+        if menuActionKinds.contains(.openArtist), let openArtist {
+            Menu(SpotiglassL10n.string("browser.track.openArtist")) {
+                ForEach(artistTargets) { target in
+                    Button(target.name) {
+                        openArtist(target)
+                    }
+                }
+            }
+        }
+
+        if menuActionKinds.contains(.addToQueue), let addToQueue {
+            let playableURIs = targets.compactMap { SpotifyPlayableURI.canonical($0.playableURI) }
+            Button(SpotiglassL10n.string("browser.addToQueue")) {
+                Task {
+                    for uri in playableURIs {
+                        await addToQueue(uri)
+                    }
+                }
+            }
+            .disabled(!hasPlaybackDevice || playableURIs.isEmpty)
+        }
+
+        switch pinState {
+        case .pin:
+            Button(SpotiglassL10n.string("browser.pin")) {
+                for item in pinnableItems {
+                    pinnedStore.pin(item)
+                }
+            }
+        case .unpin:
+            Button(SpotiglassL10n.string("browser.unpin")) {
+                for item in pinnableItems {
+                    pinnedStore.unpin(id: item.id)
+                }
+            }
+        case .unavailable:
+            EmptyView()
+        }
+
+        if menuActionKinds.contains(.copyURI),
+           let uri = SpotifyPlayableURI.canonical(copyableURI) {
+            Button(SpotiglassL10n.string("queue.copyURI")) {
+                copySpotifyURI(uri)
+            }
+        }
 
         Menu(SpotiglassL10n.string("Add to playlist")) {
             if let onRequestCreatePlaylist {
@@ -391,15 +560,27 @@ struct TrackOpsMenuItems: View {
             .disabled(playlistTargets.isEmpty || destinations.isEmpty)
         }
 
-        Button(SpotiglassL10n.format("playlist.detail.likedSongs.add", likedSongsLabel)) {
-            Task { await browserViewModel.favoriteRows(likedSongsTargets) }
+        let likedSongsState = likedSongsState
+        Button(
+            SpotiglassL10n.format(
+                likedSongsState == .remove
+                    ? "playlist.detail.likedSongs.remove"
+                    : "playlist.detail.likedSongs.add",
+                likedSongsLabel
+            )
+        ) {
+            Task {
+                switch likedSongsState {
+                case .add:
+                    await browserViewModel.favoriteRows(likedSongsTargets)
+                case .remove:
+                    await browserViewModel.unfavoriteRows(likedSongsTargets)
+                case .unavailable:
+                    break
+                }
+            }
         }
-        .disabled(likedSongsTargets.isEmpty)
-
-        Button(SpotiglassL10n.format("playlist.detail.likedSongs.remove", likedSongsLabel)) {
-            Task { await browserViewModel.unfavoriteRows(likedSongsTargets) }
-        }
-        .disabled(likedSongsTargets.isEmpty)
+        .disabled(likedSongsTargets.isEmpty || likedSongsState == .unavailable)
 
         if let seed = targets.first(where: { $0.spotifyTrackForPinning() != nil }),
            let onRequestLibraryContinuation {
@@ -408,6 +589,11 @@ struct TrackOpsMenuItems: View {
                 onRequestLibraryContinuation(seed)
             }
         }
+    }
+
+    private func copySpotifyURI(_ uri: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(uri, forType: .string)
     }
 }
 
