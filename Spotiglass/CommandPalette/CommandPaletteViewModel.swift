@@ -23,8 +23,9 @@ final class CommandPaletteViewModel: ObservableObject {
     @Published private(set) var errorText: String?
     @Published var selectedIndex = 0
     /// Bulk playlist-track prefetch progress, mirrored from the host browser
-    /// view-model. Non-`nil` while a run is in flight (or briefly after it
-    /// finishes so the palette can render a "Loaded N playlists" header).
+    /// view-model. This is scene state rather than presentation state, so it
+    /// survives opening and closing the palette while a menu-started run is
+    /// still active (or briefly after it finishes).
     @Published var prefetchProgress: PrefetchAllPlaylistsProgress?
     /// Wired by `CommandPaletteManager`; invokes the same toggle the keymap uses,
     /// so the in-palette "cancel" chip cancels the run without coupling the view
@@ -114,7 +115,6 @@ final class CommandPaletteViewModel: ObservableObject {
         cachedResultsQuery = nil
         suppressLegacyPrefixQueryRefresh = false
         rateLimitCooldownUntil = .distantPast
-        prefetchProgress = nil
     }
 
     func hide() {
@@ -130,7 +130,6 @@ final class CommandPaletteViewModel: ObservableObject {
         cachedResultsQuery = nil
         suppressLegacyPrefixQueryRefresh = false
         rateLimitCooldownUntil = .distantPast
-        prefetchProgress = nil
         searchTask?.cancel()
         searchTask = nil
         let restoreFocus = restoreFocus

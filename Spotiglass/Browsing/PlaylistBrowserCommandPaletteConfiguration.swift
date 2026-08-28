@@ -29,6 +29,7 @@ enum PlaylistBrowserCommandPaletteConfiguration {
 
         manager.isSignedIn = true
         manager.bindPlaybackReadiness(to: dependencies.playbackViewModel)
+        manager.setPrefetchProgress(dependencies.viewModel.prefetchAllPlaylistsProgress)
         manager.signOut = dependencies.signOut
         let browserVM = dependencies.viewModel
         let queueVM = dependencies.queueViewModel
@@ -72,6 +73,9 @@ enum PlaylistBrowserCommandPaletteConfiguration {
         }
         manager.cycleRepeat = { [weak playback = dependencies.playbackViewModel] in
             await playback?.cycleRepeat()
+        }
+        manager.setRepeatModeAction = { [weak playback = dependencies.playbackViewModel] mode in
+            await playback?.setRepeatMode(mode)
         }
         // The palette's enqueue and pin act on its own highlighted row. These act
         // on the track table's selection, so the same actions have a keyboard and
@@ -159,8 +163,9 @@ enum PlaylistBrowserCommandPaletteConfiguration {
         manager.toggleQueue = {
             queueVisible.wrappedValue.toggle()
         }
+        // `CommandPaletteManager` disables this command whenever there is no
+        // current music track, so the callback itself can stay a pure toggle.
         manager.toggleLyrics = {
-            guard dependencies.playbackViewModel.currentLyricTrack != nil else { return }
             lyricsPresented.wrappedValue.toggle()
         }
         manager.filterByArtist = { [weak manager] name in

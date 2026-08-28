@@ -44,6 +44,11 @@ enum SpotiglassLog {
         FileLogSink.shared.boot()
     }
 
+    static func debug(_ category: Category, _ message: String) {
+        osLoggers[category]?.debug("\(message, privacy: .public)")
+        FileLogSink.shared.write(level: "DEBUG", category: category.rawValue, message: message)
+    }
+
     static func error(_ category: Category, _ message: String) {
         osLoggers[category]?.error("\(message, privacy: .public)")
         FileLogSink.shared.write(level: "ERROR", category: category.rawValue, message: message)

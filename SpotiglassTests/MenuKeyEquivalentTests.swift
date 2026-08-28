@@ -113,6 +113,78 @@ final class MenuKeyEquivalentTests: XCTestCase {
         XCTAssertTrue(commands.isPlaybackToggleEnabled)
     }
 
+    func testPlaybackMenuMirrorsLiveShuffleAndRepeatState() {
+        let manager = CommandPaletteManager(keymapStore: makeStore())
+        let playback = PlaybackSessionViewModel(
+            playbackAPI: MockPlaybackAPI(),
+            webCommander: MockWebPlaybackCommander()
+        )
+        manager.bindPlaybackReadiness(to: playback)
+        let commands = makeCommands(manager: manager)
+
+        playback.deviceID = "device-1"
+        playback.setConnectionState(.ready(deviceID: "device-1"))
+        playback.setTransportStateKnown(true)
+        playback.shuffleEnabled = true
+        playback.repeatMode = .track
+
+        XCTAssertTrue(commands.isShuffleEnabled)
+        XCTAssertEqual(commands.selectedRepeatMode, .track)
+        XCTAssertTrue(commands.isPlaybackTransportMutationEnabled)
+    }
+
+    func testPlaybackMenuCanSelectSpecificRepeatMode() async {
+        let manager = CommandPaletteManager(keymapStore: makeStore())
+        manager.playbackTransportMutationPrerequisite = { true }
+        let selected = expectation(description: "specific repeat mode selected")
+        var selectedMode: SpotifyRepeatMode?
+        manager.setRepeatModeAction = { mode in
+            selectedMode = mode
+            selected.fulfill()
+        }
+
+        manager.requestRepeatMode(.track)
+        await fulfillment(of: [selected], timeout: 2)
+
+        XCTAssertEqual(selectedMode, .track)
+    }
+
+    func testPrefetchMenuTitleReflectsInFlightState() {
+        let manager = CommandPaletteManager(keymapStore: makeStore())
+        let commands = makeCommands(manager: manager)
+
+        XCTAssertEqual(commands.prefetchItemTitle, SpotiglassL10n.string("menu.file.loadAllSongs"))
+        manager.setPrefetchProgress(
+            PrefetchAllPlaylistsProgress(
+                phase: .running, total: 4, completed: 1, skipped: 0, failed: 0
+            )
+        )
+        XCTAssertTrue(commands.isPrefetchInFlight)
+        XCTAssertEqual(commands.prefetchItemTitle, SpotiglassL10n.string("menu.file.stopLoadingSongs"))
+
+        manager.setPrefetchProgress(
+            PrefetchAllPlaylistsProgress(
+                phase: .finished, total: 4, completed: 4, skipped: 0, failed: 0
+            )
+        )
+        XCTAssertFalse(commands.isPrefetchInFlight)
+        XCTAssertEqual(commands.prefetchItemTitle, SpotiglassL10n.string("menu.file.loadAllSongs"))
+    }
+
+    func testPrefetchProgressSurvivesOpeningAndClosingPalette() {
+        let manager = CommandPaletteManager(keymapStore: makeStore())
+        let progress = PrefetchAllPlaylistsProgress(
+            phase: .running, total: 4, completed: 1, skipped: 0, failed: 0
+        )
+        manager.setPrefetchProgress(progress)
+
+        manager.viewModel.show()
+        XCTAssertEqual(manager.prefetchProgress, progress)
+        XCTAssertEqual(manager.viewModel.prefetchProgress, progress)
+        manager.viewModel.hide()
+        XCTAssertEqual(manager.viewModel.prefetchProgress, progress)
+    }
+
     func testLyricsMenuRequiresCurrentMusicTrack() {
         let manager = CommandPaletteManager(keymapStore: makeStore())
         let playback = PlaybackSessionViewModel(
@@ -150,6 +222,9 @@ final class MenuKeyEquivalentTests: XCTestCase {
             )
         ))
         XCTAssertTrue(commands.isLyricsToggleEnabled)
+
+        playback.setConnectionState(.ready(deviceID: "device-1"))
+        XCTAssertFalse(commands.isLyricsToggleEnabled)
     }
 
     func testLyricsMenuTitleReflectsPresentedState() {

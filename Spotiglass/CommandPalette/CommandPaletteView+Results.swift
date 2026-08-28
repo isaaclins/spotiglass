@@ -71,35 +71,7 @@ struct CommandPalettePrefetchProgressHeader: View {
     }
 
     private var label: String {
-        let processed = progress.completed + progress.skipped + progress.failed
-        switch progress.phase {
-        case .running:
-            if progress.total == 0 { return SpotiglassL10n.string("palette.prefetch.preparing") }
-            return String(
-                format: SpotiglassL10n.string("palette.prefetch.loading"),
-                processed,
-                progress.total
-            )
-        case .finished:
-            if progress.failed == 0 {
-                return String(
-                    format: SpotiglassL10n.string("palette.prefetch.loadedAll"),
-                    progress.completed + progress.skipped
-                )
-            }
-            return String(
-                format: SpotiglassL10n.string("palette.prefetch.loadedPartial"),
-                progress.completed + progress.skipped,
-                progress.total,
-                progress.failed
-            )
-        case .cancelled:
-            return String(
-                format: SpotiglassL10n.string("palette.prefetch.cancelled"),
-                processed,
-                progress.total
-            )
-        }
+        progress.localizedStatusLabel
     }
 }
 

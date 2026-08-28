@@ -200,6 +200,13 @@ struct PlaylistBrowserView: View {
         // "Spotiglass" and repeating it in the titlebar reads as a mistake.
         .navigationTitle(windowTitle)
         .toolbar {
+            if let progress = viewModel.prefetchAllPlaylistsProgress {
+                ToolbarItem(placement: .automatic) {
+                    PlaylistBrowserPrefetchProgressToolbarItem(progress: progress) {
+                        Task { await viewModel.toggleBulkPlaylistTrackPrefetch() }
+                    }
+                }
+            }
             // At the root there is no trail and nothing to go back to, so the
             // item would render as an empty capsule beside the window title.
             if viewModel.canNavigateBack || !viewModel.breadcrumbPath.isEmpty {
@@ -311,7 +318,7 @@ struct PlaylistBrowserView: View {
             syncTrackSelectionMenuState()
         }
         .onChange(of: viewModel.prefetchAllPlaylistsProgress) { _, newValue in
-            commandPaletteManager.viewModel.prefetchProgress = newValue
+            commandPaletteManager.setPrefetchProgress(newValue)
         }
         .onChange(of: viewModel.canNavigateBack) { _, newValue in
             commandPaletteManager.canNavigateBack = newValue

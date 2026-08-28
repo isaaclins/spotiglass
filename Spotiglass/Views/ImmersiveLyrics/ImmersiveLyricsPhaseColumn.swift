@@ -65,28 +65,29 @@ struct ImmersiveLyricsReadyContentView: View {
     var onSeek: ((Int) -> Void)? = nil
 
     var body: some View {
-        switch lyrics {
+        switch ImmersiveLyricsReadyContentModel.renderModel(
+            for: lyrics,
+            positionMs: positionMs,
+            trackDurationMs: trackDurationMs
+        ) {
         case .instrumental:
             Text(SpotiglassL10n.string("lyrics.instrumental"))
                 .font(.title3.weight(.medium))
                 .foregroundStyle(.white.opacity(0.85))
                 .frame(maxWidth: .infinity, minHeight: 120, alignment: .leading)
-        case let .synced(lines):
+        case let .timed(renderModel):
             ImmersiveLyricsTimedLyricsScrollView(
-                lines: lines,
+                renderModel: renderModel,
                 maxHeight: maxHeight,
-                positionMs: positionMs,
                 reduceMotion: reduceMotion,
                 usesLyricsScrollEdgeFade: usesLyricsScrollEdgeFade,
                 lyricsTextSize: lyricsTextSize,
                 onSeek: onSeek
             )
-        case let .unsyncedPlain(lines):
+        case let .plain(renderModel):
             ImmersiveLyricsPlainLyricsScrollView(
-                lines: lines,
+                renderModel: renderModel,
                 maxHeight: maxHeight,
-                positionMs: positionMs,
-                trackDurationMs: trackDurationMs,
                 reduceMotion: reduceMotion,
                 usesLyricsScrollEdgeFade: usesLyricsScrollEdgeFade,
                 lyricsTextSize: lyricsTextSize

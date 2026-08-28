@@ -279,7 +279,7 @@ struct SpotifyQueueResponse: Equatable {
 }
 
 /// Spotify Web API `repeat_state` for the active player (`GET/PUT /v1/me/player` repeat).
-enum SpotifyRepeatMode: String, Equatable, Codable {
+enum SpotifyRepeatMode: String, Equatable, Codable, CaseIterable, Hashable {
     case off
     case context
     case track

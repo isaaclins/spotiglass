@@ -55,6 +55,30 @@ struct SpotiglassMenuCommands: Commands {
         isSignedIn && (activeCommandPaletteManager?.canToggleLyrics ?? false)
     }
 
+    /// The live transport state is mirrored by the active scene's manager so
+    /// SwiftUI can bridge it to an `NSMenuItem` state/checkmark.
+    var isShuffleEnabled: Bool {
+        activeCommandPaletteManager?.shuffleEnabled ?? false
+    }
+
+    var selectedRepeatMode: SpotifyRepeatMode {
+        activeCommandPaletteManager?.repeatMode ?? .off
+    }
+
+    var isPlaybackTransportMutationEnabled: Bool {
+        isSignedIn && (activeCommandPaletteManager?.canMutatePlaybackTransport ?? false)
+    }
+
+    var isPrefetchInFlight: Bool {
+        activeCommandPaletteManager?.prefetchProgress?.phase == .running
+    }
+
+    var prefetchItemTitle: String {
+        isPrefetchInFlight
+            ? SpotiglassL10n.string("menu.file.stopLoadingSongs")
+            : SpotiglassL10n.string("menu.file.loadAllSongs")
+    }
+
     var body: some Commands {
         CommandGroup(after: .appSettings) {
             Button(SpotiglassL10n.string("menu.app.signOut")) {
@@ -64,7 +88,7 @@ struct SpotiglassMenuCommands: Commands {
         }
 
         CommandGroup(after: .importExport) {
-            Button(SpotiglassL10n.string("menu.file.loadAllSongs")) {
+            Button(prefetchItemTitle) {
                 run(CommandPaletteCommandID.prefetchAllPlaylists)
             }
             .keyboardShortcut(keymapShortcut(for: CommandPaletteCommandID.prefetchAllPlaylists))
@@ -137,18 +161,22 @@ struct SpotiglassMenuCommands: Commands {
 
             // Shuffle and repeat are menu-only commands: they are not in
             // ``CommandPaletteCommandCatalog/editable``, so no keymap entry can
-            // shadow these key equivalents and hardcoding them is safe.
-            Button(SpotiglassL10n.string("menu.playback.shuffle")) {
-                run(CommandPaletteCommandID.toggleShuffle)
-            }
-            .keyboardShortcut("s", modifiers: [.option, .command])
-            .disabled(!isSignedIn || !(activeCommandPaletteManager?.canMutatePlaybackTransport ?? false))
+            // shadow these key equivalents and hardcoding them is safe. Toggle
+            // and Picker are intentional here: SwiftUI bridges them to native
+            // NSMenuItem state, unlike a hand-rolled checkmark HStack (#327).
+            Toggle(SpotiglassL10n.string("menu.playback.shuffle"), isOn: shuffleBinding)
+                .keyboardShortcut("s", modifiers: [.option, .command])
+                .disabled(!isPlaybackTransportMutationEnabled)
 
-            Button(SpotiglassL10n.string("menu.playback.repeat")) {
-                run(CommandPaletteCommandID.cycleRepeat)
+            Picker(SpotiglassL10n.string("menu.playback.repeat"), selection: repeatModeBinding) {
+                ForEach(SpotifyRepeatMode.allCases, id: \.self) { mode in
+                    Text(repeatModeLabel(for: mode))
+                        .tag(mode)
+                }
             }
+            .pickerStyle(.inline)
             .keyboardShortcut("r", modifiers: [.option, .command])
-            .disabled(!isSignedIn || !(activeCommandPaletteManager?.canMutatePlaybackTransport ?? false))
+            .disabled(!isPlaybackTransportMutationEnabled)
 
             Divider()
 
@@ -242,6 +270,37 @@ struct SpotiglassMenuCommands: Commands {
         isLyricsPresented
             ? SpotiglassL10n.string("menu.view.hideLyrics")
             : SpotiglassL10n.string("menu.view.showLyrics")
+    }
+
+    private var shuffleBinding: Binding<Bool> {
+        Binding(
+            get: { isShuffleEnabled },
+            set: { [weak manager = activeCommandPaletteManager] newValue in
+                guard let manager, manager.shuffleEnabled != newValue else { return }
+                manager.execute(commandID: CommandPaletteCommandID.toggleShuffle)
+            }
+        )
+    }
+
+    private var repeatModeBinding: Binding<SpotifyRepeatMode> {
+        Binding(
+            get: { selectedRepeatMode },
+            set: { [weak manager = activeCommandPaletteManager] newMode in
+                guard let manager, manager.repeatMode != newMode else { return }
+                manager.requestRepeatMode(newMode)
+            }
+        )
+    }
+
+    private func repeatModeLabel(for mode: SpotifyRepeatMode) -> String {
+        switch mode {
+        case .off:
+            SpotiglassL10n.string("playback.repeat.off")
+        case .context:
+            SpotiglassL10n.string("playback.repeat.playlist")
+        case .track:
+            SpotiglassL10n.string("playback.repeat.one")
+        }
     }
 
     private func run(_ commandID: String) {

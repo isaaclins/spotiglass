@@ -6,7 +6,13 @@ import XCTest
 
 /// Rules the Equalizer pane's rows depend on, asserted directly so they do not
 /// need a hosted view or a real audio device to be checked.
+@MainActor
 final class EqualizerSettingsRowTests: XCTestCase {
+    override func tearDown() {
+        ViewTestHost.tearDownAll()
+        super.tearDown()
+    }
+
     /// A saved device that is not connected matches no picker tag, and SwiftUI
     /// then draws the popup with no label at all (#166).
     func testUnavailableSavedForwardingTargetIsReportedOnlyWhenMissing() {

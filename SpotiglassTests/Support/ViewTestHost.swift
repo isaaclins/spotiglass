@@ -28,6 +28,14 @@ enum AppKitTestSupport {
         pumpRunLoop()
         return window.makeFirstResponder(view)
     }
+
+    /// Closes a test window without releasing it out from under ARC or leaving
+    /// an AppKit responder pointing into the view tree being torn down.
+    static func closeWindowSafely(_ window: NSWindow) {
+        window.isReleasedWhenClosed = false
+        window.makeFirstResponder(nil)
+        window.close()
+    }
 }
 
 /// Hosts SwiftUI views for ViewInspector tests on macOS.
@@ -80,11 +88,7 @@ enum ViewTestHost {
 
     static func tearDownAll() {
         for window in windows {
-            // A hosted AppKit view can still be first responder when its test
-            // window is closed. Clear that relationship before tearing down the
-            // window, otherwise AppKit may message a released responder later.
-            window.makeFirstResponder(nil)
-            window.close()
+            AppKitTestSupport.closeWindowSafely(window)
         }
         windows.removeAll()
         appStorageDefaults.removePersistentDomain(forName: appStorageSuiteName)

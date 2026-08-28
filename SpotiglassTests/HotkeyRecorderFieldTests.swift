@@ -42,8 +42,7 @@ final class ZHotkeyRecorderFieldTests: XCTestCase {
             coordinator.teardownMonitors()
         }
         for window in windows {
-            window.makeFirstResponder(nil)
-            window.close()
+            AppKitTestSupport.closeWindowSafely(window)
         }
         windows.removeAll()
         harnessRoots.removeAll()
@@ -89,6 +88,7 @@ final class ZHotkeyRecorderFieldTests: XCTestCase {
                 backing: .buffered,
                 defer: false
             )
+            w.isReleasedWhenClosed = false
             w.contentView = view
             w.makeKeyAndOrderFront(nil)
             windows.append(w)

@@ -27,6 +27,84 @@ enum LyricsMotion {
     }
 }
 
+/// The semantic output of a lyrics scroll view, kept separate from SwiftUI's
+/// realised container tree. Both scroll views render this model, so tests can
+/// verify line order and emphasis without depending on OS-specific ViewInspector
+/// traversal of `ScrollView`/`LazyVStack`.
+struct LyricsScrollRenderModel: Equatable {
+    struct Line: Equatable, Identifiable {
+        let id: Int
+        let text: String
+        let distance: Int
+        let seekPositionMs: Int?
+
+        var isActive: Bool { distance == 0 }
+    }
+
+    let activeID: Int
+    let lines: [Line]
+
+    static func timed(
+        lines: [SyncedLyricLine],
+        positionMs: Int
+    ) -> Self {
+        let activeIndex = LrcLineParser.activeTimedLineIndex(positionMs: positionMs, lines: lines)
+        let activeID = lines.indices.contains(activeIndex) ? lines[activeIndex].id : (lines.first?.id ?? 0)
+        let renderLines = lines.enumerated().map { _, line in
+            Line(
+                id: line.id,
+                text: line.words,
+                distance: line.id - activeID,
+                seekPositionMs: line.startTimeMs
+            )
+        }
+        return Self(activeID: activeID, lines: renderLines)
+    }
+
+    static func plain(
+        lines: [String],
+        positionMs: Int,
+        durationMs: Int?
+    ) -> Self {
+        let duration = max(durationMs ?? 1, 1)
+        let activeIndex = LrcLineParser.activePlainLineIndex(
+            positionMs: positionMs,
+            durationMs: duration,
+            lineCount: lines.count
+        )
+        let renderLines = lines.enumerated().map { index, text in
+            Line(
+                id: index,
+                text: text,
+                distance: index - activeIndex,
+                seekPositionMs: nil
+            )
+        }
+        return Self(activeID: activeIndex, lines: renderLines)
+    }
+}
+
+enum ImmersiveLyricsReadyContentModel: Equatable {
+    case instrumental
+    case timed(LyricsScrollRenderModel)
+    case plain(LyricsScrollRenderModel)
+
+    static func renderModel(
+        for lyrics: FetchedLyrics,
+        positionMs: Int,
+        trackDurationMs: Int?
+    ) -> Self {
+        switch lyrics {
+        case .instrumental:
+            .instrumental
+        case .synced(let lines):
+            .timed(.timed(lines: lines, positionMs: positionMs))
+        case .unsyncedPlain(let lines):
+            .plain(.plain(lines: lines, positionMs: positionMs, durationMs: trackDurationMs))
+        }
+    }
+}
+
 // MARK: - Auto-center controller
 
 /// Drives teleprompter-style auto-centering for the immersive lyrics scroll view.
@@ -168,9 +246,8 @@ struct ImmersiveLyricsScrollCore<ID: Hashable, Content: View>: View {
 // MARK: - Timed lyrics
 
 struct ImmersiveLyricsTimedLyricsScrollView: View {
-    let lines: [SyncedLyricLine]
+    let renderModel: LyricsScrollRenderModel
     let maxHeight: CGFloat
-    let positionMs: Int
     let reduceMotion: Bool
     let usesLyricsScrollEdgeFade: Bool
     let lyricsTextSize: LyricsTextMetrics
@@ -178,30 +255,45 @@ struct ImmersiveLyricsTimedLyricsScrollView: View {
     /// become tappable buttons that seek playback there.
     var onSeek: ((Int) -> Void)? = nil
 
-    var body: some View {
-        let activeIndex = LrcLineParser.activeTimedLineIndex(positionMs: positionMs, lines: lines)
-        let activeID = lines.indices.contains(activeIndex) ? lines[activeIndex].id : (lines.first?.id ?? 0)
+    init(
+        renderModel: LyricsScrollRenderModel,
+        maxHeight: CGFloat,
+        reduceMotion: Bool,
+        usesLyricsScrollEdgeFade: Bool,
+        lyricsTextSize: LyricsTextMetrics,
+        onSeek: ((Int) -> Void)? = nil
+    ) {
+        self.renderModel = renderModel
+        self.maxHeight = maxHeight
+        self.reduceMotion = reduceMotion
+        self.usesLyricsScrollEdgeFade = usesLyricsScrollEdgeFade
+        self.lyricsTextSize = lyricsTextSize
+        self.onSeek = onSeek
+    }
 
+    var body: some View {
         ImmersiveLyricsScrollCore(
-            activeID: activeID,
+            activeID: renderModel.activeID,
             reduceMotion: reduceMotion,
             usesLyricsScrollEdgeFade: usesLyricsScrollEdgeFade
         ) { engageAutoCenter in
             LazyVStack(alignment: .leading, spacing: lyricsTextSize.timedLineSpacing) {
-                ForEach(lines) { line in
+                ForEach(renderModel.lines) { line in
                     TappableLyricLine(
-                        isActive: line.id == activeID,
+                        isActive: line.isActive,
                         reduceMotion: reduceMotion,
-                        onTap: onSeek.map { seek in
-                            {
-                                seek(line.startTimeMs)
-                                engageAutoCenter()
+                        onTap: onSeek.flatMap { seek in
+                            line.seekPositionMs.map { seekPositionMs in
+                                {
+                                    seek(seekPositionMs)
+                                    engageAutoCenter()
+                                }
                             }
                         }
                     ) {
                         ImmersiveLyricsLineText(
-                            line.words,
-                            distance: line.id - activeID,
+                            line.text,
+                            distance: line.distance,
                             size: lyricsTextSize,
                             reduceMotion: reduceMotion
                         )
@@ -210,7 +302,7 @@ struct ImmersiveLyricsTimedLyricsScrollView: View {
                 }
             }
             .scrollTargetLayout()
-            .animation(reduceMotion ? nil : LyricsMotion.lineSpring, value: activeID)
+            .animation(reduceMotion ? nil : LyricsMotion.lineSpring, value: renderModel.activeID)
             .animation(reduceMotion ? nil : LyricsMotion.sizeSpring, value: lyricsTextSize)
         }
         .frame(maxWidth: .infinity, maxHeight: maxHeight, alignment: .leading)
@@ -220,42 +312,47 @@ struct ImmersiveLyricsTimedLyricsScrollView: View {
 // MARK: - Plain (unsynced) lyrics
 
 struct ImmersiveLyricsPlainLyricsScrollView: View {
-    let lines: [String]
+    let renderModel: LyricsScrollRenderModel
     let maxHeight: CGFloat
-    let positionMs: Int
-    let trackDurationMs: Int?
     let reduceMotion: Bool
     let usesLyricsScrollEdgeFade: Bool
     let lyricsTextSize: LyricsTextMetrics
 
-    var body: some View {
-        let duration = max(trackDurationMs ?? 1, 1)
-        let active = LrcLineParser.activePlainLineIndex(
-            positionMs: positionMs,
-            durationMs: duration,
-            lineCount: lines.count
-        )
+    init(
+        renderModel: LyricsScrollRenderModel,
+        maxHeight: CGFloat,
+        reduceMotion: Bool,
+        usesLyricsScrollEdgeFade: Bool,
+        lyricsTextSize: LyricsTextMetrics
+    ) {
+        self.renderModel = renderModel
+        self.maxHeight = maxHeight
+        self.reduceMotion = reduceMotion
+        self.usesLyricsScrollEdgeFade = usesLyricsScrollEdgeFade
+        self.lyricsTextSize = lyricsTextSize
+    }
 
+    var body: some View {
         ImmersiveLyricsScrollCore(
-            activeID: active,
+            activeID: renderModel.activeID,
             reduceMotion: reduceMotion,
             usesLyricsScrollEdgeFade: usesLyricsScrollEdgeFade
         ) { _ in
             // Plain unsynced lyrics have no per-line timestamp to seek to, so
             // they're not tappable and don't need the engageAutoCenter hook.
             LazyVStack(alignment: .leading, spacing: lyricsTextSize.plainLineSpacing) {
-                ForEach(Array(lines.enumerated()), id: \.offset) { index, text in
+                ForEach(renderModel.lines) { line in
                     ImmersiveLyricsLineText(
-                        text,
-                        distance: index - active,
+                        line.text,
+                        distance: line.distance,
                         size: lyricsTextSize,
                         reduceMotion: reduceMotion
                     )
-                    .id(index)
+                    .id(line.id)
                 }
             }
             .scrollTargetLayout()
-            .animation(reduceMotion ? nil : LyricsMotion.lineSpring, value: active)
+            .animation(reduceMotion ? nil : LyricsMotion.lineSpring, value: renderModel.activeID)
             .animation(reduceMotion ? nil : LyricsMotion.sizeSpring, value: lyricsTextSize)
         }
         .frame(maxWidth: .infinity, maxHeight: maxHeight, alignment: .leading)

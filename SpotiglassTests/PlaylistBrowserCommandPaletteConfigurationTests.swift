@@ -47,7 +47,7 @@ final class PlaylistBrowserCommandPaletteConfigurationTests: XCTestCase {
         playback.deviceID = "device-1"
         playback.setConnectionState(.ready(deviceID: "device-1"))
         XCTAssertTrue(manager.canTogglePlayback)
-        manager.toggleLyrics?()
+        manager.execute(commandID: CommandPaletteCommandID.toggleLyrics)
         XCTAssertFalse(lyricsVisible)
         playback.setConnectionState(.playing(
             PlaybackNowPlaying(
@@ -63,7 +63,7 @@ final class PlaylistBrowserCommandPaletteConfigurationTests: XCTestCase {
         ))
         manager.toggleQueue?()
         XCTAssertTrue(queueVisible)
-        manager.toggleLyrics?()
+        manager.execute(commandID: CommandPaletteCommandID.toggleLyrics)
         XCTAssertTrue(lyricsVisible)
         manager.filterByArtist?("Artist")
         XCTAssertEqual(manager.viewModel.query, "Artist", "filterByArtist should update palette query")
