@@ -57,6 +57,7 @@ final class ZHotkeyRecorderFieldTests: XCTestCase {
         commandID: String = CommandPaletteCommandID.openSettings,
         onRecordingChange: @escaping (Bool) -> Void = { _ in },
         onCaptureConflict: @escaping (CommandShortcut, String) -> Void = { _, _ in },
+        onCaptureFailure: @escaping (String) -> Void = { _ in },
         onApplied: @escaping () -> Void = {},
         attachWindow: Bool = false
     ) throws -> (
@@ -74,6 +75,7 @@ final class ZHotkeyRecorderFieldTests: XCTestCase {
             keymapStore: keymap,
             onRecordingChange: onRecordingChange,
             onCaptureConflict: onCaptureConflict,
+            onCaptureFailure: onCaptureFailure,
             onApplied: onApplied
         )
         let coordinator = HotkeyRecorderField.Coordinator(field)
@@ -152,6 +154,54 @@ final class ZHotkeyRecorderFieldTests: XCTestCase {
 
         XCTAssertEqual(applied, 1)
         XCTAssertNotNil(keymap.primaryShortcut(for: CommandPaletteCommandID.openSettings))
+        XCTAssertFalse(view.isRecording)
+    }
+
+    func testUnsupportedRecordedEventShowsReasonAndEndsRecording() throws {
+        var failure: String?
+        let (_, keymap, view, _, _) = try makeHarness(
+            onCaptureFailure: { failure = $0 }
+        )
+
+        view.testing_beginKeyCapture()
+        // A modifier-only key-down cannot become a CommandShortcut. It must not
+        // leave the control stuck in its armed state.
+        view.keyDown(with: keyEvent(virtualKey: 55, modifierFlags: [.command]))
+
+        XCTAssertFalse(view.isRecording)
+        XCTAssertEqual(failure, SpotiglassL10n.string("palette.settings.recordingUnsupported"))
+        XCTAssertEqual(keymap.lastError, failure)
+    }
+
+    func testMenuOwnedShortcutShowsReasonAndEndsRecording() throws {
+        var failure: String?
+        let (_, _, view, _, _) = try makeHarness(
+            onCaptureFailure: { failure = $0 }
+        )
+        view.testing_beginKeyCapture()
+        view.keyDown(with: keyEvent(virtualKey: 124, modifierFlags: [.command]))
+
+        XCTAssertFalse(view.isRecording)
+        XCTAssertEqual(
+            failure,
+            SpotiglassL10n.format(
+                "keymap.conflict.menuItem",
+                SpotiglassL10n.string("menu.playback.seekForward")
+            )
+        )
+    }
+
+    func testRecordingKeyEquivalentRoutesToRecorder() throws {
+        var applied = 0
+        let (_, keymap, view, _, _) = try makeHarness(onApplied: { applied += 1 })
+        let event = keyEvent(virtualKey: 9, modifierFlags: [.control])
+
+        view.testing_beginKeyCapture()
+        XCTAssertTrue(view.performKeyEquivalent(with: event))
+
+        XCTAssertEqual(applied, 1)
+        let recorded = keymap.primaryShortcut(for: CommandPaletteCommandID.openSettings)
+        XCTAssertEqual(recorded, try CommandShortcut(keystroke: "ctrl-v"))
         XCTAssertFalse(view.isRecording)
     }
 

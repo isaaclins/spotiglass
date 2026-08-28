@@ -51,6 +51,29 @@ final class CommandPaletteKeymapStore: ObservableObject {
             .flatMap { try? CommandShortcut(keystroke: $0) }
     }
 
+    /// Returns commands that share a shortcut without sharing a runtime context
+    /// with the proposed binding. These duplicates are intentionally allowed by
+    /// ``setBinding`` but must still be visible in Settings, otherwise a user can
+    /// create two bindings that appear to replace one another while both remain
+    /// active in different contexts.
+    func crossContextUsages(
+        of shortcut: CommandShortcut,
+        excludingCommand commandID: String,
+        proposedWhen: CommandPaletteContext
+    ) -> [CommandPaletteShortcutUsage] {
+        var seen = Set<String>()
+        return (bindings[shortcut] ?? []).compactMap { binding in
+            guard binding.command != commandID,
+                  !CommandPaletteContext.bindingsOverlapInRuntime(binding.when, proposedWhen)
+            else { return nil }
+
+            let context = binding.when ?? .always
+            let identity = "\(binding.command)|\(context.rawValue)"
+            guard seen.insert(identity).inserted else { return nil }
+            return CommandPaletteShortcutUsage(commandID: binding.command, context: context)
+        }
+    }
+
     func setBinding(commandID: String, shortcut: CommandShortcut, replaceConflicting: Bool) throws {
         guard let spec = CommandPaletteCommandCatalog.editable.first(where: { $0.commandID == commandID }) else {
             return
