@@ -118,6 +118,7 @@ protocol SpotifyPlaybackControlling {
     func play(uri: String, deviceID: String) async throws
     func play(contextURI: String, deviceID: String) async throws
     func play(uris: [String], deviceID: String) async throws
+    func play(uris: [String], offsetURI: String, deviceID: String) async throws
     func seek(to milliseconds: Int, deviceID: String) async throws
     func next(deviceID: String) async throws
     func previous(deviceID: String) async throws
@@ -128,6 +129,12 @@ protocol SpotifyPlaybackControlling {
     func fetchAvailableDevices() async throws -> [SpotifyConnectDevice]
     func setShuffle(enabled: Bool, deviceID: String) async throws
     func setRepeat(mode: SpotifyRepeatMode, deviceID: String) async throws
+}
+
+extension SpotifyPlaybackControlling {
+    func play(uri: String, deviceID: String) async throws {
+        try await play(uris: [uri], deviceID: deviceID)
+    }
 }
 
 /// Coalesces concurrent `GET /v1/me/player` calls into one in-flight URLSession task.
@@ -172,25 +179,32 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
         try await send(path: "/v1/me/player", method: "PUT", body: body, queryItems: [])
     }
 
-    func play(uri: String, deviceID: String) async throws {
-        // Explicitly reset track position to 0ms when starting a new URI.
-        // Without this, Spotify can occasionally resume at the previous
-        // playback offset when switching tracks on the same device.
-        let body = PlayURIRequest(uris: [uri], positionMilliseconds: 0)
-        try await send(path: "/v1/me/player/play", method: "PUT", body: body, queryItems: [URLQueryItem(name: "device_id", value: deviceID)])
-    }
-
     func play(contextURI: String, deviceID: String) async throws {
         let body = PlayContextRequest(contextURI: contextURI)
         try await send(path: "/v1/me/player/play", method: "PUT", body: body, queryItems: [URLQueryItem(name: "device_id", value: deviceID)])
     }
 
     func play(uris: [String], deviceID: String) async throws {
+        // Explicitly reset track position to 0ms when starting a new URI list.
+        // Without this, Spotify can occasionally resume at the previous
+        // playback offset when switching tracks on the same device.
+        try await sendURIPlay(uris: uris, offsetURI: nil, deviceID: deviceID)
+    }
+
+    func play(uris: [String], offsetURI: String, deviceID: String) async throws {
+        try await sendURIPlay(uris: uris, offsetURI: offsetURI, deviceID: deviceID)
+    }
+
+    private func sendURIPlay(uris: [String], offsetURI: String?, deviceID: String) async throws {
         let sanitizedURIs = Array(uris.prefix(Self.maxQueuedURIs))
         guard !sanitizedURIs.isEmpty else {
             throw SpotifyAPIError.invalidRequest("At least one Spotify URI is required to start playback.")
         }
-        let body = PlayURIRequest(uris: sanitizedURIs, positionMilliseconds: 0)
+        let body = PlayURIRequest(
+            uris: sanitizedURIs,
+            offset: offsetURI.map { ["uri": $0] },
+            positionMilliseconds: 0
+        )
         try await send(path: "/v1/me/player/play", method: "PUT", body: body, queryItems: [URLQueryItem(name: "device_id", value: deviceID)])
     }
 
@@ -448,16 +462,19 @@ private struct PlayContextRequest: Encodable {
 
 private struct PlayURIRequest: Encodable {
     let uris: [String]
+    let offset: [String: String]?
     let positionMilliseconds: Int
 
     enum CodingKeys: String, CodingKey {
         case uris
+        case offset
         case positionMilliseconds = "position_ms"
     }
 
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(uris, forKey: .uris)
+        try c.encodeIfPresent(offset, forKey: .offset)
         try c.encode(positionMilliseconds, forKey: .positionMilliseconds)
     }
 }
