@@ -151,10 +151,11 @@ final class LyricsOverlayControllerTests: XCTestCase {
     func testLyricsFocusContainerRepresentableLifecycle() {
         let wrapper = LyricsOverlayFocusContainer(
             content: Text("Lyrics"),
-            isActive: false,
+            isActive: true,
             keymapStore: CommandPaletteKeymapStore(fileURL: makeCommandPaletteTestsTempSettingsURL())
         )
-        _ = ViewTestHost.host(wrapper, size: CGSize(width: 160, height: 80))
+        let controller = ViewTestHost.host(wrapper, size: CGSize(width: 160, height: 80))
+        XCTAssertTrue(controller.view.window?.firstResponder is LyricsOverlayFocusContainerView<Text>)
         ViewTestHost.tearDownAll()
     }
 
