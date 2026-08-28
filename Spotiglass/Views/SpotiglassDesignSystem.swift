@@ -107,6 +107,39 @@ enum SpotiglassDesign {
     static let spacingL: CGFloat = 24
     static let spacingXL: CGFloat = 36
 
+    // MARK: - Dynamic typography
+
+    /// Semantic fonts for compact custom chrome. Text styles follow the user's
+    /// accessibility text-size setting; fixed-point `Font.system(size:)` does not.
+    enum Typography {
+        static let breadcrumb = Font.footnote
+        static let commandPaletteIcon = Font.body.weight(.medium)
+        static let commandPaletteClearShortcut = Font.body
+        static let commandPaletteEmptyState = Font.largeTitle
+        static let commandPaletteArtworkFallback = Font.footnote.weight(.medium)
+        static let pinRemove = Font.body.weight(.bold)
+        static let pinArtistFallback = Font.title3.weight(.semibold)
+        static let pinKind = Font.caption.weight(.semibold)
+        static let settingsHeaderIcon = Font.body.weight(.semibold)
+        static let settingsSidebarIcon = Font.caption.weight(.semibold)
+        static let appearanceSliderSmall = Font.caption.weight(.semibold)
+        static let appearanceSliderLarge = Font.title3.weight(.semibold)
+    }
+
+    // MARK: - Settings chrome
+
+    /// Geometry shared by the Settings shell and its native controls.
+    /// Keeping these values here prevents the shell from becoming a second
+    /// source of spacing, card and window-size rules.
+    static let settingsWindowWidth: CGFloat = 980
+    static let settingsWindowMinHeight: CGFloat = 660
+    static let settingsSidebarMinWidth: CGFloat = 220
+    static let settingsSidebarIdealWidth: CGFloat = 240
+    static let settingsSidebarMaxWidth: CGFloat = 280
+    static let settingsProfileAvatarSize: CGFloat = 34
+    static let settingsHeaderIconSize: CGFloat = 28
+    static let settingsSidebarIconSize: CGFloat = 22
+
     // MARK: - Playback chrome
 
     /// Width of the accent rail that marks a selected track without reusing the

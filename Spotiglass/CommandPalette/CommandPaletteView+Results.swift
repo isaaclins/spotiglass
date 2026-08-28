@@ -152,13 +152,13 @@ struct CommandPaletteSearchingPlaceholderView: View {
             Group {
                 if accessibilityReduceMotion {
                     Image(systemName: "sparkles")
-                        .font(.system(size: 32, weight: .regular))
+                        .font(SpotiglassDesign.Typography.commandPaletteEmptyState)
                         .foregroundStyle(.secondary)
                         .symbolRenderingMode(.hierarchical)
                         .accessibilityLabel(SpotiglassL10n.string("palette.searching"))
                 } else {
                     Image(systemName: "sparkles")
-                        .font(.system(size: 32, weight: .regular))
+                        .font(SpotiglassDesign.Typography.commandPaletteEmptyState)
                         .foregroundStyle(.secondary)
                         .symbolRenderingMode(.hierarchical)
                         .symbolEffect(.variableColor.iterative.reversing, options: .repeating)

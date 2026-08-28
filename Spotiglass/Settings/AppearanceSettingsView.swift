@@ -235,7 +235,7 @@ struct AppearanceSettingsView: View {
     private var lyricsTextScaleSlider: some View {
         HStack(spacing: SpotiglassDesign.spacingS) {
             Text(verbatim: "A")
-                .font(.system(size: 11, weight: .semibold))
+                .font(SpotiglassDesign.Typography.appearanceSliderSmall)
                 .foregroundStyle(.secondary)
             Slider(
                 value: lyricsTextScaleBinding,
@@ -249,7 +249,7 @@ struct AppearanceSettingsView: View {
             }
             .accessibilityLabel(SpotiglassL10n.string("settings.appearance.lyricsTextScale"))
             Text(verbatim: "A")
-                .font(.system(size: 19, weight: .semibold))
+                .font(SpotiglassDesign.Typography.appearanceSliderLarge)
                 .foregroundStyle(.secondary)
             Text(
                 verbatim: settingsStore.settings.appearance.lyricsTextScale
