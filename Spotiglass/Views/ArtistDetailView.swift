@@ -53,6 +53,11 @@ struct ArtistDetailContent: View {
     let onRequestCreatePlaylist: (([TrackRowViewModel]) -> Void)?
     /// Starts a continuation through the browser host's queue orchestration.
     let onRequestLibraryContinuation: ((TrackRowViewModel) -> Void)?
+    /// Header playback actions are supplied by the browser host so this view
+    /// does not own a second playback session.
+    let playHeaderAction: () async -> Void
+    let shuffleHeaderAction: () async -> Void
+    let areHeaderActionsAvailable: Bool
 
     @EnvironmentObject private var pinnedStore: PinnedItemsStore
     @Environment(\.colorScheme) private var colorScheme
@@ -89,7 +94,10 @@ struct ArtistDetailContent: View {
         openArtist: @escaping (String) -> Void,
         loadMoreAlbums: @escaping () -> Void,
         onRequestCreatePlaylist: (([TrackRowViewModel]) -> Void)? = nil,
-        onRequestLibraryContinuation: ((TrackRowViewModel) -> Void)? = nil
+        onRequestLibraryContinuation: ((TrackRowViewModel) -> Void)? = nil,
+        playHeaderAction: @escaping () async -> Void = {},
+        shuffleHeaderAction: @escaping () async -> Void = {},
+        areHeaderActionsAvailable: Bool = true
     ) {
         self.detail = detail
         _browserViewModel = ObservedObject(wrappedValue: browserViewModel)
@@ -105,39 +113,63 @@ struct ArtistDetailContent: View {
         self.loadMoreAlbums = loadMoreAlbums
         self.onRequestCreatePlaylist = onRequestCreatePlaylist
         self.onRequestLibraryContinuation = onRequestLibraryContinuation
+        self.playHeaderAction = playHeaderAction
+        self.shuffleHeaderAction = shuffleHeaderAction
+        self.areHeaderActionsAvailable = areHeaderActionsAvailable
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: SpotiglassDesign.spacingL) {
-                header
-                if !detail.tracks.isEmpty {
-                    Text(SpotiglassL10n.string("browser.tracks"))
-                        .font(.title3.weight(.semibold))
-                        .padding(.horizontal, SpotiglassDesign.spacingL)
-                    tracksSection
-                }
-                albumStrip(title: SpotiglassL10n.string("browser.albums"), albums: detail.albums, group: .album)
-                albumStrip(title: SpotiglassL10n.string("browser.singles"), albums: detail.singles, group: .single)
-                albumStrip(title: SpotiglassL10n.string("browser.compilations"), albums: detail.compilations, group: .compilation)
-                albumStrip(title: SpotiglassL10n.string("browser.appearsOn"), albums: detail.appearsOn, group: .appearsOn)
-                if detail.canLoadMoreAlbums || detail.isLoadingMoreAlbums {
-                    loadMoreButton
-                        .padding(.horizontal, SpotiglassDesign.spacingL)
-                }
-                if hasNothingToShow {
-                    // Every section above is guarded and albumStrip returns
-                    // EmptyView for an empty array, so an artist with no tracks
-                    // and no releases used to render a header over a void, while
-                    // the sibling playlist screen explains itself (#135).
-                    EmptyStateView(
-                        title: SpotiglassL10n.string("browser.artist.empty.title"),
-                        message: SpotiglassL10n.string("browser.artist.empty.message")
-                    )
-                }
+        TrackListView(
+            tracks: detail.tracks,
+            selection: $browserViewModel.selectedDetailTrackIDs,
+            rowBuilder: trackRow(for:),
+            pendingScrollRestoreTrackID: .constant(nil),
+            onFirstVisibleTrackChanged: { _ in },
+            playSelection: { selectedIDs in
+                guard let track = detail.tracks.first(where: { selectedIDs.contains($0.id) }),
+                      let uri = track.playableURI
+                else { return }
+                playTrack(uri)
+            },
+            headerContent: AnyView(listHeader),
+            footerContent: AnyView(listFooter)
+        )
+    }
+
+    private var listHeader: some View {
+        VStack(alignment: .leading, spacing: SpotiglassDesign.spacingL) {
+            header
+            if !detail.tracks.isEmpty {
+                Text(SpotiglassL10n.string("browser.tracks"))
+                    .font(.title3.weight(.semibold))
+                    .padding(.horizontal, SpotiglassDesign.spacingL)
             }
-            .padding(.vertical, SpotiglassDesign.spacingM)
         }
+        .padding(.vertical, SpotiglassDesign.spacingM)
+    }
+
+    private var listFooter: some View {
+        VStack(alignment: .leading, spacing: SpotiglassDesign.spacingL) {
+            albumStrip(title: SpotiglassL10n.string("browser.albums"), albums: detail.albums, group: .album)
+            albumStrip(title: SpotiglassL10n.string("browser.singles"), albums: detail.singles, group: .single)
+            albumStrip(title: SpotiglassL10n.string("browser.compilations"), albums: detail.compilations, group: .compilation)
+            albumStrip(title: SpotiglassL10n.string("browser.appearsOn"), albums: detail.appearsOn, group: .appearsOn)
+            if detail.canLoadMoreAlbums || detail.isLoadingMoreAlbums {
+                loadMoreButton
+                    .padding(.horizontal, SpotiglassDesign.spacingL)
+            }
+            if hasNothingToShow {
+                // Every section above is guarded and albumStrip returns
+                // EmptyView for an empty array, so an artist with no tracks
+                // and no releases used to render a header over a void, while
+                // the sibling playlist screen explains itself (#135).
+                EmptyStateView(
+                    title: SpotiglassL10n.string("browser.artist.empty.title"),
+                    message: SpotiglassL10n.string("browser.artist.empty.message")
+                )
+            }
+        }
+        .padding(.vertical, SpotiglassDesign.spacingM)
     }
 
     private var header: some View {
@@ -175,6 +207,13 @@ struct ArtistDetailContent: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
                 }
+
+                DetailHeaderActions(
+                    play: playHeaderAction,
+                    shuffle: shuffleHeaderAction,
+                    hasPlaybackDevice: hasPlaybackDevice,
+                    isAvailable: areHeaderActionsAvailable
+                )
             }
 
             Spacer()
@@ -196,37 +235,35 @@ struct ArtistDetailContent: View {
         }
     }
 
-    private var tracksSection: some View {
-        LazyVStack(spacing: 0) {
-            ForEach(detail.tracks) { track in
-                TrackListRow(
-                    trackNumber: track.listPosition,
-                    track: track,
-                    playURI: playTrack,
-                    togglePlayPause: togglePlayPause,
-                    isCurrent: track.playableURI != nil && track.playableURI == currentPlaybackURI,
-                    isPlaying: isPlaying,
-                    openArtist: openArtist,
-                    tracksSurfaceID: tracksSurfaceID,
-                    trackOpsMenuItems: {
-                        AnyView(TrackOpsMenuItems(
-                            targets: [track],
-                            browserViewModel: browserViewModel,
-                            sourcePlaylistID: nil,
-                            onRequestCreatePlaylist: onRequestCreatePlaylist,
-                            onRequestLibraryContinuation: onRequestLibraryContinuation,
-                            openArtist: { target in
-                                if let id = target.id { openArtist(id) }
-                            },
-                            addToQueue: addToQueue,
-                            hasPlaybackDevice: hasPlaybackDevice,
-                            copyableURI: track.playableURI
-                        ))
-                    }
-                )
+    private func trackRow(for track: TrackRowViewModel) -> TrackListRow {
+        TrackListRow(
+            trackNumber: track.listPosition,
+            track: track,
+            playURI: playTrack,
+            togglePlayPause: togglePlayPause,
+            isCurrent: track.playableURI != nil && track.playableURI == currentPlaybackURI,
+            isPlaying: isPlaying,
+            openArtist: openArtist,
+            tracksSurfaceID: tracksSurfaceID,
+            isSelected: browserViewModel.selectedDetailTrackIDs.contains(track.id),
+            drawsRowHighlights: false,
+            isKeyboardFocusable: false,
+            trackOpsMenuItems: {
+                AnyView(TrackOpsMenuItems(
+                    targets: browserViewModel.effectiveTrackTargets(forRowID: track.id),
+                    browserViewModel: browserViewModel,
+                    sourcePlaylistID: nil,
+                    onRequestCreatePlaylist: onRequestCreatePlaylist,
+                    onRequestLibraryContinuation: onRequestLibraryContinuation,
+                    openArtist: { target in
+                        if let id = target.id { openArtist(id) }
+                    },
+                    addToQueue: addToQueue,
+                    hasPlaybackDevice: hasPlaybackDevice,
+                    copyableURI: track.playableURI
+                ))
             }
-        }
-        .padding(.horizontal, SpotiglassDesign.spacingS)
+        )
     }
 
     @ViewBuilder
