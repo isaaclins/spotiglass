@@ -701,6 +701,12 @@ final class PlaybackSessionViewModel: ObservableObject {
                     message: SpotiglassL10n.string("error.playback.signInAgain.message"),
                     recoveryAction: .reauthenticate
                 )
+            case .insufficientScope:
+                return PlaybackDisplayError(
+                    title: SpotiglassL10n.string("error.playback.commandFailed.title"),
+                    message: SpotiglassL10n.string("error.spotify.insufficientPermissions"),
+                    recoveryAction: .reauthenticate
+                )
             case let .forbidden(message, _):
                 return PlaybackDisplayError(
                     title: SpotiglassL10n.string("error.playback.premium.title"),

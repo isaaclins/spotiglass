@@ -28,13 +28,18 @@ struct SpotifyAPIClient {
     let decoder: JSONDecoder
     let getResponseCache: SpotifyGETResponseCache?
     let albumTrackRequestCoalescer: AlbumTrackRequestCoalescer
+    /// Scope information is supplied by the live auth model. Lightweight
+    /// token-only clients (including catalog test doubles) leave this nil and
+    /// retain their existing behavior.
+    let scopeProvider: (any SpotifyScopeProviding)?
 
     init(
         baseURL: URL = URL(string: "https://api.spotify.com")!,
         tokenProvider: SpotifyAccessTokenProviding,
         httpClient: HTTPClient = URLSession.shared,
         getResponseCache: SpotifyGETResponseCache? = nil,
-        albumTrackRequestCoalescer: AlbumTrackRequestCoalescer = AlbumTrackRequestCoalescer()
+        albumTrackRequestCoalescer: AlbumTrackRequestCoalescer = AlbumTrackRequestCoalescer(),
+        scopeProvider: (any SpotifyScopeProviding)? = nil
     ) {
         self.baseURL = baseURL
         self.tokenProvider = tokenProvider
@@ -42,6 +47,7 @@ struct SpotifyAPIClient {
         self.decoder = JSONDecoder.spotifyWebAPI
         self.getResponseCache = getResponseCache
         self.albumTrackRequestCoalescer = albumTrackRequestCoalescer
+        self.scopeProvider = scopeProvider ?? (tokenProvider as? any SpotifyScopeProviding)
     }
 
     func makeRequest(path: String, queryItems: [URLQueryItem] = [], accessToken: String) throws -> URLRequest {
@@ -121,24 +127,26 @@ struct SpotifyAPIClient {
     ) async throws -> Response {
         let traceSearch = path.hasPrefix("/v1/search")
         let tokenStart = Date()
-        let accessToken = try await tokenProvider.accessToken()
-        let tokenMs = Int(Date().timeIntervalSince(tokenStart) * 1000)
-        let request = try makeRequest(path: path, queryItems: queryItems, accessToken: accessToken)
-        let netStart = Date()
+        var request: URLRequest?
+        let operationStart = Date()
         do {
+            let accessToken = try await tokenProvider.accessToken()
+            let tokenMs = Int(Date().timeIntervalSince(tokenStart) * 1000)
+            request = try makeRequest(path: path, queryItems: queryItems, accessToken: accessToken)
             let result: Response = try await send(
-                request: request,
+                request: request!,
                 didRefreshAfterUnauthorized: false,
                 rateLimitRetryCount: 0,
                 cacheMode: cacheMode
             )
             if traceSearch {
-                SpotiglassLog.info(.api, "GET \(path) token=\(tokenMs)ms net=\(Int(Date().timeIntervalSince(netStart) * 1000))ms")
+                SpotiglassLog.info(.api, "GET \(path) token=\(tokenMs)ms net=\(Int(Date().timeIntervalSince(operationStart) * 1000))ms")
             }
             return result
         } catch {
+            logRequestFailure(request: request, method: "GET", fallbackPath: path, error: error)
             if traceSearch {
-                SpotiglassLog.info(.api, "GET \(path) token=\(tokenMs)ms net=\(Int(Date().timeIntervalSince(netStart) * 1000))ms error")
+                SpotiglassLog.info(.api, "GET \(path) net=\(Int(Date().timeIntervalSince(operationStart) * 1000))ms error")
             }
             throw error
         }
@@ -149,31 +157,44 @@ struct SpotifyAPIClient {
         queryItems: [URLQueryItem] = [],
         cacheMode: SpotifyRequestCacheMode = .allowStale
     ) async throws -> CachedResponse<Response> {
-        let accessToken = try await tokenProvider.accessToken()
-        let request = try makeRequest(path: path, queryItems: queryItems, accessToken: accessToken)
-        return try await sendCached(
-            request: request,
-            didRefreshAfterUnauthorized: false,
-            rateLimitRetryCount: 0,
-            cacheMode: cacheMode
-        )
+        var request: URLRequest?
+        do {
+            let accessToken = try await tokenProvider.accessToken()
+            request = try makeRequest(path: path, queryItems: queryItems, accessToken: accessToken)
+            return try await sendCached(
+                request: request!,
+                didRefreshAfterUnauthorized: false,
+                rateLimitRetryCount: 0,
+                cacheMode: cacheMode
+            )
+        } catch {
+            logRequestFailure(request: request, method: "GET", fallbackPath: path, error: error)
+            throw error
+        }
     }
 
     func send<Response: Decodable>(
         url: URL,
         cacheMode: SpotifyRequestCacheMode = .freshOnly
     ) async throws -> Response {
-        let accessToken = try await tokenProvider.accessToken()
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        return try await send(
-            request: request,
-            didRefreshAfterUnauthorized: false,
-            rateLimitRetryCount: 0,
-            cacheMode: cacheMode
-        )
+        var request: URLRequest?
+        do {
+            let accessToken = try await tokenProvider.accessToken()
+            var builtRequest = URLRequest(url: url)
+            builtRequest.httpMethod = "GET"
+            builtRequest.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+            builtRequest.setValue("application/json", forHTTPHeaderField: "Accept")
+            request = builtRequest
+            return try await send(
+                request: builtRequest,
+                didRefreshAfterUnauthorized: false,
+                rateLimitRetryCount: 0,
+                cacheMode: cacheMode
+            )
+        } catch {
+            logRequestFailure(request: request, method: "GET", fallbackPath: url.path, error: error)
+            throw error
+        }
     }
 
     func sendCached<Response: Decodable>(
@@ -182,6 +203,7 @@ struct SpotifyAPIClient {
         rateLimitRetryCount: Int,
         cacheMode: SpotifyRequestCacheMode
     ) async throws -> CachedResponse<Response> {
+        try await enforceScopeRequirement(for: request)
         if !didRefreshAfterUnauthorized,
            cacheMode != .bypassCache,
            let cache = getResponseCache,
@@ -208,6 +230,7 @@ struct SpotifyAPIClient {
         cacheMode: SpotifyRequestCacheMode,
         cacheWriteOwnership: SpotifyGETResponseCacheWriteOwnership? = nil
     ) async throws -> Response {
+        try await enforceScopeRequirement(for: request)
         if !didRefreshAfterUnauthorized,
            cacheMode != .bypassCache,
            let cache = getResponseCache,
@@ -225,6 +248,26 @@ struct SpotifyAPIClient {
 
         do {
             let (data, response) = try await httpClient.data(for: request)
+            if !(200..<300).contains(response.statusCode) {
+                let responseDetails = diagnosticDetails(
+                    statusCode: response.statusCode,
+                    data: data,
+                    headers: response.allHeaderFields,
+                    request: request
+                )
+                let message = "Spotify API failure: \(request.httpMethod ?? "GET") \(request.url?.absoluteString ?? "<missing URL>")\n\(responseDetails)"
+                if response.statusCode == 401 && !didRefreshAfterUnauthorized {
+                    // Keep the first unauthorized response off the refresh
+                    // actor's critical path. The refresh provider is the
+                    // single-flight boundary, and synchronous OS logging here
+                    // can let a concurrent 401 arrive after that flight ends.
+                    DispatchQueue.global(qos: .utility).async {
+                        SpotiglassLog.error(.api, message)
+                    }
+                } else {
+                    SpotiglassLog.error(.api, message)
+                }
+            }
             if response.statusCode == 401 && !didRefreshAfterUnauthorized {
                 let refreshedToken = try await tokenProvider.refreshAccessTokenAfterUnauthorized()
                 var refreshedRequest = request
@@ -338,7 +381,7 @@ struct SpotifyAPIClient {
         try await Task.sleep(nanoseconds: nanoseconds)
     }
 
-    private func mapHTTPError(statusCode: Int, data: Data, headers: [AnyHashable: Any], request: URLRequest) -> SpotifyAPIError {
+    func mapHTTPError(statusCode: Int, data: Data, headers: [AnyHashable: Any], request: URLRequest) -> SpotifyAPIError {
         let message = try? decoder.decode(SpotifyAPIErrorResponse.self, from: data).error.message
         let details = diagnosticDetails(statusCode: statusCode, data: data, headers: headers, request: request)
         switch statusCode {
@@ -347,9 +390,15 @@ struct SpotifyAPIClient {
         case 400:
             return .badRequest(message: message, details: details)
         case 403:
-            if isInsufficientScope(headers: headers, message: message) {
+            let requiredScopes = requiredScopes(for: request)
+            let knownScopeRequirement = scopeRequirement(for: request)
+            // Spotify does not consistently send `insufficient_scope` for
+            // user-library mutations. A known user-scoped endpoint is enough
+            // to classify the denial as a missing permission, while unknown
+            // 403s retain the generic forbidden case.
+            if isInsufficientScope(headers: headers, message: message) || !knownScopeRequirement.isEmpty {
                 return .insufficientScope(
-                    requiredScopes: requiredScopes(for: request),
+                    requiredScopes: requiredScopes,
                     message: message,
                     details: details
                 )
@@ -426,8 +475,106 @@ struct SpotifyAPIClient {
         """
     }
 
-    private func requiredScopes(for _: URLRequest) -> [String] {
-        SpotifyAuthConfiguration.requiredBrowsingScopes
+    private func requiredScopes(for request: URLRequest) -> [String] {
+        let listed = scopeRequirement(for: request).listedScopes
+        guard listed.isEmpty,
+              request.httpMethod?.uppercased() == "GET",
+              request.url?.path.hasPrefix("/v1/playlists/") == true else {
+            return listed
+        }
+        // Keep the read capability in explicit `insufficient_scope` diagnostics
+        // without preflighting followed/public playlist reads (whose 403 has a
+        // separate locked-playlist meaning).
+        return SpotifyAuthConfiguration.requiredPlaylistReadScopes
+    }
+
+    /// Classifies the OAuth capability needed by an endpoint. The mapping is
+    /// deliberately endpoint-based so a 403 remains diagnosable even when
+    /// Spotify omits the `WWW-Authenticate` scope hint.
+    func scopeRequirement(for request: URLRequest) -> SpotifyScopeRequirement {
+        let path = request.url?.path ?? ""
+        let method = (request.httpMethod ?? "GET").uppercased()
+
+        if path == "/v1/me/playlists" {
+            if method == "GET" {
+                return SpotifyScopeRequirement(allOf: SpotifyAuthConfiguration.requiredPlaylistReadScopes)
+            }
+            if method == "POST" {
+                let isPublic = request.httpBody
+                    .flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }?["public"] as? Bool
+                return SpotifyScopeRequirement(
+                    allOf: [isPublic == true
+                        ? SpotifyAuthConfiguration.requiredPlaylistModifyScopes[1]
+                        : SpotifyAuthConfiguration.requiredPlaylistModifyScopes[0]]
+                )
+            }
+        }
+
+        if path == "/v1/me/tracks" {
+            return SpotifyScopeRequirement(
+                allOf: method == "GET"
+                    ? SpotifyAuthConfiguration.requiredSavedTracksReadScopes
+                    : SpotifyAuthConfiguration.requiredSavedTracksModifyScopes
+            )
+        }
+        if path == "/v1/me/tracks/contains" && method == "GET" {
+            return SpotifyScopeRequirement(allOf: SpotifyAuthConfiguration.requiredSavedTracksReadScopes)
+        }
+        if path == "/v1/me/following" && method == "GET" {
+            return SpotifyScopeRequirement(allOf: SpotifyAuthConfiguration.requiredFollowReadScopes)
+        }
+        if path == "/v1/me/player/recently-played" && method == "GET" {
+            return SpotifyScopeRequirement(allOf: SpotifyAuthConfiguration.requiredRecentlyPlayedScopes)
+        }
+        if path.hasPrefix("/v1/me/top/") && method == "GET" {
+            return SpotifyScopeRequirement(allOf: SpotifyAuthConfiguration.requiredTopReadScopes)
+        }
+        if path == "/v1/me/player" || path == "/v1/me/player/devices" || path == "/v1/me/player/queue" {
+            return SpotifyScopeRequirement(
+                allOf: method == "GET"
+                    ? SpotifyAuthConfiguration.requiredPlaybackReadScopes
+                    : SpotifyAuthConfiguration.requiredPlaybackModifyScopes
+            )
+        }
+        if path.hasPrefix("/v1/me/player/") {
+            return SpotifyScopeRequirement(allOf: method == "GET"
+                ? SpotifyAuthConfiguration.requiredPlaybackReadScopes
+                : SpotifyAuthConfiguration.requiredPlaybackModifyScopes)
+        }
+        if path.hasPrefix("/v1/playlists/") && method != "GET" {
+            // The playlist's visibility is not present in every summary, so
+            // either modification scope is sufficient for the preflight.
+            return SpotifyScopeRequirement(anyOf: SpotifyAuthConfiguration.requiredPlaylistModifyScopes)
+        }
+        // A playlist item's 403 can mean a private followed playlist rather
+        // than a missing OAuth scope, so leave GET /playlists/{id}/items as a
+        // generic denial unless Spotify explicitly supplies scope metadata.
+        return SpotifyScopeRequirement()
+    }
+
+    /// Refuse a feature before its HTTP request when the live auth model knows
+    /// the token lacks the capability. Token-only test/catalog clients do not
+    /// provide scope information and intentionally skip this preflight.
+    func enforceScopeRequirement(for request: URLRequest) async throws {
+        guard let scopeProvider else { return }
+        let requirement = scopeRequirement(for: request)
+        guard !requirement.isEmpty else { return }
+        let missing = requirement.missingScopes(from: await scopeProvider.grantedScopes())
+        guard !missing.isEmpty else { return }
+
+        let details = "Scope preflight denied \(request.httpMethod ?? "GET") \(request.url?.absoluteString ?? "<missing URL>"): missing \(missing.joined(separator: ", "))"
+        SpotiglassLog.error(.api, details)
+        throw SpotifyAPIError.insufficientScope(
+            requiredScopes: missing,
+            message: nil,
+            details: details
+        )
+    }
+
+    private func logRequestFailure(request: URLRequest?, method: String, fallbackPath: String, error: Error) {
+        let target = request?.url?.absoluteString ?? fallbackPath
+        let details = (error as? SpotifyAPIError)?.diagnosticDetails.map { "\n\($0)" } ?? ""
+        SpotiglassLog.error(.api, "Spotify API failure: \(method) \(target) — \(error.localizedDescription)\(details)")
     }
 
     private static func describeDecodingError(_ error: Error) -> String {

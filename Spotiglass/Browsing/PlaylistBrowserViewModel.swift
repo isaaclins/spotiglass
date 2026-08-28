@@ -89,6 +89,9 @@ final class PlaylistBrowserViewModel: ObservableObject {
 
     let api: SpotifyBrowsingAPI
     let cache: SpotifyBrowsingCache
+    /// Optional live scope source used to stop a mutation before it reaches
+    /// Spotify. Mocks and catalog-only previews can omit it.
+    let scopeProvider: (any SpotifyScopeProviding)?
     let now: () -> Date
     let maxCacheAge: TimeInterval
     /// When the saved playlist list is younger than this, `load()` does not call `refreshPlaylists()` (tracks for the selection still revalidate in the background when a track cache hit exists).
@@ -178,6 +181,7 @@ final class PlaylistBrowserViewModel: ObservableObject {
     init(
         api: SpotifyBrowsingAPI,
         cache: SpotifyBrowsingCache,
+        scopeProvider: (any SpotifyScopeProviding)? = nil,
         now: @escaping () -> Date = Date.init,
         maxCacheAge: TimeInterval = 1800,
         playlistListAutoRefreshMinInterval: TimeInterval = 1800,
@@ -189,6 +193,7 @@ final class PlaylistBrowserViewModel: ObservableObject {
     ) {
         self.api = api
         self.cache = cache
+        self.scopeProvider = scopeProvider
         self.now = now
         self.maxCacheAge = maxCacheAge
         self.playlistListAutoRefreshMinInterval = playlistListAutoRefreshMinInterval
@@ -200,9 +205,14 @@ final class PlaylistBrowserViewModel: ObservableObject {
     }
 
     static func live(tokenProvider: SpotifyAccessTokenProviding) -> PlaylistBrowserViewModel {
-        let api = SpotifyAPIClient(tokenProvider: tokenProvider, getResponseCache: .shared)
+        let scopeProvider = tokenProvider as? any SpotifyScopeProviding
+        let api = SpotifyAPIClient(
+            tokenProvider: tokenProvider,
+            getResponseCache: .shared,
+            scopeProvider: scopeProvider
+        )
         let cache: SpotifyBrowsingCache = (try? SpotifyLocalCache()) ?? DisabledSpotifyBrowsingCache()
-        return PlaylistBrowserViewModel(api: api, cache: cache)
+        return PlaylistBrowserViewModel(api: api, cache: cache, scopeProvider: scopeProvider)
     }
 
     func clearForSignOut() {

@@ -9,10 +9,14 @@ struct PlaylistsSidebarSectionHeader: View {
                 .font(.title3.weight(.semibold))
             switch playlistState {
             case let .staleCache(_, error):
-                Text(Self.cachedDataCaption(for: error))
+                let caption = Self.cachedDataCaption(for: error)
+                Text(caption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(nil)
                     .fixedSize(horizontal: false, vertical: true)
+                    .help(caption)
             case .refreshing:
                 Text(SpotiglassL10n.string("browser.refreshing"))
                     .font(.caption)

@@ -70,9 +70,17 @@ struct ErrorStateView: View {
 struct StaleCacheBanner: View {
     let error: BrowsingDisplayError?
 
+    private var message: String {
+        error?.message ?? SpotiglassL10n.string("browser.cachedFallback")
+    }
+
     var body: some View {
-        Text(error?.message ?? SpotiglassL10n.string("browser.cachedFallback"))
+        Text(message)
             .font(.caption)
+            .multilineTextAlignment(.center)
+            .lineLimit(nil)
+            .fixedSize(horizontal: false, vertical: true)
+            .help(message)
             .padding(SpotiglassDesign.spacingS)
             .background(.background, in: Capsule())
             .padding(SpotiglassDesign.spacingM)
