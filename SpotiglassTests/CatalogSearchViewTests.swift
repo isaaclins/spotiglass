@@ -332,10 +332,14 @@ final class CatalogSearchViewTests: XCTestCase {
 
         let palette = CommandPaletteViewModel()
         palette.searchProvider = { _, _ in CommandPaletteSearchResults() }
+        let sidebarSelectionFinished = AsyncSignal()
         // Mirrors PlaylistBrowserCommandPaletteConfiguration's wiring.
         palette.showAllResults = { query, category in
             searchViewModel.applyHandoff(query: query, paletteCategory: category)
-            Task { @MainActor in await browserViewModel.selectSidebar(.search) }
+            Task { @MainActor in
+                await browserViewModel.selectSidebar(.search)
+                sidebarSelectionFinished.signal()
+            }
         }
 
         palette.show()
@@ -349,7 +353,11 @@ final class CatalogSearchViewTests: XCTestCase {
         XCTAssertEqual(palette.sections.last?.section, .showAll)
 
         await showAllRow?.action()
-        try? await Task.sleep(for: .milliseconds(100))
+        let didFinishSidebarSelection = await sidebarSelectionFinished.wait(timeout: .seconds(2))
+        XCTAssertTrue(
+            didFinishSidebarSelection,
+            "Catalog handoff should finish sidebar selection"
+        )
 
         XCTAssertEqual(searchViewModel.query, "daft punk")
         XCTAssertEqual(searchViewModel.category, .artists)

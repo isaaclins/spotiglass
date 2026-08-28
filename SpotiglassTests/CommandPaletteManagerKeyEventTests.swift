@@ -411,7 +411,7 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
         await fulfillment(of: [openArtist], timeout: 2)
     }
 
-    func testExecutePinEnqueueAndOpenPalette() async {
+    func testExecutePinEnqueueAndOpenPalette() {
         let manager = CommandPaletteManager()
         manager.viewModel.show()
         manager.execute(commandID: CommandPaletteCommandID.openPalette)
@@ -420,7 +420,6 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
         manager.execute(commandID: CommandPaletteCommandID.pinSelected)
         manager.execute(commandID: CommandPaletteCommandID.unpinSelected)
         manager.execute(commandID: CommandPaletteCommandID.enqueueSelected)
-        try? await Task.sleep(nanoseconds: 50_000_000)
     }
 
     func testPaletteReturnExecutesSelection() async {

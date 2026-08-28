@@ -171,8 +171,16 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         await viewModel.selectPlaylist(id: "a")
         XCTAssertEqual(api.playlistTracksInvocationCountByID["a"], 1)
 
+        let fetchBStarted = AsyncSignal()
+        api.onPlaylistTracksInvocation = { playlistID in
+            if playlistID == "b" { fetchBStarted.signal() }
+        }
         let firstSwitch = Task { await viewModel.selectPlaylist(id: "b") }
-        try? await Task.sleep(nanoseconds: 50_000_000)
+        let didStartFetchB = await fetchBStarted.wait(timeout: .seconds(1))
+        XCTAssertTrue(
+            didStartFetchB,
+            "the first playlist switch should start fetching playlist B"
+        )
         await viewModel.selectPlaylist(id: "a")
         await firstSwitch.value
 
@@ -266,7 +274,6 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
             group.addTask { await viewModel.selectNextPlaylist() }
             group.addTask { await viewModel.selectNextPlaylist() }
         }
-        try? await Task.sleep(nanoseconds: 220_000_000)
 
         XCTAssertEqual(api.playlistTracksInvocationCountByID["b"] ?? 0, 0)
         XCTAssertEqual(api.playlistTracksInvocationCountByID["c"], 1)

@@ -21,6 +21,7 @@ final class AuthViewModel: ObservableObject {
     private let refreshTokenStore: RefreshTokenStore
     private let signOutDataCleaner: () -> Void
     private let artworkCacheClearer: () async -> Void
+    private let now: () -> Date
     private var inFlightRefreshTask: Task<String, Error>?
     private var authTransitionGeneration = 0
     private var refreshCooldownUntil: Date?
@@ -33,7 +34,8 @@ final class AuthViewModel: ObservableObject {
         refreshTokenStore: RefreshTokenStore = KeychainRefreshTokenStore(),
         signOutDataCleaner: @escaping () -> Void = AuthViewModel.defaultSignOutDataCleaner,
         artworkCacheClearer: @escaping () async -> Void = { await ArtworkImageStore.shared.clearAllCachedImages() },
-        initialState: AppConnectionState = .signedOut
+        initialState: AppConnectionState = .signedOut,
+        now: @escaping () -> Date = Date.init
     ) {
         self.settings = settings
         self.clientID = settings.clientID
@@ -42,6 +44,7 @@ final class AuthViewModel: ObservableObject {
         self.refreshTokenStore = refreshTokenStore
         self.signOutDataCleaner = signOutDataCleaner
         self.artworkCacheClearer = artworkCacheClearer
+        self.now = now
         self.state = initialState
     }
 
@@ -113,7 +116,7 @@ final class AuthViewModel: ObservableObject {
 
     var isSignInRetryCoolingDown: Bool {
         guard let signInRetryCooldownUntil else { return false }
-        return signInRetryCooldownUntil > Date()
+        return signInRetryCooldownUntil > now()
     }
 
     private func performSignIn(generation: Int) async {
@@ -154,7 +157,7 @@ final class AuthViewModel: ObservableObject {
                 state = .signedOut
                 return
             }
-            signInRetryCooldownUntil = Date().addingTimeInterval(2)
+            signInRetryCooldownUntil = now().addingTimeInterval(2)
             state = .failed(AuthDisplayError(message: displayMessage(for: error)))
         }
     }

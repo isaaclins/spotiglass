@@ -21,7 +21,7 @@ struct PinnedRowView: View {
                     if isHovering {
                         Button(action: onUnpin) {
                             Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 16, weight: .bold))
+                                .font(SpotiglassDesign.Typography.pinRemove)
                                 .symbolRenderingMode(.palette)
                                 .foregroundStyle(.white, .red)
                                 .background(
@@ -90,7 +90,7 @@ struct PinnedRowView: View {
                     CachedCircularArtwork(url: url, diameter: artworkSize)
                 } else {
                     Image(systemName: "person.wave.2")
-                        .font(.system(size: 18, weight: .semibold))
+                        .font(SpotiglassDesign.Typography.pinArtistFallback)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -150,7 +150,7 @@ struct PinnedItemDragPill: View {
             previewArtwork
 
             Image(systemName: kindSymbolName)
-                .font(.system(size: 11, weight: .semibold))
+                .font(SpotiglassDesign.Typography.pinKind)
                 .foregroundStyle(.spotiglassAccent)
             VStack(alignment: .leading, spacing: 1) {
                 Text(item.title)
@@ -183,7 +183,7 @@ struct PinnedItemDragPill: View {
                 .frame(width: artworkSize, height: artworkSize)
                 .overlay {
                     Image(systemName: "heart.fill")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(SpotiglassDesign.Typography.pinKind)
                         .foregroundStyle(.spotiglassAccent)
                 }
                 .overlay {
@@ -197,7 +197,7 @@ struct PinnedItemDragPill: View {
                     CachedCircularArtwork(url: url, diameter: artworkSize)
                 } else {
                     Image(systemName: "person.wave.2")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(SpotiglassDesign.Typography.pinKind)
                         .foregroundStyle(.secondary)
                 }
             }

@@ -90,12 +90,13 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
         )
         viewModel.handle(.ready(deviceID: "device-1"))
         viewModel.handle(.notReady(deviceID: "device-1"))
+        let recoveryTask = viewModel.playbackHostRecoveryTask
 
         let didConnectStart = await connectStarted.wait(timeout: .seconds(1))
         XCTAssertTrue(didConnectStart)
         await viewModel.disconnect()
         releaseConnect.signal()
-        try? await Task.sleep(for: .milliseconds(80))
+        await recoveryTask?.value
 
         XCTAssertEqual(viewModel.connectionState, .disconnected)
         XCTAssertEqual(commander.loadHostCallCount, 0)
@@ -157,11 +158,12 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
         )
 
         viewModel.handle(.initializationError("SDK init failed"))
+        let recoveryTask = viewModel.playbackHostRecoveryTask
         let didConnectStart = await connectStarted.wait(timeout: .seconds(1))
         XCTAssertTrue(didConnectStart)
         await viewModel.disconnect()
         releaseConnect.signal()
-        try? await Task.sleep(for: .milliseconds(80))
+        await recoveryTask?.value
 
         XCTAssertEqual(viewModel.connectionState, .disconnected)
         XCTAssertEqual(commander.loadHostCallCount, 0)
@@ -186,6 +188,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
 
         viewModel.start()
         let oldGeneration = viewModel.playbackHostGeneration
+        let oldConnectTask = viewModel.playbackHostConnectTask
         let didStart = await connectStarted.wait(timeout: .seconds(1))
         XCTAssertTrue(didStart)
         XCTAssertEqual(blockedGeneration, oldGeneration)
@@ -193,8 +196,10 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
         await viewModel.disconnect()
         viewModel.start()
         let newGeneration = viewModel.playbackHostGeneration
+        let newConnectTask = viewModel.playbackHostConnectTask
         releaseConnect.signal()
-        try? await Task.sleep(for: .milliseconds(30))
+        await oldConnectTask?.value
+        await newConnectTask?.value
 
         XCTAssertNotEqual(oldGeneration, newGeneration)
         XCTAssertEqual(
@@ -220,6 +225,12 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
             playbackHostRecoveryConnectTimeout: .seconds(30),
             playbackHostRecoverySoftResetTimeout: .seconds(30)
         )
+        let recoveryConnectStarted = AsyncSignal()
+        commander.onSend = { command in
+            guard command == .connect,
+                  viewModel.playbackHostReuseConnectAttemptCount >= 1 else { return }
+            recoveryConnectStarted.signal()
+        }
 
         viewModel.start()
         let oldGeneration = viewModel.playbackHostGeneration
@@ -245,14 +256,11 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
             event: .notReady(deviceID: "new-device"),
             hostGeneration: newGeneration
         ))
-        // Wait for the first recovery attempt rather than for a fixed
-        // duration, so a slow runner cannot turn this into a flake.
-        let deadline = Date().addingTimeInterval(2)
-        while Date() < deadline,
-              viewModel.playbackHostReuseConnectAttemptCount < 1
-                || !commander.commands.contains(where: { $0.command == .connect }) {
-            try? await Task.sleep(for: .milliseconds(10))
-        }
+        let didStartRecoveryConnect = await recoveryConnectStarted.wait(timeout: .seconds(2))
+        XCTAssertTrue(
+            didStartRecoveryConnect,
+            "recovery should issue a host reuse connect"
+        )
 
         XCTAssertGreaterThanOrEqual(viewModel.playbackHostReuseConnectAttemptCount, 1)
         XCTAssertTrue(commander.commands.contains { $0.command == .connect })
@@ -314,13 +322,17 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
             playbackHostRecoveryConnectTimeout: .milliseconds(10),
             playbackHostRecoverySoftResetTimeout: .milliseconds(10)
         )
+        let hardReloadStarted = AsyncSignal()
+        commander.onLoadHost = { _ in
+            hardReloadStarted.signal()
+        }
 
         viewModel.handle(.initializationError("SDK init failed"))
-        let deadline = Date().addingTimeInterval(1.5)
-        while Date() < deadline,
-              viewModel.playbackHostReuseConnectAttemptCount < 1 || commander.loadHostCallCount < 1 {
-            try? await Task.sleep(nanoseconds: 25_000_000)
-        }
+        let didStartHardReload = await hardReloadStarted.wait(timeout: .seconds(2))
+        XCTAssertTrue(
+            didStartHardReload,
+            "recovery should escalate to a hard host reload"
+        )
 
         XCTAssertGreaterThanOrEqual(viewModel.playbackHostReuseConnectAttemptCount, 1)
         XCTAssertGreaterThanOrEqual(viewModel.playbackHostReuseSoftResetAttemptCount, 1)
@@ -357,7 +369,12 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
 
     func testStartReconnectsFromErrorAndUnavailableStates() async {
         let commander = MockWebPlaybackCommander()
+        let connectSent = AsyncSignal()
         let viewModel = PlaybackSessionViewModel(playbackAPI: MockPlaybackAPI(), webCommander: commander)
+        commander.onSend = { command in
+            guard command == .connect else { return }
+            connectSent.signal()
+        }
 
         // Simulate a Play attempt before the SDK reported a device:
         // the view model lands in the "device unavailable" error state.
@@ -369,7 +386,11 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
 
         // Choosing Reconnect from the error state must restart the SDK host.
         viewModel.start()
-        try? await Task.sleep(nanoseconds: 10_000_000)
+        let didSendConnect = await connectSent.wait(timeout: .seconds(1))
+        XCTAssertTrue(
+            didSendConnect,
+            "reconnect should send the SDK connect command"
+        )
 
         XCTAssertEqual(viewModel.connectionState, .connecting)
         XCTAssertTrue(commander.didLoadHost)

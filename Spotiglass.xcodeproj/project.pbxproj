@@ -180,7 +180,6 @@
 		J90000000000000000000002 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = J90000000000000000000012 /* AppIcon.icon */; };
 		J90000000000000000000101 /* SpotiglassSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = J90000000000000000000151 /* SpotiglassSettingsView.swift */; };
 		SRC0000000000000000000018 /* SettingsWindowChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC0000000000000000080018 /* SettingsWindowChrome.swift */; };
-		J90000000000000000000102 /* PlaybackSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = J90000000000000000000152 /* PlaybackSettingsView.swift */; };
 		J90000000000000000000103 /* AccountSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = J90000000000000000000153 /* AccountSettingsView.swift */; };
 		J90000000000000000000104 /* SpotifyClientIDAndActionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = J90000000000000000000154 /* SpotifyClientIDAndActionsView.swift */; };
 		J90000000000000000000105 /* AppearanceSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = J90000000000000000000155 /* AppearanceSettingsView.swift */; };
@@ -544,7 +543,6 @@
 		J90000000000000000000012 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		J90000000000000000000151 /* SpotiglassSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotiglassSettingsView.swift; sourceTree = "<group>"; };
 		SRC0000000000000000080018 /* SettingsWindowChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowChrome.swift; sourceTree = "<group>"; };
-		J90000000000000000000152 /* PlaybackSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackSettingsView.swift; sourceTree = "<group>"; };
 		J90000000000000000000153 /* AccountSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSettingsView.swift; sourceTree = "<group>"; };
 		J90000000000000000000154 /* SpotifyClientIDAndActionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyClientIDAndActionsView.swift; sourceTree = "<group>"; };
 		J90000000000000000000155 /* AppearanceSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceSettingsView.swift; sourceTree = "<group>"; };
@@ -1228,7 +1226,6 @@
 			children = (
 				J90000000000000000000151 /* SpotiglassSettingsView.swift */,
 				SRC0000000000000000080018 /* SettingsWindowChrome.swift */,
-				J90000000000000000000152 /* PlaybackSettingsView.swift */,
 				J90000000000000000000155 /* AppearanceSettingsView.swift */,
 				SRC0000000000000000080011 /* EqualizerSettingsView.swift */,
 				SRC0000000000000000080010 /* EqualizerPresets.swift */,
@@ -1582,7 +1579,6 @@
 				SRC000000000000000000001F /* PlaybackSeekStep.swift in Sources */,
 				J90000000000000000000101 /* SpotiglassSettingsView.swift in Sources */,
 				SRC0000000000000000000018 /* SettingsWindowChrome.swift in Sources */,
-				J90000000000000000000102 /* PlaybackSettingsView.swift in Sources */,
 				J90000000000000000000105 /* AppearanceSettingsView.swift in Sources */,
 				SRC0000000000000000000011 /* EqualizerSettingsView.swift in Sources */,
 				SRC0000000000000000000010 /* EqualizerPresets.swift in Sources */,

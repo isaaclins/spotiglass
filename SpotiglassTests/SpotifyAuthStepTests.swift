@@ -451,13 +451,15 @@ final class SpotifyAuthStepTests: XCTestCase {
     @MainActor
     func testSignInFailureCooldownBlocksImmediateRetryThenAllowsLaterRetry() async {
         let flow = FailingAuthorizationFlow(error: URLError(.timedOut))
+        var now = Date(timeIntervalSince1970: 1_000)
         let viewModel = AuthViewModel(
             settings: makeSettings(clientID: "client-id"),
             authorizationFlow: flow,
             tokenClient: SpotifyTokenClient(),
             refreshTokenStore: InMemoryRefreshTokenStore(),
             signOutDataCleaner: {},
-            artworkCacheClearer: {}
+            artworkCacheClearer: {},
+            now: { now }
         )
 
         await viewModel.signIn()
@@ -466,7 +468,7 @@ final class SpotifyAuthStepTests: XCTestCase {
         await viewModel.signIn()
         XCTAssertEqual(flow.recordedRequestCount(), 1, "Immediate retries should be ignored during cooldown.")
 
-        try? await Task.sleep(nanoseconds: 2_200_000_000)
+        now = now.addingTimeInterval(2)
         await viewModel.signIn()
         XCTAssertEqual(flow.recordedRequestCount(), 2, "Retry should proceed after cooldown expires.")
     }
@@ -482,14 +484,20 @@ private func waitUntil(timeoutNanoseconds: UInt64 = 2_000_000_000, _ predicate: 
     let deadline = DispatchTime.now().uptimeNanoseconds + timeoutNanoseconds
     while DispatchTime.now().uptimeNanoseconds < deadline {
         if predicate() { return }
-        try? await Task.sleep(nanoseconds: 5_000_000)
+        await Task.yield()
     }
     XCTFail("waitUntil timed out")
 }
 
 private struct HangUntilCancelledAuthorizationFlow: SpotifyAuthorizationFlowing {
     func requestAuthorizationCode(clientID: String, timeout: TimeInterval) async throws -> SpotifyAuthorizationCode {
-        try await Task.sleep(for: .seconds(3_600))
+        let cancellationSignal = AsyncSignal()
+        try await withTaskCancellationHandler(operation: {
+            await cancellationSignal.wait()
+            try Task.checkCancellation()
+        }, onCancel: {
+            cancellationSignal.signal()
+        })
         fatalError("unreachable")
     }
 }
@@ -516,7 +524,13 @@ private final class TwoStepAuthorizationFlow: SpotifyAuthorizationFlowing, @unch
         if secondStep {
             return try successCode()
         }
-        try await Task.sleep(for: .seconds(3_600))
+        let cancellationSignal = AsyncSignal()
+        try await withTaskCancellationHandler(operation: {
+            await cancellationSignal.wait()
+            try Task.checkCancellation()
+        }, onCancel: {
+            cancellationSignal.signal()
+        })
         fatalError("First authorization step should end by cancellation or timeout")
     }
 }
@@ -535,7 +549,13 @@ private final class CountingHangAuthorizationFlow: SpotifyAuthorizationFlowing, 
         lock.lock()
         requestCount += 1
         lock.unlock()
-        try await Task.sleep(for: .seconds(3_600))
+        let cancellationSignal = AsyncSignal()
+        try await withTaskCancellationHandler(operation: {
+            await cancellationSignal.wait()
+            try Task.checkCancellation()
+        }, onCancel: {
+            cancellationSignal.signal()
+        })
         fatalError("unreachable")
     }
 }

@@ -724,21 +724,26 @@ final class QueuePanelTests: XCTestCase {
         let two = SpotifyTrack(id: "2", name: "Two", artists: ["B"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:2")
         let three = SpotifyTrack(id: "3", name: "Three", artists: ["C"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:3")
         api.queueResponse = SpotifyQueueResponse(queue: [.track(one), .track(two), .track(three)])
-        queue.setPanelVisible(true)
+        queue.isPanelVisible = true
         await queue.refreshQueue()
         let original = queue.upcomingItems.map(\.id)
         XCTAssertGreaterThan(original.count, 1, "Test requires multiple upcoming items.")
+        let slowFetchStarted = AsyncSignal()
+        api.onFetchQueue = {
+            slowFetchStarted.signal()
+        }
 
         let toggleTask = Task { await queue.toggleShuffle() }
-        var sawOptimisticReorder = false
-        for _ in 0..<8 {
-            try? await Task.sleep(nanoseconds: 20_000_000)
-            if queue.upcomingItems.map(\.id) != original {
-                sawOptimisticReorder = true
-                break
-            }
-        }
-        XCTAssertTrue(sawOptimisticReorder, "Queue should reorder before slow Spotify reconciliation finishes.")
+        let didStartShuffleFetch = await slowFetchStarted.wait(timeout: .seconds(2))
+        XCTAssertTrue(
+            didStartShuffleFetch,
+            "shuffle should start queue reconciliation after applying its optimistic order"
+        )
+        XCTAssertNotEqual(
+            queue.upcomingItems.map(\.id),
+            original,
+            "Queue should reorder before slow Spotify reconciliation finishes."
+        )
         await toggleTask.value
     }
 
@@ -753,24 +758,28 @@ final class QueuePanelTests: XCTestCase {
         let two = SpotifyTrack(id: "2", name: "Two", artists: ["B"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:2")
         let three = SpotifyTrack(id: "3", name: "Three", artists: ["C"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:3")
         api.queueResponse = SpotifyQueueResponse(queue: [.track(one), .track(two), .track(three)])
-        queue.setPanelVisible(true)
+        queue.isPanelVisible = true
         await queue.refreshQueue()
         let original = queue.upcomingItems.map(\.id)
         XCTAssertGreaterThan(original.count, 1, "Test requires multiple upcoming items.")
         api.errorToThrow = CancellationError()
-
         await queue.toggleShuffle()
 
-        let offTask = Task { await queue.toggleShuffle() }
-        var sawRestoredSnapshot = false
-        for _ in 0..<8 {
-            try? await Task.sleep(nanoseconds: 20_000_000)
-            if queue.upcomingItems.map(\.id) == original {
-                sawRestoredSnapshot = true
-                break
-            }
+        let slowFetchStarted = AsyncSignal()
+        api.onFetchQueue = {
+            slowFetchStarted.signal()
         }
-        XCTAssertTrue(sawRestoredSnapshot, "Turning shuffle off should restore pre-shuffle ordering before reconciliation finishes.")
+        let offTask = Task { await queue.toggleShuffle() }
+        let didStartShuffleOffFetch = await slowFetchStarted.wait(timeout: .seconds(2))
+        XCTAssertTrue(
+            didStartShuffleOffFetch,
+            "turning shuffle off should start queue reconciliation after restoring its snapshot"
+        )
+        XCTAssertEqual(
+            queue.upcomingItems.map(\.id),
+            original,
+            "Turning shuffle off should restore pre-shuffle ordering before reconciliation finishes."
+        )
         await offTask.value
     }
 
@@ -918,13 +927,21 @@ final class QueuePanelTests: XCTestCase {
             pausedPollIntervalNanoseconds: 30_000_000,
             pollJitterFraction: 0
         )
-        queue.setPanelVisible(true)
+        queue.isPanelVisible = true
         await queue.refreshQueue()
-        try? await Task.sleep(nanoseconds: 80_000_000)
+        let pollFetchStarted = AsyncSignal()
+        api.onFetchQueue = {
+            pollFetchStarted.signal()
+        }
+        queue.restartPollingIfNeeded()
+        let didStartPollFetch = await pollFetchStarted.wait(timeout: .seconds(2))
+        XCTAssertTrue(
+            didStartPollFetch,
+            "active queue polling should issue a fetch"
+        )
         let fetchesBeforeInactive = api.actions.filter { $0 == "fetchQueue" }.count
 
         queue.setAppActive(false)
-        try? await Task.sleep(nanoseconds: 200_000_000)
         let fetchesAfterInactive = api.actions.filter { $0 == "fetchQueue" }.count
 
         XCTAssertGreaterThan(fetchesBeforeInactive, 0)
@@ -1014,7 +1031,7 @@ final class QueuePanelTests: XCTestCase {
         let optimistic = queue.upcomingItems.map(\.id)
         XCTAssertNotEqual(optimistic, original)
 
-        try? await Task.sleep(nanoseconds: 60_000_000)
+        queue.optimisticReconcileDeadline = queue.clock.now
         await queue.refreshQueue()
         XCTAssertEqual(queue.upcomingItems.map(\.id), original, "Optimistic projection should clear after reconcile timeout.")
     }
@@ -1052,13 +1069,12 @@ final class QueuePanelTests: XCTestCase {
             pollIntervalNanoseconds: 60_000_000_000,
             pollJitterFraction: 0
         )
-        queue.setPanelVisible(true)
+        queue.isPanelVisible = true
         await queue.refreshQueue()
-        try? await Task.sleep(nanoseconds: 20_000_000)
+        queue.restartPollingIfNeeded()
         let baselineFetchCount = api.actions.filter { $0 == "fetchQueue" }.count
 
         queue.setPanelVisible(false)
-        try? await Task.sleep(nanoseconds: 50_000_000)
 
         let fetchCountAfterCancel = api.actions.filter { $0 == "fetchQueue" }.count
         XCTAssertEqual(
@@ -1079,6 +1095,7 @@ private final class QueueTestPlaybackAPI: SpotifyPlaybackControlling {
     private let lock = NSLock()
     private(set) var actions: [String] = []
     let fetchQueueSignal = AsyncSignal()
+    var onFetchQueue: (() -> Void)?
     var queueResponse = SpotifyQueueResponse(queue: [])
     var errorToThrow: Error?
     var setShuffleError: Error?
@@ -1117,6 +1134,7 @@ private final class QueueTestPlaybackAPI: SpotifyPlaybackControlling {
     func fetchQueue() async throws -> SpotifyQueueResponse {
         appendAction("fetchQueue")
         fetchQueueSignal.signal()
+        onFetchQueue?()
         beginFetch()
         defer { endFetch() }
         if fetchQueueDelayNanoseconds > 0 {

@@ -17,10 +17,15 @@ final class SpotifyAuthorizationFlowTests: XCTestCase {
     }
 
     func testRequestAuthorizationCodeCompletesViaLoopback() async throws {
-        let presenter = CapturingAuthorizationURLPresenter()
+        let presenterOpened = AsyncSignal()
+        let presenter = CapturingAuthorizationURLPresenter(openedSignal: presenterOpened)
         let flow = SpotifyAuthorizationFlow(presenter: presenter)
         async let codeTask = flow.requestAuthorizationCode(clientID: "test-client-id", timeout: 15)
-        try await Task.sleep(nanoseconds: 250_000_000)
+        let didOpenPresenter = await presenterOpened.wait(timeout: .seconds(2))
+        XCTAssertTrue(
+            didOpenPresenter,
+            "authorization should open its browser URL"
+        )
 
         guard let authURL = presenter.openedURL,
               let components = URLComponents(url: authURL, resolvingAgainstBaseURL: false),
@@ -65,9 +70,15 @@ private struct ImmediateAuthorizationFlow: SpotifyAuthorizationFlowing {
 
 private final class CapturingAuthorizationURLPresenter: AuthorizationURLPresenter, @unchecked Sendable {
     private(set) var openedURL: URL?
+    private let openedSignal: AsyncSignal
+
+    init(openedSignal: AsyncSignal) {
+        self.openedSignal = openedSignal
+    }
 
     func open(_ url: URL) async throws {
         openedURL = url
+        openedSignal.signal()
     }
 }
 

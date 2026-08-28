@@ -100,7 +100,7 @@ struct CommandPaletteSettingsView: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .center, spacing: SpotiglassDesign.spacingM) {
                 Image(systemName: spec.iconSystemName)
-                    .font(.system(size: 18, weight: .medium))
+                    .font(SpotiglassDesign.Typography.commandPaletteIcon)
                     .symbolRenderingMode(.hierarchical)
                     .foregroundStyle(.secondary)
                     .frame(width: 28, alignment: .center)
@@ -166,7 +166,7 @@ struct CommandPaletteSettingsView: View {
                             } label: {
                                 Image(systemName: "xmark.circle.fill")
                                     .symbolRenderingMode(.hierarchical)
-                                    .font(.system(size: 16))
+                                    .font(SpotiglassDesign.Typography.commandPaletteClearShortcut)
                                     .foregroundStyle(.secondary)
                                     .frame(width: 28, height: 28)
                                     .contentShape(Rectangle())

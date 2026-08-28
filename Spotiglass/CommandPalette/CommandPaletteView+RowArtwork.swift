@@ -19,7 +19,7 @@ struct CommandPaletteArtistAvatar: View {
                     .scaledToFill()
             } else {
                 Image(systemName: fallbackSystemName)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(SpotiglassDesign.Typography.commandPaletteArtworkFallback)
                     .foregroundStyle(.secondary)
             }
         }
@@ -56,7 +56,7 @@ struct CommandPaletteTrackArtwork: View {
                     .scaledToFill()
             } else {
                 Image(systemName: fallbackSystemName)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(SpotiglassDesign.Typography.commandPaletteArtworkFallback)
                     .foregroundStyle(.secondary)
             }
         }
