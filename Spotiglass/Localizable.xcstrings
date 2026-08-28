@@ -12900,6 +12900,29 @@
         }
       }
     },
+    "settings.eq.description.disabled": {
+      "comment": "Hint shown below the Equalizer toggle while the equalizer is disabled; editor controls are unavailable until it is enabled.",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Equalizer ist ausgeschaltet. Aktiviere ihn, um die Kurve zu bearbeiten und Änderungen auf die Spotiglass-Wiedergabe anzuwenden."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Equalizer is off. Enable Equalizer to edit the curve and apply changes to Spotiglass playback."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El ecualizador está desactivado. Activa el ecualizador para editar la curva y aplicar los cambios a la reproducción de Spotiglass."
+          }
+        }
+      }
+    },
     "settings.eq.enableToggle": {
       "extractionState": "stale",
       "localizations": {
