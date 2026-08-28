@@ -49,6 +49,8 @@ struct PlaybackProgressScrubberGroup: View {
                 .frame(minWidth: 36, alignment: .trailing)
                 .monospacedDigit()
 
+            // The track is the essential seeking surface. Its surrounding
+            // timestamps must not consume its entire width (#329).
             ScrubberView(
                 displayFraction: displayFraction,
                 durationMilliseconds: durationMs,
@@ -57,7 +59,10 @@ struct PlaybackProgressScrubberGroup: View {
                     dragFraction = fraction
                 }
             )
-            .frame(maxWidth: .infinity)
+            .frame(
+                minWidth: PlaybackTransportLayoutPolicy.scrubberMinimumWidth,
+                maxWidth: .infinity
+            )
             .opacity(isEnabled ? 1 : 0.4)
             .disabled(!isEnabled)
 
