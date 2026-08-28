@@ -90,6 +90,24 @@ final class SpotifyAPIClientSavedTracksPaginationTests: XCTestCase {
         XCTAssertEqual(httpClient.requests.count, 21)
     }
 
+    func testSavedTrackStatusesUsesContainsEndpoint() async throws {
+        let httpClient = QueueHTTPClient([
+            .json("[true, false]")
+        ])
+        let client = SpotifyAPIClient(
+            tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"),
+            httpClient: httpClient
+        )
+
+        let statuses = try await client.savedTrackStatuses(ids: ["saved-1", "saved-2"])
+
+        XCTAssertEqual(statuses, [true, false])
+        XCTAssertEqual(
+            httpClient.requests.first?.url?.absoluteString,
+            "https://api.spotify.com/v1/me/tracks/contains?ids=saved-1,saved-2"
+        )
+    }
+
     func testCurrentUserSavedTracksStopsWhenNextOffsetRepeats() async throws {
         let loopingPage = """
             {

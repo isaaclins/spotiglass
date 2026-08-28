@@ -88,6 +88,7 @@ final class MockBrowsingAPI: SpotifyBrowsingAPI {
     private let removeTracksHandler: ((String, [SpotifyPlaylistTrackRemoval], String?) async throws -> Void)?
     private let saveTracksHandler: (([String]) async throws -> Void)?
     private let removeSavedTracksHandler: (([String]) async throws -> Void)?
+    private let savedTrackStatusesHandler: (([String]) async throws -> [Bool])?
     private let profileHandler: (() async throws -> SpotifyUserProfile)?
     private(set) var savedTracksCallCount = 0
     private(set) var currentUserPlaylistsCallCount = 0
@@ -100,6 +101,7 @@ final class MockBrowsingAPI: SpotifyBrowsingAPI {
     private(set) var removeTracksCalls: [(playlistID: String, items: [SpotifyPlaylistTrackRemoval], snapshotID: String?)] = []
     private(set) var saveTracksCalls: [[String]] = []
     private(set) var removeSavedTracksCalls: [[String]] = []
+    private(set) var savedTrackStatusesCalls: [[String]] = []
     var playlistTracksDelayOnInvocation: UInt64?
     var onPlaylistTracksInvocation: ((String) -> Void)?
     var onCurrentUserPlaylistsInvocation: (() async -> Void)?
@@ -119,6 +121,7 @@ final class MockBrowsingAPI: SpotifyBrowsingAPI {
         removeTracksHandler: ((String, [SpotifyPlaylistTrackRemoval], String?) async throws -> Void)? = nil,
         saveTracksHandler: (([String]) async throws -> Void)? = nil,
         removeSavedTracksHandler: (([String]) async throws -> Void)? = nil,
+        savedTrackStatusesHandler: (([String]) async throws -> [Bool])? = nil,
         profileHandler: (() async throws -> SpotifyUserProfile)? = nil
     ) {
         self.playlistResults = playlistResults
@@ -135,6 +138,7 @@ final class MockBrowsingAPI: SpotifyBrowsingAPI {
         self.removeTracksHandler = removeTracksHandler
         self.saveTracksHandler = saveTracksHandler
         self.removeSavedTracksHandler = removeSavedTracksHandler
+        self.savedTrackStatusesHandler = savedTrackStatusesHandler
         self.profileHandler = profileHandler
     }
 
@@ -165,6 +169,14 @@ final class MockBrowsingAPI: SpotifyBrowsingAPI {
     func removeSavedTracks(ids: [String]) async throws {
         removeSavedTracksCalls.append(ids)
         try await removeSavedTracksHandler?(ids)
+    }
+
+    func savedTrackStatuses(ids: [String]) async throws -> [Bool] {
+        savedTrackStatusesCalls.append(ids)
+        if let savedTrackStatusesHandler {
+            return try await savedTrackStatusesHandler(ids)
+        }
+        return Array(repeating: false, count: ids.count)
     }
 
     func currentUserPlaylists(limit: Int) async throws -> [SpotifyPlaylistSummary] {

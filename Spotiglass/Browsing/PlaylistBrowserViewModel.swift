@@ -27,6 +27,9 @@ final class PlaylistBrowserViewModel: ObservableObject {
     /// this stays the value the context-menu actions read. Empty means "no
     /// selection, context-menu acts on the row alone".
     @Published var selectedDetailTrackIDs: Set<String> = []
+    /// Saved state keyed by canonical Spotify track ID. Context menus fill this
+    /// lazily from `/v1/me/tracks/contains` when a surface needs it.
+    @Published internal(set) var savedTrackStates: [String: Bool] = [:]
     /// User-facing toast banner published after a successful track-ops mutation
     /// ("Added 4 tracks to My Workout"). Read+set by views; auto-clears.
     @Published var trackMutationToast: String?
@@ -217,6 +220,7 @@ final class PlaylistBrowserViewModel: ObservableObject {
         likedSongsRevalidationTaskGeneration = nil
         likedSongsMutationGeneration += 1
         lastLikedSongsRevalidationAt = nil
+        savedTrackStates = [:]
         sidebarSelection = nil
         trackMutationToast = nil
         playlistsByID = [:]

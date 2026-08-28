@@ -290,3 +290,10 @@ enum TrackSelectionPinState {
     case pin
     case unpin
 }
+
+/// Whether the current track selection offers adding to or removing from Liked Songs.
+enum TrackSelectionLikedState: Equatable {
+    case unavailable
+    case add
+    case remove
+}
