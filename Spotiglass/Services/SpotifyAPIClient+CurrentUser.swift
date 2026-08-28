@@ -76,9 +76,49 @@ extension SpotifyAPIClient {
 
         return SpotifySavedTracksResult(tracks: results, totalAvailable: totalAvailable)
     }
+
+    /// Artists followed by the current user (`GET /v1/me/following`). The
+    /// endpoint uses an `after` cursor rather than offset pagination, so each
+    /// page is followed defensively up to the caller's cap.
+    func followedArtists(limit: Int = 50, maxPages: Int? = nil) async throws -> [SpotifyArtist] {
+        let pageLimit = min(max(1, limit), 50)
+        let pageCap = maxPages.map { max(1, $0) }
+        var results: [SpotifyArtist] = []
+        var after: String?
+        var pagesFetched = 0
+        var seenNextURLs: Set<String> = []
+
+        repeat {
+            try Task.checkCancellation()
+            var queryItems = [
+                URLQueryItem(name: "type", value: "artist"),
+                URLQueryItem(name: "limit", value: String(pageLimit))
+            ]
+            if let after {
+                queryItems.append(URLQueryItem(name: "after", value: after))
+            }
+            let response: SpotifyFollowedArtistsResponseDTO = try await send(
+                path: "/v1/me/following",
+                queryItems: queryItems
+            )
+            results.append(contentsOf: response.artists.items.map { $0.domainModel() })
+            pagesFetched += 1
+            if let pageCap, pagesFetched >= pageCap { break }
+            guard let next = response.artists.next else { break }
+            guard seenNextURLs.insert(next.absoluteString).inserted else { break }
+            after = Self.after(from: next)
+            guard after != nil else { break }
+        } while true
+
+        return results
+    }
 }
 
 private extension SpotifyAPIClient {
+    static func after(from url: URL) -> String? {
+        URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "after" }?.value
+    }
+
     static func offset(from url: URL) -> Int? {
         guard let queryItems = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems,
               let offsetValue = queryItems.first(where: { $0.name == "offset" })?.value else {

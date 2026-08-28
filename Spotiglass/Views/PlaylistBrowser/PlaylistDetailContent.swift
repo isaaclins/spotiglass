@@ -46,6 +46,9 @@ struct PlaylistDetailContent: View {
     let hasPlaybackDevice: Bool
     let addToQueue: (String) async -> Void
     let openArtist: (String) -> Void
+    /// Starts a continuation from the selected row through the browser's queue
+    /// orchestration.
+    var onRequestLibraryContinuation: ((TrackRowViewModel) -> Void)? = nil
     /// View-model passed in so the row context-menu can call the high-level
     /// mutation helpers (`addRowsToPlaylist`, `favoriteRows`, etc.) and so the
     /// track table can bind `List` selection to `selectedDetailTrackIDs`.
@@ -126,7 +129,8 @@ struct PlaylistDetailContent: View {
                                         newPlaylistInitialRows = rows
                                         newPlaylistName = ""
                                         isPromptingNewPlaylist = true
-                                    }
+                                    },
+                                    onRequestLibraryContinuation: onRequestLibraryContinuation
                                 ))
                             }
                         )
@@ -317,17 +321,22 @@ struct TrackOpsMenuItems: View {
     /// The playlist detail supplies its inline creation prompt. Other surfaces
     /// can provide the same callback from their shared browser host.
     let onRequestCreatePlaylist: (([TrackRowViewModel]) -> Void)?
+    /// Starts a library continuation using the row as its seed. The browser
+    /// host injects queue orchestration so this menu stays reusable.
+    let onRequestLibraryContinuation: ((TrackRowViewModel) -> Void)?
 
     init(
         targets: [TrackRowViewModel],
         browserViewModel: PlaylistBrowserViewModel,
         sourcePlaylistID: String? = nil,
-        onRequestCreatePlaylist: (([TrackRowViewModel]) -> Void)? = nil
+        onRequestCreatePlaylist: (([TrackRowViewModel]) -> Void)? = nil,
+        onRequestLibraryContinuation: ((TrackRowViewModel) -> Void)? = nil
     ) {
         self.targets = targets
         self.browserViewModel = browserViewModel
         self.sourcePlaylistID = sourcePlaylistID
         self.onRequestCreatePlaylist = onRequestCreatePlaylist
+        self.onRequestLibraryContinuation = onRequestLibraryContinuation
     }
 
     private var sourcePlaylistForMove: String? {
@@ -391,6 +400,14 @@ struct TrackOpsMenuItems: View {
             Task { await browserViewModel.unfavoriteRows(likedSongsTargets) }
         }
         .disabled(likedSongsTargets.isEmpty)
+
+        if let seed = targets.first(where: { $0.spotifyTrackForPinning() != nil }),
+           let onRequestLibraryContinuation {
+            Divider()
+            Button(SpotiglassL10n.string("library.continuation.menu")) {
+                onRequestLibraryContinuation(seed)
+            }
+        }
     }
 }
 

@@ -33,6 +33,8 @@
 		BB10000000000000000000002 /* BrowsingSidebarModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB10000000000000000000012 /* BrowsingSidebarModels.swift */; };
 		SRC000000000000000000001C /* CatalogSearchViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC000000000000000008001C /* CatalogSearchViewModel.swift */; };
 		BB10000000000000000000003 /* SpotifyBrowsingAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB10000000000000000000013 /* SpotifyBrowsingAPI.swift */; };
+		SRC0000000000000000000021 /* PlaylistBrowserViewModel+LibraryContinuation.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC0000000000000000080021 /* PlaylistBrowserViewModel+LibraryContinuation.swift */; };
+		SRC0000000000000000000020 /* LibraryContinuation.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC0000000000000000080020 /* LibraryContinuation.swift */; };
 		BB10000000000000000000004 /* SpotifyBrowsingCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB10000000000000000000014 /* SpotifyBrowsingCache.swift */; };
 		BB10000000000000000000005 /* BrowsingLoadState.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB10000000000000000000015 /* BrowsingLoadState.swift */; };
 		BB10000000000000000000006 /* PlaylistRowViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB10000000000000000000016 /* PlaylistRowViewModel.swift */; };
@@ -345,6 +347,8 @@
 		TST0000000000000000009101 /* TestOnlyConvenienceAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010129 /* TestOnlyConvenienceAPI.swift */; };
 		TST000000000000000000C1 /* PlaybackProgressAnchorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000000C0 /* PlaybackProgressAnchorTests.swift */; };
 		TST000000000000000000C2 /* PlaylistBrowserPrefetchAllTracksTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */; };
+		TST0000000000000000000127 /* PlaylistBrowserLibraryContinuationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010127 /* PlaylistBrowserLibraryContinuationTests.swift */; };
+		TST000000000000000000012A /* LibraryContinuationRankingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000001012A /* LibraryContinuationRankingTests.swift */; };
 		TST0000000000000000000126 /* CatalogSearchViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010126 /* CatalogSearchViewTests.swift */; };
 		TST0000000000000000000128 /* SpotiglassComponentsViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010128 /* SpotiglassComponentsViewTests.swift */; };
 		TST0000000000000000000125 /* InactiveWindowAppearanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010125 /* InactiveWindowAppearanceTests.swift */; };
@@ -393,6 +397,8 @@
 		BB10000000000000000000012 /* BrowsingSidebarModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowsingSidebarModels.swift; sourceTree = "<group>"; };
 		SRC000000000000000008001C /* CatalogSearchViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogSearchViewModel.swift; sourceTree = "<group>"; };
 		BB10000000000000000000013 /* SpotifyBrowsingAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyBrowsingAPI.swift; sourceTree = "<group>"; };
+		SRC0000000000000000080021 /* PlaylistBrowserViewModel+LibraryContinuation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlaylistBrowserViewModel+LibraryContinuation.swift"; sourceTree = "<group>"; };
+		SRC0000000000000000080020 /* LibraryContinuation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryContinuation.swift; sourceTree = "<group>"; };
 		BB10000000000000000000014 /* SpotifyBrowsingCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyBrowsingCache.swift; sourceTree = "<group>"; };
 		BB10000000000000000000015 /* BrowsingLoadState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowsingLoadState.swift; sourceTree = "<group>"; };
 		BB10000000000000000000016 /* PlaylistRowViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistRowViewModel.swift; sourceTree = "<group>"; };
@@ -621,6 +627,8 @@
 		TST0000000000000000010129 /* TestOnlyConvenienceAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestOnlyConvenienceAPI.swift; sourceTree = "<group>"; };
 		TST000000000000000000C0 /* PlaybackProgressAnchorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackProgressAnchorTests.swift; sourceTree = "<group>"; };
 		TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserPrefetchAllTracksTests.swift; sourceTree = "<group>"; };
+		TST0000000000000000010127 /* PlaylistBrowserLibraryContinuationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserLibraryContinuationTests.swift; sourceTree = "<group>"; };
+		TST000000000000000001012A /* LibraryContinuationRankingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryContinuationRankingTests.swift; sourceTree = "<group>"; };
 		TST0000000000000000010126 /* CatalogSearchViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogSearchViewTests.swift; sourceTree = "<group>"; };
 		TST0000000000000000010128 /* SpotiglassComponentsViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotiglassComponentsViewTests.swift; sourceTree = "<group>"; };
 		TST0000000000000000010125 /* InactiveWindowAppearanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InactiveWindowAppearanceTests.swift; sourceTree = "<group>"; };
@@ -896,6 +904,8 @@
 				TST00000000000000000064 /* PlaylistBrowserNavigationTests.swift */,
 				TST00000000000000000065 /* PlaylistBrowserArtistFallbackTests.swift */,
 				TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */,
+				TST0000000000000000010127 /* PlaylistBrowserLibraryContinuationTests.swift */,
+				TST000000000000000001012A /* LibraryContinuationRankingTests.swift */,
 				TST0000000000000000010126 /* CatalogSearchViewTests.swift */,
 				TST0000000000000000010128 /* SpotiglassComponentsViewTests.swift */,
 				TST0000000000000000010125 /* InactiveWindowAppearanceTests.swift */,
@@ -1078,6 +1088,8 @@
 				BB10000000000000000000012 /* BrowsingSidebarModels.swift */,
 				SRC000000000000000008001C /* CatalogSearchViewModel.swift */,
 				BB10000000000000000000013 /* SpotifyBrowsingAPI.swift */,
+				SRC0000000000000000080021 /* PlaylistBrowserViewModel+LibraryContinuation.swift */,
+				SRC0000000000000000080020 /* LibraryContinuation.swift */,
 				BB10000000000000000000014 /* SpotifyBrowsingCache.swift */,
 				BB10000000000000000000015 /* BrowsingLoadState.swift */,
 				BB10000000000000000000016 /* PlaylistRowViewModel.swift */,
@@ -1442,6 +1454,8 @@
 				BB10000000000000000000002 /* BrowsingSidebarModels.swift in Sources */,
 				SRC000000000000000000001C /* CatalogSearchViewModel.swift in Sources */,
 				BB10000000000000000000003 /* SpotifyBrowsingAPI.swift in Sources */,
+				SRC0000000000000000000021 /* PlaylistBrowserViewModel+LibraryContinuation.swift in Sources */,
+				SRC0000000000000000000020 /* LibraryContinuation.swift in Sources */,
 				BB10000000000000000000004 /* SpotifyBrowsingCache.swift in Sources */,
 				BB10000000000000000000005 /* BrowsingLoadState.swift in Sources */,
 				BB10000000000000000000006 /* PlaylistRowViewModel.swift in Sources */,
@@ -1607,6 +1621,8 @@
 				TST00000000000000000014 /* PlaylistBrowserNavigationTests.swift in Sources */,
 				TST00000000000000000015 /* PlaylistBrowserArtistFallbackTests.swift in Sources */,
 				TST000000000000000000C2 /* PlaylistBrowserPrefetchAllTracksTests.swift in Sources */,
+				TST0000000000000000000127 /* PlaylistBrowserLibraryContinuationTests.swift in Sources */,
+				TST000000000000000000012A /* LibraryContinuationRankingTests.swift in Sources */,
 				TST0000000000000000000126 /* CatalogSearchViewTests.swift in Sources */,
 				TST0000000000000000000128 /* SpotiglassComponentsViewTests.swift in Sources */,
 				TST0000000000000000000125 /* InactiveWindowAppearanceTests.swift in Sources */,

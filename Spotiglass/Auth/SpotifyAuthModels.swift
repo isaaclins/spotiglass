@@ -10,6 +10,7 @@ struct SpotifyAuthConfiguration: Equatable {
         "playlist-modify-public",
         "user-library-read",
         "user-library-modify",
+        "user-follow-read",
         "user-read-private",
         "user-read-email",
         "user-read-playback-state",

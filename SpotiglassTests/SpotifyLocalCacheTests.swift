@@ -54,6 +54,42 @@ final class SpotifyLocalCacheTests: XCTestCase {
         XCTAssertNoThrow(try cache.invalidateTracks(playlistID: "P"))
     }
 
+    // MARK: - Library continuation index
+
+    func testLibraryContinuationIndexRoundTripsAndRespectsAge() throws {
+        let (cache, _) = try makeCache()
+        let track = SpotifyTrack(
+            id: "t1",
+            name: "Track",
+            artists: ["Artist"],
+            albumArtworkURL: nil,
+            durationMilliseconds: 1_000,
+            isExplicit: false,
+            isPlayable: true,
+            linkedFromID: nil,
+            uri: "spotify:track:t1"
+        )
+        let library = LibraryContinuationLibrary(savedTracks: [track])
+        try cache.saveLibraryContinuationIndex(library, cachedAt: Date(timeIntervalSince1970: 1_000))
+
+        XCTAssertEqual(
+            try cache.loadLibraryContinuationIndex(
+                now: Date(timeIntervalSince1970: 1_100),
+                maxAge: 200
+            ),
+            library
+        )
+        XCTAssertNil(
+            try cache.loadLibraryContinuationIndex(
+                now: Date(timeIntervalSince1970: 1_300),
+                maxAge: 200
+            )
+        )
+        XCTAssertEqual(try cache.loadLibraryContinuationIndexIgnoringAge(), library)
+        try cache.invalidateLibraryContinuationIndex()
+        XCTAssertNil(try cache.loadLibraryContinuationIndexIgnoringAge())
+    }
+
     // MARK: - Pinned items per-account
 
     func testSavePinnedItemsAndLoadPinnedItemsRoundTripPerUser() throws {
@@ -135,6 +171,10 @@ final class SpotifyLocalCacheTests: XCTestCase {
         let pin = PinnedItem.playlist(playlist)
         try cache.savePlaylists([playlist], cachedAt: Date())
         try cache.saveTracks([], playlistID: "P", snapshotID: "S")
+        try cache.saveLibraryContinuationIndex(
+            LibraryContinuationLibrary(savedTracks: []),
+            cachedAt: Date()
+        )
         try cache.saveGETResponse(digest: "catalog", body: Data([1]), ttl: 60)
         try cache.savePinnedItems([pin], userID: "u")
 
@@ -142,6 +182,7 @@ final class SpotifyLocalCacheTests: XCTestCase {
 
         XCTAssertNil(try cache.loadPlaylistsBundle())
         XCTAssertNil(try cache.loadTracksIgnoringAge(playlistID: "P", snapshotID: "S"))
+        XCTAssertNil(try cache.loadLibraryContinuationIndexIgnoringAge())
         XCTAssertEqual(
             try cache.loadGETResponseRecord(digest: "catalog", allowExpired: true)?.data,
             Data([1])

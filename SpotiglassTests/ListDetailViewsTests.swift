@@ -225,11 +225,13 @@ final class ListDetailViewsTests: XCTestCase {
             PlaylistBrowsingTestFixtures.track(id: "surface-track")
         ])[0]
         var requestedRows: [TrackRowViewModel] = []
+        var continuationSeed: TrackRowViewModel?
         let view = TrackOpsMenuItems(
             targets: [target],
             browserViewModel: browserViewModel,
             sourcePlaylistID: nil,
-            onRequestCreatePlaylist: { requestedRows = $0 }
+            onRequestCreatePlaylist: { requestedRows = $0 },
+            onRequestLibraryContinuation: { continuationSeed = $0 }
         )
 
         ViewTestHost.host(view)
@@ -240,6 +242,10 @@ final class ListDetailViewsTests: XCTestCase {
             ).tap()
         )
         XCTAssertEqual(requestedRows.map(\.id), ["surface-track"])
+        XCTAssertNoThrow(
+            try view.inspect().find(button: SpotiglassL10n.string("library.continuation.menu")).tap()
+        )
+        XCTAssertEqual(continuationSeed?.id, target.id)
         XCTAssertNoThrow(
             try view.inspect().find(
                 text: SpotiglassL10n.format(

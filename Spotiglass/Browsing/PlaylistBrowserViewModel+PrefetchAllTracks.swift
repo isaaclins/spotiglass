@@ -156,6 +156,7 @@ extension PlaylistBrowserViewModel {
             // legacy `limit=100 → HTTP 400` issue called out in the inline comment there.
             let tracks = try await api.playlistTracks(playlistID: summary.id, limit: 50, maxPages: 200)
             try? cache.saveTracks(tracks, playlistID: summary.id, snapshotID: summary.snapshotID, cachedAt: now())
+            invalidateLibraryContinuationCache()
             lastTracksRevalidationByID[summary.id] = (summary.snapshotID, now())
             return .completed
         } catch is CancellationError {
@@ -187,6 +188,7 @@ extension PlaylistBrowserViewModel {
                 snapshotID: SpotiglassSidebarLibrary.likedSongsCacheSnapshotID,
                 cachedAt: now()
             )
+            invalidateLibraryContinuationCache()
             lastTracksRevalidationByID[SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID] =
                 (SpotiglassSidebarLibrary.likedSongsCacheSnapshotID, now())
             lastLikedSongsRevalidationAt = now()

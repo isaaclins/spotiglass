@@ -32,6 +32,30 @@ final class QueueViewModelEnqueueCoverageTests: XCTestCase {
         XCTAssertTrue(queue.lastError?.canRetry == true)
     }
 
+    func testBatchEnqueuePreservesOrderDeduplicatesAndReportsCount() async {
+        let api = MockPlaybackAPI()
+        let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: MockWebPlaybackCommander())
+        playback.handle(.ready(deviceID: "device-1"))
+        let queue = QueueViewModel(
+            playbackAPI: api,
+            playbackSession: playback,
+            enqueueSuccessCooldown: .seconds(0)
+        )
+
+        let result = await queue.addToQueue(
+            uris: ["spotify:track:first", "spotify:track:second", "spotify:track:first"]
+        )
+
+        XCTAssertEqual(result, QueueEnqueueResult(requested: 2, enqueued: 2))
+        XCTAssertEqual(
+            api.actions.filter { $0.hasPrefix("addToQueue:") },
+            [
+                "addToQueue:device-1:spotify:track:first",
+                "addToQueue:device-1:spotify:track:second"
+            ]
+        )
+    }
+
     func testClearErrorRemovesBanner() async {
         let api = MockPlaybackAPI()
         let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: MockWebPlaybackCommander())

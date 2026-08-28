@@ -11,9 +11,11 @@ extension PlaylistBrowserViewModel {
             switch sidebarSelection {
             case .playlist(let playlistID):
                 try? cache.invalidateTracks(playlistID: playlistID)
+                invalidateLibraryContinuationCache()
                 lastTracksRevalidationByID[playlistID] = nil
             case .likedSongs:
                 try? cache.invalidateTracks(playlistID: SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID)
+                invalidateLibraryContinuationCache()
                 lastTracksRevalidationByID[SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID] = nil
             case .home, .search, .pinnedItem:
                 break

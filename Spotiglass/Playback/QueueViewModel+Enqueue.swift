@@ -6,23 +6,65 @@ extension QueueViewModel {
         await playbackSession.play(uri: uri)
     }
 
+    /// Existing single-track callers keep the fire-and-forget API. Batch callers
+    /// use the overload below, which serializes Spotify's one-URI endpoint while
+    /// preserving the supplied order.
     func addToQueue(uri: String) async {
         guard let deviceID = playbackSession.commandDeviceID else {
-            lastError = BrowsingDisplayError(
-                title: SpotiglassL10n.string("error.queue.playbackUnavailable.title"),
-                message: SpotiglassL10n.string("error.queue.playbackUnavailable.message"),
-                canRetry: false
-            )
+            publishPlaybackUnavailableError()
             return
         }
-        await performAddToQueue(uri: uri, deviceID: deviceID, source: .user)
+        _ = await performAddToQueue(uri: uri, deviceID: deviceID, source: .user)
+    }
+
+    /// Enqueues a continuation in order. A failure stops the batch so a rate
+    /// limit or unavailable device cannot turn one user action into a storm of
+    /// requests. The result lets the caller report a partial queue honestly.
+    @discardableResult
+    func addToQueue(uris: [String]) async -> QueueEnqueueResult {
+        var uniqueURIs: [String] = []
+        var seen: Set<String> = []
+        for uri in uris {
+            guard let canonical = SpotifyPlayableURI.canonical(uri), seen.insert(canonical).inserted else { continue }
+            uniqueURIs.append(canonical)
+        }
+        guard !uniqueURIs.isEmpty else {
+            return QueueEnqueueResult(requested: 0, enqueued: 0)
+        }
+        guard let deviceID = playbackSession.commandDeviceID else {
+            publishPlaybackUnavailableError()
+            return QueueEnqueueResult(requested: uniqueURIs.count, enqueued: 0)
+        }
+
+        var enqueued = 0
+        for uri in uniqueURIs {
+            guard !Task.isCancelled else { break }
+            let succeeded = await performAddToQueue(
+                uri: uri,
+                deviceID: deviceID,
+                source: .user,
+                refreshQueueAfterSuccess: false
+            )
+            guard succeeded else { break }
+            enqueued += 1
+        }
+        if enqueued > 0 {
+            await refreshQueue()
+        }
+        return QueueEnqueueResult(requested: uniqueURIs.count, enqueued: enqueued)
     }
 
     func clearError() {
         lastError = nil
     }
 
-    func performAddToQueue(uri: String, deviceID: String, source: EnqueueSource) async {
+    @discardableResult
+    func performAddToQueue(
+        uri: String,
+        deviceID: String,
+        source: EnqueueSource,
+        refreshQueueAfterSuccess: Bool = true
+    ) async -> Bool {
         let key = EnqueueKey(uri: uri, deviceID: deviceID)
         clearExpiredEnqueueGuards()
         if inFlightEnqueueKeys.contains(key) {
@@ -31,7 +73,7 @@ extension QueueViewModel {
                 message: SpotiglassL10n.string("error.queue.alreadyAdding.message"),
                 canRetry: false
             )
-            return
+            return false
         }
         if let blockedUntil = enqueueSuccessCooldownUntil[key], blockedUntil > clock.now {
             lastError = BrowsingDisplayError(
@@ -39,7 +81,7 @@ extension QueueViewModel {
                 message: SpotiglassL10n.string("error.queue.alreadyQueued.message"),
                 canRetry: false
             )
-            return
+            return false
         }
         if let blockedUntil = enqueueUnknownOutcomeUntil[key], blockedUntil > clock.now {
             lastError = BrowsingDisplayError(
@@ -47,7 +89,7 @@ extension QueueViewModel {
                 message: SpotiglassL10n.string("error.queue.statusPending.message"),
                 canRetry: true
             )
-            return
+            return false
         }
         if let blockedUntil = enqueueRateLimitUntil[key], blockedUntil > clock.now {
             let remaining = clock.now.duration(to: blockedUntil).timeInterval
@@ -58,20 +100,25 @@ extension QueueViewModel {
                 canRetry: true,
                 diagnosticDetails: SpotifyRateLimitDisplay.rawRetryDiagnostic(seconds: remaining)
             )
-            return
+            return false
         }
 
         inFlightEnqueueKeys.insert(key)
+        defer { inFlightEnqueueKeys.remove(key) }
         do {
             try await playbackAPI.addToQueue(uri: uri, deviceID: deviceID)
             lastError = nil
             enqueueSuccessCooldownUntil[key] = clock.now.advanced(by: enqueueSuccessCooldown)
             enqueueUnknownOutcomeUntil.removeValue(forKey: key)
             enqueueRateLimitUntil.removeValue(forKey: key)
-            await refreshQueue()
+            if refreshQueueAfterSuccess {
+                await refreshQueue()
+            }
+            return true
         } catch {
             if let apiError = error as? SpotifyAPIError,
-               case let .rateLimited(retryAfter) = apiError {
+                case .rateLimited(let retryAfter) = apiError
+            {
                 let retryDelay = Self.retryDelay(
                     retryAfter: retryAfter,
                     minimumDelay: enqueueMinimumRetryDelay.timeInterval
@@ -86,8 +133,16 @@ extension QueueViewModel {
             if let mapped = Self.displayError(for: error) {
                 lastError = mapped
             }
+            return false
         }
-        inFlightEnqueueKeys.remove(key)
+    }
+
+    private func publishPlaybackUnavailableError() {
+        lastError = BrowsingDisplayError(
+            title: SpotiglassL10n.string("error.queue.playbackUnavailable.title"),
+            message: SpotiglassL10n.string("error.queue.playbackUnavailable.message"),
+            canRetry: false
+        )
     }
 
     private func scheduleRateLimitedRetry(for key: EnqueueKey, retryDelay: TimeInterval) {
@@ -96,14 +151,14 @@ extension QueueViewModel {
             do {
                 try await Task.sleep(nanoseconds: UInt64(max(retryDelay, 0) * 1_000_000_000))
             } catch {
-                await MainActor.run { self?.enqueueRetryTasks.removeValue(forKey: key) }
+                _ = await MainActor.run { self?.enqueueRetryTasks.removeValue(forKey: key) }
                 return
             }
-            await MainActor.run {
+            _ = await MainActor.run {
                 self?.enqueueRetryTasks.removeValue(forKey: key)
             }
             guard !Task.isCancelled else { return }
-            await self?.performAddToQueue(uri: key.uri, deviceID: key.deviceID, source: .autoRetry)
+            _ = await self?.performAddToQueue(uri: key.uri, deviceID: key.deviceID, source: .autoRetry)
         }
     }
 
@@ -115,8 +170,8 @@ extension QueueViewModel {
     }
 }
 
-private extension Duration {
-    var timeInterval: TimeInterval {
+extension Duration {
+    fileprivate var timeInterval: TimeInterval {
         TimeInterval(components.seconds) + TimeInterval(components.attoseconds) / 1_000_000_000_000_000_000
     }
 }

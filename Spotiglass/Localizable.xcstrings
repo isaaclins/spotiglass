@@ -169,6 +169,167 @@
         }
       }
     },
+    "library.continuation.added": {
+      "comment": "Toast after all ranked continuation tracks are added to the playback queue.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Added %lld tracks from your library to the queue."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se añadieron %lld canciones de tu biblioteca a la cola."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld Titel aus deiner Bibliothek wurden zur Warteschlange hinzugefügt."
+          }
+        }
+      }
+    },
+    "library.continuation.empty": {
+      "comment": "Toast when no playable continuation can be found in the user's library.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "There aren't enough playable tracks in your library to continue this queue."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay suficientes canciones reproducibles en tu biblioteca para continuar esta cola."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Es gibt nicht genug abspielbare Titel in deiner Bibliothek, um diese Warteschlange fortzusetzen."
+          }
+        }
+      }
+    },
+    "library.continuation.menu": {
+      "comment": "Track context-menu action that queues more music from the user's own library.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "More from your library"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Más de tu biblioteca"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mehr aus deiner Bibliothek"
+          }
+        }
+      }
+    },
+    "library.continuation.partial": {
+      "comment": "Toast when only part of the ranked continuation could be added to the queue.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Added %lld of %lld tracks from your library to the queue."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se añadieron %lld de %lld canciones de tu biblioteca a la cola."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld von %lld Titeln aus deiner Bibliothek wurden zur Warteschlange hinzugefügt."
+          }
+        }
+      }
+    },
+    "library.continuation.queueFailed": {
+      "comment": "Toast fallback when the playback queue cannot accept any continuation tracks.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't add the library continuation to the queue."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo añadir la continuación de la biblioteca a la cola."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Fortsetzung aus der Bibliothek konnte nicht zur Warteschlange hinzugefügt werden."
+          }
+        }
+      }
+    },
+    "library.continuation.short": {
+      "comment": "Toast when a small library produced a shorter-than-useful continuation.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only %lld tracks from your library matched this track, so the queue is short."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo %lld canciones de tu biblioteca coincidieron con esta canción, así que la cola es corta."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nur %lld Titel aus deiner Bibliothek passten zu diesem Titel, daher ist die Warteschlange kurz."
+          }
+        }
+      }
+    },
+    "library.continuation.unavailable": {
+      "comment": "Toast when the selected context-menu item is not a playable Spotify track.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This item cannot start a library continuation."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este elemento no puede iniciar una continuación de la biblioteca."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieses Element kann keine Fortsetzung aus der Bibliothek starten."
+          }
+        }
+      }
+    },
     "a11y.palette.clearShortcut": {
       "extractionState": "stale",
       "localizations": {

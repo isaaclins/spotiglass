@@ -1,5 +1,10 @@
 import Foundation
 
+struct QueueEnqueueResult: Equatable {
+    let requested: Int
+    let enqueued: Int
+}
+
 @MainActor
 final class QueueViewModel: ObservableObject {
     @Published var nowPlayingItem: QueueItem?

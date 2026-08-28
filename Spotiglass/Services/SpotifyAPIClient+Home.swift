@@ -43,4 +43,23 @@ extension SpotifyAPIClient {
         )
         return page.items.compactMap { $0.domainModel() }
     }
+
+    /// The signed-in user's top artists (`GET /v1/me/top/artists`). Requires
+    /// the same `user-top-read` scope as top tracks.
+    func topArtists(
+        limit: Int = 50,
+        timeRange: String = "short_term",
+        cacheMode: SpotifyRequestCacheMode = .freshOnly
+    ) async throws -> [SpotifyArtist] {
+        let pageLimit = min(max(1, limit), 50)
+        let page: SpotifyPagingDTO<SpotifySearchArtistDTO> = try await send(
+            path: "/v1/me/top/artists",
+            queryItems: [
+                URLQueryItem(name: "limit", value: String(pageLimit)),
+                URLQueryItem(name: "time_range", value: timeRange)
+            ],
+            cacheMode: cacheMode
+        )
+        return page.items.map { $0.domainModel() }
+    }
 }

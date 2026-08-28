@@ -35,6 +35,7 @@ extension PlaylistBrowserViewModel {
         do {
             let playlists = try await fetchPlaylistsForRefresh(trigger: trigger)
             try? cache.savePlaylists(playlists, cachedAt: now())
+            invalidateLibraryContinuationCache()
             if playlists.isEmpty {
                 playlistsByID = [:]
                 playlistState = .empty(SpotiglassL10n.string("browser.empty.noPlaylists"))
