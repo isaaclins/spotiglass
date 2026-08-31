@@ -267,6 +267,26 @@ final class PlaybackChromeViewsTests: XCTestCase {
         }
     }
 
+    func testPlaybackTransportMinimumWidthsReserveSummaryAndFitContainer() {
+        for width in stride(from: CGFloat(700), through: CGFloat(1600), by: 10) {
+            let minimumWidths = PlaybackTransportLayoutPolicy.transportChildMinimumWidths(in: width)
+
+            XCTAssertGreaterThan(
+                minimumWidths.summary,
+                0,
+                "Now-playing summary lost its floor at transport width \(width)"
+            )
+            XCTAssertLessThanOrEqual(
+                minimumWidths.summary
+                    + minimumWidths.scrubber
+                    + minimumWidths.actions
+                    + (2 * SpotiglassDesign.spacingM),
+                width,
+                "Transport child minimums no longer fit at width \(width)"
+            )
+        }
+    }
+
     func testConnectDeviceMenuUsesNativePickerRowsAndSelectionState() throws {
         let playback = makePlayingPlayback()
         playback.connectDevices = [
