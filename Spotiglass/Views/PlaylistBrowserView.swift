@@ -15,11 +15,7 @@ struct PlaylistBrowserView: View {
     /// When lyrics opens we snapshot here; when the playlist list remounts, `ScrollViewReader` scrolls to this id then clears it.
     @State var pendingPlaylistListScrollRestoreID: String?
     /// Drives only the **playlist** sidebar (leading column). Queue visibility is separate — see `PlaylistBrowserDetailWithQueueSplit` below.
-    /// Let NavigationSplitView choose its compact representation instead of forcing
-    /// both columns into a window narrower than their declared minimum widths.
-    /// At the narrow end of the supported window range the native split view hides
-    /// the sidebar and keeps the detail column whole (#356).
-    @State var playlistColumnVisibility: NavigationSplitViewVisibility = .automatic
+    @State var playlistColumnVisibility: NavigationSplitViewVisibility = .doubleColumn
     /// Disconnecting clears the session and costs a full OAuth round trip to undo, and the
     /// control sits next to Refresh, so it asks first.
     @State var isConfirmingDisconnect = false
@@ -123,7 +119,6 @@ struct PlaylistBrowserView: View {
                     },
                     pinDroppedTransfers: pinDroppedTransfers
                 )
-                .background(.background)
                 .toolbar(removing: lyricsOverlay.isPresented ? .sidebarToggle : nil)
                 .navigationSplitViewColumnWidth(
                     min: SpotiglassDesign.playlistSidebarMinWidth,

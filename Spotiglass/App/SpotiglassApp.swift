@@ -132,7 +132,7 @@ struct SpotiglassApp: App {
                 // the old localized strings. The host itself is app-scoped and
                 // remains the same object across this scene replacement.
                 .id(settingsStore.settings.appearance.language.rawValue)
-                .frame(minWidth: 520, minHeight: 360)
+                .frame(minWidth: SpotiglassDesign.browserWindowMinWidth, minHeight: 360)
         }
         .windowResizability(.contentMinSize)
         .commands {

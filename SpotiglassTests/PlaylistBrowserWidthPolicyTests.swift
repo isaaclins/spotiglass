@@ -7,6 +7,15 @@ final class PlaylistBrowserWidthPolicyTests: XCTestCase {
         XCTAssertFalse(BrowserWidthCommitPolicy.mutualExclusionWidth(for: 1000, comfortableMinWidth: 900))
     }
 
+    func testBrowserWindowMinimumSupportsTheVisibleSplit() {
+        let splitMinimum =
+            SpotiglassDesign.playlistSidebarMinWidth
+            + SpotiglassDesign.detailColumnMinWidth
+
+        XCTAssertEqual(SpotiglassDesign.browserWindowMinWidth, 700)
+        XCTAssertGreaterThanOrEqual(SpotiglassDesign.browserWindowMinWidth, splitMinimum)
+    }
+
     func testEvaluateSkipsWhenNoBreakpointThrottleOrDrift() {
         let result = BrowserWidthCommitPolicy.evaluate(
             BrowserWidthCommitPolicy.CommitInput(
