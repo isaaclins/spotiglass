@@ -26,6 +26,29 @@ ifeq ($(UNSIGNED),1)
 CODE_SIGN_FLAGS += CODE_SIGNING_ALLOWED=NO
 endif
 
+# Signing identity for local builds.
+#
+# Ad-hoc signing pins the designated requirement to the binary's cdhash, which
+# changes on every build. The keychain ACL guarding the stored Spotify refresh
+# token therefore stops matching after each rebuild and macOS re-prompts for the
+# login keychain password - "Always Allow" cannot stick, because the next build
+# is a different identity. A certificate-backed identity pins the requirement to
+# the certificate instead, which is stable across rebuilds.
+#
+# Prefers a real Apple Development certificate; falls back to the self-signed
+# local identity from scripts/create-local-signing-identity.sh. If neither is
+# present the build stays ad-hoc exactly as before, so nothing is required of
+# contributors who have not run the script.
+LOCAL_SIGN_IDENTITY ?= $(shell security find-identity -v -p codesigning 2>/dev/null | awk '/Apple Development/ { print $$2; exit }')
+ifeq ($(strip $(LOCAL_SIGN_IDENTITY)),)
+LOCAL_SIGN_IDENTITY := $(shell security find-identity -p codesigning 2>/dev/null | awk '/"Spotiglass Local Dev"/ { print $$2; exit }')
+endif
+ifneq ($(strip $(LOCAL_SIGN_IDENTITY)),)
+ifneq ($(UNSIGNED),1)
+CODE_SIGN_FLAGS += CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=$(LOCAL_SIGN_IDENTITY) OTHER_CODE_SIGN_FLAGS=--keychain=$(HOME)/Library/Keychains/login.keychain-db
+endif
+endif
+
 # Extra xcodebuild settings, e.g. XCODE_EXTRA='CODE_SIGN_IDENTITY=-'
 XCODE_EXTRA ?=
 
