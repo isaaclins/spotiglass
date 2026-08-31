@@ -287,6 +287,70 @@ final class PlaybackChromeViewsTests: XCTestCase {
         }
     }
 
+    func testPlaybackTransportLayoutCandidatesReachFixedPointsAcrossDenseWidthSweep() {
+        let fullCandidate = PlaybackTransportLayoutPolicy.TransportLayoutCandidate(
+            isStacked: false,
+            useCompactVolume: false,
+            minimumWidth: PlaybackTransportLayoutPolicy.compactVolumeBreakpoint
+        )
+        let compactCandidate = PlaybackTransportLayoutPolicy.TransportLayoutCandidate(
+            isStacked: false,
+            useCompactVolume: true,
+            minimumWidth: PlaybackTransportLayoutPolicy.stackedScrubberBreakpoint
+        )
+
+        XCTAssertEqual(
+            PlaybackTransportLayoutPolicy.transportLayoutCandidate(
+                for: PlaybackTransportLayoutPolicy.compactVolumeBreakpoint - 1
+            ),
+            compactCandidate
+        )
+        XCTAssertEqual(
+            PlaybackTransportLayoutPolicy.transportLayoutCandidate(
+                for: PlaybackTransportLayoutPolicy.compactVolumeBreakpoint + 1
+            ),
+            fullCandidate
+        )
+
+        for width in stride(from: CGFloat(320), through: CGFloat(1600), by: 1) {
+            let firstCandidate = PlaybackTransportLayoutPolicy.transportLayoutCandidate(for: width)
+            let firstMinimums = PlaybackTransportLayoutPolicy.transportChildMinimumWidths(
+                in: width,
+                useCompactVolume: firstCandidate.useCompactVolume
+            )
+            // Model ViewThatFits feeding the selected candidate's frame back
+            // through layout: the selected candidate must remain selected and
+            // its complete child-minimum computation must remain unchanged.
+            let measuredAgain = max(width, firstCandidate.minimumWidth)
+            let secondCandidate = PlaybackTransportLayoutPolicy.transportLayoutCandidate(for: measuredAgain)
+            let secondMinimums = PlaybackTransportLayoutPolicy.transportChildMinimumWidths(
+                in: measuredAgain,
+                useCompactVolume: secondCandidate.useCompactVolume
+            )
+
+            XCTAssertEqual(
+                secondCandidate,
+                firstCandidate,
+                "Transport arrangement oscillated at measured width \(width)"
+            )
+            XCTAssertEqual(
+                secondMinimums,
+                firstMinimums,
+                "Transport child minimums did not converge at measured width \(width)"
+            )
+            if !firstCandidate.isStacked {
+                XCTAssertLessThanOrEqual(
+                    firstMinimums.summary
+                        + firstMinimums.scrubber
+                        + firstMinimums.actions
+                        + (2 * SpotiglassDesign.spacingM),
+                    width,
+                    "Horizontal candidate does not fit at measured width \(width)"
+                )
+            }
+        }
+    }
+
     func testConnectDeviceMenuUsesNativePickerRowsAndSelectionState() throws {
         let playback = makePlayingPlayback()
         playback.connectDevices = [
@@ -328,7 +392,7 @@ final class PlaybackChromeViewsTests: XCTestCase {
         XCTAssertNoThrow(try macPicker.find(text: "Headphones"))
     }
 
-    func testPlaybackControlsDisablesPlayPauseForRemotePlayback() throws {
+    func testPlaybackControlsEnablesPlayPauseForRemotePlayback() throws {
         try ViewTestHost.skipIfViewInspectorGeometryUnsupported()
         let playback = PlaybackSessionViewModel(
             playbackAPI: MockPlaybackAPI(),
@@ -345,7 +409,7 @@ final class PlaybackChromeViewsTests: XCTestCase {
 
         ViewTestHost.host(view, size: CGSize(width: 900, height: 120))
         let playButton = try view.inspect().find(viewWithAccessibilityLabel: SpotiglassL10n.string("playback.play"))
-        XCTAssertTrue(playButton.isDisabled())
+        XCTAssertFalse(playButton.isDisabled())
     }
 
     func testPlaybackControlsArtistLineRendersOpenArtistButtons() throws {

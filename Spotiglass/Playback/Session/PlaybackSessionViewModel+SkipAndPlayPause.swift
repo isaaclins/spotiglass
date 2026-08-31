@@ -3,7 +3,10 @@ import Foundation
 @MainActor
 extension PlaybackSessionViewModel {
     func togglePlayPause() async {
-        guard !isRemotePlaybackActive else { return }
+        if isRemotePlaybackActive {
+            await toggleRemotePlayback()
+            return
+        }
         guard !togglePlayPauseAwaitingBridgeAck else { return }
         togglePlayPauseAwaitingBridgeAck = true
         scheduleTogglePlayPauseAckTimeout()
@@ -11,6 +14,61 @@ extension PlaybackSessionViewModel {
             try await webCommander.send(.togglePlay, payload: [:])
         } catch {
             clearTogglePlayPauseAckWait()
+            setConnectionState(.error(Self.displayError(for: error)))
+        }
+    }
+
+    /// Uses Spotify's Web API when the selected Connect device is not the
+    /// embedded Web Playback SDK device. The SDK cannot control a remote
+    /// player, so silently returning here would make the transport a dead
+    /// button.
+    private func toggleRemotePlayback() async {
+        guard Self.isPlaybackTransportReady(for: connectionState),
+              let commandDeviceID else { return }
+        let generation = playbackHostGeneration
+        guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
+
+        let shouldPause: Bool
+        switch connectionState {
+        case .playing:
+            shouldPause = true
+        case .paused:
+            shouldPause = false
+        case .ready, .transferring:
+            shouldPause = latestPlayerSnapshot?.isPlaying == true
+        case .disconnected, .connecting, .unavailable, .error:
+            return
+        }
+        let action = shouldPause ? "pause" : "resume"
+        SpotiglassLog.info(
+            .playback,
+            "togglePlayPause remote action=\(action) deviceID=\(commandDeviceID)"
+        )
+
+        do {
+            try await performPrioritizedControlCommand {
+                if shouldPause {
+                    try await playbackAPI.pause(deviceID: commandDeviceID)
+                } else {
+                    try await playbackAPI.resume(deviceID: commandDeviceID)
+                }
+            }
+            guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
+
+            let nowPlaying = currentNowPlaying ?? latestPlayerSnapshot?.playbackNowPlaying
+            let optimisticNowPlaying = nowPlaying.map { nowPlaying in
+                let position = progressAnchor?.interpolatedPositionMs(at: Date())
+                    ?? nowPlaying.positionMilliseconds
+                return nowPlaying.with(positionMilliseconds: position)
+            }
+            if shouldPause {
+                setConnectionState(.paused(optimisticNowPlaying))
+            } else {
+                setConnectionState(.playing(optimisticNowPlaying ?? fallbackNowPlaying()))
+            }
+            noteLocalPlaybackMutation()
+        } catch {
+            guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
             setConnectionState(.error(Self.displayError(for: error)))
         }
     }

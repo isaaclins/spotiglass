@@ -264,7 +264,7 @@ final class CommandPaletteManagerTests: XCTestCase {
         XCTAssertTrue(manager.canTogglePlayback)
 
         playback.setActivePlaybackDeviceID("remote-device")
-        XCTAssertFalse(manager.canTogglePlayback)
+        XCTAssertTrue(manager.canTogglePlayback)
         playback.setActivePlaybackDeviceID("local-device")
         XCTAssertTrue(manager.canTogglePlayback)
 

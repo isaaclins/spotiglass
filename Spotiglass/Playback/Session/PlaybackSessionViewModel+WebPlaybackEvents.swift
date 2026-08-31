@@ -24,6 +24,7 @@ extension PlaybackSessionViewModel {
             cancelPlaybackHostConnectTimeout()
             reclaimableSDKDeviceID = nil
             let previousSDKDeviceID = self.deviceID
+            let wasRemotePlaybackActive = isRemotePlaybackActive
             let shouldRefreshTransportState = !(previousSDKDeviceID == deviceID && isTransportStateKnown)
             if shouldRefreshTransportState {
                 setTransportStateKnown(false)
@@ -38,7 +39,9 @@ extension PlaybackSessionViewModel {
             if activePlaybackDeviceID == nil || activePlaybackDeviceID == previousSDKDeviceID {
                 setActivePlaybackDeviceID(deviceID)
             }
-            setConnectionState(.ready(deviceID: deviceID))
+            if !wasRemotePlaybackActive && !isRemotePlaybackActive {
+                setConnectionState(.ready(deviceID: deviceID))
+            }
             refreshTrayOutputSymbol()
             let persistedVolume = playbackVolume
             let persistedVolumeMutationVersion = shouldRefreshTransportState
@@ -118,6 +121,13 @@ extension PlaybackSessionViewModel {
                 await self.attemptPlaybackHostRecovery(cause: .notReady, generation: generation)
             }
         case let .stateChanged(nowPlaying, isPaused, nextTracks):
+            if isRemotePlaybackActive {
+                // The embedded SDK is intentionally idle while another
+                // Connect device owns playback. Its state_changed events must
+                // not replace the Web API snapshot in the transport.
+                SpotiglassLog.info(.playback, "Ignoring SDK state_changed while remote device is active")
+                return
+            }
             let suppressed = shouldSuppressStaleStateChange(nowPlaying: nowPlaying)
             SpotiglassLog.info(.playback, "SDK state_changed nowPlayingURI=\(nowPlaying?.uri ?? "<nil>") isPaused=\(isPaused) nextCount=\(nextTracks.count) pendingPlayURI=\(pendingPlayURI ?? "<nil>") suppressed=\(suppressed)")
             observeSkipAdvance(nowPlayingURI: nowPlaying?.uri)

@@ -270,6 +270,14 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
         actionRecorder.append("play-context:\(deviceID):\(contextURI)")
     }
 
+    func pause(deviceID: String) async throws {
+        actionRecorder.append("pause:\(deviceID)")
+    }
+
+    func resume(deviceID: String) async throws {
+        actionRecorder.append("resume:\(deviceID)")
+    }
+
     func play(uris: [String], deviceID: String) async throws {
         try await playQueue(uris: uris, offsetURI: nil, deviceID: deviceID)
     }

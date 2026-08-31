@@ -218,6 +218,225 @@ final class PlaybackTransportPollingTests: XCTestCase {
         XCTAssertFalse(viewModel.shouldRunTransportPolling())
     }
 
+    func testScopeDeniedSnapshotFetchSurfacesReconnectablePlaybackError() async {
+        let playbackAPI = MockPlaybackAPI()
+        playbackAPI.fetchPlayerSnapshotError = SpotifyAPIError.insufficientScope(
+            requiredScopes: ["user-read-playback-state"],
+            message: nil,
+            details: "Scope preflight denied GET /v1/me/player"
+        )
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: playbackAPI,
+            webCommander: MockWebPlaybackCommander()
+        )
+        viewModel.deviceID = "local-device"
+        viewModel.setConnectionState(.ready(deviceID: "local-device"))
+
+        await viewModel.syncTransportFromSpotify()
+
+        guard case let .error(error) = viewModel.connectionState else {
+            return XCTFail("A missing playback scope must surface an actionable transport error")
+        }
+        XCTAssertEqual(error.recoveryAction, .reauthenticate)
+        XCTAssertEqual(error.message, SpotiglassL10n.string("error.spotify.insufficientPermissions"))
+        XCTAssertNil(viewModel.currentNowPlaying)
+        XCTAssertFalse(viewModel.isPlaybackTransportReady)
+    }
+
+    func testRemoteSnapshotDrivesPlayingTransportWithInterpolatedProgress() async {
+        let playbackAPI = MockPlaybackAPI()
+        let remoteDevice = SpotifyConnectDevice(
+            deviceID: "phone-device",
+            isActive: true,
+            isRestricted: false,
+            name: "Phone",
+            type: "smartphone"
+        )
+        let remoteTrack = SpotifyTrack(
+            id: "remote-track",
+            name: "Remote song",
+            artists: ["Remote artist"],
+            albumArtworkURL: URL(string: "https://example.com/remote.png"),
+            albumName: "Remote album",
+            albumID: "remote-album",
+            durationMilliseconds: 180_000,
+            isExplicit: false,
+            isPlayable: true,
+            linkedFromID: nil,
+            uri: "spotify:track:remote-track"
+        )
+        playbackAPI.snapshotResponses = [SpotifyPlayerSnapshot(
+            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+            activeDevice: remoteDevice,
+            isPlaying: true,
+            item: .track(remoteTrack),
+            progressMilliseconds: 42_000
+        )]
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: playbackAPI,
+            webCommander: MockWebPlaybackCommander()
+        )
+        viewModel.deviceID = "local-device"
+        viewModel.setConnectionState(.ready(deviceID: "local-device"))
+
+        await viewModel.syncTransportFromSpotify()
+
+        guard case let .playing(nowPlaying) = viewModel.connectionState else {
+            return XCTFail("Expected remote playback to publish a playing transport state")
+        }
+        XCTAssertEqual(nowPlaying.name, "Remote song")
+        XCTAssertEqual(nowPlaying.artistText, "Remote artist")
+        XCTAssertEqual(nowPlaying.albumArtURL?.absoluteString, "https://example.com/remote.png")
+        XCTAssertEqual(nowPlaying.positionMilliseconds, 42_000)
+        XCTAssertEqual(viewModel.activePlaybackDeviceID, "phone-device")
+        XCTAssertTrue(viewModel.isRemotePlaybackActive)
+        XCTAssertTrue(viewModel.progressAnchor?.isAdvancing == true)
+        XCTAssertEqual(viewModel.progressAnchor?.positionMilliseconds, 42_000)
+
+        viewModel.handle(.stateChanged(
+            PlaybackNowPlaying(
+                name: "Idle SDK track",
+                artists: ["Local artist"],
+                albumName: nil,
+                albumID: nil,
+                albumArtURL: nil,
+                durationMilliseconds: 90_000,
+                positionMilliseconds: 0,
+                uri: "spotify:track:local"
+            ),
+            isPaused: true,
+            nextTracks: []
+        ))
+        XCTAssertEqual(viewModel.currentNowPlaying?.uri, "spotify:track:remote-track")
+    }
+
+    func testLocalSDKStateRemainsAuthoritativeWhenSnapshotContainsItem() async {
+        let playbackAPI = MockPlaybackAPI()
+        let localDevice = SpotifyConnectDevice(
+            deviceID: "local-device",
+            isActive: true,
+            isRestricted: false,
+            name: "Spotiglass",
+            type: "computer"
+        )
+        let snapshotTrack = PlaylistBrowsingTestFixtures.fallbackTrack(
+            id: "snapshot-track",
+            name: "Snapshot track",
+            artistId: "snapshot-artist"
+        )
+        playbackAPI.snapshotResponses = [SpotifyPlayerSnapshot(
+            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+            activeDevice: localDevice,
+            isPlaying: true,
+            item: .track(snapshotTrack),
+            progressMilliseconds: 25_000
+        )]
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: playbackAPI,
+            webCommander: MockWebPlaybackCommander()
+        )
+        viewModel.deviceID = "local-device"
+        let sdkTrack = PlaybackNowPlaying(
+            name: "SDK track",
+            artists: ["SDK artist"],
+            albumName: nil,
+            albumID: nil,
+            albumArtURL: nil,
+            durationMilliseconds: 100_000,
+            positionMilliseconds: 7_000,
+            uri: "spotify:track:sdk-track"
+        )
+        viewModel.setConnectionState(.playing(sdkTrack))
+
+        await viewModel.syncTransportFromSpotify()
+
+        XCTAssertEqual(viewModel.currentNowPlaying?.uri, "spotify:track:sdk-track")
+        XCTAssertEqual(viewModel.currentNowPlaying?.positionMilliseconds, 7_000)
+        XCTAssertFalse(viewModel.isRemotePlaybackActive)
+    }
+
+    func testRemoteSnapshotDrivesPausedEpisodeTransportState() async {
+        let playbackAPI = MockPlaybackAPI()
+        let remoteDevice = SpotifyConnectDevice(
+            deviceID: "phone-device",
+            isActive: true,
+            isRestricted: false,
+            name: "Phone",
+            type: "smartphone"
+        )
+        let episode = SpotifyEpisode(
+            id: "episode-1",
+            name: "Remote episode",
+            showName: "Remote show",
+            artworkURL: URL(string: "https://example.com/show.png"),
+            durationMilliseconds: 600_000,
+            isPlayable: true,
+            uri: "spotify:episode:episode-1"
+        )
+        playbackAPI.snapshotResponses = [SpotifyPlayerSnapshot(
+            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+            activeDevice: remoteDevice,
+            isPlaying: false,
+            item: .episode(episode),
+            progressMilliseconds: 12_000
+        )]
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: playbackAPI,
+            webCommander: MockWebPlaybackCommander()
+        )
+        viewModel.deviceID = "local-device"
+        viewModel.setConnectionState(.ready(deviceID: "local-device"))
+
+        await viewModel.syncTransportFromSpotify()
+
+        guard case let .paused(nowPlaying) = viewModel.connectionState else {
+            return XCTFail("Expected remote episode playback to publish a paused transport state")
+        }
+        XCTAssertEqual(nowPlaying?.name, "Remote episode")
+        XCTAssertEqual(nowPlaying?.artistText, "Remote show")
+        XCTAssertEqual(nowPlaying?.positionMilliseconds, 12_000)
+        XCTAssertFalse(viewModel.progressAnchor?.isAdvancing == true)
+    }
+
+    func testRemotePlayPauseCommandsTargetActiveConnectDevice() async {
+        let playbackAPI = MockPlaybackAPI()
+        let remoteDevice = SpotifyConnectDevice(
+            deviceID: "phone-device",
+            isActive: true,
+            isRestricted: false,
+            name: "Phone",
+            type: "smartphone"
+        )
+        let track = PlaylistBrowsingTestFixtures.fallbackTrack(
+            id: "remote-track",
+            name: "Remote song",
+            artistId: "remote-artist"
+        )
+        playbackAPI.snapshotResponses = [SpotifyPlayerSnapshot(
+            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+            activeDevice: remoteDevice,
+            isPlaying: true,
+            item: .track(track),
+            progressMilliseconds: 1_000
+        )]
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: playbackAPI,
+            webCommander: MockWebPlaybackCommander()
+        )
+        viewModel.deviceID = "local-device"
+        viewModel.setConnectionState(.ready(deviceID: "local-device"))
+        await viewModel.syncTransportFromSpotify()
+
+        XCTAssertTrue(viewModel.isPlaybackToggleReady)
+        await viewModel.togglePlayPause()
+        await viewModel.togglePlayPause()
+
+        XCTAssertEqual(
+            playbackAPI.actions.filter { $0 == "pause:phone-device" || $0 == "resume:phone-device" },
+            ["pause:phone-device", "resume:phone-device"]
+        )
+    }
+
     func testTransportPollingKeyIgnoresPosition() {
         let viewModel = PlaybackSessionViewModel(
             playbackAPI: MockPlaybackAPI(),
