@@ -8,8 +8,26 @@ enum BrowserToolbarPresentation {
         Array(path.dropLast())
     }
 
-    static func windowTitle(for path: [BrowserBreadcrumb]) -> String {
-        path.last?.label ?? AppMetadata.displayName
+    static func localizedLabel(
+        for breadcrumb: BrowserBreadcrumb,
+        locale: Locale = SpotiglassL10n.locale
+    ) -> String {
+        switch breadcrumb.kind {
+        case .search:
+            return SpotiglassL10n.string("browser.search", locale: locale)
+        case .likedSongs:
+            return SpotiglassL10n.string("browser.likedSongs.title", locale: locale)
+        case .playlist, .artist, .album:
+            return breadcrumb.label
+        }
+    }
+
+    static func windowTitle(
+        for path: [BrowserBreadcrumb],
+        locale: Locale = SpotiglassL10n.locale
+    ) -> String {
+        guard let last = path.last else { return AppMetadata.displayName }
+        return localizedLabel(for: last, locale: locale)
     }
 }
 
@@ -17,6 +35,17 @@ enum BrowserToolbarPresentation {
 /// The current location is the window title, so it is not repeated as a leaf.
 struct BreadcrumbToolbarView: View {
     @ObservedObject var viewModel: PlaylistBrowserViewModel
+    @Environment(\.spotiglassLocale) private var spotiglassLocale
+    private let explicitLocale: Locale?
+
+    init(viewModel: PlaylistBrowserViewModel, locale: Locale? = nil) {
+        self.viewModel = viewModel
+        self.explicitLocale = locale
+    }
+
+    private var activeLocale: Locale {
+        explicitLocale ?? spotiglassLocale
+    }
 
     var body: some View {
         if viewModel.breadcrumbPath.isEmpty {
@@ -69,28 +98,32 @@ struct BreadcrumbToolbarView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(AppMetadata.displayName)
-        .accessibilityHint(SpotiglassL10n.string("breadcrumb.home.hint"))
-        .help(SpotiglassL10n.string("tooltip.breadcrumb.home"))
+        .accessibilityHint(SpotiglassL10n.string("breadcrumb.home.hint", locale: activeLocale))
+        .help(SpotiglassL10n.string("tooltip.breadcrumb.home", locale: activeLocale))
     }
 
     private func crumbRow(crumb: BrowserBreadcrumb, breadcrumbIndex index: Int) -> some View {
-        Button {
+        let label = BrowserToolbarPresentation.localizedLabel(
+            for: crumb,
+            locale: activeLocale
+        )
+        return Button {
             Task { await viewModel.jumpToBreadcrumb(at: index) }
         } label: {
-            crumbLabel(crumb: crumb)
+            crumbLabel(crumb: crumb, label: label)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(crumb.label)
-        .accessibilityHint(SpotiglassL10n.string("breadcrumb.hint"))
-        .help(SpotiglassL10n.format("tooltip.breadcrumb.jump", crumb.label))
+        .accessibilityLabel(label)
+        .accessibilityHint(SpotiglassL10n.string("breadcrumb.hint", locale: activeLocale))
+        .help(SpotiglassL10n.format("tooltip.breadcrumb.jump", locale: activeLocale, label))
     }
 
-    private func crumbLabel(crumb: BrowserBreadcrumb) -> some View {
+    private func crumbLabel(crumb: BrowserBreadcrumb, label: String) -> some View {
         HStack(spacing: 5) {
             Image(systemName: crumb.systemImage)
                 .font(SpotiglassDesign.Typography.breadcrumb)
 
-            Text(crumb.label)
+            Text(label)
                 .font(SpotiglassDesign.Typography.breadcrumb)
                 .lineLimit(1)
                 .truncationMode(.tail)

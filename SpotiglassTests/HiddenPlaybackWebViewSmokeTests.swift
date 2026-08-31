@@ -3,6 +3,17 @@ import XCTest
 @testable import Spotiglass
 
 @MainActor
+private struct LanguageKeyedPlaybackHostView: View {
+    @ObservedObject var settingsStore: SpotiglassSettingsStore
+    let host: SpotiglassPlaybackHost
+
+    var body: some View {
+        SpotiglassPlaybackHostView(host: host)
+            .id(settingsStore.settings.appearance.language.rawValue)
+    }
+}
+
+@MainActor
 final class HiddenPlaybackWebViewSmokeTests: XCTestCase {
     override func tearDown() {
         ViewTestHost.tearDownAll()
@@ -55,5 +66,38 @@ final class HiddenPlaybackWebViewSmokeTests: XCTestCase {
 
         host.unmount(second)
         XCTAssertTrue(second.subviews.isEmpty)
+    }
+
+    func testPlaybackStateSurvivesLanguageKeyedSceneReplacement() throws {
+        let host = SpotiglassPlaybackHost(
+            tokenProvider: MockPlaybackTokenProvider(accessToken: "a", refreshedAccessToken: "b")
+        )
+        let playbackViewModel = host.playbackViewModel
+        playbackViewModel.handle(.ready(deviceID: "device-1"))
+        playbackViewModel.handle(.stateChanged(
+            PlaybackNowPlaying(
+                name: "Track",
+                artists: ["Artist"],
+                albumName: nil,
+                albumID: nil,
+                albumArtURL: nil,
+                durationMilliseconds: 180_000,
+                positionMilliseconds: 12_000,
+                uri: "spotify:track:1"
+            ),
+            isPaused: false,
+            nextTracks: []
+        ))
+        let initialState = playbackViewModel.connectionState
+
+        let settingsStore = try ViewTestHost.makeSettingsStore()
+        let view = LanguageKeyedPlaybackHostView(settingsStore: settingsStore, host: host)
+        ViewTestHost.host(view, size: CGSize(width: 8, height: 8))
+
+        try settingsStore.mutate { $0.appearance.language = .german }
+        AppKitTestSupport.pumpRunLoop()
+
+        XCTAssertTrue(host.playbackViewModel === playbackViewModel)
+        XCTAssertEqual(playbackViewModel.connectionState, initialState)
     }
 }

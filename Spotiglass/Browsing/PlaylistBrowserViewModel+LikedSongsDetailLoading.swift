@@ -48,10 +48,9 @@ extension PlaylistBrowserViewModel {
         }
         let profile = try? await api.currentUserProfile()
         guard session == detailSession else { return false }
-        let trimmedName = profile?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let owner = trimmedName.isEmpty ? "You" : trimmedName
+        let ownerName = profile?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
         let row = PlaylistRowViewModel(
-            likedSongsOwnerDisplay: owner,
+            likedSongsOwnerName: ownerName,
             totalTrackCount: tracks.count,
             artworkURL: firstLikedSongsArtwork(from: tracks)
         )
@@ -88,10 +87,9 @@ extension PlaylistBrowserViewModel {
             let profile = try? await api.currentUserProfile()
             guard session == detailSession,
                   mutationGeneration == likedSongsMutationGeneration else { return }
-            let trimmedName = profile?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            let owner = trimmedName.isEmpty ? "You" : trimmedName
+            let ownerName = profile?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
             let row = PlaylistRowViewModel(
-                likedSongsOwnerDisplay: owner,
+                likedSongsOwnerName: ownerName,
                 totalTrackCount: max(result.totalAvailable, result.tracks.count),
                 artworkURL: firstLikedSongsArtwork(from: result.tracks)
             )

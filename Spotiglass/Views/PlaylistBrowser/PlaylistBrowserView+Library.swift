@@ -2,7 +2,7 @@ import SwiftUI
 
 extension PlaylistBrowserView {
     var likedSongsStubRow: PlaylistRowViewModel {
-        PlaylistRowViewModel(likedSongsOwnerDisplay: "You", totalTrackCount: nil, artworkURL: nil)
+        PlaylistRowViewModel(likedSongsOwnerName: nil, totalTrackCount: nil, artworkURL: nil)
     }
 
     var visiblePinnedLibraryItems: [PinnedItem] {

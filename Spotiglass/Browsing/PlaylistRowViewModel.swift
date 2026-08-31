@@ -30,12 +30,44 @@ struct PlaylistRowViewModel: Equatable, Identifiable {
         self.snapshotID = playlist.snapshotID
     }
 
-    func ownerTracksLine(currentUserID: String?) -> String {
+    func localizedTitle(locale: Locale = SpotiglassL10n.locale) -> String {
+        guard id == SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID else {
+            return title
+        }
+        return SpotiglassL10n.string("browser.likedSongs.title", locale: locale)
+    }
+
+    /// The signed-in user's profile name is raw data. An empty name is the
+    /// virtual Liked Songs row's fallback, which must be resolved at render
+    /// time so an in-app language switch updates cached rows too.
+    func localizedOwner(locale: Locale = SpotiglassL10n.locale) -> String {
+        guard id == SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID,
+              owner.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else { return owner }
+        return SpotiglassL10n.string("browser.likedSongs.owner.you", locale: locale)
+    }
+
+    func localizedTrackCountText(locale: Locale = SpotiglassL10n.locale) -> String {
+        let translated: String
+        if id == SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID, trackCount == nil {
+            translated = SpotiglassL10n.string("browser.likedSongs.savedTracks", locale: locale)
+        } else if let trackCount {
+            translated = SpotiglassL10n.format("browser.trackCount", locale: locale, Int64(trackCount))
+        } else {
+            translated = SpotiglassL10n.string("browser.trackCountUnavailable", locale: locale)
+        }
+        // Keep the legacy cached property useful to callers while preferring
+        // the explicitly requested locale after a language switch.
+        return trackCountText == translated ? trackCountText : translated
+    }
+
+    func ownerTracksLine(currentUserID: String?, locale: Locale = SpotiglassL10n.locale) -> String {
         PlaylistOwnerDisplay.ownerTracksLine(
-            ownerName: owner,
+            ownerName: localizedOwner(locale: locale),
             ownerID: ownerID,
-            trackCountText: trackCountText,
-            currentUserID: currentUserID
+            trackCountText: localizedTrackCountText(locale: locale),
+            currentUserID: currentUserID,
+            locale: locale
         )
     }
 
@@ -53,6 +85,16 @@ struct PlaylistRowViewModel: Equatable, Identifiable {
         }
         self.artworkURL = artworkURL
         self.snapshotID = SpotiglassSidebarLibrary.likedSongsCacheSnapshotID
+    }
+
+    /// Virtual Liked Songs row that retains the raw profile name. `nil` uses
+    /// the locale-aware fallback owner at render time.
+    init(likedSongsOwnerName: String?, totalTrackCount: Int?, artworkURL: URL?) {
+        self.init(
+            likedSongsOwnerDisplay: likedSongsOwnerName ?? "",
+            totalTrackCount: totalTrackCount,
+            artworkURL: artworkURL
+        )
     }
 
     /// Pinned-album header rendered through the existing playlist detail UI.

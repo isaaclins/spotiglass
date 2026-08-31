@@ -5,6 +5,7 @@ import SwiftUI
 /// `NSToolbarItem`, avoiding SwiftUI toolbar control chrome (capsule / pill grouping) on macOS.
 struct NavigationToolbarChrome: NSViewRepresentable {
     @ObservedObject var viewModel: PlaylistBrowserViewModel
+    @Environment(\.spotiglassLocale) private var spotiglassLocale
 
     func makeCoordinator() -> Coordinator {
         Coordinator(viewModel: viewModel)
@@ -25,7 +26,7 @@ struct NavigationToolbarChrome: NSViewRepresentable {
         // control had keyboard focus, which is the whole point of Tab (#127).
         back.focusRingType = .default
         let backSymbol = NSImage.SymbolConfiguration(pointSize: 15, weight: .semibold)
-        let backLabel = SpotiglassL10n.string("breadcrumb.back")
+        let backLabel = SpotiglassL10n.string("breadcrumb.back", locale: spotiglassLocale)
         back.image = NSImage(systemSymbolName: "chevron.left", accessibilityDescription: backLabel)?
             .withSymbolConfiguration(backSymbol)
         back.imagePosition = .imageOnly
@@ -38,7 +39,9 @@ struct NavigationToolbarChrome: NSViewRepresentable {
             back.heightAnchor.constraint(equalToConstant: 32)
         ])
 
-        let hosting = NSHostingView(rootView: BreadcrumbToolbarView(viewModel: viewModel))
+        let hosting = NSHostingView(
+            rootView: BreadcrumbToolbarView(viewModel: viewModel, locale: spotiglassLocale)
+        )
         hosting.translatesAutoresizingMaskIntoConstraints = false
 
         stack.wantsLayer = true
@@ -61,7 +64,11 @@ struct NavigationToolbarChrome: NSViewRepresentable {
     func updateNSView(_ nsView: NSStackView, context: Context) {
         context.coordinator.viewModel = viewModel
         context.coordinator.backButton?.isHidden = !viewModel.canNavigateBack
-        context.coordinator.breadcrumbHostingView?.rootView = BreadcrumbToolbarView(viewModel: viewModel)
+        context.coordinator.updateBackButton(locale: spotiglassLocale)
+        context.coordinator.breadcrumbHostingView?.rootView = BreadcrumbToolbarView(
+            viewModel: viewModel,
+            locale: spotiglassLocale
+        )
     }
 
     final class Coordinator {
@@ -71,6 +78,16 @@ struct NavigationToolbarChrome: NSViewRepresentable {
 
         init(viewModel: PlaylistBrowserViewModel) {
             self.viewModel = viewModel
+        }
+
+        func updateBackButton(locale: Locale) {
+            let backLabel = SpotiglassL10n.string("breadcrumb.back", locale: locale)
+            let backSymbol = NSImage.SymbolConfiguration(pointSize: 15, weight: .semibold)
+            backButton?.image = NSImage(
+                systemSymbolName: "chevron.left",
+                accessibilityDescription: backLabel
+            )?.withSymbolConfiguration(backSymbol)
+            backButton?.toolTip = backLabel
         }
 
         @objc func didTapBack() {

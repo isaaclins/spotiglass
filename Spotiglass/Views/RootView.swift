@@ -484,7 +484,9 @@ private struct LyricsOverlayLayer: View {
                         navigateToAlbum: navigateAlbum,
                         onDismiss: { lyricsOverlay.dismiss() }
                     )
-                    .environmentObject(settingsStore),
+                    .environmentObject(settingsStore)
+                    .environment(\.locale, settingsStore.appLocale)
+                    .environment(\.spotiglassLocale, settingsStore.appLocale),
                     isActive: immersiveLyricsReady,
                     keymapStore: keymapStore
                 )

@@ -12,6 +12,13 @@ final class MenuKeyEquivalentTests: XCTestCase {
         return CommandPaletteKeymapStore(fileURL: url)
     }
 
+    private func makeSettingsStore() -> SpotiglassSettingsStore {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SpotiglassMenuLocalization-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("settings.json", isDirectory: false)
+        return SpotiglassSettingsStore(fileURL: url)
+    }
+
     private func makeCommands(manager: CommandPaletteManager) -> SpotiglassMenuCommands {
         let scene = SpotiglassSceneHost(commandPaletteManager: manager)
         let registry = SpotiglassSceneRegistry()
@@ -19,6 +26,7 @@ final class MenuKeyEquivalentTests: XCTestCase {
         return SpotiglassMenuCommands(
             sceneRegistry: registry,
             keymapStore: manager.keymapStore,
+            settingsStore: makeSettingsStore(),
             isSignedIn: true,
             isQueueVisible: false
         )
@@ -235,6 +243,7 @@ final class MenuKeyEquivalentTests: XCTestCase {
         let commands = SpotiglassMenuCommands(
             sceneRegistry: registry,
             keymapStore: manager.keymapStore,
+            settingsStore: makeSettingsStore(),
             isSignedIn: true,
             isQueueVisible: false
         )

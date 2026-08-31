@@ -19,6 +19,7 @@ struct PlaylistListRow: View {
 
     private let artworkSize: CGFloat = 46
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.spotiglassLocale) private var spotiglassLocale
 
     var body: some View {
         HStack(spacing: SpotiglassDesign.spacingS) {
@@ -51,12 +52,15 @@ struct PlaylistListRow: View {
                 if let titleOverride {
                     titleOverride
                 } else {
-                    Text(playlist.title)
+                    Text(playlist.localizedTitle(locale: spotiglassLocale))
                         .font(.headline)
                         .lineLimit(1)
                 }
 
-                Text(playlist.ownerTracksLine(currentUserID: currentUserSpotifyID))
+                Text(playlist.ownerTracksLine(
+                    currentUserID: currentUserSpotifyID,
+                    locale: spotiglassLocale
+                ))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -67,13 +71,18 @@ struct PlaylistListRow: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
             PlaylistOwnerDisplay.accessibilityLabel(
-                title: playlist.title,
-                ownerName: playlist.owner,
+                title: playlist.localizedTitle(locale: spotiglassLocale),
+                ownerName: playlist.localizedOwner(locale: spotiglassLocale),
                 ownerID: playlist.ownerID,
-                trackCountText: playlist.trackCountText,
+                trackCountText: playlist.localizedTrackCountText(locale: spotiglassLocale),
                 currentUserID: currentUserSpotifyID,
-                nowPlaying: isActive ? SpotiglassL10n.string("browser.playlistRow.nowPlaying") : "",
-                pinned: isPinned ? SpotiglassL10n.string("browser.playlistRow.pinned") : ""
+                nowPlaying: isActive
+                    ? SpotiglassL10n.string("browser.playlistRow.nowPlaying", locale: spotiglassLocale)
+                    : "",
+                pinned: isPinned
+                    ? SpotiglassL10n.string("browser.playlistRow.pinned", locale: spotiglassLocale)
+                    : "",
+                locale: spotiglassLocale
             )
         )
     }

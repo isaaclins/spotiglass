@@ -125,15 +125,20 @@ struct SpotiglassApp: App {
                 .environmentObject(settingsStore)
                 .environmentObject(pinnedStore)
                 .environment(\.locale, settingsStore.appLocale)
+                .environment(\.spotiglassLocale, settingsStore.appLocale)
                 .environmentObject(playbackHost)
                 .preferredColorScheme(preferredColorScheme)
+                // List rows and other cached scene content can otherwise keep
+                // the old localized strings. The host itself is app-scoped and
+                // remains the same object across this scene replacement.
+                .id(settingsStore.settings.appearance.language.rawValue)
                 .frame(minWidth: 520, minHeight: 360)
         }
         .windowResizability(.contentMinSize)
         .commands {
             CommandGroup(after: .appInfo) {
                 CheckForUpdatesView(updater: sparkleUpdater.updater)
-                Button(SpotiglassL10n.string("app.menu.openPalette")) {
+                Button(SpotiglassL10n.string("app.menu.openPalette", locale: settingsStore.appLocale)) {
                     sceneRegistry.activeScene?.commandPaletteManager.execute(
                         commandID: CommandPaletteCommandID.openPalette
                     )
@@ -148,12 +153,34 @@ struct SpotiglassApp: App {
                 )
             }
 
-            SpotiglassMenuCommands(
-                sceneRegistry: sceneRegistry,
-                keymapStore: keymapStore,
-                isSignedIn: isSignedIn,
-                isQueueVisible: isQueueVisible
-            )
+            // CommandMenu captures its title when the commands tree is
+            // resolved. Keep the language in the tree identity so the menu bar
+            // is rebuilt for every supported locale, not just its child labels.
+            if settingsStore.settings.appearance.language == .english {
+                SpotiglassMenuCommands(
+                    sceneRegistry: sceneRegistry,
+                    keymapStore: keymapStore,
+                    settingsStore: settingsStore,
+                    isSignedIn: isSignedIn,
+                    isQueueVisible: isQueueVisible
+                )
+            } else if settingsStore.settings.appearance.language == .spanish {
+                SpotiglassMenuCommands(
+                    sceneRegistry: sceneRegistry,
+                    keymapStore: keymapStore,
+                    settingsStore: settingsStore,
+                    isSignedIn: isSignedIn,
+                    isQueueVisible: isQueueVisible
+                )
+            } else {
+                SpotiglassMenuCommands(
+                    sceneRegistry: sceneRegistry,
+                    keymapStore: keymapStore,
+                    settingsStore: settingsStore,
+                    isSignedIn: isSignedIn,
+                    isQueueVisible: isQueueVisible
+                )
+            }
         }
 
         Settings {
@@ -173,6 +200,7 @@ struct SpotiglassApp: App {
             )
             .environmentObject(authViewModel)
             .environment(\.locale, settingsStore.appLocale)
+            .environment(\.spotiglassLocale, settingsStore.appLocale)
             .preferredColorScheme(preferredColorScheme)
         }
     }
