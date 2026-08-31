@@ -32,6 +32,12 @@ enum PlaybackTransportTooltips {
 enum PlaybackTransportLayoutPolicy {
     static let scrubberMinimumWidth: CGFloat = 180
     static let compactVolumeBreakpoint: CGFloat = 760
+    /// The compact/full volume mode has a hysteresis band wider than the
+    /// controls' intrinsic 98pt width swing. A measurement that lands in the
+    /// band keeps its previous mode, so the measured width cannot make the
+    /// transport alternate between two different child minima.
+    static let compactVolumeEnterBreakpoint: CGFloat = 700
+    static let compactVolumeExitBreakpoint: CGFloat = 820
     static let stackedScrubberBreakpoint: CGFloat = 680
 
     /// A playing summary always keeps the artwork, its gap, and enough title
@@ -50,6 +56,28 @@ enum PlaybackTransportLayoutPolicy {
 
     static func usesCompactVolume(for width: CGFloat) -> Bool {
         width < compactVolumeBreakpoint
+    }
+
+    /// Resolves the volume layout mode from a previous mode rather than making
+    /// the mode a direct threshold of the width that the mode itself changes.
+    /// This is a pure fixed-point rule so it can be exercised without hosting
+    /// SwiftUI.
+    static func resolvedCompactVolume(
+        for width: CGFloat,
+        currentlyCompact: Bool
+    ) -> Bool {
+        guard width.isFinite else { return currentlyCompact }
+        if currentlyCompact {
+            return width < compactVolumeExitBreakpoint
+        }
+        return width <= compactVolumeEnterBreakpoint
+    }
+
+    /// Geometry is allowed to be fractional, but a whole-point value is
+    /// idempotent when written back through `@State`.
+    static func stabilizedWidth(for measuredWidth: CGFloat) -> CGFloat {
+        guard measuredWidth.isFinite else { return 0 }
+        return max(0, measuredWidth.rounded(.down))
     }
 
     static func usesStackedScrubber(for width: CGFloat) -> Bool {
@@ -72,13 +100,15 @@ enum PlaybackTransportLayoutPolicy {
     /// Floors for the three children in the compact transport row. Keeping
     /// this calculation beside the row's frames makes the reservation testable
     /// and prevents a flexible scrubber from starving its neighbours again.
-    static func transportChildMinimumWidths(in transportWidth: CGFloat) -> TransportChildMinimumWidths {
-        TransportChildMinimumWidths(
+    static func transportChildMinimumWidths(
+        in transportWidth: CGFloat,
+        useCompactVolume: Bool? = nil
+    ) -> TransportChildMinimumWidths {
+        let compactVolume = useCompactVolume ?? usesCompactVolume(for: transportWidth)
+        return TransportChildMinimumWidths(
             summary: nowPlayingSummaryMinimumWidth,
             scrubber: scrubberWidth(in: transportWidth),
-            actions: transportActionsMinimumWidth(
-                useCompactVolume: usesCompactVolume(for: transportWidth)
-            )
+            actions: transportActionsMinimumWidth(useCompactVolume: compactVolume)
         )
     }
 
@@ -138,22 +168,33 @@ struct PlaybackControlsView: View {
     @ObservedObject var viewModel: PlaybackSessionViewModel
     @Binding var isLyricsPresented: Bool
     let openArtist: (ArtistTapTarget) -> Void
+    @Environment(\.openSettings) private var openSettingsAction
     @State private var dragFraction: Double?
     @State private var transportWidth: CGFloat = 0
+    @State private var useCompactVolume = true
     @State private var isVolumePopoverPresented = false
 
     var body: some View {
         GlassPanel {
             transportRow(
-                useCompactVolume: PlaybackTransportLayoutPolicy.usesCompactVolume(for: transportWidth),
+                useCompactVolume: useCompactVolume,
                 stackScrubber: PlaybackTransportLayoutPolicy.usesStackedScrubber(for: transportWidth)
             )
             .padding(.horizontal, SpotiglassDesign.spacingM)
             .padding(.vertical, SpotiglassDesign.spacingS)
         }
         .onGeometryChange(for: CGFloat.self, of: \.size.width) { _, newWidth in
-            guard newWidth != transportWidth else { return }
-            transportWidth = newWidth
+            let stabilizedWidth = PlaybackTransportLayoutPolicy.stabilizedWidth(for: newWidth)
+            let resolvedCompactVolume = PlaybackTransportLayoutPolicy.resolvedCompactVolume(
+                for: stabilizedWidth,
+                currentlyCompact: useCompactVolume
+            )
+            if stabilizedWidth != transportWidth {
+                transportWidth = stabilizedWidth
+            }
+            if resolvedCompactVolume != useCompactVolume {
+                useCompactVolume = resolvedCompactVolume
+            }
         }
         .padding(.horizontal, SpotiglassDesign.spacingM)
         .padding(.bottom, SpotiglassDesign.spacingM)
@@ -161,7 +202,10 @@ struct PlaybackControlsView: View {
 
     @ViewBuilder
     private func transportRow(useCompactVolume: Bool, stackScrubber: Bool) -> some View {
-        let minimumWidths = PlaybackTransportLayoutPolicy.transportChildMinimumWidths(in: transportWidth)
+        let minimumWidths = PlaybackTransportLayoutPolicy.transportChildMinimumWidths(
+            in: transportWidth,
+            useCompactVolume: useCompactVolume
+        )
 
         Group {
             if stackScrubber {
@@ -637,7 +681,17 @@ struct PlaybackControlsView: View {
                     Label(SpotiglassL10n.string("playback.controls.retry"), systemImage: "arrow.clockwise")
                 }
                 .frame(width: 170, height: 28)
-            case .reauthenticate, .none:
+            case .reauthenticate:
+                PlaybackTransportButton(
+                    accessibilityLabel: SpotiglassL10n.string("auth.reconnect.button"),
+                    accessibilityHint: error.message,
+                    size: CGSize(width: 170, height: 28),
+                    action: { openSettingsAction() }
+                ) {
+                    Label(SpotiglassL10n.string("auth.reconnect.button"), systemImage: "gear")
+                }
+                .frame(width: 170, height: 28)
+            case .none:
                 EmptyView()
             }
         case .ready, .transferring, .playing, .paused:
@@ -747,7 +801,8 @@ struct PlaybackControlsView: View {
             switch error.recoveryAction {
             case .reconnect: "error.reconnect"
             case .retryTransfer: "error.retry"
-            case .reauthenticate, .none: "error.passive"
+            case .reauthenticate: "error.reauthenticate"
+            case .none: "error.passive"
             }
         case .ready, .transferring, .playing, .paused: "transport"
         }

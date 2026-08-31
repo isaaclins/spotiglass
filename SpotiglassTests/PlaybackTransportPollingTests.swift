@@ -218,6 +218,31 @@ final class PlaybackTransportPollingTests: XCTestCase {
         XCTAssertFalse(viewModel.shouldRunTransportPolling())
     }
 
+    func testScopeDeniedSnapshotFetchSurfacesReconnectablePlaybackError() async {
+        let playbackAPI = MockPlaybackAPI()
+        playbackAPI.fetchPlayerSnapshotError = SpotifyAPIError.insufficientScope(
+            requiredScopes: ["user-read-playback-state"],
+            message: nil,
+            details: "Scope preflight denied GET /v1/me/player"
+        )
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: playbackAPI,
+            webCommander: MockWebPlaybackCommander()
+        )
+        viewModel.deviceID = "local-device"
+        viewModel.setConnectionState(.ready(deviceID: "local-device"))
+
+        await viewModel.syncTransportFromSpotify()
+
+        guard case let .error(error) = viewModel.connectionState else {
+            return XCTFail("A missing playback scope must surface an actionable transport error")
+        }
+        XCTAssertEqual(error.recoveryAction, .reauthenticate)
+        XCTAssertEqual(error.message, SpotiglassL10n.string("error.spotify.insufficientPermissions"))
+        XCTAssertNil(viewModel.currentNowPlaying)
+        XCTAssertFalse(viewModel.isPlaybackTransportReady)
+    }
+
     func testRemoteSnapshotDrivesPlayingTransportWithInterpolatedProgress() async {
         let playbackAPI = MockPlaybackAPI()
         let remoteDevice = SpotifyConnectDevice(

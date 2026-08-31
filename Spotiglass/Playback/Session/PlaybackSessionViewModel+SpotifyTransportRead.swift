@@ -89,8 +89,18 @@ extension PlaybackSessionViewModel {
                 if Self.isBenignTransportSyncCancellation(error) {
                     break
                 }
+                if Self.isMissingPlaybackScope(error) {
+                    // A stale OAuth grant is actionable: stop polling the same
+                    // denied request and put the existing Account ▸ Reconnect
+                    // path in front of the user instead of leaving an empty
+                    // transport behind.
+                    setConnectionState(.error(Self.displayError(for: error)))
+                    transportTransientErrorCount = 0
+                    transportRateLimitedUntil = nil
+                    break
+                }
                 applyTransportPollingBackoff(for: error)
-                // Polling should not surface transport read failures as playback errors.
+                // Transient polling failures should not surface as playback errors.
             }
         } while transportSyncQueued && ownsPlaybackHostGeneration(generation) && !Task.isCancelled
 
@@ -219,6 +229,14 @@ extension PlaybackSessionViewModel {
         transportSyncSchedulerTask = task
         transportSyncSchedulerGeneration = generation
         return task
+    }
+
+    private static func isMissingPlaybackScope(_ error: Error) -> Bool {
+        guard let apiError = error as? SpotifyAPIError else { return false }
+        if case .insufficientScope = apiError {
+            return true
+        }
+        return false
     }
 
     private static func isBenignTransportSyncCancellation(_ error: Error) -> Bool {

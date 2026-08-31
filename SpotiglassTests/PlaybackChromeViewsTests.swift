@@ -287,6 +287,64 @@ final class PlaybackChromeViewsTests: XCTestCase {
         }
     }
 
+    func testPlaybackTransportWidthPoliciesReachFixedPointsAcrossVolumeBreakpoint() {
+        for width in [
+            PlaybackTransportLayoutPolicy.compactVolumeBreakpoint - 1,
+            PlaybackTransportLayoutPolicy.compactVolumeBreakpoint + 1
+        ] {
+            for initialMode in [true, false] {
+                let firstMode = PlaybackTransportLayoutPolicy.resolvedCompactVolume(
+                    for: width,
+                    currentlyCompact: initialMode
+                )
+                let firstMinimums = PlaybackTransportLayoutPolicy.transportChildMinimumWidths(
+                    in: width,
+                    useCompactVolume: firstMode
+                )
+                let secondMode = PlaybackTransportLayoutPolicy.resolvedCompactVolume(
+                    for: width,
+                    currentlyCompact: firstMode
+                )
+                let secondMinimums = PlaybackTransportLayoutPolicy.transportChildMinimumWidths(
+                    in: width,
+                    useCompactVolume: secondMode
+                )
+
+                XCTAssertEqual(
+                    secondMode,
+                    firstMode,
+                    "Volume mode oscillated at transport width \(width) from initial mode \(initialMode)"
+                )
+                XCTAssertEqual(
+                    secondMinimums,
+                    firstMinimums,
+                    "Transport child minimums did not converge at width \(width)"
+                )
+            }
+        }
+
+        XCTAssertTrue(
+            PlaybackTransportLayoutPolicy.resolvedCompactVolume(
+                for: PlaybackTransportLayoutPolicy.compactVolumeBreakpoint - 1,
+                currentlyCompact: true
+            )
+        )
+        XCTAssertFalse(
+            PlaybackTransportLayoutPolicy.resolvedCompactVolume(
+                for: PlaybackTransportLayoutPolicy.compactVolumeBreakpoint + 1,
+                currentlyCompact: false
+            )
+        )
+        for width in stride(from: CGFloat(0), through: CGFloat(1600), by: 0.25) {
+            let stabilized = PlaybackTransportLayoutPolicy.stabilizedWidth(for: width)
+            XCTAssertEqual(
+                PlaybackTransportLayoutPolicy.stabilizedWidth(for: stabilized),
+                stabilized,
+                "Transport width did not reach a fixed point at \(width)"
+            )
+        }
+    }
+
     func testConnectDeviceMenuUsesNativePickerRowsAndSelectionState() throws {
         let playback = makePlayingPlayback()
         playback.connectDevices = [
