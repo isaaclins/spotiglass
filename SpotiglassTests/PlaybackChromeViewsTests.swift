@@ -287,61 +287,67 @@ final class PlaybackChromeViewsTests: XCTestCase {
         }
     }
 
-    func testPlaybackTransportWidthPoliciesReachFixedPointsAcrossVolumeBreakpoint() {
-        for width in [
-            PlaybackTransportLayoutPolicy.compactVolumeBreakpoint - 1,
-            PlaybackTransportLayoutPolicy.compactVolumeBreakpoint + 1
-        ] {
-            for initialMode in [true, false] {
-                let firstMode = PlaybackTransportLayoutPolicy.resolvedCompactVolume(
-                    for: width,
-                    currentlyCompact: initialMode
-                )
-                let firstMinimums = PlaybackTransportLayoutPolicy.transportChildMinimumWidths(
-                    in: width,
-                    useCompactVolume: firstMode
-                )
-                let secondMode = PlaybackTransportLayoutPolicy.resolvedCompactVolume(
-                    for: width,
-                    currentlyCompact: firstMode
-                )
-                let secondMinimums = PlaybackTransportLayoutPolicy.transportChildMinimumWidths(
-                    in: width,
-                    useCompactVolume: secondMode
-                )
+    func testPlaybackTransportLayoutCandidatesReachFixedPointsAcrossDenseWidthSweep() {
+        let fullCandidate = PlaybackTransportLayoutPolicy.TransportLayoutCandidate(
+            isStacked: false,
+            useCompactVolume: false,
+            minimumWidth: PlaybackTransportLayoutPolicy.compactVolumeBreakpoint
+        )
+        let compactCandidate = PlaybackTransportLayoutPolicy.TransportLayoutCandidate(
+            isStacked: false,
+            useCompactVolume: true,
+            minimumWidth: PlaybackTransportLayoutPolicy.stackedScrubberBreakpoint
+        )
 
-                XCTAssertEqual(
-                    secondMode,
-                    firstMode,
-                    "Volume mode oscillated at transport width \(width) from initial mode \(initialMode)"
-                )
-                XCTAssertEqual(
-                    secondMinimums,
-                    firstMinimums,
-                    "Transport child minimums did not converge at width \(width)"
+        XCTAssertEqual(
+            PlaybackTransportLayoutPolicy.transportLayoutCandidate(
+                for: PlaybackTransportLayoutPolicy.compactVolumeBreakpoint - 1
+            ),
+            compactCandidate
+        )
+        XCTAssertEqual(
+            PlaybackTransportLayoutPolicy.transportLayoutCandidate(
+                for: PlaybackTransportLayoutPolicy.compactVolumeBreakpoint + 1
+            ),
+            fullCandidate
+        )
+
+        for width in stride(from: CGFloat(320), through: CGFloat(1600), by: 1) {
+            let firstCandidate = PlaybackTransportLayoutPolicy.transportLayoutCandidate(for: width)
+            let firstMinimums = PlaybackTransportLayoutPolicy.transportChildMinimumWidths(
+                in: width,
+                useCompactVolume: firstCandidate.useCompactVolume
+            )
+            // Model ViewThatFits feeding the selected candidate's frame back
+            // through layout: the selected candidate must remain selected and
+            // its complete child-minimum computation must remain unchanged.
+            let measuredAgain = max(width, firstCandidate.minimumWidth)
+            let secondCandidate = PlaybackTransportLayoutPolicy.transportLayoutCandidate(for: measuredAgain)
+            let secondMinimums = PlaybackTransportLayoutPolicy.transportChildMinimumWidths(
+                in: measuredAgain,
+                useCompactVolume: secondCandidate.useCompactVolume
+            )
+
+            XCTAssertEqual(
+                secondCandidate,
+                firstCandidate,
+                "Transport arrangement oscillated at measured width \(width)"
+            )
+            XCTAssertEqual(
+                secondMinimums,
+                firstMinimums,
+                "Transport child minimums did not converge at measured width \(width)"
+            )
+            if !firstCandidate.isStacked {
+                XCTAssertLessThanOrEqual(
+                    firstMinimums.summary
+                        + firstMinimums.scrubber
+                        + firstMinimums.actions
+                        + (2 * SpotiglassDesign.spacingM),
+                    width,
+                    "Horizontal candidate does not fit at measured width \(width)"
                 )
             }
-        }
-
-        XCTAssertTrue(
-            PlaybackTransportLayoutPolicy.resolvedCompactVolume(
-                for: PlaybackTransportLayoutPolicy.compactVolumeBreakpoint - 1,
-                currentlyCompact: true
-            )
-        )
-        XCTAssertFalse(
-            PlaybackTransportLayoutPolicy.resolvedCompactVolume(
-                for: PlaybackTransportLayoutPolicy.compactVolumeBreakpoint + 1,
-                currentlyCompact: false
-            )
-        )
-        for width in stride(from: CGFloat(0), through: CGFloat(1600), by: 0.25) {
-            let stabilized = PlaybackTransportLayoutPolicy.stabilizedWidth(for: width)
-            XCTAssertEqual(
-                PlaybackTransportLayoutPolicy.stabilizedWidth(for: stabilized),
-                stabilized,
-                "Transport width did not reach a fixed point at \(width)"
-            )
         }
     }
 
