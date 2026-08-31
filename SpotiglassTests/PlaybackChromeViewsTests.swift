@@ -308,7 +308,7 @@ final class PlaybackChromeViewsTests: XCTestCase {
         XCTAssertNoThrow(try macPicker.find(text: "Headphones"))
     }
 
-    func testPlaybackControlsDisablesPlayPauseForRemotePlayback() throws {
+    func testPlaybackControlsEnablesPlayPauseForRemotePlayback() throws {
         try ViewTestHost.skipIfViewInspectorGeometryUnsupported()
         let playback = PlaybackSessionViewModel(
             playbackAPI: MockPlaybackAPI(),
@@ -325,7 +325,7 @@ final class PlaybackChromeViewsTests: XCTestCase {
 
         ViewTestHost.host(view, size: CGSize(width: 900, height: 120))
         let playButton = try view.inspect().find(viewWithAccessibilityLabel: SpotiglassL10n.string("playback.play"))
-        XCTAssertTrue(playButton.isDisabled())
+        XCTAssertFalse(playButton.isDisabled())
     }
 
     func testPlaybackControlsArtistLineRendersOpenArtistButtons() throws {

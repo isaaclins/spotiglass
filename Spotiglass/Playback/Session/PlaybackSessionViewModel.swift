@@ -414,11 +414,12 @@ final class PlaybackSessionViewModel: ObservableObject {
         }
     }
 
-    /// Whether the local Play/Pause transport control can issue its command.
-    /// Remote Spotify Connect playback leaves the embedded SDK transport visible,
-    /// but local control is intentionally unavailable in that state.
+    /// Whether the Play/Pause transport control has a usable target. Local
+    /// playback uses the Web Playback SDK; a remote Connect device uses the
+    /// Spotify Web API.
     var isPlaybackToggleReady: Bool {
-        Self.isPlaybackToggleReady(
+        guard commandDeviceID != nil else { return false }
+        return Self.isPlaybackToggleReady(
             connectionState: connectionState,
             deviceID: deviceID,
             activePlaybackDeviceID: activePlaybackDeviceID
@@ -431,8 +432,9 @@ final class PlaybackSessionViewModel: ObservableObject {
         activePlaybackDeviceID: String?
     ) -> Bool {
         guard Self.isPlaybackTransportReady(for: connectionState) else { return false }
-        guard let deviceID, let activePlaybackDeviceID else { return true }
-        return deviceID == activePlaybackDeviceID
+        // Both the SDK device and a remote Connect device are valid targets;
+        // commandDeviceID selects which path the action takes.
+        return deviceID != nil || activePlaybackDeviceID != nil
     }
 
     /// Whether shuffle/repeat commands have both a ready target and a confirmed

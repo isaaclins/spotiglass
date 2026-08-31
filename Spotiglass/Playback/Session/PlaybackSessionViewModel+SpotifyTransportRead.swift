@@ -70,6 +70,7 @@ extension PlaybackSessionViewModel {
                         minimumMutationVersion: minimumShuffleMutationVersion
                     )
                     applyTransportRepeatMode(snapshot.transport.repeatMode)
+                    applyRemotePlaybackSnapshot(snapshot)
                 } else {
                     latestPlayerSnapshot = nil
                     setTransportStateKnown(false)
@@ -99,6 +100,44 @@ extension PlaybackSessionViewModel {
                 minimumShuffleMutationVersion: minimumShuffleMutationVersion,
                 generation: generation
             )
+        }
+    }
+
+    /// Publishes the Web API player item only while Spotify is playing on a
+    /// Connect device other than the embedded Web Playback SDK device. Local
+    /// SDK state remains authoritative for the Spotiglass device.
+    private func applyRemotePlaybackSnapshot(_ snapshot: SpotifyPlayerSnapshot) {
+        guard let localDeviceID = deviceID,
+              let activeDevice = snapshot.activeDevice,
+              activeDevice.deviceID != localDeviceID else { return }
+        // A just-issued local command can be followed by one stale player
+        // snapshot. Preserve the selected target during that settle window,
+        // but accept the snapshot once it agrees with that target.
+        guard localMutationSettleTicksRemaining == 0
+            || activePlaybackDeviceID == activeDevice.deviceID else { return }
+
+        setActivePlaybackDeviceID(activeDevice.deviceID)
+        let remoteNowPlaying = snapshot.playbackNowPlaying
+        let suppressed = shouldSuppressStaleStateChange(nowPlaying: remoteNowPlaying)
+        SpotiglassLog.info(
+            .playback,
+            "Remote player snapshot deviceID=\(activeDevice.deviceID) itemURI=\(remoteNowPlaying?.uri ?? "<nil>") isPlaying=\(snapshot.isPlaying) progressMs=\(snapshot.progressMilliseconds ?? 0) suppressed=\(suppressed)"
+        )
+        observeSkipAdvance(nowPlayingURI: remoteNowPlaying?.uri)
+        guard !suppressed else { return }
+
+        let authoritativeState: PlaybackConnectionState = snapshot.isPlaying
+            ? .playing(remoteNowPlaying ?? fallbackNowPlaying())
+            : .paused(remoteNowPlaying)
+        updateSeekOwnership(from: authoritativeState)
+        if failedSeekOwnershipKey == seekOwnershipKey {
+            return
+        }
+        let effectiveNowPlaying = applyPendingSeekSuppression(to: remoteNowPlaying)
+        if snapshot.isPlaying {
+            setConnectionState(.playing(effectiveNowPlaying ?? fallbackNowPlaying()))
+        } else {
+            setConnectionState(.paused(effectiveNowPlaying))
         }
     }
 

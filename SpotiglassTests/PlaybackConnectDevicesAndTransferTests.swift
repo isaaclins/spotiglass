@@ -434,6 +434,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
         XCTAssertEqual(playbackAPI.actions.filter { $0.hasPrefix("setShuffle:") }, ["setShuffle:living-room:true"])
         XCTAssertTrue(playbackAPI.actions.contains("addToQueue:living-room:spotify:track:queued"))
         XCTAssertTrue(playbackAPI.actions.contains("play:living-room:spotify:track:played"))
+        XCTAssertTrue(playbackAPI.actions.contains("pause:living-room"))
         XCTAssertFalse(playbackAPI.actions.contains("transfer:sdk-device:false"))
         XCTAssertTrue(commander.commands.filter { $0.command == .togglePlay }.isEmpty)
     }

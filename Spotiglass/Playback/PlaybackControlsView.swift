@@ -477,7 +477,7 @@ struct PlaybackControlsView: View {
             accessibilityLabel: SpotiglassL10n.string("playback.controls.volume"),
             accessibilityHint: SpotiglassL10n.string("playback.controls.volume.hint"),
             size: CGSize(width: 28, height: 28),
-            isEnabled: hasReadyDevice,
+            isEnabled: isPlaybackVolumeReady,
             action: { isVolumePopoverPresented.toggle() }
         ) {
             Image(systemName: "speaker.wave.2")
@@ -509,8 +509,9 @@ struct PlaybackControlsView: View {
             Slider(value: playbackVolumeBinding, in: 0 ... 1)
                 .controlSize(.small)
                 .frame(minWidth: 100, idealWidth: 120, maxWidth: 140)
-                .disabled(!hasReadyDevice)
+                .disabled(!isPlaybackVolumeReady)
         }
+        .disabled(!isPlaybackVolumeReady)
         .accessibilityElement(children: .combine)
         .help(SpotiglassL10n.string("playback.controls.volume"))
         .accessibilityLabel(SpotiglassL10n.string("playback.controls.volume"))
@@ -693,6 +694,10 @@ struct PlaybackControlsView: View {
             }
         case .ready, .transferring, .playing, .paused: "transport"
         }
+    }
+
+    private var isPlaybackVolumeReady: Bool {
+        hasReadyDevice && !viewModel.isRemotePlaybackActive
     }
 
     private var hasReadyDevice: Bool {
