@@ -329,7 +329,6 @@ struct PlaybackControlsView: View {
                         ) {
                             EmptyView()
                         }
-                        .opacity(0.001)
                     }
                     .frame(
                         width: PlaybackTransportLayoutPolicy.nowPlayingArtworkSize,
@@ -907,6 +906,9 @@ private struct PlaybackTransportButton<Content: View>: View {
             .accessibilityHint(accessibilityHint)
             .accessibilityHidden(true)
 
+            // The native button is borderless and titleless, so it is already
+            // visually transparent. A near-zero opacity here makes SwiftUI's
+            // AppKit bridge swallow mouse events before they reach the button.
             PlaybackNativeButton(
                 accessibilityLabel: accessibilityLabel,
                 accessibilityHint: accessibilityHint,
@@ -914,7 +916,6 @@ private struct PlaybackTransportButton<Content: View>: View {
                 action: action
             )
             .frame(width: size.width, height: size.height)
-            .opacity(0.001)
         }
         .frame(width: size.width, height: size.height)
         .contentShape(Rectangle())

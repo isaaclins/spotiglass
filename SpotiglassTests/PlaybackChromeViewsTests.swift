@@ -77,6 +77,71 @@ final class PlaybackChromeViewsTests: XCTestCase {
         XCTAssertNoThrow(try view.inspect().find(viewWithAccessibilityLabel: "Lyrics"))
     }
 
+    func testPlaybackLyricsTransportButtonsRespondToMouseClick() throws {
+        let playback = makePlayingPlayback()
+        var isPresented = false
+        let view = PlaybackControlsView(
+            viewModel: playback,
+            isLyricsPresented: Binding(
+                get: { isPresented },
+                set: { isPresented = $0 }
+            ),
+            openArtist: { _ in }
+        )
+
+        let controller = ViewTestHost.host(view, size: CGSize(width: 900, height: 120))
+        let window = try XCTUnwrap(controller.view.window)
+        let buttons = allNSButtons(in: controller.view)
+        let lyricsButton = try XCTUnwrap(
+            buttons.first {
+                $0.accessibilityLabel() == SpotiglassL10n.string("playback.controls.lyrics")
+            },
+            "The hosted transport did not expose its Lyrics button"
+        )
+        let artworkLyricsButton = try XCTUnwrap(
+            buttons.first {
+                $0.accessibilityLabel() == SpotiglassL10n.string("playback.controls.openLyrics")
+            },
+            "The hosted transport did not expose its Open lyrics button"
+        )
+        XCTAssertTrue(lyricsButton.isEnabled)
+        XCTAssertTrue(artworkLyricsButton.isEnabled)
+
+        window.makeKeyAndOrderFront(nil)
+        AppKitTestSupport.activateAppIfNeeded()
+        AppKitTestSupport.pumpRunLoop()
+        try sendMouseClick(on: lyricsButton, in: window)
+        XCTAssertTrue(isPresented, "A click on the Lyrics transport button did not present lyrics")
+
+        isPresented = false
+        try sendMouseClick(on: artworkLyricsButton, in: window)
+        XCTAssertTrue(isPresented, "A click on the artwork lyrics button did not present lyrics")
+    }
+
+    private func sendMouseClick(on button: NSButton, in window: NSWindow) throws {
+        let location = button.convert(
+            NSPoint(x: button.bounds.midX, y: button.bounds.midY),
+            to: nil
+        )
+        for (eventNumber, eventType) in [NSEvent.EventType.leftMouseDown, .leftMouseUp].enumerated() {
+            let event = try XCTUnwrap(
+                NSEvent.mouseEvent(
+                    with: eventType,
+                    location: location,
+                    modifierFlags: [],
+                    timestamp: ProcessInfo.processInfo.systemUptime,
+                    windowNumber: window.windowNumber,
+                    context: nil,
+                    eventNumber: eventNumber,
+                    clickCount: 1,
+                    pressure: 1
+                )
+            )
+            NSApp.sendEvent(event)
+        }
+        AppKitTestSupport.pumpRunLoop()
+    }
+
     func testPlaybackControlsConnectingState() throws {
         let playback = PlaybackSessionViewModel(
             playbackAPI: MockPlaybackAPI(),
@@ -854,6 +919,11 @@ final class PlaybackChromeViewsTests: XCTestCase {
             return ""
         }
         return value.map(String.init(describing:)) ?? ""
+    }
+
+    private func allNSButtons(in view: NSView) -> [NSButton] {
+        let own = view as? NSButton
+        return (own.map { [$0] } ?? []) + view.subviews.flatMap { allNSButtons(in: $0) }
     }
 
     private func makePlayingPlayback(
