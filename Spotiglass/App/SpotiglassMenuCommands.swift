@@ -180,6 +180,17 @@ struct SpotiglassMenuCommands: Commands {
                 .keyboardShortcut("s", modifiers: [.option, .command])
                 .disabled(!isPlaybackTransportMutationEnabled)
 
+            // A single shortcut belongs to the cycling command. Applying it to
+            // the Picker gives every native option the same NSMenuItem key
+            // equivalent, making ⌥⌘R ambiguous and therefore inert (#347).
+            Button(SpotiglassL10n.string("menu.playback.repeat", locale: currentLocale)) {
+                run(CommandPaletteCommandID.cycleRepeat)
+            }
+            .keyboardShortcut("r", modifiers: [.option, .command])
+            .disabled(!isPlaybackTransportMutationEnabled)
+
+            // Keep this native Picker unshortcutted so its live selection state
+            // remains represented by AppKit's menu-item checkmark (#320).
             Picker(SpotiglassL10n.string("menu.playback.repeat", locale: currentLocale), selection: repeatModeBinding) {
                 ForEach(SpotifyRepeatMode.allCases, id: \.self) { mode in
                     Text(repeatModeLabel(for: mode))
@@ -187,7 +198,6 @@ struct SpotiglassMenuCommands: Commands {
                 }
             }
             .pickerStyle(.inline)
-            .keyboardShortcut("r", modifiers: [.option, .command])
             .disabled(!isPlaybackTransportMutationEnabled)
 
             Divider()

@@ -112,6 +112,41 @@ final class MenuKeyEquivalentTests: XCTestCase {
         XCTAssertEqual(repeated, 1)
     }
 
+    func testMenuKeyEquivalentsAreUniqueAcrossMenuTree() throws {
+        AppKitTestSupport.activateAppIfNeeded()
+        AppKitTestSupport.pumpRunLoop(for: 0.25)
+        let menu = try XCTUnwrap(NSApp.mainMenu)
+        let keyedItems = menuKeyEquivalentItems(in: menu)
+        XCTAssertFalse(keyedItems.isEmpty, "Expected the application menu to expose key equivalents")
+
+        let grouped = Dictionary(grouping: keyedItems) { item in
+            "\(item.key.lowercased())|\(item.modifiers.rawValue)"
+        }
+        let duplicates = grouped.values.filter { $0.count > 1 }
+        XCTAssertTrue(
+            duplicates.isEmpty,
+            "Every menu key equivalent must be unique; duplicates: \(duplicates.map { $0.map(\.path) })"
+        )
+    }
+
+    func testRepeatCycleCommandAdvancesThroughAllModes() async {
+        let manager = CommandPaletteManager(keymapStore: makeStore())
+        manager.playbackTransportMutationPrerequisite = { true }
+        var mode = SpotifyRepeatMode.off
+
+        for expectedMode in [SpotifyRepeatMode.context, .track, .off] {
+            let advanced = expectation(description: "repeat advanced to \(expectedMode.rawValue)")
+            manager.cycleRepeat = {
+                mode = mode.next
+                advanced.fulfill()
+            }
+
+            manager.execute(commandID: CommandPaletteCommandID.cycleRepeat)
+            await fulfillment(of: [advanced], timeout: 2)
+            XCTAssertEqual(mode, expectedMode)
+        }
+    }
+
     func testPlaybackMenuUsesEffectiveToggleReadiness() {
         let manager = CommandPaletteManager(keymapStore: makeStore())
         let commands = makeCommands(manager: manager)
@@ -251,6 +286,34 @@ final class MenuKeyEquivalentTests: XCTestCase {
         XCTAssertEqual(commands.lyricsItemTitle, SpotiglassL10n.string("menu.view.showLyrics"))
         scene.lyricsOverlayController.isPresented = true
         XCTAssertEqual(commands.lyricsItemTitle, SpotiglassL10n.string("menu.view.hideLyrics"))
+    }
+
+    private struct MenuKeyEquivalentItem {
+        let path: String
+        let key: String
+        let modifiers: NSEvent.ModifierFlags
+    }
+
+    private func menuKeyEquivalentItems(
+        in menu: NSMenu,
+        parentPath: String = ""
+    ) -> [MenuKeyEquivalentItem] {
+        menu.items.flatMap { item in
+            let path = parentPath.isEmpty ? item.title : "\(parentPath) > \(item.title)"
+            let current = item.keyEquivalent.isEmpty
+                ? []
+                : [
+                    MenuKeyEquivalentItem(
+                        path: path,
+                        key: item.keyEquivalent,
+                        modifiers: item.keyEquivalentModifierMask
+                    )
+                ]
+            let children = item.submenu.map {
+                menuKeyEquivalentItems(in: $0, parentPath: path)
+            } ?? []
+            return current + children
+        }
     }
 
     // MARK: - Help menu (#177)

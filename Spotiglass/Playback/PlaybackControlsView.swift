@@ -34,6 +34,20 @@ enum PlaybackTransportLayoutPolicy {
     static let compactVolumeBreakpoint: CGFloat = 760
     static let stackedScrubberBreakpoint: CGFloat = 680
 
+    /// A playing summary always keeps the artwork, its gap, and enough title
+    /// width to remain readable. The title is allowed to truncate beyond this
+    /// floor rather than forcing the scrubber or timestamps off the bar.
+    static let nowPlayingArtworkSize: CGFloat = 44
+    static let nowPlayingSummaryTitleMinimumWidth: CGFloat = 120
+    static let nowPlayingSummaryMinimumWidth: CGFloat =
+        nowPlayingArtworkSize + SpotiglassDesign.spacingS + nowPlayingSummaryTitleMinimumWidth
+
+    struct TransportChildMinimumWidths: Equatable {
+        let summary: CGFloat
+        let scrubber: CGFloat
+        let actions: CGFloat
+    }
+
     static func usesCompactVolume(for width: CGFloat) -> Bool {
         width < compactVolumeBreakpoint
     }
@@ -42,15 +56,37 @@ enum PlaybackTransportLayoutPolicy {
         width < stackedScrubberBreakpoint
     }
 
-    /// The compact transport's fixed controls and ideal summary leave this
-    /// much room for the scrubber. Once that room is smaller than the floor,
-    /// the summary yields before the scrubber does.
-    static func scrubberWidth(in windowWidth: CGFloat) -> CGFloat {
-        let compactTrailingWidth =
+    /// The fixed trailing controls' floor, including the two gaps between the
+    /// controls cluster, device picker, and volume control.
+    static func transportActionsMinimumWidth(useCompactVolume: Bool) -> CGFloat {
+        let controlsClusterWidth =
             (4 * 28)
             + (3 * SpotiglassDesign.spacingS)
-            + 28 + 28
+        let volumeWidth = useCompactVolume ? 28 : 16 + SpotiglassDesign.spacingS + 100
+        return controlsClusterWidth
             + (2 * SpotiglassDesign.spacingM)
+            + 28
+            + volumeWidth
+    }
+
+    /// Floors for the three children in the compact transport row. Keeping
+    /// this calculation beside the row's frames makes the reservation testable
+    /// and prevents a flexible scrubber from starving its neighbours again.
+    static func transportChildMinimumWidths(in transportWidth: CGFloat) -> TransportChildMinimumWidths {
+        TransportChildMinimumWidths(
+            summary: nowPlayingSummaryMinimumWidth,
+            scrubber: scrubberWidth(in: transportWidth),
+            actions: transportActionsMinimumWidth(
+                useCompactVolume: usesCompactVolume(for: transportWidth)
+            )
+        )
+    }
+
+    /// The compact transport's fixed controls and ideal summary leave this
+    /// much room for the scrubber. Once that room is smaller than the floor,
+    /// the scrubber keeps its floor and the summary yields down to its own.
+    static func scrubberWidth(in windowWidth: CGFloat) -> CGFloat {
+        let compactTrailingWidth = transportActionsMinimumWidth(useCompactVolume: true)
         let fixedWidth =
             (4 * SpotiglassDesign.spacingM)
             + (2 * SpotiglassDesign.spacingM)
@@ -125,6 +161,8 @@ struct PlaybackControlsView: View {
 
     @ViewBuilder
     private func transportRow(useCompactVolume: Bool, stackScrubber: Bool) -> some View {
+        let minimumWidths = PlaybackTransportLayoutPolicy.transportChildMinimumWidths(in: transportWidth)
+
         Group {
             if stackScrubber {
                 VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
@@ -135,16 +173,17 @@ struct PlaybackControlsView: View {
             } else {
                 HStack(spacing: SpotiglassDesign.spacingM) {
                     nowPlayingSummary
-                        .frame(minWidth: 0, idealWidth: 280, maxWidth: 320, alignment: .leading)
+                        .frame(minWidth: minimumWidths.summary, idealWidth: 280, maxWidth: 320, alignment: .leading)
+                        .clipped()
 
                     centerScrubberGroup
                         .frame(
-                            minWidth: PlaybackTransportLayoutPolicy.scrubberWidth(in: transportWidth),
+                            minWidth: minimumWidths.scrubber,
                             maxWidth: .infinity
                         )
-                        .layoutPriority(1)
 
                     transportActions(useCompactVolume: useCompactVolume, includeSummary: false)
+                        .frame(minWidth: minimumWidths.actions, alignment: .trailing)
                 }
             }
         }
@@ -154,7 +193,12 @@ struct PlaybackControlsView: View {
         HStack(spacing: SpotiglassDesign.spacingM) {
             if includeSummary {
                 nowPlayingSummary
-                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+                    .frame(
+                        minWidth: PlaybackTransportLayoutPolicy.nowPlayingSummaryMinimumWidth,
+                        maxWidth: .infinity,
+                        alignment: .leading
+                    )
+                    .clipped()
             }
 
             controlsCluster
@@ -176,6 +220,7 @@ struct PlaybackControlsView: View {
                     Text(title)
                         .font(.headline)
                         .lineLimit(1)
+                        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
                         .contentTransition(.opacity)
                         .animation(.smooth(duration: 0.28), value: title)
                     if showsLyricsButton {
@@ -227,26 +272,38 @@ struct PlaybackControlsView: View {
             if let item = nowPlaying {
                 if showsLyricsButton {
                     ZStack {
-                        ArtworkView(url: item.albumArtURL, size: 44)
+                        ArtworkView(
+                            url: item.albumArtURL,
+                            size: PlaybackTransportLayoutPolicy.nowPlayingArtworkSize
+                        )
                         PlaybackTransportButton(
                             accessibilityLabel: SpotiglassL10n.string("playback.controls.openLyrics"),
                             accessibilityHint: SpotiglassL10n.string("playback.controls.lyrics.hint"),
-                            size: CGSize(width: 44, height: 44),
+                            size: CGSize(
+                                width: PlaybackTransportLayoutPolicy.nowPlayingArtworkSize,
+                                height: PlaybackTransportLayoutPolicy.nowPlayingArtworkSize
+                            ),
                             action: { isLyricsPresented = true }
                         ) {
                             EmptyView()
                         }
                         .opacity(0.001)
                     }
-                    .frame(width: 44, height: 44)
+                    .frame(
+                        width: PlaybackTransportLayoutPolicy.nowPlayingArtworkSize,
+                        height: PlaybackTransportLayoutPolicy.nowPlayingArtworkSize
+                    )
                     .id("artwork:\(item.uri ?? item.name)")
                     .transition(.opacity.combined(with: .scale(scale: 0.94)))
                     .help(SpotiglassL10n.string("tooltip.playback.lyrics"))
                 } else {
-                    ArtworkView(url: item.albumArtURL, size: 44)
-                        .id("artwork:\(item.uri ?? item.name)")
-                        .transition(.opacity.combined(with: .scale(scale: 0.94)))
-                        .accessibilityHidden(true)
+                    ArtworkView(
+                        url: item.albumArtURL,
+                        size: PlaybackTransportLayoutPolicy.nowPlayingArtworkSize
+                    )
+                    .id("artwork:\(item.uri ?? item.name)")
+                    .transition(.opacity.combined(with: .scale(scale: 0.94)))
+                    .accessibilityHidden(true)
                 }
             } else {
                 Image(systemName: stateIcon)
