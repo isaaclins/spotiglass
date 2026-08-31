@@ -49,7 +49,6 @@ enum PlaybackTransportLayoutPolicy {
     }
 
     struct TransportLayoutCandidate: Equatable {
-        let isStacked: Bool
         let useCompactVolume: Bool
         /// Minimum proposal width at which this candidate can be selected.
         let minimumWidth: CGFloat
@@ -62,35 +61,22 @@ enum PlaybackTransportLayoutPolicy {
     static func transportLayoutCandidates() -> [TransportLayoutCandidate] {
         [
             TransportLayoutCandidate(
-                isStacked: false,
                 useCompactVolume: false,
                 minimumWidth: compactVolumeBreakpoint
             ),
             TransportLayoutCandidate(
-                isStacked: false,
                 useCompactVolume: true,
                 minimumWidth: stackedScrubberBreakpoint
             ),
             TransportLayoutCandidate(
-                isStacked: true,
                 useCompactVolume: true,
                 minimumWidth: 0
             ),
         ]
     }
 
-    static func transportLayoutCandidate(for measuredWidth: CGFloat) -> TransportLayoutCandidate {
-        guard measuredWidth.isFinite else { return transportLayoutCandidates().last! }
-        return transportLayoutCandidates().first { measuredWidth >= $0.minimumWidth }
-            ?? transportLayoutCandidates().last!
-    }
-
     static func usesCompactVolume(for width: CGFloat) -> Bool {
         width < compactVolumeBreakpoint
-    }
-
-    static func usesStackedScrubber(for width: CGFloat) -> Bool {
-        width < stackedScrubberBreakpoint
     }
 
     /// The fixed trailing controls' floor, including the two gaps between the
