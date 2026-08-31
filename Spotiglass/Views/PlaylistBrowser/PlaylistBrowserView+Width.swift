@@ -14,8 +14,10 @@ extension PlaylistBrowserView {
         )
     }
 
-    /// Coalesces high-frequency geometry callbacks during window resize so `NavigationSplitView` column constraints are not rewritten every frame.
-    /// When the threshold is crossed wide→narrow with both sides open, also auto-closes the LRU side.
+    /// Coalesces high-frequency geometry callbacks during window resize so
+    /// `NavigationSplitView` column constraints are not rewritten every frame.
+    /// The committed width drives both the queue mutual-exclusion rule and the
+    /// independent sidebar/detail minimum-width collapse.
     func commitBrowserContentWidthIfNeeded(_ newWidth: CGFloat) {
         browserWidthSampler.latestWidth = newWidth
         let now = CFAbsoluteTimeGetCurrent()
@@ -25,7 +27,8 @@ extension PlaylistBrowserView {
                 committedWidth: browserContentWidth,
                 lastCommitTime: lastBrowserWidthCommitTime,
                 now: now,
-                comfortableMinWidth: SpotiglassDesign.dualSidebarComfortableMinWidth
+                comfortableMinWidth: SpotiglassDesign.dualSidebarComfortableMinWidth,
+                sidebarCollapseMinWidth: SpotiglassDesign.playlistSidebarAndDetailMinWidth
             )
         )
         guard result.shouldCommit else { return }
@@ -48,6 +51,13 @@ extension PlaylistBrowserView {
             case .none:
                 break
             }
+        }
+
+        if result.crossedIntoSidebarCollapse {
+            playlistColumnVisibility = .detailOnly
+        } else if result.crossedOutOfSidebarCollapse,
+                  playlistColumnVisibility == .detailOnly {
+            playlistColumnVisibility = .doubleColumn
         }
     }
 }

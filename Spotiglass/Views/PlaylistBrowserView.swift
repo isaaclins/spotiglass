@@ -15,7 +15,7 @@ struct PlaylistBrowserView: View {
     /// When lyrics opens we snapshot here; when the playlist list remounts, `ScrollViewReader` scrolls to this id then clears it.
     @State var pendingPlaylistListScrollRestoreID: String?
     /// Drives only the **playlist** sidebar (leading column). Queue visibility is separate — see `PlaylistBrowserDetailWithQueueSplit` below.
-    @State var playlistColumnVisibility: NavigationSplitViewVisibility = .automatic
+    @State var playlistColumnVisibility: NavigationSplitViewVisibility = .doubleColumn
     /// Disconnecting clears the session and costs a full OAuth round trip to undo, and the
     /// control sits next to Refresh, so it asks first.
     @State var isConfirmingDisconnect = false

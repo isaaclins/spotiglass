@@ -168,6 +168,11 @@ enum SpotiglassDesign {
     static let detailColumnMinWidth: CGFloat = 360
     static let queuePanelMinWidth: CGFloat = 280
 
+    /// Below this content width the playlist sidebar and detail column cannot
+    /// both honor their declared minimums, so the browser collapses the sidebar.
+    static let playlistSidebarAndDetailMinWidth: CGFloat =
+        playlistSidebarMinWidth + detailColumnMinWidth
+
     static let queuePanelMaxWidth: CGFloat = 420
 
     /// Below this width the playlist sidebar and queue panel are mutually exclusive (opening one closes the other),
