@@ -34,6 +34,18 @@ final class SettingsShellViewsTests: XCTestCase {
         }
     }
 
+    func testSettingsSidebarRowsFollowLanguageChange() throws {
+        let store = try ViewTestHost.makeSettingsStore()
+        try store.mutate { $0.appearance.language = .english }
+        let view = SettingsSidebarRow(section: .appearance, settingsStore: store)
+        let controller = ViewTestHost.host(view)
+
+        ViewTestHost.assertFindText("Appearance", in: controller.rootView)
+        try store.mutate { $0.appearance.language = .german }
+        ViewTestHost.assertFindText("Darstellung", in: controller.rootView)
+        XCTAssertThrowsError(try controller.rootView.inspect().find(text: "Appearance"))
+    }
+
     /// The Settings window must expose its native navigation shell (#23
     /// regression): AppKit autosaves the split view's collapsed flag, so the
     /// production shell binds column visibility explicitly instead of inheriting

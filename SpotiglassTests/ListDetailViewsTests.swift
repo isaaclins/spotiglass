@@ -236,7 +236,7 @@ final class ListDetailViewsTests: XCTestCase {
         .environmentObject(pinnedStore())
 
         ViewTestHost.host(view)
-        XCTAssertNoThrow(try view.inspect().find(text: SpotiglassL10n.string("Add to playlist")))
+        XCTAssertNoThrow(try view.inspect().find(text: SpotiglassL10n.string("browser.addToPlaylist")))
         XCTAssertNoThrow(
             try view.inspect().find(
                 button: SpotiglassL10n.string("playlist.detail.newPlaylist.menuItem")
@@ -256,7 +256,7 @@ final class ListDetailViewsTests: XCTestCase {
             )
         )
         XCTAssertThrowsError(
-            try view.inspect().find(text: SpotiglassL10n.string("Move to playlist"))
+            try view.inspect().find(text: SpotiglassL10n.string("browser.moveToPlaylist"))
         )
     }
 
@@ -340,7 +340,7 @@ final class ListDetailViewsTests: XCTestCase {
         .environmentObject(pinnedStore())
 
         ViewTestHost.host(view)
-        XCTAssertNoThrow(try view.inspect().find(text: SpotiglassL10n.string("Move to playlist")))
+        XCTAssertNoThrow(try view.inspect().find(text: SpotiglassL10n.string("browser.moveToPlaylist")))
         XCTAssertThrowsError(try view.inspect().find(text: source.name))
         XCTAssertNoThrow(try view.inspect().find(text: destination.name))
     }
@@ -706,7 +706,7 @@ final class ListDetailViewsTests: XCTestCase {
             )
         )
         XCTAssertThrowsError(
-            try view.inspect().find(text: SpotiglassL10n.string("Move to playlist"))
+            try view.inspect().find(text: SpotiglassL10n.string("browser.moveToPlaylist"))
         )
     }
 

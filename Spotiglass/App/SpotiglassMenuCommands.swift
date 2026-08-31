@@ -12,6 +12,13 @@ import SwiftUI
 struct SpotiglassMenuCommands: Commands {
     @ObservedObject var sceneRegistry: SpotiglassSceneRegistry
     @ObservedObject var keymapStore: CommandPaletteKeymapStore
+    /// Commands are built outside the window content, so observe the settings
+    /// store directly to rebuild the commands tree when the app language changes.
+    @ObservedObject var settingsStore: SpotiglassSettingsStore
+
+    private var locale: Locale {
+        settingsStore.appLocale
+    }
 
     /// Playback, queue, lyrics and refresh only have a target while a Spotify
     /// session is live, so those items dim instead of silently doing nothing.
@@ -80,8 +87,13 @@ struct SpotiglassMenuCommands: Commands {
     }
 
     var body: some Commands {
+        // Reading the store here is intentional: `CommandMenu` captures its
+        // title when the commands tree is resolved, so a menu-local string
+        // lookup alone cannot make it follow a later language change.
+        let currentLocale = locale
+
         CommandGroup(after: .appSettings) {
-            Button(SpotiglassL10n.string("menu.app.signOut")) {
+            Button(SpotiglassL10n.string("menu.app.signOut", locale: currentLocale)) {
                 run(CommandPaletteCommandID.signOut)
             }
             .disabled(!isSignedIn)
@@ -99,7 +111,7 @@ struct SpotiglassMenuCommands: Commands {
             // ⌘[ is the Mac key equivalent for Back. It is hardcoded rather than
             // read from the keymap because `navigateBack` is menu-bar only and
             // therefore cannot be rebound to shadow it.
-            Button(SpotiglassL10n.string("menu.view.back")) {
+            Button(SpotiglassL10n.string("menu.view.back", locale: currentLocale)) {
                 run(CommandPaletteCommandID.navigateBack)
             }
             .keyboardShortcut("[", modifiers: .command)
@@ -107,7 +119,7 @@ struct SpotiglassMenuCommands: Commands {
 
             Divider()
 
-            Button(SpotiglassL10n.string("menu.view.search")) {
+            Button(SpotiglassL10n.string("menu.view.search", locale: currentLocale)) {
                 run(CommandPaletteCommandID.openSearch)
             }
             .keyboardShortcut(keymapShortcut(for: CommandPaletteCommandID.openSearch))
@@ -127,31 +139,31 @@ struct SpotiglassMenuCommands: Commands {
 
             Divider()
 
-            Button(SpotiglassL10n.string("menu.view.refresh")) {
+            Button(SpotiglassL10n.string("menu.view.refresh", locale: currentLocale)) {
                 run(CommandPaletteCommandID.refreshPlaylists)
             }
             .keyboardShortcut(keymapShortcut(for: CommandPaletteCommandID.refreshPlaylists))
             .disabled(!isSignedIn)
         }
 
-        CommandMenu(SpotiglassL10n.string("menu.playback.title")) {
+        CommandMenu(SpotiglassL10n.string("menu.playback.title", locale: currentLocale)) {
             // Play/Pause deliberately carries no key equivalent. Its keymap default
             // is bare Space, and a menu key equivalent is matched before the key
             // reaches the focused view, so putting Space here would swallow every
             // space typed into the palette's search field. `CommandPaletteManager`
             // keeps that binding, where it can skip text input first.
-            Button(SpotiglassL10n.string("menu.playback.playPause")) {
+            Button(SpotiglassL10n.string("menu.playback.playPause", locale: currentLocale)) {
                 run(CommandPaletteCommandID.togglePlayback)
             }
             .disabled(!isPlaybackToggleEnabled)
 
-            Button(SpotiglassL10n.string("menu.playback.next")) {
+            Button(SpotiglassL10n.string("menu.playback.next", locale: currentLocale)) {
                 run(CommandPaletteCommandID.nextTrack)
             }
             .keyboardShortcut(keymapShortcut(for: CommandPaletteCommandID.nextTrack))
             .disabled(!isSignedIn)
 
-            Button(SpotiglassL10n.string("menu.playback.previous")) {
+            Button(SpotiglassL10n.string("menu.playback.previous", locale: currentLocale)) {
                 run(CommandPaletteCommandID.previousTrack)
             }
             .keyboardShortcut(keymapShortcut(for: CommandPaletteCommandID.previousTrack))
@@ -164,11 +176,11 @@ struct SpotiglassMenuCommands: Commands {
             // shadow these key equivalents and hardcoding them is safe. Toggle
             // and Picker are intentional here: SwiftUI bridges them to native
             // NSMenuItem state, unlike a hand-rolled checkmark HStack (#327).
-            Toggle(SpotiglassL10n.string("menu.playback.shuffle"), isOn: shuffleBinding)
+            Toggle(SpotiglassL10n.string("menu.playback.shuffle", locale: currentLocale), isOn: shuffleBinding)
                 .keyboardShortcut("s", modifiers: [.option, .command])
                 .disabled(!isPlaybackTransportMutationEnabled)
 
-            Picker(SpotiglassL10n.string("menu.playback.repeat"), selection: repeatModeBinding) {
+            Picker(SpotiglassL10n.string("menu.playback.repeat", locale: currentLocale), selection: repeatModeBinding) {
                 ForEach(SpotifyRepeatMode.allCases, id: \.self) { mode in
                     Text(repeatModeLabel(for: mode))
                         .tag(mode)
@@ -183,7 +195,7 @@ struct SpotiglassMenuCommands: Commands {
             // Add to Queue and Pin existed only in the row context menu, so they
             // were unreachable without a right-click. These act on the table
             // selection, so a keyboard user can select a row and use them (#132).
-            Button(SpotiglassL10n.string("browser.addToQueue")) {
+            Button(SpotiglassL10n.string("browser.addToQueue", locale: currentLocale)) {
                 run(CommandPaletteCommandID.enqueueTrackSelection)
             }
             .keyboardShortcut("e", modifiers: [.option, .command])
@@ -199,13 +211,13 @@ struct SpotiglassMenuCommands: Commands {
 
             // Seeking had no keyboard path at all: the scrubber is drag-only and
             // no seek command existed anywhere (#126).
-            Button(SpotiglassL10n.string("menu.playback.seekForward")) {
+            Button(SpotiglassL10n.string("menu.playback.seekForward", locale: currentLocale)) {
                 run(CommandPaletteCommandID.seekForward)
             }
             .keyboardShortcut(.rightArrow, modifiers: .command)
             .disabled(!isSignedIn)
 
-            Button(SpotiglassL10n.string("menu.playback.seekBackward")) {
+            Button(SpotiglassL10n.string("menu.playback.seekBackward", locale: currentLocale)) {
                 run(CommandPaletteCommandID.seekBackward)
             }
             .keyboardShortcut(.leftArrow, modifiers: .command)
@@ -213,7 +225,7 @@ struct SpotiglassMenuCommands: Commands {
 
             Divider()
 
-            Button(SpotiglassL10n.string("menu.playback.connect")) {
+            Button(SpotiglassL10n.string("menu.playback.connect", locale: currentLocale)) {
                 run(CommandPaletteCommandID.connectPlayback)
             }
             .keyboardShortcut(keymapShortcut(for: CommandPaletteCommandID.connectPlayback))
@@ -230,14 +242,14 @@ struct SpotiglassMenuCommands: Commands {
         // too, so it is not ours to take out. The shape that leaves is the one
         // Safari has: feedback, the app's own help, then an extra item (#177).
         CommandGroup(replacing: .help) {
-            Button(SpotiglassL10n.string("menu.help.spotiglassHelp")) {
+            Button(SpotiglassL10n.string("menu.help.spotiglassHelp", locale: currentLocale)) {
                 Self.open(Self.readmeURL)
             }
             .keyboardShortcut("?", modifiers: .command)
 
             Divider()
 
-            Button(SpotiglassL10n.string("menu.help.reportIssue")) {
+            Button(SpotiglassL10n.string("menu.help.reportIssue", locale: currentLocale)) {
                 Self.open(Self.newIssueURL)
             }
         }
@@ -254,22 +266,22 @@ struct SpotiglassMenuCommands: Commands {
 
     private var queueItemTitle: String {
         isQueueVisible
-            ? SpotiglassL10n.string("menu.view.hideQueue")
-            : SpotiglassL10n.string("menu.view.showQueue")
+            ? SpotiglassL10n.string("menu.view.hideQueue", locale: locale)
+            : SpotiglassL10n.string("menu.view.showQueue", locale: locale)
     }
 
     /// Unpin only when every selected row is already pinned, matching what the
     /// command actually does.
     private var pinItemTitle: String {
         trackSelectionPinState == .unpin
-            ? SpotiglassL10n.string("browser.unpin")
-            : SpotiglassL10n.string("browser.pin")
+            ? SpotiglassL10n.string("browser.unpin", locale: locale)
+            : SpotiglassL10n.string("browser.pin", locale: locale)
     }
 
     var lyricsItemTitle: String {
         isLyricsPresented
-            ? SpotiglassL10n.string("menu.view.hideLyrics")
-            : SpotiglassL10n.string("menu.view.showLyrics")
+            ? SpotiglassL10n.string("menu.view.hideLyrics", locale: locale)
+            : SpotiglassL10n.string("menu.view.showLyrics", locale: locale)
     }
 
     private var shuffleBinding: Binding<Bool> {
@@ -295,11 +307,11 @@ struct SpotiglassMenuCommands: Commands {
     private func repeatModeLabel(for mode: SpotifyRepeatMode) -> String {
         switch mode {
         case .off:
-            SpotiglassL10n.string("playback.repeat.off")
+            SpotiglassL10n.string("playback.repeat.off", locale: locale)
         case .context:
-            SpotiglassL10n.string("playback.repeat.playlist")
+            SpotiglassL10n.string("playback.repeat.playlist", locale: locale)
         case .track:
-            SpotiglassL10n.string("playback.repeat.one")
+            SpotiglassL10n.string("playback.repeat.one", locale: locale)
         }
     }
 

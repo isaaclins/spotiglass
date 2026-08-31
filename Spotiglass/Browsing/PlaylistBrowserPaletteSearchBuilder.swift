@@ -213,7 +213,7 @@ enum PlaylistBrowserPaletteSearchBuilder {
                 pinAction: pinAction,
                 unpinAction: unpinAction,
                 queueAction: queueAction,
-                isExplicit: row.badgeText == "Explicit",
+                isExplicit: row.isExplicit,
                 action: { environment.playURI(uri) }
             )
             scored.append((item, score))
@@ -237,7 +237,7 @@ enum PlaylistBrowserPaletteSearchBuilder {
                 id: row.id,
                 name: row.title,
                 ownerID: row.ownerID,
-                ownerName: row.owner,
+                ownerName: row.localizedOwner(),
                 imageURL: row.artworkURL,
                 trackCount: row.trackCount,
                 snapshotID: row.snapshotID
@@ -256,7 +256,7 @@ enum PlaylistBrowserPaletteSearchBuilder {
                 subtitle: row.ownerTracksLine(currentUserID: currentUserSpotifyID),
                 iconSystemName: "music.note.list",
                 section: .myPlaylists,
-                keywords: [row.owner, row.title, row.id],
+                keywords: [row.localizedOwner(), row.title, row.id],
                 pinAction: pinPair.pin,
                 unpinAction: pinPair.unpin,
                 action: { environment.openPlaylist(row.id) }

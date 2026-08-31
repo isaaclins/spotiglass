@@ -7,11 +7,12 @@ enum PlaylistOwnerDisplay {
         ownerName: String,
         ownerID: String,
         trackCountText: String,
-        currentUserID: String?
+        currentUserID: String?,
+        locale: Locale = SpotiglassL10n.locale
     ) -> String {
         guard let currentUserID, !ownerID.isEmpty, ownerID == currentUserID else {
             return String(
-                format: SpotiglassL10n.string("browser.playlistOwnerTracks"),
+                format: SpotiglassL10n.string("browser.playlistOwnerTracks", locale: locale),
                 ownerName,
                 trackCountText
             )
@@ -37,11 +38,12 @@ enum PlaylistOwnerDisplay {
         trackCountText: String,
         currentUserID: String?,
         nowPlaying: String,
-        pinned: String
+        pinned: String,
+        locale: Locale = SpotiglassL10n.locale
     ) -> String {
         if let currentUserID, !ownerID.isEmpty, ownerID == currentUserID {
             return String(
-                format: SpotiglassL10n.string("browser.playlistRow.accessibilityOwnPlaylist"),
+                format: SpotiglassL10n.string("browser.playlistRow.accessibilityOwnPlaylist", locale: locale),
                 title,
                 trackCountText,
                 nowPlaying,
@@ -49,7 +51,7 @@ enum PlaylistOwnerDisplay {
             )
         }
         return String(
-            format: SpotiglassL10n.string("browser.playlistRow.accessibility"),
+            format: SpotiglassL10n.string("browser.playlistRow.accessibility", locale: locale),
             title,
             ownerName,
             trackCountText,

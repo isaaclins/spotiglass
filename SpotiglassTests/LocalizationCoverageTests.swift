@@ -38,6 +38,7 @@ final class LocalizationCoverageTests: XCTestCase {
 
         // Browsing
         ("browser.likedSongs.title", "browser.likedSongs.title", "Liked Songs", "Canciones que te gustan", "Lieblingssongs"),
+        ("browser.likedSongs.owner.you", "browser.likedSongs.owner.you", "You", "Tú", "Du"),
         ("browser.trackBadge.unavailable", "browser.trackBadge.unavailable", "Unavailable", "No disponible", "Nicht verfügbar"),
         ("browser.trackBadge.explicit", "browser.trackBadge.explicit", "Explicit", "Explícito", "Explizit"),
         ("browser.breadcrumb.artistFallback", "browser.breadcrumb.artistFallback", "Artist", "Artista", "Künstler"),
@@ -47,6 +48,9 @@ final class LocalizationCoverageTests: XCTestCase {
         ("search.category.tracks", "search.category.tracks", "Tracks", "Canciones", "Titel"),
         ("search.field.placeholder", "search.field.placeholder", "Search Spotify", "Buscar en Spotify", "Spotify durchsuchen"),
         ("palette.showAllResults.subtitle", "palette.showAllResults.subtitle", "Open the Search view", "Abrir la vista de búsqueda", "Suchansicht öffnen"),
+
+        // Menus
+        ("menu.view.title", "menu.view.title", "View", "Vista", "Ansicht"),
 
         // Playback
         ("playback.controls.state.ready.title", "playback.controls.state.ready.title", "Ready to play", "Listo para reproducir", "Bereit zur Wiedergabe"),
@@ -89,6 +93,176 @@ final class LocalizationCoverageTests: XCTestCase {
                 }
                 XCTAssertEqual(actual, expected, "[\(language.rawValue)] \(row.name)")
                 print("  \(row.name) -> \(actual)")
+            }
+        }
+    }
+
+    /// Static localization lookups are deliberately checked against the source
+    /// tree rather than a hand-maintained sample list. A missing key must fail
+    /// for every supported locale instead of falling back to the key itself.
+    func testEveryStaticLocalizationLookupExistsForEveryLocale() throws {
+        let repositoryURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let sourceURL = repositoryURL.appendingPathComponent("Spotiglass", isDirectory: true)
+        let catalogURL = sourceURL.appendingPathComponent("Localizable.xcstrings")
+        let catalogData = try Data(contentsOf: catalogURL)
+        let catalog = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: catalogData) as? [String: Any]
+        )
+        let strings = try XCTUnwrap(catalog["strings"] as? [String: Any])
+
+        let lookupRegex = try NSRegularExpression(
+            pattern: #"SpotiglassL10n\.(?:string|format)\(\s*(?:forKey:\s*)?"([^"\\]+)""#
+        )
+        var usedKeys: Set<String> = []
+        let enumerator = try XCTUnwrap(
+            FileManager.default.enumerator(
+                at: sourceURL,
+                includingPropertiesForKeys: [.isRegularFileKey]
+            )
+        )
+        for case let fileURL as URL in enumerator where fileURL.pathExtension == "swift" {
+            let source = try String(contentsOf: fileURL, encoding: .utf8)
+            let range = NSRange(source.startIndex..., in: source)
+            lookupRegex.enumerateMatches(in: source, range: range) { match, _, _ in
+                guard let match,
+                      let keyRange = Range(match.range(at: 1), in: source)
+                else { return }
+                usedKeys.insert(String(source[keyRange]))
+            }
+        }
+
+        func values(for entry: [String: Any], locale: String) -> [String] {
+            guard let localizations = entry["localizations"] as? [String: Any],
+                  let localization = localizations[locale] as? [String: Any]
+            else { return [] }
+            var values: [String] = []
+            if let unit = localization["stringUnit"] as? [String: Any],
+               let value = unit["value"] as? String {
+                values.append(value)
+            }
+            if let variations = localization["variations"] as? [String: Any],
+               let plural = variations["plural"] as? [String: Any] {
+                for case let form as [String: Any] in plural.values {
+                    if let unit = form["stringUnit"] as? [String: Any],
+                       let value = unit["value"] as? String {
+                        values.append(value)
+                    }
+                }
+            }
+            return values
+        }
+
+        for key in usedKeys.sorted() {
+            let entry = try XCTUnwrap(
+                strings[key] as? [String: Any],
+                "Missing localization catalog entry for \(key)"
+            )
+            for locale in ["en", "es", "de"] {
+                let localizedValues = values(for: entry, locale: locale)
+                XCTAssertFalse(
+                    localizedValues.isEmpty || localizedValues.contains(where: \.isEmpty),
+                    "Missing \(locale) localization for \(key)"
+                )
+            }
+        }
+    }
+
+    /// The fallback owner is part of a cached row, so changing the store must
+    /// change the rendered subtitle without rebuilding that row value.
+    func testLikedSongsOwnerFallbackFollowsSelectedLocale() throws {
+        let row = PlaylistRowViewModel(
+            likedSongsOwnerName: nil,
+            totalTrackCount: nil,
+            artworkURL: nil
+        )
+        let expected: [AppLanguage: String] = [
+            .english: "You",
+            .spanish: "Tú",
+            .german: "Du"
+        ]
+        for language in [AppLanguage.english, .spanish, .german] {
+            try store.mutate { $0.appearance.language = language }
+            XCTAssertEqual(
+                row.localizedOwner(locale: store.appLocale),
+                expected[language],
+                "Liked Songs owner in \(language.rawValue)"
+            )
+            XCTAssertEqual(
+                row.ownerTracksLine(currentUserID: nil, locale: store.appLocale),
+                "\(expected[language]!) • \(SpotiglassL10n.string("browser.likedSongs.savedTracks", locale: store.appLocale))",
+                "Liked Songs subtitle in \(language.rawValue)"
+            )
+        }
+    }
+
+    func testPinnedLikedSongsMetadataFollowsSelectedLocale() throws {
+        let item = PinnedItem.likedSongs(ownerDisplay: "", artworkURL: nil)
+        let expected: [AppLanguage: (title: String, owner: String)] = [
+            .english: ("Liked Songs", "You"),
+            .spanish: ("Canciones que te gustan", "Tú"),
+            .german: ("Lieblingssongs", "Du")
+        ]
+        for language in [AppLanguage.english, .spanish, .german] {
+            try store.mutate { $0.appearance.language = language }
+            XCTAssertEqual(item.localizedTitle(locale: store.appLocale), expected[language]!.title)
+            XCTAssertEqual(item.localizedSubtitle(locale: store.appLocale), expected[language]!.owner)
+        }
+    }
+
+    /// A catalog-coverage test cannot see an English literal that never enters
+    /// SpotiglassL10n. Keep the three owner construction sites explicitly free
+    /// of the old fallback literal, including the cached-row path.
+    func testLikedSongsOwnerConstructionSitesDoNotHardcodeEnglishFallback() throws {
+        let repositoryURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let paths = [
+            "Spotiglass/Browsing/PlaylistBrowserViewModel+LikedSongsDetailLoading.swift",
+            "Spotiglass/Views/PlaylistBrowser/PlaylistBrowserView+Library.swift"
+        ]
+        for relativePath in paths {
+            let source = try String(
+                contentsOf: repositoryURL.appendingPathComponent(relativePath),
+                encoding: .utf8
+            )
+            XCTAssertFalse(
+                source.contains(#""You""#),
+                "Hardcoded Liked Songs owner fallback in \(relativePath)"
+            )
+        }
+    }
+
+    /// Direct UI initializers are the other easy-to-miss form of an untranslated
+    /// literal. This narrow source check covers the browsing/detail/sidebar
+    /// surfaces without pretending that every English string in fixtures,
+    /// protocol identifiers, or server diagnostics is user-facing copy.
+    func testBrowsingSurfacesDoNotRenderHardcodedEnglishLiterals() throws {
+        let repositoryURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let roots = [
+            repositoryURL.appendingPathComponent("Spotiglass/Browsing", isDirectory: true),
+            repositoryURL.appendingPathComponent("Spotiglass/Views/PlaylistBrowser", isDirectory: true)
+        ]
+        let uiLiteralRegex = try NSRegularExpression(
+            pattern: #"\b(?:Text|Label|Button|Menu|ProgressView|Section)\(\s*\"[A-Za-z]"#
+        )
+        for root in roots {
+            let enumerator = try XCTUnwrap(
+                FileManager.default.enumerator(
+                    at: root,
+                    includingPropertiesForKeys: [.isRegularFileKey]
+                )
+            )
+            for case let fileURL as URL in enumerator where fileURL.pathExtension == "swift" {
+                let source = try String(contentsOf: fileURL, encoding: .utf8)
+                let range = NSRange(source.startIndex..., in: source)
+                XCTAssertNil(
+                    uiLiteralRegex.firstMatch(in: source, range: range),
+                    "Hardcoded UI literal in \(fileURL.path)"
+                )
             }
         }
     }

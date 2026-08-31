@@ -62,6 +62,7 @@ struct PlaylistDetailContent: View {
 
     @EnvironmentObject private var pinnedStore: PinnedItemsStore
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.spotiglassLocale) private var spotiglassLocale
     @State private var isPromptingNewPlaylist = false
     @State private var newPlaylistName = ""
     @State private var newPlaylistInitialRows: [TrackRowViewModel] = []
@@ -256,7 +257,10 @@ struct PlaylistDetailContent: View {
             VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
                 playlistTitle
 
-                Text(detail.playlist.ownerTracksLine(currentUserID: currentUserSpotifyID))
+                Text(detail.playlist.ownerTracksLine(
+                    currentUserID: currentUserSpotifyID,
+                    locale: spotiglassLocale
+                ))
                     .foregroundStyle(.secondary)
 
                 DetailHeaderActions(
@@ -293,7 +297,7 @@ struct PlaylistDetailContent: View {
                 .onExitCommand(perform: cancelPlaylistNameEditing)
                 .onAppear { isPlaylistNameFocused = true }
         } else {
-            Text(detail.playlist.title)
+            Text(detail.playlist.localizedTitle(locale: spotiglassLocale))
                 .font(.largeTitle.weight(.semibold))
                 .lineLimit(2)
                 .onTapGesture(count: 2, perform: beginPlaylistNameEditing)
@@ -569,7 +573,7 @@ struct TrackOpsMenuItems: View {
             }
         }
 
-        Menu(SpotiglassL10n.string("Add to playlist")) {
+        Menu(SpotiglassL10n.string("browser.addToPlaylist")) {
             if let onRequestCreatePlaylist {
                 Button(SpotiglassL10n.string("playlist.detail.newPlaylist.menuItem")) {
                     onRequestCreatePlaylist(playlistTargets)
@@ -591,7 +595,7 @@ struct TrackOpsMenuItems: View {
         .disabled(playlistTargets.isEmpty)
 
         if let sourcePlaylistID = sourcePlaylistForMove {
-            Menu(SpotiglassL10n.string("Move to playlist")) {
+            Menu(SpotiglassL10n.string("browser.moveToPlaylist")) {
                 ForEach(destinations, id: \.id) { dest in
                     Button(dest.name) {
                         Task {

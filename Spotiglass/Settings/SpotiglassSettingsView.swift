@@ -12,11 +12,15 @@ enum SpotiglassSettingsSection: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     var title: String {
+        SpotiglassL10n.string(localizationKey)
+    }
+
+    var localizationKey: String {
         switch self {
-        case .equalizer: SpotiglassL10n.string("settings.section.equalizer")
-        case .appearance: SpotiglassL10n.string("settings.section.appearance")
-        case .account: SpotiglassL10n.string("settings.section.account")
-        case .keyboard: SpotiglassL10n.string("settings.section.keyboard")
+        case .equalizer: "settings.section.equalizer"
+        case .appearance: "settings.section.appearance"
+        case .account: "settings.section.account"
+        case .keyboard: "settings.section.keyboard"
         }
     }
 
@@ -128,6 +132,9 @@ struct SpotiglassSettingsView: View {
         // every pane shows; only the height grows with the content.
         .frame(width: SpotiglassDesign.settingsWindowWidth)
         .frame(minHeight: SpotiglassDesign.settingsWindowMinHeight)
+        // `SpotiglassSettingsView` observes the store, so this value is
+        // refreshed for every descendant when the language picker changes.
+        .environment(\.spotiglassLocale, settingsStore.appLocale)
     }
 
     // MARK: - Sidebar (left pane)
@@ -146,7 +153,7 @@ struct SpotiglassSettingsView: View {
             } else {
                 List(selection: $section) {
                     ForEach(navigationSections) { sec in
-                        SettingsSidebarRow(section: sec)
+                        SettingsSidebarRow(section: sec, settingsStore: settingsStore)
                             .tag(sec)
                             .listRowSeparator(.hidden)
                     }
@@ -302,7 +309,7 @@ struct SpotiglassSettingsView: View {
                 )
                 .shadow(color: active.iconAccent.opacity(0.35), radius: SpotiglassDesign.spacingXS, x: 0, y: 2)
 
-            Text(active.title)
+            L10nText(active.localizationKey, locale: settingsStore.appLocale)
                 .font(.title2.weight(.semibold))
             Spacer()
         }
@@ -329,10 +336,16 @@ private struct SettingsPaneContainer<Content: View>: View {
 
 /// Sidebar row matching macOS Tahoe System Settings style: a tinted square
 /// icon tile, the section title, and an optional pill badge on the right.
-private struct SettingsSidebarRow: View {
+struct SettingsSidebarRow: View {
     let section: SpotiglassSettingsSection
+    @ObservedObject var settingsStore: SpotiglassSettingsStore
 
     var body: some View {
+        rowContent
+            .environment(\.spotiglassLocale, settingsStore.appLocale)
+    }
+
+    private var rowContent: some View {
         HStack(spacing: SpotiglassDesign.spacingS) {
             Image(systemName: section.systemImage)
                 .font(SpotiglassDesign.Typography.settingsSidebarIcon)
@@ -348,7 +361,7 @@ private struct SettingsSidebarRow: View {
                     strokeWidth: 0
                 )
 
-            Text(section.title)
+            L10nText(section.localizationKey, locale: settingsStore.appLocale)
                 .font(.body)
                 .foregroundStyle(.primary)
 

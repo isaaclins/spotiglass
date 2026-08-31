@@ -8,6 +8,7 @@ struct PlaylistBrowserView: View {
     @StateObject var lyricsViewModel = ImmersiveLyricsViewModel()
     @EnvironmentObject var pinnedStore: PinnedItemsStore
     @EnvironmentObject var lyricsOverlay: LyricsOverlayController
+    @Environment(\.spotiglassLocale) private var spotiglassLocale
     @AppStorage("queue.panel.visible") var isQueueVisible = false
     /// Best-effort scroll anchor when the playlist `List` is torn down for lyrics (playback URI match, else last row `onAppear`).
     @State var detailLastVisibleTrackID: String?
@@ -85,7 +86,10 @@ struct PlaylistBrowserView: View {
 
     /// Where you are, falling back to the app name at the root.
     private var windowTitle: String {
-        BrowserToolbarPresentation.windowTitle(for: viewModel.breadcrumbPath)
+        BrowserToolbarPresentation.windowTitle(
+            for: viewModel.breadcrumbPath,
+            locale: spotiglassLocale
+        )
     }
 
     // The browser body is split into sequential stages on purpose. As one

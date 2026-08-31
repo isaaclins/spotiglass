@@ -12,6 +12,7 @@ struct PinnedRowView: View {
 
     @State private var isHovering: Bool = false
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.spotiglassLocale) private var spotiglassLocale
     private let artworkSize: CGFloat = 46
 
     var body: some View {
@@ -30,21 +31,21 @@ struct PinnedRowView: View {
                         }
                         .buttonStyle(.plain)
                         .offset(x: -6, y: -6)
-                        .help(SpotiglassL10n.string("tooltip.pin.unpin"))
-                        .accessibilityLabel(String(format: SpotiglassL10n.string("pin.unpin"), item.title))
+                        .help(SpotiglassL10n.string("tooltip.pin.unpin", locale: spotiglassLocale))
+                        .accessibilityLabel(String(format: SpotiglassL10n.string("pin.unpin"), item.localizedTitle(locale: spotiglassLocale)))
                     }
                 }
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: SpotiglassDesign.spacingXS) {
-                    Text(item.title)
+                    Text(item.localizedTitle(locale: spotiglassLocale))
                         .font(.headline)
                         .foregroundStyle(item.isStale ? Color.secondary : Color.primary)
                         .lineLimit(1)
                     if item.isStale {
                         // The badge explains the state, so it must be the most
                         // legible thing in the row, not the least (#144).
-                        Text(SpotiglassL10n.string("pin.unavailable"))
+                        Text(SpotiglassL10n.string("pin.unavailable", locale: spotiglassLocale))
                             .font(.caption2.weight(.medium))
                             .foregroundStyle(Color.primary)
                             .padding(.horizontal, 6)
@@ -52,7 +53,7 @@ struct PinnedRowView: View {
                             .background(.quaternary, in: Capsule())
                     }
                 }
-                Text(item.subtitle)
+                Text(item.localizedSubtitle(locale: spotiglassLocale))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -69,11 +70,11 @@ struct PinnedRowView: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
             String(
-                format: SpotiglassL10n.string("pin.row.accessibility"),
-                item.kind.accessibilityLabel,
-                item.title,
-                item.subtitle,
-                item.isStale ? SpotiglassL10n.string("pin.row.unavailable") : ""
+                format: SpotiglassL10n.string("pin.row.accessibility", locale: spotiglassLocale),
+                item.kind.accessibilityLabel(locale: spotiglassLocale),
+                item.localizedTitle(locale: spotiglassLocale),
+                item.localizedSubtitle(locale: spotiglassLocale),
+                item.isStale ? SpotiglassL10n.string("pin.row.unavailable", locale: spotiglassLocale) : ""
             )
         )
     }
@@ -126,13 +127,13 @@ private struct CachedCircularArtwork: View {
 }
 
 private extension PinnedItemKind {
-    var accessibilityLabel: String {
+    func accessibilityLabel(locale: Locale = SpotiglassL10n.locale) -> String {
         switch self {
-        case .playlist: SpotiglassL10n.string("pin.kind.playlist")
-        case .artist: SpotiglassL10n.string("pin.kind.artist")
-        case .album: SpotiglassL10n.string("pin.kind.album")
-        case .track: SpotiglassL10n.string("pin.kind.track")
-        case .likedSongs: SpotiglassL10n.string("pin.likedSongs")
+        case .playlist: SpotiglassL10n.string("pin.kind.playlist", locale: locale)
+        case .artist: SpotiglassL10n.string("pin.kind.artist", locale: locale)
+        case .album: SpotiglassL10n.string("pin.kind.album", locale: locale)
+        case .track: SpotiglassL10n.string("pin.kind.track", locale: locale)
+        case .likedSongs: SpotiglassL10n.string("pin.likedSongs", locale: locale)
         }
     }
 }
@@ -144,6 +145,7 @@ struct PinnedItemDragPill: View {
     let item: PinnedItem
     private let artworkSize: CGFloat = 24
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.spotiglassLocale) private var spotiglassLocale
 
     var body: some View {
         HStack(spacing: 6) {
@@ -153,12 +155,12 @@ struct PinnedItemDragPill: View {
                 .font(SpotiglassDesign.Typography.pinKind)
                 .foregroundStyle(.spotiglassAccent)
             VStack(alignment: .leading, spacing: 1) {
-                Text(item.title)
+                Text(item.localizedTitle(locale: spotiglassLocale))
                     .font(.caption.weight(.semibold))
                     .lineLimit(1)
                     .truncationMode(.tail)
-                if !item.subtitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Text(item.subtitle)
+                if !item.localizedSubtitle(locale: spotiglassLocale).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Text(item.localizedSubtitle(locale: spotiglassLocale))
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)

@@ -34,6 +34,10 @@ palette.command.queue.toggle.title
 settings.appearance.lyricsOffset.value.earlier
 settings.appearance.lyricsOffset.value.later
 
+# The default macOS View menu owns this top-level title; the app only adds
+# command groups to it, so SwiftUI has no source lookup for the title itself.
+menu.view.title
+
 # Swift String Catalog keys normalized from interpolated SwiftUI literals.
 %@, %@
 %lld

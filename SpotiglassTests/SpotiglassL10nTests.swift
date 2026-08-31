@@ -27,7 +27,7 @@ final class SpotiglassL10nTests: XCTestCase {
         SpotiglassL10n.settingsStore = nil
         let home = SpotiglassL10n.string("browser.home")
         XCTAssertFalse(home.isEmpty)
-        let formatted = SpotiglassL10n.format("auth.accessToken.validUntil", "12:00 PM")
+        let formatted = SpotiglassL10n.format("settings.account.validUntil", "12:00 PM")
         XCTAssertFalse(formatted.isEmpty)
     }
 
