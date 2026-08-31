@@ -14,7 +14,9 @@ final class RootViewTests: XCTestCase {
         auth: AuthViewModel,
         palette: CommandPaletteManager
     ) throws -> some View {
-        RootView(commandPaletteManager: palette)
+        let tokens = MockPlaybackTokenProvider(accessToken: "test", refreshedAccessToken: "test-refresh")
+        let playbackHost = SpotiglassPlaybackHost(tokenProvider: tokens)
+        return RootView(commandPaletteManager: palette, playbackHost: playbackHost)
             .environmentObject(try ViewTestHost.makeSettingsStore())
             .environmentObject(auth)
             .environmentObject(PinnedItemsStore(cache: InMemoryPinnedItemsCache()))

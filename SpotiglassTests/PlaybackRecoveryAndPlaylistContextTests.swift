@@ -269,6 +269,44 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
         await viewModel.disconnect()
     }
 
+    func testConnectingResolvesToRetryableErrorAfterTimeout() async {
+        let commander = MockWebPlaybackCommander()
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: MockPlaybackAPI(),
+            webCommander: commander,
+            playbackHostConnectTimeout: .milliseconds(20)
+        )
+
+        viewModel.start()
+        try? await Task.sleep(for: .milliseconds(100))
+
+        guard case let .error(error) = viewModel.connectionState else {
+            return XCTFail("Expected a connection timeout error")
+        }
+        XCTAssertEqual(error, PlaybackSessionViewModel.playbackHostConnectionTimedOutError())
+        XCTAssertEqual(error.recoveryAction, .reconnect)
+        XCTAssertTrue(commander.commands.contains { $0.command == .connect })
+    }
+
+    func testStaleReadyDoesNotCancelConnectionTimeout() async {
+        let viewModel = PlaybackSessionViewModel(
+            playbackAPI: MockPlaybackAPI(),
+            webCommander: MockWebPlaybackCommander(),
+            playbackHostConnectTimeout: .milliseconds(20)
+        )
+
+        viewModel.handle(.ready(deviceID: "old-device"))
+        viewModel.handle(.notReady(deviceID: "old-device"))
+        viewModel.start()
+        viewModel.handle(.ready(deviceID: "old-device"))
+        try? await Task.sleep(for: .milliseconds(100))
+
+        guard case let .error(error) = viewModel.connectionState else {
+            return XCTFail("Expected a connection timeout after ignoring stale ready")
+        }
+        XCTAssertEqual(error.recoveryAction, .reconnect)
+    }
+
     func testRetryPlaybackTransferCallsTransferAPIWhenDeviceKnown() async {
         let commander = MockWebPlaybackCommander()
         let playbackAPI = MockPlaybackAPI()

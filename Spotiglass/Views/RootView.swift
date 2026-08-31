@@ -68,7 +68,9 @@ final class SpotiglassSceneRegistry: ObservableObject {
 
     /// Removes a scene from the live registry. Only the current host is
     /// detached: an inactive scene may disappear without tearing down the
-    /// controller that still belongs to another live scene.
+    /// controller that still belongs to another live scene. Playback is
+    /// app-scoped and intentionally is not reset here; its single WebKit view
+    /// migrates independently to any surviving scene.
     func deactivate(_ scene: SpotiglassSceneHost) {
         let wasCurrentHost = activeScene === scene
         scenes.removeAll { $0 === scene }
@@ -184,10 +186,8 @@ struct RootView: View {
     @EnvironmentObject private var pinnedStore: PinnedItemsStore
     @StateObject private var sceneHost: SpotiglassSceneHost
     private let sceneRegistry: SpotiglassSceneRegistry?
-    /// Passed straight through to the playback session so a hardware output
-    /// selection can be re-routed through the EQ instead of bypassing it
-    /// (#253). Nil in previews/tests, where no engine owns the system route.
-    private let equalizerEngine: AudioEqualizerEngine?
+    /// The app-scoped playback model and its single Web Playback SDK host.
+    private let playbackHost: SpotiglassPlaybackHost
     @Environment(\.openSettings) private var openSettingsAction
 
     private var commandPaletteManager: CommandPaletteManager {
@@ -200,16 +200,19 @@ struct RootView: View {
 
     /// Standalone host (previews and view tests): no registry, so this scene
     /// always considers itself current.
-    init(commandPaletteManager: CommandPaletteManager, equalizerEngine: AudioEqualizerEngine? = nil) {
+    init(
+        commandPaletteManager: CommandPaletteManager,
+        playbackHost: SpotiglassPlaybackHost
+    ) {
         _sceneHost = StateObject(wrappedValue: SpotiglassSceneHost(commandPaletteManager: commandPaletteManager))
         sceneRegistry = nil
-        self.equalizerEngine = equalizerEngine
+        self.playbackHost = playbackHost
     }
 
     init(
         keymapStore: CommandPaletteKeymapStore,
         sceneRegistry: SpotiglassSceneRegistry,
-        equalizerEngine: AudioEqualizerEngine? = nil
+        playbackHost: SpotiglassPlaybackHost
     ) {
         _sceneHost = StateObject(
             wrappedValue: SpotiglassSceneHost(
@@ -217,7 +220,7 @@ struct RootView: View {
             )
         )
         self.sceneRegistry = sceneRegistry
-        self.equalizerEngine = equalizerEngine
+        self.playbackHost = playbackHost
     }
 
     /// Clears all scene-local state before the shared auth state can replace a
@@ -298,6 +301,12 @@ struct RootView: View {
                     .frame(width: 0, height: 0)
             }
             .background {
+                SpotiglassPlaybackHostView(host: playbackHost)
+                    .frame(width: 1, height: 1)
+                    .opacity(0.01)
+                    .accessibilityHidden(true)
+            }
+            .background {
                 if let sceneRegistry {
                     SceneHostActivationView {
                         sceneRegistry.activate(sceneHost)
@@ -336,6 +345,9 @@ struct RootView: View {
                     commandPaletteManager.isSignedIn = true
                 case .signedOut, .signingIn, .failed, .refreshing(.none):
                     resetTransientStateForAuthLoss()
+                    if sceneRegistry == nil || sceneRegistry?.activeScene === sceneHost {
+                        Task { await playbackHost.playbackViewModel.disconnect() }
+                    }
                     commandPaletteManager.isSignedIn = false
                     pinnedStore.clearForSignOut()
                 }
@@ -348,11 +360,10 @@ struct RootView: View {
         case .signedIn, .refreshing(.some):
             PlaylistBrowserView(
                 viewModel: .live(tokenProvider: viewModel),
-                playbackTokenProvider: viewModel,
+                playbackHost: playbackHost,
                 searchTokenProvider: viewModel,
                 commandPaletteManager: commandPaletteManager,
-                signOut: signOutAction,
-                equalizerEngine: equalizerEngine
+                signOut: signOutAction
             )
         case .refreshing(.none):
             ZStack {
@@ -492,8 +503,12 @@ private struct LyricsOverlayLayer: View {
     let settingsURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("SpotiglassRootPreview-\(UUID().uuidString)", isDirectory: true)
         .appendingPathComponent("settings.json", isDirectory: false)
-    return RootView(commandPaletteManager: CommandPaletteManager())
+    let auth = AuthViewModel.preview()
+    return RootView(
+        commandPaletteManager: CommandPaletteManager(),
+        playbackHost: SpotiglassPlaybackHost(tokenProvider: auth)
+    )
         .environmentObject(SpotiglassSettingsStore(fileURL: settingsURL))
-        .environmentObject(AuthViewModel.preview())
+        .environmentObject(auth)
         .environmentObject(PinnedItemsStore(cache: InMemoryPinnedItemsCache()))
 }

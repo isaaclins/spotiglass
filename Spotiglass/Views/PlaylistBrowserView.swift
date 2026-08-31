@@ -3,7 +3,7 @@ import SwiftUI
 
 struct PlaylistBrowserView: View {
     @StateObject var viewModel: PlaylistBrowserViewModel
-    @StateObject var playbackViewModel: PlaybackSessionViewModel
+    @ObservedObject var playbackViewModel: PlaybackSessionViewModel
     @StateObject var queueViewModel: QueueViewModel
     @StateObject var lyricsViewModel = ImmersiveLyricsViewModel()
     @EnvironmentObject var pinnedStore: PinnedItemsStore
@@ -44,8 +44,6 @@ struct PlaylistBrowserView: View {
     /// sides still visible. Defaults to `.playlist` so the first narrow-resize tiebreaker closes the
     /// queue panel (the explicitly opt-in overlay) and keeps the primary nav sidebar.
     @State var lastOpenedSidebar: SidebarKind = .playlist
-    let commander: WebPlaybackViewCommander
-    let playbackCoordinator: SpotifyPlaybackWebViewCoordinator
     @ObservedObject var commandPaletteManager: CommandPaletteManager
     let spotifySearchClient: SpotifyAPIClient
     let signOut: () -> Void
@@ -66,37 +64,22 @@ struct PlaylistBrowserView: View {
 
     init(
         viewModel: PlaylistBrowserViewModel,
-        playbackTokenProvider: PlaybackAccessTokenProviding,
+        playbackHost: SpotiglassPlaybackHost,
         searchTokenProvider: SpotifyAccessTokenProviding,
         commandPaletteManager: CommandPaletteManager,
-        signOut: @escaping () -> Void,
-        equalizerEngine: AudioEqualizerEngine? = nil
+        signOut: @escaping () -> Void
     ) {
-        let commander = WebPlaybackViewCommander()
-        let playbackAPI = SpotifyPlaybackAPI(tokenProvider: playbackTokenProvider)
-        let playbackViewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: commander,
-            equalizerEngine: equalizerEngine
-        )
+        let playbackViewModel = playbackHost.playbackViewModel
         let queueViewModel = QueueViewModel(
-            playbackAPI: playbackAPI,
+            playbackAPI: playbackHost.playbackAPI,
             playbackSession: playbackViewModel
         )
-        let playbackCoordinator = SpotifyPlaybackWebViewCoordinator(
-            tokenBridge: PlaybackTokenBridge(provider: playbackTokenProvider)
-        )
-        playbackCoordinator.onEvent = { [weak playbackViewModel] envelope in
-            playbackViewModel?.handle(envelope)
-        }
 
         _viewModel = StateObject(wrappedValue: viewModel)
-        _playbackViewModel = StateObject(wrappedValue: playbackViewModel)
+        _playbackViewModel = ObservedObject(wrappedValue: playbackViewModel)
         _queueViewModel = StateObject(wrappedValue: queueViewModel)
         _commandPaletteManager = ObservedObject(wrappedValue: commandPaletteManager)
         spotifySearchClient = SpotifyAPIClient(tokenProvider: searchTokenProvider, getResponseCache: .shared)
-        self.commander = commander
-        self.playbackCoordinator = playbackCoordinator
         self.signOut = signOut
     }
 
@@ -210,12 +193,6 @@ struct PlaylistBrowserView: View {
             }.value
         }
         .background(.background)
-        .background {
-            HiddenPlaybackWebView(commander: commander, coordinator: playbackCoordinator)
-                .frame(width: 1, height: 1)
-                .opacity(0.01)
-                .accessibilityHidden(true)
-        }
         // An empty title left the window untitled: blank in the Window menu, in
         // Mission Control and to assistive tech, while the Settings window was
         // correctly named (#161). The title is the current location rather than

@@ -6,6 +6,9 @@ extension PlaybackSessionViewModel {
     func beginPlaybackHostLifecycle() -> PlaybackHostGeneration {
         playbackHostConnectTask?.cancel()
         playbackHostConnectTask = nil
+        playbackHostConnectTimeoutTask?.cancel()
+        playbackHostConnectTimeoutTask = nil
+        playbackHostConnectTimeoutSerial &+= 1
         playbackHostRecoveryTask?.cancel()
         playbackHostRecoveryTask = nil
         playbackHostRecoverySerial &+= 1
@@ -92,6 +95,10 @@ extension PlaybackSessionViewModel {
         setActivePlaybackDeviceID(nil)
         setConnectionState(.connecting)
         deviceID = nil
+        SpotiglassLog.info(
+            .playback,
+            "Starting Spotify playback SDK connect generation=\(generation.rawValue) timeout=\(Self.durationSeconds(playbackHostConnectTimeout))s"
+        )
         webCommander.loadHost(generation: generation)
         playbackHostConnectTask = Task { [weak self] in
             guard let self, self.ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
@@ -100,7 +107,57 @@ extension PlaybackSessionViewModel {
                     self.playbackHostConnectTask = nil
                 }
             }
-            try? await self.webCommander.send(.connect, payload: [:], generation: generation)
+            do {
+                try await self.webCommander.send(.connect, payload: [:], generation: generation)
+                guard self.ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
+                SpotiglassLog.info(
+                    .playback,
+                    "Spotify playback SDK connect command sent generation=\(generation.rawValue)"
+                )
+            } catch {
+                guard self.ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
+                SpotiglassLog.error(
+                    .playback,
+                    "Spotify playback SDK connect command failed generation=\(generation.rawValue) error=\(error.localizedDescription)"
+                )
+                self.cancelPlaybackHostConnectTimeout()
+                self.setConnectionState(.error(Self.playbackHostConnectionFailedError(for: error)))
+            }
+        }
+        schedulePlaybackHostConnectTimeout(generation: generation)
+    }
+
+    func cancelPlaybackHostConnectTimeout() {
+        playbackHostConnectTimeoutTask?.cancel()
+        playbackHostConnectTimeoutTask = nil
+        playbackHostConnectTimeoutSerial &+= 1
+    }
+
+    private func schedulePlaybackHostConnectTimeout(generation: PlaybackHostGeneration) {
+        cancelPlaybackHostConnectTimeout()
+        let serial = playbackHostConnectTimeoutSerial
+        let deadline = clock.now.advanced(by: playbackHostConnectTimeout)
+        playbackHostConnectTimeoutTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await self.clock.sleep(until: deadline, tolerance: nil)
+            } catch {
+                return
+            }
+            guard self.ownsPlaybackHostGeneration(generation),
+                  self.playbackHostConnectTimeoutSerial == serial,
+                  !Task.isCancelled,
+                  self.connectionState == .connecting
+            else { return }
+
+            SpotiglassLog.error(
+                .playback,
+                "Spotify playback SDK connect timed out generation=\(generation.rawValue) after \(Self.durationSeconds(self.playbackHostConnectTimeout))s"
+            )
+            self.playbackHostConnectTimeoutTask = nil
+            self.playbackHostConnectTask?.cancel()
+            self.playbackHostConnectTask = nil
+            self.setConnectionState(.error(Self.playbackHostConnectionTimedOutError()))
         }
     }
 

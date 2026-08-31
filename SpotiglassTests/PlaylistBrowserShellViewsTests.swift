@@ -16,6 +16,34 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
         XCTAssertFalse(PlaylistBrowserView.mutualExclusionWidth(for: comfortable + 100))
     }
 
+    func testBrowserScenesShareTheAppScopedPlaybackHost() {
+        let tokens = ShellTestTokenProvider()
+        let playbackHost = SpotiglassPlaybackHost(tokenProvider: tokens)
+        let first = PlaylistBrowserView(
+            viewModel: PlaylistBrowserViewModel(
+                api: MockBrowsingAPI(playlistResults: [], trackResults: [:]),
+                cache: MockBrowsingCache()
+            ),
+            playbackHost: playbackHost,
+            searchTokenProvider: tokens,
+            commandPaletteManager: CommandPaletteManager(),
+            signOut: {}
+        )
+        let second = PlaylistBrowserView(
+            viewModel: PlaylistBrowserViewModel(
+                api: MockBrowsingAPI(playlistResults: [], trackResults: [:]),
+                cache: MockBrowsingCache()
+            ),
+            playbackHost: playbackHost,
+            searchTokenProvider: tokens,
+            commandPaletteManager: CommandPaletteManager(),
+            signOut: {}
+        )
+
+        XCTAssertTrue(first.playbackViewModel === playbackHost.playbackViewModel)
+        XCTAssertTrue(second.playbackViewModel === playbackHost.playbackViewModel)
+    }
+
     func testPlaylistBrowserSidebarHosts() async throws {
         try ViewTestHost.skipIfViewInspectorGeometryUnsupported()
         let api = MockBrowsingAPI(
@@ -141,9 +169,10 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
         store.pin(PinnedItem.playlist(PlaylistBrowsingTestFixtures.playlist(id: "pin", name: "Pinned")))
         let palette = CommandPaletteManager()
         let tokens = ShellTestTokenProvider()
+        let playbackHost = SpotiglassPlaybackHost(tokenProvider: tokens)
         let view = PlaylistBrowserView(
             viewModel: browserVM,
-            playbackTokenProvider: tokens,
+            playbackHost: playbackHost,
             searchTokenProvider: tokens,
             commandPaletteManager: palette,
             signOut: {}

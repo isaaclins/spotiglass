@@ -57,7 +57,7 @@ flowchart TB
 
 ## Playback pipeline
 
-1. `HiddenPlaybackWebView` loads bundled `SpotifyPlaybackHost.html`.
+1. The app-scoped `SpotiglassPlaybackHost` retains one `WKWebView`; `SpotiglassPlaybackHostView` mounts it into a live scene and it loads bundled `SpotifyPlaybackHost.html`.
 2. JavaScript SDK posts events to Swift (`SpotifyPlaybackBridge`).
 3. `PlaybackSessionViewModel` coordinates device transfer, transport polls, and UI state.
 4. `SpotifyPlaybackAPI` calls REST endpoints for queue, devices, and transport when needed.

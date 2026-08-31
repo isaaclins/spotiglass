@@ -11,6 +11,10 @@ struct SpotiglassApp: App {
     @StateObject private var sceneRegistry = SpotiglassSceneRegistry()
     @StateObject private var pinnedStore: PinnedItemsStore
     @StateObject private var equalizerEngine: AudioEqualizerEngine
+    /// The Spotify Web Playback SDK is account-scoped, so its model, commander
+    /// and hidden web view live for the lifetime of the app rather than a
+    /// particular WindowGroup scene.
+    @StateObject private var playbackHost: SpotiglassPlaybackHost
     /// Same storage key ``PlaylistBrowserView`` writes, read here so the View menu
     /// can say "Show Queue" or "Hide Queue" instead of a stateless "Toggle".
     @AppStorage("queue.panel.visible") private var isQueueVisible = false
@@ -55,6 +59,12 @@ struct SpotiglassApp: App {
         Self.restoreEqualizerIfEnabled(settingsStore: store, engine: equalizer)
         equalizer.observe(settingsStore: store)
         _equalizerEngine = StateObject(wrappedValue: equalizer)
+        _playbackHost = StateObject(
+            wrappedValue: SpotiglassPlaybackHost(
+                tokenProvider: authVM,
+                equalizerEngine: equalizer
+            )
+        )
         SpotiglassL10n.settingsStore = store
     }
 
@@ -109,12 +119,13 @@ struct SpotiglassApp: App {
             RootView(
                 keymapStore: keymapStore,
                 sceneRegistry: sceneRegistry,
-                equalizerEngine: equalizerEngine
+                playbackHost: playbackHost
             )
                 .environmentObject(authViewModel)
                 .environmentObject(settingsStore)
                 .environmentObject(pinnedStore)
                 .environment(\.locale, settingsStore.appLocale)
+                .environmentObject(playbackHost)
                 .preferredColorScheme(preferredColorScheme)
                 .frame(minWidth: 520, minHeight: 360)
         }
