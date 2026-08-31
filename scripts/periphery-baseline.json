@@ -152,14 +152,6 @@
     ]
   },
   {
-    "file": "Spotiglass/Playback/PlaybackControlsView.swift",
-    "kind": "var.instance",
-    "name": "dragFraction",
-    "hints": [
-      "unused"
-    ]
-  },
-  {
     "file": "Spotiglass/Playback/Session/PlaybackSessionViewModel+Timers.swift",
     "kind": "function.method.instance",
     "name": "resolvedTransportTrackURI(_:)",
@@ -211,14 +203,6 @@
     "file": "Spotiglass/Settings/SpotiglassSettingsModel.swift",
     "kind": "var.static",
     "name": "small",
-    "hints": [
-      "unused"
-    ]
-  },
-  {
-    "file": "Spotiglass/Settings/SpotiglassSettingsView.swift",
-    "kind": "var.instance",
-    "name": "columnVisibility",
     "hints": [
       "unused"
     ]

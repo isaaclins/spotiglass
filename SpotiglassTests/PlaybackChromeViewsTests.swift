@@ -287,33 +287,45 @@ final class PlaybackChromeViewsTests: XCTestCase {
         }
     }
 
+    /// Mirrors the selection `ViewThatFits` performs over
+    /// `transportLayoutCandidates()`: the first candidate whose minimum width
+    /// the proposal satisfies, falling back to the stacked arrangement. Lives
+    /// in the test target because production selects structurally, by handing
+    /// each candidate's minimum to `ViewThatFits` as a frame, rather than by
+    /// computing a candidate from a measured width.
+    private func transportLayoutCandidate(
+        for measuredWidth: CGFloat
+    ) -> PlaybackTransportLayoutPolicy.TransportLayoutCandidate {
+        let candidates = PlaybackTransportLayoutPolicy.transportLayoutCandidates()
+        guard measuredWidth.isFinite else { return candidates.last! }
+        return candidates.first { measuredWidth >= $0.minimumWidth } ?? candidates.last!
+    }
+
     func testPlaybackTransportLayoutCandidatesReachFixedPointsAcrossDenseWidthSweep() {
         let fullCandidate = PlaybackTransportLayoutPolicy.TransportLayoutCandidate(
-            isStacked: false,
             useCompactVolume: false,
             minimumWidth: PlaybackTransportLayoutPolicy.compactVolumeBreakpoint
         )
         let compactCandidate = PlaybackTransportLayoutPolicy.TransportLayoutCandidate(
-            isStacked: false,
             useCompactVolume: true,
             minimumWidth: PlaybackTransportLayoutPolicy.stackedScrubberBreakpoint
         )
 
         XCTAssertEqual(
-            PlaybackTransportLayoutPolicy.transportLayoutCandidate(
+            transportLayoutCandidate(
                 for: PlaybackTransportLayoutPolicy.compactVolumeBreakpoint - 1
             ),
             compactCandidate
         )
         XCTAssertEqual(
-            PlaybackTransportLayoutPolicy.transportLayoutCandidate(
+            transportLayoutCandidate(
                 for: PlaybackTransportLayoutPolicy.compactVolumeBreakpoint + 1
             ),
             fullCandidate
         )
 
         for width in stride(from: CGFloat(320), through: CGFloat(1600), by: 1) {
-            let firstCandidate = PlaybackTransportLayoutPolicy.transportLayoutCandidate(for: width)
+            let firstCandidate = transportLayoutCandidate(for: width)
             let firstMinimums = PlaybackTransportLayoutPolicy.transportChildMinimumWidths(
                 in: width,
                 useCompactVolume: firstCandidate.useCompactVolume
@@ -322,7 +334,7 @@ final class PlaybackChromeViewsTests: XCTestCase {
             // through layout: the selected candidate must remain selected and
             // its complete child-minimum computation must remain unchanged.
             let measuredAgain = max(width, firstCandidate.minimumWidth)
-            let secondCandidate = PlaybackTransportLayoutPolicy.transportLayoutCandidate(for: measuredAgain)
+            let secondCandidate = transportLayoutCandidate(for: measuredAgain)
             let secondMinimums = PlaybackTransportLayoutPolicy.transportChildMinimumWidths(
                 in: measuredAgain,
                 useCompactVolume: secondCandidate.useCompactVolume
@@ -338,7 +350,10 @@ final class PlaybackChromeViewsTests: XCTestCase {
                 firstMinimums,
                 "Transport child minimums did not converge at measured width \(width)"
             )
-            if !firstCandidate.isStacked {
+            // The stacked arrangement is the always-fits fallback, and is the
+            // only candidate declaring a zero minimum. Every other candidate is
+            // horizontal and must genuinely fit the width it was selected for.
+            if firstCandidate.minimumWidth > 0 {
                 XCTAssertLessThanOrEqual(
                     firstMinimums.summary
                         + firstMinimums.scrubber
