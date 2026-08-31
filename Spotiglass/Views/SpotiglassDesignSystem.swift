@@ -168,11 +168,6 @@ enum SpotiglassDesign {
     static let detailColumnMinWidth: CGFloat = 360
     static let queuePanelMinWidth: CGFloat = 280
 
-    /// Minimum main-window width that keeps the playlist sidebar and detail
-    /// columns fully visible. macOS does not collapse this two-column split
-    /// when its visibility is explicitly bound, so the window must not accept
-    /// the old 520pt width (#356).
-    static let browserWindowMinWidth: CGFloat = 700
     static let queuePanelMaxWidth: CGFloat = 420
 
     /// Below this width the playlist sidebar and queue panel are mutually exclusive (opening one closes the other),
