@@ -70,6 +70,7 @@ extension PlaybackSessionViewModel {
                         minimumMutationVersion: minimumShuffleMutationVersion
                     )
                     applyTransportRepeatMode(snapshot.transport.repeatMode)
+                    applyRemotePlaybackSnapshot(snapshot)
                 } else {
                     latestPlayerSnapshot = nil
                     setTransportStateKnown(false)
@@ -88,8 +89,18 @@ extension PlaybackSessionViewModel {
                 if Self.isBenignTransportSyncCancellation(error) {
                     break
                 }
+                if Self.isMissingPlaybackScope(error) {
+                    // A stale OAuth grant is actionable: stop polling the same
+                    // denied request and put the existing Account ▸ Reconnect
+                    // path in front of the user instead of leaving an empty
+                    // transport behind.
+                    setConnectionState(.error(Self.displayError(for: error)))
+                    transportTransientErrorCount = 0
+                    transportRateLimitedUntil = nil
+                    break
+                }
                 applyTransportPollingBackoff(for: error)
-                // Polling should not surface transport read failures as playback errors.
+                // Transient polling failures should not surface as playback errors.
             }
         } while transportSyncQueued && ownsPlaybackHostGeneration(generation) && !Task.isCancelled
 
@@ -99,6 +110,44 @@ extension PlaybackSessionViewModel {
                 minimumShuffleMutationVersion: minimumShuffleMutationVersion,
                 generation: generation
             )
+        }
+    }
+
+    /// Publishes the Web API player item only while Spotify is playing on a
+    /// Connect device other than the embedded Web Playback SDK device. Local
+    /// SDK state remains authoritative for the Spotiglass device.
+    private func applyRemotePlaybackSnapshot(_ snapshot: SpotifyPlayerSnapshot) {
+        guard let localDeviceID = deviceID,
+              let activeDevice = snapshot.activeDevice,
+              activeDevice.deviceID != localDeviceID else { return }
+        // A just-issued local command can be followed by one stale player
+        // snapshot. Preserve the selected target during that settle window,
+        // but accept the snapshot once it agrees with that target.
+        guard localMutationSettleTicksRemaining == 0
+            || activePlaybackDeviceID == activeDevice.deviceID else { return }
+
+        setActivePlaybackDeviceID(activeDevice.deviceID)
+        let remoteNowPlaying = snapshot.playbackNowPlaying
+        let suppressed = shouldSuppressStaleStateChange(nowPlaying: remoteNowPlaying)
+        SpotiglassLog.info(
+            .playback,
+            "Remote player snapshot deviceID=\(activeDevice.deviceID) itemURI=\(remoteNowPlaying?.uri ?? "<nil>") isPlaying=\(snapshot.isPlaying) progressMs=\(snapshot.progressMilliseconds ?? 0) suppressed=\(suppressed)"
+        )
+        observeSkipAdvance(nowPlayingURI: remoteNowPlaying?.uri)
+        guard !suppressed else { return }
+
+        let authoritativeState: PlaybackConnectionState = snapshot.isPlaying
+            ? .playing(remoteNowPlaying ?? fallbackNowPlaying())
+            : .paused(remoteNowPlaying)
+        updateSeekOwnership(from: authoritativeState)
+        if failedSeekOwnershipKey == seekOwnershipKey {
+            return
+        }
+        let effectiveNowPlaying = applyPendingSeekSuppression(to: remoteNowPlaying)
+        if snapshot.isPlaying {
+            setConnectionState(.playing(effectiveNowPlaying ?? fallbackNowPlaying()))
+        } else {
+            setConnectionState(.paused(effectiveNowPlaying))
         }
     }
 
@@ -180,6 +229,14 @@ extension PlaybackSessionViewModel {
         transportSyncSchedulerTask = task
         transportSyncSchedulerGeneration = generation
         return task
+    }
+
+    private static func isMissingPlaybackScope(_ error: Error) -> Bool {
+        guard let apiError = error as? SpotifyAPIError else { return false }
+        if case .insufficientScope = apiError {
+            return true
+        }
+        return false
     }
 
     private static func isBenignTransportSyncCancellation(_ error: Error) -> Bool {

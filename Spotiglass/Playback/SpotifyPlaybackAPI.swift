@@ -7,12 +7,14 @@ private enum SpotifyQueueUnionDTO: Decodable {
     case episode(SpotifyEpisodeDTO)
 
     enum CodingKeys: String, CodingKey {
+        case type
         case show
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        if container.contains(.show) {
+        let type = try container.decodeIfPresent(String.self, forKey: .type)
+        if type == "episode" || container.contains(.show) {
             self = .episode(try SpotifyEpisodeDTO(from: decoder))
         } else {
             self = .track(try SpotifyTrackDTO(from: decoder))
@@ -64,12 +66,16 @@ private struct SpotifyPlayerSnapshotDTO: Decodable {
     let repeatState: String
     let device: SpotifyConnectDeviceDTO?
     let isPlaying: Bool
+    let item: SpotifyQueueUnionDTO?
+    let progressMilliseconds: Int?
 
     enum CodingKeys: String, CodingKey {
         case shuffleState = "shuffle_state"
         case repeatState = "repeat_state"
         case device
         case isPlaying = "is_playing"
+        case item
+        case progressMilliseconds = "progress_ms"
     }
 
     func domainModel() -> SpotifyPlayerSnapshot {
@@ -79,7 +85,9 @@ private struct SpotifyPlayerSnapshotDTO: Decodable {
                 repeatMode: SpotifyRepeatMode(rawValue: repeatState) ?? .off
             ),
             activeDevice: device?.domainModel(),
-            isPlaying: isPlaying
+            isPlaying: isPlaying,
+            item: item?.domainModel,
+            progressMilliseconds: progressMilliseconds
         )
     }
 }
@@ -119,6 +127,8 @@ protocol SpotifyPlaybackControlling {
     func play(contextURI: String, deviceID: String) async throws
     func play(uris: [String], deviceID: String) async throws
     func play(uris: [String], offsetURI: String, deviceID: String) async throws
+    func pause(deviceID: String) async throws
+    func resume(deviceID: String) async throws
     func seek(to milliseconds: Int, deviceID: String) async throws
     func next(deviceID: String) async throws
     func previous(deviceID: String) async throws
@@ -185,6 +195,24 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
     func play(contextURI: String, deviceID: String) async throws {
         let body = PlayContextRequest(contextURI: contextURI)
         try await send(path: "/v1/me/player/play", method: "PUT", body: body, queryItems: [URLQueryItem(name: "device_id", value: deviceID)])
+    }
+
+    func pause(deviceID: String) async throws {
+        try await send(
+            path: "/v1/me/player/pause",
+            method: "PUT",
+            body: EmptyBody(),
+            queryItems: [URLQueryItem(name: "device_id", value: deviceID)]
+        )
+    }
+
+    func resume(deviceID: String) async throws {
+        try await send(
+            path: "/v1/me/player/play",
+            method: "PUT",
+            body: EmptyBody(),
+            queryItems: [URLQueryItem(name: "device_id", value: deviceID)]
+        )
     }
 
     func play(uris: [String], deviceID: String) async throws {

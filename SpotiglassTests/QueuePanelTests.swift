@@ -1122,6 +1122,14 @@ private final class QueueTestPlaybackAPI: SpotifyPlaybackControlling {
         appendAction("play-context:\(deviceID):\(contextURI)")
     }
 
+    func pause(deviceID: String) async throws {
+        appendAction("pause:\(deviceID)")
+    }
+
+    func resume(deviceID: String) async throws {
+        appendAction("resume:\(deviceID)")
+    }
+
     func play(uris: [String], deviceID: String) async throws {
         appendAction("play-list:\(deviceID):\(uris.joined(separator: ","))")
     }

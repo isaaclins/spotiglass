@@ -343,12 +343,74 @@ struct SpotifyPlayerSnapshot: Equatable {
     let activeDevice: SpotifyConnectDevice?
     /// Whether Spotify reports active playback (`is_playing` on the player object).
     let isPlaying: Bool
+    /// The track or episode currently reported by Spotify, if there is one.
+    let item: SpotifyQueueTrackItem?
+    /// Current playback position from Spotify's `progress_ms` field.
+    let progressMilliseconds: Int?
+
+    init(
+        transport: SpotifyPlayerTransport,
+        activeDevice: SpotifyConnectDevice?,
+        isPlaying: Bool,
+        item: SpotifyQueueTrackItem? = nil,
+        progressMilliseconds: Int? = nil
+    ) {
+        self.transport = transport
+        self.activeDevice = activeDevice
+        self.isPlaying = isPlaying
+        self.item = item
+        self.progressMilliseconds = progressMilliseconds
+    }
 }
 
 /// Unified track-or-episode slot from the queue endpoint.
 enum SpotifyQueueTrackItem: Equatable {
     case track(SpotifyTrack)
     case episode(SpotifyEpisode)
+}
+
+extension SpotifyPlayerSnapshot {
+    /// Projects Spotify's player item into the transport's common now-playing model.
+    /// The player endpoint reports progress separately from the item, so this is
+    /// also where the position is clamped to the item's duration.
+    var playbackNowPlaying: PlaybackNowPlaying? {
+        guard let item else { return nil }
+
+        let nowPlaying: PlaybackNowPlaying
+        switch item {
+        case let .track(track):
+            nowPlaying = PlaybackNowPlaying(
+                name: track.name,
+                artists: track.artists,
+                albumName: track.albumName,
+                albumID: track.albumID,
+                albumArtURL: track.albumArtworkURL,
+                durationMilliseconds: track.durationMilliseconds,
+                positionMilliseconds: 0,
+                uri: track.uri
+            )
+        case let .episode(episode):
+            let showName = episode.showName?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .nilIfEmpty
+            nowPlaying = PlaybackNowPlaying(
+                name: episode.name,
+                artists: showName.map { [$0] } ?? [],
+                albumName: nil,
+                albumID: nil,
+                albumArtURL: episode.artworkURL,
+                durationMilliseconds: episode.durationMilliseconds,
+                positionMilliseconds: 0,
+                uri: episode.uri
+            )
+        }
+
+        let progress = max(0, progressMilliseconds ?? 0)
+        let clampedProgress = nowPlaying.durationMilliseconds > 0
+            ? min(progress, nowPlaying.durationMilliseconds)
+            : progress
+        return nowPlaying.with(positionMilliseconds: clampedProgress)
+    }
 }
 
 struct PlaybackHostGeneration: Equatable, Hashable, Sendable {

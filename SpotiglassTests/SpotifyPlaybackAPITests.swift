@@ -82,6 +82,21 @@ final class SpotifyPlaybackAPITests: XCTestCase {
         }
     }
 
+    func testPauseAndResumeTargetDeviceWithPUTCommands() async throws {
+        let (api, http, _) = makeAPI([
+            .json("", statusCode: 204),
+            .json("", statusCode: 204)
+        ])
+
+        try await api.pause(deviceID: "phone-1")
+        try await api.resume(deviceID: "phone-1")
+
+        XCTAssertEqual(http.requests.map(\.httpMethod), ["PUT", "PUT"])
+        XCTAssertEqual(http.requests[0].url?.path, "/v1/me/player/pause")
+        XCTAssertEqual(http.requests[1].url?.path, "/v1/me/player/play")
+        XCTAssertTrue(http.requests.allSatisfy { $0.url?.query?.contains("device_id=phone-1") == true })
+    }
+
     func testSeekIncludesPositionMillisecondsQuery() async throws {
         let (api, http, _) = makeAPI([.json("", statusCode: 204)])
 
@@ -279,6 +294,105 @@ final class SpotifyPlaybackAPITests: XCTestCase {
         XCTAssertTrue(unwrapped.isPlaying)
         XCTAssertEqual(unwrapped.activeDevice?.deviceID, "d1")
         XCTAssertEqual(unwrapped.activeDevice?.name, "MacBook")
+    }
+
+    func testFetchPlayerSnapshotDecodesTrackItemAndProgress() async throws {
+        let (api, _, _) = makeAPI([.json("""
+        {
+          "shuffle_state": true,
+          "repeat_state": "context",
+          "is_playing": true,
+          "progress_ms": 42000,
+          "item": {
+            "type": "track",
+            "id": "track-1",
+            "name": "Remote song",
+            "artists": [{"id":"artist-1","name":"Remote artist"}],
+            "album": {
+              "id": "album-1",
+              "name": "Remote album",
+              "images": [{"url":"https://example.com/album.png","height":640,"width":640}]
+            },
+            "duration_ms": 180000,
+            "explicit": false,
+            "uri": "spotify:track:track-1"
+          },
+          "device": {
+            "id": "phone-1",
+            "is_active": true,
+            "is_restricted": false,
+            "name": "Phone",
+            "type": "Smartphone"
+          }
+        }
+        """)])
+
+        let snapshot = try await api.fetchPlayerSnapshot()
+        let unwrapped = try XCTUnwrap(snapshot)
+
+        XCTAssertEqual(unwrapped.progressMilliseconds, 42000)
+        guard case let .track(track) = try XCTUnwrap(unwrapped.item) else {
+            return XCTFail("expected a track item")
+        }
+        XCTAssertEqual(track.name, "Remote song")
+        XCTAssertEqual(track.artists, ["Remote artist"])
+        XCTAssertEqual(track.albumName, "Remote album")
+        XCTAssertEqual(unwrapped.playbackNowPlaying?.positionMilliseconds, 42000)
+        XCTAssertEqual(unwrapped.playbackNowPlaying?.albumArtURL?.absoluteString, "https://example.com/album.png")
+    }
+
+    func testFetchPlayerSnapshotDecodesEpisodeAndNullItem() async throws {
+        let (api, _, _) = makeAPI([.json("""
+        {
+          "shuffle_state": false,
+          "repeat_state": "off",
+          "is_playing": false,
+          "progress_ms": 12000,
+          "item": {
+            "type": "episode",
+            "id": "episode-1",
+            "name": "Remote episode",
+            "show": {"id":"show-1","name":"Remote show"},
+            "images": [{"url":"https://example.com/show.png","height":640,"width":640}],
+            "duration_ms": 600000,
+            "is_playable": true,
+            "uri": "spotify:episode:episode-1"
+          },
+          "device": {
+            "id": "phone-1",
+            "is_active": true,
+            "is_restricted": false,
+            "name": "Phone",
+            "type": "Smartphone"
+          }
+        }
+        """), .json("""
+        {
+          "shuffle_state": false,
+          "repeat_state": "off",
+          "is_playing": false,
+          "progress_ms": null,
+          "item": null,
+          "device": null
+        }
+        """)])
+
+        let episodeResponse = try await api.fetchPlayerSnapshot()
+        let episodeSnapshot = try XCTUnwrap(episodeResponse)
+        XCTAssertEqual(episodeSnapshot.progressMilliseconds, 12000)
+        guard case let .episode(episode) = try XCTUnwrap(episodeSnapshot.item) else {
+            return XCTFail("expected an episode item")
+        }
+        XCTAssertEqual(episode.name, "Remote episode")
+        XCTAssertEqual(episode.showName, "Remote show")
+        XCTAssertEqual(episodeSnapshot.playbackNowPlaying?.artists, ["Remote show"])
+        XCTAssertEqual(episodeSnapshot.playbackNowPlaying?.positionMilliseconds, 12000)
+
+        let emptyResponse = try await api.fetchPlayerSnapshot()
+        let emptySnapshot = try XCTUnwrap(emptyResponse)
+        XCTAssertNil(emptySnapshot.item)
+        XCTAssertNil(emptySnapshot.progressMilliseconds)
+        XCTAssertNil(emptySnapshot.playbackNowPlaying)
     }
 
     func testFetchPlayerSnapshotDecodesOptionalVolumePercent() async throws {

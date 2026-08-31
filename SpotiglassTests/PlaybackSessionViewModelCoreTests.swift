@@ -48,7 +48,7 @@ final class PlaybackSessionViewModelCoreTests: XCTestCase {
         }
 
         viewModel.setActivePlaybackDeviceID("remote-device")
-        XCTAssertFalse(viewModel.isPlaybackToggleReady)
+        XCTAssertTrue(viewModel.isPlaybackToggleReady)
         viewModel.setActivePlaybackDeviceID("local-device")
         XCTAssertTrue(viewModel.isPlaybackToggleReady)
 
