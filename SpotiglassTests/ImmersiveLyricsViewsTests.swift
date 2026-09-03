@@ -306,13 +306,15 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
         XCTAssertEqual(downscaled.size.height, 288, accuracy: 0.001)
     }
 
-    func testBlurredArtworkHostsAndLoadsFromDiskCache() async throws {
-        let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
-            .appendingPathComponent(AppMetadata.displayName, isDirectory: true)
-            .appendingPathComponent("Artwork", isDirectory: true)
-        try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+    /// Writes into a directory of its own rather than the user's real artwork
+    /// cache. Sharing that directory with the app and with every other test made
+    /// this fail whenever something else trimmed or cleared the cache mid-run
+    /// (#364), and it edited the caches of whoever ran the suite.
+    func testBlurredArtworkHostsAndReadsACachedImageFromDisk() async throws {
+        let directory = spotiglassTestsTemporaryDirectory()
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let url = URL(string: "https://example.com/blur-art-\(UUID().uuidString).png")!
-        let file = ArtworkImageStore.cacheFileURL(for: url, diskDirectory: base)
+        let file = ArtworkImageStore.cacheFileURL(for: url, diskDirectory: directory)
         let png: [UInt8] = [
             0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
             0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
@@ -326,10 +328,13 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
         ]
         try Data(png).write(to: file)
 
-        let view = ImmersiveBlurredArtwork(url: url)
+        let cached = try XCTUnwrap(
+            ArtworkImageStore.cachedImageIfAvailable(for: url, diskDirectory: directory)
+        )
+
+        let view = ImmersiveBlurredArtwork(url: url, initialImage: cached)
             .frame(width: 360, height: 280)
         ViewTestHost.host(view, size: CGSize(width: 360, height: 280))
-        XCTAssertNotNil(ArtworkImageStore.cachedImageIfAvailable(for: url))
         XCTAssertNoThrow(try view.inspect())
     }
 
