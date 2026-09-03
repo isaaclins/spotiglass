@@ -17,6 +17,11 @@ DERIVED_DATA  := build/DerivedData
 DEBUG_APP     := $(DERIVED_DATA)/Build/Products/Debug/Spotiglass.app
 RELEASE_APP   := $(DERIVED_DATA)/Build/Products/Release/Spotiglass.app
 
+# Keep standalone driver bundles versioned with the project so install policy
+# can tell a new payload from a driver left by an older app release.
+DRIVER_MARKETING_VERSION ?= $(shell awk -F'= ' '/MARKETING_VERSION =/ { gsub(";", "", $$2); print $$2; exit }' $(PROJECT)/project.pbxproj 2>/dev/null || echo 0.1.0)
+DRIVER_BUILD_VERSION ?= $(shell awk -F'= ' '/CURRENT_PROJECT_VERSION =/ { gsub(";", "", $$2); print $$2; exit }' $(PROJECT)/project.pbxproj 2>/dev/null || echo 1)
+
 # Must match KeychainRefreshTokenStore.service in Spotiglass/Persistence/AuthPersistence.swift
 KEYCHAIN_SERVICE := com.isaaclins.spotiglass.spotify-auth
 
@@ -94,11 +99,16 @@ audit-eq-permission:
 # Pass SPOTIGLASS_EQ_DEBUG=1 to compile in verbose driver diagnostic logging
 # (per-cycle DoIO / StartIO / OutputCallback events to /tmp). Off by default.
 build-driver:
+	DRIVER_MARKETING_VERSION="$(DRIVER_MARKETING_VERSION)" \
+	DRIVER_BUILD_VERSION="$(DRIVER_BUILD_VERSION)" \
+	DRIVER_CODESIGN_IDENTITY="$(LOCAL_SIGN_IDENTITY)" \
+	DRIVER_CODESIGN_KEYCHAIN="$(HOME)/Library/Keychains/login.keychain-db" \
 	SPOTIGLASS_EQ_DEBUG=$(SPOTIGLASS_EQ_DEBUG) ./SpotiglassEQDriver/build-driver.sh
 
 # Builds the .driver and copies it into the Debug Spotiglass.app at
 # Contents/Library/Audio/Plug-Ins/HAL/. After this, the app's
-# EqualizerHALPluginController can find and install the embedded driver.
+# EqualizerHALPluginController can find the embedded driver and ask its
+# registered privileged helper to install it into the system HAL directory.
 #
 # IMPORTANT: cp -pR preserves the source file's mtime so the kernel's
 # code-signing check (cs_mtime vs file mtime) keeps passing after the copy.
@@ -109,15 +119,19 @@ embed-driver: build build-driver
 	mkdir -p "$$dst"; \
 	rm -rf "$$dst/SpotiglassEQDriver.driver"; \
 	cp -pR build/SpotiglassEQDriver.driver "$$dst/"; \
+	if [ -n "$(LOCAL_SIGN_IDENTITY)" ] && [ "$(UNSIGNED)" != "1" ]; then \
+		codesign --force --sign "$(LOCAL_SIGN_IDENTITY)" --keychain "$(HOME)/Library/Keychains/login.keychain-db" \
+			--entitlements Spotiglass/Spotiglass.entitlements --timestamp=none "$(DEBUG_APP)"; \
+	fi; \
 	echo "embedded → $$dst/SpotiglassEQDriver.driver"; \
 	echo; \
-	echo "To activate after first launch:"; \
-	echo "  sudo killall coreaudiod"; \
-	echo "(or log out and back in)"
+	echo "After first launch, enable Equalizer in Settings:"; \
+	echo "  macOS will authorize the helper and restart coreaudiod"
 
 # Re-signs build/SpotiglassEQDriver.driver with the user's Apple Development
-# identity. The build-driver step leaves the bundle ad-hoc signed (coreaudiod
-# rejects ad-hoc on macOS 26). Override CODESIGN_IDENTITY to use a different
+# identity when a different identity is needed. Standalone driver builds are
+# ad-hoc unless DRIVER_CODESIGN_IDENTITY is supplied; coreaudiod rejects those
+# on macOS 26. Override CODESIGN_IDENTITY to use a different
 # identity. If signing fails with errSecInternalComponent, run
 # `bash scripts/setup-eq-driver-signing.sh` first to trust Apple Root CA.
 CODESIGN_IDENTITY ?= $(shell security find-identity -v -p codesigning | awk '/Apple Development/ { print $$2; exit }')

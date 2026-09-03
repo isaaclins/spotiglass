@@ -29,7 +29,7 @@ enum EqualizerRouteState: Equatable {
     case disabled
     case starting(targetUID: String?)
     case live(targetUID: String, errorMessage: String?)
-    case failed(message: String, isEngaged: Bool)
+    case failed(message: String?, isEngaged: Bool)
 
     var isLive: Bool {
         if case .live = self { return true }
@@ -209,7 +209,10 @@ final class AudioEqualizerEngine: ObservableObject {
             publishCoefficients()
         } catch {
             recordFailure(error)
-            routeState = .failed(message: error.localizedDescription, isEngaged: false)
+            routeState = .failed(
+                message: userFacingErrorMessage(for: error),
+                isEngaged: false
+            )
             throw error
         }
     }
@@ -232,11 +235,20 @@ final class AudioEqualizerEngine: ObservableObject {
             recordFailure(error)
             switch stateBeforeStop {
             case let .live(targetUID, _):
-                routeState = .live(targetUID: targetUID, errorMessage: error.localizedDescription)
+                routeState = .live(
+                    targetUID: targetUID,
+                    errorMessage: userFacingErrorMessage(for: error)
+                )
             case let .failed(_, isEngaged):
-                routeState = .failed(message: error.localizedDescription, isEngaged: isEngaged)
+                routeState = .failed(
+                    message: userFacingErrorMessage(for: error),
+                    isEngaged: isEngaged
+                )
             default:
-                routeState = .failed(message: error.localizedDescription, isEngaged: false)
+                routeState = .failed(
+                    message: userFacingErrorMessage(for: error),
+                    isEngaged: false
+                )
             }
             throw error
         }
@@ -288,7 +300,10 @@ final class AudioEqualizerEngine: ObservableObject {
             routeState = .live(targetUID: targetUID, errorMessage: nil)
         } catch {
             recordFailure(error)
-            routeState = .failed(message: error.localizedDescription, isEngaged: true)
+            routeState = .failed(
+                message: userFacingErrorMessage(for: error),
+                isEngaged: true
+            )
         }
     }
 
@@ -305,7 +320,10 @@ final class AudioEqualizerEngine: ObservableObject {
             routeState = .live(targetUID: targetUID, errorMessage: nil)
         } catch {
             recordFailure(error)
-            routeState = .failed(message: error.localizedDescription, isEngaged: true)
+            routeState = .failed(
+                message: userFacingErrorMessage(for: error),
+                isEngaged: true
+            )
         }
     }
 
@@ -334,13 +352,21 @@ final class AudioEqualizerEngine: ObservableObject {
         return false
     }
 
+    private func userFacingErrorMessage(for error: Error) -> String? {
+        if let pluginError = error as? EqualizerHALPluginError {
+            return pluginError.userFacingDescription
+        }
+        return error.localizedDescription
+    }
+
     private func recordFailure(_ error: Error) {
-        // The OSStatus, the bundle name and the staged paths are kept off the
-        // settings pane, so the log is where a bug report picks them up
-        // (#186).
+        // The OSStatus, the bundle name and helper diagnostics are kept off the
+        // settings pane, so the log is where a bug report picks them up (#186).
         if let pluginError = error as? EqualizerHALPluginError,
            let details = pluginError.diagnosticDetails {
             SpotiglassLog.error(.playback, details)
+        } else if let installError = error as? EqualizerDriverInstallError {
+            SpotiglassLog.error(.playback, installError.diagnosticDetails)
         }
     }
 

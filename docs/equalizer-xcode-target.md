@@ -1,10 +1,12 @@
 # Adding `SpotiglassEQDriver.driver` as an Xcode target
 
-The current build path is `make embed-driver`, which uses `clang` via
-`SpotiglassEQDriver/build-driver.sh` and a Makefile copy step. That keeps
-the EQ driver buildable without touching `Spotiglass.xcodeproj`. The
-recommended long-term path is a real Xcode target. Until that lands, this
-document is what someone wiring it up should follow.
+The EQ driver still has a standalone `clang` build path through
+`make embed-driver`, while the privileged installer is a real Xcode target in
+`Spotiglass.xcodeproj`. The app embeds that target under
+`Contents/Library/PrivilegedHelperTools` and its LaunchDaemon plist under
+`Contents/Library/LaunchDaemons`; `SMAppService` registers the plist when EQ is
+enabled. This document covers the separate driver target that may be wired in
+later.
 
 ## Steps in Xcode UI
 
@@ -67,11 +69,36 @@ Developer ID signed. Options:
   1. Disable amfi restrictions on a development machine (not recommended)
   2. Get a Developer ID identity and sign locally
 
+## Privileged installer target
+
+`SpotiglassEQPrivilegedHelper` is a macOS tool target. The application target
+must keep both of these build phases and the target dependency:
+
+- copy the helper executable to `Contents/Library/PrivilegedHelperTools` with
+  **Code Sign On Copy** enabled;
+- copy `com.isaaclins.spotiglass.eqprivilegedhelper.plist` to
+  `Contents/Library/LaunchDaemons`;
+- build the helper before the application so the paths named by
+  `BundleProgram` and `SMAppService.daemon(plistName:)` exist in the signed
+  bundle.
+
+The helper accepts only requests from the Spotiglass code-signing identifier,
+only accepts the driver's path inside the containing app bundle, and preserves
+file metadata while replacing the system-scope bundle. It restarts `coreaudiod`
+after a copy. A Developer ID-signed and notarized app is required for a
+LaunchDaemon to be accepted on a user's Mac.
+
 ## Verification after wiring the target
 
 ```bash
 make build
-# Check the .driver is embedded:
+# Check the privileged helper is embedded:
+ls "build/DerivedData/Build/Products/Debug/Spotiglass.app/Contents/Library/PrivilegedHelperTools/"
+# → SpotiglassEQPrivilegedHelper
+ls "build/DerivedData/Build/Products/Debug/Spotiglass.app/Contents/Library/LaunchDaemons/"
+# → com.isaaclins.spotiglass.eqprivilegedhelper.plist
+
+# `make embed-driver` additionally embeds the .driver:
 ls "build/DerivedData/Build/Products/Debug/Spotiglass.app/Contents/Library/Audio/Plug-Ins/HAL/"
 # → SpotiglassEQDriver.driver
 
@@ -80,11 +107,8 @@ file "build/DerivedData/Build/Products/Debug/Spotiglass.app/Contents/Library/Aud
 # → Mach-O universal binary with 2 architectures: [x86_64...] [arm64...]
 ```
 
-Once Developer ID signing is in place, install + reload coreaudiod:
-
-```bash
-cp -R "build/DerivedData/.../Spotiglass.app/Contents/Library/Audio/Plug-Ins/HAL/SpotiglassEQDriver.driver" \
-       ~/Library/Audio/Plug-Ins/HAL/
-sudo launchctl kickstart -k system/com.apple.audio.coreaudiod
-system_profiler SPAudioDataType | grep -A2 "Spotiglass EQ"
-```
+Once Developer ID signing is in place, launch Spotiglass and enable the
+Equalizer. The app registers the LaunchDaemon, macOS asks for authorization,
+and the helper installs the driver and restarts `coreaudiod`. Confirm the
+result in System Settings → Sound → Output. `scripts/eq-qa.sh` records the
+manual checks.

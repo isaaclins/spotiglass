@@ -24,6 +24,12 @@ SRC="."
 OUT_ROOT="../build/SpotiglassEQDriver.driver"
 OUT_BIN="$OUT_ROOT/Contents/MacOS/SpotiglassEQDriver"
 OUT_PLIST="$OUT_ROOT/Contents/Info.plist"
+# Release builds pass the app's versions so driver upgrades are detected even
+# when the driver target is compiled by this standalone script.
+DRIVER_MARKETING_VERSION="${DRIVER_MARKETING_VERSION:-0.1.0}"
+DRIVER_BUILD_VERSION="${DRIVER_BUILD_VERSION:-1}"
+DRIVER_CODESIGN_IDENTITY="${DRIVER_CODESIGN_IDENTITY:-}"
+DRIVER_CODESIGN_KEYCHAIN="${DRIVER_CODESIGN_KEYCHAIN:-}"
 
 SDK="$(xcrun --sdk macosx --show-sdk-path)"
 DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-13.0}"
@@ -92,9 +98,20 @@ xcrun clang++ "${LINK_FLAGS[@]}" \
 
 echo "==> copying Info.plist"
 cp "$SRC/Info.plist" "$OUT_PLIST"
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $DRIVER_MARKETING_VERSION" "$OUT_PLIST"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $DRIVER_BUILD_VERSION" "$OUT_PLIST"
 
-echo "==> ad-hoc codesigning (Developer ID needed for coreaudiod to load on macOS 26)"
-codesign --force --sign - --timestamp=none "$OUT_ROOT"
+if [ -n "$DRIVER_CODESIGN_IDENTITY" ]; then
+    echo "==> codesigning driver with $DRIVER_CODESIGN_IDENTITY"
+    codesign_args=(--force --sign "$DRIVER_CODESIGN_IDENTITY" --timestamp=none)
+    if [ -n "$DRIVER_CODESIGN_KEYCHAIN" ]; then
+        codesign_args+=(--keychain "$DRIVER_CODESIGN_KEYCHAIN")
+    fi
+    codesign "${codesign_args[@]}" "$OUT_ROOT"
+else
+    echo "==> ad-hoc codesigning (Developer ID or local identity needed for coreaudiod)"
+    codesign --force --sign - --timestamp=none "$OUT_ROOT"
+fi
 
 # Clean up object files so the source tree stays git-clean.
 rm -f "$SRC"/*.o
@@ -103,8 +120,12 @@ echo
 echo "OK: $OUT_ROOT"
 echo "    $(file "$OUT_BIN")"
 echo
-echo "To install: cp -R '$OUT_ROOT' ~/Library/Audio/Plug-Ins/HAL/"
-echo "Then: sudo launchctl kickstart -k system/com.apple.audio.coreaudiod"
+echo "Embed this bundle with: make embed-driver"
+echo "A signed Spotiglass build installs it through the registered privileged helper."
 echo
-echo "NOTE: ad-hoc signing is not enough for coreaudiod on macOS 26 (kAudioHardwareIllegalOperationError)."
-echo "Re-sign with a Developer ID identity before installing on a production system."
+if [ -z "$DRIVER_CODESIGN_IDENTITY" ]; then
+    echo "NOTE: ad-hoc signing is not enough for coreaudiod on macOS 26 (kAudioHardwareIllegalOperationError)."
+    echo "Re-sign with a Developer ID identity before installing on a production system."
+else
+    echo "Driver signed with $DRIVER_CODESIGN_IDENTITY."
+fi

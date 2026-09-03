@@ -1,4 +1,5 @@
 import CoreAudio
+import Foundation
 import XCTest
 @testable import Spotiglass
 
@@ -37,7 +38,30 @@ final class EqualizerHALPluginTests: XCTestCase {
             atomically: true,
             encoding: .utf8
         )
+        try? writeDriverVersion("0.1.0", build: "1", to: fixtureBundle)
         fakeAppBundle = Bundle(url: appDir)
+    }
+
+    private func writeDriverVersion(
+        _ shortVersion: String,
+        build: String,
+        to driverURL: URL
+    ) throws {
+        let propertyList: [String: String] = [
+            "CFBundleShortVersionString": shortVersion,
+            "CFBundleVersion": build,
+        ]
+        let data = try PropertyListSerialization.data(
+            fromPropertyList: propertyList,
+            format: .xml,
+            options: 0
+        )
+        let infoURL = driverURL.appendingPathComponent("Contents/Info.plist")
+        try FileManager.default.createDirectory(
+            at: infoURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try data.write(to: infoURL, options: .atomic)
     }
 
     override func tearDown() {
@@ -84,11 +108,10 @@ final class EqualizerHALPluginTests: XCTestCase {
         XCTAssertNoThrow(try controller.uninstall())
     }
 
-    func testEnableTrustsExistingInstalledDriverAndDoesNotReplaceIt() throws {
-        // The system HAL directory (/Library/Audio/Plug-Ins/HAL) is root-owned
-        // on macOS 26, so the unprivileged app process must not try to clobber
-        // an existing install. Once the .driver is present, enable() should
-        // leave it alone and proceed to route the default output.
+    func testInstallReplacesAStaleInstalledDriver() throws {
+        // The system HAL directory is root-owned on macOS 26, so production
+        // replacements happen in the helper. This isolated directory exercises
+        // the same version decision without touching the user's audio setup.
         let controller = EqualizerHALPluginController(
             halDirectory: halDirectory,
             fileManager: .default,
@@ -98,23 +121,28 @@ final class EqualizerHALPluginTests: XCTestCase {
         let userFile = controller.installedDriverURL.appendingPathComponent("UserFile.txt")
         try "preserved".write(to: userFile, atomically: true, encoding: .utf8)
 
-        // Re-install. The existing bundle (and any sibling files in it) must
-        // survive — the controller has no business clobbering a root-owned
-        // install it can't actually rewrite in production.
+        // Mark the installed bundle stale, then let the policy trigger a
+        // replacement. The fresh payload should remove files from the old
+        // bundle rather than leave a mixed-version driver behind.
+        try writeDriverVersion(
+            "0.0.1",
+            build: "1",
+            to: controller.installedDriverURL
+        )
         try controller.install()
-        XCTAssertTrue(
+        XCTAssertFalse(
             FileManager.default.fileExists(atPath: userFile.path),
-            "enable() must not replace an existing installed bundle"
+            "a stale installed bundle must be replaced as a unit"
         )
         XCTAssertEqual(
-            try String(contentsOf: userFile, encoding: .utf8),
-            "preserved"
+            try String(contentsOf: controller.installedDriverURL.appendingPathComponent("Marker.txt"), encoding: .utf8),
+            "fake-driver-payload"
         )
     }
 
     // MARK: - Error surfaces
 
-    func testEnableSurfacesEmbeddedDriverMissingWhenBundleHasNoPayload() {
+    func testInstallKeepsMissingEmbeddedDriverOutOfTheUserMessage() {
         let emptyAppBundle = Bundle(url: makeTempDirectory())!
         let controller = EqualizerHALPluginController(
             halDirectory: halDirectory,
@@ -122,9 +150,13 @@ final class EqualizerHALPluginTests: XCTestCase {
             bundle: emptyAppBundle
         )
         XCTAssertThrowsError(try controller.install()) { error in
-            guard case EqualizerHALPluginError.embeddedDriverMissing = error else {
-                return XCTFail("expected embeddedDriverMissing, got \(error)")
+            guard let driverError = error as? EqualizerHALPluginError else {
+                return XCTFail("expected EqualizerHALPluginError, got \(error)")
             }
+            guard case .embeddedDriverMissing = driverError else {
+                return XCTFail("expected embeddedDriverMissing, got \(driverError)")
+            }
+            XCTAssertNil(driverError.userFacingDescription)
         }
     }
 

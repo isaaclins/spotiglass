@@ -26,10 +26,12 @@ Two paths:
 2. **`./build-driver.sh`** alone — produces a standalone driver bundle at
    `../build/SpotiglassEQDriver.driver`. Useful for inspecting the Mach-O.
 
-A proper Xcode target (with code-sign-on-copy and a Run scheme) is
-documented in `docs/equalizer-xcode-target.md` as the recommended next
-step once Developer ID signing is wired up. `coreaudiod` on macOS 26
-refuses to load `.driver` bundles signed only ad-hoc.
+The application now contains a separate Xcode target for
+`SpotiglassEQPrivilegedHelper`. That helper is registered through
+`SMAppService` and copies this bundle into the system HAL directory when the
+user enables EQ. The driver itself remains a standalone target for now, and
+`make embed-driver` places it inside the app before a signed manual check.
+`coreaudiod` on macOS 26 refuses to load `.driver` bundles signed only ad-hoc.
 
 ## Status of property handlers
 

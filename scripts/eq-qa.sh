@@ -4,9 +4,8 @@
 # Usage: scripts/eq-qa.sh
 #
 # Walks the tester through the success-criterion-5 checklist:
-#   install → enable → device-visible → route → toggle each preset →
-#   save+reload "MyTest" → delete → disable → uninstall →
-#   directory-gone + default-restored
+#   authorization + install → enable → device-visible → route → toggle each preset →
+#   save+reload "MyTest" → delete → disable → default-restored
 #
 # At each step the script prints a "do X, then press y or n" prompt and
 # appends the result + timestamp + a screenshot-prompt to build/qa/manual-qa.log.
@@ -15,7 +14,7 @@ set -eu
 
 LOG_DIR="build/qa"
 LOG_FILE="$LOG_DIR/manual-qa-$(date +%Y%m%d-%H%M%S).log"
-HAL_DIR="$HOME/Library/Audio/Plug-Ins/HAL"
+HAL_DIR="/Library/Audio/Plug-Ins/HAL"
 DRIVER_NAME="SpotiglassEQDriver.driver"
 
 mkdir -p "$LOG_DIR"
@@ -49,17 +48,20 @@ log "BEGIN  Spotiglass EQ manual QA"
 log "HAL dir: $HAL_DIR"
 log "Looking for: $DRIVER_NAME"
 
-# 1. install
-prompt "install" \
-  "Launch Spotiglass. Open Settings → Equalizer. Toggle 'Enable Equalizer'. \
-The app should copy SpotiglassEQDriver.driver into ~/Library/Audio/Plug-Ins/HAL/. \
-Check: \`ls $HAL_DIR\` shows the driver." \
-  "Settings → Equalizer pane with toggle ON"
+# 1. authorization + install
+prompt "authorization + install" \
+  "Launch Spotiglass. Open Settings → Equalizer and toggle 'Enable Equalizer'. \
+macOS should show its standard authorization prompt once. After approval, the \
+helper should copy SpotiglassEQDriver.driver into /Library/Audio/Plug-Ins/HAL/. \
+Check: \`ls /Library/Audio/Plug-Ins/HAL\` shows the driver, and the pane never \
+shows Terminal instructions or a repair button." \
+  "Settings → Equalizer pane with toggle ON and the macOS authorization dialog"
 
 # 2. coreaudiod activation
-prompt "coreaudiod kickstart" \
-  "Run: sudo launchctl kickstart -k system/com.apple.audio.coreaudiod \
-(or log out and back in). This is a one-time CoreAudio activation." \
+prompt "coreaudiod restart" \
+  "The helper should restart coreaudiod after the copy. Do not run a command or \
+log out and back in. The virtual device should appear after the app waits for \
+CoreAudio to re-enumerate it." \
   ""
 
 # 3. enable + device-visible
@@ -111,14 +113,15 @@ back to whatever it was before you enabled the EQ. Run \
 \`system_profiler SPAudioDataType | grep -i default\` to confirm." \
   ""
 
-# 10. uninstall
-prompt "uninstall" \
-  "Click 'Uninstall driver' in the Equalizer pane (if surfaced) OR remove \
-$HAL_DIR/$DRIVER_NAME manually. Confirm \`ls $HAL_DIR\` no longer shows the \
-driver. Re-run the coreaudiod kickstart so the device disappears." \
+# 10. silent upgrade + repair
+prompt "silent upgrade + repair" \
+  "Use a signed build with an older installed driver, then enable Equalizer \
+with a newer bundled driver. Also repeat with a damaged installed bundle. The \
+helper should replace it without another authorization prompt, Terminal \
+instructions, or a repair button." \
   ""
 
-# 11. default restored after uninstall
+# 11. default restored after disable
 prompt "default-restored" \
   "In System Settings → Sound → Output, confirm the default output device \
 is back to the original (whatever you used before step 1)." \
