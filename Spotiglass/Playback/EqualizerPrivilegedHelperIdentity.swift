@@ -6,9 +6,7 @@ import Foundation
 enum EqualizerPrivilegedHelperIdentity {
     static let machServiceName = "com.isaaclins.spotiglass.eqprivilegedhelper"
     static let plistName = "com.isaaclins.spotiglass.eqprivilegedhelper.plist"
-    static let applicationBundleIdentifier = "com.isaaclins.spotiglass"
     static let helperBundleIdentifier = "com.isaaclins.spotiglass.eqprivilegedhelper"
-    static let driverBundleIdentifier = "com.isaaclins.spotiglass.eqdriver"
     static let driverBundleName = "SpotiglassEQDriver.driver"
     static let driverRelativePath = "Contents/Library/Audio/Plug-Ins/HAL"
     static let resourceDriverRelativePath = "Contents/Resources"
@@ -23,8 +21,12 @@ enum EqualizerPrivilegedHelperIdentity {
         "(anchor apple generic and certificate leaf[subject.OU] = \"\(signingTeamIdentifier)\") or certificate leaf[subject.CN] = \"\(localCertificateCommonName)\""
 
     static let helperRequirement = requirement(for: helperBundleIdentifier)
-    static let clientRequirement = requirement(for: applicationBundleIdentifier)
-    static let driverRequirement = requirement(for: driverBundleIdentifier)
+
+    // These are consumed by the helper target, which Periphery analyzes separately.
+    // periphery:ignore
+    static let clientRequirement = requirement(for: "com.isaaclins.spotiglass")
+    // periphery:ignore
+    static let driverRequirement = requirement(for: "com.isaaclins.spotiglass.eqdriver")
 
     static func requirement(for identifier: String) -> String {
         "(\(trustedSignerRequirement)) and identifier \"\(identifier)\""
