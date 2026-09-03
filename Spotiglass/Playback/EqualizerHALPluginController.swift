@@ -14,10 +14,8 @@ enum EqualizerRouterStatus: Equatable {
 /// Owns the lifecycle of the bundled `SpotiglassEQDriver.driver` CoreAudio
 /// AudioServerPlugIn. Responsibilities:
 ///
-/// - Copy the `.driver` bundle from inside `Spotiglass.app` into
-///   `~/Library/Audio/Plug-Ins/HAL/` on first enable.
-/// - Surface (but never run) the `launchctl kickstart -k system/com.apple.audio.coreaudiod`
-///   activation step.
+/// - Ask the privileged helper to copy the `.driver` bundle into the system
+///   HAL directory when it is missing, stale, or damaged.
 /// - Switch the system default output device to "Spotiglass EQ" on enable.
 /// - Restore the previously-active default output on disable.
 /// - Uninstall (remove the `.driver` from disk) on user request.
@@ -26,28 +24,10 @@ enum EqualizerRouterStatus: Equatable {
 /// pure virtual output device; this controller only ever queries / sets the
 /// default OUTPUT device, never input.
 final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRateProviding {
-    /// System-scope HAL plugins directory.
-    ///
-    /// macOS 26's `coreaudiod` scans only `/Library/Audio/Plug-Ins/HAL/`; the
-    /// older user-scope path (`~/Library/Audio/Plug-Ins/HAL/`) is no longer
-    /// loaded. Installing here therefore requires `sudo` from the user — the
-    /// controller writes the path into a staging area and surfaces the copy +
-    /// coreaudiod kickstart commands rather than running them itself.
+    /// System-scope HAL plugins directory. macOS 26's `coreaudiod` scans only
+    /// this path, so writes go through the registered privileged helper.
     nonisolated static var defaultHALDirectory: URL {
         URL(fileURLWithPath: "/Library/Audio/Plug-Ins/HAL", isDirectory: true)
-    }
-
-    /// Staging directory inside the user's home where the controller copies
-    /// the embedded driver before prompting the user to move it system-scope.
-    /// This keeps the GUI process sudo-free while making it trivial for the
-    /// user to finish the install with a single `sudo cp -R` command.
-    nonisolated static var stagingDirectory: URL {
-        FileManager.default
-            .homeDirectoryForCurrentUser
-            .appendingPathComponent("Library", isDirectory: true)
-            .appendingPathComponent("Application Support", isDirectory: true)
-            .appendingPathComponent("Spotiglass", isDirectory: true)
-            .appendingPathComponent("staged-driver", isDirectory: true)
     }
 
     /// Bundle identifier of the embedded `.driver`. Must match the
@@ -72,6 +52,7 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
     private let halDirectory: URL
     private let embeddedDriverURL: URL?
     private let fileManager: FileManager
+    private let driverInstaller: EqualizerDriverInstalling
     private let outputBackupURL: URL
     // Keep the CoreAudio route lookups/setter injectable so lifecycle tests can
     // exercise a running engine without changing the host's real output.
@@ -83,6 +64,7 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
     private let routerStatusURL: URL
     private let routerStatusReader: () -> EqualizerRouterStatus?
     private let routerReadinessTimeout: TimeInterval
+    private let driverLoadTimeout: TimeInterval
     private let activeSampleRateObservationStarter: ((AudioObjectID) throws -> Void)?
     private var activeSampleRateListener: AudioObjectPropertyListenerBlock?
     private var observedSampleRateDeviceID: AudioObjectID?
@@ -103,6 +85,7 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
         fileManager: FileManager = .default,
         bundle: Bundle = .main,
         defaultOutputBackupURL: URL = EqualizerHALPluginController.defaultOutputBackupURL,
+        driverInstaller: EqualizerDriverInstalling? = nil,
         outputDeviceIDForUID: ((String) -> AudioObjectID?)? = nil,
         outputDeviceUID: ((AudioObjectID) -> String?)? = nil,
         defaultOutputDeviceIDProvider: (() throws -> AudioObjectID)? = nil,
@@ -111,10 +94,24 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
         routerStatusURL: URL = EqualizerHALPluginController.routerStatusURL,
         routerStatusReader: (() -> EqualizerRouterStatus?)? = nil,
         routerReadinessTimeout: TimeInterval = 2.0,
+        driverLoadTimeout: TimeInterval = 3.0,
         activeSampleRateObservationStarter: ((AudioObjectID) throws -> Void)? = nil
     ) {
         self.halDirectory = halDirectory
         self.fileManager = fileManager
+        let usesSystemHALDirectory = halDirectory.standardizedFileURL
+            == Self.defaultHALDirectory.standardizedFileURL
+        self.driverInstaller = driverInstaller ?? {
+            if usesSystemHALDirectory {
+                return EqualizerPrivilegedHelperClient(
+                    bundle: bundle,
+                    fileManager: fileManager
+                )
+            }
+            // Tests use an isolated directory, where a direct copy preserves
+            // the lifecycle seam without registering a real system daemon.
+            return EqualizerFileDriverInstaller(fileManager: fileManager)
+        }()
         self.outputBackupURL = defaultOutputBackupURL
         self.outputDeviceIDForUID = outputDeviceIDForUID ?? { uid in
             AudioDeviceEnumerator.deviceID(forUID: uid)
@@ -138,6 +135,7 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
             Self.readRouterStatus(from: routerStatusURL)
         }
         self.routerReadinessTimeout = max(0, routerReadinessTimeout)
+        self.driverLoadTimeout = max(0, driverLoadTimeout)
         self.activeSampleRateObservationStarter = activeSampleRateObservationStarter
         self.embeddedDriverURL = Self.locateEmbeddedDriver(in: bundle)
         self.previousDefaultOutputID = nil
@@ -153,18 +151,17 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
 
     // MARK: - Public API
 
-    /// Pure install step. Copies the embedded `.driver` into the HAL directory
-    /// if it isn't already there. Used by ``enable()`` and exposed separately
-    /// so tests can exercise just the file-copy side-effect without touching
-    /// the system default output device. NEVER asks for microphone permission.
+    /// Installs or repairs the embedded `.driver` without changing the system
+    /// default output device. The system path uses the registered helper;
+    /// isolated test paths use the injected file installer.
     func install() throws {
         try installIfNeeded()
     }
 
-    /// On first enable, installs the `.driver` (if not already in the HAL
-    /// directory) and routes the system default output to the Spotiglass
-    /// virtual device. Throws if the bundled driver is missing or the file
-    /// copy / device lookup fails. NEVER asks for microphone permission.
+    /// On first enable, installs or repairs the `.driver` and routes the
+    /// system default output to the Spotiglass virtual device. The helper
+    /// restarts `coreaudiod`; this method waits briefly for device enumeration
+    /// before beginning the route. NEVER asks for microphone permission.
     ///
     /// `preferredForwardingUID` lets the caller pin the EQRouter's forwarding
     /// target to a previously-saved device UID, which is what makes the
@@ -174,41 +171,51 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
     @discardableResult
     func enable(preferredForwardingUID: String? = nil) throws -> String {
         try installIfNeeded()
-        if let deviceID = lookupSpotiglassEQDeviceID() {
-            try captureCurrentDefaultOutput(virtualDeviceID: deviceID)
-            // Always write the forwarding target so the driver's EQRouter has
-            // somewhere to send the EQ'd audio. The previous default's UID is
-            // only relevant when it isn't Spotiglass EQ itself (otherwise the
-            // EQ would route to itself and recurse forever).
-            let previousUID: String? = {
-                if previousDefaultOutputID == deviceID { return nil }
-                if let uid = previousDefaultOutputUID, !uid.isEmpty { return uid }
-                return previousDefaultOutputID.flatMap { outputDeviceUID($0) }
-            }()
-            let targetUID = Self.resolveForwardingTargetUID(
-                preferred: preferredForwardingUID,
-                previousUID: previousUID
-            )
-            prepareRouterReadiness(for: targetUID)
-            Self.writeForwardingTarget(uid: targetUID)
-            if let activeSampleRateObservationStarter {
-                try activeSampleRateObservationStarter(deviceID)
-            } else {
-                try beginActiveSampleRateObservation(for: deviceID)
-            }
-            do {
-                try setDefaultOutputDevice(to: deviceID)
-                try waitForRouterReadiness(targetUID: targetUID)
-            } catch {
-                removeActiveSampleRateObservation()
-                throw error
-            }
-            return targetUID
+        let deviceID: AudioObjectID
+        if let loadedDeviceID = waitForSpotiglassEQDevice() {
+            deviceID = loadedDeviceID
         } else {
-            throw EqualizerHALPluginError.driverNotLoadedYet(
-                installedPath: installedDriverURL.path
-            )
+            // A current bundle can still be absent from coreaudiod after a
+            // daemon crash. Re-copying it asks the helper to restart the daemon
+            // and gives the system a repair path without user intervention.
+            try installBundledDriver()
+            guard let repairedDeviceID = waitForSpotiglassEQDevice() else {
+                throw EqualizerHALPluginError.driverNotLoadedYet(
+                    installedPath: installedDriverURL.path
+                )
+            }
+            deviceID = repairedDeviceID
         }
+
+        try captureCurrentDefaultOutput(virtualDeviceID: deviceID)
+        // Always write the forwarding target so the driver's EQRouter has
+        // somewhere to send the EQ'd audio. The previous default's UID is
+        // only relevant when it isn't Spotiglass EQ itself (otherwise the
+        // EQ would route to itself and recurse forever).
+        let previousUID: String? = {
+            if previousDefaultOutputID == deviceID { return nil }
+            if let uid = previousDefaultOutputUID, !uid.isEmpty { return uid }
+            return previousDefaultOutputID.flatMap { outputDeviceUID($0) }
+        }()
+        let targetUID = Self.resolveForwardingTargetUID(
+            preferred: preferredForwardingUID,
+            previousUID: previousUID
+        )
+        prepareRouterReadiness(for: targetUID)
+        Self.writeForwardingTarget(uid: targetUID)
+        if let activeSampleRateObservationStarter {
+            try activeSampleRateObservationStarter(deviceID)
+        } else {
+            try beginActiveSampleRateObservation(for: deviceID)
+        }
+        do {
+            try setDefaultOutputDevice(to: deviceID)
+            try waitForRouterReadiness(targetUID: targetUID)
+        } catch {
+            removeActiveSampleRateObservation()
+            throw error
+        }
+        return targetUID
     }
 
     /// Fallback UID for the EQRouter's forwarding target when we don't have
@@ -385,9 +392,9 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    /// Removes the bundled `.driver` from `~/Library/Audio/Plug-Ins/HAL/`.
-    /// coreaudiod will keep the device visible until it next reloads its HAL
-    /// directory (kickstart or log-out/in).
+    /// Removes the bundled `.driver` from `/Library/Audio/Plug-Ins/HAL/`.
+    /// This maintenance hook is separate from enable, which uses the helper
+    /// because the system directory is root-owned.
     func uninstall() throws {
         let url = installedDriverURL
         if fileManager.fileExists(atPath: url.path) {
@@ -406,46 +413,73 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
     // MARK: - Install internals
 
     private func installIfNeeded() throws {
-        let destination = installedDriverURL
-        // If a copy already exists in the HAL directory, trust it. The system
-        // scope (/Library/Audio/Plug-Ins/HAL) is root-owned on macOS 26, so the
-        // unprivileged app process cannot replace it anyway; the install must
-        // happen out-of-band via `sudo cp -pR`. Re-running the copy with a
-        // writable temp dir is still useful for tests, which is what the
-        // create-if-missing branch below covers.
-        if fileManager.fileExists(atPath: destination.path) {
-            return
+        guard let source = embeddedDriverURL else {
+            throw EqualizerHALPluginError.embeddedDriverMissing
         }
+        let bundledState = Self.driverState(at: source, fileManager: fileManager)
+        guard case let .version(bundledVersion) = bundledState else {
+            throw EqualizerHALPluginError.embeddedDriverMetadataMissing
+        }
+
+        let decision = EqualizerDriverInstallPolicy.decision(
+            bundled: bundledVersion,
+            installed: Self.driverState(at: installedDriverURL, fileManager: fileManager)
+        )
+        guard decision.shouldInstall else { return }
+        try installBundledDriver()
+    }
+
+    private func installBundledDriver() throws {
         guard let source = embeddedDriverURL else {
             throw EqualizerHALPluginError.embeddedDriverMissing
         }
         do {
-            if !fileManager.fileExists(atPath: halDirectory.path) {
-                try fileManager.createDirectory(at: halDirectory, withIntermediateDirectories: true)
-            }
-            try fileManager.copyItem(at: source, to: destination)
+            try driverInstaller.installDriver(
+                sourceURL: source,
+                destinationURL: installedDriverURL
+            )
+        } catch let error as EqualizerDriverInstallError {
+            throw EqualizerDriverInstallErrorMapper.map(error)
         } catch {
-            // App-scope process cannot write to /Library/Audio/Plug-Ins/HAL.
-            // Stage the bundle in user-scope and surface a one-shot sudo install
-            // command via ``requiresSudoInstall`` so the UI can render it.
-            let staged = try stageEmbeddedDriver(from: source)
-            throw EqualizerHALPluginError.requiresSudoInstall(
-                stagedPath: staged.path,
-                destinationPath: destination.path
+            throw EqualizerHALPluginError.driverInstallationFailed(
+                diagnostic: error.localizedDescription
             )
         }
     }
 
-    private func stageEmbeddedDriver(from source: URL) throws -> URL {
-        let stagedBundle = Self.stagingDirectory
-            .appendingPathComponent(Self.driverBundleName, isDirectory: true)
-        try? fileManager.removeItem(at: stagedBundle)
-        try fileManager.createDirectory(
-            at: Self.stagingDirectory,
-            withIntermediateDirectories: true
-        )
-        try fileManager.copyItem(at: source, to: stagedBundle)
-        return stagedBundle
+    nonisolated static func driverState(
+        at url: URL,
+        fileManager: FileManager = .default
+    ) -> EqualizerDriverState {
+        guard fileManager.fileExists(atPath: url.path) else { return .missing }
+        let infoURL = url.appendingPathComponent("Contents/Info.plist", isDirectory: false)
+        guard let data = try? Data(contentsOf: infoURL),
+              let propertyList = try? PropertyListSerialization.propertyList(
+                  from: data,
+                  options: [],
+                  format: nil
+              ),
+              let dictionary = propertyList as? [String: Any],
+              let shortVersion = dictionary["CFBundleShortVersionString"] as? String,
+              let build = dictionary["CFBundleVersion"] as? String,
+              let version = EqualizerDriverVersion(
+                  shortVersion: shortVersion,
+                  build: build
+              )
+        else { return .unreadable }
+        return .version(version)
+    }
+
+    private func waitForSpotiglassEQDevice() -> AudioObjectID? {
+        let deadline = Date().addingTimeInterval(driverLoadTimeout)
+        repeat {
+            if let deviceID = lookupSpotiglassEQDeviceID() {
+                return deviceID
+            }
+            if Date() >= deadline { break }
+            Thread.sleep(forTimeInterval: min(0.05, max(0, deadline.timeIntervalSinceNow)))
+        } while true
+        return nil
     }
 
     private static func locateEmbeddedDriver(in bundle: Bundle) -> URL? {
@@ -736,6 +770,8 @@ final class EqualizerHALPluginController: @unchecked Sendable, EqualizerSampleRa
 
 enum EqualizerHALPluginError: LocalizedError {
     case embeddedDriverMissing
+    case embeddedDriverMetadataMissing
+    case driverInstallationFailed(diagnostic: String)
     case driverNotLoadedYet(installedPath: String)
     case coreAudioStatus(OSStatus)
     case outputDeviceUIDUnavailable
@@ -744,39 +780,54 @@ enum EqualizerHALPluginError: LocalizedError {
     case previousOutputRestoreFailed(underlying: Error)
     case routerTargetOpenFailed(targetUID: String, reasonCode: Int)
     case routerReadinessTimedOut(targetUID: String)
-    case requiresSudoInstall(stagedPath: String, destinationPath: String)
 
-    // These reach the user: EqualizerSettingsView assigns localizedDescription
-    // to lastError and to the save sheet. So they are sentences from the
-    // catalog, and the OSStatus, the bundle name and the paths live in
-    // diagnosticDetails instead (#186).
+    /// Driver installation failures are written to the log, not the settings
+    /// pane. The operating-system authorization prompt is the only user-facing
+    /// part of installing the system plug-in.
+    var isUserVisible: Bool {
+        switch self {
+        case .embeddedDriverMissing,
+             .embeddedDriverMetadataMissing,
+             .driverInstallationFailed,
+             .driverNotLoadedYet:
+            false
+        case .coreAudioStatus,
+             .outputDeviceUIDUnavailable,
+             .previousOutputBackupMissing,
+             .previousOutputDeviceUnavailable,
+             .previousOutputRestoreFailed,
+             .routerTargetOpenFailed,
+             .routerReadinessTimedOut:
+            true
+        }
+    }
+
+    var userFacingDescription: String? {
+        guard isUserVisible else { return nil }
+        return errorDescription
+    }
+
     var errorDescription: String? {
         switch self {
-        case .embeddedDriverMissing:
-            return SpotiglassL10n.string("eq.error.embeddedDriverMissing")
-        case .driverNotLoadedYet:
-            return SpotiglassL10n.string("eq.error.driverNotLoadedYet")
+        case .embeddedDriverMissing,
+             .embeddedDriverMetadataMissing,
+             .driverInstallationFailed,
+             .driverNotLoadedYet:
+            nil
         case .coreAudioStatus:
-            return SpotiglassL10n.string("eq.error.coreAudioStatus")
+            SpotiglassL10n.string("eq.error.coreAudioStatus")
         case .outputDeviceUIDUnavailable:
-            return SpotiglassL10n.string("eq.error.outputDeviceUIDUnavailable")
+            SpotiglassL10n.string("eq.error.outputDeviceUIDUnavailable")
         case .previousOutputBackupMissing:
-            return SpotiglassL10n.string("eq.error.previousOutputBackupMissing")
+            SpotiglassL10n.string("eq.error.previousOutputBackupMissing")
         case .previousOutputDeviceUnavailable:
-            return SpotiglassL10n.string("eq.error.previousOutputDeviceUnavailable")
+            SpotiglassL10n.string("eq.error.previousOutputDeviceUnavailable")
         case .previousOutputRestoreFailed:
-            return SpotiglassL10n.string("eq.error.previousOutputRestoreFailed")
+            SpotiglassL10n.string("eq.error.previousOutputRestoreFailed")
         case .routerTargetOpenFailed:
-            return SpotiglassL10n.string("eq.error.routerTargetOpenFailed")
+            SpotiglassL10n.string("eq.error.routerTargetOpenFailed")
         case .routerReadinessTimedOut:
-            return SpotiglassL10n.string("eq.error.routerReadinessTimedOut")
-        case let .requiresSudoInstall(staged, destination):
-            // The commands stay in the sentence, because running them is the
-            // action being asked for.
-            return SpotiglassL10n.format(
-                "eq.error.requiresSudoInstall",
-                Self.installCommands(staged: staged, destination: destination)
-            )
+            SpotiglassL10n.string("eq.error.routerReadinessTimedOut")
         }
     }
 
@@ -786,13 +837,12 @@ enum EqualizerHALPluginError: LocalizedError {
         switch self {
         case .embeddedDriverMissing:
             return "missing bundle: SpotiglassEQDriver.driver"
+        case .embeddedDriverMetadataMissing:
+            return "bundled driver metadata is missing or invalid"
+        case let .driverInstallationFailed(diagnostic):
+            return diagnostic
         case let .driverNotLoadedYet(installedPath):
-            return """
-                installed driver: \(installedPath)
-                coreaudiod has not picked it up yet; a one-time activation, which \
-                Spotiglass never performs for you:
-                  sudo launchctl kickstart -k system/com.apple.audio.coreaudiod
-                """
+            return "installed driver: \(installedPath)\ncoreaudiod did not enumerate the driver after the helper restart"
         case let .coreAudioStatus(status):
             return "CoreAudio OSStatus \(status) while routing the default output device"
         case .outputDeviceUIDUnavailable:
@@ -809,20 +859,7 @@ enum EqualizerHALPluginError: LocalizedError {
             return "EQRouter could not open target UID \(targetUID) (reason \(reasonCode))"
         case let .routerReadinessTimedOut(targetUID):
             return "EQRouter did not report readiness for target UID \(targetUID)"
-        case let .requiresSudoInstall(staged, destination):
-            return "staged: \(staged)\ndestination: \(destination)"
         }
-    }
-
-    private static func installCommands(staged: String, destination: String) -> String {
-        let folder = destination.replacingOccurrences(
-            of: "/SpotiglassEQDriver.driver",
-            with: "/"
-        )
-        return """
-              sudo cp -pR "\(staged)" "\(folder)"
-              sudo killall coreaudiod
-            """
     }
 }
 

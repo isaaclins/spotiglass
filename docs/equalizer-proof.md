@@ -1,70 +1,60 @@
 # Spotiglass EQ — proof bundle
 
-What's automatically verified by `make test`, and what still requires a
-manual walkthrough (`scripts/eq-qa.sh`) once a Developer ID-signed `.driver`
-loads in `coreaudiod`.
+What's automatically verified by XCTest, and what still requires a manual
+walkthrough (`scripts/eq-qa.sh`) once a signed driver and privileged helper
+load on a real Mac.
 
 ## Automatically verified (XCTest)
 
-Run `make test`. Output is mirrored in the Xcode result bundle and the
-test log. Relevant suites:
+Run `make test`. Output is mirrored in the Xcode result bundle and the test
+log. Relevant suites:
 
 | Suite | Cases | What it proves |
-|---|---|---|
+|---|---:|---|
 | `EqualizerCoefficientTests` | 7 | RBJ biquad math: zero-dB → bit-exact identity; peaking-EQ symmetry + 6 dB peak; low-shelf DC gain; high-shelf Nyquist gain; flat preset → identity coefficients; Bass Boost lifts only bands 0–3; every built-in preset emits finite, well-formed coefficients. |
-| `EqualizerABRMSTests` | 3 | **Crit 5, A/B half** — Flat preset is bit-exact to bypass (zero RMS delta, far inside the ±0.05 dB bar). Bass Boost lifts 32 Hz RMS relative to 8 kHz RMS by >2 dB. No preset clips a −1 dBFS input above ±1.06. |
+| `EqualizerABRMSTests` | 3 | **Crit 5, A/B half** — Flat preset is bit-exact to bypass, Bass Boost lifts 32 Hz relative to 8 kHz, and no preset clips a −1 dBFS input above ±1.06. |
 | `EQCoefficientPublisherTests` | 3 | Shared-memory IPC: writer round-trip, sequence always even at rest, monotonically increasing across writes. |
-| `EqualizerHALPluginTests` | 5 | Install copies the embedded `.driver` into a temp HAL dir, uninstall is idempotent, re-install replaces stale files, missing-payload surfaces `embeddedDriverMissing` cleanly, all 7 built-ins produce distinguishable coefficient frames. |
-| `EqualizerPresetsTests` | 7 | Resurrected from 2fdd179: built-in roster intact, JSON round-trip stable, normalization clamps, `find()` walks both built-ins and user presets, `apply()` writes preamp+bands+activePresetName atomically. |
+| `EqualizerHALPluginTests` | 5+ | Isolated driver install/uninstall behavior, stale-bundle replacement, router readiness, output restoration, and all built-in coefficient frames without touching real CoreAudio output. |
+| `EqualizerDriverInstallPolicyTests` | 7 | Driver release/build ordering, malformed-version handling, missing/stale/repair decisions, downgrade handling, and the rule that helper-install failures keep diagnostics out of user-facing error text. |
+| `EqualizerPresetsTests` | 7 | Built-in roster intact, JSON round-trip stable, normalization clamps, `find()` walks both built-ins and user presets, and `apply()` writes preamp, bands, and activePresetName atomically. |
 
 Plus:
 
 | Script | What it proves |
 |---|---|
-| `scripts/eq-mic-permission-audit.sh` | Zero hits for `NSMicrophoneUsage`, `AVCaptureDevice`, `inputNode`, `AudioHardwareCreateProcessTap`, `CATapDescription`, `kAudioObjectPropertyScopeInput` in `Spotiglass/` and `SpotiglassTests/`. Wired into `make test` as a prerequisite. |
-| `SpotiglassEQDriver/build-driver.sh` | The C/C++ plugin source compiles cleanly on the macOS 26 SDK against `CoreAudio.framework` and produces a Mach-O universal bundle (x86_64 + arm64). |
-| `make embed-driver` | The built `.driver` lands at `Spotiglass.app/Contents/Library/Audio/Plug-Ins/HAL/SpotiglassEQDriver.driver`, satisfying criterion 1's "the `.driver` is embedded in Spotiglass.app". |
+| `scripts/eq-mic-permission-audit.sh` | Zero hits for microphone, process-tap, and input-scope APIs in the EQ code. |
+| `SpotiglassEQDriver/build-driver.sh` | The C/C++ plugin compiles cleanly against the macOS SDK and produces a Mach-O universal bundle. |
+| `make embed-driver` | The built `.driver` lands at `Spotiglass.app/Contents/Library/Audio/Plug-Ins/HAL/SpotiglassEQDriver.driver`. |
 
-## Manually verified by user (criterion 5)
+## Manually verified by user
 
-These require a real audio environment + Developer ID signing.
-`scripts/eq-qa.sh` walks the user through them and writes
-`build/qa/manual-qa-<timestamp>.log`:
+These require a real audio environment and a signed, notarized build:
 
-1. **install** — toggling Enable in Settings → Equalizer copies the
-   embedded `.driver` to `~/Library/Audio/Plug-Ins/HAL/`. *(Path
-   automatically verified by `EqualizerHALPluginTests` against a fixture;
-   user confirms the real path is also written.)*
-2. **coreaudiod kickstart** — `sudo launchctl kickstart -k system/com.apple.audio.coreaudiod`
-3. **device-visible** — `system_profiler SPAudioDataType` shows Spotiglass EQ;
-   System Settings → Sound → Output lists it. **Requires Developer ID
-   signing.**
-4. **default-route** — default output switches to Spotiglass EQ. *(Swift
-   path verified by `EqualizerHALPluginController` unit tests.)*
-5. **preset:Flat … preset:Loudness** — tonality shifts as expected. *(The
-   DSP math is verified by `EqualizerABRMSTests`; the listening half is
-   the user's call.)*
-6. **save-preset** — "MyTest" lands in `~/.config/spotiglass/settings.json`.
-   *(Persistence path verified by `EqualizerPresetsTests`.)*
-7. **reload-preset** — survives a quit + relaunch.
-8. **delete-preset** — preset disappears.
-9. **disable-route** — default output restored.
-10. **uninstall** — driver gone from `~/Library/Audio/Plug-Ins/HAL/`.
-11. **default-restored** — original default device is back.
+1. **Authorization + install** — toggling Enable Equalizer produces macOS's
+   standard authorization prompt for the registered LaunchDaemon, then writes
+   the driver to `/Library/Audio/Plug-Ins/HAL/`.
+2. **CoreAudio restart** — the helper restarts `coreaudiod` and the virtual
+   device is re-enumerated without a shell command or log-out.
+3. **Device-visible** — System Settings → Sound → Output lists Spotiglass EQ.
+4. **Default-route** — the default output switches to Spotiglass EQ.
+5. **Preset: Flat … Loudness** — the DSP math is covered by XCTest; listening
+   confirms the expected tonal changes.
+6. **Save, reload, and delete preset** — the saved curve survives relaunch and
+   can be removed from the picker and settings file.
+7. **Disable-route** — the previous default output is restored.
+8. **Upgrade + repair** — a stale or damaged installed bundle is replaced by
+   the helper without another authorization prompt and without a user-facing
+   error or repair action.
+
+The helper registration and authorization prompt cannot be proven by the
+unsigned CI build. They need a signed build running on a real Mac.
 
 ## Honest gap inventory
 
-What's NOT done in this codebase:
-
-- **Developer ID signing** of the embedded `.driver`. Without it, macOS 26
-  `coreaudiod` will refuse to register the device. The driver itself is
-  ad-hoc signed during `build-driver.sh`; the user must re-sign with a
-  Developer ID identity before installing on a production machine.
-- **Property dispatcher** in `SpotiglassEQPlugin.cpp` — `HasProperty`,
-  `GetPropertyData`, `GetPropertyDataSize`, `IsPropertySettable`,
-  `SetPropertyData`. These are the AudioObject ABI handlers that
-  coreaudiod calls before it'll register the device. Marked `TODO(PROP)`.
-  ~600-1000 lines of selector-switch boilerplate; Apple's `NullAudio`
-  sample is the canonical template.
-- **Xcode target** for the `.driver`. Currently built via `clang` from
-  `make embed-driver`. Documented under `docs/equalizer-xcode-target.md`.
+- **Developer ID signing:** CI builds are intentionally unsigned. The release
+  script signs the app, helper, and driver before notarization. Verify that
+  the signed artifact contains the helper under
+  `Contents/Library/PrivilegedHelperTools` and the plist under
+  `Contents/Library/LaunchDaemons`.
+- **CoreAudio behavior:** a valid signature does not prove that `coreaudiod`
+  accepts the driver. Verify device enumeration and audible forwarding by hand.

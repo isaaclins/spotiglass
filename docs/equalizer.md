@@ -10,12 +10,14 @@ using vDSP biquads at the device's native sample rate, with no resampling.
 ## How users turn it on
 
 1. Open **Settings → Equalizer** in Spotiglass.
-2. Toggle **Enable Equalizer**. On the first enable Spotiglass copies the
-   bundled `SpotiglassEQDriver.driver` into `~/Library/Audio/Plug-Ins/HAL/`,
-   re-loads `coreaudiod` (see "Activating the driver" below), and routes the
-   system default output to `"Spotiglass EQ"`. Spotify Web Playback SDK audio
-   is already wired to the system default, so it picks up the new device
-   without restarting playback.
+2. Toggle **Enable Equalizer**. On the first enable Spotiglass registers its
+   privileged helper with `SMAppService`. macOS shows its standard
+   authorization prompt once, then the helper copies the bundled
+   `SpotiglassEQDriver.driver` into `/Library/Audio/Plug-Ins/HAL/`, restarts
+   `coreaudiod`, and routes the system default output to `"Spotiglass EQ"`.
+   Spotify Web Playback SDK audio is already wired to the system default, so it
+   picks up the new device without restarting playback. Later installs,
+   upgrades, and repairs happen without another prompt.
 3. Pick a built-in preset (Flat, Bass Boost, Vocal, Treble Boost, Acoustic,
    Electronic, Loudness) or drag the 10 sliders to taste. The 80 Hz, 170 Hz,
    310 Hz, 600 Hz, 1 kHz, 3 kHz, 6 kHz, 12 kHz, 14 kHz, 16 kHz bands and the
@@ -23,8 +25,10 @@ using vDSP biquads at the device's native sample rate, with no resampling.
 4. Save custom curves as user presets. Everything persists to
    `~/.config/spotiglass/settings.json`.
 
-Disabling restores the previous default output and removes the
-`.driver` from the user's HAL directory.
+Disabling restores the previous default output. The driver remains installed
+so the next enable is silent; a later repair or upgrade only invokes the
+already-approved helper when the bundled version changes or CoreAudio needs a
+reload.
 
 ## Architecture
 
@@ -64,7 +68,7 @@ output device that runs DSP in the kernel-adjacent path:
 | | AudioServerPlugIn | AudioDriverKit |
 |---|---|---|
 | Runs in | `coreaudiod` (user-space, root daemon) | DriverKit dext (sandboxed user space) |
-| Install path | `~/Library/Audio/Plug-Ins/HAL/<name>.driver` | App bundle (`Contents/Library/SystemExtensions`) + `systemextensionsctl` |
+| Install path | `/Library/Audio/Plug-Ins/HAL/<name>.driver` via the registered helper | App bundle (`Contents/Library/SystemExtensions`) + `systemextensionsctl` |
 | Entitlement | None (signed app is sufficient) | **`com.apple.developer.driverkit.transport.coreaudio`** — Apple-gated, request-only |
 | User interaction to install | Plugin copy + coreaudiod restart | OSSystemExtensionRequest + user approval in System Settings → Privacy & Security |
 | Long-term support | Maintained, used by BlackHole / BackgroundMusic / Loopback | Apple's recommended forward path, but practically blocked for indies |
@@ -81,8 +85,8 @@ Apple only on request and is not available to indie macOS developers without
 a formal review. Without it the DriverKit dext refuses to load. Every shipping
 third-party EQ on macOS (eqMac, BackgroundMusic, BlackHole, Loopback,
 Soundsource) uses `AudioServerPlugIn` for exactly this reason. Spotiglass
-adopts the same path: a bundled `.driver`, copied to the user's HAL directory
-on first enable, no Apple entitlement gate.
+adopts the same path: a bundled `.driver`, copied to the system HAL directory
+by the registered helper on first enable, with no Apple entitlement gate.
 
 ### Consequences
 
@@ -91,13 +95,8 @@ on first enable, no Apple entitlement gate.
 - **Pro:** Standard install path means dot-files / Migration Assistant pick it
   up correctly.
 - **Con:** Activating the driver requires `coreaudiod` to re-load the HAL
-  directory, which `launchctl kickstart -k system/com.apple.audio.coreaudiod`
-  forces but needs `sudo`. Spotiglass handles this by writing the plugin to
-  `~/Library/Audio/Plug-Ins/HAL/` without sudo and then surfacing a
-  one-line prompt to the user: *"Run `sudo launchctl kickstart -k system/com.apple.audio.coreaudiod`
-  or log out and back in to activate the Spotiglass EQ driver."* This is the
-  same activation step every other CoreAudio plugin asks for on first
-  install.
+  directory. The registered privileged helper performs that restart after it
+  copies the bundle, so the app never asks the user to run a shell command.
 - **Con:** Code signing requirements apply. Production builds need a real
   Developer ID signature for the `.driver` bundle; ad-hoc signing usually
   loads only when SIP / amfi loosening is in place. Documented under "Known
@@ -232,15 +231,20 @@ The control is published via the device's `kAudioObjectPropertyControlList`
 
 ## Activating the driver
 
-On first enable Spotiglass copies the embedded `SpotiglassEQDriver.driver` to
-`/Library/Audio/Plug-Ins/HAL/`. On macOS 26 `coreaudiod` only scans the
-system-scope HAL directory (the legacy `~/Library/Audio/Plug-Ins/HAL/` is
-ignored), so the install requires `sudo`. Since the GUI process never runs
-sudo on the user's behalf, the controller stages a copy in
-`~/Library/Application Support/Spotiglass/staged-driver/` and surfaces the
-exact `sudo cp -pR …` command for the user to run in Terminal. After the
-copy, the user reloads coreaudiod with `sudo killall coreaudiod` (the
-`launchctl kickstart` route is blocked by SIP on macOS 26).
+On first enable Spotiglass registers
+`com.isaaclins.spotiglass.eqprivilegedhelper.plist` with
+`SMAppService.daemon(plistName:)`. macOS presents its own administrator
+authorization dialog for the LaunchDaemon. The helper then copies the
+embedded `SpotiglassEQDriver.driver` to `/Library/Audio/Plug-Ins/HAL/` while
+preserving the bundle metadata required by CoreAudio, and restarts
+`coreaudiod`. The app waits for the virtual output to reappear before routing
+the system default to it.
+
+The app compares the installed driver's `CFBundleShortVersionString` and
+`CFBundleVersion` with the bundled copy. A missing or older bundle is installed
+again; an unreadable bundle is repaired. An exact or newer installed version is
+left alone unless CoreAudio needs a reload. These operations use the already
+approved helper and remain silent after the first authorization.
 
 After activation, `"Spotiglass EQ"` appears in **System Settings → Sound →
 Output**. Spotiglass flips the system default output to it via
@@ -293,7 +297,9 @@ Two paths:
 
 2. **`./SpotiglassEQDriver/build-driver.sh`** alone — builds the driver
    bundle at `build/SpotiglassEQDriver.driver` without touching the host
-   app. Useful for inspecting the Mach-O or for CI.
+   app. Useful for inspecting the Mach-O or for CI. Release packaging passes
+   `DRIVER_MARKETING_VERSION` and `DRIVER_BUILD_VERSION` so the helper can
+   detect driver upgrades.
 
 A fully-wired Xcode target (proper integration with Run/Test schemes, no
 Makefile escape hatch) is documented in `docs/equalizer-xcode-target.md`
@@ -319,9 +325,9 @@ as the recommended next step once Developer ID signing is wired up.
   `CODE SIGNING: rejecting invalid page`. `cp -pR` preserves mtimes; or
   re-sign in place at the destination (`sudo codesign --force --sign
   <identity> /Library/Audio/Plug-Ins/HAL/SpotiglassEQDriver.driver`).
-- **coreaudiod restart:** macOS does not provide a sudo-free way to reload
-  HAL plugins from `~/Library/Audio/Plug-Ins/HAL/`. Spotiglass surfaces
-  instructions but does not run sudo on the user's behalf.
+- **coreaudiod restart:** The helper restarts `coreaudiod` after each driver
+  install or repair. A signed build on a real Mac is still needed to verify
+  that the authorization and daemon lifecycle behave as expected.
 - **Sample-rate changes:** When the device's active sample rate changes
   (e.g., user picks a new monitor), the driver re-publishes the rate and the
   GUI process re-derives coefficients. Brief glitch may be audible during

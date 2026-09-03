@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.isaaclins.spotiglass.eqprivilegedhelper</string>
+    <key>BundleProgram</key>
+    <string>Contents/Library/PrivilegedHelperTools/SpotiglassEQPrivilegedHelper</string>
+    <key>MachServices</key>
+    <dict>
+        <key>com.isaaclins.spotiglass.eqprivilegedhelper</key>
+        <true/>
+    </dict>
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+</dict>
+</plist>

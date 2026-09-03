@@ -52,8 +52,6 @@ else
 fi
 
 echo
-echo "OK. Now you can build + sign the driver:"
-echo "  make build-driver"
-echo "  codesign --force --sign \"Apple Development: \$YOUR_EMAIL\" build/SpotiglassEQDriver.driver"
-echo "  sudo cp -pR build/SpotiglassEQDriver.driver /Library/Audio/Plug-Ins/HAL/"
-echo "  sudo killall coreaudiod"
+echo "OK. The Apple Development identity is ready for signed builds."
+echo "Launch a signed Spotiglass build and enable Equalizer; macOS will"
+echo "authorize the helper, which installs the driver and restarts coreaudiod."

@@ -70,9 +70,8 @@ struct SpotiglassApp: App {
 
     /// Re-engage the EQ only when the persisted master switch was on. The
     /// settings toggle is the source of truth across launches: an off value
-    /// leaves the engine stopped, while an unavailable driver makes the failed
-    /// enable explicit and resets the persisted switch instead of claiming the
-    /// EQ is active.
+    /// leaves the engine stopped, while an unavailable driver is logged and the
+    /// persisted switch is reset instead of claiming the EQ is active.
     private static func restoreEqualizerIfEnabled(
         settingsStore: SpotiglassSettingsStore,
         engine: AudioEqualizerEngine

@@ -224,7 +224,12 @@ xcodebuild \
   clean build
 
 echo "==> Building SpotiglassEQDriver"
-(cd "$ROOT/SpotiglassEQDriver" && bash build-driver.sh)
+(
+  cd "$ROOT/SpotiglassEQDriver"
+  DRIVER_MARKETING_VERSION="$MARKETING_VERSION" \
+    DRIVER_BUILD_VERSION="$BUILD_NUMBER" \
+    bash build-driver.sh
+)
 
 # Embed the driver before signing anything. Signing a bundle seals its contents,
 # so every nested item has to be in place first, otherwise adding the driver
@@ -289,6 +294,11 @@ if [[ -n "$DEVELOPER_ID_IDENTITY" ]]; then
   sign_bundle "$SPARKLE_VERSIONS/Autoupdate"
   sign_bundle "$SPARKLE_VERSIONS/Updater.app"
   sign_bundle "$SPARKLE_FRAMEWORK"
+
+  # The privileged helper is launched by system launchd rather than by the
+  # app, so it needs its own hardened-runtime signature before the app seals
+  # the nested executable.
+  sign_bundle "$APP_SOURCE/Contents/Library/PrivilegedHelperTools/SpotiglassEQPrivilegedHelper"
 
   # The audio driver is loaded by coreaudiod rather than by the app, so it is
   # signed as its own bundle. The hardened runtime is required for notarization;

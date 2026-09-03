@@ -1,8 +1,9 @@
 # CI and releases
 
 > **As of v0.2.0, real releases are cut locally** via `./scripts/sparkle-release.sh`,
-> not from CI. The script embeds `SpotiglassEQDriver.driver`, signs every shipped
-> bundle with the maintainer's Developer ID Application identity, submits the app
+> not from CI. The script embeds `SpotiglassEQDriver.driver`, signs the nested
+> privileged helper and every shipped bundle with the maintainer's Developer ID
+> Application identity, submits the app
 > and disk image for notarization, and staples Apple's tickets. CI has neither the
 > signing identity nor the notary profile, and `coreaudiod` on macOS 26 rejects
 > ad-hoc-signed HAL plugins. A CI-published Sparkle update would therefore ship a
@@ -10,7 +11,7 @@
 
 ## Continuous integration
 
-The workflow **CI** lives at [.github/workflows/ci.yml](../.github/workflows/ci.yml) and is what actually guards `main`.
+The workflow **CI** lives at [.github/workflows/ci.yml](../.github/workflows/ci.yml) and is what actually guards `main`. The Spotiglass scheme builds the `SpotiglassEQPrivilegedHelper` target as part of the app build, while signed release packaging signs that nested helper before sealing the app.
 
 | Aspect | Detail |
 |--------|--------|
@@ -92,8 +93,9 @@ The app checks the feed automatically about once per day, or via **Spotiglass â†
    ```sh
    ./scripts/sparkle-release.sh 0.5.0 7 docs/release-notes/v0.5.0.md
    ```
-5. The script builds and embeds the EQ driver, signs nested code from the inside
-   out, notarizes and staples the app, creates and notarizes the disk image,
+5. The script builds and embeds the EQ driver, signs the privileged helper and
+   other nested code from the inside out, notarizes and staples the app, creates
+   and notarizes the disk image,
    signs the Sparkle archive with EdDSA, regenerates `docs/appcast.xml`, and bumps
    the project version last. Publish the generated zip and dmg in GitHub Release
    `v0.5.0`, then commit and push the appcast, release notes, and version bump.
