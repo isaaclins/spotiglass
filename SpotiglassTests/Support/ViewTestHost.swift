@@ -59,6 +59,17 @@ enum ViewTestHost {
         return defaults
     }()
 
+    /// Hosts a view in a window that is deliberately never ordered on screen.
+    ///
+    /// An on-screen window makes macOS attach out-of-process view services to
+    /// hosted controls (Safari's completion-list helper binds to text fields).
+    /// When a later test tears its window down while such a service is still
+    /// bound, the next `orderFront` raises an `NSRemoteView` assertion that
+    /// kills the whole test process, so runs failed on whichever test happened
+    /// to be next rather than on the code that changed (#364). Nothing here
+    /// needs to be visible: layout, hit testing, ViewInspector and first
+    /// responder all work in an off-screen window. Tests that genuinely need a
+    /// key window ask for one through `AppKitTestSupport.makeFirstResponder`.
     @discardableResult
     static func host<V: View>(
         _ view: V,
@@ -79,7 +90,6 @@ enum ViewTestHost {
         )
         window.contentViewController = controller
         window.isReleasedWhenClosed = false
-        window.makeKeyAndOrderFront(nil)
         windows.append(window)
         controller.view.layoutSubtreeIfNeeded()
         AppKitTestSupport.pumpRunLoop()
