@@ -77,7 +77,11 @@ final class PlaybackChromeViewsTests: XCTestCase {
         XCTAssertNoThrow(try view.inspect().find(viewWithAccessibilityLabel: "Lyrics"))
     }
 
-    func testPlaybackLyricsTransportButtonsRespondToMouseClick() throws {
+    /// The bug (#355) was a near-transparent overlay swallowing clicks before
+    /// they reached the native button. The guard is an alpha assertion, not a
+    /// synthesized event: synthetic `NSEvent`s need a real key window on screen
+    /// and never land on a headless CI runner.
+    func testPlaybackLyricsTransportButtonsAreClickable() throws {
         let playback = makePlayingPlayback()
         var isPresented = false
         let view = PlaybackControlsView(
@@ -90,7 +94,6 @@ final class PlaybackChromeViewsTests: XCTestCase {
         )
 
         let controller = ViewTestHost.host(view, size: CGSize(width: 900, height: 120))
-        let window = try XCTUnwrap(controller.view.window)
         let buttons = allNSButtons(in: controller.view)
         let lyricsButton = try XCTUnwrap(
             buttons.first {
@@ -107,39 +110,40 @@ final class PlaybackChromeViewsTests: XCTestCase {
         XCTAssertTrue(lyricsButton.isEnabled)
         XCTAssertTrue(artworkLyricsButton.isEnabled)
 
-        window.makeKeyAndOrderFront(nil)
-        AppKitTestSupport.activateAppIfNeeded()
-        AppKitTestSupport.pumpRunLoop()
-        try sendMouseClick(on: lyricsButton, in: window)
-        XCTAssertTrue(isPresented, "A click on the Lyrics transport button did not present lyrics")
+        assertNothingFadesOut(lyricsButton, upTo: controller.view, named: "Lyrics")
+        assertNothingFadesOut(artworkLyricsButton, upTo: controller.view, named: "Open lyrics")
+
+        lyricsButton.performClick(nil)
+        XCTAssertTrue(isPresented, "The Lyrics transport button is not wired to the lyrics binding")
 
         isPresented = false
-        try sendMouseClick(on: artworkLyricsButton, in: window)
-        XCTAssertTrue(isPresented, "A click on the artwork lyrics button did not present lyrics")
+        artworkLyricsButton.performClick(nil)
+        XCTAssertTrue(isPresented, "The artwork lyrics button is not wired to the lyrics binding")
     }
 
-    private func sendMouseClick(on button: NSButton, in window: NSWindow) throws {
-        let location = button.convert(
-            NSPoint(x: button.bounds.midX, y: button.bounds.midY),
-            to: nil
-        )
-        for (eventNumber, eventType) in [NSEvent.EventType.leftMouseDown, .leftMouseUp].enumerated() {
-            let event = try XCTUnwrap(
-                NSEvent.mouseEvent(
-                    with: eventType,
-                    location: location,
-                    modifierFlags: [],
-                    timestamp: ProcessInfo.processInfo.systemUptime,
-                    windowNumber: window.windowNumber,
-                    context: nil,
-                    eventNumber: eventNumber,
-                    clickCount: 1,
-                    pressure: 1
-                )
+    /// Asserts no ancestor of the button is faded out. `hitTest` cannot answer
+    /// this: `NSHostingView` reports itself for every point and never a nested
+    /// bridged control. Alpha is the mechanism that broke #355, and a view with
+    /// an alpha below 1 stops receiving mouse events through the bridge even
+    /// though it still draws and still answers accessibility queries.
+    private func assertNothingFadesOut(
+        _ button: NSButton,
+        upTo root: NSView,
+        named name: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        var ancestor: NSView? = button
+        while let view = ancestor, view !== root {
+            XCTAssertEqual(
+                view.alphaValue,
+                1,
+                "\(name) sits under a faded view (\(type(of: view))), which stops mouse delivery",
+                file: file,
+                line: line
             )
-            NSApp.sendEvent(event)
+            ancestor = view.superview
         }
-        AppKitTestSupport.pumpRunLoop()
     }
 
     func testPlaybackControlsConnectingState() throws {
