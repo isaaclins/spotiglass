@@ -24,9 +24,7 @@ actor ArtworkImageStore {
     private init() {
         let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory
-        let disk = base
-            .appendingPathComponent(AppMetadata.displayName, isDirectory: true)
-            .appendingPathComponent("Artwork", isDirectory: true)
+        let disk = Self.defaultDiskDirectory
         let urlCacheDir = base.appendingPathComponent(AppMetadata.displayName, isDirectory: true)
             .appendingPathComponent("ArtworkURLCache", isDirectory: true)
         try? FileManager.default.createDirectory(at: urlCacheDir, withIntermediateDirectories: true)
@@ -81,6 +79,17 @@ actor ArtworkImageStore {
         return result
     }
 
+    /// The one place the on-disk cache location is defined. Both the shared
+    /// store and the synchronous read below resolve it from here, so a test can
+    /// point the read at its own directory instead of the user's real cache.
+    nonisolated static var defaultDiskDirectory: URL {
+        let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        return base
+            .appendingPathComponent(AppMetadata.displayName, isDirectory: true)
+            .appendingPathComponent("Artwork", isDirectory: true)
+    }
+
     nonisolated static func cacheFileURL(for url: URL, diskDirectory: URL) -> URL {
         let name = Self.sha256Hex(url.absoluteString) + ".img"
         return diskDirectory.appendingPathComponent(name)
@@ -88,12 +97,10 @@ actor ArtworkImageStore {
 
     /// Best-effort synchronous read for views that must render immediately (for
     /// example drag previews). Returns `nil` when artwork has not been cached yet.
-    nonisolated static func cachedImageIfAvailable(for url: URL) -> NSImage? {
-        let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
-            ?? FileManager.default.temporaryDirectory
-        let diskDirectory = base
-            .appendingPathComponent(AppMetadata.displayName, isDirectory: true)
-            .appendingPathComponent("Artwork", isDirectory: true)
+    nonisolated static func cachedImageIfAvailable(
+        for url: URL,
+        diskDirectory: URL = defaultDiskDirectory
+    ) -> NSImage? {
         let fileURL = cacheFileURL(for: url, diskDirectory: diskDirectory)
         guard let data = try? Data(contentsOf: fileURL) else { return nil }
         return NSImage(data: data)

@@ -150,7 +150,7 @@ final class ArtworkImageStoreTests: XCTestCase {
         XCTAssertEqual(SingleResponseURLProtocol.requestCount, 1)
     }
 
-    func testCachedImageIfAvailableReadsDefaultCacheDirectory() throws {
+    func testCachedImageIfAvailableReadsTheDirectoryItIsGiven() throws {
         let dir = spotiglassTestsTemporaryDirectory()
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let url = URL(string: "https://cdn.test/art.png")!
@@ -167,8 +167,18 @@ final class ArtworkImageStoreTests: XCTestCase {
             0x42, 0x60, 0x82,
         ]
         try Data(png).write(to: file)
-        // Exercises the nonisolated disk read path (returns nil when file is outside default cache dir).
-        _ = ArtworkImageStore.cachedImageIfAvailable(for: url)
+
+        XCTAssertNotNil(ArtworkImageStore.cachedImageIfAvailable(for: url, diskDirectory: dir))
+        XCTAssertNil(
+            ArtworkImageStore.cachedImageIfAvailable(
+                for: URL(string: "https://cdn.test/never-cached.png")!,
+                diskDirectory: dir
+            )
+        )
+        XCTAssertTrue(
+            ArtworkImageStore.defaultDiskDirectory.path.hasSuffix("/\(AppMetadata.displayName)/Artwork"),
+            "The shared store and the synchronous read must resolve the same cache directory"
+        )
     }
 
     func testNetworkFailureReturnsNil() async {
