@@ -149,12 +149,18 @@ install-driver: build-driver sign-driver
 	fi
 
 test: audit-eq-permission
+	# Per-test timeouts match CI. A wedged test once burned 40 minutes here
+	# and reported nothing about which test it was; with timeouts on, the run
+	# fails fast and names it. The slowest legitimate test takes about a
+	# second, so 120s is a ceiling no honest test can reach.
 	xcodebuild \
 		-project $(PROJECT) \
 		-scheme $(SCHEME) \
 		-destination '$(DESTINATION)' \
 		-derivedDataPath $(DERIVED_DATA) \
 		-parallel-testing-enabled NO \
+		-test-timeouts-enabled YES \
+		-maximum-test-execution-time-allowance 120 \
 		$(CODE_SIGN_FLAGS) \
 		$(XCODE_EXTRA) \
 		test
