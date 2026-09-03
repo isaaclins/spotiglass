@@ -119,7 +119,6 @@ struct PlaylistBrowserView: View {
                     },
                     pinDroppedTransfers: pinDroppedTransfers
                 )
-                .background(.background)
                 .toolbar(removing: lyricsOverlay.isPresented ? .sidebarToggle : nil)
                 .navigationSplitViewColumnWidth(
                     min: SpotiglassDesign.playlistSidebarMinWidth,
