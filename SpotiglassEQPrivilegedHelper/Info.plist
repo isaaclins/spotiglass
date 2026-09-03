@@ -14,7 +14,5 @@
     <string>SpotiglassEQPrivilegedHelper</string>
     <key>CFBundleVersion</key>
     <string>$(CURRENT_PROJECT_VERSION)</string>
-    <key>SpotiglassCodeSigningTeamIdentifier</key>
-    <string>$(DEVELOPMENT_TEAM)</string>
 </dict>
 </plist>

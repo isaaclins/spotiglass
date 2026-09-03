@@ -153,7 +153,7 @@ final class EqualizerPrivilegedHelperClient: @unchecked Sendable, EqualizerDrive
             with: EqualizerPrivilegedHelperProtocol.self
         )
         connection.setCodeSigningRequirement(
-            EqualizerPrivilegedHelperIdentity.helperRequirement(for: bundle)
+            EqualizerPrivilegedHelperIdentity.helperRequirement
         )
 
         let completion = DispatchSemaphore(value: 0)

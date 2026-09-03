@@ -102,16 +102,18 @@ final class EqualizerDriverInstallPolicyTests: XCTestCase {
         }
     }
 
-    func testCodeSigningRequirementPinsTeamOrExplicitLocalCertificate() {
-        let requirement = EqualizerPrivilegedHelperIdentity.requirement(
-            for: EqualizerPrivilegedHelperIdentity.applicationBundleIdentifier,
-            teamIdentifier: "TEAM123456",
-            localCertificateCommonName: "Spotiglass Local Dev"
-        )
-
+    func testCodeSigningRequirementsPinTeamOrExplicitLocalCertificate() {
         XCTAssertEqual(
-            requirement,
-            "((anchor apple generic and certificate leaf[subject.OU] = \"TEAM123456\") or certificate leaf[subject.CN] = \"Spotiglass Local Dev\") and identifier \"com.isaaclins.spotiglass\""
+            EqualizerPrivilegedHelperIdentity.clientRequirement,
+            "((anchor apple generic and certificate leaf[subject.OU] = \"BHAF4L4726\") or certificate leaf[subject.CN] = \"Spotiglass Local Dev\") and identifier \"com.isaaclins.spotiglass\""
+        )
+        XCTAssertEqual(
+            EqualizerPrivilegedHelperIdentity.helperRequirement,
+            "((anchor apple generic and certificate leaf[subject.OU] = \"BHAF4L4726\") or certificate leaf[subject.CN] = \"Spotiglass Local Dev\") and identifier \"com.isaaclins.spotiglass.eqprivilegedhelper\""
+        )
+        XCTAssertEqual(
+            EqualizerPrivilegedHelperIdentity.driverRequirement,
+            "((anchor apple generic and certificate leaf[subject.OU] = \"BHAF4L4726\") or certificate leaf[subject.CN] = \"Spotiglass Local Dev\") and identifier \"com.isaaclins.spotiglass.eqdriver\""
         )
     }
 
