@@ -15,6 +15,7 @@
     "Spotiglass/Playback/AudioEqualizerEngine.swift",
     "Spotiglass/Playback/EqualizerHALPluginController.swift",
     "Spotiglass/Playback/EqualizerPrivilegedHelperClient.swift",
+    "Spotiglass/Playback/EqualizerPrivilegedHelperIdentity.swift",
     "Spotiglass/Playback/PlaybackControlsView.swift",
     "Spotiglass/Playback/SpotifyPlaybackBridge.swift",
     "Spotiglass/Services/SpotifyAPIClient+Home.swift",
