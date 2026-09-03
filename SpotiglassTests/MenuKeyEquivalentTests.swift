@@ -116,6 +116,10 @@ final class MenuKeyEquivalentTests: XCTestCase {
         AppKitTestSupport.activateAppIfNeeded()
         AppKitTestSupport.pumpRunLoop(for: 0.25)
         let menu = try XCTUnwrap(NSApp.mainMenu)
+        XCTAssertNotNil(
+            NSApp.servicesMenu,
+            "The Services menu must be reachable so its system-injected items can be skipped"
+        )
         let keyedItems = menuKeyEquivalentItems(in: menu)
         XCTAssertFalse(keyedItems.isEmpty, "Expected the application menu to expose key equivalents")
 
@@ -294,11 +298,17 @@ final class MenuKeyEquivalentTests: XCTestCase {
         let modifiers: NSEvent.ModifierFlags
     }
 
+    /// Walks the menu tree, skipping the Services submenu. macOS populates that
+    /// one from whatever other apps are installed on the running machine, and
+    /// those items bring their own key equivalents (Terminal alone contributes
+    /// Cmd-A and Cmd-M). They are not ours to deduplicate, and including them
+    /// makes this test fail or pass depending on the host, not on the code.
     private func menuKeyEquivalentItems(
         in menu: NSMenu,
         parentPath: String = ""
     ) -> [MenuKeyEquivalentItem] {
         menu.items.flatMap { item in
+            guard item.submenu !== NSApp.servicesMenu else { return [MenuKeyEquivalentItem]() }
             let path = parentPath.isEmpty ? item.title : "\(parentPath) > \(item.title)"
             let current = item.keyEquivalent.isEmpty
                 ? []
