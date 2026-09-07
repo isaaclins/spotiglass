@@ -412,11 +412,18 @@ if [[ -z "$GENERATE_APPCAST" ]]; then
   fi
 fi
 
-ED_KEY_ARGS=()
+# Keep the argument array non-empty. macOS still ships Bash 3.2, where
+# expanding an empty array under `set -u` aborts with "unbound variable". The
+# key-file override is optional because generate_appcast can read its standard
+# ed25519 item from the login keychain.
+APPCAST_ARGS=(
+  --download-url-prefix "$DOWNLOAD_PREFIX"
+  --embed-release-notes
+)
 if [[ -n "${SPARKLE_EDDSA_PRIVATE_KEY_FILE:-}" && -f "$SPARKLE_EDDSA_PRIVATE_KEY_FILE" ]]; then
-  ED_KEY_ARGS=(--ed-key-file "$SPARKLE_EDDSA_PRIVATE_KEY_FILE")
+  APPCAST_ARGS+=(--ed-key-file "$SPARKLE_EDDSA_PRIVATE_KEY_FILE")
 elif [[ -f "$ROOT/scripts/sparkle_eddsa_private.key" ]]; then
-  ED_KEY_ARGS=(--ed-key-file "$ROOT/scripts/sparkle_eddsa_private.key")
+  APPCAST_ARGS+=(--ed-key-file "$ROOT/scripts/sparkle_eddsa_private.key")
 fi
 
 echo "==> Generating appcast (docs/appcast.xml)"
@@ -430,9 +437,7 @@ APPCAST_TMP="$APPCAST_TMP_DIR/appcast.xml"
 trap 'rm -rf "$APPCAST_TMP_DIR"' EXIT
 
 "$GENERATE_APPCAST" \
-  "${ED_KEY_ARGS[@]}" \
-  --download-url-prefix "$DOWNLOAD_PREFIX" \
-  --embed-release-notes \
+  "${APPCAST_ARGS[@]}" \
   -o "$APPCAST_TMP" \
   "$ARCHIVES_DIR"
 
