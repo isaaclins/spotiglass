@@ -100,6 +100,16 @@ struct EqualizerSettingsView: View {
                     .foregroundStyle(.orange)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
+
+                // Only the user can grant this, and only in System Settings,
+                // so the pane offers the trip there instead of naming a path.
+                if engine.requiresBackgroundApproval {
+                    Button(SpotiglassL10n.string("settings.eq.openLoginItems")) {
+                        EqualizerPrivilegedHelperClient.openBackgroundItemSettings()
+                    }
+                    .buttonStyle(.link)
+                    .font(.caption)
+                }
             } else if equalizer.enabled, !engine.isRunning {
                 Label(SpotiglassL10n.string("settings.eq.starting"), systemImage: "hourglass")
                     .font(.caption)

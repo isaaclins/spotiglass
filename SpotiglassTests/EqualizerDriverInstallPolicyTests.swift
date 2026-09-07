@@ -83,6 +83,26 @@ final class EqualizerDriverInstallPolicyTests: XCTestCase {
         XCTAssertNil(mapped.userFacingDescription)
     }
 
+    /// The one install outcome the listener has to act on. Everything else in
+    /// this area is deliberately log-only, and this case was hidden by that
+    /// rule: the switch sprang back with nothing on screen.
+    func testMissingBackgroundApprovalIsUserVisibleAndActionable() {
+        let mapped = EqualizerDriverInstallErrorMapper.map(.approvalRequired)
+
+        guard case .driverInstallApprovalRequired = mapped else {
+            return XCTFail("expected .driverInstallApprovalRequired, got \(mapped)")
+        }
+        XCTAssertTrue(mapped.isUserVisible)
+        XCTAssertEqual(
+            mapped.userFacingDescription,
+            SpotiglassL10n.string("eq.error.driverInstallApprovalRequired")
+        )
+        XCTAssertEqual(
+            mapped.diagnosticDetails,
+            "Spotiglass is not allowed to run in the background, so launchd refused to register the equalizer helper"
+        )
+    }
+
     func testEveryHelperFailureHasDiagnosticMapping() {
         let errors: [EqualizerDriverInstallError] = [
             .registrationFailed(status: 1),

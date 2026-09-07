@@ -772,6 +772,7 @@ enum EqualizerHALPluginError: LocalizedError {
     case embeddedDriverMissing
     case embeddedDriverMetadataMissing
     case driverInstallationFailed(diagnostic: String)
+    case driverInstallApprovalRequired
     case driverNotLoadedYet(installedPath: String)
     case coreAudioStatus(OSStatus)
     case outputDeviceUIDUnavailable
@@ -791,7 +792,11 @@ enum EqualizerHALPluginError: LocalizedError {
              .driverInstallationFailed,
              .driverNotLoadedYet:
             false
-        case .coreAudioStatus,
+        // The exception to the rule above: only the user can grant the
+        // background-item approval, so hiding this one left the equalizer
+        // switch springing back with no explanation at all.
+        case .driverInstallApprovalRequired,
+             .coreAudioStatus,
              .outputDeviceUIDUnavailable,
              .previousOutputBackupMissing,
              .previousOutputDeviceUnavailable,
@@ -814,6 +819,8 @@ enum EqualizerHALPluginError: LocalizedError {
              .driverInstallationFailed,
              .driverNotLoadedYet:
             nil
+        case .driverInstallApprovalRequired:
+            SpotiglassL10n.string("eq.error.driverInstallApprovalRequired")
         case .coreAudioStatus:
             SpotiglassL10n.string("eq.error.coreAudioStatus")
         case .outputDeviceUIDUnavailable:
@@ -841,6 +848,8 @@ enum EqualizerHALPluginError: LocalizedError {
             return "bundled driver metadata is missing or invalid"
         case let .driverInstallationFailed(diagnostic):
             return diagnostic
+        case .driverInstallApprovalRequired:
+            return "Spotiglass is not allowed to run in the background, so launchd refused to register the equalizer helper"
         case let .driverNotLoadedYet(installedPath):
             return "installed driver: \(installedPath)\ncoreaudiod did not enumerate the driver after the helper restart"
         case let .coreAudioStatus(status):

@@ -76,6 +76,12 @@ final class AudioEqualizerEngine: ObservableObject {
     /// its router worker reports a matching ready target.
     @Published private(set) var routeState: EqualizerRouteState = .disabled
 
+    /// Whether the last start attempt stopped on the user's background-item
+    /// approval. This is a pending user action rather than a second reading of
+    /// whether the route is live, so it is tracked separately from
+    /// ``routeState`` instead of being inferred from its message.
+    @Published private(set) var requiresBackgroundApproval: Bool = false
+
     /// Compatibility projections used by existing settings/playback surfaces.
     /// They intentionally derive from ``routeState`` rather than storing a
     /// second interpretation of whether the route is active.
@@ -205,10 +211,12 @@ final class AudioEqualizerEngine: ObservableObject {
         routeState = .starting(targetUID: nil)
         do {
             let targetUID = try pluginController.enable(preferredForwardingUID: forwardingTargetUID)
+            requiresBackgroundApproval = false
             routeState = .live(targetUID: targetUID, errorMessage: nil)
             publishCoefficients()
         } catch {
             recordFailure(error)
+            requiresBackgroundApproval = Self.isBackgroundApprovalFailure(error)
             routeState = .failed(
                 message: userFacingErrorMessage(for: error),
                 isEngaged: false
@@ -349,6 +357,12 @@ final class AudioEqualizerEngine: ObservableObject {
 
     private var isStarting: Bool {
         if case .starting = routeState { return true }
+        return false
+    }
+
+    private static func isBackgroundApprovalFailure(_ error: Error) -> Bool {
+        guard let pluginError = error as? EqualizerHALPluginError else { return false }
+        if case .driverInstallApprovalRequired = pluginError { return true }
         return false
     }
 
