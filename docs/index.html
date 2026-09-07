@@ -2,409 +2,328 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Spotiglass — Spotify, tuned to you.</title>
-  <meta name="description" content="A keyboard-first, glass-clad Spotify client for macOS. Command palette, a real system-level 10-band equalizer, immersive synced lyrics, and pins for everything. Free & open source." />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Spotiglass — Spotify, tuned to your Mac.</title>
+  <meta name="description" content="Spotiglass is a native macOS Spotify client with a command palette, a real 10-band equalizer, synced lyrics, pins, and multi-window support." />
 
-  <!-- Open Graph / social -->
   <meta property="og:type" content="website" />
-  <meta property="og:title" content="Spotiglass — Spotify, tuned to you." />
-  <meta property="og:description" content="A keyboard-first, glass-clad Spotify client for macOS. A real 10-band equalizer, command palette, immersive lyrics, pins for everything." />
+  <meta property="og:title" content="Spotiglass — Spotify, tuned to your Mac." />
+  <meta property="og:description" content="A native macOS Spotify client with a command palette, a real 10-band equalizer, synced lyrics, pins, and multi-window support." />
   <meta property="og:url" content="https://isaaclins.com/spotiglass/" />
   <meta property="og:image" content="https://isaaclins.com/spotiglass/assets/logo.png" />
   <meta name="twitter:card" content="summary" />
-  <meta name="theme-color" content="#08060a" />
+  <meta name="theme-color" content="#f7f7f5" />
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#111214" />
 
   <link rel="icon" type="image/png" href="assets/logo.png" />
   <link rel="apple-touch-icon" href="assets/logo.png" />
-
-  <!-- Fonts: Clash Display + Satoshi (Fontshare), JetBrains Mono (Google) -->
-  <link rel="preconnect" href="https://api.fontshare.com" crossorigin />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://api.fontshare.com/v2/css?f[]=clash-display@400,500,600,700&f[]=satoshi@400,500,700,900&display=swap" rel="stylesheet" />
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
-
   <link rel="stylesheet" href="assets/styles.css" />
   <noscript><style>.reveal{opacity:1!important;transform:none!important}</style></noscript>
 </head>
 <body>
   <div class="scroll-progress" id="scrollProgress" aria-hidden="true"></div>
 
-  <!-- ===== Atmosphere layers ===== -->
-  <div class="atmosphere" aria-hidden="true">
-    <div class="aurora aurora--ruby"></div>
-    <div class="aurora aurora--ember"></div>
-    <div class="aurora aurora--wine"></div>
-    <div class="grid-veil"></div>
-    <div class="grain"></div>
-    <div class="vignette"></div>
-  </div>
+  <header class="site-header" id="top">
+    <div class="site-nav container">
+      <a class="brand" href="#top" aria-label="Spotiglass home">
+        <img class="brand__logo" src="assets/logo.png" alt="" width="36" height="36" />
+        <span class="brand__name">Spotiglass</span>
+      </a>
 
-  <!-- ===== Nav ===== -->
-  <header class="nav" id="top">
-    <a class="brand" href="#top" aria-label="Spotiglass home">
-      <img class="brand__logo" src="assets/logo.png" alt="" width="36" height="36" />
-      <span class="brand__name">Spotiglass</span>
-    </a>
-    <nav class="nav__links" aria-label="Primary">
-      <a href="#features">Features</a>
-      <a href="#equalizer">Equalizer</a>
-      <a href="#shortcuts">Shortcuts</a>
-      <a href="https://github.com/isaaclins/spotiglass" target="_blank" rel="noopener">GitHub</a>
-    </nav>
-    <a class="btn btn--primary btn--sm" href="#download">
-      <span>Download</span>
-    </a>
+      <nav class="site-nav__links" aria-label="Primary navigation">
+        <a href="#features">Features</a>
+        <a href="#equalizer">Equalizer</a>
+        <a href="#shortcuts">Shortcuts</a>
+        <a href="https://github.com/isaaclins/spotiglass" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+
+      <a class="button button--solid button--small" href="#download">Download</a>
+    </div>
   </header>
 
   <main>
-    <!-- ===== Hero ===== -->
-    <section class="hero">
-      <div class="hero__copy">
-        <span class="pill reveal" data-reveal>
-          <span class="pill__dot"></span>
-          Now on macOS · <span id="verTag">v0.2.0</span>
-        </span>
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero__inner container">
+        <div class="hero__copy">
+          <p class="eyebrow reveal" data-reveal><span class="eyebrow__mark"></span> A native Spotify client for Mac</p>
+          <h1 class="hero__title reveal" data-reveal style="--d:.06s" id="hero-title">
+            Spotify,<br /><span class="hero__accent">tuned to you.</span>
+          </h1>
+          <p class="hero__sub reveal" data-reveal style="--d:.12s">
+            Spotiglass keeps your library close, your controls within reach, and the details in your hands. Search with <kbd>⌘K</kbd>, shape playback with a real 10-band equalizer, and pin the music you return to.
+          </p>
+          <div class="hero__actions reveal" data-reveal style="--d:.18s">
+            <a class="button button--solid js-download" href="https://github.com/isaaclins/spotiglass/releases/download/v0.7.0/Spotiglass-0.7.0.dmg">
+              <svg viewBox="0 0 16 19" width="17" height="19" aria-hidden="true" fill="currentColor"><path d="M13.3 6.4c-.1.1-1.9 1-1.9 3.2 0 2.6 2.3 3.5 2.3 3.5s-1.4 4.6-3.4 4.6c-.9 0-1.5-.6-2.5-.6s-1.7.6-2.5.6C1 17.7-.4 13 .9 9.6 1.6 7.8 3 6.7 4.4 6.7c.9 0 1.7.6 2.3.6.5 0 1.5-.7 2.6-.7.4 0 1.9.1 3 1.8M9.1 4.4c.5-.6.8-1.5.8-2.3v-.3c-.8 0-1.7.5-2.2 1.1-.4.5-.8 1.3-.8 2.2v.2c.9.1 1.7-.4 2.2-.9"/></svg>
+              <span>Download for macOS</span>
+            </a>
+            <a class="button button--quiet" href="https://github.com/isaaclins/spotiglass" target="_blank" rel="noopener">
+              <svg viewBox="0 0 16 16" width="17" height="17" aria-hidden="true" fill="currentColor"><path d="M8 0C3.6 0 0 3.6 0 8c0 3.5 2.3 6.5 5.5 7.6.4.1.5-.2.5-.4v-1.4c-2.2.5-2.7-1-2.7-1-.4-.9-.9-1.2-.9-1.2-.7-.5.1-.5.1-.5.8.1 1.2.8 1.2.8.7 1.2 1.9.9 2.3.7.1-.5.3-.9.5-1.1-1.8-.2-3.6-.9-3.6-3.9 0-.9.3-1.6.8-2.1-.1-.2-.4-1 .1-2.1 0 0 .7-.2 2.2.8.6-.2 1.3-.3 2-.3s1.4.1 2 .3c1.5-1 2.2-.8 2.2-.8.4 1.1.2 1.9.1 2.1.5.5.8 1.2.8 2.1 0 3-1.8 3.7-3.6 3.9.3.3.5.8.5 1.5v2.2c0 .2.1.5.6.4C13.7 14.5 16 11.5 16 8c0-4.4-3.6-8-8-8"/></svg>
+              <span>View on GitHub</span>
+            </a>
+          </div>
+          <p class="hero__fine reveal" data-reveal style="--d:.24s">macOS 26 or later <span aria-hidden="true">·</span> Spotify Premium <span aria-hidden="true">·</span> Free and open source</p>
+          <ul class="hero__signals reveal" data-reveal style="--d:.30s" aria-label="Spotiglass highlights">
+            <li><strong>⌘K</strong><span>Command palette</span></li>
+            <li><strong>10</strong><span>Equalizer bands</span></li>
+            <li><strong>∞</strong><span>Library pins</span></li>
+          </ul>
+        </div>
 
-        <h1 class="hero__title">
-          <span class="reveal" data-reveal style="--d:.05s">Spotify,</span>
-          <span class="reveal hero__grad" data-reveal style="--d:.13s">tuned to you.</span>
-        </h1>
+        <figure class="hero__stage reveal" data-reveal style="--d:.12s">
+          <div class="app-window is-playing" id="heroWindow">
+            <div class="window__bar">
+              <div class="traffic" aria-hidden="true"><span class="traffic__dot traffic__dot--close"></span><span class="traffic__dot traffic__dot--minimize"></span><span class="traffic__dot traffic__dot--zoom"></span></div>
+              <span class="window__title">Spotiglass</span>
+              <span class="window__status"><span class="status-dot"></span> Playing</span>
+            </div>
 
-        <p class="hero__sub reveal" data-reveal style="--d:.22s">
-          A keyboard-first, glass-clad Spotify client for macOS. A command palette for
-          everything, a <strong>real</strong> system-level 10-band equalizer, immersive
-          synced lyrics, and pins for the music you live in. Zero clutter.
-        </p>
+            <div class="window__body">
+              <aside class="side" aria-label="Library preview">
+                <div class="side__search" aria-hidden="true"><kbd>⌘K</kbd><span>Search library</span></div>
+                <p class="side__label">Library</p>
+                <ul class="side__list" id="heroLib">
+                  <li><button class="side__item is-active" type="button" data-track="Limelight" data-artist="Floating Points" data-cov="cov--liked"><i class="cov cov--liked">♥</i><span class="side__item-label">Liked Songs</span><b class="pin" aria-label="Pinned">●</b></button></li>
+                  <li><button class="side__item" type="button" data-track="Birth4000" data-artist="Floating Points" data-cov="cov--1"><i class="cov cov--1"></i><span class="side__item-label">Deep Focus</span><b class="pin" aria-label="Pinned">●</b></button></li>
+                  <li><button class="side__item" type="button" data-track="Nightcall" data-artist="Kavinsky" data-cov="cov--2"><i class="cov cov--2"></i><span class="side__item-label">Midnight Drive</span></button></li>
+                  <li><button class="side__item" type="button" data-track="Are We Still Friends?" data-artist="Tame Impala" data-cov="cov--3"><i class="cov cov--3"></i><span class="side__item-label">Lo-Fi Beats</span><b class="pin" aria-label="Pinned">●</b></button></li>
+                  <li><button class="side__item" type="button" data-track="Bias" data-artist="Floating Points" data-cov="cov--4"><i class="cov cov--4"></i><span class="side__item-label">Floating Points</span></button></li>
+                </ul>
+                <p class="side__label">Recent</p>
+                <ul class="side__list side__list--dim" id="heroLib2">
+                  <li><button class="side__item" type="button" data-track="Kerala" data-artist="Bonobo" data-cov="cov--5"><i class="cov cov--5"></i><span class="side__item-label">Bonobo</span></button></li>
+                  <li><button class="side__item" type="button" data-track="Awake" data-artist="Tycho" data-cov="cov--6"><i class="cov cov--6"></i><span class="side__item-label">Tycho</span></button></li>
+                </ul>
+              </aside>
 
-        <div class="hero__cta reveal" data-reveal style="--d:.30s">
-          <a class="btn btn--primary js-download" href="https://github.com/isaaclins/spotiglass/releases/download/v0.2.0/Spotiglass-0.2.0.dmg">
-            <svg viewBox="0 0 16 19" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M13.3 6.4c-.1.1-1.9 1-1.9 3.2 0 2.6 2.3 3.5 2.3 3.5s-1.4 4.6-3.4 4.6c-.9 0-1.5-.6-2.5-.6s-1.7.6-2.5.6C1 17.7-.4 13 .9 9.6 1.6 7.8 3 6.7 4.4 6.7c.9 0 1.7.6 2.3.6.5 0 1.5-.7 2.6-.7.4 0 1.9.1 3 1.8M9.1 4.4c.5-.6.8-1.5.8-2.3v-.3c-.8 0-1.7.5-2.2 1.1-.4.5-.8 1.3-.8 2.2v.2c.9.1 1.7-.4 2.2-.9"/></svg>
+              <section class="main" aria-label="Now playing preview">
+                <div class="main__top"><span>Now playing</span><span class="main__device">Spotiglass on Mac</span></div>
+                <div class="now">
+                  <div class="now__art cov--liked" id="heroArt" aria-hidden="true"><span class="art__note">♪</span></div>
+                  <div class="now__meta">
+                    <p class="now__track" id="heroTrack">Limelight</p>
+                    <p class="now__artist" id="heroArtist">Floating Points</p>
+                  </div>
+                  <button class="now__like is-liked" id="heroLike" type="button" aria-label="Unlike song" aria-pressed="true">♥</button>
+                </div>
+
+                <div class="viz" id="heroViz" aria-hidden="true">
+                  <span style="--i:0"></span><span style="--i:1"></span><span style="--i:2"></span><span style="--i:3"></span><span style="--i:4"></span><span style="--i:5"></span><span style="--i:6"></span><span style="--i:7"></span><span style="--i:8"></span><span style="--i:9"></span><span style="--i:10"></span><span style="--i:11"></span><span style="--i:12"></span><span style="--i:13"></span><span style="--i:14"></span><span style="--i:15"></span><span style="--i:16"></span><span style="--i:17"></span><span style="--i:18"></span><span style="--i:19"></span><span style="--i:20"></span><span style="--i:21"></span><span style="--i:22"></span><span style="--i:23"></span>
+                </div>
+
+                <div class="transport">
+                  <input class="transport__seek" id="heroSeek" type="range" min="0" max="226" value="108" step="1" aria-label="Track progress" />
+                  <div class="transport__row">
+                    <span class="transport__time" id="heroElapsed">1:48</span>
+                    <div class="transport__ctrl">
+                      <button class="transport__button" id="heroPrev" type="button" aria-label="Previous track"><svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg></button>
+                      <button class="transport__play" id="heroPlay" type="button" aria-label="Pause" aria-pressed="true"><svg class="icon-pause" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M7 5h3v14H7zm7 0h3v14h-3z"/></svg><svg class="icon-play" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></button>
+                      <button class="transport__button" id="heroNext" type="button" aria-label="Next track"><svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg></button>
+                    </div>
+                    <span class="transport__time">3:46</span>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </div>
+          <figcaption class="stage__caption"><span class="caption-dot" aria-hidden="true"></span>Interactive preview · use the controls to explore playback</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="signal-band" aria-label="Spotiglass capabilities">
+      <div class="container">
+        <ul class="signal-band__list">
+          <li><span class="signal-band__mark">⌘</span> Keyboard-first</li>
+          <li><span class="signal-band__mark">◒</span> System-level audio</li>
+          <li><span class="signal-band__mark">▱</span> Synced lyrics</li>
+          <li><span class="signal-band__mark">✦</span> Native SwiftUI shell</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section section--features" id="features" aria-labelledby="features-title">
+      <div class="container">
+        <header class="section__head">
+          <p class="eyebrow reveal" data-reveal><span class="eyebrow__mark"></span> Made for the way you listen</p>
+          <h2 class="reveal" data-reveal style="--d:.06s" id="features-title">Power without the noise.</h2>
+          <p class="section__lead reveal" data-reveal style="--d:.12s">The useful parts are close by. The rest stays out of your way.</p>
+        </header>
+
+        <article class="showcase reveal" data-reveal>
+          <div class="showcase__text">
+            <p class="tag">Spotlight for your library</p>
+            <h3>Find it before you can miss it.</h3>
+            <p>Press <kbd>⌘K</kbd> to search playlists, artists, albums, and tracks—or run an action without leaving the keyboard. Pin a result with <kbd>⌘↩</kbd> or queue a track with <kbd>⇧↩</kbd>.</p>
+            <div class="showcase__shortcut"><kbd class="kbd-large">⌘</kbd><kbd class="kbd-large">K</kbd><span>open the palette, anywhere</span></div>
+          </div>
+          <div class="showcase__demo" aria-hidden="true">
+            <div class="palette">
+              <div class="palette__search">
+                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></svg>
+                <span class="palette__type"><span id="showcaseType">floating points</span><span class="caret">|</span></span>
+                <kbd>esc</kbd>
+              </div>
+              <p class="palette__category">Artists</p>
+              <ul class="palette__list">
+                <li class="is-selected"><span class="palette__art cov--4"></span><span>Floating Points</span><kbd>↩</kbd></li>
+              </ul>
+              <p class="palette__category">Actions</p>
+              <ul class="palette__list">
+                <li><span class="palette__glyph">＋</span><span>Pin to sidebar</span><kbd>⌘↩</kbd></li>
+                <li><span class="palette__glyph">↗</span><span>Add to queue</span><kbd>⇧↩</kbd></li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <div class="feature-grid">
+          <article class="feature-card reveal" data-reveal>
+            <span class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M15 4.5v10.2a3.6 3.6 0 1 1-1.4-2.8V7.2l6.1-1.7v8.1a3.6 3.6 0 1 1-1.4-2.8V3.2z"/><path d="M4 4v7M2 6h4"/></svg></span>
+            <h3>Keep your library close</h3>
+            <p>Pin playlists, artists, albums, and tracks to the Library sidebar. Reorder them with drag and drop, or use the command palette.</p>
+          </article>
+          <article class="feature-card reveal" data-reveal style="--d:.05s">
+            <span class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 5h14M5 9h10M5 13h14M5 17h10"/><path d="M19 16.5a2.5 2.5 0 1 1-5 0v-2l5-1.4z"/></svg></span>
+            <h3>Lyrics you can follow</h3>
+            <p>Open an immersive view for synced lines, tap a line to seek, and choose a text size that works across the room.</p>
+          </article>
+          <article class="feature-card reveal" data-reveal style="--d:.10s">
+            <span class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="4" width="11" height="11" rx="2"/><path d="m9 15 1.5 4L14 15M15 8h5M17.5 5.5v5"/></svg></span>
+            <h3>Work in selections</h3>
+            <p>Shift-click a range of tracks, then queue, like, add to a playlist, or remove them together.</p>
+          </article>
+          <article class="feature-card reveal" data-reveal style="--d:.04s">
+            <span class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3.5" y="4" width="17" height="16" rx="3"/><path d="M3.5 8.5h17M7 6.2h.1M10 6.2h.1"/></svg></span>
+            <h3>Feels at home on Mac</h3>
+            <p>A SwiftUI shell with System, Light, and Dark appearance options—plus reduced transparency and reduced motion support.</p>
+          </article>
+          <article class="feature-card reveal" data-reveal style="--d:.09s">
+            <span class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3.5" y="5" width="9" height="12" rx="2"/><rect x="11.5" y="7" width="9" height="12" rx="2"/></svg></span>
+            <h3>More than one window</h3>
+            <p>Keep multiple Spotiglass windows open while the app-scoped playback session keeps playing.</p>
+          </article>
+          <article class="feature-card reveal" data-reveal style="--d:.14s">
+            <span class="feature-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3M9 15h.1M12 15h.1M15 15h.1"/></svg></span>
+            <h3>Local by design</h3>
+            <p>Spotify traffic goes directly from your Mac. Refresh tokens stay in Keychain, settings stay local, and there is no Spotiglass backend.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--eq" id="equalizer" aria-labelledby="equalizer-title">
+      <div class="container">
+        <header class="section__head">
+          <p class="eyebrow reveal" data-reveal><span class="eyebrow__mark"></span> The detail that matters</p>
+          <h2 class="reveal" data-reveal style="--d:.06s" id="equalizer-title">Shape the sound, for real.</h2>
+          <p class="section__lead reveal" data-reveal style="--d:.12s">A system-level 10-band equalizer that changes the audio you actually hear—not just a pretend control.</p>
+        </header>
+
+        <div class="equalizer reveal" data-reveal>
+          <div class="equalizer__top">
+            <div class="equalizer__title">
+              <button class="equalizer__power" id="eqPower" type="button" role="switch" aria-checked="true" aria-label="Disable equalizer"></button>
+              <div><p class="equalizer__name">Spotiglass EQ</p><p class="equalizer__hint">±12 dB <span aria-hidden="true">·</span> 32 Hz → 16 kHz</p></div>
+            </div>
+            <div class="equalizer__presets" id="eqPresets" role="group" aria-label="Equalizer presets">
+              <button data-preset="flat" class="is-active" type="button">Flat</button>
+              <button data-preset="bass" type="button">Bass</button>
+              <button data-preset="vocal" type="button">Vocal</button>
+              <button data-preset="treble" type="button">Treble</button>
+              <button data-preset="loud" type="button">Loudness</button>
+            </div>
+          </div>
+
+          <div class="equalizer__stage">
+            <svg class="equalizer__curve" id="eqCurve" viewBox="0 0 1000 260" preserveAspectRatio="none" aria-hidden="true">
+              <line class="equalizer__zero" x1="0" y1="130" x2="1000" y2="130" />
+              <path id="eqFill" d="" />
+              <path id="eqLine" d="" />
+            </svg>
+            <div class="equalizer__bands" id="eqBands" role="group" aria-label="Equalizer bands"></div>
+          </div>
+
+          <p class="equalizer__foot"><span>Live while playing</span><span>Custom presets</span><span>Per-device output routing</span><span class="equalizer__instruction">Drag a band or choose a preset.</span></p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--shortcuts" id="shortcuts" aria-labelledby="shortcuts-title">
+      <div class="container">
+        <header class="section__head">
+          <p class="eyebrow reveal" data-reveal><span class="eyebrow__mark"></span> Keyboard-first</p>
+          <h2 class="reveal" data-reveal style="--d:.06s" id="shortcuts-title">Your hands already know the way.</h2>
+          <p class="section__lead reveal" data-reveal style="--d:.12s">These are the defaults. Every command can be remapped in Settings → Keyboard.</p>
+        </header>
+
+        <div class="shortcut-grid reveal" data-reveal>
+          <div class="shortcut-card">
+            <p class="shortcut-card__label">Navigate</p>
+            <ul>
+              <li><span>Command palette</span><span class="shortcut-card__combo"><kbd>⌘</kbd><kbd>K</kbd></span></li>
+              <li><span>Refresh playlists</span><span class="shortcut-card__combo"><kbd>⌘</kbd><kbd>R</kbd></span></li>
+              <li><span>Open settings</span><span class="shortcut-card__combo"><kbd>⌘</kbd><kbd>,</kbd></span></li>
+              <li><span>Toggle queue</span><span class="shortcut-card__combo"><kbd>⌥</kbd><kbd>⌘</kbd><kbd>Q</kbd></span></li>
+            </ul>
+          </div>
+          <div class="shortcut-card">
+            <p class="shortcut-card__label">Playback</p>
+            <ul>
+              <li><span>Play / pause</span><span class="shortcut-card__combo"><kbd>Space</kbd></span></li>
+              <li><span>Next track</span><span class="shortcut-card__combo"><kbd>⇧</kbd><kbd>⌘</kbd><kbd>→</kbd></span></li>
+              <li><span>Previous track</span><span class="shortcut-card__combo"><kbd>⇧</kbd><kbd>⌘</kbd><kbd>←</kbd></span></li>
+              <li><span>Connect playback</span><span class="shortcut-card__combo"><kbd>⇧</kbd><kbd>⌘</kbd><kbd>K</kbd></span></li>
+            </ul>
+          </div>
+          <div class="shortcut-card">
+            <p class="shortcut-card__label">In the palette</p>
+            <ul>
+              <li><span>Pin selected</span><span class="shortcut-card__combo"><kbd>⌘</kbd><kbd>↩</kbd></span></li>
+              <li><span>Add to queue</span><span class="shortcut-card__combo"><kbd>⇧</kbd><kbd>↩</kbd></span></li>
+              <li><span>Open / play</span><span class="shortcut-card__combo"><kbd>↩</kbd></span></li>
+              <li><span>Close</span><span class="shortcut-card__combo"><kbd>esc</kbd></span></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--download" id="download" aria-labelledby="download-title">
+      <div class="container">
+        <div class="download-card reveal" data-reveal>
+          <p class="eyebrow"><span class="eyebrow__mark"></span> Ready when you are</p>
+          <h2 id="download-title">Make space for the music.</h2>
+          <p>Download Spotiglass and bring your Spotify library into a native Mac window made for focus.</p>
+          <a class="button button--solid button--large js-download" href="https://github.com/isaaclins/spotiglass/releases/download/v0.7.0/Spotiglass-0.7.0.dmg">
+            <svg viewBox="0 0 16 19" width="18" height="19" aria-hidden="true" fill="currentColor"><path d="M13.3 6.4c-.1.1-1.9 1-1.9 3.2 0 2.6 2.3 3.5 2.3 3.5s-1.4 4.6-3.4 4.6c-.9 0-1.5-.6-2.5-.6s-1.7.6-2.5.6C1 17.7-.4 13 .9 9.6 1.6 7.8 3 6.7 4.4 6.7c.9 0 1.7.6 2.3.6.5 0 1.5-.7 2.6-.7.4 0 1.9.1 3 1.8M9.1 4.4c.5-.6.8-1.5.8-2.3v-.3c-.8 0-1.7.5-2.2 1.1-.4.5-.8 1.3-.8 2.2v.2c.9.1 1.7-.4 2.2-.9"/></svg>
             <span>Download for macOS</span>
           </a>
-          <a class="btn btn--ghost" href="https://github.com/isaaclins/spotiglass" target="_blank" rel="noopener">
-            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" fill="currentColor"><path d="M8 0C3.6 0 0 3.6 0 8c0 3.5 2.3 6.5 5.5 7.6.4.1.5-.2.5-.4v-1.4c-2.2.5-2.7-1-2.7-1-.4-.9-.9-1.2-.9-1.2-.7-.5.1-.5.1-.5.8.1 1.2.8 1.2.8.7 1.2 1.9.9 2.3.7.1-.5.3-.9.5-1.1-1.8-.2-3.6-.9-3.6-3.9 0-.9.3-1.6.8-2.1-.1-.2-.4-1 .1-2.1 0 0 .7-.2 2.2.8.6-.2 1.3-.3 2-.3s1.4.1 2 .3c1.5-1 2.2-.8 2.2-.8.4 1.1.2 1.9.1 2.1.5.5.8 1.2.8 2.1 0 3-1.8 3.7-3.6 3.9.3.3.5.8.5 1.5v2.2c0 .2.1.5.6.4C13.7 14.5 16 11.5 16 8c0-4.4-3.6-8-8-8"/></svg>
-            <span>View on GitHub</span>
-          </a>
-        </div>
-
-        <dl class="hero__stats reveal" data-reveal style="--d:.38s">
-          <div class="stat">
-            <dt class="stat__k">⌘K</dt>
-            <dd class="stat__v">Command Palette</dd>
-          </div>
-          <div class="stat">
-            <dt class="stat__k">10</dt>
-            <dd class="stat__v">Band Equalizer</dd>
-          </div>
-          <div class="stat">
-            <dt class="stat__k">∞</dt>
-            <dd class="stat__v">Pins</dd>
-          </div>
-        </dl>
-      </div>
-
-      <!-- App mockup — interactive mini-player -->
-      <div class="hero__stage reveal" data-reveal style="--d:.18s">
-        <div class="window is-playing" id="heroWindow">
-          <div class="window__bar">
-            <span class="dot dot--r"></span><span class="dot dot--y"></span><span class="dot dot--g"></span>
-            <span class="window__title">Spotiglass</span>
-          </div>
-          <div class="window__body">
-            <!-- sidebar -->
-            <aside class="side">
-              <div class="side__search"><span>⌘K</span> Search…</div>
-              <p class="side__label">Library</p>
-              <ul class="side__list" id="heroLib">
-                <li class="side__item is-active" data-track="Limelight" data-artist="Floating Points" data-cov="cov--liked"><i class="cov cov--liked">♥</i> Liked Songs <b class="pin">●</b></li>
-                <li class="side__item" data-track="Birth4000" data-artist="Floating Points" data-cov="cov--1"><i class="cov cov--1"></i> Deep Focus <b class="pin">●</b></li>
-                <li class="side__item" data-track="Nightcall" data-artist="Kavinsky" data-cov="cov--2"><i class="cov cov--2"></i> Midnight Drive</li>
-                <li class="side__item" data-track="Are We Still Friends?" data-artist="Tame Impala" data-cov="cov--3"><i class="cov cov--3"></i> Lo-Fi Beats <b class="pin">●</b></li>
-                <li class="side__item" data-track="Bias" data-artist="Floating Points" data-cov="cov--4"><i class="cov cov--4"></i> Floating Points</li>
-              </ul>
-              <p class="side__label">Recent</p>
-              <ul class="side__list side__list--dim" id="heroLib2">
-                <li class="side__item" data-track="Kerala" data-artist="Bonobo" data-cov="cov--5"><i class="cov cov--5"></i> Bonobo</li>
-                <li class="side__item" data-track="Awake" data-artist="Tycho" data-cov="cov--6"><i class="cov cov--6"></i> Tycho</li>
-              </ul>
-            </aside>
-
-            <!-- main -->
-            <div class="main">
-              <div class="now">
-                <div class="now__art cov--liked" id="heroArt"></div>
-                <div class="now__meta">
-                  <p class="now__track" id="heroTrack">Limelight</p>
-                  <p class="now__artist" id="heroArtist">Floating Points</p>
-                </div>
-                <button class="now__like is-liked" id="heroLike" type="button" aria-label="Like song" aria-pressed="true">♥</button>
-              </div>
-
-              <div class="viz" id="heroViz" aria-hidden="true">
-                <span style="--i:0"></span><span style="--i:1"></span><span style="--i:2"></span>
-                <span style="--i:3"></span><span style="--i:4"></span><span style="--i:5"></span>
-                <span style="--i:6"></span><span style="--i:7"></span><span style="--i:8"></span>
-                <span style="--i:9"></span><span style="--i:10"></span><span style="--i:11"></span>
-                <span style="--i:12"></span><span style="--i:13"></span><span style="--i:14"></span>
-                <span style="--i:15"></span><span style="--i:16"></span><span style="--i:17"></span>
-                <span style="--i:18"></span><span style="--i:19"></span><span style="--i:20"></span>
-                <span style="--i:21"></span><span style="--i:22"></span><span style="--i:23"></span>
-              </div>
-
-              <div class="transport">
-                <div class="transport__bar" id="heroSeek"><i id="heroProg"></i></div>
-                <div class="transport__row">
-                  <span class="t" id="heroElapsed">0:00</span>
-                  <div class="transport__ctrl">
-                    <button class="t-btn" id="heroPrev" type="button" aria-label="Previous track"><svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg></button>
-                    <button class="play" id="heroPlay" type="button" aria-label="Play or pause">
-                      <svg class="ic-pause" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M7 5h3v14H7zm7 0h3v14h-3z"/></svg>
-                      <svg class="ic-play" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                    </button>
-                    <button class="t-btn" id="heroNext" type="button" aria-label="Next track"><svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg></button>
-                  </div>
-                  <span class="t">3:46</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <span class="stage__hint" id="stageHint" aria-hidden="true">click a song · drag the EQ ↓</span>
-        <div class="stage__glow" aria-hidden="true"></div>
-      </div>
-    </section>
-
-    <!-- ===== Marquee ===== -->
-    <div class="marquee" aria-hidden="true">
-      <div class="marquee__track">
-        <span>Command Palette</span><span class="sep">✳</span>
-        <span>10-Band Equalizer</span><span class="sep">✳</span>
-        <span>Immersive Lyrics</span><span class="sep">✳</span>
-        <span>Drag-to-Pin</span><span class="sep">✳</span>
-        <span>Multi-Select</span><span class="sep">✳</span>
-        <span>Remappable Keys</span><span class="sep">✳</span>
-        <span>Glass UI</span><span class="sep">✳</span>
-        <span>Command Palette</span><span class="sep">✳</span>
-        <span>10-Band Equalizer</span><span class="sep">✳</span>
-        <span>Immersive Lyrics</span><span class="sep">✳</span>
-        <span>Drag-to-Pin</span><span class="sep">✳</span>
-        <span>Multi-Select</span><span class="sep">✳</span>
-        <span>Remappable Keys</span><span class="sep">✳</span>
-        <span>Glass UI</span><span class="sep">✳</span>
-      </div>
-    </div>
-
-    <!-- ===== Features ===== -->
-    <section class="section" id="features">
-      <header class="section__head">
-        <span class="eyebrow reveal" data-reveal>Features</span>
-        <h2 class="reveal" data-reveal style="--d:.06s">Built for people who<br><span class="chrome">play it by ear.</span></h2>
-        <p class="section__lead reveal" data-reveal style="--d:.12s">Every interaction designed for speed, control, and the occasional show-off.</p>
-      </header>
-
-      <!-- showcase: command palette -->
-      <article class="showcase glass reveal" data-reveal>
-        <div class="showcase__text">
-          <span class="tag">Spotlight for your library</span>
-          <h3>Command Palette</h3>
-          <p>Hit <kbd>⌘K</kbd> and reach anything — playlists, artists, albums, tracks, and every action. Fuzzy search that actually finds it. Pin the result with <kbd>⌘↩</kbd>, queue it with <kbd>⇧↩</kbd>, never touch the trackpad.</p>
-          <div class="showcase__kbd"><kbd class="kbd-lg">⌘</kbd><kbd class="kbd-lg">K</kbd><span>to open, anywhere</span></div>
-        </div>
-        <div class="showcase__demo">
-          <div class="palette palette--static">
-            <div class="palette__search">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></svg>
-              <span class="palette__type"><span id="showcaseType">float</span><span class="caret">|</span></span>
-              <kbd>esc</kbd>
-            </div>
-            <p class="palette__cat">Artists</p>
-            <ul class="palette__list">
-              <li class="is-sel"><span class="palette__ico palette__ico--img cov--4"></span> Floating Points <kbd>↩</kbd></li>
-            </ul>
-            <p class="palette__cat">Actions</p>
-            <ul class="palette__list">
-              <li><span class="palette__ico">★</span> Pin to sidebar <kbd>⌘↩</kbd></li>
-              <li><span class="palette__ico">＋</span> Add to queue <kbd>⇧↩</kbd></li>
-            </ul>
-          </div>
-        </div>
-      </article>
-
-      <!-- card grid -->
-      <div class="grid">
-        <article class="card glass reveal" data-reveal>
-          <span class="card__ico" data-ico="pin"></span>
-          <h4>Pin everything</h4>
-          <p>Drag any playlist, artist, album, or single track into the sidebar. Reorder by dragging, drop it out to unpin. Your library, your shape.</p>
-        </article>
-
-        <article class="card glass reveal" data-reveal style="--d:.06s">
-          <span class="card__ico" data-ico="lyrics"></span>
-          <h4>Immersive lyrics</h4>
-          <p>Full-screen, synced word-by-word over a blurred cover. Tap any line to seek straight to it. Three text sizes for the back of the room.</p>
-        </article>
-
-        <article class="card glass reveal" data-reveal style="--d:.12s">
-          <span class="card__ico" data-ico="select"></span>
-          <h4>Multi-select tracks</h4>
-          <p>Shift-click to grab a range, right-click for the lot: queue, like, add to a playlist, or remove. Bulk actions without the busywork.</p>
-        </article>
-
-        <article class="card glass reveal" data-reveal style="--d:.04s">
-          <span class="card__ico" data-ico="glass"></span>
-          <h4>Glass, your way</h4>
-          <p>A translucent SwiftUI shell that respects System, Light, or Dark — plus reduced-transparency and reduced-motion. Native, not a web wrapper.</p>
-        </article>
-
-        <article class="card glass reveal" data-reveal style="--d:.10s">
-          <span class="card__ico" data-ico="globe"></span>
-          <h4>Speaks your language</h4>
-          <p>English, Español, and Deutsch out of the box — switch live without missing a beat. Playback keeps going right through the change.</p>
-        </article>
-
-        <article class="card glass reveal" data-reveal style="--d:.16s">
-          <span class="card__ico" data-ico="lock"></span>
-          <h4>Yours, on disk</h4>
-          <p>Refresh tokens in the Keychain. Settings in a plain <code>settings.json</code> under Application&nbsp;Support you can back up, edit, and version-control.</p>
-        </article>
-      </div>
-    </section>
-
-    <!-- ===== Equalizer ===== -->
-    <section class="section section--eq" id="equalizer">
-      <header class="section__head">
-        <span class="eyebrow reveal" data-reveal>Signature</span>
-        <h2 class="reveal" data-reveal style="--d:.06s">A <span class="grad">real</span> equalizer.</h2>
-        <p class="section__lead reveal" data-reveal style="--d:.12s">Not a fake slider that does nothing. A system-level 10-band HAL plugin — go on, drag it.</p>
-      </header>
-
-      <div class="eq glass reveal" data-reveal>
-        <div class="eq__top">
-          <div class="eq__title">
-            <span class="eq__power" id="eqPower" role="switch" aria-checked="true" tabindex="0"></span>
-            <div>
-              <p class="eq__name">Spotiglass EQ</p>
-              <p class="eq__hint">±12 dB · 32 Hz → 16 kHz</p>
-            </div>
-          </div>
-          <div class="eq__presets" id="eqPresets" role="group" aria-label="Equalizer presets">
-            <button data-preset="flat" class="is-active">Flat</button>
-            <button data-preset="bass">Bass</button>
-            <button data-preset="vocal">Vocal</button>
-            <button data-preset="treble">Treble</button>
-            <button data-preset="loud">Loudness</button>
-          </div>
-        </div>
-
-        <div class="eq__stage">
-          <svg class="eq__curve" id="eqCurve" viewBox="0 0 1000 260" preserveAspectRatio="none" aria-hidden="true">
-            <defs>
-              <linearGradient id="curveStroke" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0" stop-color="#ff8a4c"/>
-                <stop offset="0.5" stop-color="#ff3b6b"/>
-                <stop offset="1" stop-color="#c81e6b"/>
-              </linearGradient>
-              <linearGradient id="curveFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0" stop-color="rgba(255,75,109,.34)"/>
-                <stop offset="1" stop-color="rgba(255,75,109,0)"/>
-              </linearGradient>
-            </defs>
-            <line class="eq__zero" x1="0" y1="130" x2="1000" y2="130"/>
-            <path id="eqFill" fill="url(#curveFill)" d=""/>
-            <path id="eqLine" fill="none" stroke="url(#curveStroke)" stroke-width="3" stroke-linecap="round" d=""/>
-          </svg>
-          <div class="eq__bands" id="eqBands" role="group" aria-label="Equalizer bands">
-            <!-- bands injected by JS -->
-          </div>
-        </div>
-
-        <p class="eq__foot">
-          Live changes while playing · custom presets · per-device output routing.
-          <span>Drag a band or pick a preset.</span>
-        </p>
-      </div>
-    </section>
-
-    <!-- ===== Shortcuts ===== -->
-    <section class="section" id="shortcuts">
-      <header class="section__head">
-        <span class="eyebrow reveal" data-reveal>Keyboard-first</span>
-        <h2 class="reveal" data-reveal style="--d:.06s">And every key is<br><span class="chrome">yours to remap.</span></h2>
-        <p class="section__lead reveal" data-reveal style="--d:.12s">These are the defaults. Don't like one? Settings → Keyboard, record a new chord, done.</p>
-      </header>
-
-      <div class="keys reveal" data-reveal>
-        <div class="keys__col">
-          <p class="keys__label">Navigate</p>
-          <ul>
-            <li><span class="keys__combo"><kbd>⌘</kbd><kbd>K</kbd></span> Command palette</li>
-            <li><span class="keys__combo"><kbd>⌘</kbd><kbd>R</kbd></span> Refresh playlists</li>
-            <li><span class="keys__combo"><kbd>⌘</kbd><kbd>,</kbd></span> Open settings</li>
-            <li><span class="keys__combo"><kbd>⌥</kbd><kbd>⌘</kbd><kbd>Q</kbd></span> Toggle queue</li>
-          </ul>
-        </div>
-        <div class="keys__col">
-          <p class="keys__label">Playback</p>
-          <ul>
-            <li><span class="keys__combo"><kbd>Space</kbd></span> Play / pause</li>
-            <li><span class="keys__combo"><kbd>⇧</kbd><kbd>⌘</kbd><kbd>→</kbd></span> Next track</li>
-            <li><span class="keys__combo"><kbd>⇧</kbd><kbd>⌘</kbd><kbd>←</kbd></span> Previous track</li>
-            <li><span class="keys__combo"><kbd>⇧</kbd><kbd>⌘</kbd><kbd>K</kbd></span> Connect playback</li>
-          </ul>
-        </div>
-        <div class="keys__col">
-          <p class="keys__label">In the palette</p>
-          <ul>
-            <li><span class="keys__combo"><kbd>⌘</kbd><kbd>↩</kbd></span> Pin selected</li>
-            <li><span class="keys__combo"><kbd>⇧</kbd><kbd>↩</kbd></span> Add to queue</li>
-            <li><span class="keys__combo"><kbd>↩</kbd></span> Open / play</li>
-            <li><span class="keys__combo"><kbd>esc</kbd></span> Close</li>
-          </ul>
-        </div>
-      </div>
-    </section>
-
-    <!-- ===== Download CTA ===== -->
-    <section class="section section--cta" id="download">
-      <div class="cta glass reveal" data-reveal>
-        <div class="cta__glow" aria-hidden="true"></div>
-        <h2>Ready to <span class="grad">hear</span><br>the difference?</h2>
-        <p>Download Spotiglass and run your library the way power users actually want to.</p>
-        <a class="btn btn--primary btn--lg js-download" href="https://github.com/isaaclins/spotiglass/releases/download/v0.2.0/Spotiglass-0.2.0.dmg">
-          <svg viewBox="0 0 16 19" width="18" height="18" aria-hidden="true" fill="currentColor"><path d="M13.3 6.4c-.1.1-1.9 1-1.9 3.2 0 2.6 2.3 3.5 2.3 3.5s-1.4 4.6-3.4 4.6c-.9 0-1.5-.6-2.5-.6s-1.7.6-2.5.6C1 17.7-.4 13 .9 9.6 1.6 7.8 3 6.7 4.4 6.7c.9 0 1.7.6 2.3.6.5 0 1.5-.7 2.6-.7.4 0 1.9.1 3 1.8M9.1 4.4c.5-.6.8-1.5.8-2.3v-.3c-.8 0-1.7.5-2.2 1.1-.4.5-.8 1.3-.8 2.2v.2c.9.1 1.7-.4 2.2-.9"/></svg>
-          <span>Download for macOS</span>
-        </a>
-        <p class="cta__fine">Requires macOS 26+ · Spotify Premium · Free &amp; Open Source</p>
-        <div class="cta__alt">
-          <a href="https://github.com/isaaclins/spotiglass/releases" target="_blank" rel="noopener">All releases</a>
-          <span>·</span>
-          <a href="https://github.com/isaaclins/spotiglass" target="_blank" rel="noopener">Source on GitHub</a>
-          <span>·</span>
-          <a href="https://buymeacoffee.com/isaaclins" target="_blank" rel="noopener">Buy me a coffee ☕</a>
+          <p class="download-card__fine">Requires macOS 26 or later and a Spotify Premium account.</p>
+          <div class="download-card__links"><a href="https://github.com/isaaclins/spotiglass/releases" target="_blank" rel="noopener">All releases</a><span aria-hidden="true">·</span><a href="https://github.com/isaaclins/spotiglass" target="_blank" rel="noopener">Source on GitHub</a><span aria-hidden="true">·</span><a href="https://buymeacoffee.com/isaaclins" target="_blank" rel="noopener">Support the project</a></div>
         </div>
       </div>
     </section>
   </main>
 
-  <!-- ===== Footer ===== -->
-  <footer class="foot">
-    <div class="foot__row">
-      <a class="brand" href="#top" aria-label="Spotiglass home">
-        <img class="brand__logo" src="assets/logo.png" alt="" width="30" height="30" />
-        <span class="brand__name">Spotiglass</span>
-      </a>
-      <nav class="foot__links" aria-label="Footer">
-        <a href="https://github.com/isaaclins/spotiglass" target="_blank" rel="noopener">GitHub</a>
-        <a href="https://github.com/isaaclins/spotiglass/releases" target="_blank" rel="noopener">Releases</a>
-        <a href="https://github.com/isaaclins/spotiglass/tree/main/docs#readme" target="_blank" rel="noopener">Docs</a>
-        <a href="https://buymeacoffee.com/isaaclins" target="_blank" rel="noopener">Support</a>
-      </nav>
-    </div>
-    <div class="foot__fine">
-      <p>Built with <span class="heart">♥</span> by <a href="https://isaaclins.com" target="_blank" rel="noopener">isaaclins</a></p>
-      <p class="foot__disc">Not affiliated with Spotify AB. Spotify is a trademark of Spotify AB. Requires a Spotify Premium account.</p>
+  <footer class="site-footer">
+    <div class="container">
+      <div class="site-footer__row">
+        <a class="brand" href="#top" aria-label="Spotiglass home">
+          <img class="brand__logo" src="assets/logo.png" alt="" width="30" height="30" />
+          <span class="brand__name">Spotiglass</span>
+        </a>
+        <nav class="site-footer__links" aria-label="Footer navigation">
+          <a href="https://github.com/isaaclins/spotiglass" target="_blank" rel="noopener">GitHub</a>
+          <a href="https://github.com/isaaclins/spotiglass/releases" target="_blank" rel="noopener">Releases</a>
+          <a href="https://github.com/isaaclins/spotiglass/tree/main/docs#readme" target="_blank" rel="noopener">Docs</a>
+          <a href="https://buymeacoffee.com/isaaclins" target="_blank" rel="noopener">Support</a>
+        </nav>
+      </div>
+      <div class="site-footer__fine">
+        <p>Built with <span class="heart">♥</span> by <a href="https://isaaclins.com" target="_blank" rel="noopener">isaaclins</a></p>
+        <p class="site-footer__disclaimer">Not affiliated with Spotify AB. Spotify is a trademark of Spotify AB. Requires a Spotify Premium account.</p>
+      </div>
     </div>
   </footer>
 
