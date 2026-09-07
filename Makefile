@@ -40,11 +40,31 @@ endif
 # is a different identity. A certificate-backed identity pins the requirement to
 # the certificate instead, which is stable across rebuilds.
 #
-# Prefers a real Apple Development certificate; falls back to the self-signed
-# local identity from scripts/create-local-signing-identity.sh. If neither is
-# present the build stays ad-hoc exactly as before, so nothing is required of
-# contributors who have not run the script.
-LOCAL_SIGN_IDENTITY ?= $(shell security find-identity -v -p codesigning 2>/dev/null | awk '/Apple Development/ { print $$2; exit }')
+# Prefers Developer ID Application (the identity a build handed to someone else
+# must carry), then Apple Development, then the self-signed local identity from
+# scripts/create-local-signing-identity.sh. If none is present the build stays
+# ad-hoc exactly as before, so nothing is required of contributors who have not
+# run the script. Developer ID and Apple Development leaves both carry the team
+# in subject.OU, which is what the equalizer helper's requirement pins; the
+# self-signed identity is matched by common name instead.
+#
+# The equalizer is the exception to "any stable identity will do". Its helper is
+# a LaunchDaemon, and macOS records a launch constraint for one that demands the
+# Developer ID validation category. An Apple Development build is a different
+# category, so launchd kills the helper on sight:
+#
+#   xpcproxy exited due to OS_REASON_CODESIGNING | Launch Constraint Violation
+#   (Constraint not matched) ... [vc: 3]
+#
+# and an unnotarized Developer ID build never gets that far, because register()
+# returns EPERM. So a local build runs the app fine, but the equalizer only
+# works in a signed *and* notarized build from scripts/sparkle-release.sh.
+# SMAppService.h states the rule: apps containing LaunchDaemons must be
+# notarized.
+LOCAL_SIGN_IDENTITY ?= $(shell security find-identity -v -p codesigning 2>/dev/null | awk '/Developer ID Application/ { print $$2; exit }')
+ifeq ($(strip $(LOCAL_SIGN_IDENTITY)),)
+LOCAL_SIGN_IDENTITY := $(shell security find-identity -v -p codesigning 2>/dev/null | awk '/Apple Development/ { print $$2; exit }')
+endif
 ifeq ($(strip $(LOCAL_SIGN_IDENTITY)),)
 LOCAL_SIGN_IDENTITY := $(shell security find-identity -p codesigning 2>/dev/null | awk '/"Spotiglass Local Dev"/ { print $$2; exit }')
 endif
@@ -134,7 +154,7 @@ embed-driver: build build-driver
 # on macOS 26. Override CODESIGN_IDENTITY to use a different
 # identity. If signing fails with errSecInternalComponent, run
 # `bash scripts/setup-eq-driver-signing.sh` first to trust Apple Root CA.
-CODESIGN_IDENTITY ?= $(shell security find-identity -v -p codesigning | awk '/Apple Development/ { print $$2; exit }')
+CODESIGN_IDENTITY ?= $(shell security find-identity -v -p codesigning | awk '/Developer ID Application|Apple Development/ { print $$2; exit }')
 sign-driver:
 	@if [ -z "$(CODESIGN_IDENTITY)" ]; then \
 		echo "No Apple Development identity in keychain. Open Xcode → Settings → Accounts and sign in." >&2; exit 1; \

@@ -106,6 +106,9 @@ enum EqualizerDriverInstallPolicy {
 }
 
 enum EqualizerDriverInstallError: Error, Equatable {
+    /// macOS is holding the helper until the user allows Spotiglass to run in
+    /// the background. No amount of retrying changes it.
+    case approvalRequired
     case registrationFailed(status: Int)
     case unregistrationFailed(status: Int)
     case helperUnavailable(message: String)
@@ -116,6 +119,8 @@ enum EqualizerDriverInstallError: Error, Equatable {
 
     var diagnosticDetails: String {
         switch self {
+        case .approvalRequired:
+            return "SMAppService will not register the helper until Spotiglass is allowed in Login Items"
         case .registrationFailed(let status):
             return "SMAppService registration failed (status \(status))"
         case .unregistrationFailed(let status):
@@ -136,6 +141,20 @@ enum EqualizerDriverInstallError: Error, Equatable {
 
 enum EqualizerDriverInstallErrorMapper {
     static func map(_ error: EqualizerDriverInstallError) -> EqualizerHALPluginError {
-        .driverInstallationFailed(diagnostic: error.diagnosticDetails)
+        switch error {
+        // Every other install failure is a developer fact for the log. This one
+        // is a pending user decision, so it is the single install outcome that
+        // belongs on screen.
+        case .approvalRequired:
+            return .driverInstallApprovalRequired
+        case .registrationFailed,
+            .unregistrationFailed,
+            .helperUnavailable,
+            .helperRejected,
+            .helperOperationFailed,
+            .invalidReply,
+            .invalidRequest:
+            return .driverInstallationFailed(diagnostic: error.diagnosticDetails)
+        }
     }
 }

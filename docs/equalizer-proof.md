@@ -49,6 +49,30 @@ These require a real audio environment and a signed, notarized build:
 The helper registration and authorization prompt cannot be proven by the
 unsigned CI build. They need a signed build running on a real Mac.
 
+## The equalizer needs a notarized build, not merely a signed one
+
+The privileged helper is a LaunchDaemon, and macOS enforces a launch constraint
+for one. Two identities that look reasonable both fail before any Spotiglass
+code runs:
+
+- **Apple Development.** `register()` succeeds and launchd submits the job, then
+  refuses to execute it: `xpcproxy exited due to OS_REASON_CODESIGNING | Launch
+  Constraint Violation ... [vc: 3]`, followed by `removing service since it
+  exited with consistent failure`. The recorded constraint wants the Developer
+  ID validation category; a development certificate is a different one.
+- **Developer ID without notarization.** `register()` itself fails with `EPERM`,
+  so nothing is ever submitted.
+
+`SMAppService.h` states the underlying rule: "Apps that contain LaunchDaemons
+must be notarized." There is therefore no local-development path for the
+equalizer. Verify it against a build from `scripts/sparkle-release.sh` that has
+been notarized and stapled; `make build` is only good for the rest of the app.
+
+One consequence worth remembering while testing: swapping the installed app for
+a differently signed build of the same bundle identifier leaves a stale record
+in the Background Task Management database, and the next launch of the correctly
+signed build can still be refused. `sfltool resetbtm` plus a reboot clears it.
+
 ## Honest gap inventory
 
 - **Developer ID signing:** CI builds are intentionally unsigned. The release

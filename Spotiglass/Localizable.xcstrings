@@ -3862,6 +3862,29 @@
         }
       }
     },
+    "eq.error.driverInstallApprovalRequired": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS wartet auf die Erlaubnis, Spotiglass im Hintergrund auszuführen. Erteilen Sie sie und schalten Sie den Equalizer erneut ein."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS is waiting for permission to let Spotiglass run in the background. Allow it, then switch the equalizer on again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS espera permiso para ejecutar Spotiglass en segundo plano. Concédelo y vuelve a activar el ecualizador."
+          }
+        }
+      }
+    },
     "eq.error.outputDeviceUIDUnavailable": {
       "extractionState": "manual",
       "localizations": {
@@ -13244,6 +13267,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "En vivo"
+          }
+        }
+      }
+    },
+    "settings.eq.openLoginItems": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anmeldeobjekte öffnen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Login Items"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir ítems de inicio"
           }
         }
       }

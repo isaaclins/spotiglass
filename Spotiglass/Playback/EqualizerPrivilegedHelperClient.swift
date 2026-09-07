@@ -43,11 +43,21 @@ final class EqualizerPrivilegedHelperClient: @unchecked Sendable, EqualizerDrive
         }
 
         try ensureRegistered()
+        try awaitEnabledService()
         do {
             try requestInstall(sourceURL: source, destinationURL: destination)
         } catch let error as EqualizerDriverInstallError {
-            guard shouldRetryAfter(error) else { throw error }
+            // The helper answered badly or not at all. Re-registering is only
+            // worth it when the running helper is a different build from the
+            // one this app ships, and only while the registration is approved:
+            // unregistering an unapproved service throws its approval away and
+            // the next register needs the user again.
+            guard shouldRetryAfter(error),
+                !helperVersionMarkerMatches(),
+                service.status == .enabled
+            else { throw error }
             try reRegister()
+            try awaitEnabledService()
             try requestInstall(sourceURL: source, destinationURL: destination)
         }
         writeHelperVersionMarker()
@@ -73,15 +83,46 @@ final class EqualizerPrivilegedHelperClient: @unchecked Sendable, EqualizerDrive
 
     private func ensureRegistered() throws {
         switch service.status {
+        // An approved registration is left alone. Re-registering an enabled
+        // daemon means unregister plus register, and the register half needs
+        // the user's approval again, so doing it speculatively (on a version
+        // marker that is only written after a successful install) left the
+        // first enable stuck in a loop it could never leave. A stale helper is
+        // detected from the failed request instead, where it is real.
         case .enabled:
-            if !helperVersionMarkerMatches() {
-                try reRegister()
-            }
-        case .notRegistered, .requiresApproval:
+            return
+        // A daemon that has never been registered reports `.notFound`, not
+        // `.notRegistered`, so treating it as fatal meant the very first enable
+        // could never install anything. Registration itself reports the real
+        // reason if the plist genuinely cannot be used.
+        case .notRegistered, .requiresApproval, .notFound:
             try register()
-        case .notFound:
-            throw EqualizerDriverInstallError.registrationFailed(status: service.status.rawValue)
         @unknown default:
+            throw EqualizerDriverInstallError.registrationFailed(status: service.status.rawValue)
+        }
+    }
+
+    /// `register()` returns before launchd has the daemon up, and a service
+    /// still waiting on the user's approval never comes up at all. Connecting
+    /// in either state fails in a way indistinguishable from a broken helper,
+    /// which previously drove a pointless re-registration.
+    private func awaitEnabledService(timeout: TimeInterval = 5) throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        while service.status != .enabled, Date() < deadline {
+            // Waiting cannot resolve this one. A service parked on the user's
+            // approval stays there until somebody acts in Login Items, so
+            // sitting out the timeout only delays the same answer.
+            if service.status == .requiresApproval {
+                throw EqualizerDriverInstallError.approvalRequired
+            }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        switch service.status {
+        case .enabled:
+            return
+        case .requiresApproval:
+            throw EqualizerDriverInstallError.approvalRequired
+        default:
             throw EqualizerDriverInstallError.registrationFailed(status: service.status.rawValue)
         }
     }
@@ -90,10 +131,25 @@ final class EqualizerPrivilegedHelperClient: @unchecked Sendable, EqualizerDrive
         do {
             try service.register()
         } catch {
-            throw EqualizerDriverInstallError.registrationFailed(
-                status: (error as NSError).code
-            )
+            // launchd answers EPERM for a background item the user has never
+            // allowed, or has switched off again in Login Items. The app
+            // cannot lift that itself, and reporting it as a generic install
+            // failure hid it completely: install diagnostics deliberately stay
+            // out of the settings pane, so the switch flipped back with
+            // nothing on screen to act on.
+            let status = (error as NSError).code
+            if status == Int(EPERM) || service.status == .requiresApproval {
+                throw EqualizerDriverInstallError.approvalRequired
+            }
+            throw EqualizerDriverInstallError.registrationFailed(status: status)
         }
+    }
+
+    /// Opens the Login Items pane, the only place a background item can be
+    /// allowed. Exposed so the settings pane can offer the action next to the
+    /// message rather than describing a menu path in prose.
+    static func openBackgroundItemSettings() {
+        SMAppService.openSystemSettingsLoginItems()
     }
 
     private func reRegister() throws {
@@ -111,7 +167,10 @@ final class EqualizerPrivilegedHelperClient: @unchecked Sendable, EqualizerDrive
         switch error {
         case .helperUnavailable, .invalidReply:
             true
-        case .registrationFailed,
+        // Retrying cannot clear a missing approval, and re-registering would
+        // throw away an approval the user has already granted.
+        case .approvalRequired,
+            .registrationFailed,
             .unregistrationFailed,
             .helperRejected,
             .helperOperationFailed,
