@@ -1,5 +1,46 @@
 # Changelog
 
+## [0.8.0] - 2026-09-07
+
+### Added
+
+- The equalizer installs its audio driver itself, through a privileged helper registered with the Service Management framework. macOS asks for your approval in its own words; the previous build asked you to run `sudo` commands in Terminal.
+- A **library continuation queue**, so the library keeps loading as you scroll instead of stopping at the first page.
+- A universal track options menu, so the same actions are available wherever a track appears rather than a different subset per surface.
+- Artist pages have selectable rows and play and shuffle actions in the header.
+- The ten equalizer band faders are reachable and adjustable from the keyboard.
+
+### Fixed
+
+- The equalizer could never install its driver on a real Mac. A daemon that has never been registered reports "not found", which the app treated as fatal; it connected to the helper before launchd had the job running; its retry path discarded an approval you had already granted and asked again, forever; and the helper carried a debug-only entitlement that launchd refuses to run a daemon with, so registration reported success while the job silently never loaded.
+- Enabling the equalizer without permission to run in the background flipped the switch back with nothing on screen. Install failures are deliberately kept out of the settings pane, which is right for every case except the one only you can resolve. It now says what happened and offers the trip to Login Items.
+- The equalizer reported itself live as soon as it selected the virtual output device, long before the driver had opened a route to real speakers, so a missing or disconnected target left the pane green with audio going nowhere.
+- Disabling the equalizer discarded the saved output device even when restoring it failed, and the pre-equalizer device was held only in memory, so it did not survive a relaunch.
+- External edits to the settings file did not reach the running equalizer engine, and a default-output change made outside Spotiglass was ignored rather than reconciled.
+- Preamp values were clamped where they were drawn instead of where they were saved, and the equalizer editor accepted edits while the equalizer was off.
+- A second window could not play anything, because the playback host belonged to the first one.
+- Playback started elsewhere on Spotify Connect did not appear in the transport, volume changed on another device did not come back, and the scrubber could seek the wrong track across a track change.
+- Rapid play and skip presses interleaved into an inconsistent state, and disconnecting left work in flight that could resurrect a signed-out session.
+- The now-playing summary had disappeared, the lyrics button in the transport did nothing when clicked, and Repeat had two competing shortcuts and no single cycling one.
+- The lyrics overlay swallowed transport and global shortcuts, and did not trap focus.
+- The sidebar was clipped at narrow window widths instead of collapsing.
+- Two track context menus disagreed about whether a track was liked, Search and Home did not refresh, and browsing used non-canonical entity identity.
+- Removing several tracks from a playlist removed the wrong ones, because batched removals were applied from the front. Liked Songs stopped paginating partway.
+- Missing Spotify permission scopes were discovered only by failing, and a raw 403 was printed into the sidebar. Token retry-after windows were ignored, and account lifecycle state leaked across sign-ins.
+- Shortcut conflicts were swallowed silently, one bad field in the keymap discarded the rest of the file, upgraded installs lost keybindings a migration should have carried across, and numeric shortcut keys were mishandled.
+- The command palette and other transient state leaked between window scenes.
+- Global shortcuts fired ahead of a focused control that owned the key.
+- The in-app language picker is now a dependency the interface observes, so every surface changes language at once instead of some waiting for a relaunch.
+- Home, the browser and Settings had drifted from the design system, and Settings had an empty playback pane.
+
+### Changed
+
+- **The Sparkle update signing key has been rotated.** The private half of the 0.7.0 key is no longer available, so an existing 0.7.0 install refuses to update itself to 0.8.0. Download the disk image once; automatic updates resume from 0.8.0 onward.
+- Local builds are signed with a stable identity, so the keychain stops asking for the login password after every rebuild.
+- The equalizer requires a signed and notarized build. Its helper is a LaunchDaemon, and macOS enforces a launch constraint that only a notarized Developer ID build satisfies, so there is no local-development path for it.
+- The test suite no longer sleeps for a fixed duration anywhere; it waits for the condition it cares about. Local runs use CI's per-test timeout, view tests are hosted off screen so no remote view service attaches, the artwork tests no longer touch the real cache, and the audio driver's router is unit-tested in CI.
+
+
 ## [0.7.0] - 2026-08-16
 
 ### Added
