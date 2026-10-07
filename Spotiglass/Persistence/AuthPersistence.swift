@@ -62,10 +62,14 @@ enum KeychainRefreshTokenStoreError: Error, Equatable, LocalizedError {
     }
 }
 
-/// In-process refresh token storage for the **unit-test host** only (`AppMetadata.isRunningUnitTests`).
-/// Keeps `SecItem*` out of the login keychain while `SpotiglassTests` runs inside `Spotiglass.app`.
+/// In-process refresh token storage for the **unit-test host** (`AppMetadata.isRunningUnitTests`) and
+/// screenshot mode (`ScreenshotMode`). Keeps `SecItem*` out of the login keychain in both.
 final class MemoryOnlyRefreshTokenStore: RefreshTokenStore {
     private var token: String?
+
+    init(refreshToken: String? = nil) {
+        token = refreshToken
+    }
 
     func loadRefreshToken() throws -> String? {
         token

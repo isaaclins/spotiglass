@@ -1,0 +1,65 @@
+{
+  "user": "Isaac",
+  "nowPlaying": "Midnight City",
+  "tracks": [
+    ["Bonobo", "Kerala"],
+    ["Tycho", "Awake"],
+    ["ODESZA", "A Moment Apart"],
+    ["Floating Points", "LesAlpx"],
+    ["Jon Hopkins", "Emerald Rush"],
+    ["Four Tet", "Baby"],
+    ["Rival Consoles", "Persona"],
+    ["Khruangbin", "Time (You and I)"],
+    ["Caribou", "Never Come Back"],
+    ["Fred again..", "Delilah (pull me out of this)"],
+    ["Kiasmos", "Blurred"],
+    ["Nils Frahm", "Says"],
+    ["Bicep", "Glue"],
+    ["Moderat", "A New Error"],
+    ["Daft Punk", "Instant Crush"],
+    ["Tame Impala", "Let It Happen"],
+    ["The Weeknd", "Blinding Lights"],
+    ["Kavinsky", "Nightcall"],
+    ["M83", "Midnight City"],
+    ["Justice", "D.A.N.C.E."],
+    ["Jamie xx", "Gosh"],
+    ["Bonobo", "Cirrus"],
+    ["Burial", "Archangel"],
+    ["Massive Attack", "Teardrop"],
+    ["Air", "La femme d'argent"],
+    ["Phoenix", "Lisztomania"],
+    ["Glass Animals", "Heat Waves"],
+    ["Mac Miller", "Small Worlds"],
+    ["Kendrick Lamar", "Money Trees"],
+    ["Frank Ocean", "Pink + White"],
+    ["Tyler, The Creator", "See You Again"],
+    ["Bon Iver", "Skinny Love"]
+  ],
+  "playlists": [
+    {
+      "name": "Night Drive",
+      "description": "Neon, highways, 2 a.m.",
+      "tracks": ["Midnight City", "Nightcall", "Blinding Lights", "Instant Crush", "Let It Happen", "D.A.N.C.E.", "Lisztomania", "Heat Waves"]
+    },
+    {
+      "name": "Deep Focus",
+      "description": "Long builds, no words. For the hours that count.",
+      "tracks": ["Kerala", "Awake", "A Moment Apart", "LesAlpx", "Emerald Rush", "Baby", "Persona", "Blurred", "Says", "Glue", "A New Error", "Cirrus", "Gosh"]
+    },
+    {
+      "name": "Late Night Coding",
+      "description": "Ship it before sunrise.",
+      "tracks": ["Archangel", "Teardrop", "La femme d'argent", "Never Come Back", "Delilah (pull me out of this)", "Time (You and I)", "Kerala"]
+    },
+    {
+      "name": "Sunday Reset",
+      "description": "Slow mornings.",
+      "tracks": ["Heat Waves", "Small Worlds", "Pink + White", "See You Again", "Skinny Love", "Money Trees"]
+    },
+    {
+      "name": "Gym",
+      "description": "Push.",
+      "tracks": ["D.A.N.C.E.", "Glue", "Blinding Lights", "Money Trees", "Lisztomania"]
+    }
+  ]
+}

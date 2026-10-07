@@ -9,5 +9,6 @@
 | [Appcast feed](appcast.xml) | Sparkle update RSS (GitHub Pages; updated by release workflow) |
 | [Data storage](data-storage.md) | Keychain, cache paths, `settings.json` |
 | [Pinning](pinning.md) | Sidebar pins, wiggle mode, palette ⌘↩, storage |
+| [Screenshots](screenshots.md) | Screenshot mode: run the real UI against a local Spotify stand-in and capture it |
 | [Limitations](limitations.md) | Premium requirement, unsigned builds, operational constraints |
 | [Development roadmap](development/roadmap.md) | Where roadmap and shipped-milestone tracking live |

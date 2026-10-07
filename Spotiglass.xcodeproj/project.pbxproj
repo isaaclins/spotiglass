@@ -203,6 +203,7 @@
 		PKG00000000000000000005 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = PKG00000000000000000004 /* Sparkle */; };
 		POD00000000000000000000001 /* PlaylistOwnerDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = POD00000000000000000000011 /* PlaylistOwnerDisplay.swift */; };
 		PRO00000000000000000000E1 /* SpotiglassLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = PRO00000000000000000000F1 /* SpotiglassLog.swift */; };
+		SRC0000000000000000000023 /* ScreenshotMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC0000000000000000080023 /* ScreenshotMode.swift */; };
 		PRO00000000000000000000E2 /* SpotifyPlaybackHost.html in Resources */ = {isa = PBXBuildFile; fileRef = PRO00000000000000000000F2 /* SpotifyPlaybackHost.html */; };
 		PRO00000000000000000000E3 /* SpotifyDTOs+UserPlaylist.swift in Sources */ = {isa = PBXBuildFile; fileRef = PRO00000000000000000000F4 /* SpotifyDTOs+UserPlaylist.swift */; };
 		PRO00000000000000000000E4 /* SpotifyDTOs+Track.swift in Sources */ = {isa = PBXBuildFile; fileRef = PRO00000000000000000000F5 /* SpotifyDTOs+Track.swift */; };
@@ -357,6 +358,7 @@
 		TST0000000000000000009101 /* TestOnlyConvenienceAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010129 /* TestOnlyConvenienceAPI.swift */; };
 		TST000000000000000000C1 /* PlaybackProgressAnchorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000000C0 /* PlaybackProgressAnchorTests.swift */; };
 		TST000000000000000000C2 /* PlaylistBrowserPrefetchAllTracksTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */; };
+		TST000000000000000000012C /* ScreenshotModeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000001012C /* ScreenshotModeTests.swift */; };
 		TST000000000000000000012B /* DetailSurfaceRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000001012B /* DetailSurfaceRegressionTests.swift */; };
 		TST0000000000000000000127 /* PlaylistBrowserLibraryContinuationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010127 /* PlaylistBrowserLibraryContinuationTests.swift */; };
 		TST000000000000000000012A /* LibraryContinuationRankingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000001012A /* LibraryContinuationRankingTests.swift */; };
@@ -607,6 +609,7 @@
 		P1000000000000000000001C /* PinnedItemsStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinnedItemsStoreTests.swift; sourceTree = "<group>"; };
 		POD00000000000000000000011 /* PlaylistOwnerDisplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistOwnerDisplay.swift; sourceTree = "<group>"; };
 		PRO00000000000000000000F1 /* SpotiglassLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotiglassLog.swift; sourceTree = "<group>"; };
+		SRC0000000000000000080023 /* ScreenshotMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotMode.swift; sourceTree = "<group>"; };
 		PRO00000000000000000000F2 /* SpotifyPlaybackHost.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = SpotifyPlaybackHost.html; sourceTree = "<group>"; };
 		PRO00000000000000000000F3 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		PRO00000000000000000000F4 /* SpotifyDTOs+UserPlaylist.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SpotifyDTOs+UserPlaylist.swift"; sourceTree = "<group>"; };
@@ -670,6 +673,7 @@
 		TST0000000000000000010129 /* TestOnlyConvenienceAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestOnlyConvenienceAPI.swift; sourceTree = "<group>"; };
 		TST000000000000000000C0 /* PlaybackProgressAnchorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackProgressAnchorTests.swift; sourceTree = "<group>"; };
 		TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserPrefetchAllTracksTests.swift; sourceTree = "<group>"; };
+		TST000000000000000001012C /* ScreenshotModeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotModeTests.swift; sourceTree = "<group>"; };
 		TST000000000000000001012B /* DetailSurfaceRegressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailSurfaceRegressionTests.swift; sourceTree = "<group>"; };
 		TST0000000000000000010127 /* PlaylistBrowserLibraryContinuationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserLibraryContinuationTests.swift; sourceTree = "<group>"; };
 		TST000000000000000001012A /* LibraryContinuationRankingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryContinuationRankingTests.swift; sourceTree = "<group>"; };
@@ -981,6 +985,7 @@
 				TST00000000000000000064 /* PlaylistBrowserNavigationTests.swift */,
 				TST00000000000000000065 /* PlaylistBrowserArtistFallbackTests.swift */,
 				TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */,
+				TST000000000000000001012C /* ScreenshotModeTests.swift */,
 				TST000000000000000001012B /* DetailSurfaceRegressionTests.swift */,
 				TST0000000000000000010127 /* PlaylistBrowserLibraryContinuationTests.swift */,
 				TST000000000000000001012A /* LibraryContinuationRankingTests.swift */,
@@ -1337,6 +1342,7 @@
 			isa = PBXGroup;
 			children = (
 				PRO00000000000000000000F1 /* SpotiglassLog.swift */,
+				SRC0000000000000000080023 /* ScreenshotMode.swift */,
 				L10N0000000000000000000002 /* SpotiglassL10n.swift */,
 				SPKL00000000000000000011 /* SparkleConfiguration.swift */,
 			);
@@ -1507,6 +1513,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				PRO00000000000000000000E1 /* SpotiglassLog.swift in Sources */,
+				SRC0000000000000000000023 /* ScreenshotMode.swift in Sources */,
 				L10N0000000000000000000001 /* SpotiglassL10n.swift in Sources */,
 				SPKL00000000000000000001 /* SparkleConfiguration.swift in Sources */,
 				SPKL00000000000000000002 /* SparkleUpdaterController.swift in Sources */,
@@ -1738,6 +1745,7 @@
 				TST00000000000000000014 /* PlaylistBrowserNavigationTests.swift in Sources */,
 				TST00000000000000000015 /* PlaylistBrowserArtistFallbackTests.swift in Sources */,
 				TST000000000000000000C2 /* PlaylistBrowserPrefetchAllTracksTests.swift in Sources */,
+				TST000000000000000000012C /* ScreenshotModeTests.swift in Sources */,
 				TST000000000000000000012B /* DetailSurfaceRegressionTests.swift in Sources */,
 				TST0000000000000000000127 /* PlaylistBrowserLibraryContinuationTests.swift in Sources */,
 				TST000000000000000000012A /* LibraryContinuationRankingTests.swift in Sources */,
