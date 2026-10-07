@@ -18,12 +18,28 @@
   <a href="docs/README.md">Documentation</a>
 </p>
 
+<p align="center">
+  <img src="docs/assets/screens/home.webp" alt="Spotiglass home: playlists, recently played albums and top tracks, with Midnight City by M83 playing" width="880" />
+</p>
+
 ## What you get
 
 - Signed-in playlist and track browsing with sidebar pins, queue, artist pages, and command palette search.
 - In-app playback through the Spotify Web Playback SDK in a hidden `WKWebView`.
 - Appearance controls for System, Light, or Dark, plus command palette backdrop blur.
 - Keychain-backed refresh tokens, local playlist cache, and keyboard shortcuts you can remap in Settings.
+
+## Screenshots
+
+| Command palette (⌘K) | Playlist |
+|---|---|
+| <img src="docs/assets/screens/palette.webp" alt="Command palette searching for night" /> | <img src="docs/assets/screens/playlist.webp" alt="The Night Drive playlist with Midnight City playing" /> |
+
+<p align="center">
+  <img src="docs/assets/screens/equalizer.webp" alt="Settings, Equalizer: output device, Electronic preset, preamp and ten bands" width="720" />
+</p>
+
+All screenshots are the real app, captured in [screenshot mode](docs/screenshots.md) with a sample library (no Spotify account involved).
 
 ## Requirements
 
@@ -75,6 +91,7 @@ The GitHub Actions workflow **Release artifact** runs unit tests, builds an unsi
 | [CI and releases](docs/ci-and-releases.md) | Workflow dispatch artifact, Gatekeeper |
 | [Data storage](docs/data-storage.md) | Keychain, cache paths, `settings.json` |
 | [Pinning](docs/pinning.md) | Sidebar pins and drag targets |
+| [Screenshots](docs/screenshots.md) | Screenshot mode: capture the real UI with sample data |
 | [Limitations](docs/limitations.md) | Premium, signing, API limits |
 
 ## Regenerate README logo
