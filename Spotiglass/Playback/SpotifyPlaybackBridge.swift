@@ -37,10 +37,11 @@ enum SpotifyPlaybackHost {
     }
 
     static func html(forHostGeneration generation: PlaybackHostGeneration) -> String {
-        html.replacingOccurrences(
+        let page = html.replacingOccurrences(
             of: "__SPOTIGLASS_HOST_GENERATION__",
             with: String(generation.rawValue)
         )
+        return ScreenshotMode.inliningMockPlaybackSDK(into: page)
     }
 }
 

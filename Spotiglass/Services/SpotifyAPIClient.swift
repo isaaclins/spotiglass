@@ -34,7 +34,7 @@ struct SpotifyAPIClient {
     let scopeProvider: (any SpotifyScopeProviding)?
 
     init(
-        baseURL: URL = URL(string: "https://api.spotify.com")!,
+        baseURL: URL = ScreenshotMode.webAPIBaseURL,
         tokenProvider: SpotifyAccessTokenProviding,
         httpClient: HTTPClient = URLSession.shared,
         getResponseCache: SpotifyGETResponseCache? = nil,

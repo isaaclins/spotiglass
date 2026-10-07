@@ -50,14 +50,21 @@ struct SpotiglassApp: App {
         let authVM: AuthViewModel
         if AppMetadata.isRunningUnitTests {
             authVM = AuthViewModel(refreshTokenStore: MemoryOnlyRefreshTokenStore())
+        } else if ScreenshotMode.isActive {
+            authVM = AuthViewModel(
+                refreshTokenStore: MemoryOnlyRefreshTokenStore(refreshToken: ScreenshotMode.refreshToken)
+            )
         } else {
             authVM = AuthViewModel()
         }
         _authViewModel = StateObject(wrappedValue: authVM)
 
         let equalizer = AudioEqualizerEngine()
-        Self.restoreEqualizerIfEnabled(settingsStore: store, engine: equalizer)
-        equalizer.observe(settingsStore: store)
+        // Screenshot mode never touches the audio driver, so a seeded EQ stays editable on screen.
+        if !ScreenshotMode.isActive {
+            Self.restoreEqualizerIfEnabled(settingsStore: store, engine: equalizer)
+            equalizer.observe(settingsStore: store)
+        }
         _equalizerEngine = StateObject(wrappedValue: equalizer)
         _playbackHost = StateObject(
             wrappedValue: SpotiglassPlaybackHost(

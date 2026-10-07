@@ -44,7 +44,7 @@ struct SpotifyTokenClient {
     private let now: () -> Date
     private let random: (ClosedRange<Double>) -> Double
     private let sleep: @Sendable (TimeInterval) async throws -> Void
-    private let tokenEndpoint = URL(string: "https://accounts.spotify.com/api/token")!
+    private let tokenEndpoint = ScreenshotMode.accountsBaseURL.appendingPathComponent("api/token")
 
     init(
         httpClient: HTTPClient = URLSession.shared,

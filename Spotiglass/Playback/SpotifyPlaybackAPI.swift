@@ -176,7 +176,7 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
     private let playerSnapshotFetchCoalescer = PlayerSnapshotFetchCoalescer()
 
     init(
-        baseURL: URL = URL(string: "https://api.spotify.com")!,
+        baseURL: URL = ScreenshotMode.webAPIBaseURL,
         tokenProvider: PlaybackAccessTokenProviding,
         httpClient: HTTPClient = URLSession.shared,
         scopeProvider: (any SpotifyScopeProviding)? = nil
