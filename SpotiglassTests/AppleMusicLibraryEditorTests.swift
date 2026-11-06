@@ -429,6 +429,13 @@ final class MusicAppScriptsTests: XCTestCase {
 
         XCTAssertTrue(script.contains(#"every track of lib whose persistent ID is "367911FB05FE6876""#))
         XCTAssertTrue(script.contains(#"name is "Computer Love" and artist is "Kraftwerk" and album is "Computer World (Remastered)""#))
+        // Two copies of a song are the song's own error, never "Two playlists have this name".
+        XCTAssertTrue(script.contains("error \"ambiguous\" number 9004"))
+        XCTAssertFalse(script.contains("number 9002"))
+        XCTAssertEqual(
+            AppleMusicLibraryEditError.ambiguousSong.localizedDescription,
+            SpotiglassL10n.string("appleMusic.edit.error.ambiguousSong")
+        )
         let lastLookup = try XCTUnwrap(script.range(of: "set end of targets", options: .backwards))
         let firstDelete = try XCTUnwrap(script.range(of: "delete target"))
         XCTAssertLessThan(lastLookup.lowerBound, firstDelete.lowerBound)
@@ -457,6 +464,7 @@ final class MusicAppScriptsTests: XCTestCase {
         XCTAssertEqual(MusicAppScripts.editError(forScriptErrorNumber: 9001), .notInMusicYet)
         XCTAssertEqual(MusicAppScripts.editError(forScriptErrorNumber: 9002), .ambiguousPlaylist)
         XCTAssertEqual(MusicAppScripts.editError(forScriptErrorNumber: 9003), .notEditable)
+        XCTAssertEqual(MusicAppScripts.editError(forScriptErrorNumber: 9004), .ambiguousSong)
         XCTAssertEqual(MusicAppScripts.editError(forScriptErrorNumber: -1743), .musicControlDenied)
         XCTAssertEqual(MusicAppScripts.editError(forScriptErrorNumber: -600), .musicUnavailable)
         XCTAssertEqual(MusicAppScripts.editError(forScriptErrorNumber: -2700), .requestFailed)

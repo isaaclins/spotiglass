@@ -1,5 +1,12 @@
 import Foundation
 
+/// A removal from the library that waits for the user's confirmation.
+enum PendingLibraryRemoval {
+    /// Rows to take out of Liked Songs.
+    case songs([TrackRowViewModel])
+    case album(id: String, name: String)
+}
+
 /// Library edits only some providers offer (`MusicLibraryEdits`): removing songs from a
 /// playlist, deleting a playlist and saving albums. The menus offer them only when
 /// `supportedLibraryEdits` says so, so Spotify's menus stay as they are.
@@ -120,8 +127,14 @@ extension PlaylistBrowserViewModel {
 
     /// Saves the album when it is not in the library, removes it when it is. The menu shows the
     /// new state at once and goes back if the edit fails.
-    func toggleAlbumInLibrary(albumID: String, albumName: String) async {
+    /// Removing asks first when the provider's removal also empties playlists
+    /// (`MusicLibraryEdits.confirmLibraryRemoval`); the confirmation calls back with `confirmed`.
+    func toggleAlbumInLibrary(albumID: String, albumName: String, confirmed: Bool = false) async {
         guard let isSaved = savedAlbumStates[albumID] else { return }
+        if isSaved, !confirmed, supportedLibraryEdits.contains(.confirmLibraryRemoval) {
+            pendingLibraryRemoval = .album(id: albumID, name: albumName)
+            return
+        }
         savedAlbumStates[albumID] = !isSaved
         do {
             if isSaved {
@@ -138,6 +151,20 @@ extension PlaylistBrowserViewModel {
         } catch {
             savedAlbumStates[albumID] = isSaved
             trackMutationToast = Self.describeFailure(error, operation: .saveAlbum)
+        }
+    }
+
+    // MARK: - Library removal confirmation
+
+    /// Runs the removal the user just confirmed.
+    func confirmPendingLibraryRemoval() async {
+        guard let removal = pendingLibraryRemoval else { return }
+        pendingLibraryRemoval = nil
+        switch removal {
+        case let .songs(rows):
+            await unfavoriteRows(rows, confirmed: true)
+        case let .album(id, name):
+            await toggleAlbumInLibrary(albumID: id, albumName: name, confirmed: true)
         }
     }
 }

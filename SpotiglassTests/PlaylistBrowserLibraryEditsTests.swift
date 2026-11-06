@@ -132,9 +132,77 @@ final class PlaylistBrowserLibraryEditsTests: XCTestCase {
         XCTAssertEqual(api.calls.last, "saveAlbums(1440)")
 
         api.error = AppleMusicLibraryEditError.requestFailed
-        await viewModel.toggleAlbumInLibrary(albumID: "1440", albumName: "Computer World")
+        await viewModel.toggleAlbumInLibrary(albumID: "1440", albumName: "Computer World", confirmed: true)
         XCTAssertEqual(viewModel.savedAlbumState(for: "1440"), true, "the failed removal goes back")
         XCTAssertEqual(viewModel.trackMutationToast, SpotiglassL10n.string("appleMusic.edit.error.requestFailed"))
+    }
+
+    // MARK: - Removing from the library asks first
+
+    /// In Apple Music, Liked Songs are the library, and a song deleted from the library leaves
+    /// every playlist on every device. The unlike must not run before the user confirms.
+    func testUnlikeAsksFirstWhenRemovingEmptiesPlaylists() async throws {
+        let api = LibraryEditsMockAPI(edits: .all)
+        let viewModel = await makeViewModel(api)
+        let song = row("699902614", position: 1)
+
+        await viewModel.unfavoriteRows([song])
+        XCTAssertEqual(api.calls, [], "nothing is removed before the confirmation")
+        guard case let .songs(rows) = try XCTUnwrap(viewModel.pendingLibraryRemoval) else {
+            return XCTFail("expected the songs confirmation")
+        }
+        XCTAssertEqual(rows.map(\.id), [song.id])
+
+        await viewModel.confirmPendingLibraryRemoval()
+        XCTAssertNil(viewModel.pendingLibraryRemoval)
+        XCTAssertEqual(api.calls, ["removeSavedTracks(699902614)"])
+        XCTAssertEqual(viewModel.savedTrackState(for: "699902614"), false)
+    }
+
+    func testCancelledUnlikeRemovesNothing() async {
+        let api = LibraryEditsMockAPI(edits: .all)
+        let viewModel = await makeViewModel(api)
+
+        await viewModel.unfavoriteRows([row("699902614", position: 1)])
+        viewModel.pendingLibraryRemoval = nil
+        await viewModel.confirmPendingLibraryRemoval()
+
+        XCTAssertEqual(api.calls, [])
+    }
+
+    func testAlbumRemovalAsksFirstAndSavingDoesNot() async throws {
+        let api = LibraryEditsMockAPI(edits: .all)
+        api.albumSaved = true
+        let viewModel = await makeViewModel(api)
+        await viewModel.loadSavedAlbumState(for: "1440")
+
+        await viewModel.toggleAlbumInLibrary(albumID: "1440", albumName: "Computer World")
+        XCTAssertEqual(api.calls, [])
+        XCTAssertEqual(viewModel.savedAlbumState(for: "1440"), true, "the menu keeps the state until confirmed")
+        guard case let .album(id, name) = try XCTUnwrap(viewModel.pendingLibraryRemoval) else {
+            return XCTFail("expected the album confirmation")
+        }
+        XCTAssertEqual(id, "1440")
+        XCTAssertEqual(name, "Computer World")
+
+        await viewModel.confirmPendingLibraryRemoval()
+        XCTAssertEqual(api.calls, ["removeSavedAlbums(1440)"])
+        XCTAssertEqual(viewModel.savedAlbumState(for: "1440"), false)
+
+        await viewModel.toggleAlbumInLibrary(albumID: "1440", albumName: "Computer World")
+        XCTAssertNil(viewModel.pendingLibraryRemoval, "saving needs no confirmation")
+        XCTAssertEqual(api.calls.last, "saveAlbums(1440)")
+    }
+
+    /// Spotify's unlike only leaves Liked Songs, so it keeps going through at once.
+    func testProvidersWithoutTheConfirmationUnlikeAtOnce() async {
+        let api = LibraryEditsMockAPI(edits: [.removeFromPlaylist, .deletePlaylist, .saveAlbums])
+        let viewModel = await makeViewModel(api)
+
+        await viewModel.unfavoriteRows([row("abc", position: 1)])
+
+        XCTAssertNil(viewModel.pendingLibraryRemoval)
+        XCTAssertEqual(api.calls, ["removeSavedTracks(abc)"])
     }
 
     // MARK: - Shared edits accept Apple Music songs
@@ -196,6 +264,11 @@ final class LibraryEditsMockAPI: MusicBrowsingProvider {
     func saveTracks(ids: [String]) async throws {
         if let error { throw error }
         calls.append("saveTracks(\(ids.joined(separator: ",")))")
+    }
+
+    func removeSavedTracks(ids: [String]) async throws {
+        if let error { throw error }
+        calls.append("removeSavedTracks(\(ids.joined(separator: ",")))")
     }
 
     func addTracksToPlaylist(playlistID: String, uris: [String]) async throws {

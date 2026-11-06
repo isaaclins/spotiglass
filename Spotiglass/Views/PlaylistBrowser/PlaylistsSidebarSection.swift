@@ -91,7 +91,6 @@ struct PlaylistsSidebarSectionContent: View {
             guard !isFocused, editingPlaylistID != nil else { return }
             cancelPlaylistNameEditing()
         }
-        .modifier(PlaylistDeletionConfirmation(viewModel: viewModel))
     }
 
     @ViewBuilder
@@ -197,35 +196,5 @@ struct PlaylistsSidebarSectionContent: View {
         editingPlaylistID = nil
         isPlaylistNameFocused = false
         editedPlaylistName = ""
-    }
-}
-
-/// "Delete “Name”?" for the playlist the view model is about to delete. One confirmation serves
-/// the sidebar row and the playlist header, which both ask through `requestPlaylistDeletion`.
-struct PlaylistDeletionConfirmation: ViewModifier {
-    @ObservedObject var viewModel: PlaylistBrowserViewModel
-
-    private var isPresented: Binding<Bool> {
-        Binding(
-            get: { viewModel.playlistPendingDeletion != nil },
-            set: { if !$0 { viewModel.playlistPendingDeletion = nil } }
-        )
-    }
-
-    func body(content: Content) -> some View {
-        content.alert(
-            SpotiglassL10n.format("playlist.delete.confirm.title", viewModel.playlistPendingDeletion?.name ?? ""),
-            isPresented: isPresented,
-            presenting: viewModel.playlistPendingDeletion
-        ) { summary in
-            Button(SpotiglassL10n.string("playlist.delete.confirm.delete"), role: .destructive) {
-                Task { await viewModel.deletePlaylist(summary) }
-            }
-            Button(SpotiglassL10n.string("playlist.detail.newPlaylist.cancel"), role: .cancel) {
-                viewModel.playlistPendingDeletion = nil
-            }
-        } message: { _ in
-            Text(SpotiglassL10n.string("playlist.delete.confirm.message"))
-        }
     }
 }

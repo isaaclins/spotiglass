@@ -27,8 +27,12 @@ struct MusicLibraryEdits: OptionSet {
     static let deletePlaylist = MusicLibraryEdits(rawValue: 1 << 1)
     /// "Add Album to Library" / "Remove Album from Library" on an album.
     static let saveAlbums = MusicLibraryEdits(rawValue: 1 << 2)
+    /// Removing a song from Liked Songs or an album from the library deletes it from the library,
+    /// which also takes it out of every playlist on every device (Apple Music), so the browser
+    /// asks first. Spotify's unlike only leaves Liked Songs and goes through at once.
+    static let confirmLibraryRemoval = MusicLibraryEdits(rawValue: 1 << 3)
 
-    static let all: MusicLibraryEdits = [.removeFromPlaylist, .deletePlaylist, .saveAlbums]
+    static let all: MusicLibraryEdits = [.removeFromPlaylist, .deletePlaylist, .saveAlbums, .confirmLibraryRemoval]
 }
 
 /// One page of an artist's albums. `next` is an opaque continuation the same

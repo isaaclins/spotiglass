@@ -253,10 +253,16 @@ extension PlaylistBrowserViewModel {
         }
     }
 
-    func unfavoriteRows(_ rows: [TrackRowViewModel]) async {
+    /// `confirmed` is false from the menu; a provider whose removal also empties playlists
+    /// (`MusicLibraryEdits.confirmLibraryRemoval`) then asks first and calls back with true.
+    func unfavoriteRows(_ rows: [TrackRowViewModel], confirmed: Bool = false) async {
         let ids = catalogTrackIDs(for: rows)
         guard !ids.isEmpty else {
             trackMutationToast = SpotiglassL10n.string("playlist.mutation.noEligibleTracks")
+            return
+        }
+        if !confirmed, supportedLibraryEdits.contains(.confirmLibraryRemoval) {
+            pendingLibraryRemoval = .songs(rows)
             return
         }
         guard await ensureScope(

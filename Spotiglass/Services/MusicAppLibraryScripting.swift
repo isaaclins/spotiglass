@@ -66,11 +66,12 @@ struct MusicAppLibraryScripting: MusicAppLibraryControlling {
     }
 }
 
-/// The AppleScript sources. Script errors 9001 to 9003 carry the outcomes the editor reports.
+/// The AppleScript sources. Script errors 9001 to 9004 carry the outcomes the editor reports.
 enum MusicAppScripts {
     static let notFoundError = 9001
     static let ambiguousError = 9002
     static let notEditableError = 9003
+    static let ambiguousSongError = 9004
 
     static func removeFromLibrary(_ tracks: [MusicAppTrackMatch]) -> String {
         var lines = ["tell application \"Music\"", "set lib to library playlist 1", "set targets to {}"]
@@ -78,7 +79,7 @@ enum MusicAppScripts {
             lines += [
                 "set found to (every track of lib whose \(condition(track)))",
                 "if (count of found) is 0 then error \"not found\" number \(notFoundError)",
-                "if (count of found) is greater than 1 then error \"ambiguous\" number \(ambiguousError)",
+                "if (count of found) is greater than 1 then error \"ambiguous\" number \(ambiguousSongError)",
                 "set end of targets to item 1 of found",
             ]
         }
@@ -173,6 +174,7 @@ enum MusicAppScripts {
         switch number {
         case notFoundError: .notInMusicYet
         case ambiguousError: .ambiguousPlaylist
+        case ambiguousSongError: .ambiguousSong
         case notEditableError: .notEditable
         // errAEEventNotPermitted, errAEEventWouldRequireUserConsent
         case -1743, -1744: .musicControlDenied

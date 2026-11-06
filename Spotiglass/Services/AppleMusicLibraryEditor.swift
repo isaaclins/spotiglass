@@ -13,6 +13,8 @@ enum AppleMusicLibraryEditError: LocalizedError, Equatable {
     case notInMusicYet
     /// Two editable playlists share the name Apple Music needs to tell them apart.
     case ambiguousPlaylist
+    /// More than one song in the library matches (a duplicate copy), so Music can't tell which to remove.
+    case ambiguousSong
     /// Neither route can change this item (a song without an Apple Music ID, Apple's own playlists).
     case notEditable
     /// Apple Music answered with an error.
@@ -28,6 +30,8 @@ enum AppleMusicLibraryEditError: LocalizedError, Equatable {
             SpotiglassL10n.string("appleMusic.edit.error.notInMusicYet")
         case .ambiguousPlaylist:
             SpotiglassL10n.string("appleMusic.edit.error.ambiguousPlaylist")
+        case .ambiguousSong:
+            SpotiglassL10n.string("appleMusic.edit.error.ambiguousSong")
         case .notEditable:
             SpotiglassL10n.string("appleMusic.edit.error.notEditable")
         case .requestFailed:

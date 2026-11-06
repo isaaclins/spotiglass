@@ -93,6 +93,13 @@ The menu items that Spotify mode doesn't have (Remove from this playlist, Delete
 remove album) appear only for a provider that supports them (`MusicLibraryEdits`), so Spotify's
 menus are unchanged.
 
+**Removing from the library asks first.** Liked Songs are your library, so removing a song from
+Liked Songs (or an album from the library) deletes it from the library, and Music then also takes
+it out of every playlist it's in, on all your devices
+([Apple](https://support.apple.com/en-us/HT204343)). Spotiglass asks before it does that, the way
+Music asks before Delete from Library. Spotify's unlike only leaves Liked Songs and still goes
+through at once (`MusicLibraryEdits.confirmLibraryRemoval`).
+
 **IDs.** The API names songs by catalog or cloud library ID (`i.…`) and playlists by `p.…`; the
 Music app names both by its persistent ID, which MusicKit shows as a signed decimal (inside a
 playlist even for songs that have an `i.` ID elsewhere). MusicKit writes the other IDs out when an

@@ -34,6 +34,8 @@ final class PlaylistBrowserViewModel: ObservableObject {
     @Published internal(set) var savedAlbumStates: [String: Bool] = [:]
     /// The playlist whose "Delete Playlist" confirmation is showing.
     @Published var playlistPendingDeletion: MusicPlaylistSummary?
+    /// The library removal whose confirmation is showing (`MusicLibraryEdits.confirmLibraryRemoval`).
+    @Published var pendingLibraryRemoval: PendingLibraryRemoval?
     /// User-facing toast banner published after a successful track-ops mutation
     /// ("Added 4 tracks to My Workout"). Read+set by views; auto-clears.
     @Published var trackMutationToast: String?
@@ -237,6 +239,7 @@ final class PlaylistBrowserViewModel: ObservableObject {
         savedTrackStates = [:]
         savedAlbumStates = [:]
         playlistPendingDeletion = nil
+        pendingLibraryRemoval = nil
         sidebarSelection = nil
         trackMutationToast = nil
         playlistsByID = [:]
