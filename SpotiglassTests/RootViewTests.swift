@@ -167,3 +167,95 @@ private struct DeniedMusicAuthorization: AppleMusicAuthorizing {
     func requestAuthorization() async -> MusicAuthorization.Status { .denied }
     func canPlayCatalogContent() async -> Bool? { false }
 }
+
+private struct GrantedMusicAuthorization: AppleMusicAuthorizing {
+    func currentStatus() -> MusicAuthorization.Status { .authorized }
+    func requestAuthorization() async -> MusicAuthorization.Status { .authorized }
+    func canPlayCatalogContent() async -> Bool? { false }
+}
+
+/// Adding a service puts its library on screen before the addition finishes. Finishing it must not
+/// clear the pins that library's browser just bound: Apple Music added from "Add a service…" used
+/// to show no pins at all, and every pin made before the next switch was never saved.
+@MainActor
+final class RootViewPinsAfterAddingTests: XCTestCase {
+    override func tearDown() {
+        ViewTestHost.tearDownAll()
+        super.tearDown()
+    }
+
+    private func hostRoot(services: MusicServiceStore) async throws -> PinnedItemsStore {
+        let cache = InMemoryPinnedItemsCache()
+        try cache.savePinnedItems(
+            [PinnedItem(
+                id: "album:l.saved", kind: .album, title: "Saved Album", subtitle: "A",
+                artworkURL: nil, spotifyURI: nil, isStale: false
+            )],
+            userID: AppleMusicBrowsingProvider.libraryUserID
+        )
+        let pinned = PinnedItemsStore(cache: cache)
+        let auth = AuthViewModel(
+            settings: SpotifyAuthSettings(defaults: makeEphemeralDefaults()),
+            refreshTokenStore: MemoryOnlyRefreshTokenStore(),
+            signOutDataCleaner: {}
+        )
+        let session = AppleMusicSession(authorization: GrantedMusicAuthorization())
+        await session.refresh()
+        let settings = try ViewTestHost.makeSettingsStore()
+        let root = RootView(
+            keymapStore: CommandPaletteKeymapStore(settingsStore: settings),
+            sceneRegistry: SpotiglassSceneRegistry(),
+            playbackHost: SpotiglassPlaybackHost(tokenProvider: MockPlaybackTokenProvider(
+                accessToken: "test", refreshedAccessToken: "test-refresh"
+            )),
+            serviceStore: services,
+            appleMusicSession: session
+        )
+        .environmentObject(settings)
+        .environmentObject(auth)
+        .environmentObject(pinned)
+        ViewTestHost.host(root, size: CGSize(width: 1100, height: 700))
+        return pinned
+    }
+
+    private func settle(until done: () -> Bool = { false }, rounds: Int = 40) async throws {
+        for _ in 0..<rounds {
+            AppKitTestSupport.pumpRunLoop(for: 0.05)
+            try await Task.sleep(for: .milliseconds(50))
+            if done() { break }
+        }
+        AppKitTestSupport.pumpRunLoop(for: 0.3)
+    }
+
+    func testAddingAppleMusicShowsItsPins() async throws {
+        let services = MusicServiceStore(storage: InMemoryMusicServiceSelectionStorage(services: [.spotify], active: .spotify))
+        let pinned = try await hostRoot(services: services)
+
+        services.beginAddition(of: .appleMusic)
+        try await settle(until: { pinned.boundUserID != nil })
+
+        XCTAssertTrue(services.isAdded(.appleMusic))
+        XCTAssertNil(services.pendingAddition)
+        XCTAssertEqual(pinned.boundUserID, AppleMusicBrowsingProvider.libraryUserID)
+        XCTAssertEqual(pinned.items.map(\.id), ["album:l.saved"])
+    }
+
+    func testPinMadeRightAfterAddingAppleMusicIsKept() async throws {
+        let services = MusicServiceStore(storage: InMemoryMusicServiceSelectionStorage(services: [.spotify], active: .spotify))
+        let pinned = try await hostRoot(services: services)
+        services.beginAddition(of: .appleMusic)
+        try await settle(until: { pinned.boundUserID != nil })
+
+        pinned.pin(PinnedItem(
+            id: "album:l.new", kind: .album, title: "Pinned After Adding", subtitle: "B",
+            artworkURL: nil, spotifyURI: nil, isStale: false
+        ))
+        services.activate(.spotify)
+        try await settle(rounds: 10)
+        services.activate(.appleMusic)
+        try await settle(until: { pinned.items.count == 2 }, rounds: 20)
+
+        XCTAssertEqual(pinned.items.map(\.id), ["album:l.saved", "album:l.new"])
+    }
+}
+

@@ -478,6 +478,13 @@ struct RootView: View {
                 // Spotify was still signed in (Settings): nothing to sign in to.
                 if new == .spotify, isSpotifySignedIn {
                     serviceStore.completeAddition(of: .spotify)
+                    return
+                }
+                // An addition that finished on the space already on screen: that space's browser
+                // is up and binds its own pins. Clearing them here would throw its lookup away and
+                // leave the new library without pins, dropping every pin made until the next switch.
+                if let old, new == nil, serviceStore.active == old, serviceStore.isAdded(old) {
+                    return
                 }
                 rebindPinsForActiveService()
             }
