@@ -379,12 +379,14 @@ extension PlaybackSessionViewModel {
         case .unchanged: break
         case .playing: localCommandExpectsPlaying = true
         case .paused: localCommandExpectsPlaying = false
-        case .none: localCommandExpectsPlaying = nil
         }
-        if !provider.capabilities.contains(.pushesPlayerState) {
+        if !provider.capabilities.contains(.pushesPlayerState),
+           transportPollReadingSerial != transportPollLoopSerial {
             // Reads are this player's only state source. Restart the poll loop
             // so it reads at the settle cadence now instead of finishing a long
-            // sleep picked before the command (20 s while `.ready`).
+            // sleep picked before the command (20 s while `.ready`). A loop
+            // that is mid-read picks the settle cadence itself after the read,
+            // and cancelling it would drop the read queued below.
             restartTransportPollingIfNeeded()
         }
         guard shouldSyncTransportImmediately else { return }

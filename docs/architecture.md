@@ -83,8 +83,10 @@ Rules for the neutral layer:
   confirmed optimistically until a read agrees). Client-ID entry follows with
   the session protocol.
 - Player state reads may lag commands (MusicKit's `ApplicationMusicPlayer`
-  still reports "playing" right after `stop()`). For a few reads after every
-  local command the session only applies a read that agrees with that command.
+  still reports "playing" right after `stop()`). For a few reads after a pause,
+  resume or play the session only applies a read whose play / pause agrees with
+  it; a skip in between keeps that expectation. Seek, shuffle and repeat have
+  their own pending-command guards.
   Without pushed state it also keeps polling while the app is in the background,
   treats an empty read as "nothing playing", and doesn't mark a constant player
   id as stale when it reconnects.

@@ -22,10 +22,10 @@ struct MusicPlaybackCapabilities: OptionSet, Sendable {
     /// ``MusicPlaybackProvider/fetchPlaybackState()``, and play / pause are
     /// confirmed optimistically until a read agrees. Reads may lag a command
     /// (MusicKit's `ApplicationMusicPlayer` still reports "playing" for a moment
-    /// after `stop()`), so during a short settle window after each local command
-    /// the session only applies reads that agree with that command. Polling then
-    /// also runs while the app is in the background, and an empty read
-    /// (`nil`, nothing active) puts the session back to ready.
+    /// after `stop()`), so for a short settle window after a pause, resume or
+    /// play the session only applies reads whose play / pause agrees with it.
+    /// Polling then also runs while the app is in the background, and an empty
+    /// read (`nil`, nothing active) puts the session back to ready.
     static let pushesPlayerState = MusicPlaybackCapabilities(rawValue: 1 << 0)
 
     /// The in-app player lives in an embedded page that can be soft-reset

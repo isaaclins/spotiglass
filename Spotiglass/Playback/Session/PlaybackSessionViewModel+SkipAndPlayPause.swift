@@ -273,7 +273,7 @@ extension PlaybackSessionViewModel {
                   ownsPlaybackHostGeneration(dispatch.hostGeneration),
                   !Task.isCancelled
             else { return false }
-            noteLocalPlaybackMutation(playExpectation: .none)
+            noteLocalPlaybackMutation()
             return true
         } catch {
             guard isCurrentSkipCommandDispatch(dispatch),

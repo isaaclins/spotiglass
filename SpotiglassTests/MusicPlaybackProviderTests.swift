@@ -321,6 +321,75 @@ final class MusicPlaybackProviderTests: XCTestCase {
     /// Skip past the last item: the player has nothing left and reads empty.
     /// That read is applied right away, not after the settle window and a long
     /// no-snapshot poll.
+    /// Pause, then skip right away: the skip doesn't touch play / pause, so the
+    /// pause's protection stays and a stale "B is playing" read can't undo it.
+    func testSkipRightAfterAPauseKeepsThePauseProtection() async {
+        let provider = ReadOnlyStatePlaybackProvider()
+        let session = PlaybackSessionViewModel(provider: provider)
+        session.deviceID = "local"
+        session.setActivePlaybackDeviceID("local")
+        session.setConnectionState(.playing(Self.song(position: 10_000)))
+
+        await session.togglePlayPause()
+        await session.next()
+        XCTAssertEqual(provider.commands, ["pause local", "next local"])
+
+        provider.state = Self.snapshot(uri: "music:song:2", isPlaying: true, progress: 0)
+        await session.syncTransportFromSpotify()
+        guard case .paused = session.connectionState else {
+            return XCTFail("A stale playing read undid the pause: \(session.connectionState)")
+        }
+
+        provider.state = Self.snapshot(uri: "music:song:2", isPlaying: false, progress: 0)
+        await session.syncTransportFromSpotify()
+        guard case let .paused(nowPlaying) = session.connectionState else {
+            return XCTFail("Expected paused, got \(session.connectionState)")
+        }
+        XCTAssertEqual(nowPlaying?.uri, "music:song:2")
+    }
+
+    /// The same the other way: resume, then skip, then a stale "paused" read.
+    func testSkipRightAfterAResumeKeepsTheResumeProtection() async {
+        let provider = ReadOnlyStatePlaybackProvider()
+        let session = PlaybackSessionViewModel(provider: provider)
+        session.deviceID = "local"
+        session.setActivePlaybackDeviceID("local")
+        session.setConnectionState(.paused(Self.song(position: 10_000)))
+
+        await session.togglePlayPause()
+        await session.next()
+        XCTAssertEqual(provider.commands, ["resume local", "next local"])
+
+        provider.state = Self.snapshot(uri: "music:song:2", isPlaying: false, progress: 0)
+        await session.syncTransportFromSpotify()
+        guard case .playing = session.connectionState else {
+            return XCTFail("A stale paused read undid the resume: \(session.connectionState)")
+        }
+    }
+
+    /// A command while the poll loop is mid-read keeps that loop: it picks the
+    /// settle cadence itself after the read, and cancelling it would drop the
+    /// read the command queued. A loop that is only sleeping is restarted.
+    func testCommandDoesNotCancelAPollLoopThatIsMidRead() {
+        let provider = ReadOnlyStatePlaybackProvider()
+        let session = PlaybackSessionViewModel(provider: provider)
+        session.isAppActive = true
+        session.deviceID = "local"
+        session.setActivePlaybackDeviceID("local")
+        session.setConnectionState(.playing(Self.song(position: 10_000)))
+        let readingLoop = session.transportPollTask
+        XCTAssertNotNil(readingLoop)
+
+        session.transportPollReadingSerial = session.transportPollLoopSerial
+        session.noteLocalPlaybackMutation(shouldSyncTransportImmediately: false)
+        XCTAssertTrue(session.transportPollTask == readingLoop, "a loop mid-read must not be cancelled")
+        XCTAssertEqual(session.currentTransportPollDelay(), .seconds(1))
+
+        session.transportPollReadingSerial = nil
+        session.noteLocalPlaybackMutation(shouldSyncTransportImmediately: false)
+        XCTAssertFalse(session.transportPollTask == readingLoop, "a sleeping loop is restarted")
+    }
+
     func testEmptyReadAfterSkippingPastTheEndIsAppliedRightAway() async {
         let provider = ReadOnlyStatePlaybackProvider()
         let session = PlaybackSessionViewModel(provider: provider)

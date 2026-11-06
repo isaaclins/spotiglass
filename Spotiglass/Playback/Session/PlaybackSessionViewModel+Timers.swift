@@ -5,7 +5,9 @@ extension PlaybackSessionViewModel {
     func restartTransportPollingIfNeeded() {
         transportPollTask?.cancel()
         transportPollTask = nil
+        transportPollLoopSerial &+= 1
         guard shouldRunTransportPolling(for: nil) else { return }
+        let loopSerial = transportPollLoopSerial
         transportPollTask = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self else { break }
@@ -18,7 +20,11 @@ extension PlaybackSessionViewModel {
                 guard !Task.isCancelled else { break }
                 let shouldPoll = await MainActor.run { self.shouldRunTransportPolling(for: nil) }
                 guard shouldPoll else { break }
+                self.transportPollReadingSerial = loopSerial
                 await self.syncTransportFromSpotify()
+                if self.transportPollReadingSerial == loopSerial {
+                    self.transportPollReadingSerial = nil
+                }
             }
         }
     }
