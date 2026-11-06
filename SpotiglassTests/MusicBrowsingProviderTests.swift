@@ -46,6 +46,48 @@ final class MusicBrowsingProviderTests: XCTestCase {
         XCTAssertEqual(items.first { $0.name == "include_groups" }?.value, "album,single,compilation")
     }
 
+    /// Every requirement with a protocol default (empty feed, "unsupported" edit)
+    /// must still reach Spotify. If a client method's signature drifts from the
+    /// protocol, Swift silently binds the default instead, and Home or library
+    /// edits go quiet with no compile error.
+    func testRequirementsWithDefaultsStillReachSpotify() async throws {
+        let calls: [(path: String, call: (any MusicBrowsingProvider) async throws -> Void)] = [
+            ("/v1/me/player/recently-played", { _ = try await $0.recentlyPlayedTracks(limit: 10, cacheMode: .bypassCache) }),
+            ("/v1/me/top/tracks", { _ = try await $0.topTracks(limit: 10, timeRange: .shortTerm, cacheMode: .bypassCache) }),
+            ("/v1/me/top/artists", { _ = try await $0.topArtists(limit: 10, timeRange: .shortTerm, cacheMode: .bypassCache) }),
+            ("/v1/me/following", { _ = try await $0.followedArtists(limit: 10, maxPages: 1) }),
+            ("/v1/artists/a1/top-tracks", { _ = try await $0.artistTopTracks(id: "a1", market: nil, cacheMode: .bypassCache) }),
+            ("/v1/playlists/p1", { try await $0.updatePlaylist(playlistID: "p1", name: "New") }),
+            ("/v1/playlists/p1/items", { try await $0.addTracksToPlaylist(playlistID: "p1", uris: ["spotify:track:t1"]) }),
+            ("/v1/playlists/p1/items", {
+                try await $0.removeTracksFromPlaylist(
+                    playlistID: "p1",
+                    items: [MusicPlaylistTrackRemoval(uri: "spotify:track:t1", positions: [0])],
+                    snapshotID: nil
+                )
+            }),
+            ("/v1/me/playlists", { _ = try await $0.createPlaylist(userID: "me", name: "Mix", isPublic: false) }),
+            ("/v1/me/tracks", { try await $0.saveTracks(ids: ["t1"]) }),
+            ("/v1/me/tracks", { try await $0.removeSavedTracks(ids: ["t1"]) }),
+            ("/v1/me/tracks/contains", { _ = try await $0.savedTrackStatuses(ids: ["t1"]) })
+        ]
+
+        for (expectedPath, call) in calls {
+            let httpClient = QueueHTTPClient([.json("{}")])
+            let provider: any MusicBrowsingProvider = SpotifyAPIClient(
+                tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"),
+                httpClient: httpClient
+            )
+            // The response body is a placeholder; only the request matters here.
+            try? await call(provider)
+            XCTAssertEqual(
+                httpClient.requests.first?.url?.path,
+                expectedPath,
+                "\(expectedPath): the protocol call fell through to its default instead of the Spotify client"
+            )
+        }
+    }
+
     func testIncludeGroupsDefaultMatchesTheEarlierSpotifyString() {
         // The default used to be the literal "album,single,compilation,appears_on".
         // The GET cache keys on the query string, so it must not change.
