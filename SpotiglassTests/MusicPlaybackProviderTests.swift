@@ -349,6 +349,71 @@ final class MusicPlaybackProviderTests: XCTestCase {
     }
 
     /// The same the other way: resume, then skip, then a stale "paused" read.
+    /// Start a new item and press Space before a read confirms it: the screen
+    /// can still show `.ready` (or the old paused item), but the player was
+    /// asked to play, so the toggle pauses.
+    func testToggleRightAfterStartingANewItemPauses() async {
+        for start in [PlaybackConnectionState.ready(deviceID: "local"), .paused(Self.song(position: 10_000))] {
+            let provider = ReadOnlyStatePlaybackProvider()
+            let session = PlaybackSessionViewModel(provider: provider)
+            session.deviceID = "local"
+            session.setActivePlaybackDeviceID("local")
+            session.setConnectionState(start)
+
+            await session.play(uri: "music:song:2")
+            await session.togglePlayPause()
+
+            XCTAssertEqual(provider.commands.last, "pause local", "from \(start)")
+            guard case .paused = session.connectionState else {
+                return XCTFail("Expected an optimistic pause from \(start), got \(session.connectionState)")
+            }
+        }
+    }
+
+    /// Start a list at B and press Next before B is confirmed: the player moves
+    /// on to C, and the read of C is applied instead of being fenced off as
+    /// "not B" until the pending play times out.
+    func testSkipDuringAPendingPlayAppliesTheNextItem() async {
+        let provider = ReadOnlyStatePlaybackProvider()
+        let session = PlaybackSessionViewModel(provider: provider)
+        session.deviceID = "local"
+        session.setActivePlaybackDeviceID("local")
+        session.setConnectionState(.playing(Self.song(position: 10_000)))
+
+        await session.playFromPlaylist(
+            clickedURI: "music:song:2",
+            playableURIs: ["music:song:2", "music:song:3"]
+        )
+        XCTAssertNotNil(session.pendingPlayTransition)
+        await session.next()
+        XCTAssertEqual(provider.commands.last, "next local")
+
+        provider.state = Self.snapshot(uri: "music:song:3", isPlaying: true, progress: 0)
+        await session.syncTransportFromSpotify()
+
+        XCTAssertEqual(session.currentNowPlayingURI, "music:song:3")
+        guard case .playing = session.connectionState else {
+            return XCTFail("Expected playing, got \(session.connectionState)")
+        }
+    }
+
+    /// Same, skipping past the end: the empty read isn't held back by the
+    /// pending play the skip replaced.
+    func testSkipPastTheEndDuringAPendingPlayGoesBackToReady() async {
+        let provider = ReadOnlyStatePlaybackProvider()
+        let session = PlaybackSessionViewModel(provider: provider)
+        session.deviceID = "local"
+        session.setActivePlaybackDeviceID("local")
+        session.setConnectionState(.playing(Self.song(position: 10_000)))
+
+        await session.play(uri: "music:song:2")
+        await session.next()
+        provider.state = nil
+        await session.syncTransportFromSpotify()
+
+        XCTAssertEqual(session.connectionState, .ready(deviceID: "local"))
+    }
+
     func testSkipRightAfterAResumeKeepsTheResumeProtection() async {
         let provider = ReadOnlyStatePlaybackProvider()
         let session = PlaybackSessionViewModel(provider: provider)

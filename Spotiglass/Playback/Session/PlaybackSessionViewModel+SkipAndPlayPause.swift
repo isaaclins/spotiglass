@@ -30,15 +30,23 @@ extension PlaybackSessionViewModel {
         guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
 
         let shouldPause: Bool
-        switch connectionState {
-        case .playing:
-            shouldPause = true
-        case .paused:
-            shouldPause = false
-        case .ready, .transferring:
-            shouldPause = latestPlayerSnapshot?.isPlaying == true
-        case .disconnected, .connecting, .unavailable, .error:
-            return
+        if !provider.capabilities.contains(.pushesPlayerState),
+           let localCommandExpectsPlaying {
+            // A player without pushed state may not have confirmed the last
+            // pause, resume or play yet (a new item can still show `.ready`
+            // or the previous `.paused` item). Toggle what was asked for.
+            shouldPause = localCommandExpectsPlaying
+        } else {
+            switch connectionState {
+            case .playing:
+                shouldPause = true
+            case .paused:
+                shouldPause = false
+            case .ready, .transferring:
+                shouldPause = latestPlayerSnapshot?.isPlaying == true
+            case .disconnected, .connecting, .unavailable, .error:
+                return
+            }
         }
         let action = shouldPause ? "pause" : "resume"
         SpotiglassLog.info(
@@ -273,6 +281,12 @@ extension PlaybackSessionViewModel {
                   ownsPlaybackHostGeneration(dispatch.hostGeneration),
                   !Task.isCancelled
             else { return false }
+            if !provider.capabilities.contains(.pushesPlayerState) {
+                // The player has moved past the item a pending play waits for,
+                // so that fence would reject every read of the new item. Only
+                // reads can confirm the skip; let them through.
+                clearPendingPlay()
+            }
             noteLocalPlaybackMutation()
             return true
         } catch {
