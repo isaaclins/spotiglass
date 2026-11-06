@@ -90,7 +90,7 @@ extension PlaylistBrowserViewModel {
         do {
             let tracks = try await api.topTracks(
                 limit: 20,
-                timeRange: "short_term",
+                timeRange: .shortTerm,
                 cacheMode: cacheMode
             )
             guard generation == homeFeedGeneration else { return }

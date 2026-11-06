@@ -46,7 +46,10 @@ struct PlaylistBrowserView: View {
     /// queue panel (the explicitly opt-in overlay) and keeps the primary nav sidebar.
     @State var lastOpenedSidebar: SidebarKind = .playlist
     @ObservedObject var commandPaletteManager: CommandPaletteManager
-    let spotifySearchClient: SpotifyAPIClient
+    /// Catalog search and profile lookups for the command palette, Search view
+    /// and tap targets. Separate from the view model's provider so palette
+    /// searches never share its request state.
+    let catalogProvider: any MusicBrowsingProvider
     let signOut: () -> Void
 
     private func requestCreatePlaylist(_ rows: [TrackRowViewModel]) {
@@ -66,7 +69,7 @@ struct PlaylistBrowserView: View {
     init(
         viewModel: PlaylistBrowserViewModel,
         playbackHost: SpotiglassPlaybackHost,
-        searchTokenProvider: SpotifyAccessTokenProviding,
+        catalogProvider: any MusicBrowsingProvider,
         commandPaletteManager: CommandPaletteManager,
         signOut: @escaping () -> Void
     ) {
@@ -80,7 +83,7 @@ struct PlaylistBrowserView: View {
         _playbackViewModel = ObservedObject(wrappedValue: playbackViewModel)
         _queueViewModel = StateObject(wrappedValue: queueViewModel)
         _commandPaletteManager = ObservedObject(wrappedValue: commandPaletteManager)
-        spotifySearchClient = SpotifyAPIClient(tokenProvider: searchTokenProvider, getResponseCache: .shared)
+        self.catalogProvider = catalogProvider
         self.signOut = signOut
     }
 

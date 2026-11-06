@@ -27,13 +27,13 @@ struct PreviewBrowsingAPI: MusicBrowsingProvider {
         []
     }
 
-    func artistAlbums(id _: String, includeGroups _: String, limit _: Int, cacheMode _: MusicRequestCacheMode) async throws -> [MusicArtistAlbum] {
+    func artistAlbums(id _: String, includeGroups _: [MusicArtistAlbumGroup], limit _: Int, cacheMode _: MusicRequestCacheMode) async throws -> [MusicArtistAlbum] {
         []
     }
 
     func artistAlbumsCached(
         id: String,
-        includeGroups: String,
+        includeGroups: [MusicArtistAlbumGroup],
         limit: Int,
         cacheMode: MusicRequestCacheMode
     ) async throws -> MusicCachedResponse<[MusicArtistAlbum]> {
@@ -43,7 +43,7 @@ struct PreviewBrowsingAPI: MusicBrowsingProvider {
 
     func artistAlbumsPage(
         id: String,
-        includeGroups: String,
+        includeGroups: [MusicArtistAlbumGroup],
         limit: Int,
         offset: Int,
         nextURL: URL?,
@@ -121,7 +121,7 @@ final class PreviewPlaybackTokenProvider: PlaybackAccessTokenProviding, SpotifyA
             cache: PreviewBrowsingCache()
         ),
         playbackHost: playbackHost,
-        searchTokenProvider: tokens,
+        catalogProvider: PreviewBrowsingAPI(),
         commandPaletteManager: CommandPaletteManager(),
         signOut: {}
     )

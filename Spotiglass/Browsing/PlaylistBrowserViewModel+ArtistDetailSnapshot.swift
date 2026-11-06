@@ -14,7 +14,7 @@ extension PlaylistBrowserViewModel {
                 async let cachedDetail = api.artistCached(id: id, cacheMode: .allowStale)
                 async let cachedAlbums = api.artistAlbumsCached(
                     id: id,
-                    includeGroups: "album,single,compilation",
+                    includeGroups: [.album, .single, .compilation],
                     limit: 10,
                     cacheMode: .allowStale
                 )
@@ -34,7 +34,7 @@ extension PlaylistBrowserViewModel {
                 )
             }
             let artistDetail = try await api.artist(id: id, cacheMode: .bypassCache)
-            let includeGroups = "album,single,compilation"
+            let includeGroups: [MusicArtistAlbumGroup] = [.album, .single, .compilation]
             let limit = 10
             var nextURL: URL?
             var nextOffset = 0

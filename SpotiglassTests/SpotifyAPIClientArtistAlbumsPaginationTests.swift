@@ -8,7 +8,7 @@ import XCTest
 private func testTarget_fetchAllArtistAlbums(
     client: SpotifyAPIClient,
     id: String,
-    includeGroups: String = "album,single,compilation,appears_on",
+    includeGroups: [MusicArtistAlbumGroup] = MusicArtistAlbumGroup.allCases,
     limit: Int = 10
 ) async throws -> [MusicArtistAlbum] {
     guard !id.isEmpty else {
@@ -142,7 +142,7 @@ final class SpotifyAPIClientArtistAlbumsPaginationTests: XCTestCase {
         let httpClient = QueueHTTPClient(responses)
         let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
 
-        let albums = try await testTarget_fetchAllArtistAlbums(client: client, id: "ar1", includeGroups: "album", limit: 10)
+        let albums = try await testTarget_fetchAllArtistAlbums(client: client, id: "ar1", includeGroups: [.album], limit: 10)
 
         XCTAssertEqual(httpClient.requests.count, 2, "A repeated next URL should break pagination before duplicate page storms.")
         XCTAssertEqual(albums.count, 2)
@@ -181,7 +181,7 @@ final class SpotifyAPIClientArtistAlbumsPaginationTests: XCTestCase {
         let httpClient = QueueHTTPClient(responses)
         let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
 
-        let albums = try await testTarget_fetchAllArtistAlbums(client: client, id: "ar1", includeGroups: "album", limit: 10)
+        let albums = try await testTarget_fetchAllArtistAlbums(client: client, id: "ar1", includeGroups: [.album], limit: 10)
 
         XCTAssertEqual(httpClient.requests.count, 20, "Pagination should stop at the max page cap when next URLs are unique.")
         XCTAssertEqual(albums.count, 20)

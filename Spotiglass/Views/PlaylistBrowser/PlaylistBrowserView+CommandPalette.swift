@@ -10,7 +10,7 @@ extension PlaylistBrowserView {
                 queueViewModel: queueViewModel,
                 commandPaletteManager: commandPaletteManager,
                 pinnedStore: pinnedStore,
-                spotifySearchClient: spotifySearchClient,
+                catalogProvider: catalogProvider,
                 signOut: signOut,
                 syncUnifiedRefreshRouting: { syncUnifiedRefreshRoutingToViewModel() }
             ),

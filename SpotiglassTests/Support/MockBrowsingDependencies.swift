@@ -37,7 +37,7 @@ final class LimitCapturingBrowsingAPI: MusicBrowsingProvider {
 
     func artistAlbumsCached(
         id: String,
-        includeGroups: String,
+        includeGroups: [MusicArtistAlbumGroup],
         limit: Int,
         cacheMode: MusicRequestCacheMode
     ) async throws -> MusicCachedResponse<[MusicArtistAlbum]> {
@@ -46,7 +46,7 @@ final class LimitCapturingBrowsingAPI: MusicBrowsingProvider {
 
     func artistAlbumsPage(
         id: String,
-        includeGroups: String,
+        includeGroups: [MusicArtistAlbumGroup],
         limit: Int,
         offset: Int,
         nextURL: URL?,
@@ -237,13 +237,13 @@ final class MockBrowsingAPI: MusicBrowsingProvider {
 
     func artistAlbumsCached(
         id: String,
-        includeGroups: String,
+        includeGroups: [MusicArtistAlbumGroup],
         limit: Int,
         cacheMode: MusicRequestCacheMode
     ) async throws -> MusicCachedResponse<[MusicArtistAlbum]> {
         let albums: [MusicArtistAlbum]
         if let artistAlbumsHandler {
-            albums = try await artistAlbumsHandler(id, includeGroups, limit)
+            albums = try await artistAlbumsHandler(id, SpotifyAPIClient.includeGroupsQueryValue(includeGroups), limit)
         } else {
             albums = []
         }
@@ -252,7 +252,7 @@ final class MockBrowsingAPI: MusicBrowsingProvider {
 
     func artistAlbumsPage(
         id: String,
-        includeGroups: String,
+        includeGroups: [MusicArtistAlbumGroup],
         limit: Int,
         offset: Int,
         nextURL: URL?,
@@ -260,11 +260,11 @@ final class MockBrowsingAPI: MusicBrowsingProvider {
     ) async throws -> MusicArtistAlbumsPage {
         artistAlbumsPageCallCount += 1
         if let artistAlbumsPageHandler {
-            return try await artistAlbumsPageHandler(id, includeGroups, limit, offset, nextURL)
+            return try await artistAlbumsPageHandler(id, SpotifyAPIClient.includeGroupsQueryValue(includeGroups), limit, offset, nextURL)
         }
         let items: [MusicArtistAlbum]
         if let artistAlbumsHandler {
-            items = try await artistAlbumsHandler(id, includeGroups, limit)
+            items = try await artistAlbumsHandler(id, SpotifyAPIClient.includeGroupsQueryValue(includeGroups), limit)
         } else {
             items = []
         }
@@ -315,25 +315,25 @@ final class MockBrowsingAPI: MusicBrowsingProvider {
 
     func topTracks(
         limit: Int,
-        timeRange: String,
+        timeRange: MusicTopItemsTimeRange,
         cacheMode: MusicRequestCacheMode
     ) async throws -> [MusicTrack] {
         topTracksCallCount += 1
         topTracksCacheModes.append(cacheMode)
         if let topTracksHandler {
-            return try await topTracksHandler(limit, timeRange)
+            return try await topTracksHandler(limit, timeRange.rawValue)
         }
         return []
     }
 
     func topArtists(
         limit: Int,
-        timeRange: String,
+        timeRange: MusicTopItemsTimeRange,
         cacheMode: MusicRequestCacheMode
     ) async throws -> [MusicArtist] {
         topArtistsCallCount += 1
         if let topArtistsHandler {
-            return try await topArtistsHandler(limit, timeRange)
+            return try await topArtistsHandler(limit, timeRange.rawValue)
         }
         return []
     }

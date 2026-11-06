@@ -78,7 +78,7 @@ final class PlaylistBrowserPaletteSearchBuilderTests: XCTestCase {
         let result = try await PlaylistBrowserPaletteSearchBuilder.search(
             query: "local",
             category: .thisPlaylist,
-            spotifySearchClient: client,
+            catalogProvider: client,
             environment: env,
             loadedContextTracks: rows,
             visiblePlaylists: [],
@@ -145,7 +145,7 @@ final class PlaylistBrowserPaletteSearchBuilderTests: XCTestCase {
         let result = try await PlaylistBrowserPaletteSearchBuilder.search(
             query: "midnight",
             category: .all,
-            spotifySearchClient: client,
+            catalogProvider: client,
             environment: env,
             loadedContextTracks: nil,
             visiblePlaylists: [],
@@ -199,7 +199,7 @@ final class PlaylistBrowserPaletteSearchBuilderTests: XCTestCase {
         let result = try await PlaylistBrowserPaletteSearchBuilder.search(
             query: "night",
             category: .all,
-            spotifySearchClient: client,
+            catalogProvider: client,
             environment: environment,
             loadedContextTracks: nil,
             visiblePlaylists: [],
@@ -230,7 +230,7 @@ final class PlaylistBrowserPaletteSearchBuilderTests: XCTestCase {
         let result = try await PlaylistBrowserPaletteSearchBuilder.search(
             query: "mine",
             category: .myPlaylists,
-            spotifySearchClient: client,
+            catalogProvider: client,
             environment: env,
             loadedContextTracks: nil,
             visiblePlaylists: [row],

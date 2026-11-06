@@ -44,7 +44,7 @@ extension SpotifyAPIClient {
     /// offset pagination (first page) or Spotify-provided `next` URLs.
     func artistAlbumsPage(
         id: String,
-        includeGroups: String = "album,single,compilation,appears_on",
+        includeGroups: [MusicArtistAlbumGroup] = MusicArtistAlbumGroup.allCases,
         limit: Int = 10,
         offset: Int = 0,
         nextURL: URL? = nil,
@@ -61,7 +61,7 @@ extension SpotifyAPIClient {
             page = try await send(
                 path: "/v1/artists/\(id)/albums",
                 queryItems: [
-                    URLQueryItem(name: "include_groups", value: includeGroups),
+                    URLQueryItem(name: "include_groups", value: Self.includeGroupsQueryValue(includeGroups)),
                     URLQueryItem(name: "limit", value: String(effectiveLimit)),
                     URLQueryItem(name: "offset", value: String(max(0, offset)))
                 ],
@@ -76,7 +76,7 @@ extension SpotifyAPIClient {
 
     func artistAlbumsCached(
         id: String,
-        includeGroups: String = "album,single,compilation,appears_on",
+        includeGroups: [MusicArtistAlbumGroup] = MusicArtistAlbumGroup.allCases,
         limit: Int = 10,
         cacheMode: MusicRequestCacheMode = .allowStale
     ) async throws -> MusicCachedResponse<[MusicArtistAlbum]> {
@@ -86,7 +86,7 @@ extension SpotifyAPIClient {
         let effectiveLimit = min(max(1, limit), 10)
         let path = "/v1/artists/\(id)/albums"
         let queryItems = [
-            URLQueryItem(name: "include_groups", value: includeGroups),
+            URLQueryItem(name: "include_groups", value: Self.includeGroupsQueryValue(includeGroups)),
             URLQueryItem(name: "limit", value: String(effectiveLimit)),
             URLQueryItem(name: "offset", value: "0")
         ]
@@ -99,5 +99,10 @@ extension SpotifyAPIClient {
             value: page.value.items.compactMap { $0.domainModel() },
             isStale: page.isStale
         )
+    }
+
+    /// Spotify's `include_groups` parameter: comma-separated group names in the given order.
+    static func includeGroupsQueryValue(_ groups: [MusicArtistAlbumGroup]) -> String {
+        groups.map(\.rawValue).joined(separator: ",")
     }
 }

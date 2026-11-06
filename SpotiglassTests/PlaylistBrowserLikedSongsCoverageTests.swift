@@ -385,10 +385,10 @@ private final class ProfileAwareMockBrowsingAPI: MusicBrowsingProvider {
         MusicSearchResults(tracks: [], artists: [], albums: [], playlists: [])
     }
     func albumTracks(albumID: String, market: String?, limit: Int) async throws -> [MusicTrack] { [] }
-    func artistAlbumsCached(id: String, includeGroups: String, limit: Int, cacheMode: MusicRequestCacheMode) async throws -> MusicCachedResponse<[MusicArtistAlbum]> {
+    func artistAlbumsCached(id: String, includeGroups: [MusicArtistAlbumGroup], limit: Int, cacheMode: MusicRequestCacheMode) async throws -> MusicCachedResponse<[MusicArtistAlbum]> {
         MusicCachedResponse(value: [], isStale: false)
     }
-    func artistAlbumsPage(id: String, includeGroups: String, limit: Int, offset: Int, nextURL: URL?, cacheMode: MusicRequestCacheMode) async throws -> MusicArtistAlbumsPage {
+    func artistAlbumsPage(id: String, includeGroups: [MusicArtistAlbumGroup], limit: Int, offset: Int, nextURL: URL?, cacheMode: MusicRequestCacheMode) async throws -> MusicArtistAlbumsPage {
         MusicArtistAlbumsPage(items: [], next: nil)
     }
 }

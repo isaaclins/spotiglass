@@ -25,11 +25,10 @@ extension SpotifyAPIClient {
     }
 
     /// The signed-in user's top tracks (`GET /v1/me/top/tracks`). Requires the
-    /// `user-top-read` scope. `timeRange` is one of `short_term`, `medium_term`,
-    /// `long_term`.
+    /// `user-top-read` scope.
     func topTracks(
         limit: Int = 20,
-        timeRange: String = "short_term",
+        timeRange: MusicTopItemsTimeRange = .shortTerm,
         cacheMode: MusicRequestCacheMode = .freshOnly
     ) async throws -> [MusicTrack] {
         let pageLimit = min(max(1, limit), 50)
@@ -37,7 +36,7 @@ extension SpotifyAPIClient {
             path: "/v1/me/top/tracks",
             queryItems: [
                 URLQueryItem(name: "limit", value: String(pageLimit)),
-                URLQueryItem(name: "time_range", value: timeRange)
+                URLQueryItem(name: "time_range", value: timeRange.rawValue)
             ],
             cacheMode: cacheMode
         )
@@ -48,7 +47,7 @@ extension SpotifyAPIClient {
     /// the same `user-top-read` scope as top tracks.
     func topArtists(
         limit: Int = 50,
-        timeRange: String = "short_term",
+        timeRange: MusicTopItemsTimeRange = .shortTerm,
         cacheMode: MusicRequestCacheMode = .freshOnly
     ) async throws -> [MusicArtist] {
         let pageLimit = min(max(1, limit), 50)
@@ -56,7 +55,7 @@ extension SpotifyAPIClient {
             path: "/v1/me/top/artists",
             queryItems: [
                 URLQueryItem(name: "limit", value: String(pageLimit)),
-                URLQueryItem(name: "time_range", value: timeRange)
+                URLQueryItem(name: "time_range", value: timeRange.rawValue)
             ],
             cacheMode: cacheMode
         )

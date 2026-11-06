@@ -53,6 +53,7 @@
 		C3000000000000000000000b /* SpotifyAPIClient+Artists.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3000000000000000000001b /* SpotifyAPIClient+Artists.swift */; };
 		C3000000000000000000000c /* SpotifyAPIClient+Albums.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3000000000000000000001c /* SpotifyAPIClient+Albums.swift */; };
 		C3000000000000000000000d /* SpotifyAPIClient+Search.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3000000000000000000001d /* SpotifyAPIClient+Search.swift */; };
+		SRC0000000000000000000024 /* SpotifyAPIClient+MusicBrowsingProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC0000000000000000080024 /* SpotifyAPIClient+MusicBrowsingProvider.swift */; };
 		C3000000000000000000000e /* SpotifyAPIClient+Library.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3000000000000000000001e /* SpotifyAPIClient+Library.swift */; };
 		COV00000000000000000001 /* BrowserWidthCommitPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = COV00000000000000000011 /* BrowserWidthCommitPolicy.swift */; };
 		COV00000000000000000002 /* PlaylistBrowserPlaybackHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = COV00000000000000000012 /* PlaylistBrowserPlaybackHelpers.swift */; };
@@ -461,6 +462,7 @@
 		C3000000000000000000001a /* SpotifyAPIClient+Playlists.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SpotifyAPIClient+Playlists.swift"; sourceTree = "<group>"; };
 		C3000000000000000000001b /* SpotifyAPIClient+Artists.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SpotifyAPIClient+Artists.swift"; sourceTree = "<group>"; };
 		C3000000000000000000001c /* SpotifyAPIClient+Albums.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SpotifyAPIClient+Albums.swift"; sourceTree = "<group>"; };
+		SRC0000000000000000080024 /* SpotifyAPIClient+MusicBrowsingProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SpotifyAPIClient+MusicBrowsingProvider.swift"; sourceTree = "<group>"; };
 		C3000000000000000000001d /* SpotifyAPIClient+Search.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SpotifyAPIClient+Search.swift"; sourceTree = "<group>"; };
 		C3000000000000000000001e /* SpotifyAPIClient+Library.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SpotifyAPIClient+Library.swift"; sourceTree = "<group>"; };
 		COV00000000000000000011 /* BrowserWidthCommitPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserWidthCommitPolicy.swift; sourceTree = "<group>"; };
@@ -907,6 +909,7 @@
 				C3000000000000000000001b /* SpotifyAPIClient+Artists.swift */,
 				C3000000000000000000001c /* SpotifyAPIClient+Albums.swift */,
 				C3000000000000000000001d /* SpotifyAPIClient+Search.swift */,
+				SRC0000000000000000080024 /* SpotifyAPIClient+MusicBrowsingProvider.swift */,
 				C30000000000000000000017 /* SpotifyGETResponseCache.swift */,
 				C30000000000000000000013 /* SpotifyAPIError.swift */,
 				C30000000000000000000014 /* SpotifyDTOs+Paging.swift */,
@@ -1562,6 +1565,7 @@
 				C3000000000000000000000b /* SpotifyAPIClient+Artists.swift in Sources */,
 				C3000000000000000000000c /* SpotifyAPIClient+Albums.swift in Sources */,
 				C3000000000000000000000d /* SpotifyAPIClient+Search.swift in Sources */,
+				SRC0000000000000000000024 /* SpotifyAPIClient+MusicBrowsingProvider.swift in Sources */,
 				C30000000000000000000007 /* SpotifyGETResponseCache.swift in Sources */,
 				C30000000000000000000003 /* SpotifyAPIError.swift in Sources */,
 				C30000000000000000000004 /* SpotifyDTOs+Paging.swift in Sources */,

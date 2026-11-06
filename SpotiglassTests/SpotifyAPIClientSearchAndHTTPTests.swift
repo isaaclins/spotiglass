@@ -15,9 +15,9 @@ final class SpotifyAPIClientSearchAndHTTPTests: XCTestCase {
         )
 
         _ = try await client.recentlyPlayedTracks(limit: 50, cacheMode: .freshOnly)
-        _ = try await client.topTracks(limit: 20, timeRange: "short_term", cacheMode: .freshOnly)
+        _ = try await client.topTracks(limit: 20, timeRange: .shortTerm, cacheMode: .freshOnly)
         _ = try await client.recentlyPlayedTracks(limit: 50, cacheMode: .bypassCache)
-        _ = try await client.topTracks(limit: 20, timeRange: "short_term", cacheMode: .bypassCache)
+        _ = try await client.topTracks(limit: 20, timeRange: .shortTerm, cacheMode: .bypassCache)
 
         XCTAssertEqual(httpClient.requests.count, 4)
     }
@@ -31,7 +31,7 @@ final class SpotifyAPIClientSearchAndHTTPTests: XCTestCase {
             httpClient: httpClient
         )
 
-        let artists = try await client.topArtists(limit: 999, timeRange: "long_term")
+        let artists = try await client.topArtists(limit: 999, timeRange: .longTerm)
 
         XCTAssertEqual(artists.map(\.id), ["artist-1"])
         XCTAssertEqual(

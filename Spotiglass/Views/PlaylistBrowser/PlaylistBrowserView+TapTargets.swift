@@ -46,13 +46,13 @@ extension PlaylistBrowserView {
 
     func resolveAlbumID(name: String, artistHint: String) async throws -> String? {
         try await PlaylistBrowserTapTargetResolver.resolveAlbumID(name: name, artistHint: artistHint) { query, limit in
-            try await spotifySearchClient.search(query: query, limit: limit)
+            try await catalogProvider.search(query: query, limit: limit)
         }
     }
 
     func resolveArtistID(forName name: String) async throws -> String? {
         try await PlaylistBrowserTapTargetResolver.resolveArtistID(forName: name) { query, limit in
-            try await spotifySearchClient.search(query: query, limit: limit)
+            try await catalogProvider.search(query: query, limit: limit)
         }
     }
 }

@@ -300,7 +300,7 @@ extension PlaylistBrowserViewModel {
         do {
             return try await api.topTracks(
                 limit: 50,
-                timeRange: "short_term",
+                timeRange: .shortTerm,
                 cacheMode: .freshOnly
             )
         } catch is CancellationError {
@@ -320,7 +320,7 @@ extension PlaylistBrowserViewModel {
         do {
             return try await api.topArtists(
                 limit: 50,
-                timeRange: "short_term",
+                timeRange: .shortTerm,
                 cacheMode: .freshOnly
             )
         } catch is CancellationError {

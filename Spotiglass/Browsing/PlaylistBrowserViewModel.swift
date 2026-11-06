@@ -164,7 +164,7 @@ final class PlaylistBrowserViewModel: ObservableObject {
 
     struct ArtistAlbumsPagingState {
         let artistID: String
-        let includeGroups: String
+        let includeGroups: [MusicArtistAlbumGroup]
         let limit: Int
         var nextURL: URL?
         var nextOffset: Int

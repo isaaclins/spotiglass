@@ -1,21 +1,40 @@
 import Foundation
 
+/// How a browsing request may use a provider's response cache.
 enum MusicRequestCacheMode: Equatable {
+    /// Use a cached response only while it is still fresh.
     case freshOnly
+    /// Accept an expired cached response and report it as stale.
     case allowStale
+    /// Always go to the service.
     case bypassCache
 }
 
+/// A value plus whether it came from an expired cache entry.
 struct MusicCachedResponse<Value> {
     let value: Value
     let isStale: Bool
 }
 
+/// One page of an artist's albums. `next` is an opaque continuation the same
+/// provider understands; callers hand it back unchanged and never build one.
 struct MusicArtistAlbumsPage {
     let items: [MusicArtistAlbum]
     let next: URL?
 }
 
+/// Everything the browser reads from (and writes to) a music service's
+/// catalog and the signed-in user's library: home feed, library playlists,
+/// playlist / album / artist detail, liked tracks and search.
+///
+/// View models and views depend on this protocol only. Spotify is the first
+/// implementation (`SpotifyAPIClient`, see
+/// `Services/SpotifyAPIClient+MusicBrowsingProvider.swift`). The shape is meant
+/// to fit Apple Music through MusicKit as well (`MusicLibraryRequest`,
+/// `MusicCatalogSearchRequest`, `MusicRecentlyPlayedRequest`,
+/// `MusicPersonalRecommendationsRequest`); requirements a service cannot serve
+/// keep their default implementation: empty results for feeds, which the
+/// browser shows as an empty section, or an "unsupported" error for edits.
 protocol MusicBrowsingProvider {
     func currentUserPlaylists(limit: Int) async throws -> [MusicPlaylistSummary]
     func playlistTracks(playlistID: String, limit: Int, maxPages: Int) async throws -> [MusicPlaylistTrackItem]
@@ -25,27 +44,29 @@ protocol MusicBrowsingProvider {
     func artistCached(id: String, cacheMode: MusicRequestCacheMode) async throws -> MusicCachedResponse<MusicArtistDetail>
     func artistAlbumsCached(
         id: String,
-        includeGroups: String,
+        includeGroups: [MusicArtistAlbumGroup],
         limit: Int,
         cacheMode: MusicRequestCacheMode
     ) async throws -> MusicCachedResponse<[MusicArtistAlbum]>
     func artistAlbumsPage(
         id: String,
-        includeGroups: String,
+        includeGroups: [MusicArtistAlbumGroup],
         limit: Int,
         offset: Int,
         nextURL: URL?,
         cacheMode: MusicRequestCacheMode
     ) async throws -> MusicArtistAlbumsPage
     func search(query: String, limit: Int) async throws -> MusicSearchResults
-    /// Home feed: recently played tracks (`user-read-recently-played` scope).
+    /// Paged catalog search for the full Search view; `offset` pages past the first results.
+    func search(query: String, limit: Int, offset: Int, cacheMode: MusicRequestCacheMode) async throws -> MusicSearchResults
+    /// Home feed: recently played tracks.
     func recentlyPlayedTracks(limit: Int, cacheMode: MusicRequestCacheMode) async throws -> [MusicTrack]
-    /// Home feed: the user's top tracks (`user-top-read` scope).
-    func topTracks(limit: Int, timeRange: String, cacheMode: MusicRequestCacheMode) async throws -> [MusicTrack]
-    /// The user's top artists (`user-top-read` scope), used as a ranking signal
+    /// Home feed: the user's top tracks.
+    func topTracks(limit: Int, timeRange: MusicTopItemsTimeRange, cacheMode: MusicRequestCacheMode) async throws -> [MusicTrack]
+    /// The user's top artists, used as a ranking signal
     /// for tracks already present in the library.
-    func topArtists(limit: Int, timeRange: String, cacheMode: MusicRequestCacheMode) async throws -> [MusicArtist]
-    /// Artists followed by the current user (`user-follow-read` scope).
+    func topArtists(limit: Int, timeRange: MusicTopItemsTimeRange, cacheMode: MusicRequestCacheMode) async throws -> [MusicArtist]
+    /// Artists followed by the current user.
     func followedArtists(limit: Int, maxPages: Int?) async throws -> [MusicArtist]
     /// Artist top tracks are optional breadth data. The continuation collector
     /// intersects them with the user's own tracks before ranking.
@@ -70,25 +91,31 @@ protocol MusicBrowsingProvider {
     func savedTrackStatuses(ids: [String]) async throws -> [Bool]
 }
 
-extension SpotifyAPIClient: MusicBrowsingProvider {}
-
 extension MusicBrowsingProvider {
+    /// Providers without paged search serve the first page only.
+    func search(query: String, limit: Int, offset: Int, cacheMode: MusicRequestCacheMode) async throws -> MusicSearchResults {
+        guard offset == 0 else {
+            return MusicSearchResults(tracks: [], artists: [], albums: [], playlists: [])
+        }
+        return try await search(query: query, limit: limit)
+    }
+
     func albumTracksFirstPage(albumID: String, market: String?, limit: Int) async throws -> [MusicTrack] {
         try await albumTracks(albumID: albumID, market: market, limit: limit)
     }
 
     // Default empty home-feed implementations so preview/test mocks that don't
-    // exercise the home surface compile without overrides. The live
-    // `SpotifyAPIClient` provides real implementations.
+    // exercise the home surface compile without overrides. Real providers
+    // override what their service offers.
     func recentlyPlayedTracks(limit: Int, cacheMode: MusicRequestCacheMode) async throws -> [MusicTrack] { [] }
-    func topTracks(limit: Int, timeRange: String, cacheMode: MusicRequestCacheMode) async throws -> [MusicTrack] { [] }
-    func topArtists(limit: Int, timeRange: String, cacheMode: MusicRequestCacheMode) async throws -> [MusicArtist] { [] }
+    func topTracks(limit: Int, timeRange: MusicTopItemsTimeRange, cacheMode: MusicRequestCacheMode) async throws -> [MusicTrack] { [] }
+    func topArtists(limit: Int, timeRange: MusicTopItemsTimeRange, cacheMode: MusicRequestCacheMode) async throws -> [MusicArtist] { [] }
     func followedArtists(limit: Int, maxPages: Int?) async throws -> [MusicArtist] { [] }
     func artistTopTracks(id: String, market: String?, cacheMode: MusicRequestCacheMode) async throws -> [MusicTrack] { [] }
 
     // Default no-op implementations for library mutations. Mocks/previews that
-    // never exercise the menu can ignore these; the live `SpotifyAPIClient`
-    // override hits the Spotify Web API.
+    // never exercise the menu can ignore these; a provider that supports
+    // library edits overrides them.
     func updatePlaylist(playlistID: String, name: String) async throws {
         throw SpotifyAPIError.invalidRequest("Playlist rename is not supported by this API implementation.")
     }

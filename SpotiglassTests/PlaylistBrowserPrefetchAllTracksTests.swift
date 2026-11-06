@@ -324,10 +324,10 @@ private final class ConcurrencyTrackingBrowsingAPI: MusicBrowsingProvider, @unch
     func artistCached(id: String, cacheMode: MusicRequestCacheMode) async throws -> MusicCachedResponse<MusicArtistDetail> {
         MusicCachedResponse(value: try await artist(id: id, cacheMode: cacheMode), isStale: false)
     }
-    func artistAlbumsCached(id: String, includeGroups: String, limit: Int, cacheMode: MusicRequestCacheMode) async throws -> MusicCachedResponse<[MusicArtistAlbum]> {
+    func artistAlbumsCached(id: String, includeGroups: [MusicArtistAlbumGroup], limit: Int, cacheMode: MusicRequestCacheMode) async throws -> MusicCachedResponse<[MusicArtistAlbum]> {
         MusicCachedResponse(value: [], isStale: false)
     }
-    func artistAlbumsPage(id: String, includeGroups: String, limit: Int, offset: Int, nextURL: URL?, cacheMode: MusicRequestCacheMode) async throws -> MusicArtistAlbumsPage {
+    func artistAlbumsPage(id: String, includeGroups: [MusicArtistAlbumGroup], limit: Int, offset: Int, nextURL: URL?, cacheMode: MusicRequestCacheMode) async throws -> MusicArtistAlbumsPage {
         MusicArtistAlbumsPage(items: [], next: nil)
     }
     func search(query: String, limit: Int) async throws -> MusicSearchResults {

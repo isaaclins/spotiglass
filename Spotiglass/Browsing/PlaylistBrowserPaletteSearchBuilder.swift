@@ -19,7 +19,7 @@ enum PlaylistBrowserPaletteSearchBuilder {
     static func search(
         query: String,
         category: CommandPaletteSearchCategory,
-        spotifySearchClient: SpotifyAPIClient,
+        catalogProvider: any MusicBrowsingProvider,
         environment: PlaylistBrowserPaletteSearchEnvironment,
         loadedContextTracks: [TrackRowViewModel]?,
         visiblePlaylists: [PlaylistRowViewModel],
@@ -63,7 +63,7 @@ enum PlaylistBrowserPaletteSearchBuilder {
         // tracks and the palette ranks the artist itself to the top, so the old sequential
         // `artist:"…"` augmentation call (which roughly doubled search latency) isn't worth it.
         let paletteSearchLimit = 30
-        let results = try await spotifySearchClient.search(query: query, limit: paletteSearchLimit)
+        let results = try await catalogProvider.search(query: query, limit: paletteSearchLimit)
 
         mapped.catalogPlaylists = results.playlists.map { playlist in
             let pinPayload = PinnedItem.playlist(playlist)

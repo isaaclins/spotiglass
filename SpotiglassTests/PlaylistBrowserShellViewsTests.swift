@@ -25,7 +25,7 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
                 cache: MockBrowsingCache()
             ),
             playbackHost: playbackHost,
-            searchTokenProvider: tokens,
+            catalogProvider: SpotifyAPIClient(tokenProvider: tokens, getResponseCache: .shared),
             commandPaletteManager: CommandPaletteManager(),
             signOut: {}
         )
@@ -35,7 +35,7 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
                 cache: MockBrowsingCache()
             ),
             playbackHost: playbackHost,
-            searchTokenProvider: tokens,
+            catalogProvider: SpotifyAPIClient(tokenProvider: tokens, getResponseCache: .shared),
             commandPaletteManager: CommandPaletteManager(),
             signOut: {}
         )
@@ -173,7 +173,7 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
         let view = PlaylistBrowserView(
             viewModel: browserVM,
             playbackHost: playbackHost,
-            searchTokenProvider: tokens,
+            catalogProvider: SpotifyAPIClient(tokenProvider: tokens, getResponseCache: .shared),
             commandPaletteManager: palette,
             signOut: {}
         )

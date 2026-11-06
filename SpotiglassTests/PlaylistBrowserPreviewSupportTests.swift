@@ -16,7 +16,7 @@ final class PlaylistBrowserPreviewSupportTests: XCTestCase {
 
         let saved = try await api.currentUserSavedTracks(limit: 50, maxPages: 1)
         XCTAssertEqual(saved.totalAvailable, 0)
-        let topArtists = try await api.topArtists(limit: 10, timeRange: "short_term", cacheMode: .freshOnly)
+        let topArtists = try await api.topArtists(limit: 10, timeRange: .shortTerm, cacheMode: .freshOnly)
         let followedArtists = try await api.followedArtists(limit: 10, maxPages: 1)
         let artistTopTracks = try await api.artistTopTracks(id: "a", market: nil, cacheMode: .freshOnly)
         XCTAssertEqual(topArtists, [])
@@ -59,11 +59,11 @@ final class PlaylistBrowserPreviewSupportTests: XCTestCase {
         let api = PreviewBrowsingAPI()
         _ = try await api.search(query: "q", limit: 5)
         _ = try await api.albumTracks(albumID: "a", market: "US", limit: 10)
-        _ = try await api.artistAlbums(id: "a", includeGroups: "album", limit: 5, cacheMode: .freshOnly)
-        _ = try await api.artistAlbumsCached(id: "a", includeGroups: "album", limit: 5, cacheMode: .freshOnly)
+        _ = try await api.artistAlbums(id: "a", includeGroups: [.album], limit: 5, cacheMode: .freshOnly)
+        _ = try await api.artistAlbumsCached(id: "a", includeGroups: [.album], limit: 5, cacheMode: .freshOnly)
         _ = try await api.artistAlbumsPage(
             id: "a",
-            includeGroups: "album",
+            includeGroups: [.album],
             limit: 5,
             offset: 0,
             nextURL: nil,

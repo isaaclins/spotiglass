@@ -9,7 +9,7 @@ enum PlaylistBrowserCommandPaletteConfiguration {
         var queueViewModel: QueueViewModel
         var commandPaletteManager: CommandPaletteManager
         var pinnedStore: PinnedItemsStore
-        var spotifySearchClient: SpotifyAPIClient
+        var catalogProvider: any MusicBrowsingProvider
         var signOut: () -> Void
         var syncUnifiedRefreshRouting: () -> Void
     }
@@ -134,11 +134,11 @@ enum PlaylistBrowserCommandPaletteConfiguration {
                 origin: .reset
             )
         }
-        // The Search view owns no API client; it borrows the browser's search
+        // The Search view owns no API client; it borrows the browser's catalog
         // client. `/v1/search` caps `limit` at 10 per type, so depth comes from offset.
-        let searchClient = dependencies.spotifySearchClient
+        let catalogProvider = dependencies.catalogProvider
         browserVM.catalogSearch.searchProvider = { query, offset, cacheMode in
-            try await searchClient.search(
+            try await catalogProvider.search(
                 query: query,
                 limit: CatalogSearchViewModel.pageSize,
                 offset: offset,
@@ -181,7 +181,7 @@ enum PlaylistBrowserCommandPaletteConfiguration {
             try await paletteSearch(
                 query: query,
                 category: category,
-                spotifySearchClient: dependencies.spotifySearchClient,
+                catalogProvider: dependencies.catalogProvider,
                 commandPaletteManager: manager,
                 viewModel: dependencies.viewModel,
                 queueViewModel: dependencies.queueViewModel,
@@ -263,7 +263,7 @@ enum PlaylistBrowserCommandPaletteConfiguration {
     static func paletteSearch(
         query: String,
         category: CommandPaletteSearchCategory,
-        spotifySearchClient: SpotifyAPIClient,
+        catalogProvider: any MusicBrowsingProvider,
         commandPaletteManager: CommandPaletteManager,
         viewModel: PlaylistBrowserViewModel,
         queueViewModel: QueueViewModel,
@@ -281,7 +281,7 @@ enum PlaylistBrowserCommandPaletteConfiguration {
         return try await PlaylistBrowserPaletteSearchBuilder.search(
             query: query,
             category: category,
-            spotifySearchClient: spotifySearchClient,
+            catalogProvider: catalogProvider,
             environment: environment,
             loadedContextTracks: viewModel.loadedContextTracksForPalette,
             visiblePlaylists: viewModel.visiblePlaylists,

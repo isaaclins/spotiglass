@@ -29,7 +29,7 @@ final class PlaylistBrowserCommandPaletteConfigurationTests: XCTestCase {
                 queueViewModel: queue,
                 commandPaletteManager: manager,
                 pinnedStore: store,
-                spotifySearchClient: SpotifyAPIClient(
+                catalogProvider: SpotifyAPIClient(
                     tokenProvider: StaticSpotifyAccessTokenProvider(token: "tok"),
                     httpClient: QueueHTTPClient([
                         .json(#"{"tracks":{"items":[]},"artists":{"items":[]},"albums":{"items":[]},"playlists":{"items":[]}}"#),
@@ -99,7 +99,7 @@ final class PlaylistBrowserCommandPaletteConfigurationTests: XCTestCase {
         let results = try await PlaylistBrowserCommandPaletteConfiguration.paletteSearch(
             query: "test",
             category: .tracks,
-            spotifySearchClient: client,
+            catalogProvider: client,
             commandPaletteManager: manager,
             viewModel: viewModel,
             queueViewModel: queue,
