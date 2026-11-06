@@ -61,7 +61,7 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
 
     func recordSavedSong(_ track: MusicTrack?, reference: AppleMusicSongReference) {
         locked {
-            let keys = reference.matchKeys.union(track.map { [$0.id] } ?? [])
+            let keys = reference.matchKeys.union(track.map { [$0.id, Self.metadataKey($0)] } ?? [])
             removedSongs = removedSongs.filter { $0.key.isDisjoint(with: keys) }
             savedSongs.removeAll { !$0.keys.isDisjoint(with: keys) }
             savedSongs.insert(SavedSong(track: track, keys: keys, at: now()), at: 0)
@@ -131,7 +131,7 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
     func recordPlaylistAddition(_ track: MusicTrack, reference: AppleMusicSongReference, playlistID: String) {
         locked {
             var additions = playlistAdditions[playlistID] ?? []
-            additions.append(SavedSong(track: track, keys: reference.matchKeys.union([track.id]), at: now()))
+            additions.append(SavedSong(track: track, keys: reference.matchKeys.union([track.id, Self.metadataKey(track)]), at: now()))
             playlistAdditions[playlistID] = Array(additions.suffix(Self.maxEntries))
         }
     }
@@ -294,6 +294,13 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
     }
 
     // MARK: - Helpers
+
+    /// Title and first artist, as a last way to recognise a saved or added song in a read: the
+    /// library may list it under an ID this Mac learns only later (a playlist entry's persistent
+    /// ID, or a new cloud library ID). Only ever used to end a pending edit, never to change one.
+    static func metadataKey(_ track: MusicTrack) -> String {
+        "meta:\(track.name.lowercased())|\((track.artists.first ?? "").lowercased())"
+    }
 
     private func locked<Value>(_ body: () -> Value) -> Value {
         lock.lock()

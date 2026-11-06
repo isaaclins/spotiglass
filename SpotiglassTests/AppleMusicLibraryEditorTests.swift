@@ -374,6 +374,34 @@ final class AppleMusicPendingLibraryEditsTests: XCTestCase {
         XCTAssertEqual(pending.applied(toPlaylistTracks: caughtUp, playlistID: "-1").map(\.id), ["-30"])
     }
 
+    /// The real case: a library song added to a new playlist, then MusicKit lists the playlist with
+    /// the song under its persistent ID as a decimal. The addition must not show a second copy.
+    func testAnAdditionEndsWhenThePlaylistListsTheSongUnderItsPersistentID() {
+        let pending = AppleMusicPendingLibraryEdits()
+        let reference = AppleMusicSongReference(
+            itemID: "i.aJGomv4H36dmrrA", catalogID: "1710983273", cloudLibraryID: "i.aJGomv4H36dmrrA",
+            musicAppPersistentID: "367911FB05FE6876", isInLibrary: true
+        )
+        pending.recordPlaylistAddition(AppleMusicLibraryEditorTests.track(id: "1710983273", name: "WHERE SHE GOES", artist: "Bad Bunny"), reference: reference, playlistID: "p.new")
+        let listed = AppleMusicLibraryEditorTests.track(id: "3925188320065120374", name: "WHERE SHE GOES", artist: "Bad Bunny")
+
+        XCTAssertEqual(reference.musicKitPersistentID, "3925188320065120374")
+        XCTAssertEqual(pending.applied(toPlaylistTracks: [(listed, ["3925188320065120374"])], playlistID: "p.new").count, 1)
+        XCTAssertFalse(pending.hasPendingTracks(playlistID: "p.new"))
+    }
+
+    /// A song the library lists under an ID nobody knew yet still ends the pending addition by
+    /// its title and artist.
+    func testAnAdditionEndsOnTitleAndArtistAsALastResort() {
+        let pending = AppleMusicPendingLibraryEdits()
+        let added = AppleMusicLibraryEditorTests.track(id: "699902614", name: "Computer Love")
+        pending.recordPlaylistAddition(added, reference: AppleMusicSongReference(itemID: "699902614", catalogID: "699902614", isInLibrary: false), playlistID: "-1")
+        let listed = AppleMusicLibraryEditorTests.track(id: "-77", name: "Computer Love")
+
+        let shown = pending.applied(toPlaylistTracks: [(listed, ["-77", AppleMusicPendingLibraryEdits.metadataKey(listed)])], playlistID: "-1")
+        XCTAssertEqual(shown.map(\.id), ["-77"])
+    }
+
     func testEntriesExpire() {
         final class Clock: @unchecked Sendable { var now = Date(timeIntervalSince1970: 0) }
         let clock = Clock()

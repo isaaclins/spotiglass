@@ -77,7 +77,12 @@ struct AppleMusicSongReference: Equatable, Sendable {
 
     /// Every ID this song may be shown under, for matching it in later library reads.
     var matchKeys: Set<String> {
-        Set([itemID, catalogID, cloudLibraryID].compactMap { $0 })
+        Set([itemID, catalogID, cloudLibraryID, musicKitPersistentID].compactMap { $0 })
+    }
+
+    /// The persistent ID the way MusicKit shows it inside a library playlist: a signed decimal.
+    var musicKitPersistentID: String? {
+        musicAppPersistentID.flatMap { UInt64($0, radix: 16) }.map { String(Int64(bitPattern: $0)) }
     }
 
     /// How the Music app finds this song: its persistent ID when known, otherwise its title,

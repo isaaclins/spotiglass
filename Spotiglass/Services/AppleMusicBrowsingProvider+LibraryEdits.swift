@@ -79,7 +79,7 @@ extension AppleMusicBrowsingProvider {
     func applyingPendingEdits(toLibrarySongs songs: [Song], isComplete: Bool) -> [MusicTrack] {
         guard editor.pending.hasPendingSongs else { return songs.map(AppleMusicItemMapping.track) }
         let identified = songs.map { song in
-            (track: AppleMusicItemMapping.track(song), keys: AppleMusicSongIdentity(encoding: song).keys(itemID: song.id.rawValue))
+            Self.identified(song)
         }
         return editor.pending.applied(toLibrarySongs: identified, isComplete: isComplete)
     }
@@ -90,15 +90,19 @@ extension AppleMusicBrowsingProvider {
             return tracks.map { AppleMusicItemMapping.track($0) }
         }
         let identified = tracks.map { track -> (track: MusicTrack, keys: Set<String>) in
-            let keys: Set<String>
-            if case let .song(song) = track {
-                keys = AppleMusicSongIdentity(encoding: song).keys(itemID: song.id.rawValue)
-            } else {
-                keys = [track.id.rawValue]
-            }
-            return (AppleMusicItemMapping.track(track), keys)
+            if case let .song(song) = track { return Self.identified(song) }
+            let mapped = AppleMusicItemMapping.track(track)
+            return (mapped, [track.id.rawValue, AppleMusicPendingLibraryEdits.metadataKey(mapped)])
         }
         return editor.pending.applied(toPlaylistTracks: identified, playlistID: playlistID)
+    }
+
+    /// A song with every key a pending edit may know it by.
+    private static func identified(_ song: Song) -> (track: MusicTrack, keys: Set<String>) {
+        let track = AppleMusicItemMapping.track(song)
+        let keys = AppleMusicSongIdentity(encoding: song).keys(itemID: song.id.rawValue)
+            .union([AppleMusicPendingLibraryEdits.metadataKey(track)])
+        return (track, keys)
     }
 
     /// Tracks of a playlist created through Apple Music that the library on this Mac does not
@@ -106,7 +110,7 @@ extension AppleMusicBrowsingProvider {
     func pendingPlaylistTracks(playlistID: String) async throws -> [MusicTrack]? {
         guard let songs = try await editor.cloudPlaylistTracks(playlistID: playlistID) else { return nil }
         let identified = songs.map { song in
-            (track: AppleMusicItemMapping.track(song), keys: AppleMusicSongIdentity(encoding: song).keys(itemID: song.id.rawValue))
+            Self.identified(song)
         }
         return editor.pending.applied(toPlaylistTracks: identified, playlistID: playlistID)
     }
