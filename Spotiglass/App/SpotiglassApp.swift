@@ -15,6 +15,9 @@ struct SpotiglassApp: App {
     /// and hidden web view live for the lifetime of the app rather than a
     /// particular WindowGroup scene.
     @StateObject private var playbackHost: SpotiglassPlaybackHost
+    /// Apple Music access is a system permission for the whole app, so one session serves every
+    /// window and the menu bar. Only consulted when Apple Music is the selected service.
+    @StateObject private var appleMusicSession = AppleMusicSession()
     /// Same storage key ``PlaylistBrowserView`` writes, read here so the View menu
     /// can say "Show Queue" or "Hide Queue" instead of a stateless "Toggle".
     @AppStorage("queue.panel.visible") private var isQueueVisible = false
@@ -53,6 +56,14 @@ struct SpotiglassApp: App {
         } else if ScreenshotMode.isActive {
             authVM = AuthViewModel(
                 refreshTokenStore: MemoryOnlyRefreshTokenStore(refreshToken: ScreenshotMode.refreshToken)
+            )
+        } else if MusicServiceSelection.current == .appleMusic {
+            // Apple Music mode must never read, refresh or delete the saved Spotify sign-in: any
+            // Spotify code path still reachable here (Connect playback, a token refresh) sees an
+            // empty in-memory store instead of the Keychain item, and signing out clears nothing.
+            authVM = AuthViewModel(
+                refreshTokenStore: MemoryOnlyRefreshTokenStore(),
+                signOutDataCleaner: {}
             )
         } else {
             authVM = AuthViewModel()
@@ -112,11 +123,28 @@ struct SpotiglassApp: App {
     /// Mirrors the sign-in mapping ``RootView`` uses to gate the palette, so menu
     /// items dim in step with the commands actually being wired up.
     private var isSignedIn: Bool {
-        switch authViewModel.state {
+        Self.menuIsSignedIn(
+            service: MusicServiceSelection.current,
+            spotifyState: authViewModel.state,
+            appleMusicState: appleMusicSession.state
+        )
+    }
+
+    /// Apple Music never signs in to Spotify: its permission is what wires the browser up, so
+    /// under Apple Music the menu follows that permission instead of the Spotify session.
+    static func menuIsSignedIn(
+        service: MusicService,
+        spotifyState: AppConnectionState,
+        appleMusicState: AppleMusicSession.State
+    ) -> Bool {
+        if service == .appleMusic {
+            return appleMusicState == .authorized
+        }
+        switch spotifyState {
         case .signedIn, .refreshing(.some):
-            true
+            return true
         case .signedOut, .signingIn, .failed, .refreshing(.none):
-            false
+            return false
         }
     }
 
@@ -125,7 +153,8 @@ struct SpotiglassApp: App {
             RootView(
                 keymapStore: keymapStore,
                 sceneRegistry: sceneRegistry,
-                playbackHost: playbackHost
+                playbackHost: playbackHost,
+                appleMusicSession: appleMusicSession
             )
                 .environmentObject(authViewModel)
                 .environmentObject(settingsStore)

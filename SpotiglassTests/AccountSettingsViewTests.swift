@@ -21,6 +21,23 @@ final class AccountSettingsViewTests: XCTestCase {
         ViewTestHost.assertFindText("Spotify developer app", in: view)
     }
 
+    /// Under Apple Music the Spotify session is never restored, so this pane must not offer
+    /// Connect: starting a Spotify sign-in deletes the saved token before it succeeds.
+    func testAppleMusicModeOffersNoSpotifySignIn() throws {
+        let viewModel = AuthViewModel(
+            settings: SpotifyAuthSettings(defaults: makeEphemeralDefaults()),
+            refreshTokenStore: MemoryOnlyRefreshTokenStore(),
+            initialState: .signedOut
+        )
+        let view = AccountSettingsView(viewModel: viewModel, musicService: .appleMusic)
+        ViewTestHost.host(view)
+
+        ViewTestHost.assertFindLocalizedText("settings.account.appleMusicActive", in: view)
+        ViewTestHost.assertFindLocalizedText("settings.account.diagnostics.header", in: view)
+        XCTAssertThrowsError(try view.inspect().find(SpotifyClientIDAndActionsView.self))
+        XCTAssertThrowsError(try view.inspect().find(text: SpotiglassL10n.string("auth.connect.button")))
+    }
+
     /// The token expiry is a diagnostic, not an account fact: it used to sit
     /// under Connection, where it duplicated the Status row and made a silently
     /// refreshing session look like it was about to break (#163).

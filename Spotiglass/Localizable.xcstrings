@@ -14236,6 +14236,259 @@
           }
         }
       }
+    },
+    "appleMusic.error.notFound": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This item isn't in your library or in Apple Music."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este elemento no está en tu biblioteca ni en Apple Music."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieses Objekt ist weder in deiner Mediathek noch in Apple Music."
+          }
+        }
+      }
+    },
+    "appleMusic.library.owner": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tú"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Du"
+          }
+        }
+      }
+    },
+    "appleMusic.playback.comingSoon": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playing Apple Music in Spotiglass is coming soon."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pronto podrás reproducir Apple Music en Spotiglass."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Music in Spotiglass abspielen kommt bald."
+          }
+        }
+      }
+    },
+    "appleMusic.playback.comingSoon.noSubscription": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playing Apple Music is coming soon and will need an Apple Music subscription."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pronto podrás reproducir Apple Music; necesitarás una suscripción a Apple Music."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Music abspielen kommt bald und braucht ein Apple Music Abo."
+          }
+        }
+      }
+    },
+    "appleMusic.permission.message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow access to Apple Music to see your library, playlists and recommendations."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permite el acceso a Apple Music para ver tu biblioteca, tus listas y tus recomendaciones."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erlaube den Zugriff auf Apple Music, um deine Mediathek, Playlists und Empfehlungen zu sehen."
+          }
+        }
+      }
+    },
+    "appleMusic.permission.denied": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass can't read Apple Music. Turn it on in System Settings under Privacy & Security, Media & Apple Music."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass no puede acceder a Apple Music. Actívalo en Ajustes del Sistema, en Privacidad y seguridad, Multimedia y Apple Music."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass kann nicht auf Apple Music zugreifen. Schalte es in den Systemeinstellungen unter Datenschutz & Sicherheit, Medien & Apple Music ein."
+          }
+        }
+      }
+    },
+    "appleMusic.permission.openSettings": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open System Settings"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir Ajustes del Sistema"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Systemeinstellungen öffnen"
+          }
+        }
+      }
+    },
+    "appleMusic.permission.allow": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow Apple Music Access"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permitir acceso a Apple Music"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zugriff auf Apple Music erlauben"
+          }
+        }
+      }
+    },
+    "settings.account.appleMusicActive": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass is browsing Apple Music. Your Spotify sign-in stays as it is and is used again when you switch back to Spotify."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass está explorando Apple Music. Tu sesión de Spotify se queda como está y se vuelve a usar cuando cambies a Spotify."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass zeigt gerade Apple Music. Deine Spotify-Anmeldung bleibt, wie sie ist, und wird wieder verwendet, sobald du zu Spotify zurückwechselst."
+          }
+        }
+      }
+    },
+    "appleMusic.error.libraryReadOnly": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Editing your Apple Music library from Spotiglass isn't available yet."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Todavía no puedes editar tu biblioteca de Apple Music desde Spotiglass."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deine Apple-Music-Mediathek lässt sich in Spotiglass noch nicht bearbeiten."
+          }
+        }
+      }
+    },
+    "appleMusic.playlist.untitled": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Untitled Playlist"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lista sin título"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unbenannte Playlist"
+          }
+        }
+      }
     }
   },
   "version": "1.1"

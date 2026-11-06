@@ -12,7 +12,9 @@ extension PlaylistBrowserView {
                 pinnedStore: pinnedStore,
                 catalogProvider: catalogProvider,
                 signOut: signOut,
-                syncUnifiedRefreshRouting: { syncUnifiedRefreshRoutingToViewModel() }
+                syncUnifiedRefreshRouting: { syncUnifiedRefreshRoutingToViewModel() },
+                isPlaybackAvailable: playbackMode == .live,
+                canDisconnect: canDisconnect
             ),
             queueVisible: queueVisible,
             lyricsPresented: lyricsPresented

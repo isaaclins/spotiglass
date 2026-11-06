@@ -12,6 +12,11 @@ enum PlaylistBrowserCommandPaletteConfiguration {
         var catalogProvider: any MusicBrowsingProvider
         var signOut: () -> Void
         var syncUnifiedRefreshRouting: () -> Void
+        /// `false` while the browsed service has no player yet (Apple Music browsing). Then
+        /// "Connect playback" must not start the Spotify player behind it.
+        var isPlaybackAvailable = true
+        /// `false` when the service has no Disconnect (Apple Music: access is a system permission).
+        var canDisconnect = true
     }
 
     static func apply(
@@ -30,7 +35,7 @@ enum PlaylistBrowserCommandPaletteConfiguration {
         manager.isSignedIn = true
         manager.bindPlaybackReadiness(to: dependencies.playbackViewModel)
         manager.setPrefetchProgress(dependencies.viewModel.prefetchAllPlaylistsProgress)
-        manager.signOut = dependencies.signOut
+        manager.signOut = dependencies.canDisconnect ? dependencies.signOut : nil
         let browserVM = dependencies.viewModel
         let queueVM = dependencies.queueViewModel
         manager.unifiedRefresh = {
@@ -45,9 +50,11 @@ enum PlaylistBrowserCommandPaletteConfiguration {
         manager.selectPreviousPlaylist = { [weak viewModel = dependencies.viewModel] in
             await viewModel?.selectPreviousPlaylist()
         }
-        manager.connectPlayback = { [weak playback = dependencies.playbackViewModel] in
-            playback?.start(recoveryCause: .manualReconnect)
-        }
+        manager.connectPlayback = dependencies.isPlaybackAvailable
+            ? { [weak playback = dependencies.playbackViewModel] in
+                playback?.start(recoveryCause: .manualReconnect)
+            }
+            : nil
         manager.playbackTogglePrerequisite = { [weak playback = dependencies.playbackViewModel] in
             guard let playback else { return false }
             return playback.isPlaybackToggleReady
@@ -118,6 +125,21 @@ enum PlaylistBrowserCommandPaletteConfiguration {
         }
         manager.playURI = { [weak playback = dependencies.playbackViewModel] uri in
             await playback?.play(uri: uri)
+        }
+        if !dependencies.isPlaybackAvailable {
+            // No player for this service yet (Apple Music browsing): none of the transport
+            // commands may reach the Spotify player behind it, from the palette, a shortcut or
+            // the menu. The palette also hides the ones it lists.
+            manager.togglePlayback = nil
+            manager.nextTrack = nil
+            manager.previousTrack = nil
+            manager.disconnectPlayback = nil
+            manager.toggleShuffle = nil
+            manager.cycleRepeat = nil
+            manager.setRepeatModeAction = nil
+            manager.enqueueTrackSelection = nil
+            manager.seekBy = nil
+            manager.playURI = nil
         }
         manager.openPlaylist = { [weak viewModel = dependencies.viewModel] playlistID in
             await viewModel?.selectPlaylist(id: playlistID, origin: .reset)

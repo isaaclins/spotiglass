@@ -51,6 +51,12 @@ struct PlaylistBrowserView: View {
     /// searches never share its request state.
     let catalogProvider: any MusicBrowsingProvider
     let signOut: () -> Void
+    /// Whether the transport bar drives real playback. Apple Music browsing ships before its
+    /// playback, so that service shows a calm placeholder and never starts the Spotify player.
+    let playbackMode: BrowserPlaybackMode
+    /// `false` hides Disconnect (toolbar, palette): Apple Music access is a system permission,
+    /// and switching services belongs to the service switcher (#373).
+    let canDisconnect: Bool
 
     private func requestCreatePlaylist(_ rows: [TrackRowViewModel]) {
         newPlaylistInitialRows = rows
@@ -71,7 +77,9 @@ struct PlaylistBrowserView: View {
         playbackHost: SpotiglassPlaybackHost,
         catalogProvider: any MusicBrowsingProvider,
         commandPaletteManager: CommandPaletteManager,
-        signOut: @escaping () -> Void
+        signOut: @escaping () -> Void,
+        playbackMode: BrowserPlaybackMode = .live,
+        canDisconnect: Bool = true
     ) {
         let playbackViewModel = playbackHost.playbackViewModel
         let queueViewModel = QueueViewModel(
@@ -85,6 +93,8 @@ struct PlaylistBrowserView: View {
         _commandPaletteManager = ObservedObject(wrappedValue: commandPaletteManager)
         self.catalogProvider = catalogProvider
         self.signOut = signOut
+        self.playbackMode = playbackMode
+        self.canDisconnect = canDisconnect
     }
 
     /// Where you are, falling back to the app name at the root.
@@ -155,13 +165,18 @@ struct PlaylistBrowserView: View {
                     )
                 }
             }
-            PlaybackControlsView(
-                viewModel: playbackViewModel,
-                isLyricsPresented: isLyricsPresentedBinding,
-                openArtist: { target in
-                    openArtistFromTapTarget(target)
-                }
-            )
+            switch playbackMode {
+            case .live:
+                PlaybackControlsView(
+                    viewModel: playbackViewModel,
+                    isLyricsPresented: isLyricsPresentedBinding,
+                    openArtist: { target in
+                        openArtistFromTapTarget(target)
+                    }
+                )
+            case let .comingSoon(message):
+                PlaybackComingSoonBar(message: message)
+            }
         }
     }
 
@@ -247,13 +262,15 @@ struct PlaylistBrowserView: View {
                     )
                     .accessibilityHint(SpotiglassL10n.string("browser.queue.hint"))
 
-                    Button {
-                        isConfirmingDisconnect = true
-                    } label: {
-                        Label(SpotiglassL10n.string("browser.disconnect"), systemImage: "xmark.circle")
+                    if canDisconnect {
+                        Button {
+                            isConfirmingDisconnect = true
+                        } label: {
+                            Label(SpotiglassL10n.string("browser.disconnect"), systemImage: "xmark.circle")
+                        }
+                        .help(SpotiglassL10n.string("browser.disconnect"))
+                        .accessibilityHint(SpotiglassL10n.string("browser.disconnect.hint"))
                     }
-                    .help(SpotiglassL10n.string("browser.disconnect"))
-                    .accessibilityHint(SpotiglassL10n.string("browser.disconnect.hint"))
                 }
                 ToolbarItem(placement: .primaryAction) {
                     unifiedRefreshToolbarButton
@@ -280,6 +297,7 @@ struct PlaylistBrowserView: View {
             await viewModel.loadIfNeeded()
         }
         .task {
+            guard playbackMode == .live else { return }
             playbackViewModel.start(recoveryCause: .startupTask)
         }
         .task {

@@ -21,6 +21,7 @@ struct CommandPaletteArtistAvatar: View {
                 Image(systemName: fallbackSystemName)
                     .font(SpotiglassDesign.Typography.commandPaletteArtworkFallback)
                     .foregroundStyle(.secondary)
+                MusicKitArtwork(url: imageURL, width: diameter, height: diameter)
             }
         }
         .frame(width: diameter, height: diameter)
@@ -58,6 +59,7 @@ struct CommandPaletteTrackArtwork: View {
                 Image(systemName: fallbackSystemName)
                     .font(SpotiglassDesign.Typography.commandPaletteArtworkFallback)
                     .foregroundStyle(.secondary)
+                MusicKitArtwork(url: imageURL, width: side, height: side)
             }
         }
         .frame(width: side, height: side)

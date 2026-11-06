@@ -251,7 +251,8 @@ final class PlaylistBrowserViewModel: ObservableObject {
     }
 }
 
-private struct DisabledSpotifyBrowsingCache: SpotifyBrowsingCache {
+/// Used when the on-disk cache cannot be created; every read misses.
+struct DisabledSpotifyBrowsingCache: SpotifyBrowsingCache {
     func loadPlaylistsBundle(now: Date) throws -> (playlists: [MusicPlaylistSummary], age: TimeInterval)? { nil }
     func savePlaylists(_ playlists: [MusicPlaylistSummary], cachedAt: Date) throws {}
     func loadTracks(playlistID: String, snapshotID: String, now: Date, maxAge: TimeInterval) throws -> [MusicPlaylistTrackItem]? { nil }

@@ -1,15 +1,18 @@
 import AppKit
+import MusicKit
 import SwiftUI
 
 struct ArtworkView: View {
     let url: URL?
     let size: CGFloat
+    /// The item's pin ID, for Apple Music library covers saved with an expired URL.
+    var artworkKey: String? = nil
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Group {
             if let url {
-                CachedArtworkImage(url: url, size: size)
+                CachedArtworkImage(url: url, size: size, artworkKey: artworkKey)
             } else {
                 ArtworkPlaceholderContent(state: .none, size: size)
             }
@@ -29,12 +32,13 @@ struct ArtworkView: View {
 struct CircularArtworkView: View {
     let url: URL?
     let size: CGFloat
+    var artworkKey: String? = nil
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Group {
             if let url {
-                CachedArtworkImage(url: url, size: size)
+                CachedArtworkImage(url: url, size: size, artworkKey: artworkKey)
             } else {
                 ArtworkPlaceholderContent(state: .none, size: size)
             }
@@ -78,6 +82,9 @@ enum ArtworkPlaceholderState: Equatable {
 struct ArtworkPlaceholderContent: View {
     let state: ArtworkPlaceholderState
     let size: CGFloat
+    /// `false` when real artwork is drawn on top of the placeholder: then the placeholder must not
+    /// say "No artwork" in a tooltip or to VoiceOver while a cover is visible.
+    var describesState = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Below this the artwork is a thumbnail in a dense list, where a spinner is
@@ -96,17 +103,52 @@ struct ArtworkPlaceholderContent: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            .help(SpotiglassL10n.string(state.helpKey))
-            .accessibilityLabel(SpotiglassL10n.string(state.helpKey))
+            .help(describesState ? SpotiglassL10n.string(state.helpKey) : "")
+            .accessibilityLabel(describesState ? SpotiglassL10n.string(state.helpKey) : "")
+            .accessibilityHidden(!describesState)
+    }
+}
+
+/// Draws Apple Music library artwork (`musicKit://` URLs registered in
+/// ``AppleMusicArtworkRegistry``) with MusicKit's own view. Draws nothing for any other URL, so
+/// callers layer it over their placeholder.
+struct MusicKitArtwork: View {
+    let url: URL?
+    let width: CGFloat
+    let height: CGFloat
+    /// A pin's ID: pins keep last session's URL, which MusicKit no longer knows.
+    var itemKey: String? = nil
+
+    var body: some View {
+        if let url, AppleMusicArtworkRegistry.needsMusicKit(url),
+            let artwork = AppleMusicArtworkRegistry.shared.artwork(for: url, itemKey: itemKey)
+        {
+            ArtworkImage(artwork, width: width, height: height)
+        }
     }
 }
 
 private struct CachedArtworkImage: View {
     let url: URL
     let size: CGFloat
+    var artworkKey: String? = nil
     @StateObject private var artworkLoader = ArtworkImageLoader()
 
     var body: some View {
+        if AppleMusicArtworkRegistry.needsMusicKit(url) {
+            // Apple Music library artwork: only MusicKit can draw it.
+            // MusicKit draws nothing for artwork it can't load (e.g. songs that only live in the
+            // cloud library), so the placeholder underneath shows through.
+            ZStack {
+                ArtworkPlaceholderContent(state: .none, size: size, describesState: false)
+                MusicKitArtwork(url: url, width: size, height: size, itemKey: artworkKey)
+            }
+        } else {
+            downloadedArtwork
+        }
+    }
+
+    private var downloadedArtwork: some View {
         Group {
             if let image = artworkLoader.image {
                 Image(nsImage: image)

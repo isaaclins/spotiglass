@@ -165,6 +165,28 @@ final class CommandPaletteManagerTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(signedInCount, signedOutCount)
     }
 
+    /// Apple Music browsing has no Disconnect and no player yet, so it leaves those handlers
+    /// unwired. The palette must not list commands that would do nothing; Spotify wires both.
+    func testDisconnectAndConnectPlaybackAreListedOnlyWhenWired() {
+        let manager = CommandPaletteManager()
+        manager.isSignedIn = true
+        func ids() -> Set<String> { Set(manager.viewModel.staticItemsProvider().map(\.id)) }
+
+        let gated = [
+            CommandPaletteCommandID.signOut,
+            CommandPaletteCommandID.connectPlayback,
+            CommandPaletteCommandID.nextTrack,
+            CommandPaletteCommandID.previousTrack,
+        ]
+        XCTAssertTrue(ids().isDisjoint(with: gated))
+
+        manager.signOut = {}
+        manager.connectPlayback = {}
+        manager.nextTrack = {}
+        manager.previousTrack = {}
+        XCTAssertTrue(ids().isSuperset(of: gated))
+    }
+
     func testLyricsCommandRequiresCurrentMusicTrack() {
         let manager = CommandPaletteManager()
         manager.isSignedIn = true

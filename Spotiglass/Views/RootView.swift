@@ -188,6 +188,11 @@ struct RootView: View {
     private let sceneRegistry: SpotiglassSceneRegistry?
     /// The app-scoped playback model and its single Web Playback SDK host.
     private let playbackHost: SpotiglassPlaybackHost
+    /// Which service this scene browses; Spotify unless the hidden developer switch says otherwise.
+    private let musicService: MusicService
+    /// Apple Music permission state, shared app-wide with the menu bar. Only consulted when
+    /// ``musicService`` is `.appleMusic`.
+    @ObservedObject private var appleMusicSession: AppleMusicSession
     @Environment(\.openSettings) private var openSettingsAction
 
     private var commandPaletteManager: CommandPaletteManager {
@@ -207,12 +212,15 @@ struct RootView: View {
         _sceneHost = StateObject(wrappedValue: SpotiglassSceneHost(commandPaletteManager: commandPaletteManager))
         sceneRegistry = nil
         self.playbackHost = playbackHost
+        musicService = .spotify
+        _appleMusicSession = ObservedObject(wrappedValue: AppleMusicSession())
     }
 
     init(
         keymapStore: CommandPaletteKeymapStore,
         sceneRegistry: SpotiglassSceneRegistry,
-        playbackHost: SpotiglassPlaybackHost
+        playbackHost: SpotiglassPlaybackHost,
+        appleMusicSession: AppleMusicSession
     ) {
         _sceneHost = StateObject(
             wrappedValue: SpotiglassSceneHost(
@@ -221,6 +229,8 @@ struct RootView: View {
         )
         self.sceneRegistry = sceneRegistry
         self.playbackHost = playbackHost
+        musicService = MusicServiceSelection.current
+        _appleMusicSession = ObservedObject(wrappedValue: appleMusicSession)
     }
 
     /// Clears all scene-local state before the shared auth state can replace a
@@ -245,6 +255,9 @@ struct RootView: View {
     private var signOutAction: () -> Void {
         let authViewModel = self.viewModel
         let prepareForAuthLoss = authLossPreparationAction
+        // Under Apple Music the browser supplies its own disconnect; this fallback must never
+        // sign the Spotify account out (and delete its Keychain item) behind the user's back.
+        guard musicService == .spotify else { return prepareForAuthLoss }
         return {
             prepareForAuthLoss()
             Task { await authViewModel.signOut() }
@@ -254,7 +267,8 @@ struct RootView: View {
     /// Callbacks this scene owns regardless of auth state. ``detach`` clears
     /// them, so every path that detaches has to be able to restore them.
     private func wireSceneCallbacks() {
-        commandPaletteManager.signOut = signOutAction
+        // Apple Music has no Disconnect: its access is a system permission.
+        commandPaletteManager.signOut = musicService == .spotify ? signOutAction : nil
         commandPaletteManager.openSettings = {
             openSettingsAction()
         }
@@ -315,6 +329,8 @@ struct RootView: View {
                 }
             }
             .task {
+                // Apple Music never reads the Spotify Keychain item.
+                guard musicService == .spotify else { return }
                 await viewModel.restoreSessionIfAvailable()
             }
             .onAppear {
@@ -356,6 +372,22 @@ struct RootView: View {
 
     @ViewBuilder
     private var content: some View {
+        switch musicService {
+        case .spotify:
+            spotifyContent
+        case .appleMusic:
+            AppleMusicBrowserRoot(
+                session: appleMusicSession,
+                playbackHost: playbackHost,
+                commandPaletteManager: commandPaletteManager,
+                prepareForReset: authLossPreparationAction,
+                rewireScene: { wireSceneCallbacks() }
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var spotifyContent: some View {
         switch viewModel.state {
         case .signedIn, .refreshing(.some):
             PlaylistBrowserView(

@@ -4,6 +4,57 @@ import XCTest
 
 @MainActor
 final class PlaylistBrowserCommandPaletteConfigurationTests: XCTestCase {
+    /// Apple Music browsing has no player yet. "Connect playback" (and its ⇧⌘K shortcut) must
+    /// not start the Spotify player behind it; Spotify keeps the command.
+    func testPlaybackAndDisconnectAreOnlyWiredWhenTheServiceHasThem() throws {
+        func wire(playbackAvailable: Bool, canDisconnect: Bool = true) -> CommandPaletteManager {
+            let viewModel = PlaylistBrowserViewModel(
+                api: MockBrowsingAPI(playlistResults: [], trackResults: [:]),
+                cache: MockBrowsingCache()
+            )
+            let playback = PlaybackSessionViewModel(
+                provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander())
+            )
+            let manager = CommandPaletteManager()
+            PlaylistBrowserCommandPaletteConfiguration.apply(
+                to: manager,
+                dependencies: .init(
+                    viewModel: viewModel,
+                    playbackViewModel: playback,
+                    queueViewModel: QueueViewModel(provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI()), playbackSession: playback),
+                    commandPaletteManager: manager,
+                    pinnedStore: PinnedItemsStore(cache: InMemoryPinnedItemsCache()),
+                    catalogProvider: MockBrowsingAPI(playlistResults: [], trackResults: [:]),
+                    signOut: {},
+                    syncUnifiedRefreshRouting: {},
+                    isPlaybackAvailable: playbackAvailable,
+                    canDisconnect: canDisconnect
+                ),
+                queueVisible: .constant(false),
+                lyricsPresented: .constant(false)
+            )
+            return manager
+        }
+        XCTAssertNotNil(wire(playbackAvailable: true).connectPlayback)
+        XCTAssertNil(wire(playbackAvailable: false).connectPlayback)
+        // Every transport command stays unwired without a player, so neither the palette nor a
+        // shortcut can reach the Spotify player.
+        let spotify = wire(playbackAvailable: true)
+        XCTAssertNotNil(spotify.nextTrack)
+        XCTAssertNotNil(spotify.playURI)
+        let noPlayer = wire(playbackAvailable: false)
+        XCTAssertNil(noPlayer.togglePlayback)
+        XCTAssertNil(noPlayer.nextTrack)
+        XCTAssertNil(noPlayer.previousTrack)
+        XCTAssertNil(noPlayer.seekBy)
+        XCTAssertNil(noPlayer.playURI)
+        XCTAssertNil(noPlayer.enqueueTrackSelection)
+        XCTAssertNil(noPlayer.toggleShuffle)
+        // No Disconnect for a service whose access is a system permission.
+        XCTAssertNotNil(wire(playbackAvailable: true).signOut)
+        XCTAssertNil(wire(playbackAvailable: false, canDisconnect: false).signOut)
+    }
+
     func testApplyWiresCallbacksWithoutHostingView() async throws {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "p1", name: "One")])],
