@@ -116,9 +116,7 @@ extension QueueViewModel {
             }
             return true
         } catch {
-            if let apiError = error as? SpotifyAPIError,
-                case .rateLimited(let retryAfter) = apiError
-            {
+            if case let .rateLimited(retryAfter) = MusicPlaybackError.from(error)?.reason {
                 let retryDelay = Self.retryDelay(
                     retryAfter: retryAfter,
                     minimumDelay: enqueueMinimumRetryDelay.timeInterval

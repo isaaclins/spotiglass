@@ -132,6 +132,7 @@ extension PlaybackSessionViewModel {
             }
             return false
         }
+        // Device transfer is Spotify Connect, so its own pacing errors are Spotify's.
         if let until = transferRetryCooldownUntil, clock.now < until {
             let remaining = max(Self.durationSeconds(until - clock.now), 0.5)
             throw SpotifyAPIError.rateLimited(retryAfter: remaining)
@@ -150,16 +151,16 @@ extension PlaybackSessionViewModel {
                 throw CancellationError()
             }
             SpotiglassLog.info(.playback, "transferPlayback PUT ok deviceID=\(deviceID) play=\(play)")
-        } catch let apiError as SpotifyAPIError {
+        } catch let transferError where MusicPlaybackError.from(transferError) != nil {
             guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else {
                 throw CancellationError()
             }
-            SpotiglassLog.error(.playback, "transferPlayback PUT failed deviceID=\(deviceID) play=\(play) error=\(apiError)")
-            if case let .rateLimited(retryAfter) = apiError {
+            SpotiglassLog.error(.playback, "transferPlayback PUT failed deviceID=\(deviceID) play=\(play) error=\(transferError)")
+            if case let .rateLimited(retryAfter) = MusicPlaybackError.from(transferError)?.reason {
                 let cooldown = retryAfter ?? Self.durationSeconds(transferDefaultCooldown)
                 transferRetryCooldownUntil = clock.now.advanced(by: .seconds(cooldown))
             }
-            throw apiError
+            throw transferError
         }
         guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else {
             throw CancellationError()
