@@ -27,6 +27,9 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
     /// The row at each queue position and where the added songs are (positions, because
     /// MusicKit's entry ids don't last); see ``AppleMusicQueueBook``.
     private var book = AppleMusicQueueBook()
+    /// Shuffle as last asked for. MusicKit drops its shuffle mode when the queue is replaced
+    /// (and before there is a queue), so every new queue gets it again.
+    private lazy var shuffleWanted = player.state.shuffleMode == .songs
 
     func isAuthorized() -> Bool {
         MusicAuthorization.currentStatus == .authorized
@@ -61,6 +64,7 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         }
         book.replace(with: resolved.map { AppleMusicQueueBook.Row(uri: $0.uri, title: $0.entry.title) })
         player.queue = ApplicationMusicPlayer.Queue(resolved.map(\.entry), startingAt: start)
+        applyShuffle()
         try await Self.mapped { try await self.player.play() }
     }
 
@@ -89,9 +93,16 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
     }
 
     func setShuffle(_ enabled: Bool) {
+        shuffleWanted = enabled
+        applyShuffle()
+    }
+
+    private func applyShuffle() {
+        let mode: MusicPlayer.ShuffleMode = shuffleWanted ? .songs : .off
+        guard player.state.shuffleMode != mode else { return }
         // Positions hold until shuffle reorders the queue: note each entry's row by id first.
         noteEntries()
-        player.state.shuffleMode = enabled ? .songs : .off
+        player.state.shuffleMode = mode
         book.forgetPositions()
     }
 
