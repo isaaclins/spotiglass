@@ -228,14 +228,16 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         func paging(_ count: Int) -> MusicSearchPaging {
             MusicSearchPaging(total: offset + count + (next == nil ? 0 : pageLimit), next: next)
         }
+        // The match key says "same recording" across library and catalog, whose IDs differ.
+        // A clean and an explicit version share title and artist, so the rating is part of it.
         let tracks = Self.merged(libraryItems.songs, catalogItems.songs, limit: limit, id: { $0.id.rawValue }) {
-            "\($0.title)|\($0.artistName)".lowercased()
+            "\($0.title)|\($0.artistName)|\($0.contentRating == .explicit)".lowercased()
         }
         let artists = Self.merged(libraryItems.artists, catalogItems.artists, limit: limit, id: { $0.id.rawValue }) {
             $0.name.lowercased()
         }
         let albums = Self.merged(libraryItems.albums, catalogItems.albums, limit: limit, id: { $0.id.rawValue }) {
-            "\($0.title)|\($0.artistName)".lowercased()
+            "\($0.title)|\($0.artistName)|\($0.contentRating == .explicit)".lowercased()
         }
         let playlists = Self.merged(libraryItems.playlists, catalogItems.playlists, limit: limit, id: { $0.id.rawValue }) {
             $0.id.rawValue

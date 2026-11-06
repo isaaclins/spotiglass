@@ -172,13 +172,19 @@ final class CommandPaletteManagerTests: XCTestCase {
         manager.isSignedIn = true
         func ids() -> Set<String> { Set(manager.viewModel.staticItemsProvider().map(\.id)) }
 
-        XCTAssertFalse(ids().contains(CommandPaletteCommandID.signOut))
-        XCTAssertFalse(ids().contains(CommandPaletteCommandID.connectPlayback))
+        let gated = [
+            CommandPaletteCommandID.signOut,
+            CommandPaletteCommandID.connectPlayback,
+            CommandPaletteCommandID.nextTrack,
+            CommandPaletteCommandID.previousTrack,
+        ]
+        XCTAssertTrue(ids().isDisjoint(with: gated))
 
         manager.signOut = {}
         manager.connectPlayback = {}
-        XCTAssertTrue(ids().contains(CommandPaletteCommandID.signOut))
-        XCTAssertTrue(ids().contains(CommandPaletteCommandID.connectPlayback))
+        manager.nextTrack = {}
+        manager.previousTrack = {}
+        XCTAssertTrue(ids().isSuperset(of: gated))
     }
 
     func testLyricsCommandRequiresCurrentMusicTrack() {

@@ -393,6 +393,22 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         XCTAssertEqual(results.tracksPaging?.total, 2)
     }
 
+    /// The library holds the clean version; the catalog has both. Only the catalog copy of the
+    /// clean one is the same recording, so the explicit version must stay.
+    func testALibraryMatchOnlyHidesTheSameVersion() async throws {
+        let source = MockAppleMusicSource()
+        source.librarySearchItems = AppleMusicSearchItems(songs: [
+            try AppleMusicFixtures.song(id: "i.1", title: "Song", artist: "A", explicit: false),
+        ])
+        source.catalogSearchItems = AppleMusicSearchItems(songs: [
+            try AppleMusicFixtures.song(id: "1", title: "Song", artist: "A", explicit: false),
+            try AppleMusicFixtures.song(id: "2", title: "Song", artist: "A", explicit: true),
+        ])
+        let results = try await AppleMusicBrowsingProvider(source: source).search(query: "song", limit: 10)
+
+        XCTAssertEqual(results.tracks.map(\.id), ["i.1", "2"])
+    }
+
     /// MusicKit loads an artist's albums and an album's tracks one batch at a time; the
     /// provider must ask the source for all of them, not stop at the first batch.
     func testArtistAlbumsAndAlbumTracksGoPastTheFirstBatch() async throws {

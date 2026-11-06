@@ -38,6 +38,19 @@ final class PlaylistBrowserCommandPaletteConfigurationTests: XCTestCase {
         }
         XCTAssertNotNil(wire(playbackAvailable: true).connectPlayback)
         XCTAssertNil(wire(playbackAvailable: false).connectPlayback)
+        // Every transport command stays unwired without a player, so neither the palette nor a
+        // shortcut can reach the Spotify player.
+        let spotify = wire(playbackAvailable: true)
+        XCTAssertNotNil(spotify.nextTrack)
+        XCTAssertNotNil(spotify.playURI)
+        let noPlayer = wire(playbackAvailable: false)
+        XCTAssertNil(noPlayer.togglePlayback)
+        XCTAssertNil(noPlayer.nextTrack)
+        XCTAssertNil(noPlayer.previousTrack)
+        XCTAssertNil(noPlayer.seekBy)
+        XCTAssertNil(noPlayer.playURI)
+        XCTAssertNil(noPlayer.enqueueTrackSelection)
+        XCTAssertNil(noPlayer.toggleShuffle)
         // No Disconnect for a service whose access is a system permission.
         XCTAssertNotNil(wire(playbackAvailable: true).signOut)
         XCTAssertNil(wire(playbackAvailable: false, canDisconnect: false).signOut)

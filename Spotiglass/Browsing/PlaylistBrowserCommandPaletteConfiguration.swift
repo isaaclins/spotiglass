@@ -126,6 +126,21 @@ enum PlaylistBrowserCommandPaletteConfiguration {
         manager.playURI = { [weak playback = dependencies.playbackViewModel] uri in
             await playback?.play(uri: uri)
         }
+        if !dependencies.isPlaybackAvailable {
+            // No player for this service yet (Apple Music browsing): none of the transport
+            // commands may reach the Spotify player behind it, from the palette, a shortcut or
+            // the menu. The palette also hides the ones it lists.
+            manager.togglePlayback = nil
+            manager.nextTrack = nil
+            manager.previousTrack = nil
+            manager.disconnectPlayback = nil
+            manager.toggleShuffle = nil
+            manager.cycleRepeat = nil
+            manager.setRepeatModeAction = nil
+            manager.enqueueTrackSelection = nil
+            manager.seekBy = nil
+            manager.playURI = nil
+        }
         manager.openPlaylist = { [weak viewModel = dependencies.viewModel] playlistID in
             await viewModel?.selectPlaylist(id: playlistID, origin: .reset)
         }
