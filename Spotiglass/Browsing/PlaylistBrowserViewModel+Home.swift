@@ -52,7 +52,7 @@ extension PlaylistBrowserViewModel {
     func reloadHomeSections(forceRefresh: Bool = false) async {
         homeFeedGeneration += 1
         let generation = homeFeedGeneration
-        let cacheMode: SpotifyRequestCacheMode = forceRefresh ? .bypassCache : .freshOnly
+        let cacheMode: MusicRequestCacheMode = forceRefresh ? .bypassCache : .freshOnly
         homeRecentlyPlayed = .loading
         homeTopTracks = .loading
         homeTopTrackData = []
@@ -63,7 +63,7 @@ extension PlaylistBrowserViewModel {
 
     private func loadHomeRecentlyPlayed(
         generation: Int,
-        cacheMode: SpotifyRequestCacheMode
+        cacheMode: MusicRequestCacheMode
     ) async {
         do {
             let tracks = try await api.recentlyPlayedTracks(limit: 50, cacheMode: cacheMode)
@@ -85,12 +85,12 @@ extension PlaylistBrowserViewModel {
 
     private func loadHomeTopTracks(
         generation: Int,
-        cacheMode: SpotifyRequestCacheMode
+        cacheMode: MusicRequestCacheMode
     ) async {
         do {
             let tracks = try await api.topTracks(
                 limit: 20,
-                timeRange: "short_term",
+                timeRange: .shortTerm,
                 cacheMode: cacheMode
             )
             guard generation == homeFeedGeneration else { return }

@@ -44,7 +44,7 @@ final class PlaylistBrowserViewModel: ObservableObject {
     @Published internal(set) var homeTopTracks: HomeSectionState<[TrackRowViewModel]> = .loading
     /// Raw top tracks retained alongside the display rows so library continuation
     /// can use the already-loaded Home response without another request.
-    var homeTopTrackData: [SpotifyTrack] = []
+    var homeTopTrackData: [MusicTrack] = []
     /// Generation token so a stale home section load can't overwrite a newer one.
     var homeFeedGeneration = 0
     @Published internal(set) var canNavigateBack = false
@@ -87,7 +87,7 @@ final class PlaylistBrowserViewModel: ObservableObject {
         }
     }
 
-    let api: SpotifyBrowsingAPI
+    let api: MusicBrowsingProvider
     let cache: SpotifyBrowsingCache
     /// Optional live scope source used to stop a mutation before it reaches
     /// Spotify. Mocks and catalog-only previews can omit it.
@@ -106,10 +106,10 @@ final class PlaylistBrowserViewModel: ObservableObject {
     let artistDetailCacheTTL: TimeInterval
     /// Number of artist album pages to load initially before exposing "Load more".
     let initialArtistAlbumPageCount: Int
-    internal(set) var playlistsByID: [String: SpotifyPlaylistSummary] = [:]
+    internal(set) var playlistsByID: [String: MusicPlaylistSummary] = [:]
     /// Catalog and pinned summaries are kept separately from the signed-in
     /// library so external public playlists can still use the normal loader.
-    internal(set) var knownPlaylistSummariesByID: [String: SpotifyPlaylistSummary] = [:]
+    internal(set) var knownPlaylistSummariesByID: [String: MusicPlaylistSummary] = [:]
     var hasLoaded = false
     var detailSession = 0
     var detailLoadTask: Task<Void, Never>?
@@ -117,11 +117,11 @@ final class PlaylistBrowserViewModel: ObservableObject {
     var adjacentPlaylistSelectionTask: Task<Void, Never>?
     var pendingAdjacentPlaylistOffset: Int = 0
     var lastTracksRevalidationByID: [String: (snapshotID: String, at: Date)] = [:]
-    var inFlightPlaylistListRefreshTask: Task<([SpotifyPlaylistSummary], SpotifyUserProfile), Error>?
+    var inFlightPlaylistListRefreshTask: Task<([MusicPlaylistSummary], MusicUserProfile), Error>?
     var playlistListRefreshGeneration = 0
     var lastManualPlaylistRefreshAt: Date?
     /// Collapses concurrent liked-songs refresh triggers into one network run.
-    var likedSongsRevalidationTask: Task<SpotifySavedTracksResult, Error>?
+    var likedSongsRevalidationTask: Task<MusicSavedTracksResult, Error>?
     var likedSongsRevalidationTaskGeneration: Int?
     /// Prevents a pre-mutation response from repopulating the virtual cache.
     var likedSongsMutationGeneration = 0
@@ -150,9 +150,9 @@ final class PlaylistBrowserViewModel: ObservableObject {
     let maxBackNavigationDepth = 40
 
     struct ArtistDetailSnapshot {
-        let artistDetail: SpotifyArtistDetail
-        let albums: [SpotifyArtistAlbum]
-        let tracks: [SpotifyTrack]
+        let artistDetail: MusicArtistDetail
+        let albums: [MusicArtistAlbum]
+        let tracks: [MusicTrack]
         let usedStaleCache: Bool
         let paging: ArtistAlbumsPagingState?
     }
@@ -164,12 +164,12 @@ final class PlaylistBrowserViewModel: ObservableObject {
 
     struct ArtistAlbumsPagingState {
         let artistID: String
-        let includeGroups: String
+        let includeGroups: [MusicArtistAlbumGroup]
         let limit: Int
         var nextURL: URL?
         var nextOffset: Int
-        var albums: [SpotifyArtistAlbum]
-        let tracks: [SpotifyTrack]
+        var albums: [MusicArtistAlbum]
+        let tracks: [MusicTrack]
         var isLoading = false
         var seenNextURLs: Set<String> = []
     }
@@ -179,7 +179,7 @@ final class PlaylistBrowserViewModel: ObservableObject {
     }
 
     init(
-        api: SpotifyBrowsingAPI,
+        api: MusicBrowsingProvider,
         cache: SpotifyBrowsingCache,
         scopeProvider: (any SpotifyScopeProviding)? = nil,
         now: @escaping () -> Date = Date.init,
@@ -252,10 +252,10 @@ final class PlaylistBrowserViewModel: ObservableObject {
 }
 
 private struct DisabledSpotifyBrowsingCache: SpotifyBrowsingCache {
-    func loadPlaylistsBundle(now: Date) throws -> (playlists: [SpotifyPlaylistSummary], age: TimeInterval)? { nil }
-    func savePlaylists(_ playlists: [SpotifyPlaylistSummary], cachedAt: Date) throws {}
-    func loadTracks(playlistID: String, snapshotID: String, now: Date, maxAge: TimeInterval) throws -> [SpotifyPlaylistTrackItem]? { nil }
-    func loadTracksIgnoringAge(playlistID: String, snapshotID: String) throws -> [SpotifyPlaylistTrackItem]? { nil }
-    func saveTracks(_ tracks: [SpotifyPlaylistTrackItem], playlistID: String, snapshotID: String, cachedAt: Date) throws {}
+    func loadPlaylistsBundle(now: Date) throws -> (playlists: [MusicPlaylistSummary], age: TimeInterval)? { nil }
+    func savePlaylists(_ playlists: [MusicPlaylistSummary], cachedAt: Date) throws {}
+    func loadTracks(playlistID: String, snapshotID: String, now: Date, maxAge: TimeInterval) throws -> [MusicPlaylistTrackItem]? { nil }
+    func loadTracksIgnoringAge(playlistID: String, snapshotID: String) throws -> [MusicPlaylistTrackItem]? { nil }
+    func saveTracks(_ tracks: [MusicPlaylistTrackItem], playlistID: String, snapshotID: String, cachedAt: Date) throws {}
     func invalidateTracks(playlistID: String) throws {}
 }

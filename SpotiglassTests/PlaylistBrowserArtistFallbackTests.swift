@@ -9,13 +9,13 @@ final class PlaylistBrowserArtistFallbackTests: XCTestCase {
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
             trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]],
             searchHandler: { _, _ in
-                SpotifySearchResults(
+                MusicSearchResults(
                     tracks: [
-                        SpotifyTrack(
+                        MusicTrack(
                             id: "search-hit",
                             name: "Search Hit",
                             artists: ["Artist artist-xyz"],
-                            artistRefs: [SpotifyArtistRef(id: "artist-xyz", name: "Artist artist-xyz")],
+                            artistRefs: [MusicArtistRef(id: "artist-xyz", name: "Artist artist-xyz")],
                             albumArtworkURL: nil,
                             durationMilliseconds: 100_000,
                             isExplicit: false,
@@ -50,7 +50,7 @@ final class PlaylistBrowserArtistFallbackTests: XCTestCase {
                 throw CancellationError()
             },
             artistAlbumsHandler: { _, _, _ in
-                [SpotifyArtistAlbum(
+                [MusicArtistAlbum(
                     id: "album-1",
                     name: "Album",
                     imageURL: nil,
@@ -80,12 +80,12 @@ final class PlaylistBrowserArtistFallbackTests: XCTestCase {
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
             trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]],
             searchHandler: { _, _ in
-                SpotifySearchResults(tracks: [], artists: [], albums: [], playlists: [])
+                MusicSearchResults(tracks: [], artists: [], albums: [], playlists: [])
             },
             artistAlbumsHandler: { _, _, _ in
                 [
-                    SpotifyArtistAlbum(id: "album-new", name: "New", imageURL: nil, releaseYear: "2024", totalTracks: 1, group: .album, uri: "spotify:album:album-new"),
-                    SpotifyArtistAlbum(id: "album-old", name: "Old", imageURL: nil, releaseYear: "2023", totalTracks: 1, group: .album, uri: "spotify:album:album-old")
+                    MusicArtistAlbum(id: "album-new", name: "New", imageURL: nil, releaseYear: "2024", totalTracks: 1, group: .album, uri: "spotify:album:album-new"),
+                    MusicArtistAlbum(id: "album-old", name: "Old", imageURL: nil, releaseYear: "2023", totalTracks: 1, group: .album, uri: "spotify:album:album-old")
                 ]
             },
             albumTracksHandler: { albumID, _, limit in
@@ -127,10 +127,10 @@ final class PlaylistBrowserArtistFallbackTests: XCTestCase {
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
             trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]],
             searchHandler: { _, _ in
-                SpotifySearchResults(tracks: [], artists: [], albums: [], playlists: [])
+                MusicSearchResults(tracks: [], artists: [], albums: [], playlists: [])
             },
             artistAlbumsHandler: { _, _, _ in
-                [SpotifyArtistAlbum(
+                [MusicArtistAlbum(
                     id: "album-one",
                     name: "Album",
                     imageURL: nil,
@@ -161,10 +161,10 @@ final class PlaylistBrowserArtistFallbackTests: XCTestCase {
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
             trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]],
             searchHandler: { _, _ in
-                SpotifySearchResults(tracks: [], artists: [], albums: [], playlists: [])
+                MusicSearchResults(tracks: [], artists: [], albums: [], playlists: [])
             },
             artistAlbumsHandler: { _, _, _ in
-                [SpotifyArtistAlbum(
+                [MusicArtistAlbum(
                     id: "album-1",
                     name: "Album",
                     imageURL: nil,
@@ -227,7 +227,7 @@ final class PlaylistBrowserArtistFallbackTests: XCTestCase {
             Self.fallbackTrack(id: "no-art", name: "No Art", albumArtworkURL: nil),
             Self.fallbackTrack(id: "own-art", name: "Own Art", albumArtworkURL: ownArtwork)
         ]
-        var collected: [SpotifyTrack] = []
+        var collected: [MusicTrack] = []
         var seen: Set<String> = []
 
         PlaylistBrowserViewModel.appendUniqueFallbackTracks(
@@ -249,7 +249,7 @@ final class PlaylistBrowserArtistFallbackTests: XCTestCase {
     }
 
     func testFallbackLeavesArtworkUnchangedWithoutAnAlbumImage() {
-        var collected: [SpotifyTrack] = []
+        var collected: [MusicTrack] = []
         var seen: Set<String> = []
 
         PlaylistBrowserViewModel.appendUniqueFallbackTracks(
@@ -283,12 +283,12 @@ final class PlaylistBrowserArtistFallbackTests: XCTestCase {
 
     // MARK: - Fixtures
 
-    private static func fallbackTrack(id: String, name: String, albumArtworkURL: URL?) -> SpotifyTrack {
-        SpotifyTrack(
+    private static func fallbackTrack(id: String, name: String, albumArtworkURL: URL?) -> MusicTrack {
+        MusicTrack(
             id: id,
             name: name,
             artists: ["Artist"],
-            artistRefs: [SpotifyArtistRef(id: "artist-1", name: "Artist")],
+            artistRefs: [MusicArtistRef(id: "artist-1", name: "Artist")],
             albumArtworkURL: albumArtworkURL,
             durationMilliseconds: 123_000,
             isExplicit: false,
@@ -298,8 +298,8 @@ final class PlaylistBrowserArtistFallbackTests: XCTestCase {
         )
     }
 
-    private static func fallbackAlbum(id: String, name: String, year: String, totalTracks: Int) -> SpotifyArtistAlbum {
-        SpotifyArtistAlbum(
+    private static func fallbackAlbum(id: String, name: String, year: String, totalTracks: Int) -> MusicArtistAlbum {
+        MusicArtistAlbum(
             id: id,
             name: name,
             imageURL: nil,

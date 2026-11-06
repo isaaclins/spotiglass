@@ -5,12 +5,12 @@ import XCTest
 
 @MainActor
 final class PlaylistBrowserHomeFeedTests: XCTestCase {
-    private func recentlyPlayedTrack(id: String, albumID: String, albumName: String) -> SpotifyTrack {
-        SpotifyTrack(
+    private func recentlyPlayedTrack(id: String, albumID: String, albumName: String) -> MusicTrack {
+        MusicTrack(
             id: id,
             name: "Track \(id)",
             artists: ["Artist"],
-            artistRefs: [SpotifyArtistRef(id: "ar", name: "Artist")],
+            artistRefs: [MusicArtistRef(id: "ar", name: "Artist")],
             albumArtworkURL: nil,
             albumName: albumName,
             albumID: albumID,

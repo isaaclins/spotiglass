@@ -6,10 +6,10 @@ extension PlaylistBrowserViewModel {
     /// load stays bounded.
     func resolveArtistTracks(
         artistId: String,
-        artist: SpotifyArtistDetail,
-        albums: [SpotifyArtistAlbum],
+        artist: MusicArtistDetail,
+        albums: [MusicArtistAlbum],
         market: String?
-    ) async throws -> [SpotifyTrack] {
+    ) async throws -> [MusicTrack] {
         do {
             let sanitizedName = artist.name.replacingOccurrences(of: "\"", with: "")
             let query = "artist:\"\(sanitizedName)\""
@@ -41,7 +41,7 @@ extension PlaylistBrowserViewModel {
             }
         }
 
-        var collected: [SpotifyTrack] = []
+        var collected: [MusicTrack] = []
         var seenTrackIdentityKeys: Set<String> = []
         var lastFailure: Error?
         for album in selectedAlbums {
@@ -81,9 +81,9 @@ extension PlaylistBrowserViewModel {
     /// Appends up to `limit - collected.count` deduped tracks from `source` into `collected`,
     /// patching `albumArtworkURL` from the album row when the embedded track was missing artwork.
     static func appendUniqueFallbackTracks(
-        from source: [SpotifyTrack],
+        from source: [MusicTrack],
         albumArtworkFallback: URL?,
-        into collected: inout [SpotifyTrack],
+        into collected: inout [MusicTrack],
         seen: inout Set<String>,
         limit: Int
     ) {
@@ -92,9 +92,9 @@ extension PlaylistBrowserViewModel {
             let identityKeys = PinnedItem.trackIdentityKeys(for: track)
             guard !identityKeys.isEmpty, seen.isDisjoint(with: identityKeys) else { continue }
             seen.formUnion(identityKeys)
-            let withArt: SpotifyTrack
+            let withArt: MusicTrack
             if track.albumArtworkURL == nil, let url = albumArtworkFallback {
-                withArt = SpotifyTrack(
+                withArt = MusicTrack(
                     id: track.id,
                     name: track.name,
                     artists: track.artists,
@@ -116,7 +116,7 @@ extension PlaylistBrowserViewModel {
     }
 
     /// Latest album and single releases first (by four-digit year when present).
-    static func albumsForTrackFallback(from albums: [SpotifyArtistAlbum], maxCount: Int = 6) -> [SpotifyArtistAlbum] {
+    static func albumsForTrackFallback(from albums: [MusicArtistAlbum], maxCount: Int = 6) -> [MusicArtistAlbum] {
         let deduped = Self.dedupeAlbums(albums).filter { $0.group == .album || $0.group == .single }
         let sorted = deduped.sorted { lhs, rhs in
             let ly = Int(lhs.releaseYear ?? "") ?? 0

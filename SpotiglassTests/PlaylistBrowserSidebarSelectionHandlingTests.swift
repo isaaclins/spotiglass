@@ -38,7 +38,7 @@ final class PlaylistBrowserSidebarSelectionHandlingTests: XCTestCase {
 
     func testActivatePinnedPlaylistSelectsSidebar() async {
         var selectedPlaylist: String?
-        var selectedSummary: SpotifyPlaylistSummary?
+        var selectedSummary: MusicPlaylistSummary?
         var markedStale: (String, Bool)?
         await PlaylistBrowserSidebarSelectionHandling.activatePinnedItem(
             PinnedItem.playlist(PlaylistBrowsingTestFixtures.playlist(id: "p1", name: "One")),
@@ -93,7 +93,7 @@ final class PlaylistBrowserSidebarSelectionHandlingTests: XCTestCase {
 
     private func makeCallbacks(
         setSidebarSelection: @escaping (SidebarSelection?) -> Void = { _ in },
-        selectSidebarPlaylist: @escaping (SpotifyPlaylistSummary) async -> Void = { _ in },
+        selectSidebarPlaylist: @escaping (MusicPlaylistSummary) async -> Void = { _ in },
         selectArtist: @escaping (String, BrowserNavigationOrigin, String?) async -> Void = { _, _, _ in },
         selectAlbum: @escaping (String, String, String, URL?, BrowserNavigationOrigin) async -> Void = { _, _, _, _, _ in },
         playURI: @escaping (String) async -> Void = { _ in },

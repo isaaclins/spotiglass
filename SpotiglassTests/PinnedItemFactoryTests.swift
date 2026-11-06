@@ -4,7 +4,7 @@ import XCTest
 final class PinnedItemFactoryTests: XCTestCase {
 
     func testPlaylistFactoryUsesPlaylistKindAndStableID() {
-        let playlist = SpotifyPlaylistSummary(
+        let playlist = MusicPlaylistSummary(
             id: "p1", name: "My Mix",
                 ownerID: "test-owner", ownerName: "Bob",
             imageURL: URL(string: "https://x/p.jpg"), trackCount: 12,
@@ -21,7 +21,7 @@ final class PinnedItemFactoryTests: XCTestCase {
     }
 
     func testArtistDetailFactory() {
-        let detail = SpotifyArtistDetail(
+        let detail = MusicArtistDetail(
             id: "a1", name: "Artist One",
             imageURL: URL(string: "https://x/a.jpg"),
             followersTotal: 100, genres: ["rock"],
@@ -36,7 +36,7 @@ final class PinnedItemFactoryTests: XCTestCase {
     }
 
     func testArtistLightFactory() {
-        let a = SpotifyArtist(id: "a2", name: "Lighter", imageURL: nil, uri: "spotify:artist:a2")
+        let a = MusicArtist(id: "a2", name: "Lighter", imageURL: nil, uri: "spotify:artist:a2")
         let pin = PinnedItem.artist(a)
         XCTAssertEqual(pin.kind, .artist)
         XCTAssertEqual(pin.id, "artist:a2")
@@ -45,7 +45,7 @@ final class PinnedItemFactoryTests: XCTestCase {
     }
 
     func testArtistAlbumFactoryUsesReleaseYearOrFallback() {
-        let withYear = SpotifyArtistAlbum(
+        let withYear = MusicArtistAlbum(
             id: "al1", name: "Year Album", imageURL: nil,
             releaseYear: "2024", totalTracks: 10, group: .album,
             uri: "spotify:album:al1"
@@ -56,7 +56,7 @@ final class PinnedItemFactoryTests: XCTestCase {
         XCTAssertEqual(p1.subtitle, "2024")
         XCTAssertEqual(p1.spotifyURI, "spotify:album:al1")
 
-        let noYear = SpotifyArtistAlbum(
+        let noYear = MusicArtistAlbum(
             id: "al2", name: "No Year", imageURL: nil,
             releaseYear: nil, totalTracks: 4, group: .single,
             uri: "spotify:album:al2"
@@ -66,7 +66,7 @@ final class PinnedItemFactoryTests: XCTestCase {
     }
 
     func testSpotifyAlbumFactoryJoinsArtistsForSubtitle() {
-        let album = SpotifyAlbum(
+        let album = MusicAlbum(
             id: "al3", name: "Some Album",
             artists: ["A", "B", "C"], imageURL: nil,
             uri: "spotify:album:al3"
@@ -79,7 +79,7 @@ final class PinnedItemFactoryTests: XCTestCase {
     }
 
     func testTrackFactoryJoinsArtists() {
-        let track = SpotifyTrack(
+        let track = MusicTrack(
             id: "t1:7", name: "Song",
             artists: ["A", "B"], albumArtworkURL: URL(string: "https://x/t.jpg"),
             durationMilliseconds: 1000, isExplicit: false, isPlayable: true,

@@ -1,15 +1,27 @@
 import Foundation
 
-// App-facing Spotify library models used by browsing UI and playback context.
-// Wire-format decoding lives in `Services/SpotifyAPIModels.swift` (`*DTO`) and maps here via `domainModel()`.
+// Service-neutral library models used by browsing UI and playback context.
+//
+// Every music service maps its own wire format into these types. Spotify's
+// decoding lives in `Services/SpotifyDTOs+*.swift` (`*DTO`) and maps here via
+// `domainModel()`. A later Apple Music provider maps MusicKit items the same way.
+//
+// `id` is the service's own identifier and `uri` is a playback reference that
+// should only be interpreted by the owning service (for Spotify a
+// `spotify:track:...` URI). Not there yet: several browsing view models, views
+// and pins still check for the `spotify:track:` prefix (see "Music providers"
+// in docs/architecture.md).
+//
+// The type names changed from `Spotify*` to `Music*`, but the Codable shape did
+// not: playlist and track caches written by earlier builds keep decoding.
 
-struct SpotifyUserProfile: Codable, Equatable {
+struct MusicUserProfile: Codable, Equatable {
     let id: String
     let displayName: String?
     let country: String?
 }
 
-struct SpotifyPlaylistSummary: Codable, Equatable, Identifiable {
+struct MusicPlaylistSummary: Codable, Equatable, Identifiable {
     let id: String
     let name: String
     let ownerID: String
@@ -19,41 +31,41 @@ struct SpotifyPlaylistSummary: Codable, Equatable, Identifiable {
     let snapshotID: String
 }
 
-struct SpotifyPlaylistTrackItem: Codable, Equatable, Identifiable {
+struct MusicPlaylistTrackItem: Codable, Equatable, Identifiable {
     let id: String
-    let content: SpotifyPlaylistItemContent
+    let content: MusicPlaylistItemContent
 }
 
 /// One or more exact positions for a URI in a playlist mutation.
-struct SpotifyPlaylistTrackRemoval: Equatable {
+struct MusicPlaylistTrackRemoval: Equatable {
     let uri: String
     let positions: [Int]
 }
 
 /// Paged result from `GET /v1/me/tracks` (Liked Songs). `totalAvailable` is Spotify's total; `tracks` is complete unless a caller explicitly caps pagination.
-struct SpotifySavedTracksResult: Equatable {
-    let tracks: [SpotifyPlaylistTrackItem]
+struct MusicSavedTracksResult: Equatable {
+    let tracks: [MusicPlaylistTrackItem]
     let totalAvailable: Int
 }
 
-enum SpotifyPlaylistItemContent: Codable, Equatable {
-    case track(SpotifyTrack)
-    case episode(SpotifyEpisode)
-    case localTrack(SpotifyLocalTrack)
+enum MusicPlaylistItemContent: Codable, Equatable {
+    case track(MusicTrack)
+    case episode(MusicEpisode)
+    case localTrack(MusicLocalTrack)
     case unavailable(reason: String)
 }
 
-struct SpotifyArtistRef: Codable, Equatable, Identifiable {
+struct MusicArtistRef: Codable, Equatable, Identifiable {
     let id: String
     let name: String
 }
 
-struct SpotifyTrack: Equatable, Identifiable {
+struct MusicTrack: Equatable, Identifiable {
     let id: String
     let name: String
     let artists: [String]
     /// Present when Spotify returned artist IDs (playlist/search tracks). Used for tappable artist links.
-    let artistRefs: [SpotifyArtistRef]
+    let artistRefs: [MusicArtistRef]
     let albumArtworkURL: URL?
     let albumName: String?
     let albumID: String?
@@ -67,7 +79,7 @@ struct SpotifyTrack: Equatable, Identifiable {
         id: String,
         name: String,
         artists: [String],
-        artistRefs: [SpotifyArtistRef] = [],
+        artistRefs: [MusicArtistRef] = [],
         albumArtworkURL: URL?,
         albumName: String? = nil,
         albumID: String? = nil,
@@ -92,7 +104,7 @@ struct SpotifyTrack: Equatable, Identifiable {
     }
 }
 
-extension SpotifyTrack: Codable {
+extension MusicTrack: Codable {
     enum CodingKeys: String, CodingKey {
         case id
         case name
@@ -113,7 +125,7 @@ extension SpotifyTrack: Codable {
         id = try c.decode(String.self, forKey: .id)
         name = try c.decode(String.self, forKey: .name)
         artists = try c.decode([String].self, forKey: .artists)
-        artistRefs = try c.decodeIfPresent([SpotifyArtistRef].self, forKey: .artistRefs) ?? []
+        artistRefs = try c.decodeIfPresent([MusicArtistRef].self, forKey: .artistRefs) ?? []
         albumArtworkURL = try c.decodeIfPresent(URL.self, forKey: .albumArtworkURL)
         albumName = try c.decodeIfPresent(String.self, forKey: .albumName)
         albumID = try c.decodeIfPresent(String.self, forKey: .albumID)
@@ -141,7 +153,7 @@ extension SpotifyTrack: Codable {
     }
 }
 
-struct SpotifyArtistDetail: Codable, Equatable, Identifiable {
+struct MusicArtistDetail: Codable, Equatable, Identifiable {
     let id: String
     let name: String
     let imageURL: URL?
@@ -150,31 +162,41 @@ struct SpotifyArtistDetail: Codable, Equatable, Identifiable {
     let uri: String
 }
 
-enum SpotifyArtistAlbumGroup: String, Codable, Equatable {
+enum MusicArtistAlbumGroup: String, Codable, Equatable, CaseIterable {
     case album
     case single
     case compilation
     case appearsOn = "appears_on"
 }
 
-struct SpotifyArtistAlbum: Codable, Equatable, Identifiable {
+/// How far back "top" items (most played tracks and artists) look.
+enum MusicTopItemsTimeRange: String, Equatable {
+    /// Roughly the last four weeks.
+    case shortTerm = "short_term"
+    /// Roughly the last six months.
+    case mediumTerm = "medium_term"
+    /// Several years.
+    case longTerm = "long_term"
+}
+
+struct MusicArtistAlbum: Codable, Equatable, Identifiable {
     let id: String
     let name: String
     let imageURL: URL?
     let releaseYear: String?
     let totalTracks: Int
-    let group: SpotifyArtistAlbumGroup
+    let group: MusicArtistAlbumGroup
     let uri: String
 }
 
-struct SpotifyArtist: Codable, Equatable, Identifiable {
+struct MusicArtist: Codable, Equatable, Identifiable {
     let id: String
     let name: String
     let imageURL: URL?
     let uri: String
 }
 
-struct SpotifyAlbum: Codable, Equatable, Identifiable {
+struct MusicAlbum: Codable, Equatable, Identifiable {
     let id: String
     let name: String
     let artists: [String]
@@ -182,30 +204,30 @@ struct SpotifyAlbum: Codable, Equatable, Identifiable {
     let uri: String
 }
 
-struct SpotifySearchPaging: Codable, Equatable {
+struct MusicSearchPaging: Codable, Equatable {
     let total: Int
     let next: URL?
 }
 
-struct SpotifySearchResults: Codable, Equatable {
-    let tracks: [SpotifyTrack]
-    let artists: [SpotifyArtist]
-    let albums: [SpotifyAlbum]
-    let playlists: [SpotifyPlaylistSummary]
-    let tracksPaging: SpotifySearchPaging?
-    let artistsPaging: SpotifySearchPaging?
-    let albumsPaging: SpotifySearchPaging?
-    let playlistsPaging: SpotifySearchPaging?
+struct MusicSearchResults: Codable, Equatable {
+    let tracks: [MusicTrack]
+    let artists: [MusicArtist]
+    let albums: [MusicAlbum]
+    let playlists: [MusicPlaylistSummary]
+    let tracksPaging: MusicSearchPaging?
+    let artistsPaging: MusicSearchPaging?
+    let albumsPaging: MusicSearchPaging?
+    let playlistsPaging: MusicSearchPaging?
 
     init(
-        tracks: [SpotifyTrack],
-        artists: [SpotifyArtist],
-        albums: [SpotifyAlbum],
-        playlists: [SpotifyPlaylistSummary],
-        tracksPaging: SpotifySearchPaging? = nil,
-        artistsPaging: SpotifySearchPaging? = nil,
-        albumsPaging: SpotifySearchPaging? = nil,
-        playlistsPaging: SpotifySearchPaging? = nil
+        tracks: [MusicTrack],
+        artists: [MusicArtist],
+        albums: [MusicAlbum],
+        playlists: [MusicPlaylistSummary],
+        tracksPaging: MusicSearchPaging? = nil,
+        artistsPaging: MusicSearchPaging? = nil,
+        albumsPaging: MusicSearchPaging? = nil,
+        playlistsPaging: MusicSearchPaging? = nil
     ) {
         self.tracks = tracks
         self.artists = artists
@@ -218,7 +240,7 @@ struct SpotifySearchResults: Codable, Equatable {
     }
 }
 
-struct SpotifyEpisode: Codable, Equatable, Identifiable {
+struct MusicEpisode: Codable, Equatable, Identifiable {
     let id: String
     let name: String
     let showName: String?
@@ -228,7 +250,7 @@ struct SpotifyEpisode: Codable, Equatable, Identifiable {
     let uri: String
 }
 
-struct SpotifyLocalTrack: Codable, Equatable {
+struct MusicLocalTrack: Codable, Equatable {
     let name: String
     let artists: [String]
     let durationMilliseconds: Int

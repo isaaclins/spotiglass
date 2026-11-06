@@ -20,23 +20,23 @@ struct TrackRowViewModel: Equatable, Identifiable {
     /// tracks after the badge string is localized.
     let isExplicit: Bool
     let playableURI: String?
-    let artistRefs: [SpotifyArtistRef]
+    let artistRefs: [MusicArtistRef]
 
     /// Builds playlist rows with stable numbering without allocating `enumerated()` in SwiftUI bodies.
-    static func numberedPlaylistRows(_ items: [SpotifyPlaylistTrackItem]) -> [TrackRowViewModel] {
+    static func numberedPlaylistRows(_ items: [MusicPlaylistTrackItem]) -> [TrackRowViewModel] {
         items.enumerated().map { index, item in
             TrackRowViewModel(item, listPosition: index + 1)
         }
     }
 
     /// Builds artist (or album) top-track rows with stable numbering.
-    static func numberedTopTracks(_ tracks: [SpotifyTrack]) -> [TrackRowViewModel] {
+    static func numberedTopTracks(_ tracks: [MusicTrack]) -> [TrackRowViewModel] {
         tracks.enumerated().map { index, track in
             TrackRowViewModel(topTrack: track, listPosition: index + 1)
         }
     }
 
-    init(_ item: SpotifyPlaylistTrackItem, listPosition: Int) {
+    init(_ item: MusicPlaylistTrackItem, listPosition: Int) {
         self.listPosition = listPosition
         self.id = item.id
 
@@ -98,7 +98,7 @@ struct TrackRowViewModel: Equatable, Identifiable {
         }
     }
 
-    init(topTrack track: SpotifyTrack, listPosition: Int) {
+    init(topTrack track: MusicTrack, listPosition: Int) {
         self.listPosition = listPosition
         self.id = track.id
         self.spotifyTrackID = PinnedItem.canonicalTrackID(for: track)
@@ -142,19 +142,19 @@ struct TrackRowViewModel: Equatable, Identifiable {
         self.playableURI = uri
         self.artistRefs = item.artistTapTargets.compactMap { target in
             guard let id = target.id else { return nil }
-            return SpotifyArtistRef(id: id, name: target.name)
+            return MusicArtistRef(id: id, name: target.name)
         }
     }
 
     /// Domain track for palette pinning and draggable pins; `nil` for episodes, locals, and unavailable rows.
-    func spotifyTrackForPinning() -> SpotifyTrack? {
+    func spotifyTrackForPinning() -> MusicTrack? {
         guard let spotifyTrackID,
               let playableURI,
               playableURI.hasPrefix("spotify:track:") else { return nil }
         let names: [String] = artistRefs.map(\.name).isEmpty
             ? subtitle.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
             : artistRefs.map(\.name)
-        return SpotifyTrack(
+        return MusicTrack(
             id: spotifyTrackID,
             name: title,
             artists: names,

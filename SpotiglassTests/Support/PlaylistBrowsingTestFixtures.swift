@@ -10,8 +10,8 @@ enum PlaylistBrowsingTestFixtures {
         return []
     }
 
-    static func playlist(id: String, name: String, snapshotID: String = "snapshot-\(UUID().uuidString)") -> SpotifyPlaylistSummary {
-        SpotifyPlaylistSummary(
+    static func playlist(id: String, name: String, snapshotID: String = "snapshot-\(UUID().uuidString)") -> MusicPlaylistSummary {
+        MusicPlaylistSummary(
             id: id,
             name: name,
             ownerID: "owner-id",
@@ -22,12 +22,12 @@ enum PlaylistBrowsingTestFixtures {
         )
     }
 
-    static func fallbackTrack(id: String, name: String, artistId: String) -> SpotifyTrack {
-        SpotifyTrack(
+    static func fallbackTrack(id: String, name: String, artistId: String) -> MusicTrack {
+        MusicTrack(
             id: id,
             name: name,
             artists: ["Artist \(artistId)"],
-            artistRefs: [SpotifyArtistRef(id: artistId, name: "Artist \(artistId)")],
+            artistRefs: [MusicArtistRef(id: artistId, name: "Artist \(artistId)")],
             albumArtworkURL: nil,
             durationMilliseconds: 100_000,
             isExplicit: false,
@@ -37,10 +37,10 @@ enum PlaylistBrowsingTestFixtures {
         )
     }
 
-    static func track(id: String) -> SpotifyPlaylistTrackItem {
-        SpotifyPlaylistTrackItem(
+    static func track(id: String) -> MusicPlaylistTrackItem {
+        MusicPlaylistTrackItem(
             id: id,
-            content: .track(SpotifyTrack(
+            content: .track(MusicTrack(
                 id: id,
                 name: "Track \(id)",
                 artists: ["Artist"],

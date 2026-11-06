@@ -216,7 +216,7 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
     func testForbiddenTracksOnOwnedPlaylistDoesNotShowLockedState() async {
         // Playlist owned by the current user ("u") should fall through to the
         // generic error mapping, never the followed-playlist locked state.
-        let owned = SpotifyPlaylistSummary(
+        let owned = MusicPlaylistSummary(
             id: "mine",
             name: "My Mix",
             ownerID: "u",

@@ -361,7 +361,7 @@ struct RootView: View {
             PlaylistBrowserView(
                 viewModel: .live(tokenProvider: viewModel),
                 playbackHost: playbackHost,
-                searchTokenProvider: viewModel,
+                catalogProvider: SpotifyAPIClient(tokenProvider: viewModel, getResponseCache: .shared),
                 commandPaletteManager: commandPaletteManager,
                 signOut: signOutAction
             )

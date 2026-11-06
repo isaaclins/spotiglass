@@ -8,21 +8,21 @@ import XCTest
 private func testTarget_fetchAllArtistAlbums(
     client: SpotifyAPIClient,
     id: String,
-    includeGroups: String = "album,single,compilation,appears_on",
+    includeGroups: [MusicArtistAlbumGroup] = MusicArtistAlbumGroup.allCases,
     limit: Int = 10
-) async throws -> [SpotifyArtistAlbum] {
+) async throws -> [MusicArtistAlbum] {
     guard !id.isEmpty else {
         throw SpotifyAPIError.invalidRequest("Artist ID is required.")
     }
     let effectiveLimit = min(max(1, limit), 10)
     let maxPages = 20
-    var results: [SpotifyArtistAlbum] = []
+    var results: [MusicArtistAlbum] = []
     var nextURL: URL?
     var pagesFetched = 0
     var seenNextURLs: Set<String> = []
     repeat {
         try Task.checkCancellation()
-        let page: SpotifyAPIClient.SpotifyArtistAlbumsPage
+        let page: MusicArtistAlbumsPage
         if let url = nextURL {
             let key = url.absoluteString
             if seenNextURLs.contains(key) {
@@ -142,7 +142,7 @@ final class SpotifyAPIClientArtistAlbumsPaginationTests: XCTestCase {
         let httpClient = QueueHTTPClient(responses)
         let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
 
-        let albums = try await testTarget_fetchAllArtistAlbums(client: client, id: "ar1", includeGroups: "album", limit: 10)
+        let albums = try await testTarget_fetchAllArtistAlbums(client: client, id: "ar1", includeGroups: [.album], limit: 10)
 
         XCTAssertEqual(httpClient.requests.count, 2, "A repeated next URL should break pagination before duplicate page storms.")
         XCTAssertEqual(albums.count, 2)
@@ -181,7 +181,7 @@ final class SpotifyAPIClientArtistAlbumsPaginationTests: XCTestCase {
         let httpClient = QueueHTTPClient(responses)
         let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
 
-        let albums = try await testTarget_fetchAllArtistAlbums(client: client, id: "ar1", includeGroups: "album", limit: 10)
+        let albums = try await testTarget_fetchAllArtistAlbums(client: client, id: "ar1", includeGroups: [.album], limit: 10)
 
         XCTAssertEqual(httpClient.requests.count, 20, "Pagination should stop at the max page cap when next URLs are unique.")
         XCTAssertEqual(albums.count, 20)

@@ -68,7 +68,7 @@ extension PlaylistBrowserView {
         for attempt in 0..<Self.pinnedBindingAttempts {
             guard !Task.isCancelled else { return }
             do {
-                let profile = try await spotifySearchClient.currentUserProfile()
+                let profile = try await catalogProvider.currentUserProfile()
                 guard !Task.isCancelled else { return }
                 guard let userID = profile.id as String? else { return }
                 if pinnedStore.boundUserID == userID { return }

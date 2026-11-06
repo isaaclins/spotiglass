@@ -10,7 +10,7 @@ final class PlaylistBrowserBreadcrumbTests: XCTestCase {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
             trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]],
-            savedTracksResult: .success(SpotifySavedTracksResult(tracks: [liked], totalAvailable: 1))
+            savedTracksResult: .success(MusicSavedTracksResult(tracks: [liked], totalAvailable: 1))
         )
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
 
@@ -27,7 +27,7 @@ final class PlaylistBrowserBreadcrumbTests: XCTestCase {
 
     func testBreadcrumbExtendFromLikedToArtistThenAlbum() async {
         let liked = PlaylistBrowsingTestFixtures.track(id: "liked-one")
-        let albumTrack = SpotifyTrack(
+        let albumTrack = MusicTrack(
             id: "alb-track-1",
             name: "Album Track 1",
             artists: ["Artist Name"],
@@ -42,7 +42,7 @@ final class PlaylistBrowserBreadcrumbTests: XCTestCase {
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
             trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]],
             albumTracksHandler: { _, _, _ in [albumTrack] },
-            savedTracksResult: .success(SpotifySavedTracksResult(tracks: [liked], totalAvailable: 1))
+            savedTracksResult: .success(MusicSavedTracksResult(tracks: [liked], totalAvailable: 1))
         )
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
 
@@ -69,7 +69,7 @@ final class PlaylistBrowserBreadcrumbTests: XCTestCase {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
             trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]],
-            savedTracksResult: .success(SpotifySavedTracksResult(tracks: [liked], totalAvailable: 1))
+            savedTracksResult: .success(MusicSavedTracksResult(tracks: [liked], totalAvailable: 1))
         )
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
 
@@ -90,7 +90,7 @@ final class PlaylistBrowserBreadcrumbTests: XCTestCase {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
             trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]],
-            savedTracksResult: .success(SpotifySavedTracksResult(tracks: [PlaylistBrowsingTestFixtures.track(id: "liked-one")], totalAvailable: 1))
+            savedTracksResult: .success(MusicSavedTracksResult(tracks: [PlaylistBrowsingTestFixtures.track(id: "liked-one")], totalAvailable: 1))
         )
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
 
@@ -112,7 +112,7 @@ final class PlaylistBrowserBreadcrumbTests: XCTestCase {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
             trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]],
-            savedTracksResult: .success(SpotifySavedTracksResult(tracks: [liked], totalAvailable: 1))
+            savedTracksResult: .success(MusicSavedTracksResult(tracks: [liked], totalAvailable: 1))
         )
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
 
@@ -132,7 +132,7 @@ final class PlaylistBrowserBreadcrumbTests: XCTestCase {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
             trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]],
-            savedTracksResult: .success(SpotifySavedTracksResult(tracks: [PlaylistBrowsingTestFixtures.track(id: "liked-one")], totalAvailable: 1))
+            savedTracksResult: .success(MusicSavedTracksResult(tracks: [PlaylistBrowsingTestFixtures.track(id: "liked-one")], totalAvailable: 1))
         )
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
 
@@ -150,7 +150,7 @@ final class PlaylistBrowserBreadcrumbTests: XCTestCase {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
             trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]],
-            savedTracksResult: .success(SpotifySavedTracksResult(tracks: [PlaylistBrowsingTestFixtures.track(id: "liked-one")], totalAvailable: 1))
+            savedTracksResult: .success(MusicSavedTracksResult(tracks: [PlaylistBrowsingTestFixtures.track(id: "liked-one")], totalAvailable: 1))
         )
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
 

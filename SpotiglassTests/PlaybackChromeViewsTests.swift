@@ -712,7 +712,7 @@ final class PlaybackChromeViewsTests: XCTestCase {
         )
         playback.handle(.stateChanged(current, isPaused: false, nextTracks: [next]))
 
-        let trackCurrent = SpotifyTrack(
+        let trackCurrent = MusicTrack(
             id: "current",
             name: "Current",
             artists: ["Artist"],
@@ -723,7 +723,7 @@ final class PlaybackChromeViewsTests: XCTestCase {
             linkedFromID: nil,
             uri: "spotify:track:current"
         )
-        let trackNext = SpotifyTrack(
+        let trackNext = MusicTrack(
             id: "next",
             name: "Next",
             artists: ["Next Artist"],

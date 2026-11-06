@@ -8,12 +8,12 @@ final class PlaylistBrowserLibraryContinuationTests: XCTestCase {
         _ id: String,
         artistID: String,
         playable: Bool? = true
-    ) -> SpotifyTrack {
-        SpotifyTrack(
+    ) -> MusicTrack {
+        MusicTrack(
             id: id,
             name: "Track \(id)",
             artists: ["Artist \(artistID)"],
-            artistRefs: [SpotifyArtistRef(id: artistID, name: "Artist \(artistID)")],
+            artistRefs: [MusicArtistRef(id: artistID, name: "Artist \(artistID)")],
             albumArtworkURL: nil,
             durationMilliseconds: 180_000,
             isExplicit: false,
@@ -23,18 +23,18 @@ final class PlaylistBrowserLibraryContinuationTests: XCTestCase {
         )
     }
 
-    private func item(_ track: SpotifyTrack) -> SpotifyPlaylistTrackItem {
-        SpotifyPlaylistTrackItem(id: track.id, content: .track(track))
+    private func item(_ track: MusicTrack) -> MusicPlaylistTrackItem {
+        MusicPlaylistTrackItem(id: track.id, content: .track(track))
     }
 
-    private func row(_ track: SpotifyTrack) -> TrackRowViewModel {
+    private func row(_ track: MusicTrack) -> TrackRowViewModel {
         TrackRowViewModel(topTrack: track, listPosition: 1)
     }
 
     private func makeViewModel(
         api: MockBrowsingAPI,
         cache: MockBrowsingCache,
-        playlist: SpotifyPlaylistSummary? = nil
+        playlist: MusicPlaylistSummary? = nil
     ) -> PlaylistBrowserViewModel {
         let viewModel = PlaylistBrowserViewModel(api: api, cache: cache)
         if let playlist {
@@ -76,7 +76,7 @@ final class PlaylistBrowserLibraryContinuationTests: XCTestCase {
             playlistResults: [.success([playlist])],
             trackResults: [playlist.id: [.success([item(seed), item(continuation)])]],
             savedTracksResult: .success(
-                SpotifySavedTracksResult(tracks: [], totalAvailable: 0)
+                MusicSavedTracksResult(tracks: [], totalAvailable: 0)
             )
         )
         let viewModel = makeViewModel(api: api, cache: MockBrowsingCache())
@@ -93,13 +93,13 @@ final class PlaylistBrowserLibraryContinuationTests: XCTestCase {
     }
 
     func testArtistTopTrackCollectionQueriesEveryCreditedArtist() async {
-        let seed = SpotifyTrack(
+        let seed = MusicTrack(
             id: "seed",
             name: "Track seed",
             artists: ["Artist a", "Artist b"],
             artistRefs: [
-                SpotifyArtistRef(id: "artist-a", name: "Artist a"),
-                SpotifyArtistRef(id: "artist-b", name: "Artist b")
+                MusicArtistRef(id: "artist-a", name: "Artist a"),
+                MusicArtistRef(id: "artist-b", name: "Artist b")
             ],
             albumArtworkURL: nil,
             durationMilliseconds: 180_000,
@@ -112,7 +112,7 @@ final class PlaylistBrowserLibraryContinuationTests: XCTestCase {
             playlistResults: [],
             trackResults: [:],
             savedTracksResult: .success(
-                SpotifySavedTracksResult(tracks: [item(seed)], totalAvailable: 1)
+                MusicSavedTracksResult(tracks: [item(seed)], totalAvailable: 1)
             )
         )
         let cache = MockBrowsingCache()
@@ -160,15 +160,15 @@ final class PlaylistBrowserLibraryContinuationTests: XCTestCase {
                 second.id: [.success([item(other)])],
             ],
             savedTracksResult: .success(
-                SpotifySavedTracksResult(tracks: [item(seed), item(other)], totalAvailable: 2)
+                MusicSavedTracksResult(tracks: [item(seed), item(other)], totalAvailable: 2)
             )
         )
         api.topTracksHandler = { _, _ in [other] }
         api.topArtistsHandler = { _, _ in
-            [SpotifyArtist(id: "other", name: "Artist other", imageURL: nil, uri: "spotify:artist:other")]
+            [MusicArtist(id: "other", name: "Artist other", imageURL: nil, uri: "spotify:artist:other")]
         }
         api.followedArtistsHandler = { _, _ in
-            [SpotifyArtist(id: "artist", name: "Artist artist", imageURL: nil, uri: "spotify:artist:artist")]
+            [MusicArtist(id: "artist", name: "Artist artist", imageURL: nil, uri: "spotify:artist:artist")]
         }
         api.artistTopTracksHandler = { _, _ in [sameArtist] }
         let cache = MockBrowsingCache()
@@ -338,7 +338,7 @@ final class PlaylistBrowserLibraryContinuationTests: XCTestCase {
     }
 
     func testNonTrackMenuTargetReportsWhyContinuationCannotStart() async {
-        let episode = SpotifyEpisode(
+        let episode = MusicEpisode(
             id: "episode",
             name: "Episode",
             showName: "Show",
@@ -348,7 +348,7 @@ final class PlaylistBrowserLibraryContinuationTests: XCTestCase {
             uri: "spotify:episode:episode"
         )
         let target = TrackRowViewModel(
-            SpotifyPlaylistTrackItem(id: "episode", content: .episode(episode)),
+            MusicPlaylistTrackItem(id: "episode", content: .episode(episode)),
             listPosition: 1
         )
         let viewModel = makeViewModel(

@@ -1,7 +1,7 @@
 import Foundation
 
 extension SpotifyAPIClient {
-    func artist(id: String, cacheMode: SpotifyRequestCacheMode = .freshOnly) async throws -> SpotifyArtistDetail {
+    func artist(id: String, cacheMode: MusicRequestCacheMode = .freshOnly) async throws -> MusicArtistDetail {
         guard !id.isEmpty else {
             throw SpotifyAPIError.invalidRequest("Artist ID is required.")
         }
@@ -9,12 +9,12 @@ extension SpotifyAPIClient {
         return dto.domainModel()
     }
 
-    func artistCached(id: String, cacheMode: SpotifyRequestCacheMode = .allowStale) async throws -> CachedResponse<SpotifyArtistDetail> {
+    func artistCached(id: String, cacheMode: MusicRequestCacheMode = .allowStale) async throws -> MusicCachedResponse<MusicArtistDetail> {
         guard !id.isEmpty else {
             throw SpotifyAPIError.invalidRequest("Artist ID is required.")
         }
-        let cached: CachedResponse<SpotifyArtistDetailDTO> = try await sendCached(path: "/v1/artists/\(id)", cacheMode: cacheMode)
-        return CachedResponse(value: cached.value.domainModel(), isStale: cached.isStale)
+        let cached: MusicCachedResponse<SpotifyArtistDetailDTO> = try await sendCached(path: "/v1/artists/\(id)", cacheMode: cacheMode)
+        return MusicCachedResponse(value: cached.value.domainModel(), isStale: cached.isStale)
     }
 
     /// Top tracks for one artist (`GET /v1/artists/{id}/top-tracks`). This is
@@ -23,8 +23,8 @@ extension SpotifyAPIClient {
     func artistTopTracks(
         id: String,
         market: String? = nil,
-        cacheMode: SpotifyRequestCacheMode = .freshOnly
-    ) async throws -> [SpotifyTrack] {
+        cacheMode: MusicRequestCacheMode = .freshOnly
+    ) async throws -> [MusicTrack] {
         guard !id.isEmpty else {
             throw SpotifyAPIError.invalidRequest("Artist ID is required.")
         }
@@ -44,12 +44,12 @@ extension SpotifyAPIClient {
     /// offset pagination (first page) or Spotify-provided `next` URLs.
     func artistAlbumsPage(
         id: String,
-        includeGroups: String = "album,single,compilation,appears_on",
+        includeGroups: [MusicArtistAlbumGroup] = MusicArtistAlbumGroup.allCases,
         limit: Int = 10,
         offset: Int = 0,
         nextURL: URL? = nil,
-        cacheMode: SpotifyRequestCacheMode = .freshOnly
-    ) async throws -> SpotifyArtistAlbumsPage {
+        cacheMode: MusicRequestCacheMode = .freshOnly
+    ) async throws -> MusicArtistAlbumsPage {
         guard !id.isEmpty else {
             throw SpotifyAPIError.invalidRequest("Artist ID is required.")
         }
@@ -61,14 +61,14 @@ extension SpotifyAPIClient {
             page = try await send(
                 path: "/v1/artists/\(id)/albums",
                 queryItems: [
-                    URLQueryItem(name: "include_groups", value: includeGroups),
+                    URLQueryItem(name: "include_groups", value: Self.includeGroupsQueryValue(includeGroups)),
                     URLQueryItem(name: "limit", value: String(effectiveLimit)),
                     URLQueryItem(name: "offset", value: String(max(0, offset)))
                 ],
                 cacheMode: cacheMode
             )
         }
-        return SpotifyArtistAlbumsPage(
+        return MusicArtistAlbumsPage(
             items: page.items.compactMap { $0.domainModel() },
             next: page.next
         )
@@ -76,28 +76,33 @@ extension SpotifyAPIClient {
 
     func artistAlbumsCached(
         id: String,
-        includeGroups: String = "album,single,compilation,appears_on",
+        includeGroups: [MusicArtistAlbumGroup] = MusicArtistAlbumGroup.allCases,
         limit: Int = 10,
-        cacheMode: SpotifyRequestCacheMode = .allowStale
-    ) async throws -> CachedResponse<[SpotifyArtistAlbum]> {
+        cacheMode: MusicRequestCacheMode = .allowStale
+    ) async throws -> MusicCachedResponse<[MusicArtistAlbum]> {
         guard !id.isEmpty else {
             throw SpotifyAPIError.invalidRequest("Artist ID is required.")
         }
         let effectiveLimit = min(max(1, limit), 10)
         let path = "/v1/artists/\(id)/albums"
         let queryItems = [
-            URLQueryItem(name: "include_groups", value: includeGroups),
+            URLQueryItem(name: "include_groups", value: Self.includeGroupsQueryValue(includeGroups)),
             URLQueryItem(name: "limit", value: String(effectiveLimit)),
             URLQueryItem(name: "offset", value: "0")
         ]
-        let page: CachedResponse<SpotifyPagingDTO<SpotifyArtistAlbumDTO>> = try await sendCached(
+        let page: MusicCachedResponse<SpotifyPagingDTO<SpotifyArtistAlbumDTO>> = try await sendCached(
             path: path,
             queryItems: queryItems,
             cacheMode: cacheMode
         )
-        return CachedResponse(
+        return MusicCachedResponse(
             value: page.value.items.compactMap { $0.domainModel() },
             isStale: page.isStale
         )
+    }
+
+    /// Spotify's `include_groups` parameter: comma-separated group names in the given order.
+    static func includeGroupsQueryValue(_ groups: [MusicArtistAlbumGroup]) -> String {
+        groups.map(\.rawValue).joined(separator: ",")
     }
 }

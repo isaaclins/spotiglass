@@ -277,7 +277,7 @@ final class SpotifyAPIClientErrorsRefreshAndCacheTests: XCTestCase {
 
     func testCachePersistsAndInvalidatesByAgeAndSnapshot() throws {
         let cache = try SpotifyLocalCache(rootDirectory: spotiglassTestsTemporaryDirectory())
-        let playlist = SpotifyPlaylistSummary(
+        let playlist = MusicPlaylistSummary(
             id: "playlist-1",
             name: "Playlist",
                 ownerID: "test-owner",
@@ -286,9 +286,9 @@ final class SpotifyAPIClientErrorsRefreshAndCacheTests: XCTestCase {
             trackCount: 1,
             snapshotID: "snapshot-1"
         )
-        let track = SpotifyPlaylistTrackItem(
+        let track = MusicPlaylistTrackItem(
             id: "track-1",
-            content: .track(SpotifyTrack(
+            content: .track(MusicTrack(
                 id: "track-1",
                 name: "Track",
                 artists: ["Artist"],

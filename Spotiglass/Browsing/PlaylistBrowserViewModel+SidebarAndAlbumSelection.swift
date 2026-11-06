@@ -81,7 +81,7 @@ extension PlaylistBrowserViewModel {
         }
     }
 
-    func selectPlaylist(summary: SpotifyPlaylistSummary, origin: BrowserNavigationOrigin = .reset) async {
+    func selectPlaylist(summary: MusicPlaylistSummary, origin: BrowserNavigationOrigin = .reset) async {
         knownPlaylistSummariesByID[summary.id] = summary
         await selectSidebar(.playlist(summary.id), origin: origin)
     }
@@ -110,7 +110,7 @@ extension PlaylistBrowserViewModel {
                 guard track.albumArtworkURL == nil, let artworkURL else {
                     return track
                 }
-                return SpotifyTrack(
+                return MusicTrack(
                     id: track.id,
                     name: track.name,
                     artists: track.artists,

@@ -54,7 +54,7 @@ extension PlaylistBrowserViewModel {
         await revalidatePlaylistTracks(playlist: playlist, playlistRow: playlistRow, session: session)
     }
 
-    private func revalidatePlaylistTracks(playlist: SpotifyPlaylistSummary, playlistRow: PlaylistRowViewModel, session: Int) async {
+    private func revalidatePlaylistTracks(playlist: MusicPlaylistSummary, playlistRow: PlaylistRowViewModel, session: Int) async {
         do {
             // Spotify's `/v1/playlists/{id}/items` endpoint accepts a maximum
             // limit of 50 (the February 2026 rename also tightened the cap from
@@ -99,7 +99,7 @@ extension PlaylistBrowserViewModel {
         }
     }
 
-    private func playlistIsOwnedByCurrentUser(_ playlist: SpotifyPlaylistSummary) -> Bool {
+    private func playlistIsOwnedByCurrentUser(_ playlist: MusicPlaylistSummary) -> Bool {
         guard let currentUserSpotifyID, !currentUserSpotifyID.isEmpty else { return false }
         return currentUserSpotifyID == playlist.ownerID
     }

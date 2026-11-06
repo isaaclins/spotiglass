@@ -11,7 +11,7 @@ final class PlaylistBrowserPinnedItemActivationTests: XCTestCase {
         )
 
         let artist = PinnedItem.artist(
-            SpotifyArtistDetail(id: "a", name: "A", imageURL: nil, followersTotal: nil, genres: [], uri: "spotify:artist:a")
+            MusicArtistDetail(id: "a", name: "A", imageURL: nil, followersTotal: nil, genres: [], uri: "spotify:artist:a")
         )
         if case let .selectArtist(id, name)? = PlaylistBrowserPinnedItemActivation.route(for: artist, previousSelection: nil) {
             XCTAssertEqual(id, "a")
@@ -31,7 +31,7 @@ final class PlaylistBrowserPinnedItemActivationTests: XCTestCase {
     }
 
     func testPinnedPlaylistRouteCarriesStoredSummaryMetadata() {
-        let summary = SpotifyPlaylistSummary(
+        let summary = MusicPlaylistSummary(
             id: "public-playlist",
             name: "Public Mix",
             ownerID: "public-owner",
@@ -53,10 +53,10 @@ final class PlaylistBrowserPinnedItemActivationTests: XCTestCase {
 
     func testSidebarSelectionAfterActivationWhenLoaded() {
         let item = PinnedItem.artist(
-            SpotifyArtistDetail(id: "a", name: "A", imageURL: nil, followersTotal: nil, genres: [], uri: "spotify:artist:a")
+            MusicArtistDetail(id: "a", name: "A", imageURL: nil, followersTotal: nil, genres: [], uri: "spotify:artist:a")
         )
         let detail = ArtistDetailViewModel(
-            artist: SpotifyArtistDetail(id: "a", name: "A", imageURL: nil, followersTotal: nil, genres: [], uri: "spotify:artist:a"),
+            artist: MusicArtistDetail(id: "a", name: "A", imageURL: nil, followersTotal: nil, genres: [], uri: "spotify:artist:a"),
             tracks: [],
             albums: [],
             canLoadMoreAlbums: false
@@ -70,7 +70,7 @@ final class PlaylistBrowserPinnedItemActivationTests: XCTestCase {
 
     func testAlbumTrackAndLikedSongsRoutes() {
         let album = PinnedItem.album(
-            SpotifyArtistAlbum(
+            MusicArtistAlbum(
                 id: "alb",
                 name: "Album",
                 imageURL: nil,

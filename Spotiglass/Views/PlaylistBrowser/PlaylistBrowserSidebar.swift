@@ -12,7 +12,7 @@ struct PlaylistBrowserSidebar: View {
     var retryPinnedBinding: (() -> Void)? = nil
 
     let likedSongsStubRow: PlaylistRowViewModel
-    let playlistSummaryFromRow: (PlaylistRowViewModel) -> SpotifyPlaylistSummary
+    let playlistSummaryFromRow: (PlaylistRowViewModel) -> MusicPlaylistSummary
 
     let onLibraryAppear: () -> Void
     let onSidebarListSelectionChange: (SidebarSelection?, SidebarSelection?) -> Void

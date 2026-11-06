@@ -11,7 +11,7 @@ final class PinnedRowViewTests: XCTestCase {
 
     func testPlaylistPinRendersTitle() throws {
         let pin = PinnedItem.playlist(
-            SpotifyPlaylistSummary(
+            MusicPlaylistSummary(
                 id: "p1", name: "Daily",
                 ownerID: "test-owner", ownerName: "Me",
                 imageURL: nil, trackCount: 3, snapshotID: "s"
@@ -24,7 +24,7 @@ final class PinnedRowViewTests: XCTestCase {
 
     func testStaleBadge() throws {
         var pin = PinnedItem.playlist(
-            SpotifyPlaylistSummary(
+            MusicPlaylistSummary(
                 id: "p2", name: "Gone",
                 ownerID: "test-owner", ownerName: "Me",
                 imageURL: nil, trackCount: 0, snapshotID: "s"
@@ -55,7 +55,7 @@ final class PinnedRowViewTests: XCTestCase {
         XCTAssertNoThrow(try likedUnselected.inspect().find(text: "Liked Songs"))
 
         let artist = PinnedRowView(
-            item: .artist(SpotifyArtist(id: "a1", name: "M83", imageURL: nil, uri: "spotify:artist:a1")),
+            item: .artist(MusicArtist(id: "a1", name: "M83", imageURL: nil, uri: "spotify:artist:a1")),
             onUnpin: {}
         )
         ViewTestHost.host(artist)
@@ -64,7 +64,7 @@ final class PinnedRowViewTests: XCTestCase {
         // With an image URL the row renders CachedCircularArtwork instead of the
         // person glyph, which is the branch the other cases never reach.
         let artistWithArtwork = PinnedRowView(
-            item: .artist(SpotifyArtist(
+            item: .artist(MusicArtist(
                 id: "a2",
                 name: "Air",
                 imageURL: URL(string: "https://example.com/artist.jpg"),
@@ -78,7 +78,7 @@ final class PinnedRowViewTests: XCTestCase {
 
     func testAlbumAndTrackPins() throws {
         let album = PinnedRowView(
-            item: .album(SpotifyAlbum(
+            item: .album(MusicAlbum(
                 id: "al1", name: "Hurry Up", artists: ["M83"], imageURL: nil, uri: "spotify:album:al1"
             )),
             onUnpin: {}
@@ -87,7 +87,7 @@ final class PinnedRowViewTests: XCTestCase {
         XCTAssertNoThrow(try album.inspect().find(text: "Hurry Up"))
 
         let track = PinnedRowView(
-            item: .track(SpotifyTrack(
+            item: .track(MusicTrack(
                 id: "t1",
                 name: "Midnight",
                 artists: ["M83"],
@@ -106,7 +106,7 @@ final class PinnedRowViewTests: XCTestCase {
 
     func testDragPillKinds() throws {
         let playlist = PinnedItem.playlist(
-            SpotifyPlaylistSummary(
+            MusicPlaylistSummary(
                 id: "p3", name: "Mix",
                 ownerID: "test-owner", ownerName: "Me",
                 imageURL: nil, trackCount: 1, snapshotID: "s"

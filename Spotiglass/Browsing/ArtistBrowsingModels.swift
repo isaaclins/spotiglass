@@ -11,7 +11,7 @@ struct ArtistAlbumRowViewModel: Equatable, Identifiable {
     let totalTrackCount: Int
     let uri: String
 
-    init(_ album: SpotifyArtistAlbum) {
+    init(_ album: MusicArtistAlbum) {
         id = album.id
         title = album.name
         artworkURL = album.imageURL
@@ -23,7 +23,7 @@ struct ArtistAlbumRowViewModel: Equatable, Identifiable {
 }
 
 struct ArtistDetailViewModel: Equatable {
-    let artist: SpotifyArtistDetail
+    let artist: MusicArtistDetail
     let tracks: [TrackRowViewModel]
     let albums: [ArtistAlbumRowViewModel]
     let singles: [ArtistAlbumRowViewModel]
@@ -33,16 +33,16 @@ struct ArtistDetailViewModel: Equatable {
     let isLoadingMoreAlbums: Bool
 
     init(
-        artist: SpotifyArtistDetail,
-        tracks: [SpotifyTrack],
-        albums: [SpotifyArtistAlbum],
+        artist: MusicArtistDetail,
+        tracks: [MusicTrack],
+        albums: [MusicArtistAlbum],
         canLoadMoreAlbums: Bool = false,
         isLoadingMoreAlbums: Bool = false
     ) {
         self.artist = artist
         self.tracks = TrackRowViewModel.numberedTopTracks(tracks)
         let grouped = Dictionary(grouping: albums, by: \.group)
-        let sort: (SpotifyArtistAlbum, SpotifyArtistAlbum) -> Bool = { lhs, rhs in
+        let sort: (MusicArtistAlbum, MusicArtistAlbum) -> Bool = { lhs, rhs in
             lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
         }
         self.albums = (grouped[.album] ?? []).sorted(by: sort).map(ArtistAlbumRowViewModel.init)
@@ -56,8 +56,8 @@ struct ArtistDetailViewModel: Equatable {
 
 extension ArtistAlbumRowViewModel {
 
-    func spotifyArtistAlbum(group: SpotifyArtistAlbumGroup) -> SpotifyArtistAlbum {
-        SpotifyArtistAlbum(
+    func spotifyArtistAlbum(group: MusicArtistAlbumGroup) -> MusicArtistAlbum {
+        MusicArtistAlbum(
             id: id,
             name: title,
             imageURL: artworkURL,
@@ -68,7 +68,7 @@ extension ArtistAlbumRowViewModel {
         )
     }
 
-    func pinnedAlbum(group: SpotifyArtistAlbumGroup) -> PinnedItem {
+    func pinnedAlbum(group: MusicArtistAlbumGroup) -> PinnedItem {
         .album(spotifyArtistAlbum(group: group))
     }
 }

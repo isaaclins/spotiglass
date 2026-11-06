@@ -25,7 +25,7 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
                 cache: MockBrowsingCache()
             ),
             playbackHost: playbackHost,
-            searchTokenProvider: tokens,
+            catalogProvider: SpotifyAPIClient(tokenProvider: tokens, getResponseCache: .shared),
             commandPaletteManager: CommandPaletteManager(),
             signOut: {}
         )
@@ -35,7 +35,7 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
                 cache: MockBrowsingCache()
             ),
             playbackHost: playbackHost,
-            searchTokenProvider: tokens,
+            catalogProvider: SpotifyAPIClient(tokenProvider: tokens, getResponseCache: .shared),
             commandPaletteManager: CommandPaletteManager(),
             signOut: {}
         )
@@ -59,8 +59,8 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
         let store = PinnedItemsStore(cache: InMemoryPinnedItemsCache())
         store.bind(userID: "user")
         let liked = PlaylistRowViewModel(likedSongsOwnerDisplay: "You", totalTrackCount: nil, artworkURL: nil)
-        let summary: (PlaylistRowViewModel) -> SpotifyPlaylistSummary = { row in
-            SpotifyPlaylistSummary(
+        let summary: (PlaylistRowViewModel) -> MusicPlaylistSummary = { row in
+            MusicPlaylistSummary(
                 id: row.id, name: row.title,
                 ownerID: "test-owner", ownerName: row.owner,
                 imageURL: row.artworkURL, trackCount: 0, snapshotID: row.snapshotID
@@ -173,7 +173,7 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
         let view = PlaylistBrowserView(
             viewModel: browserVM,
             playbackHost: playbackHost,
-            searchTokenProvider: tokens,
+            catalogProvider: SpotifyAPIClient(tokenProvider: tokens, getResponseCache: .shared),
             commandPaletteManager: palette,
             signOut: {}
         )
@@ -215,7 +215,7 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
             libraryRows: [.home],
             likedSongsStubRow: liked,
             playlistSummaryFromRow: { row in
-                SpotifyPlaylistSummary(
+                MusicPlaylistSummary(
                     id: row.id, name: row.title,
                 ownerID: "test-owner", ownerName: row.owner,
                     imageURL: row.artworkURL, trackCount: 0, snapshotID: row.snapshotID

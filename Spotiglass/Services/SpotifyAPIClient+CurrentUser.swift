@@ -1,12 +1,12 @@
 import Foundation
 
 extension SpotifyAPIClient {
-    func currentUserProfile() async throws -> SpotifyUserProfile {
+    func currentUserProfile() async throws -> MusicUserProfile {
         let dto: SpotifyUserProfileDTO = try await send(path: "/v1/me")
         return dto.domainModel()
     }
 
-    func currentUserPlaylists(limit: Int = 50) async throws -> [SpotifyPlaylistSummary] {
+    func currentUserPlaylists(limit: Int = 50) async throws -> [MusicPlaylistSummary] {
         // Follow Spotify's continuation links to completion. `collectPaged` stops
         // when a continuation URL repeats, protecting against malformed loops
         // without silently dropping a valid long library.
@@ -17,10 +17,10 @@ extension SpotifyAPIClient {
 
     /// Liked Songs (`GET /v1/me/tracks`). Follows Spotify's continuation links to
     /// completion unless an explicit page cap is supplied by a caller.
-    func currentUserSavedTracks(limit: Int = 50, maxPages: Int? = nil) async throws -> SpotifySavedTracksResult {
+    func currentUserSavedTracks(limit: Int = 50, maxPages: Int? = nil) async throws -> MusicSavedTracksResult {
         let pageLimit = min(max(1, limit), 50)
         let pageCap = maxPages.map { max(1, $0) }
-        var results: [SpotifyPlaylistTrackItem] = []
+        var results: [MusicPlaylistTrackItem] = []
         var nextURL: URL?
         var offset = 0
         var totalAvailable = 0
@@ -74,16 +74,16 @@ extension SpotifyAPIClient {
             }
         } while nextURL != nil
 
-        return SpotifySavedTracksResult(tracks: results, totalAvailable: totalAvailable)
+        return MusicSavedTracksResult(tracks: results, totalAvailable: totalAvailable)
     }
 
     /// Artists followed by the current user (`GET /v1/me/following`). The
     /// endpoint uses an `after` cursor rather than offset pagination, so each
     /// page is followed defensively up to the caller's cap.
-    func followedArtists(limit: Int = 50, maxPages: Int? = nil) async throws -> [SpotifyArtist] {
+    func followedArtists(limit: Int = 50, maxPages: Int? = nil) async throws -> [MusicArtist] {
         let pageLimit = min(max(1, limit), 50)
         let pageCap = maxPages.map { max(1, $0) }
-        var results: [SpotifyArtist] = []
+        var results: [MusicArtist] = []
         var after: String?
         var pagesFetched = 0
         var seenNextURLs: Set<String> = []

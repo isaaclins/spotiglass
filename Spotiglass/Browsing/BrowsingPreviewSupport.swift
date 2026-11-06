@@ -5,58 +5,58 @@ import SwiftUI
 #endif
 
 /// Preview-only browsing API used by ``PlaylistBrowserView`` canvas; exercised in unit tests for coverage.
-struct PreviewBrowsingAPI: SpotifyBrowsingAPI {
-    func currentUserProfile() async throws -> SpotifyUserProfile {
-        SpotifyUserProfile(id: "preview", displayName: nil, country: "US")
+struct PreviewBrowsingAPI: MusicBrowsingProvider {
+    func currentUserProfile() async throws -> MusicUserProfile {
+        MusicUserProfile(id: "preview", displayName: nil, country: "US")
     }
 
-    func artist(id: String, cacheMode: SpotifyRequestCacheMode) async throws -> SpotifyArtistDetail {
+    func artist(id: String, cacheMode: MusicRequestCacheMode) async throws -> MusicArtistDetail {
         throw SpotifyAPIError.invalidRequest("Preview does not load artists.")
     }
 
-    func artistCached(id: String, cacheMode: SpotifyRequestCacheMode) async throws -> SpotifyAPIClient.CachedResponse<SpotifyArtistDetail> {
+    func artistCached(id: String, cacheMode: MusicRequestCacheMode) async throws -> MusicCachedResponse<MusicArtistDetail> {
         let value = try await artist(id: id, cacheMode: cacheMode)
-        return SpotifyAPIClient.CachedResponse(value: value, isStale: false)
+        return MusicCachedResponse(value: value, isStale: false)
     }
 
-    func search(query: String, limit: Int) async throws -> SpotifySearchResults {
-        SpotifySearchResults(tracks: [], artists: [], albums: [], playlists: [])
+    func search(query: String, limit: Int) async throws -> MusicSearchResults {
+        MusicSearchResults(tracks: [], artists: [], albums: [], playlists: [])
     }
 
-    func albumTracks(albumID: String, market: String?, limit: Int) async throws -> [SpotifyTrack] {
+    func albumTracks(albumID: String, market: String?, limit: Int) async throws -> [MusicTrack] {
         []
     }
 
-    func artistAlbums(id _: String, includeGroups _: String, limit _: Int, cacheMode _: SpotifyRequestCacheMode) async throws -> [SpotifyArtistAlbum] {
+    func artistAlbums(id _: String, includeGroups _: [MusicArtistAlbumGroup], limit _: Int, cacheMode _: MusicRequestCacheMode) async throws -> [MusicArtistAlbum] {
         []
     }
 
     func artistAlbumsCached(
         id: String,
-        includeGroups: String,
+        includeGroups: [MusicArtistAlbumGroup],
         limit: Int,
-        cacheMode: SpotifyRequestCacheMode
-    ) async throws -> SpotifyAPIClient.CachedResponse<[SpotifyArtistAlbum]> {
+        cacheMode: MusicRequestCacheMode
+    ) async throws -> MusicCachedResponse<[MusicArtistAlbum]> {
         let albums = try await artistAlbums(id: id, includeGroups: includeGroups, limit: limit, cacheMode: cacheMode)
-        return SpotifyAPIClient.CachedResponse(value: albums, isStale: false)
+        return MusicCachedResponse(value: albums, isStale: false)
     }
 
     func artistAlbumsPage(
         id: String,
-        includeGroups: String,
+        includeGroups: [MusicArtistAlbumGroup],
         limit: Int,
         offset: Int,
         nextURL: URL?,
-        cacheMode: SpotifyRequestCacheMode
-    ) async throws -> SpotifyAPIClient.SpotifyArtistAlbumsPage {
-        SpotifyAPIClient.SpotifyArtistAlbumsPage(items: [], next: nil)
+        cacheMode: MusicRequestCacheMode
+    ) async throws -> MusicArtistAlbumsPage {
+        MusicArtistAlbumsPage(items: [], next: nil)
     }
 
     func updatePlaylist(playlistID: String, name: String) async throws {}
 
-    func currentUserPlaylists(limit: Int) async throws -> [SpotifyPlaylistSummary] {
+    func currentUserPlaylists(limit: Int) async throws -> [MusicPlaylistSummary] {
         [
-            SpotifyPlaylistSummary(
+            MusicPlaylistSummary(
                 id: "playlist",
                 name: "Preview Playlist",
                 ownerID: "preview-user",
@@ -68,12 +68,12 @@ struct PreviewBrowsingAPI: SpotifyBrowsingAPI {
         ]
     }
 
-    func playlistTracks(playlistID: String, limit: Int, maxPages: Int) async throws -> [SpotifyPlaylistTrackItem] {
+    func playlistTracks(playlistID: String, limit: Int, maxPages: Int) async throws -> [MusicPlaylistTrackItem] {
         [
-            SpotifyPlaylistTrackItem(
+            MusicPlaylistTrackItem(
                 id: "track",
                 content: .track(
-                    SpotifyTrack(
+                    MusicTrack(
                         id: "track",
                         name: "Preview Track",
                         artists: ["Artist"],
@@ -89,17 +89,17 @@ struct PreviewBrowsingAPI: SpotifyBrowsingAPI {
         ]
     }
 
-    func currentUserSavedTracks(limit: Int, maxPages: Int?) async throws -> SpotifySavedTracksResult {
-        SpotifySavedTracksResult(tracks: [], totalAvailable: 0)
+    func currentUserSavedTracks(limit: Int, maxPages: Int?) async throws -> MusicSavedTracksResult {
+        MusicSavedTracksResult(tracks: [], totalAvailable: 0)
     }
 }
 
 struct PreviewBrowsingCache: SpotifyBrowsingCache {
-    func loadPlaylistsBundle(now: Date) throws -> (playlists: [SpotifyPlaylistSummary], age: TimeInterval)? { nil }
-    func savePlaylists(_ playlists: [SpotifyPlaylistSummary], cachedAt: Date) throws {}
-    func loadTracks(playlistID: String, snapshotID: String, now: Date, maxAge: TimeInterval) throws -> [SpotifyPlaylistTrackItem]? { nil }
-    func loadTracksIgnoringAge(playlistID: String, snapshotID: String) throws -> [SpotifyPlaylistTrackItem]? { nil }
-    func saveTracks(_ tracks: [SpotifyPlaylistTrackItem], playlistID: String, snapshotID: String, cachedAt: Date) throws {}
+    func loadPlaylistsBundle(now: Date) throws -> (playlists: [MusicPlaylistSummary], age: TimeInterval)? { nil }
+    func savePlaylists(_ playlists: [MusicPlaylistSummary], cachedAt: Date) throws {}
+    func loadTracks(playlistID: String, snapshotID: String, now: Date, maxAge: TimeInterval) throws -> [MusicPlaylistTrackItem]? { nil }
+    func loadTracksIgnoringAge(playlistID: String, snapshotID: String) throws -> [MusicPlaylistTrackItem]? { nil }
+    func saveTracks(_ tracks: [MusicPlaylistTrackItem], playlistID: String, snapshotID: String, cachedAt: Date) throws {}
     func invalidateTracks(playlistID: String) throws {}
 }
 
@@ -121,7 +121,7 @@ final class PreviewPlaybackTokenProvider: PlaybackAccessTokenProviding, SpotifyA
             cache: PreviewBrowsingCache()
         ),
         playbackHost: playbackHost,
-        searchTokenProvider: tokens,
+        catalogProvider: PreviewBrowsingAPI(),
         commandPaletteManager: CommandPaletteManager(),
         signOut: {}
     )

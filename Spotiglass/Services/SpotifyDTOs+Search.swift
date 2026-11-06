@@ -6,16 +6,16 @@ struct SpotifySearchResponseDTO: Decodable {
     let albums: SpotifyPagingDTO<SpotifySearchAlbumDTO>?
     let playlists: SpotifyPagingDTO<SpotifyPlaylistDTO>?
 
-    func domainModel() -> SpotifySearchResults {
-        SpotifySearchResults(
+    func domainModel() -> MusicSearchResults {
+        MusicSearchResults(
             tracks: (tracks?.items ?? []).compactMap { $0.domainModel() },
             artists: (artists?.items ?? []).map { $0.domainModel() },
             albums: (albums?.items ?? []).map { $0.domainModel() },
             playlists: (playlists?.items ?? []).map { $0.domainModel() },
-            tracksPaging: tracks.map { SpotifySearchPaging(total: $0.total, next: $0.next) },
-            artistsPaging: artists.map { SpotifySearchPaging(total: $0.total, next: $0.next) },
-            albumsPaging: albums.map { SpotifySearchPaging(total: $0.total, next: $0.next) },
-            playlistsPaging: playlists.map { SpotifySearchPaging(total: $0.total, next: $0.next) }
+            tracksPaging: tracks.map { MusicSearchPaging(total: $0.total, next: $0.next) },
+            artistsPaging: artists.map { MusicSearchPaging(total: $0.total, next: $0.next) },
+            albumsPaging: albums.map { MusicSearchPaging(total: $0.total, next: $0.next) },
+            playlistsPaging: playlists.map { MusicSearchPaging(total: $0.total, next: $0.next) }
         )
     }
 }
@@ -33,9 +33,9 @@ struct SpotifySearchArtistDTO: Decodable {
         case uri
     }
 
-    func domainModel() -> SpotifyArtist {
+    func domainModel() -> MusicArtist {
         let resolvedID = id ?? "unknown-artist"
-        return SpotifyArtist(
+        return MusicArtist(
             id: resolvedID,
             name: name,
             imageURL: images?.largestImageURL,
@@ -67,9 +67,9 @@ struct SpotifySearchAlbumDTO: Decodable {
         case uri
     }
 
-    func domainModel() -> SpotifyAlbum {
+    func domainModel() -> MusicAlbum {
         let resolvedID = id ?? "unknown-album"
-        return SpotifyAlbum(
+        return MusicAlbum(
             id: resolvedID,
             name: name,
             artists: artists.map(\.name),
@@ -110,9 +110,9 @@ struct SpotifyArtistDetailDTO: Decodable {
         case uri
     }
 
-    func domainModel() -> SpotifyArtistDetail {
+    func domainModel() -> MusicArtistDetail {
         let resolvedID = id ?? "unknown-artist"
-        return SpotifyArtistDetail(
+        return MusicArtistDetail(
             id: resolvedID,
             name: name ?? "Artist",
             imageURL: images?.largestImageURL,
@@ -142,18 +142,18 @@ struct SpotifyArtistAlbumDTO: Decodable {
         case albumGroup = "album_group"
     }
 
-    func domainModel() -> SpotifyArtistAlbum? {
+    func domainModel() -> MusicArtistAlbum? {
         guard let id else { return nil }
         let resolvedName = name ?? "Album"
         let groupRaw = albumGroup ?? "album"
-        let group = SpotifyArtistAlbumGroup(rawValue: groupRaw) ?? .album
+        let group = MusicArtistAlbumGroup(rawValue: groupRaw) ?? .album
         let year: String?
         if let releaseDate {
             year = String(releaseDate.prefix(4))
         } else {
             year = nil
         }
-        return SpotifyArtistAlbum(
+        return MusicArtistAlbum(
             id: id,
             name: resolvedName,
             imageURL: images?.largestImageURL,

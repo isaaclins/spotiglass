@@ -6,8 +6,8 @@ extension SpotifyAPIClient {
     /// most-recent play, so the home carousel never shows the same song twice in a row.
     func recentlyPlayedTracks(
         limit: Int = 50,
-        cacheMode: SpotifyRequestCacheMode = .freshOnly
-    ) async throws -> [SpotifyTrack] {
+        cacheMode: MusicRequestCacheMode = .freshOnly
+    ) async throws -> [MusicTrack] {
         let pageLimit = min(max(1, limit), 50)
         let response: SpotifyRecentlyPlayedResponseDTO = try await send(
             path: "/v1/me/player/recently-played",
@@ -15,7 +15,7 @@ extension SpotifyAPIClient {
             cacheMode: cacheMode
         )
         var seen: Set<String> = []
-        var tracks: [SpotifyTrack] = []
+        var tracks: [MusicTrack] = []
         for item in response.items {
             guard let track = item.track?.domainModel() else { continue }
             guard seen.insert(track.id).inserted else { continue }
@@ -25,19 +25,18 @@ extension SpotifyAPIClient {
     }
 
     /// The signed-in user's top tracks (`GET /v1/me/top/tracks`). Requires the
-    /// `user-top-read` scope. `timeRange` is one of `short_term`, `medium_term`,
-    /// `long_term`.
+    /// `user-top-read` scope.
     func topTracks(
         limit: Int = 20,
-        timeRange: String = "short_term",
-        cacheMode: SpotifyRequestCacheMode = .freshOnly
-    ) async throws -> [SpotifyTrack] {
+        timeRange: MusicTopItemsTimeRange = .shortTerm,
+        cacheMode: MusicRequestCacheMode = .freshOnly
+    ) async throws -> [MusicTrack] {
         let pageLimit = min(max(1, limit), 50)
         let page: SpotifyPagingDTO<SpotifyTrackDTO> = try await send(
             path: "/v1/me/top/tracks",
             queryItems: [
                 URLQueryItem(name: "limit", value: String(pageLimit)),
-                URLQueryItem(name: "time_range", value: timeRange)
+                URLQueryItem(name: "time_range", value: timeRange.rawValue)
             ],
             cacheMode: cacheMode
         )
@@ -48,15 +47,15 @@ extension SpotifyAPIClient {
     /// the same `user-top-read` scope as top tracks.
     func topArtists(
         limit: Int = 50,
-        timeRange: String = "short_term",
-        cacheMode: SpotifyRequestCacheMode = .freshOnly
-    ) async throws -> [SpotifyArtist] {
+        timeRange: MusicTopItemsTimeRange = .shortTerm,
+        cacheMode: MusicRequestCacheMode = .freshOnly
+    ) async throws -> [MusicArtist] {
         let pageLimit = min(max(1, limit), 50)
         let page: SpotifyPagingDTO<SpotifySearchArtistDTO> = try await send(
             path: "/v1/me/top/artists",
             queryItems: [
                 URLQueryItem(name: "limit", value: String(pageLimit)),
-                URLQueryItem(name: "time_range", value: timeRange)
+                URLQueryItem(name: "time_range", value: timeRange.rawValue)
             ],
             cacheMode: cacheMode
         )

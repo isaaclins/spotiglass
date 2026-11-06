@@ -75,7 +75,7 @@ final class SpotifyPlaybackModelsTests: XCTestCase {
         XCTAssertEqual(fromTrack.name, "Song")
         XCTAssertEqual(fromTrack.uri, track.uri)
 
-        let episode = SpotifyEpisode(
+        let episode = MusicEpisode(
             id: "ep1",
             name: "Episode",
             showName: "Show",
@@ -155,7 +155,7 @@ final class SpotifyPlaybackModelsTests: XCTestCase {
     }
 
     func testQueueItemArtistTapTargetsFromRefsAndFallback() {
-        let refs = [SpotifyArtistRef(id: "1", name: "One")]
+        let refs = [MusicArtistRef(id: "1", name: "One")]
         XCTAssertEqual(QueueItem.artistTapTargets(artistRefs: refs, fallbackSubtitle: "ignored").count, 1)
         let fallback = QueueItem.artistTapTargets(artistRefs: [], fallbackSubtitle: "Alpha, Beta")
         XCTAssertEqual(fallback.count, 2)

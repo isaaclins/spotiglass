@@ -328,7 +328,7 @@ final class LocalizationCoverageTests: XCTestCase {
     /// TrackRowViewModel routes badge text through SpotiglassL10n, so changing
     /// the active locale should change the badge string emitted by the row.
     func testTrackRowBadgesFollowSelectedLocale() throws {
-        let explicit = SpotifyTrack(
+        let explicit = MusicTrack(
             id: "t",
             name: "Song",
             artists: ["A"],
@@ -339,7 +339,7 @@ final class LocalizationCoverageTests: XCTestCase {
             linkedFromID: nil,
             uri: "spotify:track:t"
         )
-        let item = SpotifyPlaylistTrackItem(id: "t", content: .track(explicit))
+        let item = MusicPlaylistTrackItem(id: "t", content: .track(explicit))
 
         let expected: [AppLanguage: String] = [.english: "Explicit", .spanish: "Explícito", .german: "Explizit"]
         for language in [AppLanguage.english, .spanish, .german] {

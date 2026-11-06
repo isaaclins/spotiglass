@@ -1,14 +1,14 @@
 import Foundation
 
 struct CachedPlaylists: Codable, Equatable {
-    let playlists: [SpotifyPlaylistSummary]
+    let playlists: [MusicPlaylistSummary]
     let cachedAt: Date
 }
 
 struct CachedPlaylistTracks: Codable, Equatable {
     let playlistID: String
     let snapshotID: String
-    let tracks: [SpotifyPlaylistTrackItem]
+    let tracks: [MusicPlaylistTrackItem]
     let cachedAt: Date
 
     func isValid(forPlaylist playlistID: String, snapshotID: String, now: Date = Date(), maxAge: TimeInterval = 300) -> Bool {
@@ -61,12 +61,12 @@ struct SpotifyLocalCache {
         self.decoder = decoder
     }
 
-    func savePlaylists(_ playlists: [SpotifyPlaylistSummary], cachedAt: Date = Date()) throws {
+    func savePlaylists(_ playlists: [MusicPlaylistSummary], cachedAt: Date = Date()) throws {
         try write(CachedPlaylists(playlists: playlists, cachedAt: cachedAt), to: playlistsURL)
     }
 
     /// Read saved playlists without a TTL filter; used to decide whether to skip a redundant `me/playlists` fetch on launch.
-    func loadPlaylistsBundle(now: Date = Date()) throws -> (playlists: [SpotifyPlaylistSummary], age: TimeInterval)? {
+    func loadPlaylistsBundle(now: Date = Date()) throws -> (playlists: [MusicPlaylistSummary], age: TimeInterval)? {
         guard let cached: CachedPlaylists = try read(from: playlistsURL) else {
             return nil
         }
@@ -74,7 +74,7 @@ struct SpotifyLocalCache {
     }
 
     func saveTracks(
-        _ tracks: [SpotifyPlaylistTrackItem],
+        _ tracks: [MusicPlaylistTrackItem],
         playlistID: String,
         snapshotID: String,
         cachedAt: Date = Date()
@@ -90,7 +90,7 @@ struct SpotifyLocalCache {
         snapshotID: String,
         now: Date = Date(),
         maxAge: TimeInterval = 300
-    ) throws -> [SpotifyPlaylistTrackItem]? {
+    ) throws -> [MusicPlaylistTrackItem]? {
         guard let cached: CachedPlaylistTracks = try read(from: tracksURL(playlistID: playlistID)),
               cached.isValid(forPlaylist: playlistID, snapshotID: snapshotID, now: now, maxAge: maxAge) else {
             return nil
@@ -103,7 +103,7 @@ struct SpotifyLocalCache {
     func loadTracksIgnoringAge(
         playlistID: String,
         snapshotID: String
-    ) throws -> [SpotifyPlaylistTrackItem]? {
+    ) throws -> [MusicPlaylistTrackItem]? {
         guard let cached: CachedPlaylistTracks = try read(from: tracksURL(playlistID: playlistID)),
               cached.snapshotID == snapshotID else {
             return nil

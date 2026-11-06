@@ -4,7 +4,7 @@ import Foundation
 enum PlaylistBrowserPinnedItemActivation {
     enum Route: Equatable {
         case staleRevert(selection: SidebarSelection?)
-        case selectPlaylist(SpotifyPlaylistSummary)
+        case selectPlaylist(MusicPlaylistSummary)
         case selectArtist(id: String, displayName: String?)
         case selectAlbum(id: String, title: String, subtitle: String, artworkURL: URL?)
         case likedSongs

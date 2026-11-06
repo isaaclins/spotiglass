@@ -5,7 +5,7 @@ final class PinnedItemsCacheTests: XCTestCase {
     func testInMemoryRoundTripPerUser() throws {
         let cache = InMemoryPinnedItemsCache()
         let pin = PinnedItem.playlist(
-            SpotifyPlaylistSummary(
+            MusicPlaylistSummary(
                 id: "p1", name: "Mix",
                 ownerID: "test-owner", ownerName: "Me",
                 imageURL: nil, trackCount: 1, snapshotID: "s"

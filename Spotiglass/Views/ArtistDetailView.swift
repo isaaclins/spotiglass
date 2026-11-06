@@ -267,7 +267,7 @@ struct ArtistDetailContent: View {
     }
 
     @ViewBuilder
-    private func albumStrip(title: String, albums: [ArtistAlbumRowViewModel], group: SpotifyArtistAlbumGroup) -> some View {
+    private func albumStrip(title: String, albums: [ArtistAlbumRowViewModel], group: MusicArtistAlbumGroup) -> some View {
         if albums.isEmpty {
             EmptyView()
         } else {
@@ -293,7 +293,7 @@ struct ArtistDetailContent: View {
         }
     }
 
-    private func albumCardButton(_ album: ArtistAlbumRowViewModel, group: SpotifyArtistAlbumGroup) -> some View {
+    private func albumCardButton(_ album: ArtistAlbumRowViewModel, group: MusicArtistAlbumGroup) -> some View {
         let pinnedItem = album.pinnedAlbum(group: group)
         let pinned = pinnedStore.isPinned(id: pinnedItem.id)
         // A real Button, like the Home and Search cards, so the card is reachable

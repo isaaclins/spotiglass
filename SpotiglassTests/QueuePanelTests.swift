@@ -21,7 +21,7 @@ final class QueuePanelTests: XCTestCase {
         XCTAssertEqual(row.id, item.id)
         XCTAssertEqual(row.spotifyTrackID, "queued")
         XCTAssertEqual(row.playableURI, "spotify:track:queued")
-        XCTAssertEqual(row.artistRefs, [SpotifyArtistRef(id: "artist-1", name: "Artist")])
+        XCTAssertEqual(row.artistRefs, [MusicArtistRef(id: "artist-1", name: "Artist")])
     }
 
     func testQueueTrackOptionsUseTheProjectedRowWithoutMove() throws {
@@ -50,11 +50,11 @@ final class QueuePanelTests: XCTestCase {
     }
 
     func testQueueItemArtistTapTargetsPreferArtistRefs() {
-        let track = SpotifyTrack(
+        let track = MusicTrack(
             id: "track-1",
             name: "Track",
             artists: ["Shown Name"],
-            artistRefs: [SpotifyArtistRef(id: "artist-1", name: "Resolved Artist")],
+            artistRefs: [MusicArtistRef(id: "artist-1", name: "Resolved Artist")],
             albumArtworkURL: nil,
             durationMilliseconds: 180_000,
             isExplicit: false,
@@ -119,7 +119,7 @@ final class QueuePanelTests: XCTestCase {
             uri: "spotify:track:current"
         )
         playback.handle(.stateChanged(current, isPaused: false, nextTracks: []))
-        let next = SpotifyTrack(
+        let next = MusicTrack(
             id: "next",
             name: "Next",
             artists: ["Artist"],
@@ -201,7 +201,7 @@ final class QueuePanelTests: XCTestCase {
             uri: "spotify:track:old-current"
         )
         playback.handle(.stateChanged(oldCurrent, isPaused: false, nextTracks: []))
-        let oldNext = SpotifyTrack(
+        let oldNext = MusicTrack(
             id: "old-next",
             name: "Old next",
             artists: ["Artist"],
@@ -332,7 +332,7 @@ final class QueuePanelTests: XCTestCase {
             uri: "spotify:track:current"
         )
         playback.handle(.stateChanged(current, isPaused: false, nextTracks: []))
-        let currentTrack = SpotifyTrack(
+        let currentTrack = MusicTrack(
             id: "current",
             name: "Current",
             artists: ["Artist"],
@@ -343,7 +343,7 @@ final class QueuePanelTests: XCTestCase {
             linkedFromID: nil,
             uri: "spotify:track:current"
         )
-        let duplicateTrack = SpotifyTrack(
+        let duplicateTrack = MusicTrack(
             id: "current-duplicate",
             name: "Current duplicate",
             artists: ["Artist"],
@@ -354,7 +354,7 @@ final class QueuePanelTests: XCTestCase {
             linkedFromID: nil,
             uri: "spotify:track:current"
         )
-        let nextTrack = SpotifyTrack(
+        let nextTrack = MusicTrack(
             id: "next",
             name: "Next",
             artists: ["Next Artist"],
@@ -399,7 +399,7 @@ final class QueuePanelTests: XCTestCase {
             isPaused: false,
             nextTracks: []
         ))
-        let first = SpotifyTrack(
+        let first = MusicTrack(
             id: "duplicate-1",
             name: "Duplicate one",
             artists: ["Artist"],
@@ -410,7 +410,7 @@ final class QueuePanelTests: XCTestCase {
             linkedFromID: nil,
             uri: "spotify:track:duplicate"
         )
-        let second = SpotifyTrack(
+        let second = MusicTrack(
             id: "duplicate-2",
             name: "Duplicate two",
             artists: ["Artist"],
@@ -447,9 +447,9 @@ final class QueuePanelTests: XCTestCase {
             nextTracks: sdkNext
         ))
 
-        let trackA = SpotifyTrack(id: "a", name: "A", artists: ["a"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:a")
-        let trackB = SpotifyTrack(id: "b", name: "B", artists: ["b"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:b")
-        let trackC = SpotifyTrack(id: "c", name: "C", artists: ["c"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:c")
+        let trackA = MusicTrack(id: "a", name: "A", artists: ["a"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:a")
+        let trackB = MusicTrack(id: "b", name: "B", artists: ["b"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:b")
+        let trackC = MusicTrack(id: "c", name: "C", artists: ["c"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:c")
 
         api.queueResponse = SpotifyQueueResponse(queue: [.track(trackA), .track(trackB), .track(trackC)]
         )
@@ -484,9 +484,9 @@ final class QueuePanelTests: XCTestCase {
         await playback.syncTransportFromSpotify()
         XCTAssertEqual(playback.repeatMode, .track)
 
-        let trackA = SpotifyTrack(id: "a", name: "A", artists: ["a"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:a")
-        let trackB = SpotifyTrack(id: "b", name: "B", artists: ["b"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:b")
-        let trackC = SpotifyTrack(id: "c", name: "C", artists: ["c"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:c")
+        let trackA = MusicTrack(id: "a", name: "A", artists: ["a"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:a")
+        let trackB = MusicTrack(id: "b", name: "B", artists: ["b"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:b")
+        let trackC = MusicTrack(id: "c", name: "C", artists: ["c"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:c")
 
         api.queueResponse = SpotifyQueueResponse(queue: [.track(trackA), .track(trackB), .track(trackC)]
         )
@@ -627,7 +627,7 @@ final class QueuePanelTests: XCTestCase {
             isPaused: false,
             nextTracks: []
         ))
-        let cached = SpotifyTrack(
+        let cached = MusicTrack(
             id: "cached",
             name: "Cached",
             artists: ["Artist"],
@@ -685,9 +685,9 @@ final class QueuePanelTests: XCTestCase {
             PlaybackNowPlaying(name: "Next", artists: ["B"], albumName: nil, albumID: nil, albumArtURL: nil, durationMilliseconds: 100_000, positionMilliseconds: 0, uri: "spotify:track:next")
         ]))
 
-        let oldTrack = SpotifyTrack(id: "old", name: "Old", artists: ["A"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:old")
-        let nextTrack = SpotifyTrack(id: "next", name: "Next", artists: ["B"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:next")
-        let thirdTrack = SpotifyTrack(id: "third", name: "Third", artists: ["C"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:third")
+        let oldTrack = MusicTrack(id: "old", name: "Old", artists: ["A"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:old")
+        let nextTrack = MusicTrack(id: "next", name: "Next", artists: ["B"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:next")
+        let thirdTrack = MusicTrack(id: "third", name: "Third", artists: ["C"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:third")
         api.queueResponse = SpotifyQueueResponse(queue: [.track(nextTrack), .track(thirdTrack)])
 
         queue.setPanelVisible(true)
@@ -721,9 +721,9 @@ final class QueuePanelTests: XCTestCase {
         playback.handle(.ready(deviceID: "device-1"))
         let queue = QueueViewModel(playbackAPI: api, playbackSession: playback, pollIntervalNanoseconds: 60_000_000_000)
 
-        let one = SpotifyTrack(id: "1", name: "One", artists: ["A"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:1")
-        let two = SpotifyTrack(id: "2", name: "Two", artists: ["B"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:2")
-        let three = SpotifyTrack(id: "3", name: "Three", artists: ["C"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:3")
+        let one = MusicTrack(id: "1", name: "One", artists: ["A"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:1")
+        let two = MusicTrack(id: "2", name: "Two", artists: ["B"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:2")
+        let three = MusicTrack(id: "3", name: "Three", artists: ["C"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:3")
         api.queueResponse = SpotifyQueueResponse(queue: [.track(one), .track(two), .track(three)])
         queue.isPanelVisible = true
         await queue.refreshQueue()
@@ -755,9 +755,9 @@ final class QueuePanelTests: XCTestCase {
         playback.handle(.ready(deviceID: "device-1"))
         let queue = QueueViewModel(playbackAPI: api, playbackSession: playback, pollIntervalNanoseconds: 60_000_000_000)
 
-        let one = SpotifyTrack(id: "1", name: "One", artists: ["A"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:1")
-        let two = SpotifyTrack(id: "2", name: "Two", artists: ["B"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:2")
-        let three = SpotifyTrack(id: "3", name: "Three", artists: ["C"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:3")
+        let one = MusicTrack(id: "1", name: "One", artists: ["A"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:1")
+        let two = MusicTrack(id: "2", name: "Two", artists: ["B"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:2")
+        let three = MusicTrack(id: "3", name: "Three", artists: ["C"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:3")
         api.queueResponse = SpotifyQueueResponse(queue: [.track(one), .track(two), .track(three)])
         queue.isPanelVisible = true
         await queue.refreshQueue()
@@ -808,8 +808,8 @@ final class QueuePanelTests: XCTestCase {
         playback.handle(.ready(deviceID: "device-1"))
         let queue = QueueViewModel(playbackAPI: api, playbackSession: playback, pollIntervalNanoseconds: 60_000_000_000)
 
-        let one = SpotifyTrack(id: "1", name: "One", artists: ["A"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:1")
-        let two = SpotifyTrack(id: "2", name: "Two", artists: ["B"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:2")
+        let one = MusicTrack(id: "1", name: "One", artists: ["A"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:1")
+        let two = MusicTrack(id: "2", name: "Two", artists: ["B"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:2")
         api.queueResponse = SpotifyQueueResponse(queue: [.track(one), .track(two)])
         queue.setPanelVisible(true)
         await queue.refreshQueue()
@@ -833,9 +833,9 @@ final class QueuePanelTests: XCTestCase {
             optimisticReconcileTimeout: .seconds(5)
         )
 
-        let one = SpotifyTrack(id: "1", name: "One", artists: ["A"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:1")
-        let two = SpotifyTrack(id: "2", name: "Two", artists: ["B"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:2")
-        let three = SpotifyTrack(id: "3", name: "Three", artists: ["C"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:3")
+        let one = MusicTrack(id: "1", name: "One", artists: ["A"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:1")
+        let two = MusicTrack(id: "2", name: "Two", artists: ["B"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:2")
+        let three = MusicTrack(id: "3", name: "Three", artists: ["C"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:3")
         let originalQueue = SpotifyQueueResponse(queue: [.track(one), .track(two), .track(three)])
         let shuffledQueue = SpotifyQueueResponse(queue: [.track(three), .track(one), .track(two)])
         api.queueResponses = [originalQueue, originalQueue, originalQueue, shuffledQueue, shuffledQueue]
@@ -965,7 +965,7 @@ final class QueuePanelTests: XCTestCase {
         await Task.yield()
         playback.hasTransferredPlaybackToCurrentDevice = false
         let queue = QueueViewModel(playbackAPI: api, playbackSession: playback)
-        let item = QueueItem.from(track: SpotifyTrack(
+        let item = QueueItem.from(track: MusicTrack(
             id: "t",
             name: "Track",
             artists: ["A"],
@@ -1021,8 +1021,8 @@ final class QueuePanelTests: XCTestCase {
             optimisticReconcileTimeout: .milliseconds(40)
         )
 
-        let one = SpotifyTrack(id: "1", name: "One", artists: ["A"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:1")
-        let two = SpotifyTrack(id: "2", name: "Two", artists: ["B"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:2")
+        let one = MusicTrack(id: "1", name: "One", artists: ["A"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:1")
+        let two = MusicTrack(id: "2", name: "Two", artists: ["B"], albumArtworkURL: nil, durationMilliseconds: 100_000, isExplicit: false, isPlayable: true, linkedFromID: nil, uri: "spotify:track:2")
         api.queueResponse = SpotifyQueueResponse(queue: [.track(one), .track(two)])
         queue.setPanelVisible(true)
         await queue.refreshQueue()

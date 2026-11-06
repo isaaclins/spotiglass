@@ -4,7 +4,7 @@ import XCTest
 @MainActor
 final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
     func testCatalogPlaylistSummaryLoadsTracksOutsideLibrary() async {
-        let external = SpotifyPlaylistSummary(
+        let external = MusicPlaylistSummary(
             id: "external",
             name: "Public Mix",
             ownerID: "public-owner",
@@ -39,7 +39,7 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
             trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]],
-            savedTracksResult: .success(SpotifySavedTracksResult(tracks: [liked], totalAvailable: 1))
+            savedTracksResult: .success(MusicSavedTracksResult(tracks: [liked], totalAvailable: 1))
         )
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
 
@@ -251,7 +251,7 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
             trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]],
-            savedTracksResult: .success(SpotifySavedTracksResult(tracks: [likedFresh], totalAvailable: 1))
+            savedTracksResult: .success(MusicSavedTracksResult(tracks: [likedFresh], totalAvailable: 1))
         )
         let cache = MockBrowsingCache(
             cachedTracks: [SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID: [likedStale]],
@@ -274,7 +274,7 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
             trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]],
-            savedTracksResult: .success(SpotifySavedTracksResult(tracks: [likedFresh], totalAvailable: 1))
+            savedTracksResult: .success(MusicSavedTracksResult(tracks: [likedFresh], totalAvailable: 1))
         )
         let cache = MockBrowsingCache()
         let viewModel = PlaylistBrowserViewModel(
@@ -297,7 +297,7 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         let api = MockBrowsingAPI(
             playlistResults: [],
             trackResults: [:],
-            savedTracksResult: .success(SpotifySavedTracksResult(tracks: [remaining], totalAvailable: 1)),
+            savedTracksResult: .success(MusicSavedTracksResult(tracks: [remaining], totalAvailable: 1)),
             removeSavedTracksHandler: { ids in
                 XCTAssertEqual(ids, ["liked-visible"])
             }
@@ -334,7 +334,7 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         let api = MockBrowsingAPI(
             playlistResults: [],
             trackResults: [:],
-            savedTracksResult: .success(SpotifySavedTracksResult(tracks: [cached, saved], totalAvailable: 2))
+            savedTracksResult: .success(MusicSavedTracksResult(tracks: [cached, saved], totalAvailable: 2))
         )
         let cache = MockBrowsingCache(
             cachedTracks: [SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID: [cached]]
@@ -394,8 +394,8 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         let source = PlaylistBrowsingTestFixtures.playlist(id: "source", name: "Source", snapshotID: "source-snapshot")
         let destination = PlaylistBrowsingTestFixtures.playlist(id: "destination", name: "Destination", snapshotID: "destination-snapshot")
         let duplicate = PlaylistBrowsingTestFixtures.track(id: "duplicate")
-        let first = SpotifyPlaylistTrackItem(id: "duplicate:0", content: duplicate.content)
-        let second = SpotifyPlaylistTrackItem(id: "duplicate:1", content: duplicate.content)
+        let first = MusicPlaylistTrackItem(id: "duplicate:0", content: duplicate.content)
+        let second = MusicPlaylistTrackItem(id: "duplicate:1", content: duplicate.content)
         let remaining = PlaylistBrowsingTestFixtures.track(id: "remaining")
         let api = MockBrowsingAPI(
             playlistResults: [],
@@ -431,7 +431,7 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         XCTAssertEqual(removeCall.playlistID, source.id)
         XCTAssertEqual(
             removeCall.items,
-            [SpotifyPlaylistTrackRemoval(uri: "spotify:track:duplicate", positions: [0, 1])]
+            [MusicPlaylistTrackRemoval(uri: "spotify:track:duplicate", positions: [0, 1])]
         )
         XCTAssertEqual(removeCall.snapshotID, source.snapshotID)
         XCTAssertEqual(PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).map(\.id), ["remaining"])
@@ -452,7 +452,7 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
             removeTracksHandler: { playlistID, items, snapshotID in
                 XCTAssertEqual(playlistID, source.id)
                 XCTAssertEqual(snapshotID, source.snapshotID)
-                XCTAssertEqual(items, [SpotifyPlaylistTrackRemoval(uri: "spotify:track:move-track", positions: [0])])
+                XCTAssertEqual(items, [MusicPlaylistTrackRemoval(uri: "spotify:track:move-track", positions: [0])])
                 throw SpotifyAPIError.network("Removal unavailable")
             }
         )
@@ -487,9 +487,9 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
 
     func testTrackOperationTargetsAreActionSpecificForMixedRows() {
         let playable = PlaylistBrowsingTestFixtures.track(id: "playable")
-        let episode = SpotifyPlaylistTrackItem(
+        let episode = MusicPlaylistTrackItem(
             id: "episode:1",
-            content: .episode(SpotifyEpisode(
+            content: .episode(MusicEpisode(
                 id: "episode",
                 name: "Episode",
                 showName: "Show",
@@ -499,9 +499,9 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
                 uri: "spotify:episode:episode"
             ))
         )
-        let local = SpotifyPlaylistTrackItem(
+        let local = MusicPlaylistTrackItem(
             id: "local:track:2",
-            content: .localTrack(SpotifyLocalTrack(
+            content: .localTrack(MusicLocalTrack(
                 name: "Local",
                 artists: [],
                 durationMilliseconds: 60_000,
@@ -578,7 +578,7 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
 
     func testErrorShapedPlaylistResultIsNotRenderedAsARow() async {
         let errorName = SpotiglassL10n.string("error.spotify.forbidden")
-        let errorSummary = SpotifyPlaylistSummary(
+        let errorSummary = MusicPlaylistSummary(
             id: "error-item",
             name: errorName,
             ownerID: "unknown-owner",
@@ -602,9 +602,9 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
     }
 
     func testIneligibleTrackMutationReportsWhyNothingWasSent() async {
-        let localItem = SpotifyPlaylistTrackItem(
+        let localItem = MusicPlaylistTrackItem(
             id: "local:track:0",
-            content: .localTrack(SpotifyLocalTrack(
+            content: .localTrack(MusicLocalTrack(
                 name: "Local Song",
                 artists: ["Local Artist"],
                 durationMilliseconds: 120_000,
@@ -634,7 +634,7 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
             savedTracksHandler: {
                 savedTracksStarted.signal()
                 await releaseSavedTracks.wait()
-                return SpotifySavedTracksResult(tracks: [liked], totalAvailable: 1)
+                return MusicSavedTracksResult(tracks: [liked], totalAvailable: 1)
             }
         )
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
@@ -729,7 +729,7 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
     }
 
     func testRenameCommitTargetRejectsChangedSelectionBeforeCallingRename() async {
-        let first = SpotifyPlaylistSummary(
+        let first = MusicPlaylistSummary(
             id: "first",
             name: "Playlist A",
             ownerID: "owner",
@@ -738,7 +738,7 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
             trackCount: 0,
             snapshotID: "first-snapshot"
         )
-        let second = SpotifyPlaylistSummary(
+        let second = MusicPlaylistSummary(
             id: "second",
             name: "Playlist B",
             ownerID: "owner",
@@ -783,7 +783,7 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
     }
 
     func testRenamePlaylistOptimisticallyUpdatesSidebarAndDetail() async {
-        let playlist = SpotifyPlaylistSummary(
+        let playlist = MusicPlaylistSummary(
             id: "rename-me",
             name: "Before",
             ownerID: "u",
@@ -819,7 +819,7 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
     }
 
     func testRenamePlaylistRevertsOptimisticUpdateAndSurfacesFailure() async {
-        let playlist = SpotifyPlaylistSummary(
+        let playlist = MusicPlaylistSummary(
             id: "rename-me",
             name: "Before",
             ownerID: "u",
@@ -857,7 +857,7 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
     }
 
     func testRenamePlaylistRejectsBlankNamesAndNonOwnedPlaylists() async {
-        let playlist = SpotifyPlaylistSummary(
+        let playlist = MusicPlaylistSummary(
             id: "rename-me",
             name: "Before",
             ownerID: "owner",

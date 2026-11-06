@@ -14,7 +14,7 @@ extension PlaylistBrowserViewModel {
                 async let cachedDetail = api.artistCached(id: id, cacheMode: .allowStale)
                 async let cachedAlbums = api.artistAlbumsCached(
                     id: id,
-                    includeGroups: "album,single,compilation",
+                    includeGroups: [.album, .single, .compilation],
                     limit: 10,
                     cacheMode: .allowStale
                 )
@@ -34,13 +34,13 @@ extension PlaylistBrowserViewModel {
                 )
             }
             let artistDetail = try await api.artist(id: id, cacheMode: .bypassCache)
-            let includeGroups = "album,single,compilation"
+            let includeGroups: [MusicArtistAlbumGroup] = [.album, .single, .compilation]
             let limit = 10
             var nextURL: URL?
             var nextOffset = 0
             var pagesFetched = 0
             var seenNextURLs: Set<String> = []
-            var albumList: [SpotifyArtistAlbum] = []
+            var albumList: [MusicArtistAlbum] = []
             repeat {
                 if let url = nextURL {
                     let key = url.absoluteString
@@ -87,8 +87,8 @@ extension PlaylistBrowserViewModel {
         return try await task.value
     }
 
-    static func dedupeAlbums(_ albums: [SpotifyArtistAlbum]) -> [SpotifyArtistAlbum] {
-        var deduped: [SpotifyArtistAlbum] = []
+    static func dedupeAlbums(_ albums: [MusicArtistAlbum]) -> [MusicArtistAlbum] {
+        var deduped: [MusicArtistAlbum] = []
         var seenIDs: Set<String> = []
         deduped.reserveCapacity(albums.count)
         for album in albums {

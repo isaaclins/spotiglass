@@ -1,7 +1,7 @@
 import Foundation
 
 struct AlbumTrackFetchResult: Equatable {
-    let tracks: [SpotifyTrack]
+    let tracks: [MusicTrack]
 }
 
 private struct AlbumTrackRequestKey: Hashable {
@@ -55,11 +55,11 @@ actor AlbumTrackRequestCoalescer {
 extension SpotifyAPIClient {
     /// Tracks on an album (`GET /v1/albums/{id}/tracks`). Paginates until `next` is nil or `maxPages`
     /// is reached. Concurrent duplicate requests for the same album+market+limit+maxPages are coalesced.
-    func albumTracks(albumID: String, market: String?, limit: Int) async throws -> [SpotifyTrack] {
+    func albumTracks(albumID: String, market: String?, limit: Int) async throws -> [MusicTrack] {
         try await albumTracks(albumID: albumID, market: market, limit: limit, maxPages: 6)
     }
 
-    func albumTracks(albumID: String, market: String?, limit: Int, maxPages: Int) async throws -> [SpotifyTrack] {
+    func albumTracks(albumID: String, market: String?, limit: Int, maxPages: Int) async throws -> [MusicTrack] {
         try await albumTracksWithMetrics(albumID: albumID, market: market, limit: limit, maxPages: maxPages).tracks
     }
 
@@ -79,7 +79,7 @@ extension SpotifyAPIClient {
     }
 
     /// Single page used by the artist fallback. A selected album never amplifies into multiple HTTP calls.
-    func albumTracksFirstPage(albumID: String, market: String?, limit: Int = 10) async throws -> [SpotifyTrack] {
+    func albumTracksFirstPage(albumID: String, market: String?, limit: Int = 10) async throws -> [MusicTrack] {
         try await albumTracksWithMetrics(albumID: albumID, market: market, limit: limit, maxPages: 1).tracks
     }
 }
@@ -91,7 +91,7 @@ private extension SpotifyAPIClient {
         limit: Int,
         maxPages: Int
     ) async throws -> AlbumTrackFetchResult {
-        var results: [SpotifyTrack] = []
+        var results: [MusicTrack] = []
         var nextURL: URL?
         var pagesFetched = 0
         let pageCap = max(1, maxPages)

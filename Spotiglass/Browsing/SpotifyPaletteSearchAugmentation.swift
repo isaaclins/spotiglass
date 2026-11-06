@@ -23,7 +23,7 @@ enum SpotifyPaletteSearchAugmentation {
     }
 
     /// Keeps `primary` order; appends tracks from `extra` not already present (by track id).
-    static func mergeTracksPreservingOrder(primary: [SpotifyTrack], extra: [SpotifyTrack]) -> [SpotifyTrack] {
+    static func mergeTracksPreservingOrder(primary: [MusicTrack], extra: [MusicTrack]) -> [MusicTrack] {
         var seen = Set(primary.map(\.id))
         var out = primary
         for track in extra where !seen.contains(track.id) {

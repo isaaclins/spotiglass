@@ -46,7 +46,7 @@ struct PlaylistsSidebarSectionContent: View {
     @State private var editingPlaylistID: String?
     @State private var editedPlaylistName = ""
     @FocusState private var isPlaylistNameFocused: Bool
-    let playlistSummaryFromRow: (PlaylistRowViewModel) -> SpotifyPlaylistSummary
+    let playlistSummaryFromRow: (PlaylistRowViewModel) -> MusicPlaylistSummary
 
     private var isCurrentlyPlaying: Bool {
         if case .playing = playbackViewModel.connectionState { return true }
@@ -146,7 +146,7 @@ struct PlaylistsSidebarSectionContent: View {
         }
     }
 
-    private func canRenamePlaylist(_ summary: SpotifyPlaylistSummary) -> Bool {
+    private func canRenamePlaylist(_ summary: MusicPlaylistSummary) -> Bool {
         guard let currentUserID = viewModel.currentUserSpotifyID,
               !currentUserID.isEmpty
         else { return false }

@@ -9,13 +9,13 @@ final class LibraryContinuationRankingTests: XCTestCase {
         artistName: String? = nil,
         playable: Bool? = true,
         linkedFromID: String? = nil
-    ) -> SpotifyTrack {
+    ) -> MusicTrack {
         let resolvedArtistName = artistName ?? artistID
-        return SpotifyTrack(
+        return MusicTrack(
             id: id,
             name: "Track \(id)",
             artists: [resolvedArtistName],
-            artistRefs: [SpotifyArtistRef(id: artistID, name: resolvedArtistName)],
+            artistRefs: [MusicArtistRef(id: artistID, name: resolvedArtistName)],
             albumArtworkURL: nil,
             durationMilliseconds: 180_000,
             isExplicit: false,
@@ -25,9 +25,9 @@ final class LibraryContinuationRankingTests: XCTestCase {
         )
     }
 
-    private func artist(_ id: String, name: String? = nil) -> SpotifyArtist {
+    private func artist(_ id: String, name: String? = nil) -> MusicArtist {
         let resolvedName = name ?? id
-        return SpotifyArtist(
+        return MusicArtist(
             id: id,
             name: resolvedName,
             imageURL: nil,

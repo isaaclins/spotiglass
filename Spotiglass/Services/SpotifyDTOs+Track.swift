@@ -61,13 +61,13 @@ struct SpotifyTrackDTO: Decodable {
         isLocal = try container.decodeIfPresent(Bool.self, forKey: .isLocal)
     }
 
-    func domainModel() -> SpotifyTrack? {
+    func domainModel() -> MusicTrack? {
         guard let id else { return nil }
-        let artistRefs: [SpotifyArtistRef] = artists.compactMap { dto in
+        let artistRefs: [MusicArtistRef] = artists.compactMap { dto in
             guard let artistID = dto.id else { return nil }
-            return SpotifyArtistRef(id: artistID, name: dto.name)
+            return MusicArtistRef(id: artistID, name: dto.name)
         }
-        return SpotifyTrack(
+        return MusicTrack(
             id: id,
             name: name,
             artists: artists.map(\.name),
@@ -83,8 +83,8 @@ struct SpotifyTrackDTO: Decodable {
         )
     }
 
-    func localDomainModel() -> SpotifyLocalTrack {
-        SpotifyLocalTrack(
+    func localDomainModel() -> MusicLocalTrack {
+        MusicLocalTrack(
             name: name,
             artists: artists.map(\.name),
             durationMilliseconds: durationMilliseconds,
@@ -123,9 +123,9 @@ struct SpotifyEpisodeDTO: Decodable {
         uri = try container.decodeIfPresent(String.self, forKey: .uri) ?? id.map { "spotify:episode:\($0)" } ?? "spotify:episode:unavailable"
     }
 
-    func domainModel() -> SpotifyEpisode? {
+    func domainModel() -> MusicEpisode? {
         guard let id else { return nil }
-        return SpotifyEpisode(
+        return MusicEpisode(
             id: id,
             name: name,
             showName: show?.name,

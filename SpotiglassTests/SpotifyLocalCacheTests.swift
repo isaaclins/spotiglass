@@ -58,7 +58,7 @@ final class SpotifyLocalCacheTests: XCTestCase {
 
     func testLibraryContinuationIndexRoundTripsAndRespectsAge() throws {
         let (cache, _) = try makeCache()
-        let track = SpotifyTrack(
+        let track = MusicTrack(
             id: "t1",
             name: "Track",
             artists: ["Artist"],

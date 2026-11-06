@@ -18,7 +18,7 @@ extension SpotifyAPIClient {
         )
     }
 
-    func playlistTracks(playlistID: String, limit: Int = 50, maxPages: Int = 200) async throws -> [SpotifyPlaylistTrackItem] {
+    func playlistTracks(playlistID: String, limit: Int = 50, maxPages: Int = 200) async throws -> [MusicPlaylistTrackItem] {
         guard !playlistID.isEmpty else {
             throw SpotifyAPIError.invalidRequest("Playlist ID is required.")
         }

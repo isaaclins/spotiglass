@@ -38,7 +38,7 @@ final class PlaylistBrowserPinnedSidebarPolicyTests: XCTestCase {
 
         let cachedDetail = BrowsingDetailContent.playlist(PlaylistDetailViewModel(
             playlist: PlaylistRowViewModel(
-                SpotifyPlaylistSummary(
+                MusicPlaylistSummary(
                     id: "p", name: "P",
                 ownerID: "test-owner", ownerName: "O",
                     imageURL: nil, trackCount: 0, snapshotID: "s"

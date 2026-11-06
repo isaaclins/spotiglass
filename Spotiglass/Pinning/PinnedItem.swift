@@ -65,7 +65,7 @@ struct PinnedItem: Identifiable, Equatable, Codable, Hashable {
 }
 
 extension PinnedItem {
-    static func playlist(_ playlist: SpotifyPlaylistSummary) -> PinnedItem {
+    static func playlist(_ playlist: MusicPlaylistSummary) -> PinnedItem {
         PinnedItem(
             id: id(forKind: .playlist, spotifyID: playlist.id),
             kind: .playlist,
@@ -80,7 +80,7 @@ extension PinnedItem {
         )
     }
 
-    static func artist(_ artist: SpotifyArtistDetail) -> PinnedItem {
+    static func artist(_ artist: MusicArtistDetail) -> PinnedItem {
         PinnedItem(
             id: id(forKind: .artist, spotifyID: artist.id),
             kind: .artist,
@@ -92,8 +92,8 @@ extension PinnedItem {
         )
     }
 
-    /// Convenience for palette artist hits where we only have the lighter ``SpotifyArtist``.
-    static func artist(_ artist: SpotifyArtist) -> PinnedItem {
+    /// Convenience for palette artist hits where we only have the lighter ``MusicArtist``.
+    static func artist(_ artist: MusicArtist) -> PinnedItem {
         PinnedItem(
             id: id(forKind: .artist, spotifyID: artist.id),
             kind: .artist,
@@ -105,7 +105,7 @@ extension PinnedItem {
         )
     }
 
-    static func album(_ album: SpotifyArtistAlbum) -> PinnedItem {
+    static func album(_ album: MusicArtistAlbum) -> PinnedItem {
         PinnedItem(
             id: id(forKind: .album, spotifyID: album.id),
             kind: .album,
@@ -117,7 +117,7 @@ extension PinnedItem {
         )
     }
 
-    static func album(_ album: SpotifyAlbum) -> PinnedItem {
+    static func album(_ album: MusicAlbum) -> PinnedItem {
         PinnedItem(
             id: id(forKind: .album, spotifyID: album.id),
             kind: .album,
@@ -129,7 +129,7 @@ extension PinnedItem {
         )
     }
 
-    static func track(_ track: SpotifyTrack) -> PinnedItem {
+    static func track(_ track: MusicTrack) -> PinnedItem {
         let canonicalID = canonicalTrackID(for: track) ?? track.id
         return PinnedItem(
             id: id(forKind: .track, spotifyID: canonicalID),
@@ -186,9 +186,9 @@ extension PinnedItem {
 
     /// Reconstructs the summary captured when a playlist was pinned. Older pins
     /// have no snapshot fields, so the playlist ID is a safe cache namespace.
-    var playlistSummary: SpotifyPlaylistSummary? {
+    var playlistSummary: MusicPlaylistSummary? {
         guard kind == .playlist, let spotifyID else { return nil }
-        return SpotifyPlaylistSummary(
+        return MusicPlaylistSummary(
             id: spotifyID,
             name: title,
             ownerID: playlistOwnerID ?? "",
@@ -202,7 +202,7 @@ extension PinnedItem {
     /// Canonical track identity shared by row pinning, pin state, and fallback
     /// deduplication. A URI key is retained alongside the ID so either Spotify
     /// representation recognizes the same track.
-    static func trackIdentityKeys(for track: SpotifyTrack) -> Set<String> {
+    static func trackIdentityKeys(for track: MusicTrack) -> Set<String> {
         var keys = Set<String>()
         if let id = canonicalTrackID(for: track) {
             keys.insert("id:\(id)")
@@ -213,7 +213,7 @@ extension PinnedItem {
         return keys
     }
 
-    static func canonicalTrackID(for track: SpotifyTrack) -> String? {
+    static func canonicalTrackID(for track: MusicTrack) -> String? {
         if let uriID = canonicalTrackID(fromSpotifyURI: track.uri) {
             return uriID
         }

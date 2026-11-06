@@ -271,7 +271,7 @@ struct CatalogSearchView: View {
         }
     }
 
-    private func artistSection(_ artists: [SpotifyArtist]) -> some View {
+    private func artistSection(_ artists: [MusicArtist]) -> some View {
         VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
             HomeSectionHeader(title: CatalogSearchCategory.artists.pillLabel)
             cardLayout(isFocused: searchViewModel.category == .artists) {
@@ -284,7 +284,7 @@ struct CatalogSearchView: View {
         }
     }
 
-    private func albumSection(_ albums: [SpotifyAlbum]) -> some View {
+    private func albumSection(_ albums: [MusicAlbum]) -> some View {
         VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
             HomeSectionHeader(title: CatalogSearchCategory.albums.pillLabel)
             cardLayout(isFocused: searchViewModel.category == .albums) {
@@ -319,7 +319,7 @@ struct CatalogSearchView: View {
         }
     }
 
-    private func playlistSection(_ playlists: [SpotifyPlaylistSummary]) -> some View {
+    private func playlistSection(_ playlists: [MusicPlaylistSummary]) -> some View {
         VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
             HomeSectionHeader(title: CatalogSearchCategory.playlists.pillLabel)
             cardLayout(isFocused: searchViewModel.category == .playlists) {
@@ -362,7 +362,7 @@ struct CatalogSearchView: View {
 /// Circular artist tile. Albums and playlists reuse ``HomeMediaCardView``, but
 /// artists render round artwork and have no ``HomeMediaCard/Destination`` case.
 struct CatalogSearchArtistCard: View {
-    let artist: SpotifyArtist
+    let artist: MusicArtist
     let action: () -> Void
 
     var body: some View {

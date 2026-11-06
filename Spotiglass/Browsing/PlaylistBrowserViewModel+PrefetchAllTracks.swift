@@ -173,7 +173,7 @@ extension PlaylistBrowserViewModel {
     }
 
     private func fetchAndCachePlaylistTracks(
-        summary: SpotifyPlaylistSummary, retryRemaining: Int
+        summary: MusicPlaylistSummary, retryRemaining: Int
     ) async -> PrefetchItemOutcome {
         do {
             // Mirror the limits used by the per-playlist detail loader so we don't regress the
@@ -238,7 +238,7 @@ extension PlaylistBrowserViewModel {
     }
 
     private func buildPrefetchWorklist() -> [PrefetchWorkItem] {
-        let summaries: [SpotifyPlaylistSummary]
+        let summaries: [MusicPlaylistSummary]
         if let rows = playlistState.currentValue {
             summaries = rows.compactMap { playlistsByID[$0.id] }
         } else {
@@ -268,7 +268,7 @@ extension PlaylistBrowserViewModel {
 // MARK: - Worklist + outcome types
 
 enum PrefetchWorkItem: Equatable {
-    case playlist(SpotifyPlaylistSummary)
+    case playlist(MusicPlaylistSummary)
     case likedSongs
 }
 

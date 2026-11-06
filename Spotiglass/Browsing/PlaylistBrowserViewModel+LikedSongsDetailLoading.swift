@@ -40,7 +40,7 @@ extension PlaylistBrowserViewModel {
         await revalidateLikedSongs(session: session)
     }
 
-    private func setLikedSongsDetailState(from tracks: [SpotifyPlaylistTrackItem], session: Int) async -> Bool {
+    private func setLikedSongsDetailState(from tracks: [MusicPlaylistTrackItem], session: Int) async -> Bool {
         guard session == detailSession else { return false }
         if tracks.isEmpty {
             detailState = .empty(SpotiglassL10n.string("browser.empty.noLikedSongs"))
@@ -58,7 +58,7 @@ extension PlaylistBrowserViewModel {
         return true
     }
 
-    private func firstLikedSongsArtwork(from tracks: [SpotifyPlaylistTrackItem]) -> URL? {
+    private func firstLikedSongsArtwork(from tracks: [MusicPlaylistTrackItem]) -> URL? {
         for item in tracks.prefix(4) {
             if case let .track(t) = item.content { return t.albumArtworkURL }
             if case let .episode(e) = item.content { return e.artworkURL }
@@ -122,7 +122,7 @@ extension PlaylistBrowserViewModel {
         return now().timeIntervalSince(lastRevalidation) < likedSongsAutoRefreshMinInterval
     }
 
-    private func likedSongsRevalidationResult() async throws -> SpotifySavedTracksResult {
+    private func likedSongsRevalidationResult() async throws -> MusicSavedTracksResult {
         if let inFlight = likedSongsRevalidationTask {
             return try await inFlight.value
         }
