@@ -17,7 +17,8 @@ enum AppleMusicBrowsingError: LocalizedError, Equatable {
 /// `MusicBrowsingProvider` for Apple Music, through MusicKit.
 ///
 /// How the browser's surfaces map onto Apple Music:
-/// - **Library playlists**: `MusicLibraryRequest<Playlist>`, most recently played first.
+/// - **Library playlists**: `MusicLibraryRequest<Playlist>`, in the library's own order (sorting
+///   by last played aborts MusicKit's macOS library backend), every page of them.
 /// - **Liked Songs**: the songs in the user's library, newest first. Apple Music has no
 ///   separate "liked" list a native app can read; loving a song is a rating, and MusicKit on
 ///   macOS offers no request for loved songs. The library is what the user chose to keep, which
@@ -39,6 +40,8 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
     /// Upper bound for Liked Songs, so a very large library cannot grow without limit.
     static let maxLibrarySongs = 10_000
     static let librarySongsPageSize = 200
+    /// Upper bound for library playlists; far above any real library, it only stops a runaway.
+    static let maxLibraryPlaylists = 5_000
 
     let source: any AppleMusicContentSource
 
@@ -57,8 +60,19 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         return MusicUserProfile(id: Self.libraryUserID, displayName: nil, country: country?.uppercased())
     }
 
+    /// `limit` is the page size, like Spotify's: every library playlist is returned, not only the
+    /// first page.
     func currentUserPlaylists(limit: Int) async throws -> [MusicPlaylistSummary] {
-        try await source.libraryPlaylists(limit: limit).map {
+        let pageSize = max(1, limit)
+        var playlists: [Playlist] = []
+        while playlists.count < Self.maxLibraryPlaylists {
+            try Task.checkCancellation()
+            let requested = min(pageSize, Self.maxLibraryPlaylists - playlists.count)
+            let page = try await source.libraryPlaylists(limit: requested, offset: playlists.count)
+            playlists.append(contentsOf: page)
+            if page.count < requested { break }
+        }
+        return playlists.map {
             AppleMusicItemMapping.playlistSummary($0, fallbackOwnerName: libraryOwnerName)
         }
     }
@@ -226,13 +240,19 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         return components.url
     }
 
-    /// Library items first, then catalog items the library does not already show.
+    /// Library items first, then the catalog items the library does not already show.
+    ///
+    /// Each side keeps up to `limit` items. Library matches must not push catalog items off the
+    /// page: the next page starts after this page's catalog items, so a catalog item cut here
+    /// would never be shown at all.
     static func merged<Item>(_ library: [Item], _ catalog: [Item], limit: Int, key: (Item) -> String) -> [Item] {
         var seen: Set<String> = []
         var result: [Item] = []
-        for item in library + catalog where seen.insert(key(item)).inserted {
+        for item in library.prefix(limit) where seen.insert(key(item)).inserted {
             result.append(item)
-            if result.count >= limit { break }
+        }
+        for item in catalog.prefix(limit) where seen.insert(key(item)).inserted {
+            result.append(item)
         }
         return result
     }

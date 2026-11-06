@@ -147,7 +147,29 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         let playlists = try await AppleMusicBrowsingProvider(source: source).currentUserPlaylists(limit: 50)
 
         XCTAssertEqual(playlists.map(\.name), ["Road"])
-        XCTAssertEqual(source.calls, ["libraryPlaylists(50)"])
+        XCTAssertEqual(source.calls, ["libraryPlaylists(50,0)"])
+    }
+
+    /// The browser asks with `limit: 50` as a page size, like Spotify's. A library with more
+    /// playlists than that must show all of them, not just the first page.
+    func testEveryLibraryPlaylistLoadsNotOnlyTheFirstPage() async throws {
+        let source = MockAppleMusicSource()
+        source.playlists = try (0..<120).map { try AppleMusicFixtures.playlist(id: "p.\($0)", name: "Playlist \($0)") }
+        let playlists = try await AppleMusicBrowsingProvider(source: source).currentUserPlaylists(limit: 50)
+
+        XCTAssertEqual(playlists.count, 120)
+        XCTAssertEqual(playlists.last?.id, "p.119")
+        XCTAssertEqual(source.calls, ["libraryPlaylists(50,0)", "libraryPlaylists(50,50)", "libraryPlaylists(50,100)"])
+    }
+
+    func testLibraryPlaylistsStopAtTheirCap() async throws {
+        let source = MockAppleMusicSource()
+        source.playlists = try (0..<(AppleMusicBrowsingProvider.maxLibraryPlaylists + 10)).map {
+            try AppleMusicFixtures.playlist(id: "p.\($0)", name: "P")
+        }
+        let playlists = try await AppleMusicBrowsingProvider(source: source).currentUserPlaylists(limit: 1_000)
+
+        XCTAssertEqual(playlists.count, AppleMusicBrowsingProvider.maxLibraryPlaylists)
     }
 
     func testPlaylistTracksAskForEveryPageAndReportMissingPlaylists() async throws {
@@ -309,6 +331,29 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         XCTAssertTrue(source.calls.contains("librarySearch(bonobo,10)"))
         let next = try XCTUnwrap(results.tracksPaging?.next)
         XCTAssertEqual(URLComponents(url: next, resolvingAgainstBaseURL: false)?.queryItems?.first?.value, "10")
+    }
+
+    /// Page 2 starts after page 1's catalog items, so library matches on page 1 must not push
+    /// catalog items off it, or those items are never shown.
+    func testLibraryMatchesDoNotPushCatalogResultsOffTheFirstPage() async throws {
+        let source = MockAppleMusicSource()
+        source.librarySearchItems = AppleMusicSearchItems(songs: [
+            try AppleMusicFixtures.song(id: "i.1", title: "Mine One", artist: "A"),
+            try AppleMusicFixtures.song(id: "i.2", title: "Mine Two", artist: "A"),
+        ])
+        source.catalogSearchItems = AppleMusicSearchItems(
+            songs: [
+                try AppleMusicFixtures.song(id: "1", title: "Catalog One", artist: "B"),
+                try AppleMusicFixtures.song(id: "2", title: "Catalog Two", artist: "B"),
+                try AppleMusicFixtures.song(id: "3", title: "Catalog Three", artist: "B"),
+            ],
+            hasMore: true
+        )
+        let results = try await AppleMusicBrowsingProvider(source: source).search(query: "one", limit: 3)
+
+        XCTAssertEqual(results.tracks.map(\.id), ["i.1", "i.2", "1", "2", "3"])
+        let next = try XCTUnwrap(results.tracksPaging?.next)
+        XCTAssertEqual(URLComponents(url: next, resolvingAgainstBaseURL: false)?.queryItems?.first?.value, "3")
     }
 
     func testLaterSearchPagesAreCatalogOnlyAndCappedAtMusicKitsPageSize() async throws {
@@ -487,9 +532,10 @@ private final class MockAppleMusicSource: AppleMusicContentSource, @unchecked Se
         lock.withLock { recordedCalls.append(call) }
     }
 
-    func libraryPlaylists(limit: Int) async throws -> [Playlist] {
-        record("libraryPlaylists(\(limit))")
-        return playlists
+    func libraryPlaylists(limit: Int, offset: Int) async throws -> [Playlist] {
+        record("libraryPlaylists(\(limit),\(offset))")
+        guard offset < playlists.count else { return [] }
+        return Array(playlists[offset..<min(playlists.count, offset + limit)])
     }
 
     func playlistTracks(playlistID: String, limit: Int) async throws -> [Track]? {

@@ -20,7 +20,8 @@ struct AppleMusicSearchItems {
 /// IDs are MusicKit item IDs. Lookups accept both library IDs (from the user's library) and
 /// catalog IDs (from search and recommendations).
 protocol AppleMusicContentSource: Sendable {
-    func libraryPlaylists(limit: Int) async throws -> [Playlist]
+    /// One page of the user's library playlists, in the library's own order.
+    func libraryPlaylists(limit: Int, offset: Int) async throws -> [Playlist]
     /// The tracks of one playlist, or `nil` when no playlist has that ID.
     func playlistTracks(playlistID: String, limit: Int) async throws -> [Track]?
     /// The user's library songs, most recently added first.
@@ -45,9 +46,10 @@ struct MusicKitContentSource: AppleMusicContentSource {
     /// MusicKit caps a catalog search page at 25 items per type.
     static let catalogSearchPageLimit = 25
 
-    func libraryPlaylists(limit: Int) async throws -> [Playlist] {
+    func libraryPlaylists(limit: Int, offset: Int) async throws -> [Playlist] {
         var request = MusicLibraryRequest<Playlist>()
         request.limit = limit
+        request.offset = offset
         // No `sort(by:)`: on macOS MusicKit's library backend aborts the process on sort
         // descriptors it does not support (seen on macOS 27 with `lastPlayedDate`).
         return Array(try await request.response().items)
