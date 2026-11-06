@@ -29,8 +29,9 @@ enum AppleMusicBrowsingError: LocalizedError, Equatable {
 ///   the first recommended playlist.
 /// - **Search**: library matches first, then the catalog, so the palette finds the user's own
 ///   music before the rest of Apple Music. Later pages are catalog only.
-/// - **Edits**: not supported here (MusicKit's library is read-only on macOS); the protocol's
-///   defaults report them as unsupported.
+/// - **Edits**: MusicKit's library is read-only on macOS, so edits go through the Apple Music API
+///   and the Music app (`AppleMusicLibraryEditor`, `AppleMusicBrowsingProvider+LibraryEdits`).
+///   Reads lay the edits the library on this Mac has not caught up with over their results.
 ///
 /// Response caching is MusicKit's own, so `cacheMode` is accepted and ignored.
 struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
@@ -50,9 +51,14 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
     static let maxArtistAlbums = 1_000
 
     let source: any AppleMusicContentSource
+    let editor: AppleMusicLibraryEditor
 
-    init(source: any AppleMusicContentSource = MusicKitContentSource()) {
+    init(
+        source: any AppleMusicContentSource = MusicKitContentSource(),
+        editor: AppleMusicLibraryEditor = AppleMusicLibraryEditor()
+    ) {
         self.source = source
+        self.editor = editor
     }
 
     private var libraryOwnerName: String {
@@ -78,17 +84,21 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
             playlists.append(contentsOf: page)
             if page.count < requested { break }
         }
-        return playlists.map {
+        return editor.pending.applied(toPlaylists: playlists.map {
             AppleMusicItemMapping.playlistSummary($0, fallbackOwnerName: libraryOwnerName)
-        }
+        })
     }
 
     func playlistTracks(playlistID: String, limit: Int, maxPages: Int) async throws -> [MusicPlaylistTrackItem] {
         let total = max(1, limit) * max(1, maxPages)
         guard let tracks = try await source.playlistTracks(playlistID: playlistID, limit: total) else {
+            // A playlist created from Spotiglass moments ago is only in the cloud library yet.
+            if let pending = try await pendingPlaylistTracks(playlistID: playlistID) {
+                return AppleMusicItemMapping.playlistItems(pending)
+            }
             throw AppleMusicBrowsingError.notFound
         }
-        return AppleMusicItemMapping.playlistItems(tracks.map { AppleMusicItemMapping.track($0) })
+        return AppleMusicItemMapping.playlistItems(applyingPendingEdits(toPlaylistTracks: tracks, playlistID: playlistID))
     }
 
     func currentUserSavedTracks(limit: Int, maxPages: Int?) async throws -> MusicSavedTracksResult {
@@ -102,7 +112,7 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
             songs.append(contentsOf: page)
             if page.count < requested { break }
         }
-        let tracks = songs.map(AppleMusicItemMapping.track)
+        let tracks = applyingPendingEdits(toLibrarySongs: songs, isComplete: songs.count < cap)
         return MusicSavedTracksResult(
             tracks: AppleMusicItemMapping.playlistItems(tracks),
             totalAvailable: tracks.count

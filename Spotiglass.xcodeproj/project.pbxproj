@@ -49,6 +49,12 @@
 		SRC0000000000000000000033 /* AppleMusicBrowsingProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC0000000000000000080033 /* AppleMusicBrowsingProvider.swift */; };
 		SRC0000000000000000000032 /* AppleMusicContentSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC0000000000000000080032 /* AppleMusicContentSource.swift */; };
 		SRC0000000000000000000031 /* AppleMusicItemMapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC0000000000000000080031 /* AppleMusicItemMapping.swift */; };
+		SRC00000000000000000000B5 /* AppleMusicBrowsingProvider+LibraryEdits.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC00000000000000000800B5 /* AppleMusicBrowsingProvider+LibraryEdits.swift */; };
+		SRC00000000000000000000B4 /* MusicKitLibraryLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC00000000000000000800B4 /* MusicKitLibraryLookup.swift */; };
+		SRC00000000000000000000B3 /* AppleMusicPendingLibraryEdits.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC00000000000000000800B3 /* AppleMusicPendingLibraryEdits.swift */; };
+		SRC00000000000000000000B2 /* MusicAppLibraryScripting.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC00000000000000000800B2 /* MusicAppLibraryScripting.swift */; };
+		SRC00000000000000000000B1 /* AppleMusicCloudLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC00000000000000000800B1 /* AppleMusicCloudLibrary.swift */; };
+		SRC00000000000000000000B0 /* AppleMusicLibraryEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC00000000000000000800B0 /* AppleMusicLibraryEditor.swift */; };
 		C30000000000000000000003 /* SpotifyAPIError.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000013 /* SpotifyAPIError.swift */; };
 		C30000000000000000000004 /* SpotifyDTOs+Paging.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000014 /* SpotifyDTOs+Paging.swift */; };
 		C30000000000000000000005 /* SpotifyLocalCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000015 /* SpotifyLocalCache.swift */; };
@@ -97,6 +103,7 @@
 		D4000000000000000000007B /* PlaylistBrowserViewModel+ArtistTrackFallback.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000038 /* PlaylistBrowserViewModel+ArtistTrackFallback.swift */; };
 		D4000000000000000000007C /* PlaylistBrowserViewModel+PrefetchAllTracks.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4000000000000000000007D /* PlaylistBrowserViewModel+PrefetchAllTracks.swift */; };
 		D40000000000000000000091 /* PlaylistBrowserViewModel+TrackMutations.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000041 /* PlaylistBrowserViewModel+TrackMutations.swift */; };
+		SRC00000000000000000000B6 /* PlaylistBrowserViewModel+LibraryEdits.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC00000000000000000800B6 /* PlaylistBrowserViewModel+LibraryEdits.swift */; };
 		E50000000000000000000001 /* MusicPlaybackModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000011 /* MusicPlaybackModels.swift */; };
 		E50000000000000000000002 /* SpotifyPlaybackBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000012 /* SpotifyPlaybackBridge.swift */; };
 		E50000000000000000000003 /* SpotifyPlaybackAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000013 /* SpotifyPlaybackAPI.swift */; };
@@ -472,6 +479,12 @@
 		SRC0000000000000000080033 /* AppleMusicBrowsingProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleMusicBrowsingProvider.swift; sourceTree = "<group>"; };
 		SRC0000000000000000080032 /* AppleMusicContentSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleMusicContentSource.swift; sourceTree = "<group>"; };
 		SRC0000000000000000080031 /* AppleMusicItemMapping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleMusicItemMapping.swift; sourceTree = "<group>"; };
+		SRC00000000000000000800B5 /* AppleMusicBrowsingProvider+LibraryEdits.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppleMusicBrowsingProvider+LibraryEdits.swift"; sourceTree = "<group>"; };
+		SRC00000000000000000800B4 /* MusicKitLibraryLookup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicKitLibraryLookup.swift; sourceTree = "<group>"; };
+		SRC00000000000000000800B3 /* AppleMusicPendingLibraryEdits.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleMusicPendingLibraryEdits.swift; sourceTree = "<group>"; };
+		SRC00000000000000000800B2 /* MusicAppLibraryScripting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicAppLibraryScripting.swift; sourceTree = "<group>"; };
+		SRC00000000000000000800B1 /* AppleMusicCloudLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleMusicCloudLibrary.swift; sourceTree = "<group>"; };
+		SRC00000000000000000800B0 /* AppleMusicLibraryEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleMusicLibraryEditor.swift; sourceTree = "<group>"; };
 		C30000000000000000000013 /* SpotifyAPIError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyAPIError.swift; sourceTree = "<group>"; };
 		C30000000000000000000014 /* SpotifyDTOs+Paging.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SpotifyDTOs+Paging.swift"; sourceTree = "<group>"; };
 		C30000000000000000000015 /* SpotifyLocalCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyLocalCache.swift; sourceTree = "<group>"; };
@@ -519,6 +532,7 @@
 		D40000000000000000000037 /* PlaylistBrowserViewModel+ArtistDetailSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlaylistBrowserViewModel+ArtistDetailSnapshot.swift"; sourceTree = "<group>"; };
 		D40000000000000000000038 /* PlaylistBrowserViewModel+ArtistTrackFallback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlaylistBrowserViewModel+ArtistTrackFallback.swift"; sourceTree = "<group>"; };
 		D40000000000000000000041 /* PlaylistBrowserViewModel+TrackMutations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlaylistBrowserViewModel+TrackMutations.swift"; sourceTree = "<group>"; };
+		SRC00000000000000000800B6 /* PlaylistBrowserViewModel+LibraryEdits.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlaylistBrowserViewModel+LibraryEdits.swift"; sourceTree = "<group>"; };
 		D4000000000000000000007D /* PlaylistBrowserViewModel+PrefetchAllTracks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlaylistBrowserViewModel+PrefetchAllTracks.swift"; sourceTree = "<group>"; };
 		E50000000000000000000011 /* MusicPlaybackModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicPlaybackModels.swift; sourceTree = "<group>"; };
 		E50000000000000000000012 /* SpotifyPlaybackBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyPlaybackBridge.swift; sourceTree = "<group>"; };
@@ -936,6 +950,12 @@
 				SRC0000000000000000080033 /* AppleMusicBrowsingProvider.swift */,
 				SRC0000000000000000080032 /* AppleMusicContentSource.swift */,
 				SRC0000000000000000080031 /* AppleMusicItemMapping.swift */,
+				SRC00000000000000000800B5 /* AppleMusicBrowsingProvider+LibraryEdits.swift */,
+				SRC00000000000000000800B4 /* MusicKitLibraryLookup.swift */,
+				SRC00000000000000000800B3 /* AppleMusicPendingLibraryEdits.swift */,
+				SRC00000000000000000800B2 /* MusicAppLibraryScripting.swift */,
+				SRC00000000000000000800B1 /* AppleMusicCloudLibrary.swift */,
+				SRC00000000000000000800B0 /* AppleMusicLibraryEditor.swift */,
 				C30000000000000000000019 /* SpotifyAPIClient+CurrentUser.swift */,
 				C3000000000000000000001a /* SpotifyAPIClient+Playlists.swift */,
 				C3000000000000000000001e /* SpotifyAPIClient+Library.swift */,
@@ -1238,6 +1258,7 @@
 				D4000000000000000000002E /* PlaylistBrowserViewModel+PlaylistLibrary.swift */,
 				D4000000000000000000002F /* PlaylistBrowserViewModel+DetailSession.swift */,
 				D40000000000000000000041 /* PlaylistBrowserViewModel+TrackMutations.swift */,
+				SRC00000000000000000800B6 /* PlaylistBrowserViewModel+LibraryEdits.swift */,
 				D40000000000000000000030 /* PlaylistBrowserViewModel+SidebarAndAlbumSelection.swift */,
 				D40000000000000000000031 /* PlaylistBrowserViewModel+MainSurfaceRefresh.swift */,
 				D40000000000000000000032 /* PlaylistBrowserViewModel+AdjacentPlaylistNavigation.swift */,
@@ -1606,6 +1627,12 @@
 				SRC0000000000000000000033 /* AppleMusicBrowsingProvider.swift in Sources */,
 				SRC0000000000000000000032 /* AppleMusicContentSource.swift in Sources */,
 				SRC0000000000000000000031 /* AppleMusicItemMapping.swift in Sources */,
+				SRC00000000000000000000B5 /* AppleMusicBrowsingProvider+LibraryEdits.swift in Sources */,
+				SRC00000000000000000000B4 /* MusicKitLibraryLookup.swift in Sources */,
+				SRC00000000000000000000B3 /* AppleMusicPendingLibraryEdits.swift in Sources */,
+				SRC00000000000000000000B2 /* MusicAppLibraryScripting.swift in Sources */,
+				SRC00000000000000000000B1 /* AppleMusicCloudLibrary.swift in Sources */,
+				SRC00000000000000000000B0 /* AppleMusicLibraryEditor.swift in Sources */,
 				C30000000000000000000009 /* SpotifyAPIClient+CurrentUser.swift in Sources */,
 				C3000000000000000000000a /* SpotifyAPIClient+Playlists.swift in Sources */,
 				C3000000000000000000000e /* SpotifyAPIClient+Library.swift in Sources */,
@@ -1651,6 +1678,7 @@
 				D40000000000000000000071 /* PlaylistBrowserViewModel+PlaylistLibrary.swift in Sources */,
 				D40000000000000000000072 /* PlaylistBrowserViewModel+DetailSession.swift in Sources */,
 				D40000000000000000000091 /* PlaylistBrowserViewModel+TrackMutations.swift in Sources */,
+				SRC00000000000000000000B6 /* PlaylistBrowserViewModel+LibraryEdits.swift in Sources */,
 				D40000000000000000000073 /* PlaylistBrowserViewModel+SidebarAndAlbumSelection.swift in Sources */,
 				D40000000000000000000074 /* PlaylistBrowserViewModel+MainSurfaceRefresh.swift in Sources */,
 				D40000000000000000000075 /* PlaylistBrowserViewModel+AdjacentPlaylistNavigation.swift in Sources */,
@@ -2131,6 +2159,7 @@
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSAppleMusicUsageDescription = "Spotiglass shows your Apple Music library, playlists and recommendations.";
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Spotiglass asks Music to remove songs and edit your playlists, which Apple Music only allows from the Music app.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -2166,6 +2195,7 @@
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSAppleMusicUsageDescription = "Spotiglass shows your Apple Music library, playlists and recommendations.";
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Spotiglass asks Music to remove songs and edit your playlists, which Apple Music only allows from the Music app.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",

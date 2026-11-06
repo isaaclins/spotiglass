@@ -1,6 +1,30 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "NSAppleEventsUsageDescription" : {
+      "comment" : "Shown in the system prompt that asks to let Spotiglass control the Music app.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spotiglass bittet Musik, Titel zu entfernen und deine Playlists zu bearbeiten. Apple Music erlaubt das nur über die Musik-App."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spotiglass asks Music to remove songs and edit your playlists, which Apple Music only allows from the Music app."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spotiglass pide a Música que quite canciones y edite tus listas, algo que Apple Music solo permite desde la app Música."
+          }
+        }
+      }
+    },
     "NSAppleMusicUsageDescription" : {
       "comment" : "Shown in the system prompt that asks for Apple Music access.",
       "extractionState" : "manual",

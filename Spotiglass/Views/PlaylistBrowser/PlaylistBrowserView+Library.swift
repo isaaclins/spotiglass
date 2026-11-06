@@ -58,12 +58,7 @@ extension PlaylistBrowserView {
         for rows: [TrackRowViewModel],
         isSaved: (String) -> Bool
     ) -> TrackSelectionLikedState {
-        let ids = rows.compactMap { row -> String? in
-            guard let uri = row.playableURI,
-                  uri.hasPrefix("spotify:track:") else { return nil }
-            let id = String(uri.dropFirst("spotify:track:".count))
-            return id.isEmpty ? nil : id
-        }
+        let ids = rows.compactMap { LibraryEditableTrackURI.trackID($0.playableURI) }
         guard !ids.isEmpty else { return .unavailable }
         return ids.allSatisfy(isSaved) ? .remove : .add
     }

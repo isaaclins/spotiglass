@@ -8,6 +8,26 @@ enum PlaylistMutationOperation: Equatable {
     case removeFromLikedSongs
     case createPlaylist
     case renamePlaylist
+    case removeFromPlaylist
+    case deletePlaylist
+    case saveAlbum
+}
+
+/// Track URIs a provider can put into playlists and Liked Songs: Spotify catalog tracks and
+/// Apple Music songs. Episodes, local files and unavailable rows have neither.
+enum LibraryEditableTrackURI {
+    static let prefixes = ["spotify:track:", "applemusic:song:"]
+
+    static func isEditable(_ uri: String?) -> Bool {
+        trackID(uri) != nil
+    }
+
+    /// The track ID after the prefix, or `nil` for any other URI.
+    static func trackID(_ uri: String?) -> String? {
+        guard let uri, let prefix = prefixes.first(where: { uri.hasPrefix($0) }) else { return nil }
+        let id = String(uri.dropFirst(prefix.count))
+        return id.isEmpty ? nil : id
+    }
 }
 
 extension PlaylistBrowserViewModel {
@@ -36,10 +56,10 @@ extension PlaylistBrowserViewModel {
         return tracks.filter { selection.contains($0.id) }
     }
 
-    /// Spotify catalog URIs (`spotify:track:...`) for playlist-mutation calls. Skips
+    /// Track URIs (`spotify:track:...`, `applemusic:song:...`) for playlist-mutation calls. Skips
     /// rows without a playable catalog URI (episodes, local files, unavailable).
     func playableURIs(for rows: [TrackRowViewModel]) -> [String] {
-        rows.compactMap(\.playableURI).filter { $0.hasPrefix("spotify:track:") }
+        rows.compactMap(\.playableURI).filter(LibraryEditableTrackURI.isEditable)
     }
 
     /// Unique catalog IDs (`spotify:track:<id>` → `<id>`) for Liked Songs
@@ -47,9 +67,7 @@ extension PlaylistBrowserViewModel {
     func catalogTrackIDs(for rows: [TrackRowViewModel]) -> [String] {
         var seen: Set<String> = []
         return rows.compactMap { row in
-            guard let uri = row.playableURI, uri.hasPrefix("spotify:track:") else { return nil }
-            let id = String(uri.dropFirst("spotify:track:".count))
-            guard !id.isEmpty, seen.insert(id).inserted else { return nil }
+            guard let id = LibraryEditableTrackURI.trackID(row.playableURI), seen.insert(id).inserted else { return nil }
             return id
         }
     }
@@ -63,9 +81,8 @@ extension PlaylistBrowserViewModel {
     func likedSongsMutationRows(for rows: [TrackRowViewModel]) -> [TrackRowViewModel] {
         var seen: Set<String> = []
         return rows.filter { row in
-            guard let uri = row.playableURI, uri.hasPrefix("spotify:track:") else { return false }
-            let id = String(uri.dropFirst("spotify:track:".count))
-            return !id.isEmpty && seen.insert(id).inserted
+            guard let id = LibraryEditableTrackURI.trackID(row.playableURI) else { return false }
+            return seen.insert(id).inserted
         }
     }
 
@@ -102,7 +119,7 @@ extension PlaylistBrowserViewModel {
         var positionsByURI: [String: [Int]] = [:]
         for row in rows {
             guard let uri = row.playableURI,
-                  uri.hasPrefix("spotify:track:"),
+                  LibraryEditableTrackURI.isEditable(uri),
                   row.listPosition > 0 else { continue }
             if positionsByURI[uri] == nil {
                 order.append(uri)
@@ -376,7 +393,8 @@ extension PlaylistBrowserViewModel {
                 switch operation {
                 case .addToLikedSongs, .removeFromLikedSongs:
                     return SpotiglassL10n.string("playlist.mutation.likedSongsRequiresReconnect")
-                case .addToPlaylist, .moveBetweenPlaylists, .createPlaylist, .renamePlaylist:
+                case .addToPlaylist, .moveBetweenPlaylists, .createPlaylist, .renamePlaylist,
+                     .removeFromPlaylist, .deletePlaylist, .saveAlbum:
                     return SpotiglassL10n.string("playlist.mutation.playlistRequiresReconnect")
                 case .generic:
                     break
@@ -440,7 +458,7 @@ extension PlaylistBrowserViewModel {
         try? cache.savePlaylists(Array(playlistsByID.values), cachedAt: now())
     }
 
-    private func invalidateTracksCache(playlistID: String) {
+    func invalidateTracksCache(playlistID: String) {
         guard !playlistID.isEmpty else { return }
         try? cache.invalidateTracks(playlistID: playlistID)
         invalidateLibraryContinuationCache()
@@ -454,16 +472,16 @@ extension PlaylistBrowserViewModel {
         }
     }
 
-    private func invalidateLikedSongsCache() {
+    func invalidateLikedSongsCache() {
         invalidateTracksCache(playlistID: SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID)
     }
 
-    private func refreshLikedSongsDetailAfterMutation() async {
+    func refreshLikedSongsDetailAfterMutation() async {
         guard sidebarSelection == .likedSongs else { return }
         await revalidateLikedSongs(session: detailSession)
     }
 
-    private func refreshCurrentPlaylistMutationDetail(for playlistIDs: [String]) async {
+    func refreshCurrentPlaylistMutationDetail(for playlistIDs: [String]) async {
         guard case let .playlist(currentPlaylistID) = sidebarSelection,
               playlistIDs.contains(currentPlaylistID),
               currentPlaylistID != SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID,

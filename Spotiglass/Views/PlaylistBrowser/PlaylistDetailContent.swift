@@ -281,8 +281,44 @@ struct PlaylistDetailContent: View {
             isHeaderPinned: isHeaderPinned,
             pinnedStore: pinnedStore,
             canRenamePlaylist: canRenamePlaylist,
-            onEditPlaylistName: beginPlaylistNameEditing
+            onEditPlaylistName: beginPlaylistNameEditing,
+            deletablePlaylist: deletablePlaylist,
+            onDeletePlaylist: { browserViewModel.requestPlaylistDeletion($0) },
+            albumLibraryState: albumLibraryState,
+            onToggleAlbumLibrary: {
+                Task {
+                    await browserViewModel.toggleAlbumInLibrary(
+                        albumID: detail.playlist.id,
+                        albumName: detail.playlist.title
+                    )
+                }
+            }
         ))
+        .task(id: detail.playlist.id) {
+            guard detail.playlist.isAlbumDetail else { return }
+            await browserViewModel.loadSavedAlbumState(for: detail.playlist.id)
+        }
+    }
+
+    /// The displayed playlist, when the provider can delete it and the user owns it.
+    private var deletablePlaylist: MusicPlaylistSummary? {
+        guard !detail.playlist.isAlbumDetail,
+              let summary = browserViewModel.playlistsByID[detail.playlist.id],
+              browserViewModel.canDeletePlaylist(summary)
+        else { return nil }
+        return summary
+    }
+
+    /// Add or remove the displayed album, for providers that save albums; `nil` hides the item.
+    private var albumLibraryState: TrackSelectionLikedState? {
+        guard detail.playlist.isAlbumDetail,
+              browserViewModel.supportedLibraryEdits.contains(.saveAlbums)
+        else { return nil }
+        switch browserViewModel.savedAlbumState(for: detail.playlist.id) {
+        case .some(true): return .remove
+        case .some(false): return .add
+        case .none: return .unavailable
+        }
     }
 
     @ViewBuilder
@@ -370,6 +406,9 @@ enum TrackOpsMenuAction: Hashable {
     case pin
     case unpin
     case copyURI
+    /// Only for providers that support it (`MusicLibraryEdits.removeFromPlaylist`), on the
+    /// user's own playlists.
+    case removeFromPlaylist
 }
 
 /// Spotify track-ops menu rendered inside a track-row context menu.
@@ -449,6 +488,9 @@ struct TrackOpsMenuItems: View {
         }
         if Self.copyableSpotifyURI(copyableURI) != nil {
             actions.insert(.copyURI)
+        }
+        if browserViewModel.canRemoveRows(fromPlaylist: sourcePlaylistForMove) {
+            actions.insert(.removeFromPlaylist)
         }
         return actions
     }
@@ -621,6 +663,20 @@ struct TrackOpsMenuItems: View {
             .disabled(playlistTargets.isEmpty || destinations.isEmpty)
         }
 
+        if menuActionKinds.contains(.removeFromPlaylist), let sourcePlaylistID = sourcePlaylistForMove {
+            let playlistName = browserViewModel.playlistsByID[sourcePlaylistID]?.name ?? ""
+            Button(SpotiglassL10n.string("browser.removeFromPlaylist")) {
+                Task {
+                    await browserViewModel.removeRowsFromPlaylist(
+                        playlistTargets,
+                        playlistID: sourcePlaylistID,
+                        playlistName: playlistName
+                    )
+                }
+            }
+            .disabled(playlistTargets.isEmpty)
+        }
+
         let likedSongsState = likedSongsState
         Button(
             SpotiglassL10n.format(
@@ -666,6 +722,13 @@ struct LibraryHeaderPinningModifier: ViewModifier {
     let pinnedStore: PinnedItemsStore
     let canRenamePlaylist: Bool
     let onEditPlaylistName: () -> Void
+    /// Set when the provider can delete this playlist (Apple Music); Spotify leaves it `nil`.
+    var deletablePlaylist: MusicPlaylistSummary? = nil
+    var onDeletePlaylist: (MusicPlaylistSummary) -> Void = { _ in }
+    /// Add/Remove Album from Library for providers that save albums; `nil` hides the item,
+    /// `.unavailable` shows it disabled while the album's state loads.
+    var albumLibraryState: TrackSelectionLikedState? = nil
+    var onToggleAlbumLibrary: () -> Void = {}
 
     @ViewBuilder
     func body(content: Content) -> some View {
@@ -679,6 +742,20 @@ struct LibraryHeaderPinningModifier: ViewModifier {
                         Button(SpotiglassL10n.string("browser.editPlaylistName")) {
                             onEditPlaylistName()
                         }
+                        if let deletablePlaylist {
+                            Button(SpotiglassL10n.string("browser.deletePlaylist"), role: .destructive) {
+                                onDeletePlaylist(deletablePlaylist)
+                            }
+                        }
+                        Divider()
+                    }
+                    if let albumLibraryState {
+                        Button(SpotiglassL10n.string(
+                            albumLibraryState == .remove ? "browser.album.removeFromLibrary" : "browser.album.addToLibrary"
+                        )) {
+                            onToggleAlbumLibrary()
+                        }
+                        .disabled(albumLibraryState == .unavailable)
                         Divider()
                     }
                     if isHeaderPinned {
