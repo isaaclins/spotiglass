@@ -213,6 +213,26 @@ final class PlaylistBrowserLibraryEditsTests: XCTestCase {
         XCTAssertNil(viewModel.savedTrackState(for: "11"), "loads again from the library")
     }
 
+    /// The reverse: removing an album's songs from Liked Songs changes the album's state, so the
+    /// album menu loads it again instead of offering a removal that can't work.
+    func testASongEditForgetsTheCachedAlbumStates() async throws {
+        let api = LibraryEditsMockAPI(edits: .all)
+        api.albumSaved = true
+        let viewModel = await makeViewModel(api)
+        await viewModel.loadSavedAlbumState(for: "1440")
+        XCTAssertEqual(viewModel.savedAlbumState(for: "1440"), true)
+
+        await viewModel.unfavoriteRows([row("11", position: 1)])
+        let removal = try XCTUnwrap(viewModel.pendingLibraryRemoval)
+        viewModel.pendingLibraryRemoval = nil
+        await viewModel.confirmLibraryRemoval(removal)
+
+        XCTAssertNil(viewModel.savedAlbumState(for: "1440"))
+        api.albumSaved = false
+        await viewModel.loadSavedAlbumState(for: "1440")
+        XCTAssertEqual(viewModel.savedAlbumState(for: "1440"), false, "the album menu now offers Add")
+    }
+
     /// Spotify's unlike only leaves Liked Songs, so it keeps going through at once.
     func testProvidersWithoutTheConfirmationUnlikeAtOnce() async {
         let api = LibraryEditsMockAPI(edits: [.removeFromPlaylist, .deletePlaylist, .saveAlbums])

@@ -242,6 +242,8 @@ extension PlaylistBrowserViewModel {
             for id in ids {
                 savedTrackStates[id] = true
             }
+            // Albums whose songs these are may have changed too; they load again when shown.
+            savedAlbumStates = [:]
             invalidateLikedSongsCache()
             await refreshLikedSongsDetailAfterMutation()
             trackMutationToast = SpotiglassL10n.format(
@@ -274,6 +276,8 @@ extension PlaylistBrowserViewModel {
             for id in ids {
                 savedTrackStates[id] = false
             }
+            // Albums whose songs these are may have changed too; they load again when shown.
+            savedAlbumStates = [:]
             invalidateLikedSongsCache()
             await refreshLikedSongsDetailAfterMutation()
             trackMutationToast = SpotiglassL10n.format(
