@@ -60,6 +60,7 @@ anyone sees.
 | Playback (play items or a context, pause, seek, skip, queue, shuffle / repeat, state stream) | `Playback/` | Still Spotify-specific. Next slice. |
 | Auth and session (connect, disconnect, current account) | `Auth/` | Still Spotify-specific. Next slice. |
 | Browsing errors | `SpotifyAPIError` | Still Spotify-specific; a neutral error type comes with the Apple Music browsing slice. |
+| Search paging (`MusicSearchPaging.next`) | `Browsing/CatalogSearchViewModel.swift` | Still Spotify-shaped: the Search view reads the `offset` query item out of Spotify's `next` URL, falling back to `offset + pageSize`. A provider without that URL still pages by the fallback; a neutral continuation comes with the Apple Music browsing slice. |
 
 Rules for the neutral layer:
 
