@@ -19,7 +19,7 @@ UPDATE=0
 [[ "${1:-}" == "--update-baseline" ]] && UPDATE=1
 
 if ! command -v periphery >/dev/null 2>&1; then
-  echo "error: periphery is not installed (brew install peripheryapp/periphery/periphery)" >&2
+  echo "error: periphery is not installed (CI uses 2.21.2 from https://github.com/peripheryapp/periphery/releases/tag/2.21.2)" >&2
   exit 2
 fi
 
