@@ -199,11 +199,16 @@ struct AppleMusicLibraryEditor: Sendable {
             throw AppleMusicLibraryEditError.notEditable
         }
         if !catalogIDs.isEmpty {
+            let requestedAt = Date()
             try await cloud.addToLibrary(songCatalogIDs: catalogIDs, albumCatalogIDs: [])
             let tracks = (try? await lookup.catalogTracks(ids: catalogIDs)) ?? []
             let tracksByID = Dictionary(tracks.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
             for reference in toAdd {
-                pending.recordSavedSong(reference.catalogID.flatMap { tracksByID[$0] }, reference: reference)
+                pending.recordSavedSong(
+                    reference.catalogID.flatMap { tracksByID[$0] },
+                    reference: reference,
+                    requestedAt: requestedAt
+                )
             }
         }
         for reference in references {
@@ -243,13 +248,15 @@ struct AppleMusicLibraryEditor: Sendable {
         let catalogIDs = references.filter { !$0.isInLibrary || pending.isRemovedAlbum($0.itemID) }
             .compactMap(\.catalogID)
         if !catalogIDs.isEmpty {
+            let requestedAt = Date()
             try await cloud.addToLibrary(songCatalogIDs: [], albumCatalogIDs: catalogIDs)
             // Liked Songs are the library: the album's songs show there at once, in album order
             // (each pending save goes on top).
             for track in ((try? await lookup.catalogAlbumTracks(albumIDs: catalogIDs)) ?? []).reversed() {
                 pending.recordSavedSong(
                     track,
-                    reference: AppleMusicSongReference(itemID: track.id, catalogID: track.id, isInLibrary: false)
+                    reference: AppleMusicSongReference(itemID: track.id, catalogID: track.id, isInLibrary: false),
+                    requestedAt: requestedAt
                 )
             }
         } else if references.contains(where: { !$0.isInLibrary }) {

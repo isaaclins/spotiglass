@@ -73,8 +73,9 @@ enum MusicAppScripts {
     static let ambiguousError = 9002
     static let notEditableError = 9003
     static let ambiguousSongError = 9004
-    /// Slack before a save for Music's `date added`, which is set when the song reaches the library.
-    static let addedSinceMarginSeconds = 300
+    /// Slack before the save request for Music's `date added` (the server's clock against this
+    /// Mac's). Kept to seconds: a song added before it with the same details must never match.
+    static let addedSinceMarginSeconds = 5
 
     static func removeFromLibrary(_ tracks: [MusicAppTrackMatch], now: Date = Date()) -> String {
         var lines = [scriptNowLine, "tell application \"Music\"", "set lib to library playlist 1", "set targets to {}"]

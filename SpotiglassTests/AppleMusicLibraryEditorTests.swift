@@ -114,6 +114,25 @@ final class AppleMusicLibraryEditorTests: XCTestCase {
         XCTAssertEqual(statuses, [true])
     }
 
+    /// The time limit starts when the like was sent, with seconds of slack, so a song with the
+    /// same details imported minutes earlier is outside it.
+    func testTheRecentSongMatchStartsWhenTheLikeWasSent() async throws {
+        lookup.catalogTracksByID["699902614"] = Self.track(id: "699902614", name: "Computer Love", album: "Computer World")
+        let before = Date()
+        try await editor.saveSongs(ids: ["699902614"])
+        let after = Date()
+
+        let sent = try XCTUnwrap(pending.savedSong(matching: ["699902614"])?.at)
+        XCTAssertGreaterThanOrEqual(sent, before)
+        XCTAssertLessThanOrEqual(sent, after)
+        XCTAssertLessThanOrEqual(MusicAppScripts.addedSinceMarginSeconds, 10)
+        let script = MusicAppScripts.removeFromLibrary(
+            [.metadata(name: "Computer Love", artist: "Kraftwerk", album: "Computer World", addedSince: sent)],
+            now: sent.addingTimeInterval(120)
+        )
+        XCTAssertTrue(script.contains("set cutoff to (scriptNow - \(120 + MusicAppScripts.addedSinceMarginSeconds))"), script)
+    }
+
     func testUnlikeOfASongNobodyCanFindSaysMusicIsNotThereYet() async {
         await XCTAssertThrowsEditError(.notInMusicYet) { try await self.editor.removeSongs(ids: ["699902614"]) }
         XCTAssertEqual(musicApp.calls, [])
@@ -494,6 +513,21 @@ final class AppleMusicPendingLibraryEditsTests: XCTestCase {
     }
 
     /// A song removed from the library leaves every playlist in Music; Spotiglass shows that at once.
+    /// Add a song to a playlist, then remove it from the library before MusicKit lists the
+    /// addition: Music takes it out of the playlist, so Spotiglass doesn't keep showing it.
+    func testALibraryRemovalEndsPendingPlaylistAdditions() {
+        let pending = AppleMusicPendingLibraryEdits()
+        let song = AppleMusicLibraryEditorTests.track(id: "506650076", name: "Disparate Youth")
+        let reference = AppleMusicSongReference(itemID: "i.9", catalogID: "506650076", isInLibrary: true)
+        pending.recordPlaylistAddition(song, reference: reference, playlistID: "-1")
+        XCTAssertEqual(pending.applied(toPlaylistTracks: [], playlistID: "-1").map(\.id), ["506650076"])
+
+        pending.recordRemovedSong(reference.matchKeys)
+
+        XCTAssertEqual(pending.applied(toPlaylistTracks: [], playlistID: "-1"), [])
+        XCTAssertFalse(pending.hasPendingTracks(playlistID: "-1"))
+    }
+
     func testALibraryRemovalLeavesEveryPlaylist() {
         let pending = AppleMusicPendingLibraryEdits()
         pending.recordRemovedSong(["i.gone", "-30"])

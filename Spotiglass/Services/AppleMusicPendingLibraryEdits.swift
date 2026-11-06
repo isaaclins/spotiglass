@@ -22,6 +22,8 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
         let track: MusicTrack?
         let keys: Set<String>
         let at: Date
+        /// When the save was sent, for a song saved to the library: Music's `date added` is later.
+        var requestedAt: Date?
         /// For a playlist addition: how often the playlist lists the song once the library has
         /// it. A read showing fewer still needs this addition laid over it.
         var expectedOccurrences = 1
@@ -60,19 +62,26 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
 
     // MARK: - Recording
 
-    func recordSavedSong(_ track: MusicTrack?, reference: AppleMusicSongReference) {
+    /// `requestedAt` is when the save request went out.
+    func recordSavedSong(_ track: MusicTrack?, reference: AppleMusicSongReference, requestedAt: Date? = nil) {
         locked {
             let keys = reference.matchKeys.union(track.map { [$0.id, Self.metadataKey($0)] } ?? [])
             removedSongs = removedSongs.filter { $0.key.isDisjoint(with: keys) }
             savedSongs.removeAll { !$0.keys.isDisjoint(with: keys) }
-            savedSongs.insert(SavedSong(track: track, keys: keys, at: now()), at: 0)
+            savedSongs.insert(SavedSong(track: track, keys: keys, at: now(), requestedAt: requestedAt), at: 0)
             savedSongs = Array(savedSongs.prefix(Self.maxEntries))
         }
     }
 
+    /// A song removed from the library: Music also takes it out of every playlist, so pending
+    /// playlist additions of it end too.
     func recordRemovedSong(_ keys: Set<String>) {
         locked {
             savedSongs.removeAll { !$0.keys.isDisjoint(with: keys) }
+            playlistAdditions = playlistAdditions.compactMapValues { additions in
+                let kept = additions.filter { $0.keys.isDisjoint(with: keys) }
+                return kept.isEmpty ? nil : kept
+            }
             removedSongs[keys] = now()
             trim(&removedSongs)
         }
@@ -225,11 +234,11 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
         }
     }
 
-    /// The pending save for these keys, with when it was made.
+    /// The pending save for these keys, with when it was sent.
     func savedSong(matching keys: Set<String>) -> (track: MusicTrack?, at: Date)? {
         locked {
             expire()
-            return savedSongs.first { !$0.keys.isDisjoint(with: keys) }.map { ($0.track, $0.at) }
+            return savedSongs.first { !$0.keys.isDisjoint(with: keys) }.map { ($0.track, $0.requestedAt ?? $0.at) }
         }
     }
 
@@ -351,7 +360,10 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
                     tracks.filter { !$0.keys.isDisjoint(with: addition.keys) }.count >= addition.expectedOccurrences
                 }
                 playlistAdditions[playlistID] = additions.isEmpty ? nil : additions
-                return result.map(\.track) + additions.compactMap(\.track)
+                let shownAdditions = additions.filter { addition in
+                    !removedSongs.keys.contains { !$0.isDisjoint(with: addition.keys) }
+                }
+                return result.map(\.track) + shownAdditions.compactMap(\.track)
             }
             return result.map(\.track)
         }
