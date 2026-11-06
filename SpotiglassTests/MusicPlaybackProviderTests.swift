@@ -399,6 +399,26 @@ final class MusicPlaybackProviderTests: XCTestCase {
 
     /// Same, skipping past the end: the empty read isn't held back by the
     /// pending play the skip replaced.
+    /// Resume on the last item, Next within a second, the player runs out and
+    /// reads empty. The bar shows ready; the next Space resumes (there is
+    /// nothing to pause) instead of following the finished resume.
+    func testToggleAfterTheQueueRanOutFollowsTheScreen() async {
+        let provider = ReadOnlyStatePlaybackProvider()
+        let session = PlaybackSessionViewModel(provider: provider)
+        session.deviceID = "local"
+        session.setActivePlaybackDeviceID("local")
+        session.setConnectionState(.paused(Self.song(position: 190_000)))
+
+        await session.togglePlayPause()
+        await session.next()
+        provider.state = nil
+        await session.syncTransportFromSpotify()
+        XCTAssertEqual(session.connectionState, .ready(deviceID: "local"))
+
+        await session.togglePlayPause()
+        XCTAssertEqual(provider.commands, ["resume local", "next local", "resume local"])
+    }
+
     func testSkipPastTheEndDuringAPendingPlayGoesBackToReady() async {
         let provider = ReadOnlyStatePlaybackProvider()
         let session = PlaybackSessionViewModel(provider: provider)

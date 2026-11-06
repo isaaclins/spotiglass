@@ -189,6 +189,9 @@ extension PlaybackSessionViewModel {
         switch connectionState {
         case .playing, .paused:
             SpotiglassLog.info(.playback, "Empty player read; nothing is playing on deviceID=\(localDeviceID)")
+            // Nothing is left to pause or resume, so the next toggle must not
+            // follow the expectation of a command the player already finished.
+            localCommandExpectsPlaying = nil
             setConnectionState(.ready(deviceID: localDeviceID))
         case .disconnected, .connecting, .ready, .transferring, .unavailable, .error:
             break
