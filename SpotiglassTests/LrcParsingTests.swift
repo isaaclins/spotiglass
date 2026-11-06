@@ -130,7 +130,7 @@ final class LrcParsingTests: XCTestCase {
             positionMilliseconds: 0,
             uri: "spotify:track:abc123"
         )
-        XCTAssertEqual(track.spotifyTrackIDForLyrics, "abc123")
+        XCTAssertEqual(track.lyricsTrackKey, "abc123")
         XCTAssertNil(
             PlaybackNowPlaying(
                 name: "E",
@@ -141,7 +141,7 @@ final class LrcParsingTests: XCTestCase {
                 durationMilliseconds: 60_000,
                 positionMilliseconds: 0,
                 uri: "spotify:episode:xyz"
-            ).spotifyTrackIDForLyrics
+            ).lyricsTrackKey
         )
     }
 }
