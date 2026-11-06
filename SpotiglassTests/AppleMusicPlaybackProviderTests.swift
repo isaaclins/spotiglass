@@ -585,6 +585,25 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         XCTAssertEqual(state?.transport.shuffle, true)
     }
 
+    /// Access turned off while the app runs: connecting fails with Apple Music's own
+    /// permission text, not the raw diagnostic, and offers no Reconnect that can't help.
+    func testAFailedAppleMusicConnectSaysToTurnAccessBackOn() async {
+        let player = ScriptedAppleMusicPlayer()
+        player.authorized = false
+        let provider = AppleMusicPlaybackProvider(player: player)
+        do {
+            try await provider.connectPlayer(generation: .initial)
+            XCTFail("Expected a permission error")
+        } catch {
+            let shown = PlaybackSessionViewModel.playbackHostConnectionFailedError(for: error)
+            XCTAssertEqual(shown.message, SpotiglassL10n.string("error.playback.appleMusic.permission.message"))
+            XCTAssertNil(shown.recoveryAction)
+        }
+        let spotify = PlaybackSessionViewModel.playbackHostConnectionFailedError(for: URLError(.timedOut))
+        XCTAssertEqual(spotify.title, SpotiglassL10n.string("error.playback.couldNotStart.title"))
+        XCTAssertEqual(spotify.recoveryAction, .reconnect)
+    }
+
     func testDetailHeaderPlaysTheAppleMusicContext() {
         let album = PlaylistDetailViewModel(
             playlist: PlaylistRowViewModel(albumDisplayName: "Album", artistsDisplay: "A", totalTrackCount: 1, artworkURL: nil, albumID: "1440857781"),

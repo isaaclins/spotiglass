@@ -754,7 +754,12 @@ final class PlaybackSessionViewModel: ObservableObject {
     }
 
     static func playbackHostConnectionFailedError(for error: Error) -> PlaybackDisplayError {
-        PlaybackDisplayError(
+        // Apple Music's player is this Mac: its errors say what to do (turn access back on)
+        // in the app's language. Spotify keeps this text.
+        if let playbackError = error as? MusicPlaybackError, playbackError.service == .appleMusic {
+            return displayError(for: playbackError)
+        }
+        return PlaybackDisplayError(
             title: SpotiglassL10n.string("error.playback.couldNotStart.title"),
             message: String(format: SpotiglassL10n.string("error.playback.commandFailed.message"), error.localizedDescription),
             recoveryAction: .reconnect

@@ -59,7 +59,11 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         // The row that was clicked must play; if it couldn't be found, say so instead of
         // quietly starting another song.
         if let startURI, !resolved.contains(where: { $0.uri == startURI }) { throw Self.notFound(startURI) }
-        let startIndex = resolved.firstIndex { $0.uri == startURI } ?? 0
+        // No row was picked (an album, playlist or artist from its header): with shuffle on it
+        // starts at a random song, like Spotify, since shuffle only reorders what comes after
+        // the song that plays first.
+        let startIndex = resolved.firstIndex { $0.uri == startURI }
+            ?? (startURI == nil && shuffleWanted ? Int.random(in: resolved.indices) : 0)
         // Songs added with Add to queue that haven't played yet stay queued, right after the
         // new first song, like Spotify's queue. With shuffle off they go into the new queue
         // as it is set; with shuffle on MusicKit reshuffles a new queue, so they are inserted
