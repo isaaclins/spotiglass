@@ -604,6 +604,17 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         XCTAssertEqual(spotify.recoveryAction, .reconnect)
     }
 
+    /// The header's Shuffle starts at a random song. MusicKit only shuffles what comes after
+    /// the first song, so that song moves to the front and every other song still plays.
+    func testShuffleStartKeepsEverySongAhead() {
+        let songs = Array(1...10)
+        let order = MusicKitApplicationPlayer.movingToFront(songs, index: 9)
+        XCTAssertEqual(order.first, 10)
+        XCTAssertEqual(Array(order.dropFirst()), Array(1...9), "songs 1-9 still come after it")
+        XCTAssertEqual(MusicKitApplicationPlayer.movingToFront(songs, index: 0), songs)
+        XCTAssertEqual(MusicKitApplicationPlayer.movingToFront(songs, index: 99), songs)
+    }
+
     func testDetailHeaderPlaysTheAppleMusicContext() {
         let album = PlaylistDetailViewModel(
             playlist: PlaylistRowViewModel(albumDisplayName: "Album", artistsDisplay: "A", totalTrackCount: 1, artworkURL: nil, albumID: "1440857781"),

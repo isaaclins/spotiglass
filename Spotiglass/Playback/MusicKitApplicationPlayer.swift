@@ -60,17 +60,20 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         // quietly starting another song.
         if let startURI, !resolved.contains(where: { $0.uri == startURI }) { throw Self.notFound(startURI) }
         // No row was picked (an album, playlist or artist from its header): with shuffle on it
-        // starts at a random song, like Spotify, since shuffle only reorders what comes after
-        // the song that plays first.
-        let startIndex = resolved.firstIndex { $0.uri == startURI }
-            ?? (startURI == nil && shuffleWanted ? Int.random(in: resolved.indices) : 0)
+        // starts at a random song, like Spotify. Shuffle only reorders what comes after the
+        // song that plays first, so that song moves to the front and every other one stays
+        // ahead of it.
+        let ordered = startURI == nil && shuffleWanted
+            ? Self.movingToFront(resolved, index: Int.random(in: resolved.indices))
+            : resolved
+        let startIndex = ordered.firstIndex { $0.uri == startURI } ?? 0
         // Songs added with Add to queue that haven't played yet stay queued, right after the
         // new first song, like Spotify's queue. With shuffle off they go into the new queue
         // as it is set; with shuffle on MusicKit reshuffles a new queue, so they are inserted
         // after that instead, or they'd end up anywhere in it.
         let carried = carriedAddedSongs()
         let carriedInQueue = shuffleWanted ? [] : carried
-        var queued = resolved
+        var queued = ordered
         queued.insert(contentsOf: carriedInQueue, at: startIndex + 1)
         uriByEntryKey = [:]
         for item in queued + (shuffleWanted ? carried : []) {
@@ -81,7 +84,7 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
             carryingAdded: carriedInQueue.count,
             after: startIndex
         )
-        player.queue = ApplicationMusicPlayer.Queue(queued.map(\.entry), startingAt: resolved[startIndex].entry)
+        player.queue = ApplicationMusicPlayer.Queue(queued.map(\.entry), startingAt: ordered[startIndex].entry)
         try await Self.mapped { try await self.player.play() }
         // The player switches to a queue it was given only once it plays, so shuffle, repeat
         // and (with shuffle on) the carried songs go in now. A newer play that started in the
@@ -283,6 +286,14 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         case .none, nil: .off
         @unknown default: .off
         }
+    }
+
+    /// `items` with the one at `index` first and the others after it in their order.
+    static func movingToFront<Item>(_ items: [Item], index: Int) -> [Item] {
+        guard items.indices.contains(index) else { return items }
+        var reordered = items
+        reordered.insert(reordered.remove(at: index), at: 0)
+        return reordered
     }
 
     /// The first row URI queued under each of the entry's keys wins.
