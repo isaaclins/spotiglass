@@ -449,8 +449,17 @@ extension AuthViewModel: SpotifyAccessTokenProviding {
         try await playbackAccessToken()
     }
 
-    func refreshAccessTokenAfterUnauthorized() async throws -> String {
-        try await refreshedPlaybackAccessToken()
+    func refreshAccessTokenAfterUnauthorized(rejectedToken: String) async throws -> String {
+        // Two requests sent with the same expired token both get a 401. When
+        // the second 401 arrives after the first one's refresh already
+        // finished, the session holds a newer token: retry with it instead of
+        // refreshing again.
+        if let currentSession,
+           currentSession.accessToken != rejectedToken,
+           !currentSession.expires(within: 60) {
+            return currentSession.accessToken
+        }
+        return try await refreshedPlaybackAccessToken()
     }
 }
 

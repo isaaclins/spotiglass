@@ -144,7 +144,12 @@ final class SpotifyAPIClientArtistAndAlbumTracksTests: XCTestCase {
             firstRequestStarted: requestStarted,
             releaseFirstRequest: releaseRequest
         )
-        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
+        let secondJoined = AsyncSignal()
+        let client = SpotifyAPIClient(
+            tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"),
+            httpClient: httpClient,
+            albumTrackRequestCoalescer: AlbumTrackRequestCoalescer(onJoin: { secondJoined.signal() })
+        )
 
         async let first = client.albumTracks(albumID: "al1", market: "US", limit: 50)
         let didStartRequest = await requestStarted.wait(timeout: .seconds(1))
@@ -153,6 +158,10 @@ final class SpotifyAPIClientArtistAndAlbumTracksTests: XCTestCase {
             "the coalesced album request should start before releasing the response"
         )
         async let second = client.albumTracks(albumID: "al1", market: "US", limit: 50)
+        // Releasing before the second call joined let it start its own request
+        // once the first had finished, which failed CI as 2 requests.
+        let didJoin = await secondJoined.wait(timeout: .seconds(1))
+        XCTAssertTrue(didJoin, "the second album request should join the one in flight")
         releaseRequest.signal()
         let (a, b) = try await (first, second)
 

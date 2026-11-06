@@ -48,7 +48,7 @@ final class PlaylistBrowserPreviewSupportTests: XCTestCase {
         let access = try await tokens.accessToken()
         let playback = try await tokens.playbackAccessToken()
         let refreshed = try await tokens.refreshedPlaybackAccessToken()
-        let refreshAuth = try await tokens.refreshAccessTokenAfterUnauthorized()
+        let refreshAuth = try await tokens.refreshAccessTokenAfterUnauthorized(rejectedToken: "preview-token")
         XCTAssertEqual(access, "preview-token")
         XCTAssertEqual(playback, "preview-token")
         XCTAssertEqual(refreshed, "preview-token")

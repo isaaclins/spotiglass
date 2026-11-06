@@ -266,7 +266,9 @@ extension SpotifyAPIClient {
             )
         }
         if response.statusCode == 401 && !didRetryAuth {
-            let refreshedToken = try await tokenProvider.refreshAccessTokenAfterUnauthorized()
+            let refreshedToken = try await tokenProvider.refreshAccessTokenAfterUnauthorized(
+                rejectedToken: request.bearerToken
+            )
             var refreshed = request
             refreshed.setValue("Bearer \(refreshedToken)", forHTTPHeaderField: "Authorization")
             return try await performWrite(request: refreshed, didRetryAuth: true, rateRetryCount: rateRetryCount)

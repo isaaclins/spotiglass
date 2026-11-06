@@ -8,7 +8,7 @@ struct StaticSpotifyAccessTokenProvider: SpotifyAccessTokenProviding {
         token
     }
 
-    func refreshAccessTokenAfterUnauthorized() async throws -> String {
+    func refreshAccessTokenAfterUnauthorized(rejectedToken: String) async throws -> String {
         token
     }
 }
@@ -29,7 +29,7 @@ struct ScopedSpotifyAccessTokenProvider: SpotifyAccessTokenProviding, SpotifySco
         token
     }
 
-    func refreshAccessTokenAfterUnauthorized() async throws -> String {
+    func refreshAccessTokenAfterUnauthorized(rejectedToken: String) async throws -> String {
         token
     }
 
