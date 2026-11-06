@@ -1,3 +1,4 @@
+import MusicKit
 import SwiftUI
 import ViewInspector
 import XCTest
@@ -98,4 +99,71 @@ final class RootViewTests: XCTestCase {
         XCTAssertFalse(palette.viewModel.isPresented)
         XCTAssertEqual(palette.viewModel.query, "")
     }
+
+    /// Disconnect Spotify in Settings while Apple Music is on screen, then add Spotify again before
+    /// the sign-out has finished clearing caches. The saved sign-in is already deleted, so adding
+    /// must wait for a fresh sign-in instead of taking the session that is being torn down.
+    func testReaddingSpotifyDuringSignOutRequiresFreshSignIn() async throws {
+        let cleanupStarted = AsyncSignal()
+        let finishCleanup = AsyncSignal()
+        let tokens = MemoryOnlyRefreshTokenStore(refreshToken: "old-refresh")
+        let auth = AuthViewModel(
+            settings: SpotifyAuthSettings(defaults: makeEphemeralDefaults()),
+            refreshTokenStore: tokens,
+            signOutDataCleaner: {},
+            artworkCacheClearer: {
+                cleanupStarted.signal()
+                await finishCleanup.wait()
+            },
+            initialState: .signedIn(AuthenticatedSession(
+                accessToken: "old-access", tokenType: "Bearer", scope: "", expiresAt: .distantFuture
+            ))
+        )
+        let services = MusicServiceStore(storage: InMemoryMusicServiceSelectionStorage(
+            services: [.appleMusic], active: .appleMusic
+        ))
+        let session = AppleMusicSession(authorization: DeniedMusicAuthorization())
+        await session.refresh()
+        let settings = try ViewTestHost.makeSettingsStore()
+        let root = RootView(
+            keymapStore: CommandPaletteKeymapStore(settingsStore: settings),
+            sceneRegistry: SpotiglassSceneRegistry(),
+            playbackHost: SpotiglassPlaybackHost(tokenProvider: MockPlaybackTokenProvider(
+                accessToken: "test", refreshedAccessToken: "test-refresh"
+            )),
+            serviceStore: services,
+            appleMusicSession: session
+        )
+        .environmentObject(settings)
+        .environmentObject(auth)
+        .environmentObject(PinnedItemsStore(cache: InMemoryPinnedItemsCache()))
+        ViewTestHost.host(root)
+
+        // Spotify connected from Settings: added without moving the window.
+        services.completeAddition(of: .spotify)
+        // Settings' Disconnect removes the space, then signs out asynchronously.
+        services.signOutRemoving(.spotify)
+        let signingOut = Task { await auth.signOut() }
+        await cleanupStarted.wait()
+        XCTAssertNil(try tokens.loadRefreshToken())
+        XCTAssertTrue(auth.isSigningOut)
+
+        services.beginAddition(of: .spotify)
+        try await Task.sleep(for: .milliseconds(150))
+        XCTAssertFalse(services.isAdded(.spotify), "Deleted credentials must require a fresh sign-in")
+        XCTAssertEqual(services.pendingAddition, .spotify)
+
+        finishCleanup.signal()
+        await signingOut.value
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertFalse(auth.isSigningOut)
+        XCTAssertFalse(services.isAdded(.spotify))
+        XCTAssertEqual(services.pendingAddition, .spotify)
+    }
+}
+
+private struct DeniedMusicAuthorization: AppleMusicAuthorizing {
+    func currentStatus() -> MusicAuthorization.Status { .denied }
+    func requestAuthorization() async -> MusicAuthorization.Status { .denied }
+    func canPlayCatalogContent() async -> Bool? { false }
 }

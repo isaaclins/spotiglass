@@ -326,10 +326,16 @@ struct RootView: View {
     }
 
     private var isSpotifySignedIn: Bool {
-        switch viewModel.state {
+        switch spotifyState {
         case .signedIn, .refreshing(.some): true
         case .signedOut, .signingIn, .failed, .refreshing(.none): false
         }
+    }
+
+    /// Spotify's state as the window shows it: a session that is being signed out already lost its
+    /// saved sign-in, so it counts as signed out at once (no old browser, no adding Spotify with it).
+    private var spotifyState: AppConnectionState {
+        viewModel.isSigningOut ? .signedOut : viewModel.state
     }
 
     /// The sign-in a pins list belongs to is the account's, not the service's: Spotify pins are
@@ -528,7 +534,7 @@ struct RootView: View {
 
     @ViewBuilder
     private var spotifyContent: some View {
-        switch viewModel.state {
+        switch spotifyState {
         case .signedIn, .refreshing(.some):
             PlaylistBrowserView(
                 viewModel: sceneHost.browserViewModel(for: .spotify) {

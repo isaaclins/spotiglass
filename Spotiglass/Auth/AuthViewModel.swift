@@ -10,6 +10,10 @@ final class AuthViewModel: ObservableObject {
         }
     }
     @Published private(set) var state: AppConnectionState
+    /// `true` from the moment ``signOut()`` deletes the saved sign-in until it publishes
+    /// `.signedOut`. `state` still says signed in while the caches are cleared, but that session
+    /// is already gone and must not be shown or reused.
+    @Published private(set) var isSigningOut = false
 
     private var currentSession: AuthenticatedSession?
     private var settings: SpotifyAuthSettings
@@ -168,6 +172,10 @@ final class AuthViewModel: ObservableObject {
 
     func signOut() async {
         let generation = invalidateAuthOperations()
+        isSigningOut = true
+        defer {
+            if generation == authTransitionGeneration { isSigningOut = false }
+        }
         do {
             try refreshTokenStore.deleteRefreshToken()
             settings.grantedScope = nil
@@ -269,6 +277,8 @@ final class AuthViewModel: ObservableObject {
 
     private func invalidateAuthOperations() -> Int {
         authTransitionGeneration &+= 1
+        // A new sign-in or refresh takes over from a sign-out still clearing its caches.
+        isSigningOut = false
         signInTask?.cancel()
         inFlightRefreshTask?.cancel()
         inFlightRefreshTask = nil
