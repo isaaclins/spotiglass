@@ -176,6 +176,16 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         XCTAssertNil(book.addedAhead(of: 3), "playback moved past the added songs")
         XCTAssertNil(book.addedAhead(of: 40))
 
+        // With shuffle on the carried songs go in after the reshuffle: the run is marked then.
+        var shuffled = Book()
+        shuffled.replace(with: [])
+        shuffled.forgetPositions()
+        shuffled.markAdded(start: 3, count: 2)
+        XCTAssertEqual(shuffled.planAdd(Self.row("c"), currentIndex: 2, entryCount: 8).index, 5,
+                       "a later add goes after the carried songs")
+        shuffled.markAdded(start: 3, count: 0)
+        XCTAssertNil(shuffled.added)
+
         book.replace(with: ["n0", "b", "n1"].map { Self.row($0) }, carryingAdded: 1, after: 0)
         XCTAssertEqual(book.added, Book.AddedRun(start: 1, count: 1))
         XCTAssertEqual(book.planAdd(Self.row("c"), currentIndex: 0, entryCount: 3).index, 2)

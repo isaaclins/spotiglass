@@ -61,22 +61,40 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         if let startURI, !resolved.contains(where: { $0.uri == startURI }) { throw Self.notFound(startURI) }
         let startIndex = resolved.firstIndex { $0.uri == startURI } ?? 0
         // Songs added with Add to queue that haven't played yet stay queued, right after the
-        // new first song, like Spotify's queue.
-        var queued = resolved
+        // new first song, like Spotify's queue. With shuffle off they go into the new queue
+        // as it is set; with shuffle on MusicKit reshuffles a new queue, so they are inserted
+        // after that instead, or they'd end up anywhere in it.
         let carried = carriedAddedSongs()
-        queued.insert(contentsOf: carried, at: startIndex + 1)
+        let carriedInQueue = shuffleWanted ? [] : carried
+        var queued = resolved
+        queued.insert(contentsOf: carriedInQueue, at: startIndex + 1)
         uriByEntryKey = [:]
-        for item in queued {
+        for item in queued + (shuffleWanted ? carried : []) {
             remember(item.uri, for: item.entry)
         }
         book.replace(
             with: queued.map { AppleMusicQueueBook.Row(uri: $0.uri, title: $0.entry.title) },
-            carryingAdded: carried.count,
+            carryingAdded: carriedInQueue.count,
             after: startIndex
         )
         player.queue = ApplicationMusicPlayer.Queue(queued.map(\.entry), startingAt: resolved[startIndex].entry)
         applyModesToNewQueue()
         try await Self.mapped { try await self.player.play() }
+        // The player switches to a queue it was given only once it plays, so with shuffle on
+        // the carried songs go in now. Each goes right after the current song, so inserting
+        // the last first keeps the order they were added in.
+        if shuffleWanted, !carried.isEmpty, isCurrent() {
+            for item in carried.reversed() {
+                try await Self.mapped {
+                    try await self.player.queue.insert(item.entry, position: .afterCurrentEntry)
+                }
+            }
+            let entries = player.queue.entries
+            if let current = player.queue.currentEntry,
+               let currentIndex = entries.firstIndex(where: { $0.id == current.id }) {
+                book.markAdded(start: currentIndex + 1, count: carried.count)
+            }
+        }
     }
 
     func pause() {
@@ -104,13 +122,14 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
     }
 
     func setShuffle(_ enabled: Bool) {
+        // Compared with what was last asked for, not with what the player reports: its state
+        // trails commands, so a quick on-then-off would otherwise be dropped.
+        let changed = enabled != shuffleWanted
         shuffleWanted = enabled
-        let mode: MusicPlayer.ShuffleMode = enabled ? .songs : .off
-        guard player.state.shuffleMode != mode else { return }
         // Positions hold until shuffle reorders the queue: note each entry's row by id first.
-        noteEntries()
-        player.state.shuffleMode = mode
-        book.forgetPositions()
+        if changed { noteEntries() }
+        player.state.shuffleMode = enabled ? .songs : .off
+        if changed { book.forgetPositions() }
     }
 
     /// Sets the shuffle and repeat last asked for on a queue just set, without trusting what

@@ -329,6 +329,12 @@ struct AppleMusicQueueBook: Equatable {
         }
     }
 
+    /// `count` added songs now sit right after the current song from position `start` (put
+    /// there after shuffle reordered a new queue).
+    mutating func markAdded(start: Int, count: Int) {
+        added = count > 0 ? AddedRun(start: start, count: count) : nil
+    }
+
     /// Shuffle reorders what plays next, so the positions kept so far no longer hold.
     mutating func forgetPositions() {
         rows = []
