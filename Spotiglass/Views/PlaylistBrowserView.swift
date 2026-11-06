@@ -51,6 +51,9 @@ struct PlaylistBrowserView: View {
     /// searches never share its request state.
     let catalogProvider: any MusicBrowsingProvider
     let signOut: () -> Void
+    /// Whether the transport bar drives real playback. Apple Music browsing ships before its
+    /// playback, so that service shows a calm placeholder and never starts the Spotify player.
+    let playbackMode: BrowserPlaybackMode
 
     private func requestCreatePlaylist(_ rows: [TrackRowViewModel]) {
         newPlaylistInitialRows = rows
@@ -71,7 +74,8 @@ struct PlaylistBrowserView: View {
         playbackHost: SpotiglassPlaybackHost,
         catalogProvider: any MusicBrowsingProvider,
         commandPaletteManager: CommandPaletteManager,
-        signOut: @escaping () -> Void
+        signOut: @escaping () -> Void,
+        playbackMode: BrowserPlaybackMode = .live
     ) {
         let playbackViewModel = playbackHost.playbackViewModel
         let queueViewModel = QueueViewModel(
@@ -85,6 +89,7 @@ struct PlaylistBrowserView: View {
         _commandPaletteManager = ObservedObject(wrappedValue: commandPaletteManager)
         self.catalogProvider = catalogProvider
         self.signOut = signOut
+        self.playbackMode = playbackMode
     }
 
     /// Where you are, falling back to the app name at the root.
@@ -155,13 +160,18 @@ struct PlaylistBrowserView: View {
                     )
                 }
             }
-            PlaybackControlsView(
-                viewModel: playbackViewModel,
-                isLyricsPresented: isLyricsPresentedBinding,
-                openArtist: { target in
-                    openArtistFromTapTarget(target)
-                }
-            )
+            switch playbackMode {
+            case .live:
+                PlaybackControlsView(
+                    viewModel: playbackViewModel,
+                    isLyricsPresented: isLyricsPresentedBinding,
+                    openArtist: { target in
+                        openArtistFromTapTarget(target)
+                    }
+                )
+            case let .comingSoon(message):
+                PlaybackComingSoonBar(message: message)
+            }
         }
     }
 
@@ -280,6 +290,7 @@ struct PlaylistBrowserView: View {
             await viewModel.loadIfNeeded()
         }
         .task {
+            guard playbackMode == .live else { return }
             playbackViewModel.start(recoveryCause: .startupTask)
         }
         .task {

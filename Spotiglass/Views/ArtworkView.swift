@@ -1,4 +1,5 @@
 import AppKit
+import MusicKit
 import SwiftUI
 
 struct ArtworkView: View {
@@ -101,12 +102,43 @@ struct ArtworkPlaceholderContent: View {
     }
 }
 
+/// Draws Apple Music library artwork (`musicKit://` URLs registered in
+/// ``AppleMusicArtworkRegistry``) with MusicKit's own view. Draws nothing for any other URL, so
+/// callers layer it over their placeholder.
+struct MusicKitArtwork: View {
+    let url: URL?
+    let width: CGFloat
+    let height: CGFloat
+
+    var body: some View {
+        if let url, AppleMusicArtworkRegistry.needsMusicKit(url),
+            let artwork = AppleMusicArtworkRegistry.shared.artwork(for: url)
+        {
+            ArtworkImage(artwork, width: width, height: height)
+        }
+    }
+}
+
 private struct CachedArtworkImage: View {
     let url: URL
     let size: CGFloat
     @StateObject private var artworkLoader = ArtworkImageLoader()
 
     var body: some View {
+        if AppleMusicArtworkRegistry.needsMusicKit(url) {
+            // Apple Music library artwork: only MusicKit can draw it.
+            // MusicKit draws nothing for artwork it can't load (e.g. songs that only live in the
+            // cloud library), so the placeholder underneath shows through.
+            ZStack {
+                ArtworkPlaceholderContent(state: .none, size: size)
+                MusicKitArtwork(url: url, width: size, height: size)
+            }
+        } else {
+            downloadedArtwork
+        }
+    }
+
+    private var downloadedArtwork: some View {
         Group {
             if let image = artworkLoader.image {
                 Image(nsImage: image)

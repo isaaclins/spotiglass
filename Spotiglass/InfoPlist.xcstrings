@@ -1,0 +1,30 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "NSAppleMusicUsageDescription" : {
+      "comment" : "Shown in the system prompt that asks for Apple Music access.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spotiglass zeigt deine Apple Music Mediathek, Playlists und Empfehlungen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spotiglass shows your Apple Music library, playlists and recommendations."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spotiglass muestra tu biblioteca, tus listas y tus recomendaciones de Apple Music."
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

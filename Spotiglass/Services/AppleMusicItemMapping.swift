@@ -1,0 +1,204 @@
+import Foundation
+import MusicKit
+
+/// Maps MusicKit items onto the service-neutral `Music*` models.
+///
+/// `id` is MusicKit's own item ID (catalog IDs are numeric, library IDs start with `i.`, `l.`
+/// or `p.`), and `uri` is an `applemusic:<kind>:<id>` reference that only the Apple Music
+/// provider interprets. Neither is ever parsed outside this provider.
+enum AppleMusicItemMapping {
+    static let uriScheme = "applemusic"
+    /// Accepted by every Apple Music playlist; there is no snapshot concept, so the cache keys
+    /// a playlist's tracks by this constant and relies on its age instead.
+    static let playlistSnapshotID = "applemusic"
+
+    /// Pixel sizes requested from Apple's artwork templates. Track rows and palette rows show
+    /// artwork at 40 to 56 pt, cards and detail headers up to roughly 240 pt; both at 2x.
+    enum ArtworkSize {
+        static let row = 120
+        static let cover = 600
+    }
+
+    static func uri(kind: String, id: MusicItemID) -> String {
+        "\(uriScheme):\(kind):\(id.rawValue)"
+    }
+
+    static func artworkURL(
+        _ artwork: Artwork?,
+        size: Int,
+        registry: AppleMusicArtworkRegistry = .shared
+    ) -> URL? {
+        guard let artwork, let url = artwork.url(width: size, height: size) else { return nil }
+        if AppleMusicArtworkRegistry.needsMusicKit(url) {
+            registry.register(artwork, for: url)
+        }
+        return url
+    }
+
+    // MARK: - Tracks
+
+    static func track(_ song: Song) -> MusicTrack {
+        MusicTrack(
+            id: song.id.rawValue,
+            name: song.title,
+            artists: artistNames(song.artistName),
+            artistRefs: artistRefs(song.artists),
+            albumArtworkURL: artworkURL(song.artwork, size: ArtworkSize.row),
+            albumName: song.albumTitle,
+            albumID: song.albums?.first?.id.rawValue,
+            durationMilliseconds: milliseconds(song.duration),
+            isExplicit: song.contentRating == .explicit,
+            isPlayable: song.playParameters != nil,
+            linkedFromID: nil,
+            uri: uri(kind: "song", id: song.id)
+        )
+    }
+
+    static func track(_ track: Track, album: Album? = nil) -> MusicTrack {
+        switch track {
+        case let .song(song):
+            let mapped = Self.track(song)
+            guard let album else { return mapped }
+            return mapped.withAlbum(album)
+        case let .musicVideo(video):
+            return MusicTrack(
+                id: video.id.rawValue,
+                name: video.title,
+                artists: artistNames(video.artistName),
+                albumArtworkURL: artworkURL(video.artwork ?? album?.artwork, size: ArtworkSize.row),
+                albumName: video.albumTitle ?? album?.title,
+                albumID: album?.id.rawValue,
+                durationMilliseconds: milliseconds(video.duration),
+                isExplicit: video.contentRating == .explicit,
+                isPlayable: video.playParameters != nil,
+                linkedFromID: nil,
+                uri: uri(kind: "music-video", id: video.id)
+            )
+        @unknown default:
+            return MusicTrack(
+                id: track.id.rawValue,
+                name: track.title,
+                artists: artistNames(track.artistName),
+                albumArtworkURL: artworkURL(track.artwork, size: ArtworkSize.row),
+                durationMilliseconds: milliseconds(track.duration),
+                isExplicit: track.contentRating == .explicit,
+                isPlayable: track.playParameters != nil,
+                linkedFromID: nil,
+                uri: uri(kind: "track", id: track.id)
+            )
+        }
+    }
+
+    static func playlistItems(_ tracks: [MusicTrack]) -> [MusicPlaylistTrackItem] {
+        tracks.enumerated().map { index, track in
+            // Positions keep repeated songs in one playlist distinct for SwiftUI lists.
+            MusicPlaylistTrackItem(id: "\(index)-\(track.id)", content: .track(track))
+        }
+    }
+
+    // MARK: - Collections
+
+    static func playlistSummary(_ playlist: Playlist, fallbackOwnerName: String) -> MusicPlaylistSummary {
+        // Playlists the user made have no curator; Apple's own and shared ones name theirs.
+        let curator = playlist.curatorName
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .flatMap { $0.isEmpty ? nil : $0 }
+        return MusicPlaylistSummary(
+            id: playlist.id.rawValue,
+            name: playlist.name,
+            ownerID: curator ?? AppleMusicBrowsingProvider.libraryUserID,
+            ownerName: curator ?? fallbackOwnerName,
+            imageURL: artworkURL(playlist.artwork, size: ArtworkSize.cover),
+            trackCount: playlist.tracks?.count,
+            snapshotID: playlistSnapshotID
+        )
+    }
+
+    static func album(_ album: Album) -> MusicAlbum {
+        MusicAlbum(
+            id: album.id.rawValue,
+            name: album.title,
+            artists: artistNames(album.artistName),
+            imageURL: artworkURL(album.artwork, size: ArtworkSize.cover),
+            uri: uri(kind: "album", id: album.id)
+        )
+    }
+
+    static func artistAlbum(_ album: Album) -> MusicArtistAlbum {
+        let group: MusicArtistAlbumGroup
+        if album.isCompilation == true {
+            group = .compilation
+        } else if album.isSingle == true {
+            group = .single
+        } else {
+            group = .album
+        }
+        return MusicArtistAlbum(
+            id: album.id.rawValue,
+            name: album.title,
+            imageURL: artworkURL(album.artwork, size: ArtworkSize.cover),
+            releaseYear: album.releaseDate.map { String(Calendar(identifier: .gregorian).component(.year, from: $0)) },
+            totalTracks: album.trackCount,
+            group: group,
+            uri: uri(kind: "album", id: album.id)
+        )
+    }
+
+    static func artist(_ artist: Artist) -> MusicArtist {
+        MusicArtist(
+            id: artist.id.rawValue,
+            name: artist.name,
+            imageURL: artworkURL(artist.artwork, size: ArtworkSize.cover),
+            uri: uri(kind: "artist", id: artist.id)
+        )
+    }
+
+    static func artistDetail(_ artist: Artist) -> MusicArtistDetail {
+        MusicArtistDetail(
+            id: artist.id.rawValue,
+            name: artist.name,
+            imageURL: artworkURL(artist.artwork, size: ArtworkSize.cover),
+            followersTotal: nil,
+            genres: artist.genreNames ?? [],
+            uri: uri(kind: "artist", id: artist.id)
+        )
+    }
+
+    // MARK: - Helpers
+
+    private static func artistNames(_ name: String?) -> [String] {
+        guard let name, !name.isEmpty else { return [] }
+        return [name]
+    }
+
+    private static func artistRefs(_ artists: MusicItemCollection<Artist>?) -> [MusicArtistRef] {
+        guard let artists else { return [] }
+        return artists.map { MusicArtistRef(id: $0.id.rawValue, name: $0.name) }
+    }
+
+    private static func milliseconds(_ seconds: TimeInterval?) -> Int {
+        guard let seconds, seconds.isFinite, seconds > 0 else { return 0 }
+        return Int((seconds * 1000).rounded())
+    }
+}
+
+private extension MusicTrack {
+    /// Album tracks often come without their own artwork or album reference; the album has both.
+    func withAlbum(_ album: Album) -> MusicTrack {
+        MusicTrack(
+            id: id,
+            name: name,
+            artists: artists,
+            artistRefs: artistRefs,
+            albumArtworkURL: albumArtworkURL
+                ?? AppleMusicItemMapping.artworkURL(album.artwork, size: AppleMusicItemMapping.ArtworkSize.row),
+            albumName: albumName ?? album.title,
+            albumID: albumID ?? album.id.rawValue,
+            durationMilliseconds: durationMilliseconds,
+            isExplicit: isExplicit,
+            isPlayable: isPlayable,
+            linkedFromID: linkedFromID,
+            uri: uri
+        )
+    }
+}

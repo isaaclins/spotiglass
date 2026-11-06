@@ -188,6 +188,10 @@ struct RootView: View {
     private let sceneRegistry: SpotiglassSceneRegistry?
     /// The app-scoped playback model and its single Web Playback SDK host.
     private let playbackHost: SpotiglassPlaybackHost
+    /// Which service this scene browses; Spotify unless the hidden developer switch says otherwise.
+    private let musicService: MusicService
+    /// Apple Music permission state. Only consulted when ``musicService`` is `.appleMusic`.
+    @StateObject private var appleMusicSession = AppleMusicSession()
     @Environment(\.openSettings) private var openSettingsAction
 
     private var commandPaletteManager: CommandPaletteManager {
@@ -207,6 +211,7 @@ struct RootView: View {
         _sceneHost = StateObject(wrappedValue: SpotiglassSceneHost(commandPaletteManager: commandPaletteManager))
         sceneRegistry = nil
         self.playbackHost = playbackHost
+        musicService = .spotify
     }
 
     init(
@@ -221,6 +226,7 @@ struct RootView: View {
         )
         self.sceneRegistry = sceneRegistry
         self.playbackHost = playbackHost
+        musicService = MusicServiceSelection.current
     }
 
     /// Clears all scene-local state before the shared auth state can replace a
@@ -245,6 +251,9 @@ struct RootView: View {
     private var signOutAction: () -> Void {
         let authViewModel = self.viewModel
         let prepareForAuthLoss = authLossPreparationAction
+        // Under Apple Music the browser supplies its own disconnect; this fallback must never
+        // sign the Spotify account out (and delete its Keychain item) behind the user's back.
+        guard musicService == .spotify else { return prepareForAuthLoss }
         return {
             prepareForAuthLoss()
             Task { await authViewModel.signOut() }
@@ -315,6 +324,8 @@ struct RootView: View {
                 }
             }
             .task {
+                // Apple Music never reads the Spotify Keychain item.
+                guard musicService == .spotify else { return }
                 await viewModel.restoreSessionIfAvailable()
             }
             .onAppear {
@@ -356,6 +367,21 @@ struct RootView: View {
 
     @ViewBuilder
     private var content: some View {
+        switch musicService {
+        case .spotify:
+            spotifyContent
+        case .appleMusic:
+            AppleMusicBrowserRoot(
+                session: appleMusicSession,
+                playbackHost: playbackHost,
+                commandPaletteManager: commandPaletteManager,
+                prepareForReset: authLossPreparationAction
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var spotifyContent: some View {
         switch viewModel.state {
         case .signedIn, .refreshing(.some):
             PlaylistBrowserView(

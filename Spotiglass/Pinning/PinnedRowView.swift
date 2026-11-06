@@ -116,7 +116,7 @@ private struct CachedCircularArtwork: View {
                     .resizable()
                     .scaledToFill()
             } else {
-                Color.clear
+                MusicKitArtwork(url: url, width: diameter, height: diameter)
             }
         }
         .frame(width: diameter, height: diameter)
