@@ -159,7 +159,7 @@ extension PlaybackSessionViewModel {
         }
         do {
             try await performPrioritizedControlCommand {
-                try await playbackAPI.seek(to: intent.milliseconds, deviceID: commandDeviceID)
+                try await provider.seek(to: intent.milliseconds, deviceID: commandDeviceID)
             }
             guard intent.owner == seekOwnershipKey, !Task.isCancelled else { return false }
             return true

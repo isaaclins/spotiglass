@@ -163,9 +163,7 @@ final class MenuKeyEquivalentTests: XCTestCase {
     func testPlaybackMenuMirrorsLiveShuffleAndRepeatState() {
         let manager = CommandPaletteManager(keymapStore: makeStore())
         let playback = PlaybackSessionViewModel(
-            playbackAPI: MockPlaybackAPI(),
-            webCommander: MockWebPlaybackCommander()
-        )
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
         manager.bindPlaybackReadiness(to: playback)
         let commands = makeCommands(manager: manager)
 
@@ -235,9 +233,7 @@ final class MenuKeyEquivalentTests: XCTestCase {
     func testLyricsMenuRequiresCurrentMusicTrack() {
         let manager = CommandPaletteManager(keymapStore: makeStore())
         let playback = PlaybackSessionViewModel(
-            playbackAPI: MockPlaybackAPI(),
-            webCommander: MockWebPlaybackCommander()
-        )
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
         manager.bindPlaybackReadiness(to: playback)
         let commands = makeCommands(manager: manager)
 

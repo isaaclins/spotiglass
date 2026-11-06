@@ -99,7 +99,7 @@ extension PlaybackSessionViewModel {
             .playback,
             "Starting Spotify playback SDK connect generation=\(generation.rawValue) timeout=\(Self.durationSeconds(playbackHostConnectTimeout))s"
         )
-        webCommander.loadHost(generation: generation)
+        provider.loadPlayer(generation: generation)
         playbackHostConnectTask = Task { [weak self] in
             guard let self, self.ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
             defer {
@@ -108,7 +108,7 @@ extension PlaybackSessionViewModel {
                 }
             }
             do {
-                try await self.webCommander.send(.connect, payload: [:], generation: generation)
+                try await self.provider.connectPlayer(generation: generation)
                 guard self.ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
                 SpotiglassLog.info(
                     .playback,
@@ -219,7 +219,7 @@ extension PlaybackSessionViewModel {
         clearTogglePlayPauseAckWait()
         guard ownsPlaybackHostGeneration(generation) else { return }
         do {
-            try await webCommander.send(.disconnect, payload: [:], generation: hostGeneration)
+            try await provider.disconnectPlayer(generation: hostGeneration)
         } catch {
             // Disconnect best-effort; errors are non-fatal.
         }
@@ -246,7 +246,7 @@ extension PlaybackSessionViewModel {
             setConnectionState(.connecting)
             self.deviceID = nil
             let generation = beginPlaybackHostLifecycle()
-            webCommander.loadHost(generation: generation)
+            provider.loadPlayer(generation: generation)
             playbackHostConnectTask = Task { [weak self] in
                 guard let self, self.ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
                 defer {
@@ -254,7 +254,7 @@ extension PlaybackSessionViewModel {
                         self.playbackHostConnectTask = nil
                     }
                 }
-                try? await self.webCommander.send(.connect, payload: [:], generation: generation)
+                try? await self.provider.connectPlayer(generation: generation)
             }
             return
         }
@@ -342,7 +342,7 @@ extension PlaybackSessionViewModel {
 
         playbackHostReuseConnectAttemptCount += 1
         bumpCounter(&playbackHostReuseAttemptsByCause, key: cause.rawValue)
-        try? await webCommander.send(.connect, payload: [:], generation: generation)
+        try? await provider.connectPlayer(generation: generation)
         guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
         if await waitForPlaybackReadyAfterRecovery(
             timeout: playbackHostRecoveryConnectTimeout,
@@ -354,9 +354,16 @@ extension PlaybackSessionViewModel {
         }
 
         guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
+        // Soft reset and reload only exist for an embedded player page; any
+        // other player gets the one connect retry above.
+        guard provider.capabilities.contains(.reloadablePlayer) else {
+            playbackHostRecoveryFailureCount += 1
+            bumpCounter(&playbackHostRecoveryFailuresByCause, key: cause.rawValue)
+            return
+        }
         playbackHostReuseSoftResetAttemptCount += 1
         bumpCounter(&playbackHostReuseAttemptsByCause, key: cause.rawValue)
-        try? await webCommander.send(.disconnect, payload: [:], generation: generation)
+        try? await provider.disconnectPlayer(generation: generation)
         guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
         do {
             try await Task.sleep(for: min(playbackHostRecoverySoftResetTimeout, .milliseconds(200)))
@@ -364,7 +371,7 @@ extension PlaybackSessionViewModel {
             return
         }
         guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
-        try? await webCommander.send(.connect, payload: [:], generation: generation)
+        try? await provider.connectPlayer(generation: generation)
         guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
         if await waitForPlaybackReadyAfterRecovery(
             timeout: playbackHostRecoverySoftResetTimeout,

@@ -453,8 +453,7 @@ final class EqualizerHALPluginTests: XCTestCase {
 
         let macOutput = TestEqualizerMacOutputProvider(deviceID: selectedID)
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: MockPlaybackAPI(),
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()),
             macAudioOutput: macOutput,
             equalizerEngine: engine,
             defaults: UserDefaults(suiteName: "spotiglass-eq-routing-\(UUID().uuidString)")!

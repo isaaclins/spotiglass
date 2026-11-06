@@ -106,7 +106,7 @@ extension QueueViewModel {
         inFlightEnqueueKeys.insert(key)
         defer { inFlightEnqueueKeys.remove(key) }
         do {
-            try await playbackAPI.addToQueue(uri: uri, deviceID: deviceID)
+            try await provider.enqueue(uri: uri, deviceID: deviceID)
             lastError = nil
             enqueueSuccessCooldownUntil[key] = clock.now.advanced(by: enqueueSuccessCooldown)
             enqueueUnknownOutcomeUntil.removeValue(forKey: key)

@@ -451,19 +451,6 @@ enum MusicPlaybackEvent: Equatable {
     case log(String)
 }
 
-enum PlaybackBridgeCommand: String, Equatable {
-    case connect
-    case disconnect
-    case togglePlay
-    case pause
-    case resume
-    case seek
-    case next
-    case previous
-    case playURI
-    case setVolume
-}
-
 enum PlaybackBridgeMessageError: Error, Equatable {
     case invalidEnvelope
     case missingPayload(String)

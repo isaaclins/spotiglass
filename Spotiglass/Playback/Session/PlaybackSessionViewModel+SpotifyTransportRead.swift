@@ -52,7 +52,7 @@ extension PlaybackSessionViewModel {
 
             do {
                 let volumeMutationVersionAtRequest = volumeMutationVersion
-                let snapshot = try await playbackAPI.fetchPlayerSnapshot()
+                let snapshot = try await provider.fetchPlaybackState()
                 guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
                 if let snapshot {
                     latestPlayerSnapshot = snapshot
@@ -113,25 +113,36 @@ extension PlaybackSessionViewModel {
         }
     }
 
-    /// Publishes the Web API player item only while Spotify is playing on a
-    /// Connect device other than the embedded Web Playback SDK device. Local
+    /// Publishes the read player item while the playing player's state is only
+    /// read: Spotify on a Connect device other than the embedded Web Playback
+    /// SDK device, or an in-app player that does not push state events. Pushed
     /// SDK state remains authoritative for the Spotiglass device.
     private func applyRemotePlaybackSnapshot(_ snapshot: MusicPlaybackSnapshot) {
-        guard let localDeviceID = deviceID,
-              let activeDevice = snapshot.activeDevice,
-              activeDevice.deviceID != localDeviceID else { return }
-        // A just-issued local command can be followed by one stale player
-        // snapshot. Preserve the selected target during that settle window,
-        // but accept the snapshot once it agrees with that target.
-        guard localMutationSettleTicksRemaining == 0
-            || activePlaybackDeviceID == activeDevice.deviceID else { return }
+        guard let localDeviceID = deviceID else { return }
+        let snapshotDeviceID: String
+        if provider.capabilities.contains(.pushesPlayerState) {
+            guard let activeDevice = snapshot.activeDevice,
+                  activeDevice.deviceID != localDeviceID else { return }
+            // A just-issued local command can be followed by one stale player
+            // snapshot. Preserve the selected target during that settle window,
+            // but accept the snapshot once it agrees with that target.
+            guard localMutationSettleTicksRemaining == 0
+                || activePlaybackDeviceID == activeDevice.deviceID else { return }
+            snapshotDeviceID = activeDevice.deviceID
+        } else {
+            // The in-app player's own reads lag its commands (a player can
+            // still report "playing" right after it was stopped), so keep the
+            // optimistic state until the settle window after a local command ends.
+            guard localMutationSettleTicksRemaining == 0 else { return }
+            snapshotDeviceID = snapshot.activeDevice?.deviceID ?? localDeviceID
+        }
 
-        setActivePlaybackDeviceID(activeDevice.deviceID)
+        setActivePlaybackDeviceID(snapshotDeviceID)
         let remoteNowPlaying = snapshot.playbackNowPlaying
         let suppressed = shouldSuppressStaleStateChange(nowPlaying: remoteNowPlaying)
         SpotiglassLog.info(
             .playback,
-            "Remote player snapshot deviceID=\(activeDevice.deviceID) itemURI=\(remoteNowPlaying?.uri ?? "<nil>") isPlaying=\(snapshot.isPlaying) progressMs=\(snapshot.progressMilliseconds ?? 0) suppressed=\(suppressed)"
+            "Remote player snapshot deviceID=\(snapshotDeviceID) itemURI=\(remoteNowPlaying?.uri ?? "<nil>") isPlaying=\(snapshot.isPlaying) progressMs=\(snapshot.progressMilliseconds ?? 0) suppressed=\(suppressed)"
         )
         observeSkipAdvance(nowPlayingURI: remoteNowPlaying?.uri)
         guard !suppressed else { return }
@@ -270,6 +281,8 @@ extension PlaybackSessionViewModel {
     ) async {
         let generation = generation ?? playbackHostGeneration
         guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
+        // Services without device transfer have no device list to show.
+        guard let deviceTransfer = provider.deviceTransfer else { return }
         if !force,
            let lastConnectDevicesRefreshAt,
            clock.now < lastConnectDevicesRefreshAt.advanced(by: connectDevicesFreshnessWindow) {
@@ -299,7 +312,7 @@ extension PlaybackSessionViewModel {
         }
 
         let refreshTask = Task {
-            try await playbackAPI.fetchAvailableDevices()
+            try await deviceTransfer.fetchAvailableDevices()
         }
         connectDevicesRefreshTask = refreshTask
         connectDevicesRefreshGeneration = generation

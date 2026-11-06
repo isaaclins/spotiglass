@@ -50,9 +50,7 @@ final class PlaybackChromeViewsTests: XCTestCase {
 
     func testPlaybackControlsDisconnectedState() throws {
         let playback = PlaybackSessionViewModel(
-            playbackAPI: MockPlaybackAPI(),
-            webCommander: MockWebPlaybackCommander()
-        )
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
         let view = PlaybackControlsView(
             viewModel: playback,
             isLyricsPresented: .constant(false),
@@ -148,9 +146,7 @@ final class PlaybackChromeViewsTests: XCTestCase {
 
     func testPlaybackControlsConnectingState() throws {
         let playback = PlaybackSessionViewModel(
-            playbackAPI: MockPlaybackAPI(),
-            webCommander: MockWebPlaybackCommander()
-        )
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
         playback.start()
         let view = PlaybackControlsView(
             viewModel: playback,
@@ -165,9 +161,7 @@ final class PlaybackChromeViewsTests: XCTestCase {
     func testPlaybackControlsInitializationErrorShowsReconnect() throws {
         try ViewTestHost.skipIfViewInspectorGeometryUnsupported()
         let playback = PlaybackSessionViewModel(
-            playbackAPI: MockPlaybackAPI(),
-            webCommander: MockWebPlaybackCommander()
-        )
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
         playback.handle(.initializationError("Web Playback failed to load"))
         let view = PlaybackControlsView(
             viewModel: playback,
@@ -183,9 +177,7 @@ final class PlaybackChromeViewsTests: XCTestCase {
     func testPlaybackControlsPlaybackErrorShowsRetry() throws {
         try ViewTestHost.skipIfViewInspectorGeometryUnsupported()
         let playback = PlaybackSessionViewModel(
-            playbackAPI: MockPlaybackAPI(),
-            webCommander: MockWebPlaybackCommander()
-        )
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
         playback.handle(.playbackError("No active device"))
         let view = PlaybackControlsView(
             viewModel: playback,
@@ -203,9 +195,7 @@ final class PlaybackChromeViewsTests: XCTestCase {
         let api = MockPlaybackAPI()
         api.fetchPlayerSnapshotError = SpotifyAPIError.network("offline")
         let playback = PlaybackSessionViewModel(
-            playbackAPI: api,
-            webCommander: MockWebPlaybackCommander()
-        )
+            provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()))
         playback.handle(.ready(deviceID: "device-1"))
         await playback.syncTransportFromSpotify()
 
@@ -223,9 +213,7 @@ final class PlaybackChromeViewsTests: XCTestCase {
     func testPlaybackControlsReadyShowsTransportAccessibility() throws {
         try ViewTestHost.skipIfViewInspectorGeometryUnsupported()
         let playback = PlaybackSessionViewModel(
-            playbackAPI: MockPlaybackAPI(),
-            webCommander: MockWebPlaybackCommander()
-        )
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
         playback.handle(.ready(deviceID: "device-1"))
         playback.repeatMode = .context
         let view = PlaybackControlsView(
@@ -464,13 +452,15 @@ final class PlaybackChromeViewsTests: XCTestCase {
             isLyricsPresented: .constant(false),
             openArtist: { _ in }
         )
-        let picker = try view.inspect().find(ViewType.Picker.self)
-        XCTAssertEqual(try picker.labelView().text().string(), "Connect devices")
+        let picker = try view.inspect().find(ViewType.Picker.self) {
+            try $0.labelView().text().string() == "Connect devices"
+        }
         XCTAssertEqual(try picker.selectedValue(String.self), "connect-1")
         XCTAssertEqual(picker.findAll(ViewType.Label.self).count, 2)
         XCTAssertNoThrow(try picker.find(text: "Living Room"))
-        let macPicker = try view.inspect().find(ViewType.Picker.self, skipFound: 1)
-        XCTAssertEqual(try macPicker.labelView().text().string(), "Mac audio outputs")
+        let macPicker = try view.inspect().find(ViewType.Picker.self) {
+            try $0.labelView().text().string() == "Mac audio outputs"
+        }
         XCTAssertEqual(try macPicker.selectedValue(AudioDeviceID.self), 12)
         XCTAssertEqual(macPicker.findAll(ViewType.Label.self).count, 2)
         XCTAssertNoThrow(try macPicker.find(text: "Headphones"))
@@ -479,9 +469,7 @@ final class PlaybackChromeViewsTests: XCTestCase {
     func testPlaybackControlsEnablesPlayPauseForRemotePlayback() throws {
         try ViewTestHost.skipIfViewInspectorGeometryUnsupported()
         let playback = PlaybackSessionViewModel(
-            playbackAPI: MockPlaybackAPI(),
-            webCommander: MockWebPlaybackCommander()
-        )
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
         playback.deviceID = "local-device"
         playback.setConnectionState(.ready(deviceID: "local-device"))
         playback.setActivePlaybackDeviceID("remote-device")
@@ -634,11 +622,11 @@ final class PlaybackChromeViewsTests: XCTestCase {
             activeDevice: nil,
             isPlaying: false
         )]
-        let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: MockWebPlaybackCommander())
+        let playback = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()))
         playback.handle(.ready(deviceID: "device-1"))
         await playback.syncTransportFromSpotify()
         let queue = QueueViewModel(
-            playbackAPI: api,
+            provider: SpotifyPlaybackProvider(playbackAPI: api),
             playbackSession: playback,
             pollIntervalNanoseconds: 60_000_000_000
         )
@@ -659,8 +647,8 @@ final class PlaybackChromeViewsTests: XCTestCase {
 
     func testQueuePanelOmitsPlayAndCopyActionsForURIlessRows() throws {
         let api = MockPlaybackAPI()
-        let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: MockWebPlaybackCommander())
-        let queue = QueueViewModel(playbackAPI: api, playbackSession: playback)
+        let playback = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()))
+        let queue = QueueViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api), playbackSession: playback)
         queue.nowPlayingItem = QueueItem(
             name: "Display only",
             subtitle: "Unavailable",
@@ -682,9 +670,9 @@ final class PlaybackChromeViewsTests: XCTestCase {
 
     func testQueuePanelPopulatedNowPlayingAndUpNext() async throws {
         let api = MockPlaybackAPI()
-        let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: MockWebPlaybackCommander())
+        let playback = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()))
         let queue = QueueViewModel(
-            playbackAPI: api,
+            provider: SpotifyPlaybackProvider(playbackAPI: api),
             playbackSession: playback,
             pollIntervalNanoseconds: 60_000_000_000
         )
@@ -752,9 +740,9 @@ final class PlaybackChromeViewsTests: XCTestCase {
 
     func testQueuePanelShowsPlaybackUnavailableError() async throws {
         let api = MockPlaybackAPI()
-        let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: MockWebPlaybackCommander())
+        let playback = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()))
         let queue = QueueViewModel(
-            playbackAPI: api,
+            provider: SpotifyPlaybackProvider(playbackAPI: api),
             playbackSession: playback,
             pollIntervalNanoseconds: 60_000_000_000
         )
@@ -777,11 +765,11 @@ final class PlaybackChromeViewsTests: XCTestCase {
             activeDevice: nil,
             isPlaying: false
         )]
-        let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: MockWebPlaybackCommander())
+        let playback = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()))
         playback.handle(.ready(deviceID: "device-1"))
         await playback.syncTransportFromSpotify()
         let queue = QueueViewModel(
-            playbackAPI: api,
+            provider: SpotifyPlaybackProvider(playbackAPI: api),
             playbackSession: playback,
             pollIntervalNanoseconds: 60_000_000_000
         )
@@ -950,9 +938,7 @@ final class PlaybackChromeViewsTests: XCTestCase {
         artists: [String] = ["M83"]
     ) -> PlaybackSessionViewModel {
         let playback = PlaybackSessionViewModel(
-            playbackAPI: MockPlaybackAPI(),
-            webCommander: MockWebPlaybackCommander()
-        )
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
         playback.handle(.ready(deviceID: "device-1"))
         let nowPlaying = PlaybackNowPlaying(
             name: "Midnight City",

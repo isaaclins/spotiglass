@@ -36,7 +36,7 @@ extension PlaybackSessionViewModel {
             inFlightShuffleTarget = requestedTarget
             do {
                 try await performPrioritizedControlCommand {
-                    try await playbackAPI.setShuffle(enabled: requestedTarget, deviceID: commandDeviceID)
+                    try await provider.setShuffle(enabled: requestedTarget, deviceID: commandDeviceID)
                 }
                 lastConfirmedShuffleEnabled = requestedTarget
                 scheduleTransportSyncAfterShuffleToggle(minimumMutationVersion: nextMutationVersion)
@@ -172,7 +172,7 @@ extension PlaybackSessionViewModel {
 
             do {
                 try await performPrioritizedControlCommand {
-                    try await playbackAPI.setRepeat(mode: targetMode, deviceID: deviceID)
+                    try await provider.setRepeat(mode: targetMode, deviceID: deviceID)
                 }
                 lastRepeatWriteAt = clock.now
                 lastRepeatCommandedMode = targetMode

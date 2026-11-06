@@ -390,3 +390,10 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
         reportedTransport = MusicPlaybackTransport(shuffle: reportedTransport.shuffle, repeatMode: mode)
     }
 }
+
+extension SpotifyPlaybackProvider {
+    /// Spotify provider over a mock Web API, for tests that never touch the SDK page.
+    convenience init(playbackAPI: SpotifyPlaybackControlling) {
+        self.init(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander())
+    }
+}

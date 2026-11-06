@@ -119,15 +119,13 @@ final class CatalogSearchViewTests: XCTestCase {
             viewModel: viewModel,
             searchViewModel: viewModel.catalogSearch,
             playbackViewModel: PlaybackSessionViewModel(
-                playbackAPI: MockPlaybackAPI(),
-                webCommander: MockWebPlaybackCommander(),
+                provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()),
                 defaults: makeEphemeralDefaults()
             ),
             queueViewModel: QueueViewModel(
-                playbackAPI: MockPlaybackAPI(),
+                provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI()),
                 playbackSession: PlaybackSessionViewModel(
-                    playbackAPI: MockPlaybackAPI(),
-                    webCommander: MockWebPlaybackCommander(),
+                    provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()),
                     defaults: makeEphemeralDefaults()
                 )
             ),

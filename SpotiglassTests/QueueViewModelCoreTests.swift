@@ -5,8 +5,8 @@ import XCTest
 final class QueueViewModelCoreTests: XCTestCase {
     func testIsPlaybackPlayingReflectsSessionState() {
         let api = MockPlaybackAPI()
-        let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: MockWebPlaybackCommander())
-        let queue = QueueViewModel(playbackAPI: api, playbackSession: playback)
+        let playback = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()))
+        let queue = QueueViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api), playbackSession: playback)
         XCTAssertFalse(queue.isPlaybackPlaying)
 
         playback.setConnectionState(.playing(PlaybackNowPlaying(
@@ -28,8 +28,8 @@ final class QueueViewModelCoreTests: XCTestCase {
         api.onFetchQueue = {
             fetchQueueStarted.signal()
         }
-        let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: MockWebPlaybackCommander())
-        let queue = QueueViewModel(playbackAPI: api, playbackSession: playback, pollIntervalNanoseconds: 60_000_000_000)
+        let playback = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()))
+        let queue = QueueViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api), playbackSession: playback, pollIntervalNanoseconds: 60_000_000_000)
         playback.setConnectionState(.playing(PlaybackNowPlaying(
             name: "T",
             artists: [],
@@ -52,8 +52,8 @@ final class QueueViewModelCoreTests: XCTestCase {
 
     func testHandleSdkQueueSnapshotChangeNoOpsWhenPanelHidden() {
         let api = MockPlaybackAPI()
-        let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: MockWebPlaybackCommander())
-        let queue = QueueViewModel(playbackAPI: api, playbackSession: playback)
+        let playback = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()))
+        let queue = QueueViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api), playbackSession: playback)
         queue.setPanelVisible(false)
         let fetchCountBefore = api.actions.filter { $0 == "fetchQueue" }.count
         queue.handleSdkQueueSnapshotChanged()
@@ -63,8 +63,8 @@ final class QueueViewModelCoreTests: XCTestCase {
 
     func testSetAppActiveNoOpsWhenUnchanged() async {
         let api = MockPlaybackAPI()
-        let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: MockWebPlaybackCommander())
-        let queue = QueueViewModel(playbackAPI: api, playbackSession: playback)
+        let playback = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()))
+        let queue = QueueViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api), playbackSession: playback)
         queue.isAppActive = true
         queue.setAppActive(true)
         queue.setPanelVisible(false)

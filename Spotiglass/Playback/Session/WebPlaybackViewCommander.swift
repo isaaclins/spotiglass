@@ -1,6 +1,20 @@
 import Foundation
 import WebKit
 
+/// Commands the hidden Spotify Web Playback SDK page understands.
+enum PlaybackBridgeCommand: String, Equatable {
+    case connect
+    case disconnect
+    case togglePlay
+    case pause
+    case resume
+    case seek
+    case next
+    case previous
+    case playURI
+    case setVolume
+}
+
 protocol WebPlaybackCommanding {
     func loadHost(generation: PlaybackHostGeneration)
     func send(_ command: PlaybackBridgeCommand, payload: [String: Any]) async throws

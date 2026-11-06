@@ -48,9 +48,7 @@ final class PlaylistBrowserChromeViewsTests: XCTestCase {
         let browserVM = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
         await browserVM.load()
         let playbackVM = PlaybackSessionViewModel(
-            playbackAPI: MockPlaybackAPI(),
-            webCommander: MockWebPlaybackCommander()
-        )
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
         let store = PinnedItemsStore(cache: InMemoryPinnedItemsCache())
         store.bind(userID: "u1")
         let playlists = browserVM.playlistState.currentValue ?? []
@@ -86,9 +84,7 @@ final class PlaylistBrowserChromeViewsTests: XCTestCase {
             cache: MockBrowsingCache()
         )
         let playbackVM = PlaybackSessionViewModel(
-            playbackAPI: MockPlaybackAPI(),
-            webCommander: MockWebPlaybackCommander()
-        )
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
         let liked = PlaylistRowViewModel(likedSongsOwnerDisplay: "You", totalTrackCount: nil, artworkURL: nil)
         let summary: (PlaylistRowViewModel) -> MusicPlaylistSummary = { row in
             MusicPlaylistSummary(

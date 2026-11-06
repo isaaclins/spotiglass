@@ -91,7 +91,7 @@ struct HiddenPlaybackWebView: NSViewRepresentable {
 @MainActor
 final class SpotiglassPlaybackHost: ObservableObject {
     let playbackViewModel: PlaybackSessionViewModel
-    let playbackAPI: SpotifyPlaybackControlling
+    let playbackProvider: SpotifyPlaybackProvider
     let commander: WebPlaybackViewCommander
 
     private let webView: AccessibilityHiddenPlaybackWebView
@@ -103,17 +103,19 @@ final class SpotiglassPlaybackHost: ObservableObject {
         equalizerEngine: AudioEqualizerEngine? = nil
     ) {
         let commander = WebPlaybackViewCommander()
-        let playbackAPI = SpotifyPlaybackAPI(tokenProvider: tokenProvider)
+        let playbackProvider = SpotifyPlaybackProvider(
+            playbackAPI: SpotifyPlaybackAPI(tokenProvider: tokenProvider),
+            webCommander: commander
+        )
         let playbackViewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: commander,
+            provider: playbackProvider,
             equalizerEngine: equalizerEngine
         )
         let coordinator = SpotifyPlaybackWebViewCoordinator(
             tokenBridge: PlaybackTokenBridge(provider: tokenProvider)
         )
-        coordinator.onEvent = { [weak playbackViewModel] envelope in
-            playbackViewModel?.handle(envelope)
+        coordinator.onEvent = { [weak playbackProvider] envelope in
+            playbackProvider?.deliver(envelope)
         }
 
         let webView = HiddenPlaybackWebView.makeWebView(
@@ -122,7 +124,7 @@ final class SpotiglassPlaybackHost: ObservableObject {
         )
 
         self.playbackViewModel = playbackViewModel
-        self.playbackAPI = playbackAPI
+        self.playbackProvider = playbackProvider
         self.commander = commander
         self.webView = webView
     }

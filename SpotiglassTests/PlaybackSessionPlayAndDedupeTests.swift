@@ -14,7 +14,7 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
             if command == .connect { connectSent.signal() }
             if command == .setVolume { volumeSent.signal() }
         }
-        let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: commander)
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: commander))
 
         viewModel.start()
         await connectSent.wait()
@@ -44,9 +44,7 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
     func testReadyWithoutCachedSnapshotStartsInitialTransportSyncImmediately() async {
         let playbackAPI = MockPlaybackAPI()
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: MockWebPlaybackCommander()
-        )
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()))
 
         XCTAssertNil(viewModel.latestPlayerSnapshot)
         viewModel.handle(.ready(deviceID: "device-1"))
@@ -62,9 +60,7 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
         let playbackAPI = MockPlaybackAPI()
         playbackAPI.fetchPlayerSnapshotDelayNanoseconds = 100_000_000
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: MockWebPlaybackCommander()
-        )
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()))
         viewModel.handle(.ready(deviceID: "device-1"))
 
         async let firstSync: Void = viewModel.syncTransportFromSpotify()
@@ -98,9 +94,7 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
             await releaseFetch.wait()
         }
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: MockWebPlaybackCommander()
-        )
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()))
         viewModel.handle(.ready(deviceID: "old-device"))
         let initialTransportSyncTask = viewModel.transportSyncSchedulerTask
 
@@ -127,9 +121,7 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
             isPlaying: false
         )]
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: MockWebPlaybackCommander()
-        )
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()))
         viewModel.handle(.ready(deviceID: "device-1"))
         await viewModel.syncTransportFromSpotify()
         let fetchCountAfterInitialSync = playbackAPI.actions.filter { $0 == "fetchPlayerSnapshot" }.count
@@ -177,8 +169,7 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
             persistedVolumeSent.signal()
         }
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: commander,
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: commander),
             defaults: defaults
         )
 
@@ -207,8 +198,7 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
             if command == .setVolume { volumeSent.signal() }
         }
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: MockPlaybackAPI(),
-            webCommander: commander,
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: commander),
             defaults: makeEphemeralDefaults()
         )
         viewModel.handle(.ready(deviceID: "device-1"))
@@ -234,8 +224,7 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
             latestCommandSent.signal()
         }
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: MockPlaybackAPI(),
-            webCommander: commander,
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: commander),
             defaults: makeEphemeralDefaults()
         )
 
@@ -253,8 +242,7 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
         let commander = MockWebPlaybackCommander()
         let defaults = makeEphemeralDefaults()
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: MockPlaybackAPI(),
-            webCommander: commander,
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: commander),
             defaults: defaults
         )
         let volumeSent = AsyncSignal()
@@ -297,8 +285,7 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
         )]
         let defaults = makeEphemeralDefaults()
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()),
             defaults: defaults
         )
         viewModel.deviceID = "device-1"
@@ -317,8 +304,7 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
     func testMismatchingTransportVolumeConvergesAfterPendingDeadline() async {
         let playbackAPI = MockPlaybackAPI()
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()),
             defaults: makeEphemeralDefaults(),
             pendingVolumeTimeout: .zero
         )
@@ -346,8 +332,7 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
     func testMatchingTransportVolumeAcknowledgesPendingLocalTarget() async {
         let playbackAPI = MockPlaybackAPI()
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()),
             defaults: makeEphemeralDefaults()
         )
         viewModel.deviceID = "device-1"
@@ -388,8 +373,7 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
             isPlaying: true
         )]
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()),
             defaults: defaults
         )
         viewModel.deviceID = "local-device"
@@ -404,8 +388,7 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
         let playbackAPI = MockPlaybackAPI()
         let defaults = makeEphemeralDefaults()
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()),
             defaults: defaults
         )
         viewModel.deviceID = "device-1"
@@ -446,8 +429,7 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
             isPlaying: false
         )]
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()),
             defaults: defaults
         )
         viewModel.deviceID = "device-1"
@@ -461,7 +443,7 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
     func testPlayURITransfersPlaybackBeforePlayCommand() async {
         let commander = MockWebPlaybackCommander()
         let playbackAPI = MockPlaybackAPI()
-        let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: commander)
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: commander))
         viewModel.handle(.ready(deviceID: "device-1"))
 
         await viewModel.play(uri: "spotify:track:1")
@@ -477,7 +459,7 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
     func testDuplicatePlayURIWithinWindowIsDeduped() async {
         let commander = MockWebPlaybackCommander()
         let playbackAPI = MockPlaybackAPI()
-        let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: commander)
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: commander))
         viewModel.handle(.ready(deviceID: "device-1"))
         playbackAPI.playDelayNanoseconds = 150_000_000
 
@@ -497,7 +479,7 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
     func testDifferentPlayCommandsIncrementSupersededCounterWhenOverlapping() async {
         let commander = MockWebPlaybackCommander()
         let playbackAPI = MockPlaybackAPI()
-        let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: commander)
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: commander))
         viewModel.handle(.ready(deviceID: "device-1"))
         await viewModel.syncTransportFromSpotify()
 
@@ -529,7 +511,7 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
         let commander = MockWebPlaybackCommander()
         let playbackAPI = MockPlaybackAPI()
         playbackAPI.playDelayNanoseconds = 180_000_000
-        let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: commander)
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: commander))
         viewModel.handle(.ready(deviceID: "device-1"))
         await viewModel.syncTransportFromSpotify()
         let initialFetchCount = playbackAPI.actions.filter { $0 == "fetchPlayerSnapshot" }.count
@@ -571,7 +553,7 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
     func testPlayURIDoesNotTransferAgainForConsecutiveTrackSwitchesOnSameDevice() async {
         let commander = MockWebPlaybackCommander()
         let playbackAPI = MockPlaybackAPI()
-        let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: commander)
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: commander))
         viewModel.handle(.ready(deviceID: "device-1"))
 
         await viewModel.play(uri: "spotify:track:1")
@@ -587,7 +569,7 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
     func testPlayURITransfersAgainAfterDeviceBecomesNotReady() async {
         let commander = MockWebPlaybackCommander()
         let playbackAPI = MockPlaybackAPI()
-        let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: commander)
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: commander))
         viewModel.handle(.ready(deviceID: "device-1"))
 
         await viewModel.play(uri: "spotify:track:1")

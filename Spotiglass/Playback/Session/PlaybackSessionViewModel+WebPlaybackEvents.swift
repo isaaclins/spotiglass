@@ -214,10 +214,6 @@ extension PlaybackSessionViewModel {
         guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
         guard mutationVersion == volumeMutationVersion,
               sendSerial == playbackVolumeSendSerial else { return }
-        try? await webCommander.send(
-            .setVolume,
-            payload: ["volume": volume],
-            generation: generation
-        )
+        try? await provider.setVolume(volume, generation: generation)
     }
 }

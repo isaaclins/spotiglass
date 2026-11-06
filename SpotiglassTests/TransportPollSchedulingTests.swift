@@ -157,7 +157,7 @@ final class TransportPollSchedulingTests: XCTestCase {
     @MainActor
     func testSyncTransportAppliesRateLimitAndTransientBackoff() async {
         let api = MockPlaybackAPI()
-        let viewModel = PlaybackSessionViewModel(playbackAPI: api, webCommander: MockWebPlaybackCommander())
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()))
         viewModel.handle(.ready(deviceID: "device-1"))
 
         api.fetchPlayerSnapshotError = SpotifyAPIError.rateLimited(retryAfter: 9)
@@ -193,7 +193,7 @@ final class TransportPollSchedulingTests: XCTestCase {
                 isPlaying: false
             )
         ]
-        let viewModel = PlaybackSessionViewModel(playbackAPI: api, webCommander: MockWebPlaybackCommander())
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()))
         viewModel.handle(.ready(deviceID: "device-1"))
         viewModel.transportRateLimitedUntil = viewModel.clock.now.advanced(by: .seconds(-2))
 

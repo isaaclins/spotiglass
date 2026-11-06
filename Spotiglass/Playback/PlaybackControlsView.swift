@@ -463,22 +463,27 @@ struct PlaybackControlsView: View {
         if viewModel.deviceID != nil {
             Menu {
                 Group {
-                    Picker(selection: connectDeviceSelection) {
-                        ForEach(viewModel.connectDevices) { device in
-                            Label(
-                                device.name,
-                                systemImage: connectDeviceRowSymbol(for: device)
-                            )
-                            .lineLimit(1)
-                            .tag(device.deviceID)
-                            .disabled(device.isRestricted)
+                    if viewModel.supportsDeviceTransfer {
+                        Picker(selection: connectDeviceSelection) {
+                            ForEach(viewModel.connectDevices) { device in
+                                Label(
+                                    device.name,
+                                    systemImage: connectDeviceRowSymbol(for: device)
+                                )
+                                .lineLimit(1)
+                                .tag(device.deviceID)
+                                .disabled(device.isRestricted)
+                            }
+                        } label: {
+                            Text(SpotiglassL10n.string("playback.controls.connectDevices"))
                         }
-                    } label: {
-                        Text(SpotiglassL10n.string("playback.controls.connectDevices"))
-                    }
-                    .pickerStyle(.inline)
+                        .pickerStyle(.inline)
 
-                    Divider()
+                        Divider()
+                    } else {
+                        // Services without device transfer only list Mac outputs.
+                        EmptyView()
+                    }
 
                     Picker(selection: macAudioOutputSelection) {
                         ForEach(viewModel.macAudioOutputDevices) { device in

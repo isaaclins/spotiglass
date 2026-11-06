@@ -94,6 +94,8 @@
 		E50000000000000000000001 /* MusicPlaybackModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000011 /* MusicPlaybackModels.swift */; };
 		E50000000000000000000002 /* SpotifyPlaybackBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000012 /* SpotifyPlaybackBridge.swift */; };
 		E50000000000000000000003 /* SpotifyPlaybackAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000013 /* SpotifyPlaybackAPI.swift */; };
+		SRC0000000000000000000026 /* SpotifyPlaybackProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC0000000000000000080026 /* SpotifyPlaybackProvider.swift */; };
+		SRC0000000000000000000025 /* MusicPlaybackProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC0000000000000000080025 /* MusicPlaybackProvider.swift */; };
 		E50000000000000000000004 /* PlaybackSessionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000014 /* PlaybackSessionViewModel.swift */; };
 		E50000000000000000000005 /* HiddenPlaybackWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000015 /* HiddenPlaybackWebView.swift */; };
 		E50000000000000000000006 /* PlaybackControlsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000016 /* PlaybackControlsView.swift */; };
@@ -505,6 +507,8 @@
 		E50000000000000000000011 /* MusicPlaybackModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicPlaybackModels.swift; sourceTree = "<group>"; };
 		E50000000000000000000012 /* SpotifyPlaybackBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyPlaybackBridge.swift; sourceTree = "<group>"; };
 		E50000000000000000000013 /* SpotifyPlaybackAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyPlaybackAPI.swift; sourceTree = "<group>"; };
+		SRC0000000000000000080026 /* SpotifyPlaybackProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyPlaybackProvider.swift; sourceTree = "<group>"; };
+		SRC0000000000000000080025 /* MusicPlaybackProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicPlaybackProvider.swift; sourceTree = "<group>"; };
 		E50000000000000000000014 /* PlaybackSessionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackSessionViewModel.swift; sourceTree = "<group>"; };
 		E50000000000000000000015 /* HiddenPlaybackWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HiddenPlaybackWebView.swift; sourceTree = "<group>"; };
 		E50000000000000000000016 /* PlaybackControlsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackControlsView.swift; sourceTree = "<group>"; };
@@ -949,6 +953,8 @@
 				H80000000000000000000012 /* ScrubberView.swift */,
 				SRC000000000000000008001F /* PlaybackSeekStep.swift */,
 				E50000000000000000000013 /* SpotifyPlaybackAPI.swift */,
+				SRC0000000000000000080026 /* SpotifyPlaybackProvider.swift */,
+				SRC0000000000000000080025 /* MusicPlaybackProvider.swift */,
 				E50000000000000000000012 /* SpotifyPlaybackBridge.swift */,
 				E50000000000000000000041 /* PlaybackOutputSFResolver.swift */,
 				E50000000000000000000043 /* MacDefaultAudioOutputNameProvider.swift */,
@@ -1656,6 +1662,8 @@
 				E50000000000000000000001 /* MusicPlaybackModels.swift in Sources */,
 				E50000000000000000000002 /* SpotifyPlaybackBridge.swift in Sources */,
 				E50000000000000000000003 /* SpotifyPlaybackAPI.swift in Sources */,
+				SRC0000000000000000000026 /* SpotifyPlaybackProvider.swift in Sources */,
+				SRC0000000000000000000025 /* MusicPlaybackProvider.swift in Sources */,
 				E50000000000000000000004 /* PlaybackSessionViewModel.swift in Sources */,
 				E50000000000000000000052 /* WebPlaybackViewCommander.swift in Sources */,
 				E50000000000000000000054 /* PlaybackSessionViewModel+Timers.swift in Sources */,

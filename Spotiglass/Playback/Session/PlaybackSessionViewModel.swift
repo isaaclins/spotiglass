@@ -53,6 +53,20 @@ final class PlaybackSessionViewModel: ObservableObject {
         guard let activePlaybackDeviceID, let deviceID else { return false }
         return activePlaybackDeviceID != deviceID
     }
+
+    /// Whether the player that plays right now reports its state only when read:
+    /// a remote device, or an in-app player that does not push state events
+    /// (MusicKit's `ApplicationMusicPlayer`). Such state comes from transport reads,
+    /// and play / pause are confirmed optimistically until a read agrees.
+    var isPlayerStateRead: Bool {
+        isRemotePlaybackActive || !provider.capabilities.contains(.pushesPlayerState)
+    }
+
+    /// Whether the service can move playback to another device (Spotify Connect).
+    /// The device menu hides its device list when it can't.
+    var supportsDeviceTransfer: Bool {
+        provider.deviceTransfer != nil
+    }
     /// The Spotify playlist ID that the current playback originated from, or
     /// `nil` if playback was started from a single track URI or external context.
     /// Used by the sidebar to highlight which playlist row is "now playing".
@@ -164,8 +178,8 @@ final class PlaybackSessionViewModel: ObservableObject {
         set { diagnostics.playbackHostRecoveryFailuresByCause = newValue }
     }
 
-    let playbackAPI: SpotifyPlaybackControlling
-    let webCommander: WebPlaybackCommanding
+    /// The music service's player. Everything the session sends or reads goes through it.
+    let provider: any MusicPlaybackProvider
     let macAudioOutput: MacDefaultAudioOutputProviding
     /// Shared EQ route state used to keep system-output selections inside the
     /// equalizer instead of bypassing its virtual device.
@@ -488,8 +502,7 @@ final class PlaybackSessionViewModel: ObservableObject {
     }
 
     init(
-        playbackAPI: SpotifyPlaybackControlling,
-        webCommander: WebPlaybackCommanding,
+        provider: any MusicPlaybackProvider,
         macAudioOutput: MacDefaultAudioOutputProviding = MacDefaultAudioOutputNameProvider(),
         equalizerEngine: AudioEqualizerEngine? = nil,
         defaults: UserDefaults = .standard,
@@ -519,8 +532,7 @@ final class PlaybackSessionViewModel: ObservableObject {
         pendingVolumeTimeout: Duration = .seconds(3),
         volumeMatchTolerance: Double = 0.01
     ) {
-        self.playbackAPI = playbackAPI
-        self.webCommander = webCommander
+        self.provider = provider
         self.macAudioOutput = macAudioOutput
         self.equalizerEngine = equalizerEngine
         self.defaults = defaults
@@ -550,6 +562,10 @@ final class PlaybackSessionViewModel: ObservableObject {
         self.playbackHostRecoverySoftResetTimeout = playbackHostRecoverySoftResetTimeout
         self.playbackHostConnectTimeout = playbackHostConnectTimeout
         self.playbackVolume = Self.loadStoredPlaybackVolume(from: defaults)
+
+        provider.eventHandler = { [weak self] envelope in
+            self?.handle(envelope)
+        }
 
         macAudioOutput.startListening { [weak self] in
             Task { @MainActor in
@@ -646,11 +662,7 @@ final class PlaybackSessionViewModel: ObservableObject {
                   self.volumeMutationVersion == version,
                   self.playbackVolumeSendSerial == serial,
                   !Task.isCancelled else { return }
-            try? await self.webCommander.send(
-                .setVolume,
-                payload: ["volume": value],
-                generation: generation
-            )
+            try? await self.provider.setVolume(value, generation: generation)
         }
     }
 

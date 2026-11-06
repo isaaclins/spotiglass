@@ -30,7 +30,7 @@ extension QueueViewModel {
             var queueChanged = false
             var responseApplied = false
             do {
-                let fetchedQueue = try await playbackAPI.fetchQueue()
+                let fetchedQueue = try await provider.fetchQueue()
                 if requestGeneration != queueSessionGeneration {
                     // A disconnect or unavailable transition invalidated this
                     // request. Do not let its response become the next session's queue.
