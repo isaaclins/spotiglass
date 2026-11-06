@@ -124,6 +124,65 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         XCTAssertNil(place(nil, c.added), "nothing is current: MusicKit starts a queue")
     }
 
+    /// A slow play (a long playlist's lookup) that finishes after a newer play must not take
+    /// the queue back.
+    func testAnOlderPlayFinishingLateDoesNotReplaceTheNewerOne() async throws {
+        let player = ScriptedAppleMusicPlayer()
+        let provider = AppleMusicPlaybackProvider(player: player)
+        player.holdLookups = true
+        let slow = Task { try await provider.play(.items(uris: Self.uris, startURI: Self.uris[0]), deviceID: "x") }
+        await Self.settle()
+        XCTAssertEqual(player.waitingLookups, ["play \(Self.uris[0])"])
+
+        player.holdLookups = false
+        try await provider.play(.items(uris: ["applemusic:song:new"], startURI: nil), deviceID: "x")
+        player.releaseLookups()
+        do {
+            try await slow.value
+            XCTFail("the overtaken play should give up")
+        } catch is CancellationError {}
+
+        let state = try await provider.fetchPlaybackState()
+        XCTAssertEqual(state?.item.flatMap(Self.uri), "applemusic:song:new")
+    }
+
+    /// Two adds made back to back land in that order even when the first waits for its lookup.
+    func testAddsLandInOrderWhenTheFirstWaitsForItsLookup() async throws {
+        let player = ScriptedAppleMusicPlayer()
+        let provider = AppleMusicPlaybackProvider(player: player)
+        try await provider.play(.items(uris: Self.uris, startURI: nil), deviceID: "x")
+        player.holdLookups = true
+        let first = Task { try await provider.enqueue(uri: "applemusic:song:a", deviceID: "x") }
+        let second = Task { try await provider.enqueue(uri: "applemusic:song:b", deviceID: "x") }
+        await Self.settle()
+        XCTAssertEqual(player.waitingLookups, ["enqueue applemusic:song:a"], "b waits until a is in")
+
+        player.releaseLookups()
+        await Self.settle()
+        XCTAssertEqual(player.waitingLookups, ["enqueue applemusic:song:b"])
+        player.releaseLookups()
+        try await first.value
+        try await second.value
+
+        let upcoming = try await provider.fetchQueue().queue.compactMap(Self.uri)
+        XCTAssertEqual(Array(upcoming.prefix(3)), ["applemusic:song:a", "applemusic:song:b", Self.uris[1]])
+    }
+
+    /// Two recordings with the same title and artist are told apart by their length; one
+    /// recording whose length reads slightly differently still matches on title and artist.
+    func testQueuedEntriesWithTheSameTitleAndArtistKeepTheirOwnRows() {
+        let keys = MusicKitApplicationPlayer.entryKeys
+        let standard = keys("Halo", "Beyoncé", 261)
+        let deluxe = keys("Halo", "Beyoncé", 284)
+        XCTAssertNotEqual(standard.first, deluxe.first)
+        XCTAssertEqual(standard.last, deluxe.last)
+        XCTAssertEqual(keys("Halo", "Beyoncé", nil), [standard.last!])
+    }
+
+    private static func settle() async {
+        for _ in 0..<20 { await Task.yield() }
+    }
+
     func testMusicKitFailuresSurfaceAsAppleMusicErrors() async {
         let player = ScriptedAppleMusicPlayer()
         player.failure = URLError(.notConnectedToInternet)
@@ -394,6 +453,22 @@ final class ScriptedAppleMusicPlayer: AppleMusicPlayerControlling {
     var authorized = true
     var failure: Error?
     private(set) var commands: [String] = []
+    /// While true, play and enqueue wait in their lookup (like a slow MusicKit request) until
+    /// ``releaseLookups()``. ``waitingLookups`` names who waits.
+    var holdLookups = false
+    private var lookupWaiters: [(name: String, resume: CheckedContinuation<Void, Never>)] = []
+    var waitingLookups: [String] { lookupWaiters.map(\.name) }
+
+    func releaseLookups() {
+        let waiting = lookupWaiters
+        lookupWaiters.removeAll()
+        waiting.forEach { $0.resume.resume() }
+    }
+
+    private func lookup(_ name: String) async {
+        guard holdLookups else { return }
+        await withCheckedContinuation { lookupWaiters.append((name, $0)) }
+    }
 
     private var now = 0.0
     private var queue: [String] = []
@@ -424,9 +499,12 @@ final class ScriptedAppleMusicPlayer: AppleMusicPlayerControlling {
 
     func isAuthorized() -> Bool { authorized }
 
-    func play(_ request: AppleMusicQueueRequest) async throws {
+    func play(_ request: AppleMusicQueueRequest, isCurrent: @escaping @MainActor () -> Bool) async throws {
         if let failure { throw MusicPlaybackError(service: .appleMusic, reason: .failed, detail: "\(failure)") }
         guard case let .items(uris, start) = request else { throw MusicPlaybackError(service: .appleMusic, reason: .notFound) }
+        await lookup("play \(start ?? uris.first ?? "")")
+        // The live player's contract: a play overtaken during its lookup leaves the queue alone.
+        guard isCurrent() else { throw CancellationError() }
         commands.append("play")
         queue = uris
         index = start.flatMap { uris.firstIndex(of: $0) } ?? 0
@@ -471,6 +549,7 @@ final class ScriptedAppleMusicPlayer: AppleMusicPlayerControlling {
     func setRepeat(_ mode: MusicRepeatMode) { repeatMode = mode }
 
     func enqueue(uri: String) async throws {
+        await lookup("enqueue \(uri)")
         commands.append("enqueue \(uri)")
         // The live player's placement rule, on this queue.
         let placement = MusicKitApplicationPlayer.addPlacement(

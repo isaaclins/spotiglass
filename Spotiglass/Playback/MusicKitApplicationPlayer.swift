@@ -21,7 +21,8 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
     private let player = ApplicationMusicPlayer.shared
     /// The row URI of each queued song. MusicKit hands queued entries back with new ids and
     /// with the song's catalog id instead of the library id the row was built with, so entries
-    /// are matched on what they show (title and subtitle).
+    /// are matched on what they show: title, subtitle and length, then title and subtitle
+    /// alone (``entryKeys(title:subtitle:durationSeconds:)``).
     private var uriByEntryKey: [String: String] = [:]
     /// Where the songs added with ``enqueue(uri:)`` sit in the queue, so a later one goes after
     /// those still ahead instead of jumping in front of them. Kept as positions: MusicKit gives
@@ -32,7 +33,7 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         MusicAuthorization.currentStatus == .authorized
     }
 
-    func play(_ request: AppleMusicQueueRequest) async throws {
+    func play(_ request: AppleMusicQueueRequest, isCurrent: @escaping @MainActor () -> Bool) async throws {
         try await requireSubscription()
         let resolved: [(uri: String, entry: MusicPlayer.Queue.Entry)]
         var startURI: String?
@@ -49,11 +50,12 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         case let .artist(id):
             resolved = Self.entries(for: try await Self.artistSongs(id: id))
         }
+        guard isCurrent() else { throw CancellationError() }
         guard !resolved.isEmpty else { throw Self.notFound("\(request)") }
         let start = resolved.first { $0.uri == startURI }?.entry ?? resolved[0].entry
         uriByEntryKey = [:]
-        for item in resolved where uriByEntryKey[Self.key(item.entry)] == nil {
-            uriByEntryKey[Self.key(item.entry)] = item.uri
+        for item in resolved {
+            remember(item.uri, for: item.entry)
         }
         player.queue = ApplicationMusicPlayer.Queue(resolved.map(\.entry), startingAt: start)
         addedEntries = nil
@@ -98,9 +100,7 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
 
     func enqueue(uri: String) async throws {
         guard let resolved = try await Self.resolveEntries([uri]).first else { throw Self.notFound(uri) }
-        if uriByEntryKey[Self.key(resolved.entry)] == nil {
-            uriByEntryKey[Self.key(resolved.entry)] = uri
-        }
+        remember(uri, for: resolved.entry)
         let entries = player.queue.entries
         let currentIndex = player.queue.currentEntry.flatMap { current in
             entries.firstIndex { $0.id == current.id }
@@ -184,7 +184,9 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         @unknown default:
             return nil
         }
-        guard let uri = uriByEntryKey[Self.key(entry)], uri != mapped.uri else { return mapped }
+        guard let uri = Self.keys(entry).lazy.compactMap({ self.uriByEntryKey[$0] }).first,
+              uri != mapped.uri
+        else { return mapped }
         return MusicTrack(
             id: mapped.id,
             name: mapped.name,
@@ -210,8 +212,36 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         }
     }
 
-    private static func key(_ entry: MusicPlayer.Queue.Entry) -> String {
-        "\(entry.title)\u{1}\(entry.subtitle ?? "")"
+    /// The first row URI queued under each of the entry's keys wins.
+    private func remember(_ uri: String, for entry: MusicPlayer.Queue.Entry) {
+        for key in Self.keys(entry) where uriByEntryKey[key] == nil {
+            uriByEntryKey[key] = uri
+        }
+    }
+
+    private static func keys(_ entry: MusicPlayer.Queue.Entry) -> [String] {
+        let duration: TimeInterval?
+        switch entry.item {
+        case let .song(song): duration = song.duration
+        case let .musicVideo(video): duration = video.duration
+        case nil: duration = nil
+        @unknown default: duration = nil
+        }
+        return entryKeys(
+            title: entry.title,
+            subtitle: entry.subtitle,
+            durationSeconds: duration.map { Int($0.rounded()) }
+        )
+    }
+
+    /// The keys a queued entry is matched by, most precise first. Two recordings with the same
+    /// title and artist (a standard and a deluxe edition) usually differ in length, so the
+    /// first key tells them apart; the second still matches when the library and the catalog
+    /// report slightly different lengths for one recording.
+    static func entryKeys(title: String, subtitle: String?, durationSeconds: Int?) -> [String] {
+        let base = "\(title)\u{1}\(subtitle ?? "")"
+        guard let durationSeconds else { return [base] }
+        return ["\(base)\u{1}\(durationSeconds)", base]
     }
 
     /// Songs of an album or playlist, under the URIs the browser gives their rows.

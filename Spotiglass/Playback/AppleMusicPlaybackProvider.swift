@@ -36,8 +36,10 @@ struct AppleMusicPlayerState: Equatable {
 protocol AppleMusicPlayerControlling: AnyObject {
     /// Whether this app may use Apple Music (the system's Media & Apple Music permission).
     func isAuthorized() -> Bool
-    /// Replaces the queue and starts playing it.
-    func play(_ request: AppleMusicQueueRequest) async throws
+    /// Replaces the queue and starts playing it. A request's songs are looked up first, which
+    /// can take a while; when `isCurrent()` is false once they are, a newer play has started,
+    /// and this throws `CancellationError` and leaves the queue alone.
+    func play(_ request: AppleMusicQueueRequest, isCurrent: @escaping @MainActor () -> Bool) async throws
     func pause()
     func resume() async throws
     /// Stops playback and keeps the queue.
@@ -75,6 +77,11 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
     var eventHandler: ((MusicPlaybackEventEnvelope) -> Void)?
 
     private let player: any AppleMusicPlayerControlling
+    /// Bumped by every play, so only the latest one replaces the queue.
+    private var playGeneration: UInt64 = 0
+    /// The last "Add to queue" still running. Adds run one after another, so they land in the
+    /// order they were made even when one waits for a lookup.
+    private var enqueueTail: Task<Void, Never>?
 
     init(player: (any AppleMusicPlayerControlling)? = nil) {
         self.player = player ?? MusicKitApplicationPlayer()
@@ -98,7 +105,12 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
     // MARK: - Commands for a device
 
     func play(_ request: MusicPlaybackRequest, deviceID: String) async throws {
-        try await perform { try await player.play(Self.queueRequest(for: request)) }
+        playGeneration &+= 1
+        let generation = playGeneration
+        let queueRequest = try Self.queueRequest(for: request)
+        try await perform {
+            try await player.play(queueRequest, isCurrent: { [weak self] in self?.playGeneration == generation })
+        }
     }
 
     func pause(deviceID: String) async throws {
@@ -130,7 +142,13 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
     }
 
     func enqueue(uri: String, deviceID: String) async throws {
-        try await perform { try await player.enqueue(uri: uri) }
+        let previous = enqueueTail
+        let add = Task { @MainActor [player] in
+            await previous?.value
+            try await player.enqueue(uri: uri)
+        }
+        enqueueTail = Task { _ = await add.result }
+        try await perform { try await add.value }
     }
 
     // MARK: - Commands for the in-app player
