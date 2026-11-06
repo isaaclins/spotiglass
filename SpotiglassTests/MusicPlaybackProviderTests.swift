@@ -143,6 +143,120 @@ final class MusicPlaybackProviderTests: XCTestCase {
         XCTAssertEqual(session.connectionState, .playing(Self.song(position: 12_000)))
     }
 
+    /// A player with one constant id reports that same id after a reconnect.
+    /// The Spotify page's "superseded device" fence must not drop it, or the
+    /// session sits on connecting until the connect timeout.
+    func testPlayerWithAConstantIDReconnectsAfterAnError() {
+        let provider = ReadOnlyStatePlaybackProvider()
+        let session = PlaybackSessionViewModel(provider: provider)
+        session.setConnectionState(.connecting)
+        provider.eventHandler?(MusicPlaybackEventEnvelope(
+            event: .ready(deviceID: "local"),
+            hostGeneration: session.playbackHostGeneration
+        ))
+        XCTAssertEqual(session.connectionState, .ready(deviceID: "local"))
+
+        session.setConnectionState(.error(PlaybackSessionViewModel.playbackDeviceNotReadyError()))
+        session.start()
+        XCTAssertEqual(session.connectionState, .connecting)
+        provider.eventHandler?(MusicPlaybackEventEnvelope(
+            event: .ready(deviceID: "local"),
+            hostGeneration: session.playbackHostGeneration
+        ))
+
+        XCTAssertEqual(session.deviceID, "local")
+        XCTAssertEqual(session.connectionState, .ready(deviceID: "local"))
+    }
+
+    /// The Spotify page registers a new device per load, so a late `ready` for
+    /// the old device after a reload is still ignored.
+    func testSpotifyStillIgnoresTheOldDeviceAfterAReload() {
+        let provider = SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI())
+        let session = PlaybackSessionViewModel(provider: provider)
+        session.setConnectionState(.connecting)
+        provider.deliver(MusicPlaybackEventEnvelope(
+            event: .ready(deviceID: "old-sdk"),
+            hostGeneration: session.playbackHostGeneration
+        ))
+        session.setConnectionState(.error(PlaybackSessionViewModel.playbackDeviceNotReadyError()))
+        session.start()
+
+        provider.deliver(MusicPlaybackEventEnvelope(
+            event: .ready(deviceID: "old-sdk"),
+            hostGeneration: session.playbackHostGeneration
+        ))
+
+        XCTAssertNil(session.deviceID)
+        XCTAssertEqual(session.connectionState, .connecting)
+    }
+
+    /// Reads are the only state source, so a track that advances while the app
+    /// is in the background must still be read.
+    func testPollingKeepsRunningInTheBackgroundOnlyWhenStateIsRead() async {
+        let provider = ReadOnlyStatePlaybackProvider()
+        let session = PlaybackSessionViewModel(provider: provider)
+        session.deviceID = "local"
+        session.setActivePlaybackDeviceID("local")
+        session.setConnectionState(.playing(Self.song(position: 10_000)))
+        session.isAppActive = false
+
+        XCTAssertTrue(session.shouldRunTransportPolling())
+        provider.state = MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: false, repeatMode: .off),
+            activeDevice: nil,
+            isPlaying: true,
+            item: .track(Self.track(uri: "music:song:2", name: "Next")),
+            progressMilliseconds: 1_000
+        )
+        await session.syncTransportFromSpotify()
+        XCTAssertEqual(session.currentNowPlayingURI, "music:song:2")
+
+        let spotify = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI()))
+        spotify.deviceID = "sdk-device"
+        spotify.setConnectionState(.playing(Self.song(position: 10_000)))
+        spotify.isAppActive = false
+        XCTAssertFalse(spotify.shouldRunTransportPolling(), "Spotify's SDK pushes state; background polling stays off")
+    }
+
+    /// Starting a track from `.ready`: the first read that shows it playing is
+    /// applied right away, and the poll loop is restarted at the settle cadence
+    /// instead of finishing the long sleep it picked while `.ready`.
+    func testPlayFromReadyAppliesTheFirstReadThatConfirmsIt() async {
+        let provider = ReadOnlyStatePlaybackProvider()
+        let session = PlaybackSessionViewModel(provider: provider)
+        session.isAppActive = true
+        session.deviceID = "local"
+        session.setActivePlaybackDeviceID("local")
+        session.setConnectionState(.ready(deviceID: "local"))
+        let pollTaskWhileReady = session.transportPollTask
+
+        await session.play(uri: "music:song:1")
+
+        XCTAssertGreaterThan(session.localMutationSettleTicksRemaining, 0)
+        XCTAssertNotNil(session.transportPollTask)
+        XCTAssertFalse(session.transportPollTask == pollTaskWhileReady, "the poll loop must restart after the command")
+        XCTAssertEqual(session.currentTransportPollDelay(), .seconds(1))
+
+        provider.state = Self.snapshot(isPlaying: true, progress: 500)
+        await session.syncTransportFromSpotify()
+        XCTAssertEqual(session.connectionState, .playing(Self.song(position: 500)))
+    }
+
+    /// An empty read means nothing plays on the player any more. Without pushed
+    /// state nothing else corrects the old item, so the session goes back to ready.
+    func testEmptyReadClearsAStalePlayingItem() async {
+        let provider = ReadOnlyStatePlaybackProvider()
+        let session = PlaybackSessionViewModel(provider: provider)
+        session.deviceID = "local"
+        session.setActivePlaybackDeviceID("local")
+        session.setConnectionState(.playing(Self.song(position: 10_000)))
+
+        provider.state = nil
+        await session.syncTransportFromSpotify()
+
+        XCTAssertEqual(session.connectionState, .ready(deviceID: "local"))
+    }
+
     func testRecoveryWithoutAReloadablePlayerOnlyRetriesConnect() async {
         let provider = ReadOnlyStatePlaybackProvider()
         let session = PlaybackSessionViewModel(

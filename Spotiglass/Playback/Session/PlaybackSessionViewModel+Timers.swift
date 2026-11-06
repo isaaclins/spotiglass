@@ -27,6 +27,7 @@ extension PlaybackSessionViewModel {
         let state = state ?? connectionState
         return TransportPollScheduling.shouldRunTransportPolling(
             isAppActive: isAppActive,
+            playerPushesState: provider.capabilities.contains(.pushesPlayerState),
             deviceID: deviceID,
             localMutationSettleTicksRemaining: localMutationSettleTicksRemaining,
             state: state

@@ -77,6 +77,7 @@ extension PlaybackSessionViewModel {
                     expirePendingVolumeMutationIfNeeded(
                         startedWithVolumeMutationVersion: volumeMutationVersionAtRequest
                     )
+                    applyEmptyReadForReadOnlyPlayer()
                 }
                 transportTransientErrorCount = 0
                 transportRateLimitedUntil = nil
@@ -131,9 +132,11 @@ extension PlaybackSessionViewModel {
             snapshotDeviceID = activeDevice.deviceID
         } else {
             // The in-app player's own reads lag its commands (a player can
-            // still report "playing" right after it was stopped), so keep the
-            // optimistic state until the settle window after a local command ends.
-            guard localMutationSettleTicksRemaining == 0 else { return }
+            // still report "playing" right after it was stopped), so during
+            // the settle window after a local command only a read that agrees
+            // with that command is applied.
+            guard localMutationSettleTicksRemaining == 0
+                || readAgreesWithLocalCommand(snapshot) else { return }
             snapshotDeviceID = snapshot.activeDevice?.deviceID ?? localDeviceID
         }
 
@@ -159,6 +162,43 @@ extension PlaybackSessionViewModel {
             setConnectionState(.playing(effectiveNowPlaying ?? fallbackNowPlaying()))
         } else {
             setConnectionState(.paused(effectiveNowPlaying))
+        }
+    }
+
+    /// For a player whose state is only read: whether a read taken during the
+    /// settle window confirms the last local command instead of predating it.
+    /// A pending play accepts any playing read (stale items are suppressed by
+    /// the play fence); otherwise the read must match the current state's
+    /// play / pause and item.
+    private func readAgreesWithLocalCommand(_ snapshot: MusicPlaybackSnapshot) -> Bool {
+        if pendingPlayTransition != nil {
+            return snapshot.isPlaying
+        }
+        let readURI = snapshot.playbackNowPlaying?.uri
+        switch connectionState {
+        case let .playing(nowPlaying):
+            return snapshot.isPlaying && readURI == nowPlaying.uri
+        case let .paused(nowPlaying):
+            return !snapshot.isPlaying && (nowPlaying == nil || readURI == nowPlaying?.uri)
+        case .disconnected, .connecting, .ready, .transferring, .unavailable, .error:
+            return false
+        }
+    }
+
+    /// For a player whose state is only read, an empty read means nothing is
+    /// playing on it any more. Nothing else will correct a `.playing` or
+    /// `.paused` item, so fall back to `.ready` once the settle window is over.
+    private func applyEmptyReadForReadOnlyPlayer() {
+        guard !provider.capabilities.contains(.pushesPlayerState),
+              localMutationSettleTicksRemaining == 0,
+              pendingPlayTransition == nil,
+              let localDeviceID = deviceID else { return }
+        switch connectionState {
+        case .playing, .paused:
+            SpotiglassLog.info(.playback, "Empty player read; nothing is playing on deviceID=\(localDeviceID)")
+            setConnectionState(.ready(deviceID: localDeviceID))
+        case .disconnected, .connecting, .ready, .transferring, .unavailable, .error:
+            break
         }
     }
 
@@ -339,6 +379,12 @@ extension PlaybackSessionViewModel {
     func noteLocalPlaybackMutation(shouldSyncTransportImmediately: Bool = true) {
         localMutationSettleTicksRemaining = max(localMutationSettleTicksRemaining, 2)
         transportRateLimitedUntil = nil
+        if !provider.capabilities.contains(.pushesPlayerState) {
+            // Reads are this player's only state source. Restart the poll loop
+            // so it reads at the settle cadence now instead of finishing a long
+            // sleep picked before the command (20 s while `.ready`).
+            restartTransportPollingIfNeeded()
+        }
         guard shouldSyncTransportImmediately else { return }
         scheduleTransportSync()
     }

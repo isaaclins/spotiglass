@@ -88,7 +88,11 @@ extension PlaybackSessionViewModel {
         autoResumeOnNextReady = true
         transferAttemptInstants.removeAll()
         transferRetryCooldownUntil = nil
-        if let deviceID {
+        // A reloaded player page registers a new device, so a late `ready` from
+        // the old page must not take the session back. A player that keeps one
+        // constant id reports that same id again on reconnect; superseding it
+        // would drop its only valid `ready`.
+        if let deviceID, provider.capabilities.contains(.reloadablePlayer) {
             supersededSDKDeviceIDs.insert(deviceID)
         }
         reclaimableSDKDeviceID = nil
