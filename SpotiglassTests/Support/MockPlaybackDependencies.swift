@@ -186,61 +186,192 @@ private final class MockPlaybackActionRecorder: @unchecked Sendable {
 }
 
 final class MockPlaybackAPI: SpotifyPlaybackControlling {
+    // Playback calls run on background tasks while tests read and set this
+    // mock on the main thread, so every mutable field lives in `state` behind
+    // `stateLock`, like `actions` in `actionRecorder`.
+    private struct State {
+        var lastPlayedURIQueue: [String]?
+        var lastPlayedOffsetURI: String?
+        var seekCallTimestamps: [Date] = []
+        var reportedTransport = MusicPlaybackTransport(shuffle: false, repeatMode: .off)
+        var transportResponses: [MusicPlaybackTransport?] = []
+        var snapshotResponses: [MusicPlaybackSnapshot?] = []
+        var playErrors: [Error] = []
+        var transferPlaybackErrors: [Error] = []
+        var addToQueueErrors: [Error] = []
+        var onPlay: ((String) async -> Void)?
+        var onNext: (() async -> Void)?
+        var onSeek: ((Int) async -> Void)?
+        var onSeekAttempt: ((Int) async -> Void)?
+        var activeConnectDevice: MusicPlaybackDevice?
+        var availableDevices: [MusicPlaybackDevice] = []
+        var onFetchPlayerSnapshot: (() async -> Void)?
+        var onFetchAvailableDevices: (() async -> Void)?
+        var fetchAvailableDevicesDelayNanoseconds: UInt64 = 0
+        var fetchPlayerSnapshotDelayNanoseconds: UInt64 = 0
+        var setShuffleError: Error?
+        var onSetShuffle: ((Bool) async -> Void)?
+        var setRepeatError: Error?
+        var fetchPlayerSnapshotError: Error?
+        var playDelayNanoseconds: UInt64 = 0
+        var seekDelayNanoseconds: UInt64 = 0
+        var seekError: Error?
+        var nextError: Error?
+        var setRepeatDelayNanoseconds: UInt64 = 0
+        var setShuffleDelayNanoseconds: UInt64 = 0
+        var onTransferPlayback: ((String, Bool) async -> Void)?
+        var onTransferPlaybackCompleted: ((String, Bool) async -> Void)?
+        var transferPlaybackDelayNanoseconds: UInt64 = 0
+        var queueResponse = MusicPlaybackQueue(queue: [])
+        var onFetchQueue: (() async -> Void)?
+    }
+
     private let actionRecorder = MockPlaybackActionRecorder()
+    private let stateLock = NSLock()
+    private var state = State()
     var actions: [String] { actionRecorder.snapshot() }
-    private(set) var lastPlayedURIQueue: [String]?
-    private(set) var lastPlayedOffsetURI: String?
+    var lastPlayedURIQueue: [String]? { locked { $0.lastPlayedURIQueue } }
+    var lastPlayedOffsetURI: String? { locked { $0.lastPlayedOffsetURI } }
     /// Runs at the top of every `play*` call (before the artificial delay), with the
     /// URI / context URI / first list URI. Suspending here keeps that play in flight
     /// from the view model's perspective until the closure returns.
-    var onPlay: ((String) async -> Void)?
-    var onNext: (() async -> Void)?
-    var onSeek: ((Int) async -> Void)?
-    var onSeekAttempt: ((Int) async -> Void)?
-    private(set) var seekCallTimestamps: [Date] = []
-    /// Returned by `fetchPlayerSnapshot`; updated when mock `setShuffle` / `setRepeat` succeed so background sync matches optimistic UI.
-    private var reportedTransport = MusicPlaybackTransport(shuffle: false, repeatMode: .off)
-    private var reportedIsPlaying = true
+    var onPlay: ((String) async -> Void)? {
+        get { locked { $0.onPlay } }
+        set { locked { $0.onPlay = newValue } }
+    }
+    var onNext: (() async -> Void)? {
+        get { locked { $0.onNext } }
+        set { locked { $0.onNext = newValue } }
+    }
+    var onSeek: ((Int) async -> Void)? {
+        get { locked { $0.onSeek } }
+        set { locked { $0.onSeek = newValue } }
+    }
+    var onSeekAttempt: ((Int) async -> Void)? {
+        get { locked { $0.onSeekAttempt } }
+        set { locked { $0.onSeekAttempt = newValue } }
+    }
+    var seekCallTimestamps: [Date] { locked { $0.seekCallTimestamps } }
+    /// `state.reportedTransport` is returned by `fetchPlayerSnapshot`; updated when mock `setShuffle` / `setRepeat` succeed so background sync matches optimistic UI.
+    private let reportedIsPlaying = true
     /// Optional transport snapshots returned before `reportedTransport`; useful for simulating stale reads.
-    var transportResponses: [MusicPlaybackTransport?] = []
+    var transportResponses: [MusicPlaybackTransport?] {
+        get { locked { $0.transportResponses } }
+        set { locked { $0.transportResponses = newValue } }
+    }
     /// Optional full player snapshots (supersedes `reportedTransport` / `activeConnectDevice` when non-empty).
-    var snapshotResponses: [MusicPlaybackSnapshot?] = []
-    var activeConnectDevice: MusicPlaybackDevice?
-    var availableDevices: [MusicPlaybackDevice] = []
-    var onFetchPlayerSnapshot: (() async -> Void)?
-    var onFetchAvailableDevices: (() async -> Void)?
-    var fetchAvailableDevicesDelayNanoseconds: UInt64 = 0
-    var fetchPlayerSnapshotDelayNanoseconds: UInt64 = 0
-    var setShuffleError: Error?
-    var onSetShuffle: ((Bool) async -> Void)?
-    var setRepeatError: Error?
-    var fetchPlayerSnapshotError: Error?
-    var playDelayNanoseconds: UInt64 = 0
-    var playErrors: [Error] = []
-    var seekDelayNanoseconds: UInt64 = 0
-    var seekError: Error?
-    var nextError: Error?
-    var setRepeatDelayNanoseconds: UInt64 = 0
-    var setShuffleDelayNanoseconds: UInt64 = 0
+    var snapshotResponses: [MusicPlaybackSnapshot?] {
+        get { locked { $0.snapshotResponses } }
+        set { locked { $0.snapshotResponses = newValue } }
+    }
+    var activeConnectDevice: MusicPlaybackDevice? {
+        get { locked { $0.activeConnectDevice } }
+        set { locked { $0.activeConnectDevice = newValue } }
+    }
+    var availableDevices: [MusicPlaybackDevice] {
+        get { locked { $0.availableDevices } }
+        set { locked { $0.availableDevices = newValue } }
+    }
+    var onFetchPlayerSnapshot: (() async -> Void)? {
+        get { locked { $0.onFetchPlayerSnapshot } }
+        set { locked { $0.onFetchPlayerSnapshot = newValue } }
+    }
+    var onFetchAvailableDevices: (() async -> Void)? {
+        get { locked { $0.onFetchAvailableDevices } }
+        set { locked { $0.onFetchAvailableDevices = newValue } }
+    }
+    var fetchAvailableDevicesDelayNanoseconds: UInt64 {
+        get { locked { $0.fetchAvailableDevicesDelayNanoseconds } }
+        set { locked { $0.fetchAvailableDevicesDelayNanoseconds = newValue } }
+    }
+    var fetchPlayerSnapshotDelayNanoseconds: UInt64 {
+        get { locked { $0.fetchPlayerSnapshotDelayNanoseconds } }
+        set { locked { $0.fetchPlayerSnapshotDelayNanoseconds = newValue } }
+    }
+    var setShuffleError: Error? {
+        get { locked { $0.setShuffleError } }
+        set { locked { $0.setShuffleError = newValue } }
+    }
+    var onSetShuffle: ((Bool) async -> Void)? {
+        get { locked { $0.onSetShuffle } }
+        set { locked { $0.onSetShuffle = newValue } }
+    }
+    var setRepeatError: Error? {
+        get { locked { $0.setRepeatError } }
+        set { locked { $0.setRepeatError = newValue } }
+    }
+    var fetchPlayerSnapshotError: Error? {
+        get { locked { $0.fetchPlayerSnapshotError } }
+        set { locked { $0.fetchPlayerSnapshotError = newValue } }
+    }
+    var playDelayNanoseconds: UInt64 {
+        get { locked { $0.playDelayNanoseconds } }
+        set { locked { $0.playDelayNanoseconds = newValue } }
+    }
+    var playErrors: [Error] {
+        get { locked { $0.playErrors } }
+        set { locked { $0.playErrors = newValue } }
+    }
+    var seekDelayNanoseconds: UInt64 {
+        get { locked { $0.seekDelayNanoseconds } }
+        set { locked { $0.seekDelayNanoseconds = newValue } }
+    }
+    var seekError: Error? {
+        get { locked { $0.seekError } }
+        set { locked { $0.seekError = newValue } }
+    }
+    var nextError: Error? {
+        get { locked { $0.nextError } }
+        set { locked { $0.nextError = newValue } }
+    }
+    var setRepeatDelayNanoseconds: UInt64 {
+        get { locked { $0.setRepeatDelayNanoseconds } }
+        set { locked { $0.setRepeatDelayNanoseconds = newValue } }
+    }
+    var setShuffleDelayNanoseconds: UInt64 {
+        get { locked { $0.setShuffleDelayNanoseconds } }
+        set { locked { $0.setShuffleDelayNanoseconds = newValue } }
+    }
     /// Runs at the top of `transferPlayback`, before any optional delay. Tests can use it
     /// to hold a PUT in flight without relying on wall-clock timing.
-    var onTransferPlayback: ((String, Bool) async -> Void)?
+    var onTransferPlayback: ((String, Bool) async -> Void)? {
+        get { locked { $0.onTransferPlayback } }
+        set { locked { $0.onTransferPlayback = newValue } }
+    }
     /// Runs after a successful transfer is recorded, so tests can await completion
     /// without relying on a wall-clock delay.
-    var onTransferPlaybackCompleted: ((String, Bool) async -> Void)?
+    var onTransferPlaybackCompleted: ((String, Bool) async -> Void)? {
+        get { locked { $0.onTransferPlaybackCompleted } }
+        set { locked { $0.onTransferPlaybackCompleted = newValue } }
+    }
     /// When non-zero, `transferPlayback` sleeps before recording the action. Lets the transfer-playback audit
     /// concurrency tests overlap the in-flight PUT with a sibling caller so the single-flight guard runs.
-    var transferPlaybackDelayNanoseconds: UInt64 = 0
+    var transferPlaybackDelayNanoseconds: UInt64 {
+        get { locked { $0.transferPlaybackDelayNanoseconds } }
+        set { locked { $0.transferPlaybackDelayNanoseconds = newValue } }
+    }
     /// FIFO of errors thrown by `transferPlayback`. Empty queue means transfers succeed.
-    var transferPlaybackErrors: [Error] = []
+    var transferPlaybackErrors: [Error] {
+        get { locked { $0.transferPlaybackErrors } }
+        set { locked { $0.transferPlaybackErrors = newValue } }
+    }
+
+    private func locked<T>(_ body: (inout State) -> T) -> T {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return body(&state)
+    }
+
+    private func nextPlayError() -> Error? {
+        locked { $0.playErrors.isEmpty ? nil : $0.playErrors.removeFirst() }
+    }
 
     func transferPlayback(to deviceID: String, play: Bool) async throws {
         await onTransferPlayback?(deviceID, play)
         if transferPlaybackDelayNanoseconds > 0 {
             try? await Task.sleep(nanoseconds: transferPlaybackDelayNanoseconds)
         }
-        if !transferPlaybackErrors.isEmpty {
-            let next = transferPlaybackErrors.removeFirst()
+        if let next = locked({ $0.transferPlaybackErrors.isEmpty ? nil : $0.transferPlaybackErrors.removeFirst() }) {
             actionRecorder.append("transfer-error:\(deviceID):\(play)")
             throw next
         }
@@ -253,8 +384,8 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
         if playDelayNanoseconds > 0 {
             try? await Task.sleep(nanoseconds: playDelayNanoseconds)
         }
-        if !playErrors.isEmpty {
-            throw playErrors.removeFirst()
+        if let error = nextPlayError() {
+            throw error
         }
         actionRecorder.append("play:\(deviceID):\(uri)")
     }
@@ -264,8 +395,8 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
         if playDelayNanoseconds > 0 {
             try? await Task.sleep(nanoseconds: playDelayNanoseconds)
         }
-        if !playErrors.isEmpty {
-            throw playErrors.removeFirst()
+        if let error = nextPlayError() {
+            throw error
         }
         actionRecorder.append("play-context:\(deviceID):\(contextURI)")
     }
@@ -287,20 +418,22 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
     }
 
     private func playQueue(uris: [String], offsetURI: String?, deviceID: String) async throws {
-        lastPlayedURIQueue = uris
-        lastPlayedOffsetURI = offsetURI
+        locked {
+            $0.lastPlayedURIQueue = uris
+            $0.lastPlayedOffsetURI = offsetURI
+        }
         await onPlay?(offsetURI ?? uris.first ?? "")
         if playDelayNanoseconds > 0 {
             try? await Task.sleep(nanoseconds: playDelayNanoseconds)
         }
-        if !playErrors.isEmpty {
-            throw playErrors.removeFirst()
+        if let error = nextPlayError() {
+            throw error
         }
         actionRecorder.append("play-list:\(deviceID):\(uris.joined(separator: ","))")
     }
 
     func seek(to milliseconds: Int, deviceID: String) async throws {
-        seekCallTimestamps.append(Date())
+        locked { $0.seekCallTimestamps.append(Date()) }
         await onSeekAttempt?(milliseconds)
         try Task.checkCancellation()
         if seekDelayNanoseconds > 0 {
@@ -325,9 +458,18 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
         actionRecorder.append("previous:\(deviceID)")
     }
 
-    var queueResponse = MusicPlaybackQueue(queue: [])
-    var addToQueueErrors: [Error] = []
-    var onFetchQueue: (() async -> Void)?
+    var queueResponse: MusicPlaybackQueue {
+        get { locked { $0.queueResponse } }
+        set { locked { $0.queueResponse = newValue } }
+    }
+    var addToQueueErrors: [Error] {
+        get { locked { $0.addToQueueErrors } }
+        set { locked { $0.addToQueueErrors = newValue } }
+    }
+    var onFetchQueue: (() async -> Void)? {
+        get { locked { $0.onFetchQueue } }
+        set { locked { $0.onFetchQueue = newValue } }
+    }
 
     func fetchQueue() async throws -> MusicPlaybackQueue {
         actionRecorder.append("fetchQueue")
@@ -337,8 +479,8 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
 
     func addToQueue(uri: String, deviceID: String) async throws {
         actionRecorder.append("addToQueue:\(deviceID):\(uri)")
-        if !addToQueueErrors.isEmpty {
-            throw addToQueueErrors.removeFirst()
+        if let error = locked({ $0.addToQueueErrors.isEmpty ? nil : $0.addToQueueErrors.removeFirst() }) {
+            throw error
         }
     }
 
@@ -351,15 +493,26 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
         if let fetchPlayerSnapshotError {
             throw fetchPlayerSnapshotError
         }
-        if !snapshotResponses.isEmpty {
-            return snapshotResponses.removeFirst()
+        enum Next {
+            case snapshot(MusicPlaybackSnapshot?)
+            case transport(MusicPlaybackTransport?)
         }
-        if !transportResponses.isEmpty {
-            let transport = transportResponses.removeFirst()
+        let next = locked { state -> Next in
+            if !state.snapshotResponses.isEmpty {
+                return .snapshot(state.snapshotResponses.removeFirst())
+            }
+            if !state.transportResponses.isEmpty {
+                return .transport(state.transportResponses.removeFirst())
+            }
+            return .transport(state.reportedTransport)
+        }
+        switch next {
+        case .snapshot(let snapshot):
+            return snapshot
+        case .transport(let transport):
             guard let transport else { return nil }
             return MusicPlaybackSnapshot(transport: transport, activeDevice: activeConnectDevice, isPlaying: reportedIsPlaying)
         }
-        return MusicPlaybackSnapshot(transport: reportedTransport, activeDevice: activeConnectDevice, isPlaying: reportedIsPlaying)
     }
 
     func fetchAvailableDevices() async throws -> [MusicPlaybackDevice] {
@@ -378,7 +531,7 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
             try? await Task.sleep(nanoseconds: setShuffleDelayNanoseconds)
         }
         actionRecorder.append("setShuffle:\(deviceID):\(enabled)")
-        reportedTransport = MusicPlaybackTransport(shuffle: enabled, repeatMode: reportedTransport.repeatMode)
+        locked { $0.reportedTransport = MusicPlaybackTransport(shuffle: enabled, repeatMode: $0.reportedTransport.repeatMode) }
     }
 
     func setRepeat(mode: MusicRepeatMode, deviceID: String) async throws {
@@ -387,7 +540,7 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
         }
         if let setRepeatError { throw setRepeatError }
         actionRecorder.append("setRepeat:\(deviceID):\(mode.rawValue)")
-        reportedTransport = MusicPlaybackTransport(shuffle: reportedTransport.shuffle, repeatMode: mode)
+        locked { $0.reportedTransport = MusicPlaybackTransport(shuffle: $0.reportedTransport.shuffle, repeatMode: mode) }
     }
 }
 
