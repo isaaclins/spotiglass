@@ -29,6 +29,12 @@ final class CommandPaletteManager: ObservableObject {
     var isCurrentScene: () -> Bool = { true }
     var signOut: (() -> Void)?
     var openSettings: (() -> Void)?
+    /// Switches the app to another added service. App-wide and browser-free, so ``detach()``
+    /// keeps it: ⌃1 / ⌃2 also work from a service's sign-in screen.
+    var switchService: ((MusicService) -> Void)?
+    /// The added services other than the one on screen. Only these get a palette row and a
+    /// working ⌃1 / ⌃2.
+    var switchableServices: [MusicService] = []
     /// Reloads the focused surface (library, playlist or artist detail, or queue when the queue column has focus).
     var unifiedRefresh: (() async -> Void)?
     var selectNextPlaylist: (() async -> Void)?
@@ -286,6 +292,9 @@ final class CommandPaletteManager: ObservableObject {
             if binding.command == CommandPaletteCommandID.toggleLyrics {
                 return canToggleLyrics
             }
+            if let service = MusicService(switchCommandID: binding.command) {
+                return switchService != nil && switchableServices.contains(service)
+            }
             return true
         }
         guard !filtered.isEmpty else { return false }
@@ -391,6 +400,12 @@ final class CommandPaletteManager: ObservableObject {
             Task { await viewModel.executeSelectionEnqueue() }
         case CommandPaletteCommandID.prefetchAllPlaylists:
             prefetchAllPlaylists?()
+        case CommandPaletteCommandID.switchToSpotify, CommandPaletteCommandID.switchToAppleMusic:
+            guard let service = MusicService(switchCommandID: commandID),
+                switchableServices.contains(service)
+            else { return }
+            viewModel.hide()
+            switchService?(service)
         default:
             break
         }
@@ -465,6 +480,9 @@ final class CommandPaletteManager: ObservableObject {
             guard spec.commandID != CommandPaletteCommandID.connectPlayback || connectPlayback != nil else { return nil }
             guard spec.commandID != CommandPaletteCommandID.nextTrack || nextTrack != nil else { return nil }
             guard spec.commandID != CommandPaletteCommandID.previousTrack || previousTrack != nil else { return nil }
+            if let service = MusicService(switchCommandID: spec.commandID) {
+                guard switchService != nil, switchableServices.contains(service) else { return nil }
+            }
             let canExecute: (@MainActor () -> Bool)?
             if spec.commandID == CommandPaletteCommandID.togglePlayback {
                 canExecute = { [weak self] in
@@ -512,6 +530,8 @@ final class CommandPaletteManager: ObservableObject {
             ["lyrics", "immersive", "karaoke", "overlay"]
         case CommandPaletteCommandID.signOut:
             ["disconnect", "logout", "sign out"]
+        case CommandPaletteCommandID.switchToSpotify, CommandPaletteCommandID.switchToAppleMusic:
+            ["switch", "service", "account", "profile", "spotify", "apple music", "library"]
         case CommandPaletteCommandID.prefetchAllPlaylists:
             ["prefetch", "preload", "cache", "warm", "prefire", "all songs", "library", "load", "everything"]
         default:

@@ -20,6 +20,19 @@ enum ScreenshotMode {
 
     static var isActive: Bool { mockBaseURL != nil }
 
+    /// Set by `scripts/screenshots.sh start --with-apple-music`: lets the service switcher add the
+    /// real Apple Music next to the Spotify stand-in, so both spaces can be captured. Without it
+    /// screenshot mode never reaches MusicKit.
+    static let appleMusicEnvironmentKey = "SPOTIGLASS_SCREENSHOT_APPLE_MUSIC"
+
+    static var allowsAppleMusic: Bool {
+        isActive && ProcessInfo.processInfo.environment[appleMusicEnvironmentKey] == "1"
+    }
+
+    /// Defaults domain for the service list in screenshot mode, wiped at every launch, so a run
+    /// never reads or writes the real app's choice (even with the real bundle identifier).
+    static let musicServicesDefaultsSuite = "com.isaaclins.spotiglass.screenshots.services"
+
     /// Spotify accounts service (`/authorize`, `/api/token`).
     static var accountsBaseURL: URL { accountsBaseURL(mockBase: mockBaseURL) }
 

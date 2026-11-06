@@ -15,6 +15,8 @@ struct SpotiglassMenuCommands: Commands {
     /// Commands are built outside the window content, so observe the settings
     /// store directly to rebuild the commands tree when the app language changes.
     @ObservedObject var settingsStore: SpotiglassSettingsStore
+    /// Which service is on screen: Sign Out and the transport items follow it.
+    @ObservedObject var serviceStore: MusicServiceStore
 
     private var locale: Locale {
         settingsStore.appLocale
@@ -57,7 +59,7 @@ struct SpotiglassMenuCommands: Commands {
     /// Apple Music browsing ships before its player: transport items that only check sign-in
     /// would be enabled and do nothing there (or reach for Spotify), so they also need this.
     private var hasPlayback: Bool {
-        MusicServiceSelection.current == .spotify
+        serviceStore.active == .spotify
     }
 
     var isPlaybackToggleEnabled: Bool {
@@ -100,8 +102,8 @@ struct SpotiglassMenuCommands: Commands {
 
         CommandGroup(after: .appSettings) {
             // Apple Music access is a system permission, not a sign-in this app can undo, and
-            // switching services belongs to the service switcher (#373): no Disconnect there.
-            if MusicServiceSelection.current == .spotify {
+            // it signs out in Settings › Account instead (#373): no Disconnect here.
+            if serviceStore.active == .spotify {
                 Button(SpotiglassL10n.string("menu.app.signOut", locale: currentLocale)) {
                     run(CommandPaletteCommandID.signOut)
                 }

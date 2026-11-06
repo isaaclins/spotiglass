@@ -50,6 +50,10 @@ enum CommandPaletteCommandID {
     static let enqueueSelected = "palette.enqueue"
     /// Bulk-warm the on-disk track cache for every library playlist + Liked Songs so subsequent opens are instant.
     static let prefetchAllPlaylists = "playlists.prefetchAll"
+    /// Switch the whole app to an added service (#373). Default ⌃2 / ⌃1, in the order of the
+    /// service menu at the top of the sidebar.
+    static let switchToSpotify = "service.switch.spotify"
+    static let switchToAppleMusic = "service.switch.appleMusic"
 }
 
 /// Progress reported by the bulk "Load all your songs into Spotiglass" run.

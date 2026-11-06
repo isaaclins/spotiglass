@@ -17,25 +17,85 @@ final class AccountSettingsViewTests: XCTestCase {
         )
         let view = AccountSettingsView(viewModel: viewModel)
         ViewTestHost.host(view)
-        ViewTestHost.assertFindLocalizedText("settings.account.connection", in: view)
+        ViewTestHost.assertFindLocalizedText("service.spotify.name", in: view)
         ViewTestHost.assertFindText("Spotify developer app", in: view)
     }
 
-    /// Under Apple Music the Spotify session is never restored, so this pane must not offer
-    /// Connect: starting a Spotify sign-in deletes the saved token before it succeeds.
-    func testAppleMusicModeOffersNoSpotifySignIn() throws {
+    /// Each service signs in and out on its own (#373): with Apple Music added, the pane keeps
+    /// Spotify's sign-in and adds an Apple Music section with its own Sign Out.
+    func testEachServiceHasItsOwnSection() throws {
         let viewModel = AuthViewModel(
             settings: SpotifyAuthSettings(defaults: makeEphemeralDefaults()),
             refreshTokenStore: MemoryOnlyRefreshTokenStore(),
             initialState: .signedOut
         )
-        let view = AccountSettingsView(viewModel: viewModel, musicService: .appleMusic)
+        let store = MusicServiceStore(
+            storage: InMemoryMusicServiceSelectionStorage(services: [.appleMusic, .spotify], active: .appleMusic)
+        )
+        let view = AccountSettingsView(
+            viewModel: viewModel,
+            serviceStore: store,
+            appleMusicSession: AppleMusicSession()
+        )
         ViewTestHost.host(view)
 
-        ViewTestHost.assertFindLocalizedText("settings.account.appleMusicActive", in: view)
-        ViewTestHost.assertFindLocalizedText("settings.account.diagnostics.header", in: view)
-        XCTAssertThrowsError(try view.inspect().find(SpotifyClientIDAndActionsView.self))
-        XCTAssertThrowsError(try view.inspect().find(text: SpotiglassL10n.string("auth.connect.button")))
+        ViewTestHost.assertFindLocalizedText("service.spotify.name", in: view)
+        ViewTestHost.assertFindLocalizedText("service.appleMusic.name", in: view)
+        ViewTestHost.assertFindLocalizedText("settings.account.appleMusic.signOut", in: view)
+        XCTAssertNoThrow(try view.inspect().find(SpotifyClientIDAndActionsView.self))
+    }
+
+    /// Signing out of Apple Music in Settings removes it from the service menu and hands the
+    /// window to Spotify; Spotify's sign-in is not touched.
+    func testAppleMusicSignOutRemovesOnlyAppleMusic() throws {
+        let viewModel = AuthViewModel(
+            settings: SpotifyAuthSettings(defaults: makeEphemeralDefaults()),
+            refreshTokenStore: MemoryOnlyRefreshTokenStore(),
+            initialState: .signedOut
+        )
+        let store = MusicServiceStore(
+            storage: InMemoryMusicServiceSelectionStorage(services: [.appleMusic, .spotify], active: .appleMusic)
+        )
+        var prepared = 0
+        let view = AccountSettingsView(
+            viewModel: viewModel,
+            onSignOut: { prepared += 1 },
+            serviceStore: store,
+            appleMusicSession: AppleMusicSession()
+        )
+        ViewTestHost.host(view)
+
+        try view.inspect()
+            .find(button: SpotiglassL10n.string("settings.account.appleMusic.signOut"))
+            .tap()
+
+        XCTAssertEqual(prepared, 1)
+        XCTAssertEqual(store.services, [.spotify])
+        XCTAssertEqual(store.active, .spotify)
+    }
+
+    /// Without Apple Music added, the section offers to add it instead.
+    func testAppleMusicNotAddedOffersAdd() throws {
+        let viewModel = AuthViewModel(
+            settings: SpotifyAuthSettings(defaults: makeEphemeralDefaults()),
+            refreshTokenStore: MemoryOnlyRefreshTokenStore(),
+            initialState: .signedOut
+        )
+        let store = MusicServiceStore(
+            storage: InMemoryMusicServiceSelectionStorage(services: [.spotify], active: .spotify)
+        )
+        let view = AccountSettingsView(
+            viewModel: viewModel,
+            serviceStore: store,
+            appleMusicSession: AppleMusicSession()
+        )
+        ViewTestHost.host(view)
+
+        ViewTestHost.assertFindLocalizedText("settings.account.appleMusic.status.notAdded", in: view)
+        try view.inspect().find(button: SpotiglassL10n.string("settings.account.appleMusic.add")).tap()
+        XCTAssertEqual(store.pendingAddition, .appleMusic)
+        XCTAssertEqual(store.active, .appleMusic)
+        XCTAssertEqual(store.services, [.spotify])
     }
 
     /// The token expiry is a diagnostic, not an account fact: it used to sit

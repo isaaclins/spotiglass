@@ -12167,29 +12167,6 @@
         }
       }
     },
-    "settings.account.connection": {
-      "extractionState": "stale",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Verbindung"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Connection"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Conexión"
-          }
-        }
-      }
-    },
     "settings.account.details": {
       "extractionState": "stale",
       "localizations": {
@@ -14421,25 +14398,531 @@
         }
       }
     },
-    "settings.account.appleMusicActive": {
+    "palette.command.service.switch.appleMusic.subtitle": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass is browsing Apple Music. Your Spotify sign-in stays as it is and is used again when you switch back to Spotify."
+            "value": "Show your Apple Music library"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass está explorando Apple Music. Tu sesión de Spotify se queda como está y se vuelve a usar cuando cambies a Spotify."
+            "value": "Muestra tu biblioteca de Apple Music"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass zeigt gerade Apple Music. Deine Spotify-Anmeldung bleibt, wie sie ist, und wird wieder verwendet, sobald du zu Spotify zurückwechselst."
+            "value": "Deine Apple-Music-Mediathek anzeigen"
+          }
+        }
+      }
+    },
+    "palette.command.service.switch.appleMusic.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switch to Apple Music"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cambiar a Apple Music"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zu Apple Music wechseln"
+          }
+        }
+      }
+    },
+    "palette.command.service.switch.spotify.subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show your Spotify library"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Muestra tu biblioteca de Spotify"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deine Spotify-Mediathek anzeigen"
+          }
+        }
+      }
+    },
+    "palette.command.service.switch.spotify.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switch to Spotify"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cambiar a Spotify"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zu Spotify wechseln"
+          }
+        }
+      }
+    },
+    "service.appleMusic.name": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Music"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Music"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Music"
+          }
+        }
+      }
+    },
+    "service.spotify.name": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify"
+          }
+        }
+      }
+    },
+    "settings.account.appleMusic.add": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add Apple Music"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Añadir Apple Music"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Music hinzufügen"
+          }
+        }
+      }
+    },
+    "settings.account.appleMusic.footer": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Signing out removes Apple Music from the service menu; your pins stay for when you add it again. Spotiglass's access to your library is a system permission: System Settings › Privacy & Security › Media & Apple Music."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Al cerrar sesión, Apple Music desaparece del menú de servicios; tus fijados se guardan para cuando lo vuelvas a añadir. El acceso de Spotiglass a tu biblioteca es un permiso del sistema: Ajustes del Sistema › Privacidad y seguridad › Multimedia y Apple Music."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beim Abmelden verschwindet Apple Music aus dem Dienstmenü; deine angehefteten Einträge bleiben für später erhalten. Der Zugriff von Spotiglass auf deine Mediathek ist eine Systemberechtigung: Systemeinstellungen › Datenschutz & Sicherheit › Medien & Apple Music."
+          }
+        }
+      }
+    },
+    "settings.account.appleMusic.signOut": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign Out of Apple Music"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cerrar sesión en Apple Music"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Von Apple Music abmelden"
+          }
+        }
+      }
+    },
+    "settings.account.appleMusic.status.allowed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Signed in"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sesión iniciada"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Angemeldet"
+          }
+        }
+      }
+    },
+    "settings.account.appleMusic.status.checking": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for access"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esperando el acceso"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wartet auf Zugriff"
+          }
+        }
+      }
+    },
+    "settings.account.appleMusic.status.denied": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No access. Turn it on in System Settings."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin acceso. Actívalo en Ajustes del Sistema."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kein Zugriff. Schalte ihn in den Systemeinstellungen ein."
+          }
+        }
+      }
+    },
+    "settings.account.appleMusic.status.notAdded": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not added"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No añadido"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht hinzugefügt"
+          }
+        }
+      }
+    },
+    "switcher.accessibility.hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opens a menu to switch to another music service or add one"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abre un menú para cambiar a otro servicio de música o añadir uno"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Öffnet ein Menü, um zu einem anderen Musikdienst zu wechseln oder einen hinzuzufügen"
+          }
+        }
+      }
+    },
+    "switcher.accessibility.label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Music service: %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Servicio de música: %@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Musikdienst: %@"
+          }
+        }
+      }
+    },
+    "switcher.addService": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add a service…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Añadir un servicio…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dienst hinzufügen…"
+          }
+        }
+      }
+    },
+    "switcher.cancelAddition": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancelar"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abbrechen"
+          }
+        }
+      }
+    },
+    "switcher.help": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switch between your music services"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cambia entre tus servicios de música"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zwischen deinen Musikdiensten wechseln"
+          }
+        }
+      }
+    },
+    "switcher.switchTo": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Switch to %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cambiar a %@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zu %@ wechseln"
+          }
+        }
+      }
+    },
+    "switcher.useInstead": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use %@ instead"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usar %@ en su lugar"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stattdessen %@ verwenden"
+          }
+        }
+      }
+    },
+    "welcome.service.appleMusic.detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow access to your Apple Music library, nothing to set up"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permite el acceso a tu biblioteca de Apple Music, sin configurar nada"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zugriff auf deine Apple-Music-Mediathek erlauben, ohne Einrichtung"
+          }
+        }
+      }
+    },
+    "welcome.service.message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Which service do you listen on? You can add the other one later."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Con qué servicio escuchas música? Puedes añadir el otro más tarde."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mit welchem Dienst hörst du Musik? Den anderen kannst du später hinzufügen."
+          }
+        }
+      }
+    },
+    "welcome.service.spotify.detail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign in with your own Spotify developer app"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inicia sesión con tu propia app de desarrollador de Spotify"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mit deiner eigenen Spotify-Entwickler-App anmelden"
           }
         }
       }

@@ -546,16 +546,12 @@ final class AppleMusicArtworkRegistryTests: XCTestCase {
 // MARK: - Service selection and session
 
 final class AppleMusicSelectionAndSessionTests: XCTestCase {
-    func testSpotifyUnlessTheHiddenSwitchSaysAppleMusic() {
-        XCTAssertEqual(MusicServiceSelection.resolve(storedValue: nil, isScreenshotMode: false, isRunningUnitTests: false), .spotify)
-        XCTAssertEqual(MusicServiceSelection.resolve(storedValue: "nonsense", isScreenshotMode: false, isRunningUnitTests: false), .spotify)
-        XCTAssertEqual(MusicServiceSelection.resolve(storedValue: "appleMusic", isScreenshotMode: false, isRunningUnitTests: false), .appleMusic)
-    }
-
-    func testScreenshotModeAndTestsNeverReachAppleMusic() {
-        XCTAssertEqual(MusicServiceSelection.resolve(storedValue: "appleMusic", isScreenshotMode: true, isRunningUnitTests: false), .spotify)
-        XCTAssertEqual(MusicServiceSelection.resolve(storedValue: "appleMusic", isScreenshotMode: false, isRunningUnitTests: true), .spotify)
-        XCTAssertEqual(MusicServiceSelection.current, .spotify)
+    /// The unit-test host never reaches MusicKit: its service store only offers Spotify.
+    @MainActor
+    func testTestHostNeverReachesAppleMusic() {
+        let store = MusicServiceStore.live()
+        XCTAssertEqual(store.availableServices, [.spotify])
+        XCTAssertEqual(store.active, .spotify)
     }
 
     /// Only real changes of access touch the windows: losing it resets all of them, gaining it
@@ -579,6 +575,7 @@ final class AppleMusicSelectionAndSessionTests: XCTestCase {
         XCTAssertFalse(SpotiglassApp.menuIsSignedIn(service: .appleMusic, spotifyState: .signedOut, appleMusicState: .denied))
         XCTAssertFalse(SpotiglassApp.menuIsSignedIn(service: .spotify, spotifyState: .signedOut, appleMusicState: .authorized))
         XCTAssertFalse(SpotiglassApp.menuIsSignedIn(service: .spotify, spotifyState: .refreshing(nil), appleMusicState: .authorized))
+        XCTAssertFalse(SpotiglassApp.menuIsSignedIn(service: nil, spotifyState: .signedIn(AuthenticatedSession(accessToken: "t", tokenType: "Bearer", scope: "", expiresAt: .distantFuture)), appleMusicState: .authorized))
     }
 
     @MainActor

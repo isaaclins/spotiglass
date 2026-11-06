@@ -42,7 +42,7 @@ enum SpotiglassSettingsSection: String, CaseIterable, Identifiable {
         case .equalizer: ["equalizer", "eq", "bands", "preamp", "gain", "preset", "output", "device"]
         case .appearance:
             ["appearance", "language", "theme", "color", "scheme", "dark", "light", "lyrics", "text size", "command palette", "blur", "offset"]
-        case .account: ["account", "spotify", "client id", "token", "sign in", "sign out", "disconnect", "log", "diagnostics"]
+        case .account: ["account", "spotify", "apple music", "service", "client id", "token", "sign in", "sign out", "disconnect", "log", "diagnostics"]
         case .keyboard: ["keyboard", "shortcuts", "hotkey", "keymap", "bindings", "command palette"]
         }
     }
@@ -77,6 +77,9 @@ struct SpotiglassSettingsView: View {
     /// Keeps every main-window key monitor suspended while the Settings scene
     /// captures a shortcut.
     var onHotkeyRecordingChange: (Bool) -> Void = { _ in }
+    /// Settings › Account signs in and out of each service (#373).
+    var serviceStore: MusicServiceStore? = nil
+    var appleMusicSession: AppleMusicSession? = nil
 
     @State private var section: SpotiglassSettingsSection? = .equalizer
     @State private var searchText: String = ""
@@ -274,7 +277,9 @@ struct SpotiglassSettingsView: View {
                     case .account:
                         AccountSettingsView(
                             viewModel: authViewModel,
-                            onSignOut: onSignOut
+                            onSignOut: onSignOut,
+                            serviceStore: serviceStore,
+                            appleMusicSession: appleMusicSession
                         )
                     case .keyboard:
                         CommandPaletteSettingsView(
