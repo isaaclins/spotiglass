@@ -1,3 +1,4 @@
+import MusicKit
 import ViewInspector
 import XCTest
 @testable import Spotiglass
@@ -152,8 +153,10 @@ final class AccountSettingsViewTests: XCTestCase {
         return (registry, manager)
     }
 
-    /// Without Apple Music added, the section offers to add it instead.
-    func testAppleMusicNotAddedOffersAdd() throws {
+    /// Without Apple Music added, the section offers to add it, and adding works right here: with
+    /// every main window closed only Settings is open, and the addition used to wait forever for a
+    /// window to ask for access and finish it. Like connecting Spotify here, the window doesn't move.
+    func testAddAppleMusicFromSettingsWithNoWindow() async throws {
         let viewModel = AuthViewModel(
             settings: SpotifyAuthSettings(defaults: makeEphemeralDefaults()),
             refreshTokenStore: MemoryOnlyRefreshTokenStore(),
@@ -162,18 +165,47 @@ final class AccountSettingsViewTests: XCTestCase {
         let store = MusicServiceStore(
             storage: InMemoryMusicServiceSelectionStorage(services: [.spotify], active: .spotify)
         )
+        let authorization = SettingsMusicAuthorization(answer: .authorized)
+        let registry = SpotiglassSceneRegistry()
         let view = AccountSettingsView(
             viewModel: viewModel,
+            onSignOut: { registry.resetTransientState() },
             serviceStore: store,
-            appleMusicSession: AppleMusicSession()
+            appleMusicSession: AppleMusicSession(authorization: authorization)
         )
         ViewTestHost.host(view)
 
         ViewTestHost.assertFindLocalizedText("settings.account.appleMusic.status.notAdded", in: view)
         try view.inspect().find(button: SpotiglassL10n.string("settings.account.appleMusic.add")).tap()
-        XCTAssertEqual(store.pendingAddition, .appleMusic)
-        XCTAssertEqual(store.active, .appleMusic)
+        try await Task.sleep(for: .milliseconds(300))
+
+        XCTAssertEqual(authorization.requests, 1, "Access is asked from Settings itself")
+        XCTAssertTrue(store.isAdded(.appleMusic))
+        XCTAssertNil(store.pendingAddition)
+        XCTAssertEqual(store.active, .spotify)
+    }
+
+    /// Refusing access adds nothing and says it was refused.
+    func testAddAppleMusicFromSettingsRefused() async throws {
+        let viewModel = AuthViewModel(
+            settings: SpotifyAuthSettings(defaults: makeEphemeralDefaults()),
+            refreshTokenStore: MemoryOnlyRefreshTokenStore(),
+            initialState: .signedOut
+        )
+        let store = MusicServiceStore(
+            storage: InMemoryMusicServiceSelectionStorage(services: [.spotify], active: .spotify)
+        )
+        let session = AppleMusicSession(authorization: SettingsMusicAuthorization(answer: .denied))
+        let view = AccountSettingsView(viewModel: viewModel, serviceStore: store, appleMusicSession: session)
+        ViewTestHost.host(view)
+
+        try view.inspect().find(button: SpotiglassL10n.string("settings.account.appleMusic.add")).tap()
+        try await Task.sleep(for: .milliseconds(300))
+
         XCTAssertEqual(store.services, [.spotify])
+        XCTAssertNil(store.pendingAddition)
+        XCTAssertEqual(session.state, .denied)
+        ViewTestHost.assertFindLocalizedText("settings.account.appleMusic.status.denied", in: view)
     }
 
     /// The token expiry is a diagnostic, not an account fact: it used to sit
@@ -239,4 +271,23 @@ final class AccountSettingsViewTests: XCTestCase {
         XCTAssertEqual(scene.commandPaletteManager.viewModel.query, "")
         XCTAssertFalse(scene.lyricsOverlayController.isPresented)
     }
+}
+
+/// Apple Music access that hasn't been asked yet, and answers the request with `answer`.
+private final class SettingsMusicAuthorization: AppleMusicAuthorizing, @unchecked Sendable {
+    private let answer: MusicAuthorization.Status
+    private var status: MusicAuthorization.Status = .notDetermined
+    private(set) var requests = 0
+
+    init(answer: MusicAuthorization.Status) {
+        self.answer = answer
+    }
+
+    func currentStatus() -> MusicAuthorization.Status { status }
+    func requestAuthorization() async -> MusicAuthorization.Status {
+        requests += 1
+        status = answer
+        return answer
+    }
+    func canPlayCatalogContent() async -> Bool? { false }
 }

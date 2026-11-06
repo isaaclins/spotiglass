@@ -25,8 +25,7 @@ struct AccountSettingsView: View {
                 AppleMusicAccountSection(
                     store: serviceStore,
                     session: appleMusicSession,
-                    onSignOut: { prepareForSignOut(of: .appleMusic) },
-                    onAdd: onSignOut
+                    onSignOut: { prepareForSignOut(of: .appleMusic) }
                 )
             }
             diagnosticsSection
@@ -140,12 +139,13 @@ private struct AppleMusicAccountSection: View {
     @ObservedObject var store: MusicServiceStore
     @ObservedObject var session: AppleMusicSession
     let onSignOut: () -> Void
-    /// Adding puts Apple Music on screen, so the windows' state is cleared first.
-    let onAdd: () -> Void
 
     private var statusText: String {
         guard store.isAdded(.appleMusic) else {
-            return SpotiglassL10n.string("settings.account.appleMusic.status.notAdded")
+            // Asked from here and refused: say so, the footer says where to allow it.
+            return session.state == .denied
+                ? SpotiglassL10n.string("settings.account.appleMusic.status.denied")
+                : SpotiglassL10n.string("settings.account.appleMusic.status.notAdded")
         }
         switch session.state {
         case .authorized: return SpotiglassL10n.string("settings.account.appleMusic.status.allowed")
@@ -175,8 +175,7 @@ private struct AppleMusicAccountSection: View {
                     .buttonStyle(.bordered)
                 } else {
                     Button {
-                        onAdd()
-                        store.beginAddition(of: .appleMusic)
+                        Task { await addAppleMusic() }
                     } label: {
                         Label(SpotiglassL10n.string("settings.account.appleMusic.add"), systemImage: "plus.circle")
                             .symbolRenderingMode(.hierarchical)
@@ -193,5 +192,17 @@ private struct AppleMusicAccountSection: View {
         .task {
             await session.refresh()
         }
+    }
+
+    /// Adds Apple Music from here, like connecting Spotify from here: the system permission is the
+    /// whole sign-in, so it is asked right away and, once allowed, Apple Music joins the service
+    /// menu without moving any window. This also works with every main window closed.
+    private func addAppleMusic() async {
+        await session.refresh()
+        if session.state == .needsPermission {
+            await session.requestAccess()
+        }
+        guard session.state == .authorized else { return }
+        store.completeAddition(of: .appleMusic)
     }
 }
