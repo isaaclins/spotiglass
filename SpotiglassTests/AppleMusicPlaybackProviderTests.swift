@@ -142,6 +142,43 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         }
     }
 
+    /// Spotify keeps added songs that haven't played when something else starts: they play
+    /// right after the new first song, and a later add still goes after them.
+    func testAddedSongsSurviveANewPlay() async throws {
+        let player = ScriptedAppleMusicPlayer()
+        let provider = AppleMusicPlaybackProvider(player: player)
+        try await provider.play(.items(uris: Self.uris, startURI: nil), deviceID: "x")
+        try await provider.enqueue(uri: "applemusic:song:a", deviceID: "x")
+        try await provider.enqueue(uri: "applemusic:song:b", deviceID: "x")
+        try await provider.skipToNext(deviceID: "x")
+        player.advance(by: 1) // a plays now; b is still ahead
+
+        try await provider.play(.items(uris: ["applemusic:song:n1", "applemusic:song:n2"], startURI: nil), deviceID: "x")
+        try await provider.enqueue(uri: "applemusic:song:c", deviceID: "x")
+
+        let state = try await provider.fetchPlaybackState()
+        XCTAssertEqual(state?.item.flatMap(Self.uri), "applemusic:song:n1")
+        let upcoming = try await provider.fetchQueue().queue.compactMap(Self.uri)
+        XCTAssertEqual(upcoming, ["applemusic:song:b", "applemusic:song:c", "applemusic:song:n2"])
+    }
+
+    func testTheBookCarriesOnlyTheAddedSongsStillAhead() {
+        var book = Book()
+        var queue = ["0", "1", "2"].map { Self.row($0) }
+        book.replace(with: queue)
+        XCTAssertNil(book.addedAhead(of: 0))
+        Self.add(Self.row("a"), to: &queue, current: 0, book: &book)
+        Self.add(Self.row("b"), to: &queue, current: 0, book: &book)
+        XCTAssertEqual(book.addedAhead(of: 0), 1..<3)
+        XCTAssertEqual(book.addedAhead(of: 1), 2..<3, "a is playing")
+        XCTAssertNil(book.addedAhead(of: 2), "b is playing: nothing added is ahead")
+        XCTAssertNil(book.addedAhead(of: nil))
+
+        book.replace(with: ["n0", "b", "n1"].map { Self.row($0) }, carryingAdded: 1, after: 0)
+        XCTAssertEqual(book.added, Book.AddedRun(start: 1, count: 1))
+        XCTAssertEqual(book.planAdd(Self.row("c"), currentIndex: 0, entryCount: 3).index, 2)
+    }
+
     /// Nothing is current: MusicKit's own insert starts a queue, and the book knows that one
     /// row only if the queue was empty.
     func testAnAddWithNothingCurrentStartsAQueue() {
@@ -458,6 +495,7 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
             ("playback.controls.state.connecting.subtitle", "playback.controls.state.connecting.subtitle.appleMusic"),
             ("playback.fallbackName", "playback.fallbackName.appleMusic"),
             ("playback.controls.device.hint", "playback.controls.device.appleMusic.hint"),
+            ("queue.shuffle.hint", "queue.shuffle.appleMusic.hint"),
         ]
         for (spotifyKey, appleMusicKey) in pairs {
             let spotify = PlaybackControlsView.serviceString(spotifyKey, appleMusic: appleMusicKey, service: .spotify)
@@ -640,12 +678,23 @@ final class ScriptedAppleMusicPlayer: AppleMusicPlayerControlling {
         // The live player's contract: a play overtaken during its lookup leaves the queue alone.
         guard isCurrent() else { throw CancellationError() }
         commands.append("play")
-        queue = uris
-        index = start.flatMap { uris.firstIndex(of: $0) } ?? 0
+        // Like the live player: added songs not played yet go right after the new first song.
+        let carried = (book.addedAhead(of: queue.indices.contains(index) ? index : nil) ?? 0..<0)
+            .filter(queue.indices.contains)
+            .map { queue[$0] }
+        let startIndex = start.flatMap { uris.firstIndex(of: $0) } ?? 0
+        var newQueue = uris
+        newQueue.insert(contentsOf: carried, at: startIndex + 1)
+        queue = newQueue
+        index = startIndex
         playing = true
         positionBase = 0
         positionAnchor = now
-        book.replace(with: uris.map { AppleMusicQueueBook.Row(uri: $0, title: $0) })
+        book.replace(
+            with: newQueue.map { AppleMusicQueueBook.Row(uri: $0, title: $0) },
+            carryingAdded: carried.count,
+            after: startIndex
+        )
     }
 
     func pause() {

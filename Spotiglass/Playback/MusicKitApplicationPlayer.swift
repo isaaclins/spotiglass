@@ -30,6 +30,8 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
     /// Shuffle as last asked for. MusicKit drops its shuffle mode when the queue is replaced
     /// (and before there is a queue), so every new queue gets it again.
     private lazy var shuffleWanted = player.state.shuffleMode == .songs
+    /// Repeat as last asked for, set again on every new queue like shuffle.
+    private var repeatWanted: MusicPlayer.RepeatMode?
 
     func isAuthorized() -> Bool {
         MusicAuthorization.currentStatus == .authorized
@@ -57,14 +59,23 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         // The row that was clicked must play; if it couldn't be found, say so instead of
         // quietly starting another song.
         if let startURI, !resolved.contains(where: { $0.uri == startURI }) { throw Self.notFound(startURI) }
-        let start = resolved.first { $0.uri == startURI }?.entry ?? resolved[0].entry
+        let startIndex = resolved.firstIndex { $0.uri == startURI } ?? 0
+        // Songs added with Add to queue that haven't played yet stay queued, right after the
+        // new first song, like Spotify's queue.
+        var queued = resolved
+        let carried = carriedAddedSongs()
+        queued.insert(contentsOf: carried, at: startIndex + 1)
         uriByEntryKey = [:]
-        for item in resolved {
+        for item in queued {
             remember(item.uri, for: item.entry)
         }
-        book.replace(with: resolved.map { AppleMusicQueueBook.Row(uri: $0.uri, title: $0.entry.title) })
-        player.queue = ApplicationMusicPlayer.Queue(resolved.map(\.entry), startingAt: start)
-        applyShuffle()
+        book.replace(
+            with: queued.map { AppleMusicQueueBook.Row(uri: $0.uri, title: $0.entry.title) },
+            carryingAdded: carried.count,
+            after: startIndex
+        )
+        player.queue = ApplicationMusicPlayer.Queue(queued.map(\.entry), startingAt: resolved[startIndex].entry)
+        applyModesToNewQueue()
         try await Self.mapped { try await self.player.play() }
     }
 
@@ -94,11 +105,7 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
 
     func setShuffle(_ enabled: Bool) {
         shuffleWanted = enabled
-        applyShuffle()
-    }
-
-    private func applyShuffle() {
-        let mode: MusicPlayer.ShuffleMode = shuffleWanted ? .songs : .off
+        let mode: MusicPlayer.ShuffleMode = enabled ? .songs : .off
         guard player.state.shuffleMode != mode else { return }
         // Positions hold until shuffle reorders the queue: note each entry's row by id first.
         noteEntries()
@@ -106,12 +113,47 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         book.forgetPositions()
     }
 
-    func setRepeat(_ mode: MusicRepeatMode) {
-        switch mode {
-        case .off: player.state.repeatMode = MusicPlayer.RepeatMode.none
-        case .context: player.state.repeatMode = .all
-        case .track: player.state.repeatMode = .one
+    /// Sets the shuffle and repeat last asked for on a queue just set, without trusting what
+    /// the player reports right then (its state trails commands by up to a third of a second).
+    private func applyModesToNewQueue() {
+        if shuffleWanted {
+            noteEntries()
+            player.state.shuffleMode = .songs
+            book.forgetPositions()
+        } else {
+            player.state.shuffleMode = .off
         }
+        if let repeatWanted {
+            player.state.repeatMode = repeatWanted
+        }
+    }
+
+    /// The added songs still ahead in the current queue, as new entries for the next queue.
+    private func carriedAddedSongs() -> [(uri: String, entry: MusicPlayer.Queue.Entry)] {
+        let entries = Array(player.queue.entries)
+        let currentIndex = player.queue.currentEntry.flatMap { current in
+            entries.firstIndex { $0.id == current.id }
+        }
+        guard let range = book.addedAhead(of: currentIndex) else { return [] }
+        return range.compactMap { index -> (uri: String, entry: MusicPlayer.Queue.Entry)? in
+            guard entries.indices.contains(index), case let .song(song) = entries[index].item else { return nil }
+            let entry = entries[index]
+            let uri = book.rowURI(entryID: entry.id, at: index, title: entry.title)
+                ?? Self.keys(entry).lazy.compactMap({ self.uriByEntryKey[$0] }).first
+                ?? AppleMusicItemMapping.track(song).uri
+            return (uri, MusicPlayer.Queue.Entry(song))
+        }
+    }
+
+    func setRepeat(_ mode: MusicRepeatMode) {
+        let wanted: MusicPlayer.RepeatMode
+        switch mode {
+        case .off: wanted = MusicPlayer.RepeatMode.none
+        case .context: wanted = .all
+        case .track: wanted = .one
+        }
+        repeatWanted = wanted
+        player.state.repeatMode = wanted
     }
 
     func enqueue(uri: String) async throws {

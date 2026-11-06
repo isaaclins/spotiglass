@@ -70,7 +70,7 @@ struct QueuePanelView: View {
                     ? SpotiglassL10n.string("queue.shuffle.on")
                     : SpotiglassL10n.string("queue.shuffle.off")
             )
-            .accessibilityHint(SpotiglassL10n.string("queue.shuffle.hint"))
+            .accessibilityHint(PlaybackControlsView.serviceString("queue.shuffle.hint", appleMusic: "queue.shuffle.appleMusic.hint"))
             .help(PlaybackTransportTooltips.shuffleTooltip(isEnabled: playbackViewModel.shuffleEnabled))
         }
         .padding(SpotiglassDesign.spacingM)

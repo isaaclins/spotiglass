@@ -14765,6 +14765,52 @@
           }
         }
       }
+    },
+    "palette.command.playback.toggle.subtitle.appleMusic": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pause or resume Apple Music playback"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pausa o reanuda la reproducción de Apple Music"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple-Music-Wiedergabe pausieren oder fortsetzen"
+          }
+        }
+      }
+    },
+    "queue.shuffle.appleMusic.hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toggles shuffle for Apple Music playback on this Mac."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activa o desactiva el modo aleatorio de Apple Music en este Mac."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schaltet die Zufallswiedergabe für Apple Music auf diesem Mac um."
+          }
+        }
+      }
     }
   },
   "version": "1.1"

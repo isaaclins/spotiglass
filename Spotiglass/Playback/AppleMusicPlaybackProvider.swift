@@ -302,6 +302,23 @@ struct AppleMusicQueueBook: Equatable {
         }
     }
 
+    /// The queue positions of the added songs that haven't played yet. A new play keeps them,
+    /// right after its first song, like Spotify's queue.
+    func addedAhead(of currentIndex: Int?) -> Range<Int>? {
+        guard let added, let currentIndex else { return nil }
+        let range = max(added.start, currentIndex + 1)..<(added.start + added.count)
+        return range.isEmpty ? nil : range
+    }
+
+    /// A play replaced the queue with `rows` and kept `carriedCount` added songs right after
+    /// the row at `startIndex`.
+    mutating func replace(with rows: [Row], carryingAdded carriedCount: Int, after startIndex: Int) {
+        replace(with: rows)
+        if carriedCount > 0 {
+            added = AddedRun(start: startIndex + 1, count: carriedCount)
+        }
+    }
+
     /// Shuffle reorders what plays next, so the positions kept so far no longer hold.
     mutating func forgetPositions() {
         rows = []
