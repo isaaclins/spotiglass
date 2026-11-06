@@ -85,6 +85,7 @@ extension AppleMusicBrowsingProvider {
     }
 
     func applyingPendingEdits(toPlaylistTracks tracks: [Track], playlistID: String) -> [MusicTrack] {
+        editor.songReferences.remember(tracks)
         guard editor.pending.hasPendingTracks(playlistID: playlistID) else {
             return tracks.map { AppleMusicItemMapping.track($0) }
         }

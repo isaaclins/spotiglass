@@ -151,17 +151,21 @@ struct AppleMusicLibraryEditor: Sendable {
     let cloud: any AppleMusicCloudLibrary
     let musicApp: any MusicAppLibraryControlling
     let pending: AppleMusicPendingLibraryEdits
+    /// Where playlist reads record the songs MusicKit lists under a persistent ID.
+    let songReferences: AppleMusicSongReferenceRegistry
 
     init(
         lookup: any AppleMusicLibraryLookup = MusicKitLibraryLookup(),
         cloud: any AppleMusicCloudLibrary = MusicDataRequestCloudLibrary(),
         musicApp: any MusicAppLibraryControlling = MusicAppLibraryScripting(),
-        pending: AppleMusicPendingLibraryEdits = .shared
+        pending: AppleMusicPendingLibraryEdits = .shared,
+        songReferences: AppleMusicSongReferenceRegistry = .shared
     ) {
         self.lookup = lookup
         self.cloud = cloud
         self.musicApp = musicApp
         self.pending = pending
+        self.songReferences = songReferences
     }
 
     // MARK: - Songs (Liked Songs)
