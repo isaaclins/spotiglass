@@ -35,19 +35,23 @@ final class QueueHTTPClient: HTTPClient {
         }
     }
 
+    private let lock = NSLock()
     private var responses: [Response]
-    private(set) var requests: [URLRequest] = []
+    private var recordedRequests: [URLRequest] = []
+    var requests: [URLRequest] { lock.withLock { recordedRequests } }
 
     init(_ responses: [Response]) {
         self.responses = responses
     }
 
     func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
-        requests.append(request)
-        guard !responses.isEmpty else {
+        let next = lock.withLock { () -> Response? in
+            recordedRequests.append(request)
+            return responses.isEmpty ? nil : responses.removeFirst()
+        }
+        guard let response = next else {
             throw URLError(.badServerResponse)
         }
-        let response = responses.removeFirst()
         return (
             response.data,
             HTTPURLResponse(
@@ -124,14 +128,18 @@ final class RefreshingTokenProvider: SpotifyAccessTokenProviding {
         "stale-token"
     }
 
-    func refreshAccessTokenAfterUnauthorized() async throws -> String {
+    func refreshAccessTokenAfterUnauthorized(rejectedToken: String) async throws -> String {
         refreshCount += 1
         return "fresh-token"
     }
 }
 
+/// Follows the same contract as `AuthViewModel`: one refresh flight at a time,
+/// and a 401 for a token that a finished refresh already replaced reuses the
+/// new token instead of refreshing again.
 actor SingleFlightRefreshingTokenProvider: SpotifyAccessTokenProviding {
     private var inFlightRefresh: Task<String, Error>?
+    private var currentToken = "stale-token"
     private let refreshStarted: AsyncSignal?
     private let releaseRefresh: AsyncSignal?
     private(set) var refreshCount = 0
@@ -145,9 +153,12 @@ actor SingleFlightRefreshingTokenProvider: SpotifyAccessTokenProviding {
         "stale-token"
     }
 
-    func refreshAccessTokenAfterUnauthorized() async throws -> String {
+    func refreshAccessTokenAfterUnauthorized(rejectedToken: String) async throws -> String {
         if let inFlightRefresh {
             return try await inFlightRefresh.value
+        }
+        if rejectedToken != currentToken {
+            return currentToken
         }
         let refreshStarted = self.refreshStarted
         let releaseRefresh = self.releaseRefresh
@@ -159,7 +170,9 @@ actor SingleFlightRefreshingTokenProvider: SpotifyAccessTokenProviding {
         inFlightRefresh = task
         refreshCount += 1
         defer { inFlightRefresh = nil }
-        return try await task.value
+        let token = try await task.value
+        currentToken = token
+        return token
     }
 }
 
@@ -168,7 +181,7 @@ struct FailingRefreshTokenProvider: SpotifyAccessTokenProviding {
         "token"
     }
 
-    func refreshAccessTokenAfterUnauthorized() async throws -> String {
+    func refreshAccessTokenAfterUnauthorized(rejectedToken: String) async throws -> String {
         throw SpotifyAPIError.unauthorized
     }
 }
@@ -202,6 +215,51 @@ actor DelayedCountingHTTPClient: HTTPClient {
             headerFields: [:]
         )!
         return (responseData, response)
+    }
+}
+
+/// Answers 401 for `staleToken` and a profile for any other token. The first
+/// 401 waits until a second request with the stale token has arrived, and that
+/// second 401 is held until a request with a refreshed token has been served,
+/// so it lands after the first request's refresh finished. That is the order
+/// that refreshed twice in CI.
+final class LateSecondUnauthorizedHTTPClient: HTTPClient {
+    private let lock = NSLock()
+    private let staleToken: String
+    private let secondUnauthorizedArrived = AsyncSignal()
+    private let refreshedRequestServed = AsyncSignal()
+    private var recordedUnauthorizedCount = 0
+    private var recordedAuthorizedCount = 0
+    var unauthorizedRequestCount: Int { lock.withLock { recordedUnauthorizedCount } }
+    var authorizedRequestCount: Int { lock.withLock { recordedAuthorizedCount } }
+
+    init(staleToken: String) {
+        self.staleToken = staleToken
+    }
+
+    func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        if request.bearerToken == staleToken {
+            let arrival = lock.withLock { () -> Int in
+                recordedUnauthorizedCount += 1
+                return recordedUnauthorizedCount
+            }
+            if arrival == 1 {
+                await secondUnauthorizedArrived.wait()
+            } else {
+                secondUnauthorizedArrived.signal()
+                await refreshedRequestServed.wait()
+            }
+            return (
+                Data(#"{"error":{"status":401,"message":"The access token expired"}}"#.utf8),
+                HTTPURLResponse(url: request.url!, statusCode: 401, httpVersion: nil, headerFields: nil)!
+            )
+        }
+        lock.withLock { recordedAuthorizedCount += 1 }
+        refreshedRequestServed.signal()
+        return (
+            Data(#"{"id":"user-1","display_name":"AfterRefresh","images":[],"country":null,"product":"premium"}"#.utf8),
+            HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+        )
     }
 }
 
