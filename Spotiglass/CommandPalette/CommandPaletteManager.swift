@@ -405,7 +405,11 @@ final class CommandPaletteManager: ObservableObject {
                 switchableServices.contains(service)
             else { return }
             viewModel.hide()
-            switchService?(service)
+            // Switch once the palette has closed and handed focus back. Tearing the browser down
+            // in the same pass as the palette's dismissal left the window's title bar area
+            // collapsed (sidebar and toolbar items shifted under the window buttons).
+            let switchService = switchService
+            DispatchQueue.main.async { switchService?(service) }
         default:
             break
         }

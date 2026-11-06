@@ -20,6 +20,12 @@ final class MusicServiceStoreTests: XCTestCase {
         return CommandPaletteKeymapStore(fileURL: url)
     }
 
+    private func drainMainQueue() {
+        let drained = expectation(description: "main queue drained")
+        DispatchQueue.main.async { drained.fulfill() }
+        wait(for: [drained], timeout: 1)
+    }
+
     private func makeDefaults() -> UserDefaults {
         let name = "MusicServiceStoreTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: name)!
@@ -275,6 +281,8 @@ final class MusicServiceStoreTests: XCTestCase {
 
         manager.execute(commandID: CommandPaletteCommandID.switchToSpotify)
         manager.execute(commandID: CommandPaletteCommandID.switchToAppleMusic)
+        XCTAssertEqual(switched, [], "the switch waits until the palette has closed")
+        drainMainQueue()
         XCTAssertEqual(switched, [.appleMusic])
 
         manager.switchableServices = []
@@ -292,6 +300,7 @@ final class MusicServiceStoreTests: XCTestCase {
 
         manager.detach()
         manager.execute(commandID: CommandPaletteCommandID.switchToSpotify)
+        drainMainQueue()
 
         XCTAssertEqual(switched, [.spotify])
     }
@@ -319,6 +328,7 @@ final class MusicServiceStoreTests: XCTestCase {
 
         manager.switchableServices = [.spotify]
         XCTAssertTrue(manager.handleKeyEvent(event))
+        drainMainQueue()
         XCTAssertEqual(switched, [.spotify])
     }
 
