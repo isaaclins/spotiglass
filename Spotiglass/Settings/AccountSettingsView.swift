@@ -9,6 +9,15 @@ struct AccountSettingsView: View {
     var serviceStore: MusicServiceStore? = nil
     var appleMusicSession: AppleMusicSession? = nil
 
+    /// Clears every window's palette and lyrics state before a sign-out, but only when the service
+    /// being signed out is the one on screen. Signing out of the other one changes nothing on
+    /// screen, so nothing would wire the palette up again and the library left on screen would
+    /// lose its commands.
+    private func prepareForSignOut(of service: MusicService) {
+        if let serviceStore, serviceStore.active != service { return }
+        onSignOut()
+    }
+
     var body: some View {
         Form {
             spotifySections
@@ -16,7 +25,8 @@ struct AccountSettingsView: View {
                 AppleMusicAccountSection(
                     store: serviceStore,
                     session: appleMusicSession,
-                    onSignOut: onSignOut
+                    onSignOut: { prepareForSignOut(of: .appleMusic) },
+                    onAdd: onSignOut
                 )
             }
             diagnosticsSection
@@ -51,7 +61,7 @@ struct AccountSettingsView: View {
                     viewModel: viewModel,
                     layout: .settings,
                     onSignOut: {
-                        onSignOut()
+                        prepareForSignOut(of: .spotify)
                         serviceStore?.signOutRemoving(.spotify)
                     }
                 )
@@ -130,6 +140,8 @@ private struct AppleMusicAccountSection: View {
     @ObservedObject var store: MusicServiceStore
     @ObservedObject var session: AppleMusicSession
     let onSignOut: () -> Void
+    /// Adding puts Apple Music on screen, so the windows' state is cleared first.
+    let onAdd: () -> Void
 
     private var statusText: String {
         guard store.isAdded(.appleMusic) else {
@@ -163,7 +175,7 @@ private struct AppleMusicAccountSection: View {
                     .buttonStyle(.bordered)
                 } else {
                     Button {
-                        onSignOut()
+                        onAdd()
                         store.beginAddition(of: .appleMusic)
                     } label: {
                         Label(SpotiglassL10n.string("settings.account.appleMusic.add"), systemImage: "plus.circle")

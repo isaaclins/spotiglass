@@ -74,6 +74,84 @@ final class AccountSettingsViewTests: XCTestCase {
         XCTAssertEqual(store.active, .spotify)
     }
 
+    /// Signing out of Apple Music while Spotify is on screen must leave Spotify's palette wired.
+    /// It used to clear every window's palette (commands, sign-in state) and nothing on screen
+    /// changed to wire it up again, so Refresh, Next Track and Open Search vanished from Spotify.
+    func testAppleMusicSignOutOffScreenKeepsTheWindowWired() throws {
+        let viewModel = AuthViewModel(
+            settings: SpotifyAuthSettings(defaults: makeEphemeralDefaults()),
+            refreshTokenStore: MemoryOnlyRefreshTokenStore(),
+            initialState: .signedOut
+        )
+        let store = MusicServiceStore(
+            storage: InMemoryMusicServiceSelectionStorage(services: [.appleMusic, .spotify], active: .spotify)
+        )
+        let (registry, manager) = makeWiredScene()
+        let view = AccountSettingsView(
+            viewModel: viewModel,
+            onSignOut: { registry.resetTransientState() },
+            serviceStore: store,
+            appleMusicSession: AppleMusicSession()
+        )
+        ViewTestHost.host(view)
+
+        try view.inspect()
+            .find(button: SpotiglassL10n.string("settings.account.appleMusic.signOut"))
+            .tap()
+
+        XCTAssertEqual(store.services, [.spotify])
+        XCTAssertEqual(store.active, .spotify)
+        XCTAssertTrue(manager.isSignedIn)
+        XCTAssertNotNil(manager.unifiedRefresh)
+    }
+
+    /// The same for Spotify: disconnecting it in Settings while Apple Music is on screen leaves
+    /// Apple Music's palette alone.
+    func testSpotifySignOutOffScreenKeepsTheWindowWired() throws {
+        let session = AuthenticatedSession(
+            accessToken: "token",
+            tokenType: "Bearer",
+            scope: "streaming",
+            expiresAt: Date(timeIntervalSince1970: 4_000_000)
+        )
+        let viewModel = AuthViewModel(
+            settings: SpotifyAuthSettings(defaults: makeEphemeralDefaults()),
+            refreshTokenStore: MemoryOnlyRefreshTokenStore(),
+            signOutDataCleaner: {},
+            artworkCacheClearer: {},
+            initialState: .signedIn(session)
+        )
+        let store = MusicServiceStore(
+            storage: InMemoryMusicServiceSelectionStorage(services: [.appleMusic, .spotify], active: .appleMusic)
+        )
+        let (registry, manager) = makeWiredScene()
+        let view = AccountSettingsView(
+            viewModel: viewModel,
+            onSignOut: { registry.resetTransientState() },
+            serviceStore: store,
+            appleMusicSession: AppleMusicSession()
+        )
+        ViewTestHost.host(view)
+
+        try view.inspect().find(button: SpotiglassL10n.string("auth.disconnect.button")).tap()
+
+        XCTAssertEqual(store.services, [.appleMusic])
+        XCTAssertEqual(store.active, .appleMusic)
+        XCTAssertTrue(manager.isSignedIn)
+        XCTAssertNotNil(manager.unifiedRefresh)
+    }
+
+    /// A window whose palette is signed in and wired, as a browser leaves it.
+    private func makeWiredScene() -> (SpotiglassSceneRegistry, CommandPaletteManager) {
+        let scene = SpotiglassSceneHost(commandPaletteManager: CommandPaletteManager())
+        let registry = SpotiglassSceneRegistry()
+        registry.activate(scene)
+        let manager = scene.commandPaletteManager
+        manager.isSignedIn = true
+        manager.unifiedRefresh = {}
+        return (registry, manager)
+    }
+
     /// Without Apple Music added, the section offers to add it instead.
     func testAppleMusicNotAddedOffersAdd() throws {
         let viewModel = AuthViewModel(

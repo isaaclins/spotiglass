@@ -54,10 +54,6 @@ final class SpotiglassSceneHost: ObservableObject {
     func discardBrowserViewModel(for service: MusicService) {
         browserViewModels[service] = nil
     }
-
-    func hasBrowserViewModel(for service: MusicService) -> Bool {
-        browserViewModels[service] != nil
-    }
 }
 
 /// Tracks the current main-window scene for app-level menu commands. The menu
@@ -462,6 +458,11 @@ struct RootView: View {
             }
             .onChange(of: serviceStore.services) { _, _ in
                 commandPaletteManager.switchableServices = serviceStore.switchTargets
+                // Signing out of Apple Music ends its space: adding it again starts fresh instead of
+                // showing the library and place from before the sign-out.
+                if !serviceStore.isAdded(.appleMusic), serviceStore.pendingAddition != .appleMusic {
+                    sceneHost.discardBrowserViewModel(for: .appleMusic)
+                }
             }
             .onChange(of: serviceStore.pendingAddition) { old, new in
                 // Leaving an unfinished Spotify sign-in closes its browser round trip too.
