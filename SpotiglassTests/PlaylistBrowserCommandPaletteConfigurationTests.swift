@@ -4,6 +4,41 @@ import XCTest
 
 @MainActor
 final class PlaylistBrowserCommandPaletteConfigurationTests: XCTestCase {
+    /// Apple Music browsing has no player yet. "Connect playback" (and its ⇧⌘K shortcut) must
+    /// not start the Spotify player behind it; Spotify keeps the command.
+    func testConnectPlaybackIsOnlyWiredWhenTheServiceHasPlayback() throws {
+        func wire(playbackAvailable: Bool) -> CommandPaletteManager {
+            let viewModel = PlaylistBrowserViewModel(
+                api: MockBrowsingAPI(playlistResults: [], trackResults: [:]),
+                cache: MockBrowsingCache()
+            )
+            let playback = PlaybackSessionViewModel(
+                playbackAPI: MockPlaybackAPI(),
+                webCommander: MockWebPlaybackCommander()
+            )
+            let manager = CommandPaletteManager()
+            PlaylistBrowserCommandPaletteConfiguration.apply(
+                to: manager,
+                dependencies: .init(
+                    viewModel: viewModel,
+                    playbackViewModel: playback,
+                    queueViewModel: QueueViewModel(playbackAPI: MockPlaybackAPI(), playbackSession: playback),
+                    commandPaletteManager: manager,
+                    pinnedStore: PinnedItemsStore(cache: InMemoryPinnedItemsCache()),
+                    catalogProvider: MockBrowsingAPI(playlistResults: [], trackResults: [:]),
+                    signOut: {},
+                    syncUnifiedRefreshRouting: {},
+                    isPlaybackAvailable: playbackAvailable
+                ),
+                queueVisible: .constant(false),
+                lyricsPresented: .constant(false)
+            )
+            return manager
+        }
+        XCTAssertNotNil(wire(playbackAvailable: true).connectPlayback)
+        XCTAssertNil(wire(playbackAvailable: false).connectPlayback)
+    }
+
     func testApplyWiresCallbacksWithoutHostingView() async throws {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "p1", name: "One")])],

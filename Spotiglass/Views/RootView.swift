@@ -379,7 +379,8 @@ struct RootView: View {
                 session: appleMusicSession,
                 playbackHost: playbackHost,
                 commandPaletteManager: commandPaletteManager,
-                prepareForReset: authLossPreparationAction
+                prepareForReset: authLossPreparationAction,
+                rewireScene: { wireSceneCallbacks() }
             )
         }
     }

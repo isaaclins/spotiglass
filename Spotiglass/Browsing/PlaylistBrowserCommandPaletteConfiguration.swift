@@ -12,6 +12,9 @@ enum PlaylistBrowserCommandPaletteConfiguration {
         var catalogProvider: any MusicBrowsingProvider
         var signOut: () -> Void
         var syncUnifiedRefreshRouting: () -> Void
+        /// `false` while the browsed service has no player yet (Apple Music browsing). Then
+        /// "Connect playback" must not start the Spotify player behind it.
+        var isPlaybackAvailable = true
     }
 
     static func apply(
@@ -45,9 +48,11 @@ enum PlaylistBrowserCommandPaletteConfiguration {
         manager.selectPreviousPlaylist = { [weak viewModel = dependencies.viewModel] in
             await viewModel?.selectPreviousPlaylist()
         }
-        manager.connectPlayback = { [weak playback = dependencies.playbackViewModel] in
-            playback?.start(recoveryCause: .manualReconnect)
-        }
+        manager.connectPlayback = dependencies.isPlaybackAvailable
+            ? { [weak playback = dependencies.playbackViewModel] in
+                playback?.start(recoveryCause: .manualReconnect)
+            }
+            : nil
         manager.playbackTogglePrerequisite = { [weak playback = dependencies.playbackViewModel] in
             guard let playback else { return false }
             return playback.isPlaybackToggleReady

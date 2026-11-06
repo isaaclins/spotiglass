@@ -250,12 +250,13 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         source.albumsByID["a1"] = try AppleMusicFixtures.album(id: "a1", title: "Migration", tracks: [("1", "One"), ("2", "Two")])
         let provider = AppleMusicBrowsingProvider(source: source)
 
+        // `limit` is a page size: the full fetch follows up to six pages, the first page doesn't.
         let tracks = try await provider.albumTracks(albumID: "a1", market: nil, limit: 1)
-        XCTAssertEqual(tracks.map(\.name), ["One"])
+        XCTAssertEqual(tracks.map(\.name), ["One", "Two"])
         XCTAssertEqual(tracks.first?.albumID, "a1")
 
-        let firstPage = try await provider.albumTracksFirstPage(albumID: "a1", market: nil, limit: 10)
-        XCTAssertEqual(firstPage.count, 2)
+        let firstPage = try await provider.albumTracksFirstPage(albumID: "a1", market: nil, limit: 1)
+        XCTAssertEqual(firstPage.map(\.name), ["One"])
 
         do {
             _ = try await provider.albumTracks(albumID: "missing", market: nil, limit: 10)
@@ -408,7 +409,8 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
 
         let albums = try await provider.artistAlbumsCached(id: "5201", includeGroups: [], limit: 100, cacheMode: .allowStale)
         XCTAssertEqual(albums.value.count, 40)
-        let tracks = try await provider.albumTracks(albumID: "a1", market: nil, limit: 500)
+        // The browser opens an album with `limit: 50`, Spotify's page size.
+        let tracks = try await provider.albumTracks(albumID: "a1", market: nil, limit: 50)
         XCTAssertEqual(tracks.count, 150)
     }
 
@@ -424,6 +426,21 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         source.librarySearchError = URLError(.cancelled)
         do {
             _ = try await provider.search(query: "mine", limit: 10)
+            XCTFail("expected the catalog error")
+        } catch {
+            XCTAssertEqual((error as? URLError)?.code, .notConnectedToInternet)
+        }
+    }
+
+    /// Later pages come from the catalog alone. Its failure must surface, not read as "no more
+    /// results", or Load More disappears and the rest is unreachable until a new search.
+    func testAFailedLaterSearchPageIsAnErrorNotTheEnd() async {
+        let source = MockAppleMusicSource()
+        source.catalogSearchError = URLError(.notConnectedToInternet)
+        do {
+            _ = try await AppleMusicBrowsingProvider(source: source).search(
+                query: "mine", limit: 10, offset: 10, cacheMode: .freshOnly
+            )
             XCTFail("expected the catalog error")
         } catch {
             XCTAssertEqual((error as? URLError)?.code, .notConnectedToInternet)
@@ -495,6 +512,18 @@ final class AppleMusicSelectionAndSessionTests: XCTestCase {
         XCTAssertEqual(MusicServiceSelection.resolve(storedValue: "appleMusic", isScreenshotMode: true, isRunningUnitTests: false), .spotify)
         XCTAssertEqual(MusicServiceSelection.resolve(storedValue: "appleMusic", isScreenshotMode: false, isRunningUnitTests: true), .spotify)
         XCTAssertEqual(MusicServiceSelection.current, .spotify)
+    }
+
+    /// Only real changes of access touch the windows: losing it resets all of them, gaining it
+    /// re-arms the window's callbacks, and the launch path from "checking" does neither.
+    func testAccessTransitions() {
+        typealias Root = AppleMusicBrowserRoot
+        XCTAssertEqual(Root.accessTransition(from: .checking, to: .authorized), .granted)
+        XCTAssertEqual(Root.accessTransition(from: .needsPermission, to: .authorized), .granted)
+        XCTAssertEqual(Root.accessTransition(from: .authorized, to: .authorized), .unchanged)
+        XCTAssertEqual(Root.accessTransition(from: .authorized, to: .denied), .lost)
+        XCTAssertEqual(Root.accessTransition(from: .checking, to: .needsPermission), .unchanged)
+        XCTAssertEqual(Root.accessTransition(from: .checking, to: .denied), .unchanged)
     }
 
     /// Under Apple Music the Spotify session is always signed out. The menu bar (Search, Back,

@@ -42,6 +42,8 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
     static let librarySongsPageSize = 200
     /// Upper bound for library playlists; far above any real library, it only stops a runaway.
     static let maxLibraryPlaylists = 5_000
+    /// Pages of album tracks `albumTracks` follows, the same as the Spotify client.
+    static let albumTrackPages = 6
     /// Upper bound for one artist's albums, singles and compilations.
     static let maxArtistAlbums = 1_000
 
@@ -121,12 +123,22 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
 
     // MARK: - Detail
 
+    /// `limit` is a page size, like Spotify's, which follows up to six pages of album tracks.
     func albumTracks(albumID: String, market: String?, limit: Int) async throws -> [MusicTrack] {
+        try await albumTracks(albumID: albumID, upTo: max(1, limit) * Self.albumTrackPages)
+    }
+
+    /// Only the first page, for the artist fallback that samples many albums.
+    func albumTracksFirstPage(albumID: String, market: String?, limit: Int) async throws -> [MusicTrack] {
+        try await albumTracks(albumID: albumID, upTo: max(1, limit))
+    }
+
+    private func albumTracks(albumID: String, upTo cap: Int) async throws -> [MusicTrack] {
         guard let album = try await source.album(id: albumID) else {
             throw AppleMusicBrowsingError.notFound
         }
-        let tracks = try await source.tracks(of: album, limit: max(1, limit))
-        return tracks.prefix(limit).map { AppleMusicItemMapping.track($0, album: album) }
+        let tracks = try await source.tracks(of: album, limit: cap)
+        return tracks.prefix(cap).map { AppleMusicItemMapping.track($0, album: album) }
     }
 
     func artist(id: String, cacheMode: MusicRequestCacheMode) async throws -> MusicArtistDetail {
@@ -201,8 +213,11 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
             offset == 0 ? try await source.librarySearch(term: term, limit: pageLimit) : AppleMusicSearchItems()
         }
         let (catalog, library) = await (catalogResult, libraryResult)
-        if case let .failure(error) = catalog, case .failure = library {
-            throw error
+        // Past the first page only the catalog answers, so its failure is the page's failure:
+        // reporting an empty page would end the results instead of letting the user retry.
+        if case let .failure(error) = catalog {
+            if offset > 0 { throw error }
+            if case .failure = library { throw error }
         }
         let catalogItems = (try? catalog.get()) ?? AppleMusicSearchItems()
         let libraryItems = (try? library.get()) ?? AppleMusicSearchItems()

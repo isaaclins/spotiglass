@@ -57,6 +57,14 @@ struct SpotiglassApp: App {
             authVM = AuthViewModel(
                 refreshTokenStore: MemoryOnlyRefreshTokenStore(refreshToken: ScreenshotMode.refreshToken)
             )
+        } else if MusicServiceSelection.current == .appleMusic {
+            // Apple Music mode must never read, refresh or delete the saved Spotify sign-in: any
+            // Spotify code path still reachable here (Connect playback, a token refresh) sees an
+            // empty in-memory store instead of the Keychain item, and signing out clears nothing.
+            authVM = AuthViewModel(
+                refreshTokenStore: MemoryOnlyRefreshTokenStore(),
+                signOutDataCleaner: {}
+            )
         } else {
             authVM = AuthViewModel()
         }

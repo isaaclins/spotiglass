@@ -18,10 +18,30 @@ struct AppleMusicBrowserRoot: View {
     @ObservedObject var session: AppleMusicSession
     let playbackHost: SpotiglassPlaybackHost
     let commandPaletteManager: CommandPaletteManager
+    /// Clears every window's browser state. Access is app-wide, so losing it affects all windows.
     let prepareForReset: () -> Void
+    /// Re-arms this window's own palette callbacks (Settings, Sign Out) after a detach.
+    let rewireScene: () -> Void
 
-    /// Bumped by "Disconnect" so the browser rebuilds after the user changed access.
+    /// Bumped by "Disconnect": the palette detaches this window's commands before it calls
+    /// sign-out, and the rebuilt browser binds them again.
     @State private var browserGeneration = 0
+
+    enum AccessTransition: Equatable {
+        case granted
+        case lost
+        case unchanged
+    }
+
+    /// Only a real change of access touches the windows: gaining it re-arms this window's
+    /// callbacks, losing it resets every window. Moving from "checking" to "needs permission"
+    /// at launch is neither.
+    static func accessTransition(from old: AppleMusicSession.State, to new: AppleMusicSession.State) -> AccessTransition {
+        if new == .authorized {
+            return old == .authorized ? .unchanged : .granted
+        }
+        return old == .authorized ? .lost : .unchanged
+    }
 
     var body: some View {
         Group {
@@ -47,8 +67,13 @@ struct AppleMusicBrowserRoot: View {
             // Access is changed in System Settings; pick it up when the user comes back.
             Task { await session.refresh() }
         }
-        .onChange(of: session.state, initial: true) { _, state in
+        .onChange(of: session.state, initial: true) { old, state in
             commandPaletteManager.isSignedIn = state == .authorized
+            switch Self.accessTransition(from: old, to: state) {
+            case .granted: rewireScene()
+            case .lost: prepareForReset()
+            case .unchanged: break
+            }
         }
     }
 
@@ -59,11 +84,12 @@ struct AppleMusicBrowserRoot: View {
             catalogProvider: AppleMusicBrowsingProvider(),
             commandPaletteManager: commandPaletteManager,
             signOut: {
-                // Apple Music access is a system permission, so disconnecting means
-                // turning it off in System Settings.
-                prepareForReset()
+                // Apple Music access is a system permission, so disconnecting means turning it
+                // off in System Settings. Other windows keep browsing until access really goes
+                // away; then `onChange` resets all of them.
                 NSWorkspace.shared.open(AppleMusicSession.privacySettingsURL)
                 browserGeneration += 1
+                rewireScene()
             },
             playbackMode: .comingSoon(playbackMessage)
         )
