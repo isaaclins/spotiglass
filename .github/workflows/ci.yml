@@ -154,7 +154,18 @@ jobs:
         if: always() && steps.unit_tests.outcome == 'success'
         run: |
           set -euo pipefail
-          brew install peripheryapp/periphery/periphery
+          # Homebrew now refuses the periphery tap's cask, so fetch the same
+          # release (the version the baseline was recorded with) directly.
+          version=2.21.2
+          sha256=e5b4e802f794df230a2e4b9d5bb176626b3a9fd74ea6cf7d0d42c20ebe57fd4a
+          dir="$RUNNER_TEMP/periphery"
+          mkdir -p "$dir"
+          curl -fsSL -o "$dir/periphery.zip" \
+            "https://github.com/peripheryapp/periphery/releases/download/$version/periphery-$version.zip"
+          echo "$sha256  $dir/periphery.zip" | shasum -a 256 -c -
+          unzip -q -o "$dir/periphery.zip" -d "$dir"
+          export PATH="$dir:$PATH"
+          periphery version
           ./scripts/check-periphery.sh
 
       - name: Upload test result bundle on failure
