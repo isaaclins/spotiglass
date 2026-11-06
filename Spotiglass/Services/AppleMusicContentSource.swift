@@ -7,8 +7,32 @@ struct AppleMusicSearchItems {
     var albums: [Album] = []
     var artists: [Artist] = []
     var playlists: [Playlist] = []
-    /// True when the service reported more results after this page.
-    var hasMore = false
+    /// Which types the service reported more results for after this page. Each Search tab
+    /// pages one type, so one shared flag would keep Load More on a tab that has run out.
+    var moreSongs = false
+    var moreAlbums = false
+    var moreArtists = false
+    var morePlaylists = false
+
+    /// Every type reports more (tests and simple fixtures).
+    var hasMore: Bool {
+        get { moreSongs || moreAlbums || moreArtists || morePlaylists }
+        set { (moreSongs, moreAlbums, moreArtists, morePlaylists) = (newValue, newValue, newValue, newValue) }
+    }
+
+    init(
+        songs: [Song] = [],
+        albums: [Album] = [],
+        artists: [Artist] = [],
+        playlists: [Playlist] = [],
+        hasMore: Bool = false
+    ) {
+        self.songs = songs
+        self.albums = albums
+        self.artists = artists
+        self.playlists = playlists
+        self.hasMore = hasMore
+    }
 }
 
 /// The MusicKit requests the Apple Music provider needs, as one seam.
@@ -158,14 +182,17 @@ struct MusicKitContentSource: AppleMusicContentSource {
         request.limit = min(limit, Self.catalogSearchPageLimit)
         request.offset = offset
         let response = try await request.response()
-        return AppleMusicSearchItems(
+        var items = AppleMusicSearchItems(
             songs: Array(response.songs),
             albums: Array(response.albums),
             artists: Array(response.artists),
-            playlists: Array(response.playlists),
-            hasMore: response.songs.hasNextBatch || response.albums.hasNextBatch
-                || response.artists.hasNextBatch || response.playlists.hasNextBatch
+            playlists: Array(response.playlists)
         )
+        items.moreSongs = response.songs.hasNextBatch
+        items.moreAlbums = response.albums.hasNextBatch
+        items.moreArtists = response.artists.hasNextBatch
+        items.morePlaylists = response.playlists.hasNextBatch
+        return items
     }
 
     /// MusicKit's library search has no offset, so it can't page like the catalog. This asks
