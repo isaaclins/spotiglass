@@ -14283,48 +14283,140 @@
         }
       }
     },
-    "appleMusic.playback.comingSoon": {
+    "error.playback.appleMusic.permission.title": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Playing Apple Music in Spotiglass is coming soon."
+            "value": "Apple Music access is off"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pronto podrás reproducir Apple Music en Spotiglass."
+            "value": "El acceso a Apple Music está desactivado"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple Music in Spotiglass abspielen kommt bald."
+            "value": "Zugriff auf Apple Music ist aus"
           }
         }
       }
     },
-    "appleMusic.playback.comingSoon.noSubscription": {
+    "error.playback.appleMusic.permission.message": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Playing Apple Music is coming soon and will need an Apple Music subscription."
+            "value": "Turn on Apple Music for Spotiglass in System Settings under Privacy & Security, Media & Apple Music."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pronto podrás reproducir Apple Music; necesitarás una suscripción a Apple Music."
+            "value": "Activa Apple Music para Spotiglass en Ajustes del Sistema, en Privacidad y seguridad, Multimedia y Apple Music."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple Music abspielen kommt bald und braucht ein Apple Music Abo."
+            "value": "Schalte Apple Music für Spotiglass in den Systemeinstellungen unter Datenschutz & Sicherheit, Medien & Apple Music ein."
+          }
+        }
+      }
+    },
+    "error.playback.appleMusic.subscription.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Music subscription required"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se necesita una suscripción a Apple Music"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Music Abo erforderlich"
+          }
+        }
+      }
+    },
+    "error.playback.appleMusic.subscription.message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playing Apple Music in Spotiglass needs an Apple Music subscription."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Para reproducir Apple Music en Spotiglass necesitas una suscripción a Apple Music."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Um Apple Music in Spotiglass abzuspielen, brauchst du ein Apple Music Abo."
+          }
+        }
+      }
+    },
+    "error.playback.appleMusic.notPlayable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Music can't play this item."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Music no puede reproducir este elemento."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Music kann dieses Objekt nicht abspielen."
+          }
+        }
+      }
+    },
+    "error.playback.appleMusic.failed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Music couldn't do that. Try again in a moment."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Music no ha podido hacerlo. Vuelve a intentarlo en un momento."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Music konnte das nicht ausführen. Versuch es gleich nochmal."
           }
         }
       }

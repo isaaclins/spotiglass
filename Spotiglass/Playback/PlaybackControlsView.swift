@@ -231,10 +231,13 @@ struct PlaybackControlsView: View {
 
             controlsCluster
             connectDeviceMenuGroup
-            if useCompactVolume {
-                compactVolumeGroup
-            } else {
-                volumeGroup
+            // A player without its own volume (Apple Music) follows the Mac's volume.
+            if viewModel.supportsPlayerVolume {
+                if useCompactVolume {
+                    compactVolumeGroup
+                } else {
+                    volumeGroup
+                }
             }
         }
     }

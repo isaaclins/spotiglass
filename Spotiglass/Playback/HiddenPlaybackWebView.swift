@@ -91,10 +91,11 @@ struct HiddenPlaybackWebView: NSViewRepresentable {
 @MainActor
 final class SpotiglassPlaybackHost: ObservableObject {
     let playbackViewModel: PlaybackSessionViewModel
-    let playbackProvider: SpotifyPlaybackProvider
+    let playbackProvider: any MusicPlaybackProvider
     let commander: WebPlaybackViewCommander
 
-    private let webView: AccessibilityHiddenPlaybackWebView
+    /// The Web Playback SDK page. `nil` for a service whose player needs no web view.
+    private let webView: AccessibilityHiddenPlaybackWebView?
     private weak var attachedContainer: SpotiglassPlaybackHostContainer?
     private var mountedContainers: [ObjectIdentifier: WeakContainer] = [:]
 
@@ -129,6 +130,21 @@ final class SpotiglassPlaybackHost: ObservableObject {
         self.webView = webView
     }
 
+    /// A host for a service whose player runs without a web view (Apple Music's
+    /// `ApplicationMusicPlayer`). Containers still mount, but there is nothing to attach.
+    init(
+        provider: any MusicPlaybackProvider,
+        equalizerEngine: AudioEqualizerEngine? = nil
+    ) {
+        self.playbackProvider = provider
+        self.playbackViewModel = PlaybackSessionViewModel(
+            provider: provider,
+            equalizerEngine: equalizerEngine
+        )
+        self.commander = WebPlaybackViewCommander()
+        self.webView = nil
+    }
+
     /// Mounts the retained SDK web view into the first live scene container.
     /// Additional windows get an empty container and observe the same model.
     /// If the mounted scene closes, ``unmount(_:)`` moves this same web view to
@@ -147,7 +163,7 @@ final class SpotiglassPlaybackHost: ObservableObject {
         container.playbackHost = nil
 
         guard attachedContainer === container else { return }
-        webView.removeFromSuperview()
+        webView?.removeFromSuperview()
         attachedContainer = nil
         removeDeadContainers()
         if let replacement = mountedContainers.values.compactMap(\.value).first {
@@ -156,6 +172,7 @@ final class SpotiglassPlaybackHost: ObservableObject {
     }
 
     private func attachWebView(to container: SpotiglassPlaybackHostContainer) {
+        guard let webView else { return }
         webView.removeFromSuperview()
         container.addSubview(webView)
         webView.frame = CGRect(x: 0, y: 0, width: 1, height: 1)

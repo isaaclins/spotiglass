@@ -45,7 +45,10 @@ enum AppleMusicItemMapping {
     // MARK: - Tracks
 
     static func track(_ song: Song) -> MusicTrack {
-        MusicTrack(
+        let uri = uri(kind: "song", id: song.id)
+        // Playback queues this exact song for the row (see AppleMusicPlayableRegistry).
+        AppleMusicPlayableRegistry.shared.register(song, for: uri)
+        return MusicTrack(
             id: song.id.rawValue,
             name: song.title,
             artists: artistNames(song.artistName),
@@ -57,7 +60,7 @@ enum AppleMusicItemMapping {
             isExplicit: song.contentRating == .explicit,
             isPlayable: song.playParameters != nil,
             linkedFromID: nil,
-            uri: uri(kind: "song", id: song.id)
+            uri: uri
         )
     }
 
