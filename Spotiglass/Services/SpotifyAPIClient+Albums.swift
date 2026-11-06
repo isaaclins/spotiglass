@@ -35,12 +35,20 @@ private struct AlbumTrackRequestKey: Hashable {
 
 actor AlbumTrackRequestCoalescer {
     private var inFlight: [AlbumTrackRequestKey: Task<AlbumTrackFetchResult, Error>] = [:]
+    /// Runs each time a request joins a flight that is already running. Tests
+    /// use it to know a concurrent caller joined before they let the flight end.
+    private var onJoin: (@Sendable () -> Void)?
+
+    func setOnJoin(_ handler: (@Sendable () -> Void)?) {
+        onJoin = handler
+    }
 
     fileprivate func run(
         key: AlbumTrackRequestKey,
         operation: @escaping @Sendable () async throws -> AlbumTrackFetchResult
     ) async throws -> AlbumTrackFetchResult {
         if let existing = inFlight[key] {
+            onJoin?()
             return try await existing.value
         }
         let task = Task {
