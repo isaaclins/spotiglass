@@ -60,12 +60,14 @@ anyone sees.
 | Playback (play items or a context, pause, seek, skip, queue, shuffle / repeat, state stream) | `Playback/` | Still Spotify-specific. Next slice. |
 | Auth and session (connect, disconnect, current account) | `Auth/` | Still Spotify-specific. Next slice. |
 | Browsing errors | `SpotifyAPIError` | Still Spotify-specific; a neutral error type comes with the Apple Music browsing slice. |
+| Track URIs (`spotify:track:` checks) | `Browsing/PlaylistBrowserViewModel+TrackMutations.swift`, `Browsing/TrackRowViewModel.swift`, `Browsing/LibraryContinuation.swift`, `Browsing/BrowsingLoadState.swift`, `Pinning/PinnedItem.swift`, `Views/PlaylistBrowser/` | Still Spotify-specific: playlist edits, Liked Songs, pinning a track row and some detail actions only accept `spotify:track:` URIs, so another provider's tracks would be skipped there. Moves behind the provider with the Apple Music browsing slice. Pins are saved on disk, so that change has to keep existing pins loading. |
 | Search paging (`MusicSearchPaging.next`) | `Browsing/CatalogSearchViewModel.swift` | Still Spotify-shaped: the Search view reads the `offset` query item out of Spotify's `next` URL, falling back to `offset + pageSize`. A provider without that URL still pages by the fallback; a neutral continuation comes with the Apple Music browsing slice. |
 
 Rules for the neutral layer:
 
 - `id` is the owning service's identifier and `uri` an opaque playback reference;
-  only that service interprets them.
+  only that service should interpret them. This is the goal, not yet the state:
+  see the "Track URIs" row above.
 - Paging continuations (`MusicArtistAlbumsPage.next`) are handed back to the
   same provider unchanged, never built by callers.
 - Requirements a service cannot serve keep the protocol's default: an empty result

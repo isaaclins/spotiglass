@@ -6,9 +6,11 @@ import Foundation
 // decoding lives in `Services/SpotifyDTOs+*.swift` (`*DTO`) and maps here via
 // `domainModel()`. A later Apple Music provider maps MusicKit items the same way.
 //
-// `id` is the service's own identifier and `uri` is an opaque playback
-// reference that only the owning service interprets (for Spotify a
-// `spotify:track:...` URI). Views and view models never parse either.
+// `id` is the service's own identifier and `uri` is a playback reference that
+// should only be interpreted by the owning service (for Spotify a
+// `spotify:track:...` URI). Not there yet: several browsing view models, views
+// and pins still check for the `spotify:track:` prefix (see "Music providers"
+// in docs/architecture.md).
 //
 // The type names changed from `Spotify*` to `Music*`, but the Codable shape did
 // not: playlist and track caches written by earlier builds keep decoding.
