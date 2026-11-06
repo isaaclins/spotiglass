@@ -37,10 +37,10 @@ actor AlbumTrackRequestCoalescer {
     private var inFlight: [AlbumTrackRequestKey: Task<AlbumTrackFetchResult, Error>] = [:]
     /// Runs each time a request joins a flight that is already running. Tests
     /// use it to know a concurrent caller joined before they let the flight end.
-    private var onJoin: (@Sendable () -> Void)?
+    private let onJoin: (@Sendable () -> Void)?
 
-    func setOnJoin(_ handler: (@Sendable () -> Void)?) {
-        onJoin = handler
+    init(onJoin: (@Sendable () -> Void)? = nil) {
+        self.onJoin = onJoin
     }
 
     fileprivate func run(

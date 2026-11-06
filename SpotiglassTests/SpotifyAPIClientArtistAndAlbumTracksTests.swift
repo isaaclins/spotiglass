@@ -144,9 +144,12 @@ final class SpotifyAPIClientArtistAndAlbumTracksTests: XCTestCase {
             firstRequestStarted: requestStarted,
             releaseFirstRequest: releaseRequest
         )
-        let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
         let secondJoined = AsyncSignal()
-        await client.albumTrackRequestCoalescer.setOnJoin { secondJoined.signal() }
+        let client = SpotifyAPIClient(
+            tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"),
+            httpClient: httpClient,
+            albumTrackRequestCoalescer: AlbumTrackRequestCoalescer(onJoin: { secondJoined.signal() })
+        )
 
         async let first = client.albumTracks(albumID: "al1", market: "US", limit: 50)
         let didStartRequest = await requestStarted.wait(timeout: .seconds(1))
