@@ -17,7 +17,9 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
     static let maxEntries = 500
 
     private struct SavedSong {
-        let track: MusicTrack
+        /// `nil` when the song's details could not be loaded: it still counts as saved, it just
+        /// can't be listed until the library shows it.
+        let track: MusicTrack?
         let keys: Set<String>
         let at: Date
     }
@@ -57,9 +59,9 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
 
     // MARK: - Recording
 
-    func recordSavedSong(_ track: MusicTrack, reference: AppleMusicSongReference) {
+    func recordSavedSong(_ track: MusicTrack?, reference: AppleMusicSongReference) {
         locked {
-            let keys = reference.matchKeys.union([track.id])
+            let keys = reference.matchKeys.union(track.map { [$0.id] } ?? [])
             removedSongs = removedSongs.filter { $0.key.isDisjoint(with: keys) }
             savedSongs.removeAll { !$0.keys.isDisjoint(with: keys) }
             savedSongs.insert(SavedSong(track: track, keys: keys, at: now()), at: 0)
@@ -225,7 +227,7 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
             let kept = songs.filter { song in
                 !removedSongs.keys.contains { !$0.isDisjoint(with: song.keys) }
             }
-            return savedSongs.map(\.track) + kept.map(\.track)
+            return savedSongs.compactMap(\.track) + kept.map(\.track)
         }
     }
 
@@ -269,7 +271,7 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
                 let shownKeys = tracks.reduce(into: Set<String>()) { $0.formUnion($1.keys) }
                 additions.removeAll { !$0.keys.isDisjoint(with: shownKeys) }
                 playlistAdditions[playlistID] = additions.isEmpty ? nil : additions
-                return result.map(\.track) + additions.map(\.track)
+                return result.map(\.track) + additions.compactMap(\.track)
             }
             return result.map(\.track)
         }

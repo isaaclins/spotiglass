@@ -184,8 +184,7 @@ struct AppleMusicLibraryEditor: Sendable {
             let tracks = (try? await lookup.catalogTracks(ids: catalogIDs)) ?? []
             let tracksByID = Dictionary(tracks.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
             for reference in toAdd {
-                guard let catalogID = reference.catalogID, let track = tracksByID[catalogID] else { continue }
-                pending.recordSavedSong(track, reference: reference)
+                pending.recordSavedSong(reference.catalogID.flatMap { tracksByID[$0] }, reference: reference)
             }
         }
         for reference in references {

@@ -1,8 +1,9 @@
 # Apple Music (developer preview)
 
-Spotiglass is getting Apple Music support next to Spotify (#372). This first part is
-**browsing only**: your Apple Music library, playlists, Home and search, read through Apple's
-MusicKit. Playback comes next, and the service switcher (#373) after that. Until the switcher
+Spotiglass is getting Apple Music support next to Spotify (#372). So far it covers **browsing**
+(your Apple Music library, playlists, Home and search, read through Apple's MusicKit) and
+**library edits** (like, save albums, create, rename and delete playlists, add and remove songs;
+see [Library edits](#library-edits)). Playback and the service switcher (#373) come next. Until the switcher
 exists, Apple Music is reachable only through a hidden developer switch. A normal launch is
 Spotify, exactly as before.
 
@@ -35,8 +36,9 @@ you to System Settings → Privacy & Security → Media & Apple Music.
   Developer portal. MusicKit then issues the developer token by itself: no provisioning profile,
   no MusicKit entitlement and no notarization are needed, and an ad hoc or Developer ID signed
   build both work. Don't add `com.apple.developer.musickit` to the entitlements.
-- `NSAppleMusicUsageDescription` in Info.plist (set in the build settings, translated in
-  `Spotiglass/InfoPlist.xcstrings`).
+- `NSAppleMusicUsageDescription` and `NSAppleEventsUsageDescription` in Info.plist (set in the
+  build settings, translated in `Spotiglass/InfoPlist.xcstrings`), and the
+  `com.apple.security.automation.apple-events` entitlement for edits through the Music app.
 - An Apple Music subscription for catalog search, recommendations and (later) playback. The
   library itself loads without one.
 
@@ -62,12 +64,57 @@ mix with a Spotify account's. The Apple Music browser keeps no disk cache: libra
 local, and library artwork URLs only live as long as MusicKit's session. Spotify's cache, Keychain
 item and session are never read or written in Apple Music mode.
 
+## Library edits
+
+MusicKit's own library is read-only on macOS, so edits take one of two routes
+([`AppleMusicLibraryEditor`](../Spotiglass/Services/AppleMusicLibraryEditor.swift)):
+
+| Edit | Route |
+|---|---|
+| Like a song (Add to Liked Songs) | Apple Music API: `POST /v1/me/library` saves it, `PUT /v1/me/ratings/songs/{id}` loves it, the way the Music app's Favorite does |
+| Unlike a song | Music app: removes the song from the library; the API clears the love |
+| Add album to library | Apple Music API: `POST /v1/me/library` |
+| Remove album from library | Music app: removes the album's songs from the library |
+| New playlist | Apple Music API: `POST /v1/me/library/playlists` |
+| Add to playlist | Apple Music API: `POST /v1/me/library/playlists/{id}/tracks` |
+| Remove from this playlist, move to playlist | Music app (move adds through the API first) |
+| Rename and delete playlist | Music app |
+
+The API requests go through `MusicDataRequest`, which signs them with the developer token and the
+user token by itself. The Music app is driven through Apple Events
+([`MusicAppLibraryScripting`](../Spotiglass/Services/MusicAppLibraryScripting.swift)), which costs
+one system prompt, "Spotiglass wants to control Music" (`NSAppleEventsUsageDescription`, and
+`com.apple.security.automation.apple-events` for the hardened runtime). Spotiglass starts Music
+hidden when it isn't running. If you say no, browsing keeps working and the edit shows a one-line
+hint pointing to System Settings › Privacy & Security › Automation. Every change reaches your other
+devices through iCloud Music Library.
+
+The menu items that Spotify mode doesn't have (Remove from this playlist, Delete playlist…, Add or
+remove album) appear only for a provider that supports them (`MusicLibraryEdits`), so Spotify's
+menus are unchanged.
+
+**IDs.** The API names songs by catalog or cloud library ID (`i.…`) and playlists by `p.…`; the
+Music app names both by its persistent ID, which MusicKit shows as a signed decimal (inside a
+playlist even for songs that have an `i.` ID elsewhere). MusicKit writes the other IDs out when an
+item is encoded, which is where Spotiglass reads them. Nothing maps a `p.` ID to a persistent ID,
+so a library playlist is found among your cloud playlists by its name, and two editable playlists
+with the same name stop the edit instead of guessing.
+
+**Catching up.** An edit is in your cloud library at once, but the library MusicKit reads on this
+Mac follows later: a new playlist showed up after 20 seconds in one test and not within half an
+hour in another, and the Music app had a liked song about 20 seconds after the like. So the browser
+lays its own edits over MusicKit's reads
+([`AppleMusicPendingLibraryEdits`](../Spotiglass/Services/AppleMusicPendingLibraryEdits.swift),
+memory only, at most 500 per kind and 12 hours) until the library shows them. Removing a song
+seconds after liking it may say "Music on this Mac doesn't have this change yet"; trying again a
+moment later works.
+
 ## Not there yet
 
 - **Playback.** The transport bar says playing is coming soon, and play buttons do nothing.
   Apple's player will publish Now Playing itself once it lands.
-- **Library edits** (rename, add to playlist, like): MusicKit's library is read-only on macOS.
-  The menus report them as unsupported. #374 covers them.
+- **Reordering a playlist.** Spotiglass has no drag-to-reorder for playlist tracks yet, on either
+  service.
 - **Track counts** for library playlists: MusicKit only knows them after loading the tracks, so
   the sidebar says "Track count unavailable".
 - **Artist pages** opened from the library show the albums in your library and tracks from them,

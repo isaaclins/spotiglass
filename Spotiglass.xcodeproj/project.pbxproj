@@ -49,6 +49,7 @@
 		SRC0000000000000000000033 /* AppleMusicBrowsingProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC0000000000000000080033 /* AppleMusicBrowsingProvider.swift */; };
 		SRC0000000000000000000032 /* AppleMusicContentSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC0000000000000000080032 /* AppleMusicContentSource.swift */; };
 		SRC0000000000000000000031 /* AppleMusicItemMapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC0000000000000000080031 /* AppleMusicItemMapping.swift */; };
+		SRC00000000000000000000B7 /* AppleEventMusicAppScriptRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC00000000000000000800B7 /* AppleEventMusicAppScriptRunner.swift */; };
 		SRC00000000000000000000B5 /* AppleMusicBrowsingProvider+LibraryEdits.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC00000000000000000800B5 /* AppleMusicBrowsingProvider+LibraryEdits.swift */; };
 		SRC00000000000000000000B4 /* MusicKitLibraryLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC00000000000000000800B4 /* MusicKitLibraryLookup.swift */; };
 		SRC00000000000000000000B3 /* AppleMusicPendingLibraryEdits.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC00000000000000000800B3 /* AppleMusicPendingLibraryEdits.swift */; };
@@ -376,6 +377,8 @@
 		TST0000000000000000009101 /* TestOnlyConvenienceAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010129 /* TestOnlyConvenienceAPI.swift */; };
 		TST000000000000000000C1 /* PlaybackProgressAnchorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000000C0 /* PlaybackProgressAnchorTests.swift */; };
 		TST000000000000000000C2 /* PlaylistBrowserPrefetchAllTracksTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */; };
+		TST00000000000000000001B1 /* PlaylistBrowserLibraryEditsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000101B1 /* PlaylistBrowserLibraryEditsTests.swift */; };
+		TST00000000000000000001B0 /* AppleMusicLibraryEditorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000101B0 /* AppleMusicLibraryEditorTests.swift */; };
 		TST000000000000000000012E /* MusicPlaybackProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000001012E /* MusicPlaybackProviderTests.swift */; };
 		TST000000000000000000012F /* AppleMusicBrowsingProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000001012F /* AppleMusicBrowsingProviderTests.swift */; };
 		TST000000000000000000012D /* MusicBrowsingProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000001012D /* MusicBrowsingProviderTests.swift */; };
@@ -479,6 +482,7 @@
 		SRC0000000000000000080033 /* AppleMusicBrowsingProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleMusicBrowsingProvider.swift; sourceTree = "<group>"; };
 		SRC0000000000000000080032 /* AppleMusicContentSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleMusicContentSource.swift; sourceTree = "<group>"; };
 		SRC0000000000000000080031 /* AppleMusicItemMapping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleMusicItemMapping.swift; sourceTree = "<group>"; };
+		SRC00000000000000000800B7 /* AppleEventMusicAppScriptRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleEventMusicAppScriptRunner.swift; sourceTree = "<group>"; };
 		SRC00000000000000000800B5 /* AppleMusicBrowsingProvider+LibraryEdits.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppleMusicBrowsingProvider+LibraryEdits.swift"; sourceTree = "<group>"; };
 		SRC00000000000000000800B4 /* MusicKitLibraryLookup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicKitLibraryLookup.swift; sourceTree = "<group>"; };
 		SRC00000000000000000800B3 /* AppleMusicPendingLibraryEdits.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleMusicPendingLibraryEdits.swift; sourceTree = "<group>"; };
@@ -712,6 +716,8 @@
 		TST0000000000000000010129 /* TestOnlyConvenienceAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestOnlyConvenienceAPI.swift; sourceTree = "<group>"; };
 		TST000000000000000000C0 /* PlaybackProgressAnchorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackProgressAnchorTests.swift; sourceTree = "<group>"; };
 		TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserPrefetchAllTracksTests.swift; sourceTree = "<group>"; };
+		TST00000000000000000101B1 /* PlaylistBrowserLibraryEditsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserLibraryEditsTests.swift; sourceTree = "<group>"; };
+		TST00000000000000000101B0 /* AppleMusicLibraryEditorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleMusicLibraryEditorTests.swift; sourceTree = "<group>"; };
 		TST000000000000000001012E /* MusicPlaybackProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicPlaybackProviderTests.swift; sourceTree = "<group>"; };
 		TST000000000000000001012F /* AppleMusicBrowsingProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleMusicBrowsingProviderTests.swift; sourceTree = "<group>"; };
 		TST000000000000000001012D /* MusicBrowsingProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicBrowsingProviderTests.swift; sourceTree = "<group>"; };
@@ -950,6 +956,7 @@
 				SRC0000000000000000080033 /* AppleMusicBrowsingProvider.swift */,
 				SRC0000000000000000080032 /* AppleMusicContentSource.swift */,
 				SRC0000000000000000080031 /* AppleMusicItemMapping.swift */,
+				SRC00000000000000000800B7 /* AppleEventMusicAppScriptRunner.swift */,
 				SRC00000000000000000800B5 /* AppleMusicBrowsingProvider+LibraryEdits.swift */,
 				SRC00000000000000000800B4 /* MusicKitLibraryLookup.swift */,
 				SRC00000000000000000800B3 /* AppleMusicPendingLibraryEdits.swift */,
@@ -1043,6 +1050,8 @@
 				TST00000000000000000064 /* PlaylistBrowserNavigationTests.swift */,
 				TST00000000000000000065 /* PlaylistBrowserArtistFallbackTests.swift */,
 				TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */,
+				TST00000000000000000101B1 /* PlaylistBrowserLibraryEditsTests.swift */,
+				TST00000000000000000101B0 /* AppleMusicLibraryEditorTests.swift */,
 				TST000000000000000001012E /* MusicPlaybackProviderTests.swift */,
 				TST000000000000000001012F /* AppleMusicBrowsingProviderTests.swift */,
 				TST000000000000000001012D /* MusicBrowsingProviderTests.swift */,
@@ -1627,6 +1636,7 @@
 				SRC0000000000000000000033 /* AppleMusicBrowsingProvider.swift in Sources */,
 				SRC0000000000000000000032 /* AppleMusicContentSource.swift in Sources */,
 				SRC0000000000000000000031 /* AppleMusicItemMapping.swift in Sources */,
+				SRC00000000000000000000B7 /* AppleEventMusicAppScriptRunner.swift in Sources */,
 				SRC00000000000000000000B5 /* AppleMusicBrowsingProvider+LibraryEdits.swift in Sources */,
 				SRC00000000000000000000B4 /* MusicKitLibraryLookup.swift in Sources */,
 				SRC00000000000000000000B3 /* AppleMusicPendingLibraryEdits.swift in Sources */,
@@ -1826,6 +1836,8 @@
 				TST00000000000000000014 /* PlaylistBrowserNavigationTests.swift in Sources */,
 				TST00000000000000000015 /* PlaylistBrowserArtistFallbackTests.swift in Sources */,
 				TST000000000000000000C2 /* PlaylistBrowserPrefetchAllTracksTests.swift in Sources */,
+				TST00000000000000000001B1 /* PlaylistBrowserLibraryEditsTests.swift in Sources */,
+				TST00000000000000000001B0 /* AppleMusicLibraryEditorTests.swift in Sources */,
 				TST000000000000000000012E /* MusicPlaybackProviderTests.swift in Sources */,
 				TST000000000000000000012F /* AppleMusicBrowsingProviderTests.swift in Sources */,
 				TST000000000000000000012D /* MusicBrowsingProviderTests.swift in Sources */,
