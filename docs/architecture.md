@@ -10,8 +10,8 @@ library data, and Web Playback SDK audio through a hidden `WKWebView`.
 | [`Spotiglass/App/`](../Spotiglass/App/) | `@main`, environment objects, Settings scene, test vs production Keychain |
 | [`Spotiglass/Auth/`](../Spotiglass/Auth/) | PKCE, loopback OAuth, token refresh, `AuthViewModel` |
 | [`Spotiglass/Services/`](../Spotiglass/Services/) | `SpotifyAPIClient`, DTO decoding, GET cache, LRC lyrics client |
-| [`Spotiglass/Domain/`](../Spotiglass/Domain/) | App-facing models (`SpotifyTrack`, playlists) decoupled from wire DTOs |
-| [`Spotiglass/Browsing/`](../Spotiglass/Browsing/) | Browsing protocols, row view models, load state, sidebar library types |
+| [`Spotiglass/Domain/`](../Spotiglass/Domain/) | Service-neutral models (`MusicTrack`, `MusicPlaylistSummary`, ...) decoupled from wire DTOs |
+| [`Spotiglass/Browsing/`](../Spotiglass/Browsing/) | `MusicBrowsingProvider`, row view models, load state, sidebar library types |
 | [`Spotiglass/Views/`](../Spotiglass/Views/) | SwiftUI shell: playlist browser UI, immersive lyrics, queue, chrome |
 | [`Spotiglass/Playback/`](../Spotiglass/Playback/) | Web Playback host, session VM, queue VM, transport controls |
 | [`Spotiglass/CommandPalette/`](../Spotiglass/CommandPalette/) | ⌘K search, keymaps, command catalog |
@@ -44,7 +44,38 @@ flowchart TB
 
 - **Views** depend on view models and services; they do not decode JSON directly.
 - **Services** map Spotify DTOs → **Domain** models via `domainModel()`.
+- **Browsing** and the views it feeds talk to a `MusicBrowsingProvider`, not to `SpotifyAPIClient`. See [Music providers](#music-providers).
 - **Auth** owns tokens; **Playback** requests playback-scoped access tokens through a bridge.
+
+## Music providers
+
+Apple Music support (#372) lands as a series of small changes; the first one puts
+a service-neutral layer between the browser and Spotify without changing what
+anyone sees.
+
+| Piece | Where | Status |
+|-------|-------|--------|
+| Domain models (`MusicTrack`, `MusicPlaylistSummary`, `MusicArtistDetail`, `MusicSearchResults`, ...) | `Domain/MusicDomain.swift` | Neutral. Renamed from `Spotify*`; the Codable shape is unchanged, so existing caches keep loading. |
+| Browsing: home feed, library playlists, playlist / album / artist detail, liked tracks, search, library edits | `Browsing/MusicBrowsingProvider.swift` | Neutral protocol. `SpotifyAPIClient` conforms in `Services/SpotifyAPIClient+MusicBrowsingProvider.swift`. |
+| Playback (play items or a context, pause, seek, skip, queue, shuffle / repeat, state stream) | `Playback/` | Still Spotify-specific. Next slice. |
+| Auth and session (connect, disconnect, current account) | `Auth/` | Still Spotify-specific. Next slice. |
+| Browsing errors | `SpotifyAPIError` | Still Spotify-specific; a neutral error type comes with the Apple Music browsing slice. |
+
+Rules for the neutral layer:
+
+- `id` is the owning service's identifier and `uri` an opaque playback reference;
+  only that service interprets them.
+- Paging continuations (`MusicArtistAlbumsPage.next`) are handed back to the
+  same provider unchanged, never built by callers.
+- Requirements a service cannot serve keep the protocol's default: an empty result
+  for feeds (shown as an empty section) or an "unsupported" error for library edits.
+- Spotify-only features (Spotify Connect device transfer, Web Playback SDK
+  reconnect, client-ID entry) become optional capabilities on the playback and
+  session protocols, so the UI asks instead of assuming.
+
+The layer is shaped to fit Apple's MusicKit later (`MusicLibraryRequest`,
+`MusicCatalogSearchRequest`, `MusicRecentlyPlayedRequest`,
+`MusicPersonalRecommendationsRequest`, `ApplicationMusicPlayer`).
 
 ## Data and secrets
 
