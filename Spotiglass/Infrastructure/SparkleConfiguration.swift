@@ -9,6 +9,8 @@ enum SparkleConfiguration {
     /// HTTPS URL directly instead of relying on a redirect.
     static let feedURL = "https://isaaclins.com/spotiglass/appcast.xml"
 
-    /// EdDSA public key from `generate_keys` (pair with `SPARKLE_EDDSA_PRIVATE_KEY` in CI).
+    /// EdDSA public key. Its private half signs the feed in `scripts/sparkle-release.sh`
+    /// (via `SPARKLE_EDDSA_PRIVATE_KEY_FILE` or the login keychain). Must match
+    /// `SUPublicEDKey` in `SparkleInfo.plist`.
     static let publicEDKey = "HknEj0Snyq5WsrWwAxj89njv+qkdMASLlzKMFrlog8Y="
 }
