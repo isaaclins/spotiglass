@@ -183,10 +183,6 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
         }
     }
 
-    func savedTrack(matching keys: Set<String>) -> MusicTrack? {
-        savedSong(matching: keys)?.track
-    }
-
     /// The pending save for these keys, with when it was made.
     func savedSong(matching keys: Set<String>) -> (track: MusicTrack?, at: Date)? {
         locked {
