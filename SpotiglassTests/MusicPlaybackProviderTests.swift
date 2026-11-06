@@ -352,6 +352,39 @@ final class MusicPlaybackProviderTests: XCTestCase {
     /// Start a new item and press Space before a read confirms it: the screen
     /// can still show `.ready` (or the old paused item), but the player was
     /// asked to play, so the toggle pauses.
+    /// A new item that takes longer than the settle window to start: Space
+    /// still pauses while its play is pending, and the expectation ends with
+    /// the pending play instead of sticking around.
+    func testSlowStartKeepsThePlayExpectationUntilThePendingPlayEnds() async {
+        let provider = ReadOnlyStatePlaybackProvider()
+        let session = PlaybackSessionViewModel(provider: provider)
+        session.deviceID = "local"
+        session.setActivePlaybackDeviceID("local")
+        session.setConnectionState(.ready(deviceID: "local"))
+
+        await session.play(uri: "music:song:2")
+        provider.state = nil
+        while session.localMutationSettleTicksRemaining > 0 {
+            await session.syncTransportFromSpotify()
+        }
+        XCTAssertNotNil(session.pendingPlayTransition)
+        XCTAssertEqual(session.localCommandExpectsPlaying, true)
+
+        session.clearPendingPlay()
+        XCTAssertNil(session.localCommandExpectsPlaying, "no stale expectation once the play stopped waiting")
+
+        let slow = PlaybackSessionViewModel(provider: provider)
+        slow.deviceID = "local"
+        slow.setActivePlaybackDeviceID("local")
+        slow.setConnectionState(.ready(deviceID: "local"))
+        await slow.play(uri: "music:song:3")
+        while slow.localMutationSettleTicksRemaining > 0 {
+            await slow.syncTransportFromSpotify()
+        }
+        await slow.togglePlayPause()
+        XCTAssertEqual(provider.commands.last, "pause local")
+    }
+
     func testToggleRightAfterStartingANewItemPauses() async {
         for start in [PlaybackConnectionState.ready(deviceID: "local"), .paused(Self.song(position: 10_000))] {
             let provider = ReadOnlyStatePlaybackProvider()

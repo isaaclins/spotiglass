@@ -209,6 +209,11 @@ extension PlaybackSessionViewModel {
         pendingPlayTransitionSerial &+= 1
         guard pendingPlayTransition != nil else { return }
         pendingPlayTransition = nil
+        if localMutationSettleTicksRemaining == 0 {
+            // The settle window already ended; the pending play was the last
+            // thing holding the play / pause expectation.
+            localCommandExpectsPlaying = nil
+        }
         objectWillChange.send()
     }
 

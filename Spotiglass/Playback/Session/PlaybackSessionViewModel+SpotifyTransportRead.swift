@@ -83,7 +83,9 @@ extension PlaybackSessionViewModel {
                 transportRateLimitedUntil = nil
                 if localMutationSettleTicksRemaining > 0 {
                     localMutationSettleTicksRemaining -= 1
-                    if localMutationSettleTicksRemaining == 0 {
+                    // A play still waiting to start keeps its expectation past
+                    // the settle window; `clearPendingPlay()` ends it then.
+                    if localMutationSettleTicksRemaining == 0, pendingPlayTransition == nil {
                         localCommandExpectsPlaying = nil
                     }
                 }
