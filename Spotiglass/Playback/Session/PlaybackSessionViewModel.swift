@@ -846,7 +846,7 @@ final class PlaybackSessionViewModel: ObservableObject {
 
     func fallbackNowPlaying() -> PlaybackNowPlaying {
         PlaybackNowPlaying(
-            name: SpotiglassL10n.string("playback.fallbackName"),
+            name: PlaybackControlsView.serviceString("playback.fallbackName", appleMusic: "playback.fallbackName.appleMusic"),
             artists: [],
             albumName: nil,
             albumID: nil,

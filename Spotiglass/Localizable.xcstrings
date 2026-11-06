@@ -14581,6 +14581,167 @@
           }
         }
       }
+    },
+    "playback.controls.state.connecting.title.appleMusic": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connecting Apple Music..."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conectando Apple Music…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Music wird verbunden …"
+          }
+        }
+      }
+    },
+    "playback.controls.state.connecting.subtitle.appleMusic": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass is connecting to Apple Music."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass se está conectando a Apple Music."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass verbindet sich mit Apple Music."
+          }
+        }
+      }
+    },
+    "playback.controls.reconnect.appleMusic.hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connects Spotiglass to Apple Music again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vuelve a conectar Spotiglass con Apple Music."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verbindet Spotiglass wieder mit Apple Music."
+          }
+        }
+      }
+    },
+    "playback.controls.playPause.appleMusic.hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plays or pauses Apple Music in Spotiglass."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reproduce o pausa Apple Music en Spotiglass."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spielt Apple Music in Spotiglass ab oder pausiert es."
+          }
+        }
+      }
+    },
+    "playback.controls.next.appleMusic.hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skips to the next Apple Music song."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Salta a la canción siguiente de Apple Music."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Springt zum nächsten Apple-Music-Titel."
+          }
+        }
+      }
+    },
+    "playback.controls.previous.appleMusic.hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skips to the previous Apple Music song."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Salta a la canción anterior de Apple Music."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Springt zum vorherigen Apple-Music-Titel."
+          }
+        }
+      }
+    },
+    "playback.fallbackName.appleMusic": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Music"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Music"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Music"
+          }
+        }
+      }
     }
   },
   "version": "1.1"

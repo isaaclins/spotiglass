@@ -377,7 +377,7 @@ struct PlaybackControlsView: View {
 
             PlaybackTransportButton(
                 accessibilityLabel: SpotiglassL10n.string("playback.controls.previous"),
-                accessibilityHint: SpotiglassL10n.string("playback.controls.previous.hint"),
+                accessibilityHint: Self.serviceString("playback.controls.previous.hint", appleMusic: "playback.controls.previous.appleMusic.hint"),
                 size: CGSize(width: 28, height: 28),
                 isEnabled: hasReadyDevice && !viewModel.isSkipCommandPending,
                 action: { Task { await viewModel.previous() } }
@@ -389,7 +389,7 @@ struct PlaybackControlsView: View {
 
             PlaybackTransportButton(
                 accessibilityLabel: playPauseAccessibilityLabel,
-                accessibilityHint: SpotiglassL10n.string("playback.controls.playPause.hint"),
+                accessibilityHint: Self.serviceString("playback.controls.playPause.hint", appleMusic: "playback.controls.playPause.appleMusic.hint"),
                 size: CGSize(width: 28, height: 28),
                 isEnabled: viewModel.isPlaybackToggleReady,
                 action: { Task { await viewModel.togglePlayPause() } }
@@ -405,7 +405,7 @@ struct PlaybackControlsView: View {
 
             PlaybackTransportButton(
                 accessibilityLabel: SpotiglassL10n.string("playback.controls.next"),
-                accessibilityHint: SpotiglassL10n.string("playback.controls.next.hint"),
+                accessibilityHint: Self.serviceString("playback.controls.next.hint", appleMusic: "playback.controls.next.appleMusic.hint"),
                 size: CGSize(width: 28, height: 28),
                 isEnabled: hasReadyDevice
                     && !viewModel.isSkipCommandPending
@@ -639,7 +639,7 @@ struct PlaybackControlsView: View {
         case .disconnected, .unavailable:
             PlaybackTransportButton(
                 accessibilityLabel: SpotiglassL10n.string("playback.controls.reconnect.label"),
-                accessibilityHint: SpotiglassL10n.string("playback.controls.reconnect.hint"),
+                accessibilityHint: Self.serviceString("playback.controls.reconnect.hint", appleMusic: "playback.controls.reconnect.appleMusic.hint"),
                 size: CGSize(width: 170, height: 28),
                 action: { viewModel.start() }
             ) {
@@ -655,7 +655,7 @@ struct PlaybackControlsView: View {
             case .reconnect:
                 PlaybackTransportButton(
                     accessibilityLabel: SpotiglassL10n.string("playback.controls.reconnect.label"),
-                    accessibilityHint: SpotiglassL10n.string("playback.controls.reconnect.sdk.hint"),
+                    accessibilityHint: Self.serviceString("playback.controls.reconnect.sdk.hint", appleMusic: "playback.controls.reconnect.appleMusic.hint"),
                     size: CGSize(width: 170, height: 28),
                     action: { viewModel.start() }
                 ) {
@@ -690,12 +690,21 @@ struct PlaybackControlsView: View {
         }
     }
 
+    /// The Apple Music wording for text whose Spotify version names Spotify's player.
+    static func serviceString(
+        _ spotifyKey: String,
+        appleMusic appleMusicKey: String,
+        service: MusicService = MusicServiceSelection.current
+    ) -> String {
+        SpotiglassL10n.string(service == .appleMusic ? appleMusicKey : spotifyKey)
+    }
+
     private var title: String {
         switch viewModel.connectionState {
         case .disconnected:
             SpotiglassL10n.string("playback.controls.state.disconnected.title")
         case .connecting:
-            SpotiglassL10n.string("playback.controls.state.connecting.title")
+            Self.serviceString("playback.controls.state.connecting.title", appleMusic: "playback.controls.state.connecting.title.appleMusic")
         case .ready:
             SpotiglassL10n.string("playback.controls.state.ready.title")
         case .transferring:
@@ -727,7 +736,7 @@ struct PlaybackControlsView: View {
         case .disconnected:
             SpotiglassL10n.string("playback.controls.state.disconnected.subtitle")
         case .connecting:
-            SpotiglassL10n.string("playback.controls.state.connecting.subtitle")
+            Self.serviceString("playback.controls.state.connecting.subtitle", appleMusic: "playback.controls.state.connecting.subtitle.appleMusic")
         case .ready:
             SpotiglassL10n.string("playback.controls.state.ready.subtitle")
         case .transferring:
