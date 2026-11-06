@@ -2,9 +2,10 @@
 # Screenshot mode: run the real app against a local Spotify stand-in and capture its windows.
 # No Spotify account, Premium, Keychain item or audio driver is used. See docs/screenshots.md.
 #
-#   scripts/screenshots.sh start [--light] [--now-playing "Title"]   build, start mock, launch app
+#   scripts/screenshots.sh start [--light] [--now-playing "Title"] [--with-apple-music]
+#                                                                     build, start mock, launch app
 #   scripts/screenshots.sh shot <name> [window-title]                 capture a window to $SHOTS_DIR/<name>.png
-#   scripts/screenshots.sh key <keycode> [cmd] [shift] [alt]           press a shortcut, e.g. `key 40 cmd` = ⌘K
+#   scripts/screenshots.sh key <keycode> [cmd] [shift] [alt] [ctrl]    press a shortcut, e.g. `key 40 cmd` = ⌘K
 #   scripts/screenshots.sh stop                                       quit app, stop mock, remove all state
 #
 # Between `shot`s, drive the app by hand, with `key`, or with cliclick for clicks and typing.
@@ -22,7 +23,14 @@ APP="$WORK/Spotiglass.app"
 FAKE_HOME="$WORK/home"
 WINDOW_FRAME="${WINDOW_FRAME:-120, 80, 1320, 860}"   # x, y, width, height in points
 
-usage() { sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'; exit 1; }
+usage() { sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'; exit 1; }
+
+# --with-apple-music runs under the real bundle id (MusicKit issues its developer token for that id
+# only), so the real app's defaults domain is saved at start and put back at stop.
+REAL_BUNDLE_ID="com.isaaclins.spotiglass"
+REAL_DEFAULTS_BACKUP="$WORK/real-defaults.plist"
+REAL_DEFAULTS_MARKER="$WORK/real-defaults.saved"
+SERVICES_SUITE="com.isaaclins.spotiglass.screenshots.services"
 
 app_pid() { pgrep -f "$APP/Contents/MacOS/Spotiglass" | head -1; }
 
@@ -47,11 +55,12 @@ SWIFT
 }
 
 start() {
-    local scheme="dark" now_playing=""
+    local scheme="dark" now_playing="" apple_music=0
     while [ $# -gt 0 ]; do
         case "$1" in
             --light) scheme="light" ;;
             --now-playing) now_playing="$2"; shift ;;
+            --with-apple-music) apple_music=1 ;;
             *) usage ;;
         esac
         shift
@@ -62,10 +71,19 @@ start() {
     echo "==> building Debug app"
     make build UNSIGNED=1 >"$WORK/build.log" 2>&1 || { tail -30 "$WORK/build.log"; exit 1; }
 
-    echo "==> staging $APP ($BUNDLE_ID)"
+    local bundle_id="$BUNDLE_ID"
+    if [ "$apple_music" = 1 ]; then
+        bundle_id="$REAL_BUNDLE_ID"
+        if [ ! -f "$REAL_DEFAULTS_MARKER" ]; then
+            rm -f "$REAL_DEFAULTS_BACKUP"
+            defaults export "$REAL_BUNDLE_ID" "$REAL_DEFAULTS_BACKUP" >/dev/null 2>&1 || true
+            touch "$REAL_DEFAULTS_MARKER"
+        fi
+    fi
+    echo "==> staging $APP ($bundle_id)"
     rm -rf "$APP"
     cp -R build/DerivedData/Build/Products/Debug/Spotiglass.app "$APP"
-    /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $BUNDLE_ID" "$APP/Contents/Info.plist"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $bundle_id" "$APP/Contents/Info.plist"
     codesign --force --deep --sign - "$APP" >/dev/null 2>&1
 
     echo "==> seeding settings ($scheme)"
@@ -94,7 +112,10 @@ JSON
 
     echo "==> launching"
     # -spotify.clientID goes to the argument domain: read by the app, never persisted.
+    # --with-apple-music: the service switcher may add the real Apple Music (MusicKit, the system
+    # permission prompt and your own library) next to the Spotify stand-in.
     open -n --env "SPOTIGLASS_MOCK_BASE=http://127.0.0.1:$PORT" --env "CFFIXED_USER_HOME=$FAKE_HOME" \
+        --env "SPOTIGLASS_SCREENSHOT_APPLE_MUSIC=$apple_music" \
         "$APP" --args -spotify.clientID screenshot-mode
     for _ in $(seq 1 60); do
         [ -n "$(app_pid)" ] && windows 2>/dev/null | grep -q . && break
@@ -140,6 +161,7 @@ let modifiers: [(CGKeyCode, CGEventFlags)] = CommandLine.arguments.dropFirst(2).
     case "cmd": return (55, .maskCommand)
     case "shift": return (56, .maskShift)
     case "alt": return (58, .maskAlternate)
+    case "ctrl": return (59, .maskControl)
     default: return nil
     }
 }
@@ -170,6 +192,12 @@ stop() {
     fi
     [ -f "$WORK/mock.pid" ] && { kill "$(cat "$WORK/mock.pid")" 2>/dev/null || true; rm -f "$WORK/mock.pid"; }
     defaults delete "$BUNDLE_ID" >/dev/null 2>&1 || true
+    defaults delete "$SERVICES_SUITE" >/dev/null 2>&1 || true
+    if [ -f "$REAL_DEFAULTS_MARKER" ]; then
+        defaults delete "$REAL_BUNDLE_ID" >/dev/null 2>&1 || true
+        [ -f "$REAL_DEFAULTS_BACKUP" ] && defaults import "$REAL_BUNDLE_ID" "$REAL_DEFAULTS_BACKUP"
+        rm -f "$REAL_DEFAULTS_BACKUP" "$REAL_DEFAULTS_MARKER"
+    fi
     rm -rf "$FAKE_HOME" "$APP" "$WORK/windows.swift" "$WORK/key.swift" "$WORK/key"
     echo "stopped; screenshots stay in $SHOTS_DIR"
 }
