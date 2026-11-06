@@ -2,7 +2,19 @@ import Foundation
 
 protocol SpotifyAccessTokenProviding {
     func accessToken() async throws -> String
-    func refreshAccessTokenAfterUnauthorized() async throws -> String
+    /// Called after Spotify answered 401 for `rejectedToken`. When a refresh
+    /// already replaced that token (another request's 401 started and finished
+    /// one), return the newer token instead of refreshing a second time.
+    func refreshAccessTokenAfterUnauthorized(rejectedToken: String) async throws -> String
+}
+
+extension URLRequest {
+    /// The bearer token this request was sent with, or "" when it has none.
+    var bearerToken: String {
+        let authorization = value(forHTTPHeaderField: "Authorization") ?? ""
+        let prefix = "Bearer "
+        return authorization.hasPrefix(prefix) ? String(authorization.dropFirst(prefix.count)) : ""
+    }
 }
 
 struct SpotifyAPIClient {
@@ -239,21 +251,15 @@ struct SpotifyAPIClient {
                     headers: response.allHeaderFields,
                     request: request
                 )
-                let message = "Spotify API failure: \(request.httpMethod ?? "GET") \(request.url?.absoluteString ?? "<missing URL>")\n\(responseDetails)"
-                if response.statusCode == 401 && !didRefreshAfterUnauthorized {
-                    // Keep the first unauthorized response off the refresh
-                    // actor's critical path. The refresh provider is the
-                    // single-flight boundary, and synchronous OS logging here
-                    // can let a concurrent 401 arrive after that flight ends.
-                    DispatchQueue.global(qos: .utility).async {
-                        SpotiglassLog.error(.api, message)
-                    }
-                } else {
-                    SpotiglassLog.error(.api, message)
-                }
+                SpotiglassLog.error(
+                    .api,
+                    "Spotify API failure: \(request.httpMethod ?? "GET") \(request.url?.absoluteString ?? "<missing URL>")\n\(responseDetails)"
+                )
             }
             if response.statusCode == 401 && !didRefreshAfterUnauthorized {
-                let refreshedToken = try await tokenProvider.refreshAccessTokenAfterUnauthorized()
+                let refreshedToken = try await tokenProvider.refreshAccessTokenAfterUnauthorized(
+                    rejectedToken: request.bearerToken
+                )
                 var refreshedRequest = request
                 refreshedRequest.setValue("Bearer \(refreshedToken)", forHTTPHeaderField: "Authorization")
                 return try await send(

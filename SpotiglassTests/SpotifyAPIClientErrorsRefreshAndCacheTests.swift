@@ -275,6 +275,26 @@ final class SpotifyAPIClientErrorsRefreshAndCacheTests: XCTestCase {
         XCTAssertEqual(httpClient.refreshedRequestCount, 2)
     }
 
+    /// The order that refreshed twice in CI: the second 401 lands after the
+    /// first request's refresh already finished. The client hands the rejected
+    /// token to the provider, so the late 401 retries with the new token.
+    func testUnauthorizedResponseAfterRefreshFinishedReusesRefreshedToken() async throws {
+        let httpClient = LateSecondUnauthorizedHTTPClient(staleToken: "stale-token")
+        let tokenProvider = SingleFlightRefreshingTokenProvider()
+        let client = SpotifyAPIClient(tokenProvider: tokenProvider, httpClient: httpClient)
+
+        async let first = client.currentUserProfile()
+        async let second = client.currentUserProfile()
+        let (firstProfile, secondProfile) = try await (first, second)
+        let refreshCount = await tokenProvider.refreshCount
+
+        XCTAssertEqual(firstProfile.displayName, "AfterRefresh")
+        XCTAssertEqual(secondProfile.displayName, "AfterRefresh")
+        XCTAssertEqual(refreshCount, 1, "A 401 for an already replaced token must not start a second refresh.")
+        XCTAssertEqual(httpClient.unauthorizedRequestCount, 2)
+        XCTAssertEqual(httpClient.authorizedRequestCount, 2)
+    }
+
     func testCachePersistsAndInvalidatesByAgeAndSnapshot() throws {
         let cache = try SpotifyLocalCache(rootDirectory: spotiglassTestsTemporaryDirectory())
         let playlist = MusicPlaylistSummary(

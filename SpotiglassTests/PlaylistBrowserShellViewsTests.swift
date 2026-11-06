@@ -260,5 +260,5 @@ private final class ShellTestTokenProvider: PlaybackAccessTokenProviding, Spotif
     func playbackAccessToken() async throws -> String { "shell-token" }
     func refreshedPlaybackAccessToken() async throws -> String { "shell-token" }
     func accessToken() async throws -> String { "shell-token" }
-    func refreshAccessTokenAfterUnauthorized() async throws -> String { "shell-token" }
+    func refreshAccessTokenAfterUnauthorized(rejectedToken: String) async throws -> String { "shell-token" }
 }
