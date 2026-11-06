@@ -69,14 +69,49 @@ final class AppleMusicLibraryEditorTests: XCTestCase {
         )
         try await editor.saveSongs(ids: ["699902614"])
 
+        let savedAt = try XCTUnwrap(pending.savedSong(matching: ["699902614"])?.at)
+
         try await editor.removeSongs(ids: ["699902614"])
 
-        XCTAssertEqual(musicApp.calls, [
-            "removeFromLibrary([metadata(name: \"Computer Love\", artist: \"Kraftwerk\", album: Optional(\"Computer World (Remastered)\"))])",
-        ])
+        XCTAssertEqual(musicApp.matches, [[
+            .metadata(name: "Computer Love", artist: "Kraftwerk", album: "Computer World (Remastered)", addedSince: savedAt),
+        ]])
         XCTAssertFalse(pending.isSaved(["699902614"]))
         let statuses = try await editor.songStatuses(ids: ["699902614"])
         XCTAssertEqual(statuses, [false])
+    }
+
+    /// Liking catalog song B while the library already has song A with the same title, artist and
+    /// album: unliking B before it reaches Music must not match A. The script only takes tracks
+    /// Music added since the like.
+    func testUnlikeRightAfterALikeOnlyMatchesSongsAddedSinceTheLike() {
+        let savedAt = Date(timeIntervalSince1970: 1_000_000)
+        let script = MusicAppScripts.removeFromLibrary(
+            [.metadata(name: "Computer Love", artist: "Kraftwerk", album: "Computer World", addedSince: savedAt)],
+            now: savedAt.addingTimeInterval(20)
+        )
+
+        let margin = 20 + MusicAppScripts.addedSinceMarginSeconds
+        XCTAssertTrue(script.hasPrefix("set scriptNow to (current date)\ntell application \"Music\""), script)
+        XCTAssertTrue(script.contains("set cutoff to (scriptNow - \(margin))"), script)
+        XCTAssertTrue(script.contains(
+            #"name is "Computer Love" and artist is "Kraftwerk" and album is "Computer World" and date added is greater than cutoff"#
+        ), script)
+    }
+
+    /// Unlike, then like again while MusicKit's copy of the library still lists the song: the like
+    /// must save it again, not only love it.
+    func testLikeRightAfterAnUnlikeSavesTheSongAgain() async throws {
+        lookup.songsByID["i.aJGomv4H36dmrrA"] = Self.librarySong("i.aJGomv4H36dmrrA", catalog: "1710983273", persistent: "367911FB05FE6876")
+        try await editor.removeSongs(ids: ["i.aJGomv4H36dmrrA"])
+        cloud.calls = []
+
+        try await editor.saveSongs(ids: ["i.aJGomv4H36dmrrA"])
+
+        XCTAssertEqual(cloud.calls, ["addToLibrary(songs:1710983273 albums:)", "rate(love,1710983273,catalog)"])
+        XCTAssertFalse(pending.isRemoved(["i.aJGomv4H36dmrrA"]))
+        let statuses = try await editor.songStatuses(ids: ["i.aJGomv4H36dmrrA"])
+        XCTAssertEqual(statuses, [true])
     }
 
     func testUnlikeOfASongNobodyCanFindSaysMusicIsNotThereYet() async {
@@ -311,6 +346,17 @@ final class AppleMusicPendingLibraryEditsTests: XCTestCase {
         XCTAssertEqual(pending.applied(toPlaylists: [summary("-1", "Italian")]).map(\.id), ["-1"], "reconciled: not shown twice")
     }
 
+    /// A new playlist named like one I already have stays until the library lists a second one.
+    func testCreatedPlaylistWithAnExistingNameStaysUntilTheNewOneShows() {
+        let pending = AppleMusicPendingLibraryEdits()
+        pending.recordCreatedPlaylist(summary("p.new", "Same"), existingIDsWithSameName: ["-1"])
+
+        XCTAssertEqual(pending.applied(toPlaylists: [summary("-1", "Same")]).map(\.id), ["p.new", "-1"])
+        XCTAssertEqual(pending.createdPlaylist(id: "p.new")?.name, "Same", "rename and delete still find it")
+        XCTAssertEqual(pending.applied(toPlaylists: [summary("-2", "Same"), summary("-1", "Same")]).map(\.id), ["-2", "-1"])
+        XCTAssertNil(pending.createdPlaylist(id: "p.new"))
+    }
+
     func testRenamedAndDeletedPlaylistsShowTheEditUntilTheLibraryDoes() {
         let pending = AppleMusicPendingLibraryEdits()
         pending.recordRenamedPlaylist("-1", name: "New")
@@ -373,6 +419,21 @@ final class AppleMusicPendingLibraryEditsTests: XCTestCase {
         XCTAssertEqual(pending.applied(toPlaylistTracks: [], playlistID: "-1").map(\.id), ["506650076"])
         let caughtUp = [(track: AppleMusicLibraryEditorTests.track(id: "-30", name: "Disparate Youth"), keys: Set(["-30", "506650076"]))]
         XCTAssertEqual(pending.applied(toPlaylistTracks: caughtUp, playlistID: "-1").map(\.id), ["-30"])
+    }
+
+    /// Adding a second copy of a song the playlist has: a stale read listing the first copy
+    /// doesn't end the addition.
+    func testASecondCopyOfASongStaysUntilTheLibraryListsBoth() {
+        let pending = AppleMusicPendingLibraryEdits()
+        let song = AppleMusicLibraryEditorTests.track(id: "506650076", name: "Disparate Youth")
+        let reference = AppleMusicSongReference(itemID: "506650076", catalogID: "506650076", isInLibrary: true)
+        pending.recordPlaylistAddition(song, reference: reference, playlistID: "-1", shownBefore: 1)
+        let listed = (track: AppleMusicLibraryEditorTests.track(id: "-30", name: "Disparate Youth"), keys: Set(["-30", "506650076"]))
+
+        XCTAssertEqual(pending.applied(toPlaylistTracks: [listed], playlistID: "-1").map(\.id), ["-30", "506650076"])
+        XCTAssertTrue(pending.hasPendingTracks(playlistID: "-1"))
+        XCTAssertEqual(pending.applied(toPlaylistTracks: [listed, listed], playlistID: "-1").map(\.id), ["-30", "-30"])
+        XCTAssertFalse(pending.hasPendingTracks(playlistID: "-1"))
     }
 
     /// The real case: a library song added to a new playlist, then MusicKit lists the playlist with
@@ -453,6 +514,21 @@ final class MusicAppScriptsTests: XCTestCase {
         XCTAssertEqual(indexes, ["5", "3", "1"])
         XCTAssertTrue(script.contains(#"every user playlist whose persistent ID is "FE82FB07F4D3B511""#))
         XCTAssertTrue(script.contains("if smart of pl then error"))
+    }
+
+    /// One of the songs is already gone: nothing may be deleted before every occurrence is found.
+    func testPlaylistRemovalFindsEveryOccurrenceBeforeDeletingAny() throws {
+        let script = MusicAppScripts.removeFromPlaylist(.persistentID("FE82FB07F4D3B511"), removals: [
+            MusicAppPlaylistRemoval(track: .persistentID("A"), positions: [0]),
+            MusicAppPlaylistRemoval(track: .persistentID("C"), positions: [2]),
+        ])
+
+        let lastLookup = try XCTUnwrap(script.range(of: "set end of targetIDs", options: .backwards))
+        let firstDelete = try XCTUnwrap(script.range(of: "delete "))
+        XCTAssertLessThan(lastLookup.lowerBound, firstDelete.lowerBound)
+        XCTAssertEqual(script.components(separatedBy: "if picked is missing value then error \"not found\" number 9001").count - 1, 2)
+        XCTAssertTrue(script.contains("delete (every track of pl whose id is (contents of targetID))"))
+        XCTAssertTrue(script.contains("targetIDs does not contain (id of candidate)"), "two removals never pick the same entry")
     }
 
     func testRenameAndDeleteScripts() {
@@ -681,10 +757,13 @@ final class MockCloudLibrary: AppleMusicCloudLibrary, @unchecked Sendable {
 
 final class MockMusicApp: MusicAppLibraryControlling, @unchecked Sendable {
     var calls: [String] = []
+    /// The matches of each `removeFromLibrary`, for checks on more than their description.
+    var matches: [[MusicAppTrackMatch]] = []
     var error: Error?
 
     func removeFromLibrary(_ tracks: [MusicAppTrackMatch]) async throws {
         if let error { throw error }
+        matches.append(tracks)
         calls.append("removeFromLibrary([\(tracks.map(Self.describe).joined(separator: ", "))])")
     }
 

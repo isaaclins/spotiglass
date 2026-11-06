@@ -22,6 +22,9 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
         let track: MusicTrack?
         let keys: Set<String>
         let at: Date
+        /// For a playlist addition: how often the playlist lists the song once the library has
+        /// it. A read showing fewer still needs this addition laid over it.
+        var expectedOccurrences = 1
     }
 
     private struct PlaylistRemoval {
@@ -38,7 +41,7 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
     private var removedSongs: [Set<String>: Date] = [:]
     private var savedAlbums: [String: Date] = [:]
     private var removedAlbums: [String: Date] = [:]
-    private var createdPlaylists: [(summary: MusicPlaylistSummary, at: Date)] = []
+    private var createdPlaylists: [(summary: MusicPlaylistSummary, existingIDsWithSameName: Set<String>, at: Date)] = []
     private var renamedPlaylists: [String: (name: String, at: Date)] = [:]
     private var deletedPlaylists: [String: Date] = [:]
     private var playlistAdditions: [String: [SavedSong]] = [:]
@@ -88,10 +91,12 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
         }
     }
 
-    func recordCreatedPlaylist(_ summary: MusicPlaylistSummary) {
+    /// `existingIDsWithSameName`: playlists that already had this name, which don't count as
+    /// the library showing the new one.
+    func recordCreatedPlaylist(_ summary: MusicPlaylistSummary, existingIDsWithSameName: Set<String> = []) {
         locked {
             createdPlaylists.removeAll { $0.summary.id == summary.id }
-            createdPlaylists.insert((summary, now()), at: 0)
+            createdPlaylists.insert((summary, existingIDsWithSameName, now()), at: 0)
             createdPlaylists = Array(createdPlaylists.prefix(Self.maxEntries))
         }
     }
@@ -119,10 +124,21 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
         }
     }
 
-    func recordPlaylistAddition(_ track: MusicTrack, reference: AppleMusicSongReference, playlistID: String) {
+    /// `shownBefore` is how often the playlist listed the song before this addition.
+    func recordPlaylistAddition(
+        _ track: MusicTrack,
+        reference: AppleMusicSongReference,
+        playlistID: String,
+        shownBefore: Int = 0
+    ) {
         locked {
             var additions = playlistAdditions[playlistID] ?? []
-            additions.append(SavedSong(track: track, keys: reference.matchKeys.union([track.id, Self.metadataKey(track)]), at: now()))
+            additions.append(SavedSong(
+                track: track,
+                keys: reference.matchKeys.union([track.id, Self.metadataKey(track)]),
+                at: now(),
+                expectedOccurrences: max(0, shownBefore) + 1
+            ))
             playlistAdditions[playlistID] = Array(additions.suffix(Self.maxEntries))
         }
     }
@@ -168,9 +184,14 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
     }
 
     func savedTrack(matching keys: Set<String>) -> MusicTrack? {
+        savedSong(matching: keys)?.track
+    }
+
+    /// The pending save for these keys, with when it was made.
+    func savedSong(matching keys: Set<String>) -> (track: MusicTrack?, at: Date)? {
         locked {
             expire()
-            return savedSongs.first { !$0.keys.isDisjoint(with: keys) }?.track
+            return savedSongs.first { !$0.keys.isDisjoint(with: keys) }.map { ($0.track, $0.at) }
         }
     }
 
@@ -222,15 +243,19 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
         }
     }
 
-    /// Library playlists: created ones on top until a playlist with the same name shows up,
-    /// renamed ones under their new name, deleted ones left out.
+    /// Library playlists: created ones on top until a new playlist with the same name shows up
+    /// (one that didn't have the name before), renamed ones under their new name, deleted ones
+    /// left out.
     func applied(toPlaylists playlists: [MusicPlaylistSummary]) -> [MusicPlaylistSummary] {
         locked {
             expire()
             let shownIDs = Set(playlists.map(\.id))
-            let shownNames = Set(playlists.map(\.name))
             deletedPlaylists = deletedPlaylists.filter { shownIDs.contains($0.key) }
-            createdPlaylists.removeAll { shownIDs.contains($0.summary.id) || shownNames.contains($0.summary.name) }
+            createdPlaylists.removeAll { created in
+                shownIDs.contains(created.summary.id) || playlists.contains { playlist in
+                    playlist.name == created.summary.name && !created.existingIDsWithSameName.contains(playlist.id)
+                }
+            }
             for playlist in playlists where renamedPlaylists[playlist.id]?.name == playlist.name {
                 renamedPlaylists[playlist.id] = nil
             }
@@ -259,8 +284,10 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
                 playlistRemovals[playlistID] = removals.isEmpty ? nil : removals
             }
             if var additions = playlistAdditions[playlistID] {
-                let shownKeys = tracks.reduce(into: Set<String>()) { $0.formUnion($1.keys) }
-                additions.removeAll { !$0.keys.isDisjoint(with: shownKeys) }
+                // An addition ends once the read lists the song as often as the addition expects.
+                additions.removeAll { addition in
+                    tracks.filter { !$0.keys.isDisjoint(with: addition.keys) }.count >= addition.expectedOccurrences
+                }
                 playlistAdditions[playlistID] = additions.isEmpty ? nil : additions
                 return result.map(\.track) + additions.compactMap(\.track)
             }

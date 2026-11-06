@@ -58,6 +58,9 @@ struct AppleMusicSongReference: Equatable, Sendable {
     var title: String?
     var artistName: String?
     var albumTitle: String?
+    /// When Spotiglass saved the song, for a song the Music app may not list under its persistent
+    /// ID yet: the Music app then only matches tracks it added since.
+    var savedAt: Date?
 
     init(
         itemID: String,
@@ -96,7 +99,7 @@ struct AppleMusicSongReference: Equatable, Sendable {
             return .persistentID(musicAppPersistentID)
         }
         guard let title, !title.isEmpty else { return nil }
-        return .metadata(name: title, artist: artistName ?? "", album: albumTitle)
+        return .metadata(name: title, artist: artistName ?? "", album: albumTitle, addedSince: savedAt)
     }
 
     /// The song as the Apple Music API names it in a playlist's track list.
@@ -182,9 +185,14 @@ struct AppleMusicLibraryEditor: Sendable {
     /// the library and loves it, the way the Music app's Favorite does.
     func saveSongs(ids: [String]) async throws {
         let references = try await lookup.songs(ids: ids)
-        let toAdd = references.filter { !$0.isInLibrary && !pending.isSaved($0.matchKeys) }
+        // A song removed moments ago can still read as in the library on this Mac; it needs the
+        // save as much as one that never was.
+        let needsSave: (AppleMusicSongReference) -> Bool = { reference in
+            (!reference.isInLibrary || pending.isRemoved(reference.matchKeys)) && !pending.isSaved(reference.matchKeys)
+        }
+        let toAdd = references.filter(needsSave)
         let catalogIDs = toAdd.compactMap(\.catalogID)
-        guard !references.isEmpty, references.allSatisfy({ $0.isInLibrary || $0.catalogID != nil }) else {
+        guard !references.isEmpty, references.allSatisfy({ !needsSave($0) || $0.catalogID != nil }) else {
             throw AppleMusicLibraryEditError.notEditable
         }
         if !catalogIDs.isEmpty {
@@ -269,7 +277,13 @@ struct AppleMusicLibraryEditor: Sendable {
 
     /// Creates an empty library playlist through the Apple Music API. Its ID is the cloud
     /// library ID (`p.…`) until the library on this Mac has it.
-    func createPlaylist(name: String, ownerName: String) async throws -> MusicPlaylistSummary {
+    /// `existingIDsWithSameName` are the playlists already called `name`; only a new one with
+    /// that name ends the pending entry.
+    func createPlaylist(
+        name: String,
+        ownerName: String,
+        existingIDsWithSameName: Set<String> = []
+    ) async throws -> MusicPlaylistSummary {
         let id = try await cloud.createPlaylist(name: name)
         let summary = MusicPlaylistSummary(
             id: id,
@@ -280,12 +294,14 @@ struct AppleMusicLibraryEditor: Sendable {
             trackCount: 0,
             snapshotID: AppleMusicItemMapping.playlistSnapshotID
         )
-        pending.recordCreatedPlaylist(summary)
+        pending.recordCreatedPlaylist(summary, existingIDsWithSameName: existingIDsWithSameName)
         return summary
     }
 
-    /// Adds songs to a library playlist through the Apple Music API.
-    func addToPlaylist(playlistID: String, songIDs: [String]) async throws {
+    /// Adds songs to a library playlist through the Apple Music API. `shownTracks` is the
+    /// playlist as the browser lists it before the edit, so a second copy of a song already in
+    /// it stays shown until the library lists both.
+    func addToPlaylist(playlistID: String, songIDs: [String], shownTracks: [MusicTrack] = []) async throws {
         let references = try await lookup.songs(ids: songIDs).map(withPendingDetails)
         let songs = references.compactMap(\.cloudSong)
         guard !songs.isEmpty, songs.count == references.count else {
@@ -295,9 +311,21 @@ struct AppleMusicLibraryEditor: Sendable {
         try await cloud.addToPlaylist(cloudPlaylistID: cloudID, songs: songs)
         let tracks = (try? await lookup.catalogTracks(ids: references.compactMap(\.catalogID))) ?? []
         let tracksByCatalogID = Dictionary(tracks.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        var addedSoFar: [String: Int] = [:]
         for reference in references {
             guard let catalogID = reference.catalogID, let track = tracksByCatalogID[catalogID] else { continue }
-            pending.recordPlaylistAddition(track, reference: reference, playlistID: playlistID)
+            let metadataKey = AppleMusicPendingLibraryEdits.metadataKey(track)
+            let shown = shownTracks.filter {
+                reference.matchKeys.contains($0.id) || $0.id == track.id
+                    || AppleMusicPendingLibraryEdits.metadataKey($0) == metadataKey
+            }.count
+            pending.recordPlaylistAddition(
+                track,
+                reference: reference,
+                playlistID: playlistID,
+                shownBefore: shown + addedSoFar[metadataKey, default: 0]
+            )
+            addedSoFar[metadataKey, default: 0] += 1
         }
     }
 
@@ -363,12 +391,13 @@ struct AppleMusicLibraryEditor: Sendable {
     /// knows its title, artist and album, which is how the Music app finds it.
     private func withPendingDetails(_ reference: AppleMusicSongReference) -> AppleMusicSongReference {
         guard reference.musicAppPersistentID == nil, reference.title == nil,
-              let track = pending.savedTrack(matching: reference.matchKeys)
+              let saved = pending.savedSong(matching: reference.matchKeys), let track = saved.track
         else { return reference }
         var detailed = reference
         detailed.title = track.name
         detailed.artistName = track.artists.first
         detailed.albumTitle = track.albumName
+        detailed.savedAt = saved.at
         return detailed
     }
 

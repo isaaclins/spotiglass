@@ -35,13 +35,26 @@ extension AppleMusicBrowsingProvider {
 
     /// Apple Music playlists have no owner to pass and are always private to the library.
     func createPlaylist(userID: String, name: String, isPublic: Bool) async throws -> MusicPlaylistSummary {
-        try await editor.createPlaylist(name: name, ownerName: SpotiglassL10n.string("appleMusic.library.owner"))
+        // Playlists that already have this name don't count as the library showing the new one.
+        let existing = (try? await currentUserPlaylists(limit: 100)) ?? []
+        return try await editor.createPlaylist(
+            name: name,
+            ownerName: SpotiglassL10n.string("appleMusic.library.owner"),
+            existingIDsWithSameName: Set(existing.filter { $0.name == name }.map(\.id))
+        )
     }
 
     func addTracksToPlaylist(playlistID: String, uris: [String]) async throws {
         let ids = uris.compactMap(AppleMusicItemMapping.songID(fromURI:))
         guard !ids.isEmpty else { throw AppleMusicLibraryEditError.notEditable }
-        try await editor.addToPlaylist(playlistID: playlistID, songIDs: ids)
+        // The playlist as shown now, so a second copy of a song it has stays shown until the
+        // library lists both.
+        let shown = (try? await playlistTracks(playlistID: playlistID, limit: 100, maxPages: 100)) ?? []
+        let shownTracks = shown.compactMap { item -> MusicTrack? in
+            if case let .track(track) = item.content { return track }
+            return nil
+        }
+        try await editor.addToPlaylist(playlistID: playlistID, songIDs: ids, shownTracks: shownTracks)
     }
 
     /// `snapshotID` is Spotify's; Apple Music has none.

@@ -5,8 +5,9 @@ enum MusicAppTrackMatch: Equatable, Sendable {
     /// Music's own persistent ID, 16 hex digits.
     case persistentID(String)
     /// Title, artist and album, for a song added through Apple Music moments ago that this Mac
-    /// does not know the persistent ID of yet.
-    case metadata(name: String, artist: String, album: String?)
+    /// does not know the persistent ID of yet. `addedSince`, when set, limits it to tracks Music
+    /// added after that moment, so an older song with the same details is never the one changed.
+    case metadata(name: String, artist: String, album: String?, addedSince: Date? = nil)
 }
 
 /// How the Music app finds a playlist.
@@ -72,11 +73,13 @@ enum MusicAppScripts {
     static let ambiguousError = 9002
     static let notEditableError = 9003
     static let ambiguousSongError = 9004
+    /// Slack before a save for Music's `date added`, which is set when the song reaches the library.
+    static let addedSinceMarginSeconds = 300
 
-    static func removeFromLibrary(_ tracks: [MusicAppTrackMatch]) -> String {
-        var lines = ["tell application \"Music\"", "set lib to library playlist 1", "set targets to {}"]
+    static func removeFromLibrary(_ tracks: [MusicAppTrackMatch], now: Date = Date()) -> String {
+        var lines = [scriptNowLine, "tell application \"Music\"", "set lib to library playlist 1", "set targets to {}"]
         for track in tracks {
-            lines += [
+            lines += cutoffLines(track, now: now) + [
                 "set found to (every track of lib whose \(condition(track)))",
                 "if (count of found) is 0 then error \"not found\" number \(notFoundError)",
                 "if (count of found) is greater than 1 then error \"ambiguous\" number \(ambiguousSongError)",
@@ -87,33 +90,46 @@ enum MusicAppScripts {
         return lines.joined(separator: "\n")
     }
 
-    /// Deletes from the last position to the first, so earlier positions stay valid. When the
-    /// track at a position is no longer the expected one (the playlist changed elsewhere), the
-    /// first occurrence of the track is removed instead.
-    static func removeFromPlaylist(_ playlist: MusicAppPlaylistMatch, removals: [MusicAppPlaylistRemoval]) -> String {
+    /// Finds every occurrence first and deletes only once all of them are found, so a song that
+    /// is gone already stops the edit before anything is removed. An occurrence is the track at
+    /// its position; when that is no longer the expected track (the playlist changed elsewhere),
+    /// it is the first matching track not already picked. Deletes go by the entries' IDs, from
+    /// the last position to the first.
+    static func removeFromPlaylist(
+        _ playlist: MusicAppPlaylistMatch,
+        removals: [MusicAppPlaylistRemoval],
+        now: Date = Date()
+    ) -> String {
         let entries = removals
             .flatMap { removal in removal.positions.map { (position: $0, track: removal.track) } }
             .sorted { $0.position > $1.position }
-        var lines = ["tell application \"Music\""] + findPlaylist(playlist)
+        var lines = [scriptNowLine, "tell application \"Music\""] + findPlaylist(playlist) + ["set targetIDs to {}"]
         for entry in entries {
             let index = entry.position + 1
-            lines += [
-                "set done to false",
+            lines += cutoffLines(entry.track, now: now) + [
+                "set picked to missing value",
                 "if \(index) is less than or equal to (count of tracks of pl) then",
                 "set t to track \(index) of pl",
-                "if \(condition(entry.track, of: "t")) then",
-                "delete t",
-                "set done to true",
+                "if (\(condition(entry.track, of: "t"))) and (targetIDs does not contain (id of t)) then set picked to id of t",
                 "end if",
+                "if picked is missing value then",
+                "repeat with candidate in (every track of pl whose \(condition(entry.track)))",
+                "if targetIDs does not contain (id of candidate) then",
+                "set picked to id of candidate",
+                "exit repeat",
                 "end if",
-                "if not done then",
-                "set found to (every track of pl whose \(condition(entry.track)))",
-                "if (count of found) is 0 then error \"not found\" number \(notFoundError)",
-                "delete item 1 of found",
+                "end repeat",
                 "end if",
+                "if picked is missing value then error \"not found\" number \(notFoundError)",
+                "set end of targetIDs to picked",
             ]
         }
-        lines.append("end tell")
+        lines += [
+            "repeat with targetID in targetIDs",
+            "delete (every track of pl whose id is (contents of targetID))",
+            "end repeat",
+            "end tell",
+        ]
         return lines.joined(separator: "\n")
     }
 
@@ -145,16 +161,30 @@ enum MusicAppScripts {
         ]
     }
 
+    /// The script's own clock, read once outside the `tell`, so `current date` never goes to Music.
+    private static let scriptNowLine = "set scriptNow to (current date)"
+
+    /// Sets `cutoff` for a match limited to tracks added since a save: relative to this Mac's
+    /// clock, so no date has to be parsed in AppleScript.
+    private static func cutoffLines(_ track: MusicAppTrackMatch, now: Date) -> [String] {
+        guard case let .metadata(_, _, _, addedSince?) = track else { return [] }
+        let seconds = max(0, Int(now.timeIntervalSince(addedSince).rounded(.up)) + addedSinceMarginSeconds)
+        return ["set cutoff to (scriptNow - \(seconds))"]
+    }
+
     /// A `whose` clause (`of` empty) or a test on one track variable.
     private static func condition(_ track: MusicAppTrackMatch, of variable: String? = nil) -> String {
         let prefix = variable.map { " of \($0)" } ?? ""
         switch track {
         case let .persistentID(id):
             return "persistent ID\(prefix) is \(quoted(id))"
-        case let .metadata(name, artist, album):
+        case let .metadata(name, artist, album, addedSince):
             var parts = ["name\(prefix) is \(quoted(name))", "artist\(prefix) is \(quoted(artist))"]
             if let album, !album.isEmpty {
                 parts.append("album\(prefix) is \(quoted(album))")
+            }
+            if addedSince != nil {
+                parts.append("date added\(prefix) is greater than cutoff")
             }
             return parts.joined(separator: " and ")
         }
