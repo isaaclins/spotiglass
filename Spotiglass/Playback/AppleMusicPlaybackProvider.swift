@@ -11,8 +11,9 @@ enum AppleMusicQueueRequest: Equatable {
     case artist(id: String)
 }
 
-/// Shuffle, repeat, the item, the position and what comes next, read from MusicKit's player in
-/// service-neutral types.
+/// Shuffle, repeat, the item and the position, read from MusicKit's player in service-neutral
+/// types. What comes next is read on its own (``AppleMusicPlayerControlling/readUpcoming()``):
+/// the session reads this every second and only needs the queue when the queue panel asks.
 struct AppleMusicPlayerState: Equatable {
     enum Status: Equatable {
         case playing
@@ -27,8 +28,6 @@ struct AppleMusicPlayerState: Equatable {
     var positionMilliseconds: Int
     var shuffle: Bool
     var repeatMode: MusicRepeatMode
-    /// The entries after the current one, in play order.
-    var upcoming: [MusicTrack]
 }
 
 /// The seam between the provider and MusicKit's `ApplicationMusicPlayer`.
@@ -52,6 +51,8 @@ protocol AppleMusicPlayerControlling: AnyObject {
     /// Spotify's "Add to queue".
     func enqueue(uri: String) async throws
     func readState() -> AppleMusicPlayerState
+    /// The entries after the current one, in play order.
+    func readUpcoming() -> [MusicTrack]
 }
 
 /// Apple Music behind ``MusicPlaybackProvider``, played by MusicKit's `ApplicationMusicPlayer`.
@@ -161,7 +162,7 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
     }
 
     func fetchQueue() async throws -> MusicPlaybackQueue {
-        MusicPlaybackQueue(queue: player.readState().upcoming.map { .track($0) })
+        MusicPlaybackQueue(queue: player.readUpcoming().map { .track($0) })
     }
 
     // MARK: - Mapping

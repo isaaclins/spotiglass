@@ -40,10 +40,4 @@ final class AppleMusicPlayableRegistry: @unchecked Sendable {
         defer { lock.unlock() }
         return songs[uri]
     }
-
-    var count: Int {
-        lock.lock()
-        defer { lock.unlock() }
-        return songs.count
-    }
 }

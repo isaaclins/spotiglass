@@ -101,6 +101,19 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         XCTAssertEqual(Array(upcoming.prefix(3)), ["applemusic:song:a", "applemusic:song:b", Self.uris[1]])
     }
 
+    /// Spotify keeps added songs ahead of the rest in the order they were added, also once
+    /// the first of them plays: adding a, b, playing a, then adding c plays b before c.
+    func testAddedSongsStayInOrderAfterTheFirstOneStarts() {
+        let place = MusicKitApplicationPlayer.addedEntryInsertionIndex
+        let context = ["1", "2", "3"]
+        XCTAssertEqual(place(context, "1", []), 1, "the first add goes right after the current song")
+        XCTAssertEqual(place(["1", "a", "2", "3"], "1", ["a"]), 2, "the next goes after it")
+        XCTAssertEqual(place(["1", "a", "b", "2", "3"], "a", ["a", "b"]), 3, "with a playing, c goes after b")
+        XCTAssertEqual(place(["1", "a", "b", "c", "2"], "c", ["a", "b", "c"]), 4, "added songs behind the current one don't count")
+        XCTAssertNil(place([], nil, []), "nothing plays: MusicKit starts a queue")
+        XCTAssertNil(place(context, "gone", []), "a current id the queue doesn't list")
+    }
+
     func testMusicKitFailuresSurfaceAsAppleMusicErrors() async {
         let player = ScriptedAppleMusicPlayer()
         player.failure = URLError(.notConnectedToInternet)
@@ -248,6 +261,29 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         XCTAssertEqual(lyrics.phase, .ready(.instrumental))
     }
 
+    /// The transport bar's hints and connecting text name Apple Music in Apple Music mode, and
+    /// Spotify keeps its own text.
+    func testTransportTextNamesTheSelectedService() {
+        let pairs = [
+            ("playback.controls.previous.hint", "playback.controls.previous.appleMusic.hint"),
+            ("playback.controls.playPause.hint", "playback.controls.playPause.appleMusic.hint"),
+            ("playback.controls.next.hint", "playback.controls.next.appleMusic.hint"),
+            ("playback.controls.reconnect.hint", "playback.controls.reconnect.appleMusic.hint"),
+            ("playback.controls.reconnect.sdk.hint", "playback.controls.reconnect.appleMusic.hint"),
+            ("playback.controls.state.connecting.title", "playback.controls.state.connecting.title.appleMusic"),
+            ("playback.controls.state.connecting.subtitle", "playback.controls.state.connecting.subtitle.appleMusic"),
+            ("playback.fallbackName", "playback.fallbackName.appleMusic"),
+        ]
+        for (spotifyKey, appleMusicKey) in pairs {
+            let spotify = PlaybackControlsView.serviceString(spotifyKey, appleMusic: appleMusicKey, service: .spotify)
+            let appleMusic = PlaybackControlsView.serviceString(spotifyKey, appleMusic: appleMusicKey, service: .appleMusic)
+            XCTAssertEqual(spotify, SpotiglassL10n.string(spotifyKey), spotifyKey)
+            XCTAssertTrue(spotify.contains("Spotify"), "\(spotifyKey): \(spotify)")
+            XCTAssertFalse(appleMusic.contains("Spotify"), "\(appleMusicKey): \(appleMusic)")
+            XCTAssertTrue(appleMusic.contains("Apple Music"), "\(appleMusicKey): \(appleMusic)")
+        }
+    }
+
     // MARK: - Playable registry
 
     func testMappingASongRemembersItForPlayback() throws {
@@ -260,12 +296,19 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
     func testRegistryIsBounded() throws {
         let registry = AppleMusicPlayableRegistry(capacity: 4)
         let songs = try (1...5).map { try AppleMusicFixtures.song(id: "\($0)", title: "Song \($0)") }
-        for song in songs { registry.register(song, for: "applemusic:song:\(song.id.rawValue)") }
-        XCTAssertEqual(registry.count, 2, "past the capacity the oldest half is dropped")
-        XCTAssertNil(registry.song(for: "applemusic:song:1"))
-        XCTAssertEqual(registry.song(for: "applemusic:song:5")?.id, songs[4].id)
-        registry.register(songs[4], for: "applemusic:song:5")
-        XCTAssertEqual(registry.count, 2, "registering the same URI again doesn't grow it")
+        func uri(_ n: Int) -> String { "applemusic:song:\(n)" }
+        for (index, song) in songs.enumerated() { registry.register(song, for: uri(index + 1)) }
+        // Past the capacity the oldest half is dropped: 5 > 4 keeps the newest 2.
+        for dropped in 1...3 { XCTAssertNil(registry.song(for: uri(dropped)), "song \(dropped)") }
+        XCTAssertEqual(registry.song(for: uri(4))?.id, songs[3].id)
+        XCTAssertEqual(registry.song(for: uri(5))?.id, songs[4].id)
+        // Registering a URI again doesn't count as a new entry: two more re-registrations
+        // and one new song (3 entries) stay under the capacity, so nothing is dropped.
+        registry.register(songs[4], for: uri(5))
+        registry.register(songs[4], for: uri(5))
+        registry.register(songs[0], for: uri(1))
+        XCTAssertEqual(registry.song(for: uri(4))?.id, songs[3].id)
+        XCTAssertEqual(registry.song(for: uri(1))?.id, songs[0].id)
     }
 
     // MARK: - Header play
@@ -350,7 +393,7 @@ final class ScriptedAppleMusicPlayer: AppleMusicPlayerControlling {
     private var positionAnchor = 0.0
     private var shuffle = false
     private var repeatMode: MusicRepeatMode = .off
-    private var enqueued = 0
+    private var added: Set<String> = []
     private var pending: [(at: Double, apply: () -> Void)] = []
 
     func advance(by seconds: Double) {
@@ -380,7 +423,7 @@ final class ScriptedAppleMusicPlayer: AppleMusicPlayerControlling {
         playing = true
         positionBase = 0
         positionAnchor = now
-        enqueued = 0
+        added = []
     }
 
     func pause() {
@@ -404,7 +447,7 @@ final class ScriptedAppleMusicPlayer: AppleMusicPlayerControlling {
     func skipToNext() async throws {
         positionBase = 0
         positionAnchor = now
-        later("next") { [self] in index = min(index + 1, queue.count - 1); positionBase = 0; positionAnchor = now; enqueued = 0 }
+        later("next") { [self] in index = min(index + 1, queue.count - 1); positionBase = 0; positionAnchor = now }
     }
 
     func skipToPrevious() async throws {
@@ -419,22 +462,30 @@ final class ScriptedAppleMusicPlayer: AppleMusicPlayerControlling {
 
     func enqueue(uri: String) async throws {
         commands.append("enqueue \(uri)")
-        queue.insert(uri, at: min(index + 1 + enqueued, queue.count))
-        enqueued += 1
+        // The live player's placement rule, on this queue (its uris are its entry ids).
+        let target = MusicKitApplicationPlayer.addedEntryInsertionIndex(
+            entryIDs: queue, currentID: queue.indices.contains(index) ? queue[index] : nil, addedIDs: added
+        ) ?? queue.count
+        queue.insert(uri, at: target)
+        added.insert(uri)
     }
 
     func readState() -> AppleMusicPlayerState {
         guard queue.indices.contains(index) else {
-            return AppleMusicPlayerState(status: .stopped, current: nil, positionMilliseconds: 0, shuffle: shuffle, repeatMode: repeatMode, upcoming: [])
+            return AppleMusicPlayerState(status: .stopped, current: nil, positionMilliseconds: 0, shuffle: shuffle, repeatMode: repeatMode)
         }
         return AppleMusicPlayerState(
             status: playing ? .playing : .paused,
             current: Self.track(queue[index]),
             positionMilliseconds: Int(position() * 1000),
             shuffle: shuffle,
-            repeatMode: repeatMode,
-            upcoming: queue[(index + 1)...].map(Self.track)
+            repeatMode: repeatMode
         )
+    }
+
+    func readUpcoming() -> [MusicTrack] {
+        guard queue.indices.contains(index) else { return [] }
+        return queue[(index + 1)...].map(Self.track)
     }
 
     private static func track(_ uri: String) -> MusicTrack {

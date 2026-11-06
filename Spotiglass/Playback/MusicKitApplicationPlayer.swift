@@ -23,11 +23,9 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
     /// with the song's catalog id instead of the library id the row was built with, so entries
     /// are matched on what they show (title and subtitle).
     private var uriByEntryKey: [String: String] = [:]
-    /// Entries added with ``enqueue(uri:)`` since the current entry started, so the next one
-    /// goes after them instead of jumping ahead.
-    private var enqueuedAfterEntryID: String?
-    private var enqueuedCount = 0
-
+    /// Queue ids of the entries added with ``enqueue(uri:)``, so a later one goes after those
+    /// still ahead instead of jumping in front of them.
+    private var addedEntryIDs: Set<String> = []
 
     func isAuthorized() -> Bool {
         MusicAuthorization.currentStatus == .authorized
@@ -39,7 +37,7 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         var startURI: String?
         switch request {
         case let .items(uris, start):
-            resolved = try await Self.resolveEntries(uris)
+            resolved = try await Self.resolveEntries(uris, lookingUpFirst: start)
             startURI = start
         case let .album(id):
             guard let album = try await Self.album(id: id) else { throw Self.notFound(id) }
@@ -57,8 +55,7 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
             uriByEntryKey[Self.key(item.entry)] = item.uri
         }
         player.queue = ApplicationMusicPlayer.Queue(resolved.map(\.entry), startingAt: start)
-        enqueuedAfterEntryID = nil
-        enqueuedCount = 0
+        addedEntryIDs = []
         try await Self.mapped { try await self.player.play() }
     }
 
@@ -103,33 +100,40 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         if uriByEntryKey[Self.key(resolved.entry)] == nil {
             uriByEntryKey[Self.key(resolved.entry)] = uri
         }
+        let entryIDs = player.queue.entries.map(\.id)
+        addedEntryIDs.formIntersection(entryIDs)
         let currentID = player.queue.currentEntry?.id
-        if enqueuedAfterEntryID != currentID {
-            enqueuedAfterEntryID = currentID
-            enqueuedCount = 0
-        }
-        // MusicKit inserts either right after the current entry or at the very end. Spotify's
-        // queue plays added songs in the order they were added, before the rest of the
-        // context, so the first goes after the current entry and later ones after it.
-        let entries = player.queue.entries
-        if let currentID,
-           let currentIndex = entries.firstIndex(where: { $0.id == currentID }),
-           enqueuedCount > 0 {
-            let target = min(currentIndex + 1 + enqueuedCount, entries.endIndex)
+        let afterCurrent = currentID.flatMap { entryIDs.firstIndex(of: $0) }.map { $0 + 1 }
+        let target = Self.addedEntryInsertionIndex(entryIDs: entryIDs, currentID: currentID, addedIDs: addedEntryIDs)
+        if let target, target != afterCurrent {
             player.queue.entries.insert(resolved.entry, at: target)
         } else {
             try await Self.mapped {
                 try await self.player.queue.insert(resolved.entry, position: .afterCurrentEntry)
             }
         }
-        enqueuedCount += 1
+        // The queue gives the entry its own id; remember that one.
+        let entries = player.queue.entries
+        if let index = target ?? afterCurrent, entries.indices.contains(index) {
+            addedEntryIDs.insert(entries[index].id)
+        }
+    }
+
+    /// Where "Add to queue" puts a song, given the queue's entry ids in play order: after the
+    /// current entry and after the songs added before it that are still ahead, so added songs
+    /// play in the order they were added, before the rest, like Spotify's queue. `nil` when
+    /// nothing is current.
+    static func addedEntryInsertionIndex(entryIDs: [String], currentID: String?, addedIDs: Set<String>) -> Int? {
+        guard let currentID, let currentIndex = entryIDs.firstIndex(of: currentID) else { return nil }
+        var index = currentIndex + 1
+        while index < entryIDs.count, addedIDs.contains(entryIDs[index]) {
+            index += 1
+        }
+        return index
     }
 
     func readState() -> AppleMusicPlayerState {
-        let entries = Array(player.queue.entries)
         let current = player.queue.currentEntry
-        let currentIndex = current.flatMap { entry in entries.firstIndex { $0.id == entry.id } }
-        let upcoming = currentIndex.map { Array(entries[(entries.index(after: $0))...]) } ?? []
         let status: AppleMusicPlayerState.Status
         switch player.state.playbackStatus {
         case .playing, .seekingForward, .seekingBackward: status = .playing
@@ -143,9 +147,16 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
             current: current.flatMap(track(for:)),
             positionMilliseconds: seconds.isFinite ? max(0, Int((seconds * 1000).rounded())) : 0,
             shuffle: player.state.shuffleMode == .songs,
-            repeatMode: Self.repeatMode(player.state.repeatMode),
-            upcoming: upcoming.compactMap(track(for:))
+            repeatMode: Self.repeatMode(player.state.repeatMode)
         )
+    }
+
+    func readUpcoming() -> [MusicTrack] {
+        let entries = Array(player.queue.entries)
+        guard let currentID = player.queue.currentEntry?.id,
+              let currentIndex = entries.firstIndex(where: { $0.id == currentID })
+        else { return [] }
+        return entries[(currentIndex + 1)...].compactMap(track(for:))
     }
 
     // MARK: - Mapping
@@ -230,16 +241,24 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
 
     /// Songs for `uris`, in the given order: the item the row was built from when the
     /// registry still has it, otherwise a lookup. URIs that resolve to nothing are left out,
-    /// and so are music videos: MusicKit's player can't queue them on macOS.
+    /// and so are music videos: MusicKit's player can't queue them on macOS. `firstURI` (the
+    /// row that was clicked) is looked up before the others, so it is never past the limit.
     static func resolveEntries(
         _ uris: [String],
+        lookingUpFirst firstURI: String? = nil,
         registry: AppleMusicPlayableRegistry = .shared
     ) async throws -> [(uri: String, entry: MusicPlayer.Queue.Entry)] {
         var byID: [String: Song] = [:]
         var lookupIDs: [String] = []
         for uri in uris {
             guard let (kind, id) = AppleMusicPlaybackProvider.reference(uri), kind != "music-video" else { continue }
-            if let song = registry.song(for: uri) { byID[id] = song } else { lookupIDs.append(id) }
+            if let song = registry.song(for: uri) {
+                byID[id] = song
+            } else if uri == firstURI {
+                lookupIDs.insert(id, at: 0)
+            } else {
+                lookupIDs.append(id)
+            }
         }
         for id in lookupIDs.prefix(fallbackLookupLimit) where byID[id] == nil {
             byID[id] = try await song(id: id)
