@@ -79,6 +79,9 @@ enum ArtworkPlaceholderState: Equatable {
 struct ArtworkPlaceholderContent: View {
     let state: ArtworkPlaceholderState
     let size: CGFloat
+    /// `false` when real artwork is drawn on top of the placeholder: then the placeholder must not
+    /// say "No artwork" in a tooltip or to VoiceOver while a cover is visible.
+    var describesState = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Below this the artwork is a thumbnail in a dense list, where a spinner is
@@ -97,8 +100,9 @@ struct ArtworkPlaceholderContent: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            .help(SpotiglassL10n.string(state.helpKey))
-            .accessibilityLabel(SpotiglassL10n.string(state.helpKey))
+            .help(describesState ? SpotiglassL10n.string(state.helpKey) : "")
+            .accessibilityLabel(describesState ? SpotiglassL10n.string(state.helpKey) : "")
+            .accessibilityHidden(!describesState)
     }
 }
 
@@ -130,7 +134,7 @@ private struct CachedArtworkImage: View {
             // MusicKit draws nothing for artwork it can't load (e.g. songs that only live in the
             // cloud library), so the placeholder underneath shows through.
             ZStack {
-                ArtworkPlaceholderContent(state: .none, size: size)
+                ArtworkPlaceholderContent(state: .none, size: size, describesState: false)
                 MusicKitArtwork(url: url, width: size, height: size)
             }
         } else {

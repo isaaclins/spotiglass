@@ -453,6 +453,17 @@ final class AppleMusicSelectionAndSessionTests: XCTestCase {
         XCTAssertEqual(MusicServiceSelection.current, .spotify)
     }
 
+    /// Under Apple Music the Spotify session is always signed out. The menu bar (Search, Back,
+    /// Queue, Sign Out) must follow the Apple Music permission instead, or it stays greyed out.
+    @MainActor
+    func testMenuBarFollowsTheSelectedServicesSignIn() {
+        XCTAssertTrue(SpotiglassApp.menuIsSignedIn(service: .appleMusic, spotifyState: .signedOut, appleMusicState: .authorized))
+        XCTAssertFalse(SpotiglassApp.menuIsSignedIn(service: .appleMusic, spotifyState: .signedOut, appleMusicState: .needsPermission))
+        XCTAssertFalse(SpotiglassApp.menuIsSignedIn(service: .appleMusic, spotifyState: .signedOut, appleMusicState: .denied))
+        XCTAssertFalse(SpotiglassApp.menuIsSignedIn(service: .spotify, spotifyState: .signedOut, appleMusicState: .authorized))
+        XCTAssertFalse(SpotiglassApp.menuIsSignedIn(service: .spotify, spotifyState: .refreshing(nil), appleMusicState: .authorized))
+    }
+
     @MainActor
     func testSessionAsksOnlyWhenTheUserHasNotAnswered() async {
         let authorization = MockAppleMusicAuthorization(status: .notDetermined, afterRequest: .authorized, canPlay: false)

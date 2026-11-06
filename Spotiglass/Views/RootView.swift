@@ -190,8 +190,9 @@ struct RootView: View {
     private let playbackHost: SpotiglassPlaybackHost
     /// Which service this scene browses; Spotify unless the hidden developer switch says otherwise.
     private let musicService: MusicService
-    /// Apple Music permission state. Only consulted when ``musicService`` is `.appleMusic`.
-    @StateObject private var appleMusicSession = AppleMusicSession()
+    /// Apple Music permission state, shared app-wide with the menu bar. Only consulted when
+    /// ``musicService`` is `.appleMusic`.
+    @ObservedObject private var appleMusicSession: AppleMusicSession
     @Environment(\.openSettings) private var openSettingsAction
 
     private var commandPaletteManager: CommandPaletteManager {
@@ -212,12 +213,14 @@ struct RootView: View {
         sceneRegistry = nil
         self.playbackHost = playbackHost
         musicService = .spotify
+        _appleMusicSession = ObservedObject(wrappedValue: AppleMusicSession())
     }
 
     init(
         keymapStore: CommandPaletteKeymapStore,
         sceneRegistry: SpotiglassSceneRegistry,
-        playbackHost: SpotiglassPlaybackHost
+        playbackHost: SpotiglassPlaybackHost,
+        appleMusicSession: AppleMusicSession
     ) {
         _sceneHost = StateObject(
             wrappedValue: SpotiglassSceneHost(
@@ -227,6 +230,7 @@ struct RootView: View {
         self.sceneRegistry = sceneRegistry
         self.playbackHost = playbackHost
         musicService = MusicServiceSelection.current
+        _appleMusicSession = ObservedObject(wrappedValue: appleMusicSession)
     }
 
     /// Clears all scene-local state before the shared auth state can replace a

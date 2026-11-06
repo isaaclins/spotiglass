@@ -345,6 +345,16 @@ final class ListDetailViewsTests: XCTestCase {
         XCTAssertNoThrow(try view.inspect().find(text: destination.name))
     }
 
+    /// Apple Music rows carry `applemusic:song:…` URIs. "Copy Spotify URI" must not offer to
+    /// copy those as Spotify URIs; Spotify rows keep the item.
+    func testCopySpotifyURIIsOnlyOfferedForSpotifyURIs() {
+        XCTAssertEqual(TrackOpsMenuItems.copyableSpotifyURI(" spotify:track:abc "), "spotify:track:abc")
+        XCTAssertEqual(TrackOpsMenuItems.copyableSpotifyURI("spotify:episode:e1"), "spotify:episode:e1")
+        XCTAssertNil(TrackOpsMenuItems.copyableSpotifyURI("applemusic:song:1440857781"))
+        XCTAssertNil(TrackOpsMenuItems.copyableSpotifyURI("   "))
+        XCTAssertNil(TrackOpsMenuItems.copyableSpotifyURI(nil))
+    }
+
     func testTrackMenuActionsStaySharedAcrossEverySurface() throws {
         let row = trackRow(id: "menu-track", title: "Menu Track", explicit: false)
         let browserViewModel = PlaylistBrowserViewModel(
