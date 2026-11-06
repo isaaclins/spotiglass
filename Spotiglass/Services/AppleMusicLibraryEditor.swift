@@ -350,6 +350,7 @@ struct AppleMusicLibraryEditor: Sendable {
         for (index, (reference, removal)) in zip(references, removals).enumerated() {
             pending.recordPlaylistRemoval(
                 reference.matchKeys,
+                metadataKey: reference.title.map { AppleMusicPendingLibraryEdits.metadataKey(name: $0, artist: reference.artistName) },
                 removed: removal.positions.count,
                 shownBefore: index < shownCounts.count ? shownCounts[index] : removal.positions.count,
                 playlistID: playlistID
@@ -358,6 +359,10 @@ struct AppleMusicLibraryEditor: Sendable {
     }
 
     func renamePlaylist(playlistID: String, name: String) async throws {
+        // Learn the cloud ID while the old name still finds it; adds after the rename use it.
+        if !Self.isCloudPlaylistID(playlistID), pending.cloudPlaylistID(for: playlistID) == nil {
+            _ = try? await cloudPlaylistID(for: playlistID)
+        }
         try await musicApp.renamePlaylist(try await musicAppPlaylist(for: playlistID), to: name)
         pending.recordRenamedPlaylist(playlistID, name: name)
     }
@@ -411,16 +416,25 @@ struct AppleMusicLibraryEditor: Sendable {
 
     /// The API names playlists by cloud library ID (`p.…`), MusicKit on macOS by persistent ID.
     /// Nothing maps one to the other, so a playlist from the library is found among the
-    /// user's editable cloud playlists by its name, which must be unique.
+    /// user's editable cloud playlists by its name, which must be unique. A match is remembered,
+    /// so a later rename can't send the edit to another playlist with the new name.
     private func cloudPlaylistID(for playlistID: String) async throws -> String {
         if Self.isCloudPlaylistID(playlistID) { return playlistID }
+        if let known = pending.cloudPlaylistID(for: playlistID) { return known }
         guard let playlist = try await lookup.playlist(id: playlistID) else {
             throw AppleMusicLibraryEditError.notEditable
         }
-        let name = pending.renamedName(for: playlistID) ?? playlist.name
-        let matches = try await cloud.editablePlaylists().filter { $0.name == name }
+        let editable = try await cloud.editablePlaylists()
+        let renamed = pending.renamedName(for: playlistID)
+        // Renamed moments ago and the cloud list still shows the old name: the new name may
+        // belong to another playlist there, so wait instead of guessing.
+        if let renamed, renamed != playlist.name, editable.contains(where: { $0.name == playlist.name }) {
+            throw AppleMusicLibraryEditError.notInMusicYet
+        }
+        let matches = editable.filter { $0.name == (renamed ?? playlist.name) }
         guard matches.count <= 1 else { throw AppleMusicLibraryEditError.ambiguousPlaylist }
         guard let match = matches.first else { throw AppleMusicLibraryEditError.notEditable }
+        pending.recordCloudPlaylistID(match.id, for: playlistID)
         return match.id
     }
 
@@ -435,6 +449,14 @@ struct AppleMusicLibraryEditor: Sendable {
         }
         guard let name = pending.renamedName(for: playlistID) ?? pending.createdPlaylist(id: playlistID)?.name else {
             throw AppleMusicLibraryEditError.notEditable
+        }
+        // Music finds this playlist only by name. If another playlist has the name, the one Music
+        // finds may be that one, so the edit stops instead.
+        let namesakeAtCreate = pending.createdPlaylist(id: playlistID)?.name == name
+            && !pending.existingIDsWithSameName(asCreated: playlistID).isEmpty
+        let namesakeInCloud = try await cloud.editablePlaylists().contains { $0.name == name && $0.id != playlistID }
+        if namesakeAtCreate || namesakeInCloud {
+            throw AppleMusicLibraryEditError.ambiguousPlaylist
         }
         return .name(name)
     }

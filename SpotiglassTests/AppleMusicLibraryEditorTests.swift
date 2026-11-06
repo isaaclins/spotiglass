@@ -235,6 +235,51 @@ final class AppleMusicLibraryEditorTests: XCTestCase {
         XCTAssertEqual(pending.applied(toPlaylists: []), [], "a deleted new playlist leaves the sidebar")
     }
 
+    /// I have "Same", create another "Same" and delete the new one before it reaches Music: Music
+    /// would find only the old one by name, so nothing may be sent.
+    func testANewPlaylistNamedLikeAnOlderOneIsNeverFoundByName() async throws {
+        cloud.createdPlaylistID = "p.new"
+        _ = try await editor.createPlaylist(name: "Same", ownerName: "You", existingIDsWithSameName: ["-1"])
+
+        await XCTAssertThrowsEditError(.ambiguousPlaylist) { try await self.editor.deletePlaylist(playlistID: "p.new") }
+        await XCTAssertThrowsEditError(.ambiguousPlaylist) { try await self.editor.renamePlaylist(playlistID: "p.new", name: "Other") }
+        XCTAssertEqual(musicApp.calls, [])
+    }
+
+    /// The same when the namesake only shows in the cloud list (created elsewhere meanwhile).
+    func testANamesakeInTheCloudStopsTheNameFallback() async {
+        cloud.createdPlaylistID = "p.new"
+        _ = try? await editor.createPlaylist(name: "Same", ownerName: "You")
+        cloud.playlists = [AppleMusicCloudPlaylist(id: "p.new", name: "Same"), AppleMusicCloudPlaylist(id: "p.old", name: "Same")]
+
+        await XCTAssertThrowsEditError(.ambiguousPlaylist) { try await self.editor.deletePlaylist(playlistID: "p.new") }
+        XCTAssertEqual(musicApp.calls, [])
+    }
+
+    /// A and B exist; I rename A to B. An add right after, while the cloud list still says A and
+    /// B, goes to A: its cloud ID was learned before the rename.
+    func testAnAddAfterARenameGoesToTheRenamedPlaylist() async throws {
+        lookup.playlistsByID["-1"] = AppleMusicPlaylistReference(name: "A", musicAppPersistentID: "FFFFFFFFFFFFFFFF")
+        cloud.playlists = [AppleMusicCloudPlaylist(id: "p.a", name: "A"), AppleMusicCloudPlaylist(id: "p.b", name: "B")]
+
+        try await editor.renamePlaylist(playlistID: "-1", name: "B")
+        try await editor.addToPlaylist(playlistID: "-1", songIDs: ["699902614"])
+
+        XCTAssertEqual(cloud.calls.last, "addToPlaylist(p.a,[songs:699902614])")
+    }
+
+    /// Without the cloud ID from before the rename, a stale cloud list is not guessed from.
+    func testAnAddAfterARenameWaitsWhileTheCloudListIsStale() async {
+        lookup.playlistsByID["-1"] = AppleMusicPlaylistReference(name: "A", musicAppPersistentID: "FFFFFFFFFFFFFFFF")
+        pending.recordRenamedPlaylist("-1", name: "B")
+        cloud.playlists = [AppleMusicCloudPlaylist(id: "p.a", name: "A"), AppleMusicCloudPlaylist(id: "p.b", name: "B")]
+
+        await XCTAssertThrowsEditError(.notInMusicYet) {
+            try await self.editor.addToPlaylist(playlistID: "-1", songIDs: ["699902614"])
+        }
+        XCTAssertFalse(cloud.calls.contains { $0.hasPrefix("addToPlaylist") })
+    }
+
     func testADeniedMusicPermissionSurfacesAsItsOwnError() async {
         musicApp.error = AppleMusicLibraryEditError.musicControlDenied
         await XCTAssertThrowsEditError(.musicControlDenied) {
@@ -434,6 +479,36 @@ final class AppleMusicPendingLibraryEditsTests: XCTestCase {
         XCTAssertTrue(pending.hasPendingTracks(playlistID: "-1"))
         XCTAssertEqual(pending.applied(toPlaylistTracks: [listed, listed], playlistID: "-1").map(\.id), ["-30", "-30"])
         XCTAssertFalse(pending.hasPendingTracks(playlistID: "-1"))
+    }
+
+    /// Remove the only copy of a song, then add it back while MusicKit still lists the old copy:
+    /// it shows once, and keeps showing once the library has the new copy.
+    func testRemovingAndAddingASongBackShowsItOnce() {
+        let pending = AppleMusicPendingLibraryEdits()
+        let song = AppleMusicLibraryEditorTests.track(id: "-30", name: "Disparate Youth", artist: "Santigold")
+        let listed = (track: song, keys: Set(["-30", AppleMusicPendingLibraryEdits.metadataKey(song)]))
+        pending.recordPlaylistRemoval(
+            ["-30"],
+            metadataKey: AppleMusicPendingLibraryEdits.metadataKey(name: "Disparate Youth", artist: "Santigold"),
+            removed: 1,
+            shownBefore: 1,
+            playlistID: "-1"
+        )
+        XCTAssertEqual(pending.applied(toPlaylistTracks: [listed], playlistID: "-1").count, 0)
+
+        // Added back from search, under its catalog ID.
+        let catalog = AppleMusicLibraryEditorTests.track(id: "506650076", name: "Disparate Youth", artist: "Santigold")
+        pending.recordPlaylistAddition(
+            catalog,
+            reference: AppleMusicSongReference(itemID: "506650076", catalogID: "506650076", isInLibrary: true),
+            playlistID: "-1"
+        )
+
+        XCTAssertEqual(pending.applied(toPlaylistTracks: [listed], playlistID: "-1").map(\.id), ["-30"], "stale read")
+        XCTAssertFalse(pending.hasPendingTracks(playlistID: "-1"))
+        let synced = (track: AppleMusicLibraryEditorTests.track(id: "-31", name: "Disparate Youth", artist: "Santigold"),
+                      keys: Set(["-31", AppleMusicPendingLibraryEdits.metadataKey(song)]))
+        XCTAssertEqual(pending.applied(toPlaylistTracks: [synced], playlistID: "-1").map(\.id), ["-31"], "the library has it again")
     }
 
     /// The real case: a library song added to a new playlist, then MusicKit lists the playlist with

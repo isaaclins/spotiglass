@@ -29,8 +29,10 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
 
     private struct PlaylistRemoval {
         let keys: Set<String>
+        /// Title and artist, so adding the song back from elsewhere (under another ID) finds it.
+        let metadataKey: String?
         /// How many occurrences of the song the playlist keeps after the edit.
-        let expectedRemaining: Int
+        var expectedRemaining: Int
         let at: Date
     }
 
@@ -44,6 +46,8 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
     private var createdPlaylists: [(summary: MusicPlaylistSummary, existingIDsWithSameName: Set<String>, at: Date)] = []
     private var renamedPlaylists: [String: (name: String, at: Date)] = [:]
     private var deletedPlaylists: [String: Date] = [:]
+    /// Cloud library IDs (`p.…`) learned for library playlists, by the playlist's MusicKit ID.
+    private var cloudPlaylistIDs: [String: (cloudID: String, at: Date)] = [:]
     private var playlistAdditions: [String: [SavedSong]] = [:]
     private var playlistRemovals: [String: [PlaylistRemoval]] = [:]
 
@@ -113,8 +117,18 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
         }
     }
 
+    func recordCloudPlaylistID(_ cloudID: String, for playlistID: String) {
+        locked {
+            cloudPlaylistIDs[playlistID] = (cloudID, now())
+            if cloudPlaylistIDs.count > Self.maxEntries, let oldest = cloudPlaylistIDs.min(by: { $0.value.at < $1.value.at }) {
+                cloudPlaylistIDs[oldest.key] = nil
+            }
+        }
+    }
+
     func recordDeletedPlaylist(_ id: String) {
         locked {
+            cloudPlaylistIDs[id] = nil
             createdPlaylists.removeAll { $0.summary.id == id }
             renamedPlaylists[id] = nil
             playlistAdditions[id] = nil
@@ -132,10 +146,20 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
         shownBefore: Int = 0
     ) {
         locked {
+            let keys = reference.matchKeys.union([track.id, Self.metadataKey(track)])
+            // Adding back a song removed moments ago: the playlist keeps one more copy than the
+            // removal expected, which a read can't tell from the old copy. One count, not two edits.
+            if var removals = playlistRemovals[playlistID], let index = removals.firstIndex(where: { removal in
+                !removal.keys.isDisjoint(with: keys) || removal.metadataKey == Self.metadataKey(track)
+            }) {
+                removals[index].expectedRemaining += 1
+                playlistRemovals[playlistID] = removals
+                return
+            }
             var additions = playlistAdditions[playlistID] ?? []
             additions.append(SavedSong(
                 track: track,
-                keys: reference.matchKeys.union([track.id, Self.metadataKey(track)]),
+                keys: keys,
                 at: now(),
                 expectedOccurrences: max(0, shownBefore) + 1
             ))
@@ -145,7 +169,13 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
 
     /// `shownBefore` is how often the playlist listed the song before the edit (pending
     /// additions included), `removed` how many of those the edit took out.
-    func recordPlaylistRemoval(_ keys: Set<String>, removed: Int, shownBefore: Int, playlistID: String) {
+    func recordPlaylistRemoval(
+        _ keys: Set<String>,
+        metadataKey: String? = nil,
+        removed: Int,
+        shownBefore: Int,
+        playlistID: String
+    ) {
         guard removed > 0 else { return }
         locked {
             var remaining = removed
@@ -162,7 +192,12 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
             }
             guard remaining > 0 else { return }
             var removals = (playlistRemovals[playlistID] ?? []).filter { $0.keys.isDisjoint(with: keys) }
-            removals.append(PlaylistRemoval(keys: keys, expectedRemaining: max(0, shown - remaining), at: now()))
+            removals.append(PlaylistRemoval(
+                keys: keys,
+                metadataKey: metadataKey,
+                expectedRemaining: max(0, shown - remaining),
+                at: now()
+            ))
             playlistRemovals[playlistID] = Array(removals.suffix(Self.maxEntries))
         }
     }
@@ -209,6 +244,21 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
         locked {
             expire()
             return renamedPlaylists[playlistID]?.name
+        }
+    }
+
+    func cloudPlaylistID(for playlistID: String) -> String? {
+        locked {
+            expire()
+            return cloudPlaylistIDs[playlistID]?.cloudID
+        }
+    }
+
+    /// The playlists that already had the name when this one was created.
+    func existingIDsWithSameName(asCreated id: String) -> Set<String> {
+        locked {
+            expire()
+            return createdPlaylists.first { $0.summary.id == id }?.existingIDsWithSameName ?? []
         }
     }
 
@@ -313,7 +363,11 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
     /// library may list it under an ID this Mac learns only later (a playlist entry's persistent
     /// ID, or a new cloud library ID). Only ever used to end a pending edit, never to change one.
     static func metadataKey(_ track: MusicTrack) -> String {
-        "meta:\(track.name.lowercased())|\((track.artists.first ?? "").lowercased())"
+        metadataKey(name: track.name, artist: track.artists.first)
+    }
+
+    static func metadataKey(name: String, artist: String?) -> String {
+        "meta:\(name.lowercased())|\((artist ?? "").lowercased())"
     }
 
     private func locked<Value>(_ body: () -> Value) -> Value {
@@ -331,6 +385,7 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
         createdPlaylists.removeAll { $0.at < cutoff }
         renamedPlaylists = renamedPlaylists.filter { $0.value.at >= cutoff }
         deletedPlaylists = deletedPlaylists.filter { $0.value >= cutoff }
+        cloudPlaylistIDs = cloudPlaylistIDs.filter { $0.value.at >= cutoff }
         playlistAdditions = playlistAdditions.compactMapValues { additions in
             let kept = additions.filter { $0.at >= cutoff }
             return kept.isEmpty ? nil : kept
