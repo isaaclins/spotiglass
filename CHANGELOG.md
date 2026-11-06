@@ -35,7 +35,6 @@
 
 ### Changed
 
-- **The Sparkle update signing key has been rotated.** The private half of the 0.7.0 key is no longer available, so an existing 0.7.0 install refuses to update itself to 0.8.0. Download the disk image once; automatic updates resume from 0.8.0 onward.
 - Local builds are signed with a stable identity, so the keychain stops asking for the login password after every rebuild.
 - The equalizer requires a signed and notarized build. Its helper is a LaunchDaemon, and macOS enforces a launch constraint that only a notarized Developer ID build satisfies, so there is no local-development path for it.
 - The test suite no longer sleeps for a fixed duration anywhere; it waits for the condition it cares about. Local runs use CI's per-test timeout, view tests are hosted off screen so no remote view service attaches, the artwork tests no longer touch the real cache, and the audio driver's router is unit-tested in CI.
