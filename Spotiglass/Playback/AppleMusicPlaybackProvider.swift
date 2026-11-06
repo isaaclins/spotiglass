@@ -276,6 +276,10 @@ struct AppleMusicQueueBook: Equatable {
     /// The row behind each queue position; empty once the queue changed in a way the player
     /// didn't make or can't follow.
     private(set) var rows: [Row] = []
+    /// Rows by queue entry id, noted while positions held. Shuffle reorders the queue but
+    /// keeps the ids of the entries already there, so after it the id still finds the row
+    /// where only title, artist and length are left.
+    private(set) var rowsByEntryID: [String: Row] = [:]
     private(set) var added: AddedRun?
     /// Bumped whenever the queue is replaced or its order can't be trusted, so an add that
     /// finishes after that doesn't write stale positions.
@@ -284,8 +288,18 @@ struct AppleMusicQueueBook: Equatable {
     /// A play replaced the queue with `rows`.
     mutating func replace(with rows: [Row]) {
         self.rows = rows
+        rowsByEntryID = [:]
         added = nil
         generation &+= 1
+    }
+
+    /// Notes the ids of the queue's entries, in queue order, for the positions that still
+    /// name their row. Run before anything reorders the queue (shuffle) and on reads.
+    mutating func noteEntries(ids: [String], titles: [String]) {
+        for (index, id) in ids.enumerated() where titles.indices.contains(index) {
+            guard rows.indices.contains(index), rows[index].title == titles[index] else { continue }
+            rowsByEntryID[id] = rows[index]
+        }
     }
 
     /// Shuffle reorders what plays next, so the positions kept so far no longer hold.
@@ -340,8 +354,10 @@ struct AppleMusicQueueBook: Equatable {
         }
     }
 
-    /// The row at a queue position, when the entry there still shows that row's title.
-    func rowURI(at index: Int?, title: String) -> String? {
+    /// The row of a queue entry: by its id when it was noted, else by its position when the
+    /// entry there still shows that row's title.
+    func rowURI(entryID: String? = nil, at index: Int?, title: String) -> String? {
+        if let entryID, let row = rowsByEntryID[entryID], row.title == title { return row.uri }
         guard let index, rows.indices.contains(index), rows[index].title == title else { return nil }
         return rows[index].uri
     }

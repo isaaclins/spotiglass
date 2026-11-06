@@ -89,6 +89,8 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
     }
 
     func setShuffle(_ enabled: Bool) {
+        // Positions hold until shuffle reorders the queue: note each entry's row by id first.
+        noteEntries()
         player.state.shuffleMode = enabled ? .songs : .off
         book.forgetPositions()
     }
@@ -144,6 +146,7 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
     }
 
     func readUpcoming() -> [MusicTrack] {
+        noteEntries()
         let entries = Array(player.queue.entries)
         guard let currentID = player.queue.currentEntry?.id,
               let currentIndex = entries.firstIndex(where: { $0.id == currentID })
@@ -152,6 +155,11 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
     }
 
     // MARK: - Mapping
+
+    private func noteEntries() {
+        let entries = Array(player.queue.entries)
+        book.noteEntries(ids: entries.map(\.id), titles: entries.map(\.title))
+    }
 
     private func track(for entry: MusicPlayer.Queue.Entry, at index: Int?) -> MusicTrack? {
         let mapped: MusicTrack
@@ -165,7 +173,7 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         @unknown default:
             return nil
         }
-        let rowURI = book.rowURI(at: index, title: entry.title)
+        let rowURI = book.rowURI(entryID: entry.id, at: index, title: entry.title)
             ?? Self.keys(entry).lazy.compactMap({ self.uriByEntryKey[$0] }).first
         guard let uri = rowURI, uri != mapped.uri else { return mapped }
         return MusicTrack(

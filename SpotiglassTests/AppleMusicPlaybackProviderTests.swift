@@ -268,6 +268,21 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         XCTAssertNil(book.rowURI(at: nil, title: "Halo"))
     }
 
+    /// Shuffle reorders the queue, so positions stop counting, but the entries keep their ids:
+    /// noted before the shuffle, the id still finds the right one of two look-alike rows.
+    func testLookAlikeEntriesKeepTheirRowsThroughShuffle() {
+        var book = Book()
+        book.replace(with: [Self.row("standard", title: "Halo"), Self.row("deluxe", title: "Halo")])
+        book.noteEntries(ids: ["e1", "e2"], titles: ["Halo", "Halo"])
+        book.forgetPositions()
+        // Shuffled: e2 now sits first.
+        XCTAssertEqual(book.rowURI(entryID: "e2", at: 0, title: "Halo"), "applemusic:song:deluxe")
+        XCTAssertEqual(book.rowURI(entryID: "e1", at: 1, title: "Halo"), "applemusic:song:standard")
+        XCTAssertNil(book.rowURI(entryID: "e9", at: 0, title: "Halo"), "unknown id, no positions: the keys decide")
+        book.replace(with: [])
+        XCTAssertNil(book.rowURI(entryID: "e1", at: nil, title: "Halo"), "a new play forgets the old ids")
+    }
+
     /// Two recordings with the same title and artist are told apart by their length; one
     /// recording whose length reads slightly differently still matches on title and artist.
     func testQueuedEntriesWithTheSameTitleAndArtistKeepTheirOwnRows() {
@@ -482,6 +497,23 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
     }
 
     // MARK: - Header play
+
+    /// Right after launch the Apple Music player has no queue and reports nothing, so the
+    /// session doesn't know its transport yet. The header's Shuffle must still shuffle.
+    func testHeaderShuffleOnAFreshPlayerTurnsShuffleOn() async throws {
+        let player = ScriptedAppleMusicPlayer()
+        let provider = AppleMusicPlaybackProvider(player: player)
+        let session = PlaybackSessionViewModel(provider: provider)
+        session.deviceID = AppleMusicPlaybackProvider.deviceID
+        session.setActivePlaybackDeviceID(AppleMusicPlaybackProvider.deviceID)
+        XCTAssertFalse(session.isTransportStateKnown)
+
+        await DetailHeaderPlayback.shuffleAndPlay(target: .tracks(uris: Self.uris, playlistID: "p"), using: session)
+
+        XCTAssertTrue(player.commands.contains("play"))
+        let state = try await provider.fetchPlaybackState()
+        XCTAssertEqual(state?.transport.shuffle, true)
+    }
 
     func testDetailHeaderPlaysTheAppleMusicContext() {
         let album = PlaylistDetailViewModel(
