@@ -176,14 +176,16 @@ struct LibraryRemovalConfirmation: ViewModifier {
     }
 
     func body(content: Content) -> some View {
-        content.alert(title, isPresented: isPresented) {
+        // `presenting` hands the removal to the button: SwiftUI clears the binding (and with it
+        // `pendingLibraryRemoval`) when it dismisses the alert, before the task below runs.
+        content.alert(title, isPresented: isPresented, presenting: viewModel.pendingLibraryRemoval) { removal in
             Button(SpotiglassL10n.string("libraryRemoval.confirm.remove"), role: .destructive) {
-                Task { await viewModel.confirmPendingLibraryRemoval() }
+                Task { await viewModel.confirmLibraryRemoval(removal) }
             }
             Button(SpotiglassL10n.string("playlist.detail.newPlaylist.cancel"), role: .cancel) {
                 viewModel.pendingLibraryRemoval = nil
             }
-        } message: {
+        } message: { _ in
             Text(message)
         }
     }

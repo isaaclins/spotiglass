@@ -40,7 +40,7 @@ extension AppleMusicBrowsingProvider {
         return try await editor.createPlaylist(
             name: name,
             ownerName: SpotiglassL10n.string("appleMusic.library.owner"),
-            existingIDsWithSameName: Set(existing.filter { $0.name == name }.map(\.id))
+            existingIDsWithSameName: Set(existing.filter { AppleMusicLibraryEditor.isSamePlaylistName($0.name, name) }.map(\.id))
         )
     }
 

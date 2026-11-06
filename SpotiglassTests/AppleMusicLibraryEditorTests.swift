@@ -277,6 +277,17 @@ final class AppleMusicLibraryEditorTests: XCTestCase {
         XCTAssertEqual(musicApp.calls, [])
     }
 
+    /// AppleScript ignores case: "mix" next to an older "Mix" is a namesake too.
+    func testANamesakeThatDiffersOnlyInCaseStopsTheNameFallback() async {
+        cloud.createdPlaylistID = "p.new"
+        _ = try? await editor.createPlaylist(name: "mix", ownerName: "You")
+        cloud.playlists = [AppleMusicCloudPlaylist(id: "p.new", name: "mix"), AppleMusicCloudPlaylist(id: "p.old", name: "Mix")]
+
+        await XCTAssertThrowsEditError(.ambiguousPlaylist) { try await self.editor.deletePlaylist(playlistID: "p.new") }
+        await XCTAssertThrowsEditError(.ambiguousPlaylist) { try await self.editor.renamePlaylist(playlistID: "p.new", name: "Other") }
+        XCTAssertEqual(musicApp.calls, [])
+    }
+
     /// The same when the namesake only shows in the cloud list (created elsewhere meanwhile).
     func testANamesakeInTheCloudStopsTheNameFallback() async {
         cloud.createdPlaylistID = "p.new"

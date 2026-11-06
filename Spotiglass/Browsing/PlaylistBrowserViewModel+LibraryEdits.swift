@@ -142,6 +142,8 @@ extension PlaylistBrowserViewModel {
             } else {
                 try await api.saveAlbums(ids: [albumID])
             }
+            // The album's songs changed too; their liked state loads again when a menu needs it.
+            savedTrackStates = [:]
             invalidateLikedSongsCache()
             await refreshLikedSongsDetailAfterMutation()
             trackMutationToast = SpotiglassL10n.format(
@@ -156,9 +158,9 @@ extension PlaylistBrowserViewModel {
 
     // MARK: - Library removal confirmation
 
-    /// Runs the removal the user just confirmed.
-    func confirmPendingLibraryRemoval() async {
-        guard let removal = pendingLibraryRemoval else { return }
+    /// Runs the removal the user just confirmed. The alert hands it over itself: dismissing the
+    /// alert clears `pendingLibraryRemoval` before this task runs.
+    func confirmLibraryRemoval(_ removal: PendingLibraryRemoval) async {
         pendingLibraryRemoval = nil
         switch removal {
         case let .songs(rows):

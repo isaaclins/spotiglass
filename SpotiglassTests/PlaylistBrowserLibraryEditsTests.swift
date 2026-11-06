@@ -153,7 +153,10 @@ final class PlaylistBrowserLibraryEditsTests: XCTestCase {
         }
         XCTAssertEqual(rows.map(\.id), [song.id])
 
-        await viewModel.confirmPendingLibraryRemoval()
+        // As in the app: the alert's dismissal clears the pending removal before the button's task runs.
+        let removal = try XCTUnwrap(viewModel.pendingLibraryRemoval)
+        viewModel.pendingLibraryRemoval = nil
+        await viewModel.confirmLibraryRemoval(removal)
         XCTAssertNil(viewModel.pendingLibraryRemoval)
         XCTAssertEqual(api.calls, ["removeSavedTracks(699902614)"])
         XCTAssertEqual(viewModel.savedTrackState(for: "699902614"), false)
@@ -165,7 +168,6 @@ final class PlaylistBrowserLibraryEditsTests: XCTestCase {
 
         await viewModel.unfavoriteRows([row("699902614", position: 1)])
         viewModel.pendingLibraryRemoval = nil
-        await viewModel.confirmPendingLibraryRemoval()
 
         XCTAssertEqual(api.calls, [])
     }
@@ -185,13 +187,30 @@ final class PlaylistBrowserLibraryEditsTests: XCTestCase {
         XCTAssertEqual(id, "1440")
         XCTAssertEqual(name, "Computer World")
 
-        await viewModel.confirmPendingLibraryRemoval()
+        let albumRemoval = try XCTUnwrap(viewModel.pendingLibraryRemoval)
+        viewModel.pendingLibraryRemoval = nil
+        await viewModel.confirmLibraryRemoval(albumRemoval)
         XCTAssertEqual(api.calls, ["removeSavedAlbums(1440)"])
         XCTAssertEqual(viewModel.savedAlbumState(for: "1440"), false)
 
         await viewModel.toggleAlbumInLibrary(albumID: "1440", albumName: "Computer World")
         XCTAssertNil(viewModel.pendingLibraryRemoval, "saving needs no confirmation")
         XCTAssertEqual(api.calls.last, "saveAlbums(1440)")
+    }
+
+    /// An album edit changes its songs' liked state; a song menu opened before must not keep
+    /// offering the opposite action.
+    func testAnAlbumEditForgetsTheCachedLikedStates() async throws {
+        let api = LibraryEditsMockAPI(edits: .all)
+        api.albumSaved = false
+        let viewModel = await makeViewModel(api)
+        await viewModel.favoriteRows([row("11", position: 1)])
+        XCTAssertEqual(viewModel.savedTrackState(for: "11"), true)
+        await viewModel.loadSavedAlbumState(for: "1440")
+
+        await viewModel.toggleAlbumInLibrary(albumID: "1440", albumName: "Computer World")
+
+        XCTAssertNil(viewModel.savedTrackState(for: "11"), "loads again from the library")
     }
 
     /// Spotify's unlike only leaves Liked Songs, so it keeps going through at once.

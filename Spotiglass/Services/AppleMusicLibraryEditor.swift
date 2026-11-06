@@ -406,6 +406,12 @@ struct AppleMusicLibraryEditor: Sendable {
 
     // MARK: - Helpers
 
+    /// Playlist names compared the way AppleScript compares them in Music: case is ignored, so
+    /// "Mix" and "mix" are the same name to the script.
+    static func isSamePlaylistName(_ lhs: String, _ rhs: String) -> Bool {
+        lhs.compare(rhs, options: .caseInsensitive) == .orderedSame
+    }
+
     static func isCloudPlaylistID(_ id: String) -> Bool {
         id.hasPrefix("p.")
     }
@@ -453,10 +459,11 @@ struct AppleMusicLibraryEditor: Sendable {
         let renamed = pending.renamedName(for: playlistID)
         // Renamed moments ago and the cloud list still shows the old name: the new name may
         // belong to another playlist there, so wait instead of guessing.
-        if let renamed, renamed != playlist.name, editable.contains(where: { $0.name == playlist.name }) {
+        if let renamed, !Self.isSamePlaylistName(renamed, playlist.name),
+           editable.contains(where: { Self.isSamePlaylistName($0.name, playlist.name) }) {
             throw AppleMusicLibraryEditError.notInMusicYet
         }
-        let matches = editable.filter { $0.name == (renamed ?? playlist.name) }
+        let matches = editable.filter { Self.isSamePlaylistName($0.name, renamed ?? playlist.name) }
         guard matches.count <= 1 else { throw AppleMusicLibraryEditError.ambiguousPlaylist }
         guard let match = matches.first else { throw AppleMusicLibraryEditError.notEditable }
         pending.recordCloudPlaylistID(match.id, for: playlistID)
@@ -477,9 +484,11 @@ struct AppleMusicLibraryEditor: Sendable {
         }
         // Music finds this playlist only by name. If another playlist has the name, the one Music
         // finds may be that one, so the edit stops instead.
-        let namesakeAtCreate = pending.createdPlaylist(id: playlistID)?.name == name
+        let namesakeAtCreate = pending.createdPlaylist(id: playlistID).map { Self.isSamePlaylistName($0.name, name) } == true
             && !pending.existingIDsWithSameName(asCreated: playlistID).isEmpty
-        let namesakeInCloud = try await cloud.editablePlaylists().contains { $0.name == name && $0.id != playlistID }
+        let namesakeInCloud = try await cloud.editablePlaylists().contains {
+            Self.isSamePlaylistName($0.name, name) && $0.id != playlistID
+        }
         if namesakeAtCreate || namesakeInCloud {
             throw AppleMusicLibraryEditError.ambiguousPlaylist
         }

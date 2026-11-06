@@ -315,7 +315,8 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
             deletedPlaylists = deletedPlaylists.filter { shownIDs.contains($0.key) }
             createdPlaylists.removeAll { created in
                 shownIDs.contains(created.summary.id) || playlists.contains { playlist in
-                    playlist.name == created.summary.name && !created.existingIDsWithSameName.contains(playlist.id)
+                    AppleMusicLibraryEditor.isSamePlaylistName(playlist.name, created.summary.name)
+                        && !created.existingIDsWithSameName.contains(playlist.id)
                 }
             }
             for playlist in playlists where renamedPlaylists[playlist.id]?.name == playlist.name {
