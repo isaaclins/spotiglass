@@ -78,17 +78,22 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
             after: startIndex
         )
         player.queue = ApplicationMusicPlayer.Queue(queued.map(\.entry), startingAt: resolved[startIndex].entry)
-        applyModesToNewQueue()
         try await Self.mapped { try await self.player.play() }
-        // The player switches to a queue it was given only once it plays, so with shuffle on
-        // the carried songs go in now. Each goes right after the current song, so inserting
-        // the last first keeps the order they were added in.
-        if shuffleWanted, !carried.isEmpty, isCurrent() {
+        // The player switches to a queue it was given only once it plays, so shuffle, repeat
+        // and (with shuffle on) the carried songs go in now. A newer play that started in the
+        // meantime owns the queue: leave it alone.
+        guard isCurrent() else { return }
+        applyModesToNewQueue()
+        if shuffleWanted, !carried.isEmpty {
+            // Each goes right after the current song, so inserting the last first keeps the
+            // order they were added in.
             for item in carried.reversed() {
+                guard isCurrent() else { return }
                 try await Self.mapped {
                     try await self.player.queue.insert(item.entry, position: .afterCurrentEntry)
                 }
             }
+            guard isCurrent() else { return }
             let entries = player.queue.entries
             if let current = player.queue.currentEntry,
                let currentIndex = entries.firstIndex(where: { $0.id == current.id }) {
