@@ -54,6 +54,9 @@ struct PlaylistBrowserView: View {
     /// Whether the transport bar drives real playback. Apple Music browsing ships before its
     /// playback, so that service shows a calm placeholder and never starts the Spotify player.
     let playbackMode: BrowserPlaybackMode
+    /// `false` hides Disconnect (toolbar, palette): Apple Music access is a system permission,
+    /// and switching services belongs to the service switcher (#373).
+    let canDisconnect: Bool
 
     private func requestCreatePlaylist(_ rows: [TrackRowViewModel]) {
         newPlaylistInitialRows = rows
@@ -75,7 +78,8 @@ struct PlaylistBrowserView: View {
         catalogProvider: any MusicBrowsingProvider,
         commandPaletteManager: CommandPaletteManager,
         signOut: @escaping () -> Void,
-        playbackMode: BrowserPlaybackMode = .live
+        playbackMode: BrowserPlaybackMode = .live,
+        canDisconnect: Bool = true
     ) {
         let playbackViewModel = playbackHost.playbackViewModel
         let queueViewModel = QueueViewModel(
@@ -90,6 +94,7 @@ struct PlaylistBrowserView: View {
         self.catalogProvider = catalogProvider
         self.signOut = signOut
         self.playbackMode = playbackMode
+        self.canDisconnect = canDisconnect
     }
 
     /// Where you are, falling back to the app name at the root.
@@ -257,13 +262,15 @@ struct PlaylistBrowserView: View {
                     )
                     .accessibilityHint(SpotiglassL10n.string("browser.queue.hint"))
 
-                    Button {
-                        isConfirmingDisconnect = true
-                    } label: {
-                        Label(SpotiglassL10n.string("browser.disconnect"), systemImage: "xmark.circle")
+                    if canDisconnect {
+                        Button {
+                            isConfirmingDisconnect = true
+                        } label: {
+                            Label(SpotiglassL10n.string("browser.disconnect"), systemImage: "xmark.circle")
+                        }
+                        .help(SpotiglassL10n.string("browser.disconnect"))
+                        .accessibilityHint(SpotiglassL10n.string("browser.disconnect.hint"))
                     }
-                    .help(SpotiglassL10n.string("browser.disconnect"))
-                    .accessibilityHint(SpotiglassL10n.string("browser.disconnect.hint"))
                 }
                 ToolbarItem(placement: .primaryAction) {
                     unifiedRefreshToolbarButton

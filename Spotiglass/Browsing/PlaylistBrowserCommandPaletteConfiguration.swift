@@ -15,6 +15,8 @@ enum PlaylistBrowserCommandPaletteConfiguration {
         /// `false` while the browsed service has no player yet (Apple Music browsing). Then
         /// "Connect playback" must not start the Spotify player behind it.
         var isPlaybackAvailable = true
+        /// `false` when the service has no Disconnect (Apple Music: access is a system permission).
+        var canDisconnect = true
     }
 
     static func apply(
@@ -33,7 +35,7 @@ enum PlaylistBrowserCommandPaletteConfiguration {
         manager.isSignedIn = true
         manager.bindPlaybackReadiness(to: dependencies.playbackViewModel)
         manager.setPrefetchProgress(dependencies.viewModel.prefetchAllPlaylistsProgress)
-        manager.signOut = dependencies.signOut
+        manager.signOut = dependencies.canDisconnect ? dependencies.signOut : nil
         let browserVM = dependencies.viewModel
         let queueVM = dependencies.queueViewModel
         manager.unifiedRefresh = {

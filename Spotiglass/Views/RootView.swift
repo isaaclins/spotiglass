@@ -267,7 +267,8 @@ struct RootView: View {
     /// Callbacks this scene owns regardless of auth state. ``detach`` clears
     /// them, so every path that detaches has to be able to restore them.
     private func wireSceneCallbacks() {
-        commandPaletteManager.signOut = signOutAction
+        // Apple Music has no Disconnect: its access is a system permission.
+        commandPaletteManager.signOut = musicService == .spotify ? signOutAction : nil
         commandPaletteManager.openSettings = {
             openSettingsAction()
         }

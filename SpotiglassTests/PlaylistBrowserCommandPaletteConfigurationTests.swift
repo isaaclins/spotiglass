@@ -6,8 +6,8 @@ import XCTest
 final class PlaylistBrowserCommandPaletteConfigurationTests: XCTestCase {
     /// Apple Music browsing has no player yet. "Connect playback" (and its ⇧⌘K shortcut) must
     /// not start the Spotify player behind it; Spotify keeps the command.
-    func testConnectPlaybackIsOnlyWiredWhenTheServiceHasPlayback() throws {
-        func wire(playbackAvailable: Bool) -> CommandPaletteManager {
+    func testPlaybackAndDisconnectAreOnlyWiredWhenTheServiceHasThem() throws {
+        func wire(playbackAvailable: Bool, canDisconnect: Bool = true) -> CommandPaletteManager {
             let viewModel = PlaylistBrowserViewModel(
                 api: MockBrowsingAPI(playlistResults: [], trackResults: [:]),
                 cache: MockBrowsingCache()
@@ -28,7 +28,8 @@ final class PlaylistBrowserCommandPaletteConfigurationTests: XCTestCase {
                     catalogProvider: MockBrowsingAPI(playlistResults: [], trackResults: [:]),
                     signOut: {},
                     syncUnifiedRefreshRouting: {},
-                    isPlaybackAvailable: playbackAvailable
+                    isPlaybackAvailable: playbackAvailable,
+                    canDisconnect: canDisconnect
                 ),
                 queueVisible: .constant(false),
                 lyricsPresented: .constant(false)
@@ -37,6 +38,9 @@ final class PlaylistBrowserCommandPaletteConfigurationTests: XCTestCase {
         }
         XCTAssertNotNil(wire(playbackAvailable: true).connectPlayback)
         XCTAssertNil(wire(playbackAvailable: false).connectPlayback)
+        // No Disconnect for a service whose access is a system permission.
+        XCTAssertNotNil(wire(playbackAvailable: true).signOut)
+        XCTAssertNil(wire(playbackAvailable: false, canDisconnect: false).signOut)
     }
 
     func testApplyWiresCallbacksWithoutHostingView() async throws {

@@ -72,6 +72,6 @@ item and session are never read or written in Apple Music mode.
   the sidebar says "Track count unavailable".
 - **Artist pages** opened from the library show the albums in your library and tracks from them,
   not the artist's whole catalog.
-- **Disconnect** opens the Apple Music privacy setting, because access is a system permission.
+- **Disconnect** is hidden in Apple Music mode (toolbar, palette, app menu): access is a system permission, turned off in System Settings → Privacy & Security → Media & Apple Music, and switching services belongs to #373. Settings › Account shows a note instead of the Spotify sign-in, and Apple Music mode never reads, refreshes or deletes the saved Spotify sign-in.
 - Cover art of songs that only live in your cloud library may not load; those rows show the
   placeholder.

@@ -54,6 +54,12 @@ struct SpotiglassMenuCommands: Commands {
         sceneRegistry.activeScene?.lyricsOverlayController.isPresented ?? false
     }
 
+    /// Apple Music browsing ships before its player: transport items that only check sign-in
+    /// would be enabled and do nothing there (or reach for Spotify), so they also need this.
+    private var hasPlayback: Bool {
+        MusicServiceSelection.current == .spotify
+    }
+
     var isPlaybackToggleEnabled: Bool {
         isSignedIn && (activeCommandPaletteManager?.canTogglePlayback ?? false)
     }
@@ -93,10 +99,14 @@ struct SpotiglassMenuCommands: Commands {
         let currentLocale = locale
 
         CommandGroup(after: .appSettings) {
-            Button(SpotiglassL10n.string("menu.app.signOut", locale: currentLocale)) {
-                run(CommandPaletteCommandID.signOut)
+            // Apple Music access is a system permission, not a sign-in this app can undo, and
+            // switching services belongs to the service switcher (#373): no Disconnect there.
+            if MusicServiceSelection.current == .spotify {
+                Button(SpotiglassL10n.string("menu.app.signOut", locale: currentLocale)) {
+                    run(CommandPaletteCommandID.signOut)
+                }
+                .disabled(!isSignedIn)
             }
-            .disabled(!isSignedIn)
         }
 
         CommandGroup(after: .importExport) {
@@ -161,13 +171,13 @@ struct SpotiglassMenuCommands: Commands {
                 run(CommandPaletteCommandID.nextTrack)
             }
             .keyboardShortcut(keymapShortcut(for: CommandPaletteCommandID.nextTrack))
-            .disabled(!isSignedIn)
+            .disabled(!isSignedIn || !hasPlayback)
 
             Button(SpotiglassL10n.string("menu.playback.previous", locale: currentLocale)) {
                 run(CommandPaletteCommandID.previousTrack)
             }
             .keyboardShortcut(keymapShortcut(for: CommandPaletteCommandID.previousTrack))
-            .disabled(!isSignedIn)
+            .disabled(!isSignedIn || !hasPlayback)
 
             Divider()
 
@@ -209,7 +219,7 @@ struct SpotiglassMenuCommands: Commands {
                 run(CommandPaletteCommandID.enqueueTrackSelection)
             }
             .keyboardShortcut("e", modifiers: [.option, .command])
-            .disabled(!isSignedIn || !canEnqueueTrackSelection)
+            .disabled(!isSignedIn || !hasPlayback || !canEnqueueTrackSelection)
 
             Button(pinItemTitle) {
                 run(CommandPaletteCommandID.pinTrackSelection)
@@ -225,13 +235,13 @@ struct SpotiglassMenuCommands: Commands {
                 run(CommandPaletteCommandID.seekForward)
             }
             .keyboardShortcut(.rightArrow, modifiers: .command)
-            .disabled(!isSignedIn)
+            .disabled(!isSignedIn || !hasPlayback)
 
             Button(SpotiglassL10n.string("menu.playback.seekBackward", locale: currentLocale)) {
                 run(CommandPaletteCommandID.seekBackward)
             }
             .keyboardShortcut(.leftArrow, modifiers: .command)
-            .disabled(!isSignedIn)
+            .disabled(!isSignedIn || !hasPlayback)
 
             Divider()
 
@@ -239,7 +249,7 @@ struct SpotiglassMenuCommands: Commands {
                 run(CommandPaletteCommandID.connectPlayback)
             }
             .keyboardShortcut(keymapShortcut(for: CommandPaletteCommandID.connectPlayback))
-            .disabled(!isSignedIn)
+            .disabled(!isSignedIn || !hasPlayback)
         }
 
         // The default Help menu ships an item that leads nowhere: the bundle

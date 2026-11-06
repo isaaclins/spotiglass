@@ -13,7 +13,8 @@ extension PlaylistBrowserView {
                 catalogProvider: catalogProvider,
                 signOut: signOut,
                 syncUnifiedRefreshRouting: { syncUnifiedRefreshRoutingToViewModel() },
-                isPlaybackAvailable: playbackMode == .live
+                isPlaybackAvailable: playbackMode == .live,
+                canDisconnect: canDisconnect
             ),
             queueVisible: queueVisible,
             lyricsPresented: lyricsPresented

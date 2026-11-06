@@ -23,9 +23,6 @@ struct AppleMusicBrowserRoot: View {
     /// Re-arms this window's own palette callbacks (Settings, Sign Out) after a detach.
     let rewireScene: () -> Void
 
-    /// Bumped by "Disconnect": the palette detaches this window's commands before it calls
-    /// sign-out, and the rebuilt browser binds them again.
-    @State private var browserGeneration = 0
 
     enum AccessTransition: Equatable {
         case granted
@@ -57,7 +54,6 @@ struct AppleMusicBrowserRoot: View {
                 permissionContent
             case .authorized:
                 browser
-                    .id(browserGeneration)
             }
         }
         .task {
@@ -83,15 +79,11 @@ struct AppleMusicBrowserRoot: View {
             playbackHost: playbackHost,
             catalogProvider: AppleMusicBrowsingProvider(),
             commandPaletteManager: commandPaletteManager,
-            signOut: {
-                // Apple Music access is a system permission, so disconnecting means turning it
-                // off in System Settings. Other windows keep browsing until access really goes
-                // away; then `onChange` resets all of them.
-                NSWorkspace.shared.open(AppleMusicSession.privacySettingsURL)
-                browserGeneration += 1
-                rewireScene()
-            },
-            playbackMode: .comingSoon(playbackMessage)
+            // No Disconnect: access is a system permission, turned off in System Settings,
+            // and switching services belongs to the service switcher (#373).
+            signOut: {},
+            playbackMode: .comingSoon(playbackMessage),
+            canDisconnect: false
         )
     }
 
