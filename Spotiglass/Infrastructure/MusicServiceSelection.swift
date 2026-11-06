@@ -79,6 +79,7 @@ final class MusicServiceStore: ObservableObject {
     let availableServices: [MusicService]
 
     private let storage: MusicServiceSelectionStorage?
+    private var spotifySignInObservation: AnyCancellable?
 
     init(storage: MusicServiceSelectionStorage?, availableServices: [MusicService] = MusicService.switcherOrder) {
         self.storage = storage
@@ -149,6 +150,21 @@ final class MusicServiceStore: ObservableObject {
             active = services.first
         }
         return (services, active)
+    }
+
+    /// A Spotify sign-in adds Spotify wherever it happens: the welcome screen, "Add a service…", or
+    /// Settings with every main window closed (no window is there to notice it then). Adding is
+    /// idempotent, so the windows' own handling of the sign-in stays as it is.
+    func followSpotifySignIn<States: Publisher>(_ states: States)
+    where States.Output == AppConnectionState, States.Failure == Never {
+        spotifySignInObservation = states.sink { [weak self] state in
+            switch state {
+            case .signedIn, .refreshing(.some):
+                self?.completeAddition(of: .spotify)
+            case .signedOut, .signingIn, .failed, .refreshing(.none):
+                break
+            }
+        }
     }
 
     /// Added services in menu order (⌃1, ⌃2).

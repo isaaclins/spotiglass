@@ -1,3 +1,4 @@
+import Combine
 import AppKit
 import ViewInspector
 import XCTest
@@ -476,4 +477,67 @@ final class MusicServiceStoreTests: XCTestCase {
 
         XCTAssertEqual(added, [.appleMusic])
     }
+
+    // MARK: - Spotify sign-in from anywhere
+
+    /// Connecting Spotify in Settings while every main window is closed: no window is there to see
+    /// the sign-in, so the app-wide store has to add Spotify itself. It used to stay out of the
+    /// service menu, ⌃2 and the palette, and the next launch skipped restoring it.
+    func testSpotifySignInWithNoWindowAddsSpotify() async throws {
+        let defaults = makeDefaults()
+        defaults.set("client", forKey: MusicServiceStore.legacySpotifyClientIDKey)
+        let http = QueueHTTPClient([.json("""
+            {"access_token":"test-access","token_type":"Bearer","expires_in":3600,
+             "refresh_token":"test-refresh",
+             "scope":"playlist-read-private playlist-read-collaborative user-library-read streaming"}
+            """)])
+        let auth = AuthViewModel(
+            settings: SpotifyAuthSettings(defaults: defaults),
+            authorizationFlow: ImmediateSpotifyAuthorizationFlow(),
+            tokenClient: SpotifyTokenClient(httpClient: http),
+            refreshTokenStore: MemoryOnlyRefreshTokenStore(),
+            signOutDataCleaner: {},
+            artworkCacheClearer: {}
+        )
+        let store = MusicServiceStore(
+            storage: InMemoryMusicServiceSelectionStorage(services: [.appleMusic], active: .appleMusic)
+        )
+        store.followSpotifySignIn(auth.$state)
+        XCTAssertFalse(store.isAdded(.spotify))
+
+        await auth.signIn()
+
+        guard case .signedIn = auth.state else { return XCTFail("Sign-in fixture failed: \(auth.state)") }
+        XCTAssertTrue(store.isAdded(.spotify))
+        XCTAssertEqual(store.switchTargets, [.spotify])
+        // Connecting from Settings never moves the window.
+        XCTAssertEqual(store.active, .appleMusic)
+    }
+
+    /// Signing out again doesn't add anything back, and a failed or cancelled sign-in adds nothing.
+    func testOnlyASuccessfulSpotifySignInAddsSpotify() {
+        let states = PassthroughSubject<AppConnectionState, Never>()
+        let store = MusicServiceStore(
+            storage: InMemoryMusicServiceSelectionStorage(services: [.appleMusic], active: .appleMusic)
+        )
+        store.followSpotifySignIn(states)
+
+        states.send(.signingIn)
+        states.send(.failed(AuthDisplayError(message: "nope")))
+        states.send(.signedOut)
+        states.send(.refreshing(nil))
+
+        XCTAssertEqual(store.services, [.appleMusic])
+    }
 }
+
+private struct ImmediateSpotifyAuthorizationFlow: SpotifyAuthorizationFlowing {
+    func requestAuthorizationCode(clientID: String, timeout: TimeInterval) async throws -> SpotifyAuthorizationCode {
+        SpotifyAuthorizationCode(
+            code: "test",
+            codeVerifier: try PKCE.makeCodeVerifier(),
+            redirectURI: URL(string: "http://127.0.0.1:43824/callback")!
+        )
+    }
+}
+

@@ -20,7 +20,7 @@ struct SpotiglassApp: App {
     @StateObject private var appleMusicSession = AppleMusicSession()
     /// The added services and the one on screen (#373), shared by every window, the menu bar
     /// and Settings.
-    @StateObject private var serviceStore = MusicServiceStore.live()
+    @StateObject private var serviceStore: MusicServiceStore
     /// Same storage key ``PlaylistBrowserView`` writes, read here so the View menu
     /// can say "Show Queue" or "Hide Queue" instead of a stateless "Toggle".
     @AppStorage("queue.panel.visible") private var isQueueVisible = false
@@ -64,6 +64,9 @@ struct SpotiglassApp: App {
             authVM = AuthViewModel()
         }
         _authViewModel = StateObject(wrappedValue: authVM)
+        let services = MusicServiceStore.live()
+        services.followSpotifySignIn(authVM.$state)
+        _serviceStore = StateObject(wrappedValue: services)
 
         let equalizer = AudioEqualizerEngine()
         // Screenshot mode never touches the audio driver, so a seeded EQ stays editable on screen.
