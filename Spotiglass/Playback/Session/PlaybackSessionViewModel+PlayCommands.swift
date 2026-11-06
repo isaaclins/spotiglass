@@ -32,7 +32,7 @@ extension PlaybackSessionViewModel {
                 SpotiglassLog.info(.playback, "play(uri:) superseded after API uri=\(uri)")
                 return
             }
-            noteLocalPlaybackMutation(shouldSyncTransportImmediately: false)
+            noteLocalPlaybackMutation(shouldSyncTransportImmediately: false, playExpectation: .playing)
             if let optimisticNowPlaying = optimisticNowPlaying(for: uri) {
                 setConnectionState(.playing(optimisticNowPlaying.with(positionMilliseconds: 0)))
             }
@@ -70,7 +70,7 @@ extension PlaybackSessionViewModel {
             }
             guard ownsPlaybackHostGeneration(generation), !Task.isCancelled,
                   isPlayCommandDispatchCurrent(dispatch) else { return }
-            noteLocalPlaybackMutation(shouldSyncTransportImmediately: false)
+            noteLocalPlaybackMutation(shouldSyncTransportImmediately: false, playExpectation: .playing)
             if !isRemotePlaybackActive {
                 try await provider.didStartLocalPlayback(uri: contextURI)
             }
@@ -134,7 +134,7 @@ extension PlaybackSessionViewModel {
                 SpotiglassLog.info(.playback, "playFromPlaylist superseded after API clickedURI=\(clickedURI)")
                 return
             }
-            noteLocalPlaybackMutation(shouldSyncTransportImmediately: false)
+            noteLocalPlaybackMutation(shouldSyncTransportImmediately: false, playExpectation: .playing)
             if let optimisticNowPlaying = optimisticNowPlaying(for: clickedURI) {
                 setConnectionState(.playing(optimisticNowPlaying.with(positionMilliseconds: 0)))
             }

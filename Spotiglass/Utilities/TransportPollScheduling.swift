@@ -53,6 +53,9 @@ enum TransportPollScheduling {
         var transportRateLimitedUntil: ContinuousClock.Instant?
         var localMutationSettleTicksRemaining: Int
         var hasPendingVolumeMutation: Bool
+        /// A play command waits for a player without pushed state to start;
+        /// only a read can tell the session that it did.
+        var isAwaitingReadOnlyPlayerStart = false
         var transportTransientErrorCount: Int
         var hasLatestPlayerSnapshot: Bool
         var isPlaybackActiveForPolling: Bool
@@ -66,7 +69,8 @@ enum TransportPollScheduling {
             }
             return .seconds(15)
         }
-        if inputs.localMutationSettleTicksRemaining > 0 || inputs.hasPendingVolumeMutation {
+        if inputs.localMutationSettleTicksRemaining > 0 || inputs.hasPendingVolumeMutation
+            || inputs.isAwaitingReadOnlyPlayerStart {
             return .seconds(1)
         }
         if inputs.transportTransientErrorCount > 0 {

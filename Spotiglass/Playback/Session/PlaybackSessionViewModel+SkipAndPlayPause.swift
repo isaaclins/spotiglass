@@ -67,7 +67,7 @@ extension PlaybackSessionViewModel {
             } else {
                 setConnectionState(.playing(optimisticNowPlaying ?? fallbackNowPlaying()))
             }
-            noteLocalPlaybackMutation()
+            noteLocalPlaybackMutation(playExpectation: shouldPause ? .paused : .playing)
         } catch {
             guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
             setConnectionState(.error(Self.displayError(for: error)))
@@ -273,7 +273,7 @@ extension PlaybackSessionViewModel {
                   ownsPlaybackHostGeneration(dispatch.hostGeneration),
                   !Task.isCancelled
             else { return false }
-            noteLocalPlaybackMutation()
+            noteLocalPlaybackMutation(playExpectation: .none)
             return true
         } catch {
             guard isCurrentSkipCommandDispatch(dispatch),

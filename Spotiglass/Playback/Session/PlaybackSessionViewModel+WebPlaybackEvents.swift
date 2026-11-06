@@ -14,7 +14,12 @@ extension PlaybackSessionViewModel {
         switch event {
         case let .ready(deviceID):
             SpotiglassLog.info(.playback, "SDK ready deviceID=\(deviceID) previousDeviceID=\(self.deviceID ?? "<nil>") autoResumeOnNextReady=\(autoResumeOnNextReady)")
-            if supersededSDKDeviceIDs.contains(deviceID) {
+            // A reloaded SDK page registers a new device, so a late `ready` for
+            // a superseded one comes from an old page. A player that keeps one
+            // constant id reports that same id on every reconnect, and the
+            // event's generation already fences stale lifecycles.
+            if provider.capabilities.contains(.reloadablePlayer),
+               supersededSDKDeviceIDs.contains(deviceID) {
                 guard self.deviceID == nil, reclaimableSDKDeviceID == deviceID else {
                     SpotiglassLog.info(.playback, "Ignoring stale SDK ready deviceID=\(deviceID)")
                     return

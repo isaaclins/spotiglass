@@ -64,6 +64,8 @@ extension PlaybackSessionViewModel {
             transportRateLimitedUntil: transportRateLimitedUntil,
             localMutationSettleTicksRemaining: localMutationSettleTicksRemaining,
             hasPendingVolumeMutation: pendingVolumeMutation != nil,
+            isAwaitingReadOnlyPlayerStart: pendingPlayTransition != nil
+                && !provider.capabilities.contains(.pushesPlayerState),
             transportTransientErrorCount: transportTransientErrorCount,
             hasLatestPlayerSnapshot: latestPlayerSnapshot != nil,
             isPlaybackActiveForPolling: isPlaybackActiveForPolling,

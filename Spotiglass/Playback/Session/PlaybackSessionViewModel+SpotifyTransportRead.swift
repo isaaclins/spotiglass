@@ -83,6 +83,9 @@ extension PlaybackSessionViewModel {
                 transportRateLimitedUntil = nil
                 if localMutationSettleTicksRemaining > 0 {
                     localMutationSettleTicksRemaining -= 1
+                    if localMutationSettleTicksRemaining == 0 {
+                        localCommandExpectsPlaying = nil
+                    }
                 }
                 refreshTrayOutputSymbol()
             } catch {
@@ -167,30 +170,20 @@ extension PlaybackSessionViewModel {
 
     /// For a player whose state is only read: whether a read taken during the
     /// settle window confirms the last local command instead of predating it.
-    /// A pending play accepts any playing read (stale items are suppressed by
-    /// the play fence); otherwise the read must match the current state's
-    /// play / pause and item.
+    /// Only play / pause can be stale this way (a player still reports
+    /// "playing" right after it was stopped); which item plays is fenced by the
+    /// pending play and skip tracking.
     private func readAgreesWithLocalCommand(_ snapshot: MusicPlaybackSnapshot) -> Bool {
-        if pendingPlayTransition != nil {
-            return snapshot.isPlaying
-        }
-        let readURI = snapshot.playbackNowPlaying?.uri
-        switch connectionState {
-        case let .playing(nowPlaying):
-            return snapshot.isPlaying && readURI == nowPlaying.uri
-        case let .paused(nowPlaying):
-            return !snapshot.isPlaying && (nowPlaying == nil || readURI == nowPlaying?.uri)
-        case .disconnected, .connecting, .ready, .transferring, .unavailable, .error:
-            return false
-        }
+        guard let localCommandExpectsPlaying else { return true }
+        return snapshot.isPlaying == localCommandExpectsPlaying
     }
 
     /// For a player whose state is only read, an empty read means nothing is
     /// playing on it any more. Nothing else will correct a `.playing` or
-    /// `.paused` item, so fall back to `.ready` once the settle window is over.
+    /// `.paused` item, so fall back to `.ready`, unless a play command is still
+    /// waiting for the player to start.
     private func applyEmptyReadForReadOnlyPlayer() {
         guard !provider.capabilities.contains(.pushesPlayerState),
-              localMutationSettleTicksRemaining == 0,
               pendingPlayTransition == nil,
               let localDeviceID = deviceID else { return }
         switch connectionState {
@@ -376,9 +369,18 @@ extension PlaybackSessionViewModel {
         }
     }
 
-    func noteLocalPlaybackMutation(shouldSyncTransportImmediately: Bool = true) {
+    func noteLocalPlaybackMutation(
+        shouldSyncTransportImmediately: Bool = true,
+        playExpectation: LocalCommandPlayExpectation = .unchanged
+    ) {
         localMutationSettleTicksRemaining = max(localMutationSettleTicksRemaining, 2)
         transportRateLimitedUntil = nil
+        switch playExpectation {
+        case .unchanged: break
+        case .playing: localCommandExpectsPlaying = true
+        case .paused: localCommandExpectsPlaying = false
+        case .none: localCommandExpectsPlaying = nil
+        }
         if !provider.capabilities.contains(.pushesPlayerState) {
             // Reads are this player's only state source. Restart the poll loop
             // so it reads at the settle cadence now instead of finishing a long

@@ -224,6 +224,20 @@ final class PlaybackSessionViewModel: ObservableObject {
     var transportTransientErrorCount = 0
     var transportRateLimitedUntil: ContinuousClock.Instant?
     var localMutationSettleTicksRemaining = 0
+    /// What the last local command asked a player without pushed state to do:
+    /// `true` play, `false` pause, `nil` nothing about play / pause (skip, seek,
+    /// shuffle). Reads during the settle window are checked against it.
+    var localCommandExpectsPlaying: Bool?
+
+    /// How a local command changes play / pause, for ``localCommandExpectsPlaying``.
+    enum LocalCommandPlayExpectation {
+        /// The command doesn't touch play / pause (seek, shuffle, transfer).
+        case unchanged
+        case playing
+        case paused
+        /// Play / pause stays whatever it was, but the item may change (skip).
+        case none
+    }
     var volumeMutationVersion: UInt64 = 0
     var pendingVolumeMutation: PendingVolumeMutation?
     var playbackVolumeSendTask: Task<Void, Never>?

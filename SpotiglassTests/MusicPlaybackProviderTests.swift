@@ -168,6 +168,30 @@ final class MusicPlaybackProviderTests: XCTestCase {
         XCTAssertEqual(session.connectionState, .ready(deviceID: "local"))
     }
 
+    /// Same, when the player first reported not-ready (which marks its id as
+    /// superseded for the Spotify page) and the user then reconnects.
+    func testPlayerWithAConstantIDReconnectsAfterNotReady() {
+        let provider = ReadOnlyStatePlaybackProvider()
+        let session = PlaybackSessionViewModel(provider: provider)
+        session.setConnectionState(.connecting)
+        let ready = { provider.eventHandler?(MusicPlaybackEventEnvelope(
+            event: .ready(deviceID: "local"),
+            hostGeneration: session.playbackHostGeneration
+        )) }
+        ready()
+        provider.eventHandler?(MusicPlaybackEventEnvelope(
+            event: .notReady(deviceID: "local"),
+            hostGeneration: session.playbackHostGeneration
+        ))
+        session.setConnectionState(.error(PlaybackSessionViewModel.playbackDeviceNotReadyError()))
+
+        session.start()
+        ready()
+
+        XCTAssertEqual(session.deviceID, "local")
+        XCTAssertEqual(session.connectionState, .ready(deviceID: "local"))
+    }
+
     /// The Spotify page registers a new device per load, so a late `ready` for
     /// the old device after a reload is still ignored.
     func testSpotifyStillIgnoresTheOldDeviceAfterAReload() {
@@ -240,6 +264,96 @@ final class MusicPlaybackProviderTests: XCTestCase {
         provider.state = Self.snapshot(isPlaying: true, progress: 500)
         await session.syncTransportFromSpotify()
         XCTAssertEqual(session.connectionState, .playing(Self.song(position: 500)))
+    }
+
+    /// Play B while A plays, then pause before B is confirmed: a stale "B is
+    /// playing" read must not undo the pause, and the read that shows B paused
+    /// is applied inside the settle window.
+    func testPauseDuringAPendingPlayKeepsItsSettleProtection() async {
+        let provider = ReadOnlyStatePlaybackProvider()
+        let session = PlaybackSessionViewModel(provider: provider)
+        session.deviceID = "local"
+        session.setActivePlaybackDeviceID("local")
+        session.setConnectionState(.playing(Self.song(position: 10_000)))
+
+        await session.play(uri: "music:song:2")
+        await session.togglePlayPause()
+        XCTAssertEqual(provider.commands.last, "pause local")
+        XCTAssertGreaterThan(session.localMutationSettleTicksRemaining, 0)
+
+        provider.state = Self.snapshot(uri: "music:song:2", isPlaying: true, progress: 300)
+        await session.syncTransportFromSpotify()
+        guard case .paused = session.connectionState else {
+            return XCTFail("A stale playing read undid the pause: \(session.connectionState)")
+        }
+
+        provider.state = Self.snapshot(uri: "music:song:2", isPlaying: false, progress: 400)
+        await session.syncTransportFromSpotify()
+        guard case let .paused(nowPlaying) = session.connectionState else {
+            return XCTFail("Expected paused, got \(session.connectionState)")
+        }
+        XCTAssertEqual(nowPlaying?.uri, "music:song:2")
+    }
+
+    /// Skip while paused: the read that shows the next item, still paused, is
+    /// the confirmation and is applied right away.
+    func testSkipWhilePausedAppliesTheConfirmingReadInsideTheSettleWindow() async {
+        let provider = ReadOnlyStatePlaybackProvider()
+        let session = PlaybackSessionViewModel(provider: provider)
+        session.deviceID = "local"
+        session.setActivePlaybackDeviceID("local")
+        session.setConnectionState(.paused(Self.song(position: 10_000)))
+
+        await session.next()
+        XCTAssertEqual(provider.commands.last, "next local")
+        XCTAssertGreaterThan(session.localMutationSettleTicksRemaining, 0)
+
+        provider.state = Self.snapshot(uri: "music:song:2", isPlaying: false, progress: 0)
+        await session.syncTransportFromSpotify()
+
+        XCTAssertGreaterThan(session.localMutationSettleTicksRemaining, 0, "applied inside the settle window")
+        guard case let .paused(nowPlaying) = session.connectionState else {
+            return XCTFail("Expected paused, got \(session.connectionState)")
+        }
+        XCTAssertEqual(nowPlaying?.uri, "music:song:2")
+    }
+
+    /// Skip past the last item: the player has nothing left and reads empty.
+    /// That read is applied right away, not after the settle window and a long
+    /// no-snapshot poll.
+    func testEmptyReadAfterSkippingPastTheEndIsAppliedRightAway() async {
+        let provider = ReadOnlyStatePlaybackProvider()
+        let session = PlaybackSessionViewModel(provider: provider)
+        session.deviceID = "local"
+        session.setActivePlaybackDeviceID("local")
+        session.setConnectionState(.playing(Self.song(position: 190_000)))
+
+        await session.next()
+        XCTAssertGreaterThan(session.localMutationSettleTicksRemaining, 0)
+        provider.state = nil
+        await session.syncTransportFromSpotify()
+
+        XCTAssertEqual(session.connectionState, .ready(deviceID: "local"))
+    }
+
+    /// While a play command waits for such a player to start, reads stay at
+    /// the settle cadence even after the settle window, instead of the 20 s
+    /// used when no player state is known.
+    func testPendingPlayKeepsReadingEverySecond() async {
+        let provider = ReadOnlyStatePlaybackProvider()
+        let session = PlaybackSessionViewModel(provider: provider)
+        session.deviceID = "local"
+        session.setActivePlaybackDeviceID("local")
+        session.setConnectionState(.ready(deviceID: "local"))
+
+        await session.play(uri: "music:song:1")
+        provider.state = nil
+        while session.localMutationSettleTicksRemaining > 0 {
+            await session.syncTransportFromSpotify()
+        }
+
+        XCTAssertNotNil(session.pendingPlayTransition)
+        XCTAssertEqual(session.currentTransportPollDelay(), .seconds(1))
     }
 
     /// An empty read means nothing plays on the player any more. Without pushed
@@ -318,12 +432,16 @@ final class MusicPlaybackProviderTests: XCTestCase {
         )
     }
 
-    private static func snapshot(isPlaying: Bool, progress: Int) -> MusicPlaybackSnapshot {
+    private static func snapshot(
+        uri: String = "music:song:1",
+        isPlaying: Bool,
+        progress: Int
+    ) -> MusicPlaybackSnapshot {
         MusicPlaybackSnapshot(
             transport: MusicPlaybackTransport(shuffle: false, repeatMode: .off),
             activeDevice: nil,
             isPlaying: isPlaying,
-            item: .track(track(uri: "music:song:1")),
+            item: .track(track(uri: uri)),
             progressMilliseconds: progress
         )
     }
