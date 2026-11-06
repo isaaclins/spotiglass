@@ -89,6 +89,15 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         XCTAssertNil(own.trackCount)
     }
 
+    /// A blank-named library playlist gets a real name, so the browser's playlist check (made
+    /// for Spotify's error items) never fails the whole library over it.
+    func testABlankPlaylistNameBecomesUntitled() throws {
+        let summary = AppleMusicItemMapping.playlistSummary(
+            try AppleMusicFixtures.playlist(id: "p.blank", name: "  "), fallbackOwnerName: "You"
+        )
+        XCTAssertEqual(summary.name, SpotiglassL10n.string("appleMusic.playlist.untitled"))
+    }
+
     func testArtistAlbumGroupsAndReleaseYear() throws {
         let single = AppleMusicItemMapping.artistAlbum(try AppleMusicFixtures.album(id: "s", title: "S", isSingle: true))
         let compilation = AppleMusicItemMapping.artistAlbum(try AppleMusicFixtures.album(id: "c", title: "C", isCompilation: true))
@@ -571,13 +580,33 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         XCTAssertEqual(source.calls, [])
     }
 
-    func testEditsReportUnsupported() async {
+    /// Every library edit fails with Apple Music's own localized error, never the protocol's
+    /// `SpotifyAPIError` default, so it is neither shown nor handled as a Spotify error.
+    @MainActor
+    func testEditsReportAppleMusicsOwnReadOnlyError() async {
         let provider = AppleMusicBrowsingProvider(source: MockAppleMusicSource())
-        do {
-            try await provider.saveTracks(ids: ["1"])
-            XCTFail("expected unsupported")
-        } catch {
-            XCTAssertFalse(error.localizedDescription.isEmpty)
+        let edits: [(String, () async throws -> Void)] = [
+            ("rename", { try await provider.updatePlaylist(playlistID: "p.1", name: "New") }),
+            ("add", { try await provider.addTracksToPlaylist(playlistID: "p.1", uris: ["applemusic:song:1"]) }),
+            ("remove", { try await provider.removeTracksFromPlaylist(playlistID: "p.1", items: [], snapshotID: nil) }),
+            ("create", { _ = try await provider.createPlaylist(userID: "u", name: "N", isPublic: false) }),
+            ("save", { try await provider.saveTracks(ids: ["1"]) }),
+            ("unsave", { try await provider.removeSavedTracks(ids: ["1"]) }),
+            ("status", { _ = try await provider.savedTrackStatuses(ids: ["1"]) }),
+        ]
+        for (name, edit) in edits {
+            do {
+                try await edit()
+                XCTFail("\(name): expected read-only")
+            } catch {
+                XCTAssertEqual(error as? AppleMusicBrowsingError, .libraryReadOnly, name)
+                XCTAssertFalse(error is SpotifyAPIError, name)
+                XCTAssertEqual(
+                    PlaylistBrowserViewModel.describeFailure(error),
+                    SpotiglassL10n.string("appleMusic.error.libraryReadOnly"),
+                    name
+                )
+            }
         }
     }
 }

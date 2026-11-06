@@ -5,11 +5,15 @@ import MusicKit
 enum AppleMusicBrowsingError: LocalizedError, Equatable {
     /// The playlist, album or artist is neither in the library nor in the catalog.
     case notFound
+    /// Library edits (rename, add, like). MusicKit's library is read-only on macOS; #374.
+    case libraryReadOnly
 
     var errorDescription: String? {
         switch self {
         case .notFound:
             SpotiglassL10n.string("appleMusic.error.notFound")
+        case .libraryReadOnly:
+            SpotiglassL10n.string("appleMusic.error.libraryReadOnly")
         }
     }
 }
@@ -29,8 +33,9 @@ enum AppleMusicBrowsingError: LocalizedError, Equatable {
 ///   the first recommended playlist.
 /// - **Search**: library matches first, then the catalog, so the palette finds the user's own
 ///   music before the rest of Apple Music. Later pages are catalog only.
-/// - **Edits**: not supported here (MusicKit's library is read-only on macOS); the protocol's
-///   defaults report them as unsupported.
+/// - **Edits**: not supported here (MusicKit's library is read-only on macOS). They throw
+///   `AppleMusicBrowsingError.libraryReadOnly`, never the protocol's Spotify defaults, so an
+///   Apple Music failure is never shown or handled as a Spotify error.
 ///
 /// Response caching is MusicKit's own, so `cacheMode` is accepted and ignored.
 struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
@@ -277,6 +282,40 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
             albumsPaging: paging(albums.count, more: catalogItems.moreAlbums),
             playlistsPaging: paging(playlists.count, more: catalogItems.morePlaylists)
         )
+    }
+
+    // MARK: - Library edits
+
+    func updatePlaylist(playlistID: String, name: String) async throws {
+        throw AppleMusicBrowsingError.libraryReadOnly
+    }
+
+    func addTracksToPlaylist(playlistID: String, uris: [String]) async throws {
+        throw AppleMusicBrowsingError.libraryReadOnly
+    }
+
+    func removeTracksFromPlaylist(
+        playlistID: String,
+        items: [MusicPlaylistTrackRemoval],
+        snapshotID: String?
+    ) async throws {
+        throw AppleMusicBrowsingError.libraryReadOnly
+    }
+
+    func createPlaylist(userID: String, name: String, isPublic: Bool) async throws -> MusicPlaylistSummary {
+        throw AppleMusicBrowsingError.libraryReadOnly
+    }
+
+    func saveTracks(ids: [String]) async throws {
+        throw AppleMusicBrowsingError.libraryReadOnly
+    }
+
+    func removeSavedTracks(ids: [String]) async throws {
+        throw AppleMusicBrowsingError.libraryReadOnly
+    }
+
+    func savedTrackStatuses(ids: [String]) async throws -> [Bool] {
+        throw AppleMusicBrowsingError.libraryReadOnly
     }
 
     // MARK: - Helpers

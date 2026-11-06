@@ -14443,6 +14443,52 @@
           }
         }
       }
+    },
+    "appleMusic.error.libraryReadOnly": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Editing your Apple Music library from Spotiglass isn't available yet."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Todavía no puedes editar tu biblioteca de Apple Music desde Spotiglass."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deine Apple-Music-Mediathek lässt sich in Spotiglass noch nicht bearbeiten."
+          }
+        }
+      }
+    },
+    "appleMusic.playlist.untitled": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Untitled Playlist"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lista sin título"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unbenannte Playlist"
+          }
+        }
+      }
     }
   },
   "version": "1.1"

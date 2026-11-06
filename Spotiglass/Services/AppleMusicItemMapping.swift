@@ -110,9 +110,12 @@ enum AppleMusicItemMapping {
         let curator = playlist.curatorName
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .flatMap { $0.isEmpty ? nil : $0 }
+        // A blank name would read as a broken response to the browser's playlist check (built
+        // for Spotify's error items) and fail the whole library with a Spotify-style error.
+        let name = playlist.name.trimmingCharacters(in: .whitespacesAndNewlines)
         return MusicPlaylistSummary(
             id: playlist.id.rawValue,
-            name: playlist.name,
+            name: name.isEmpty ? SpotiglassL10n.string("appleMusic.playlist.untitled") : playlist.name,
             ownerID: curator ?? AppleMusicBrowsingProvider.libraryUserID,
             ownerName: curator ?? fallbackOwnerName,
             imageURL: artworkURL(playlist.artwork, size: ArtworkSize.cover, pinKind: .playlist, itemID: playlist.id),
