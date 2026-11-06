@@ -97,7 +97,7 @@ extension PlaylistBrowserViewModel {
 
     /// Exact source playlist positions for a row-level Move operation. Duplicate
     /// catalog tracks stay grouped by URI while retaining every selected slot.
-    func playlistTrackRemovals(for rows: [TrackRowViewModel]) -> [SpotifyPlaylistTrackRemoval] {
+    func playlistTrackRemovals(for rows: [TrackRowViewModel]) -> [MusicPlaylistTrackRemoval] {
         var order: [String] = []
         var positionsByURI: [String: [Int]] = [:]
         for row in rows {
@@ -111,7 +111,7 @@ extension PlaylistBrowserViewModel {
         }
         return order.compactMap { uri in
             guard let positions = positionsByURI[uri], !positions.isEmpty else { return nil }
-            return SpotifyPlaylistTrackRemoval(uri: uri, positions: positions)
+            return MusicPlaylistTrackRemoval(uri: uri, positions: positions)
         }
     }
 
@@ -305,7 +305,7 @@ extension PlaylistBrowserViewModel {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty, trimmedName != previous.name else { return }
 
-        let renamed = SpotifyPlaylistSummary(
+        let renamed = MusicPlaylistSummary(
             id: previous.id,
             name: trimmedName,
             ownerID: previous.ownerID,
@@ -333,9 +333,9 @@ extension PlaylistBrowserViewModel {
     }
 
     /// User-owned playlists (excluding the virtual liked-songs row) for menu listing.
-    func userOwnedPlaylistsForMenu(excludingPlaylistID excluding: String?) -> [SpotifyPlaylistSummary] {
+    func userOwnedPlaylistsForMenu(excludingPlaylistID excluding: String?) -> [MusicPlaylistSummary] {
         let me = currentUserSpotifyID ?? ""
-        return playlistState.currentValue?.compactMap { row -> SpotifyPlaylistSummary? in
+        return playlistState.currentValue?.compactMap { row -> MusicPlaylistSummary? in
             guard let summary = playlistsByID[row.id], summary.ownerID == me else { return nil }
             if let excluding, summary.id == excluding { return nil }
             return summary
@@ -399,7 +399,7 @@ extension PlaylistBrowserViewModel {
         }
     }
 
-    private func applyPlaylistName(_ playlist: SpotifyPlaylistSummary) {
+    private func applyPlaylistName(_ playlist: MusicPlaylistSummary) {
         playlistsByID[playlist.id] = playlist
 
         if let rows = playlistState.currentValue {
@@ -472,8 +472,8 @@ extension PlaylistBrowserViewModel {
         await loadTracks(for: currentPlaylistID, refreshCachedData: true, session: detailSession)
     }
 
-    private func insertSidebarPlaylist(_ summary: SpotifyPlaylistSummary, refreshedTrackCount: Int) {
-        let normalised = SpotifyPlaylistSummary(
+    private func insertSidebarPlaylist(_ summary: MusicPlaylistSummary, refreshedTrackCount: Int) {
+        let normalised = MusicPlaylistSummary(
             id: summary.id,
             name: summary.name,
             ownerID: summary.ownerID,

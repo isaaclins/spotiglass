@@ -103,7 +103,7 @@ extension PlaylistBrowserViewModel {
         await selectSidebar(.home)
     }
 
-    private func fetchPlaylistsForRefresh(trigger: PlaylistRefreshTrigger) async throws -> [SpotifyPlaylistSummary] {
+    private func fetchPlaylistsForRefresh(trigger: PlaylistRefreshTrigger) async throws -> [MusicPlaylistSummary] {
         if let inFlightPlaylistListRefreshTask {
             let (playlists, profile) = try await inFlightPlaylistListRefreshTask.value
             currentUserSpotifyID = profile.id
@@ -145,7 +145,7 @@ extension PlaylistBrowserViewModel {
         }
     }
 
-    private func currentPlaylistSummariesFromLoadedState() -> [SpotifyPlaylistSummary]? {
+    private func currentPlaylistSummariesFromLoadedState() -> [MusicPlaylistSummary]? {
         guard let rows = playlistState.currentValue, !rows.isEmpty else { return nil }
         let ordered = rows.compactMap { playlistsByID[$0.id] }
         return ordered.isEmpty ? nil : ordered
@@ -154,7 +154,7 @@ extension PlaylistBrowserViewModel {
     /// A transport failure must stay an error state, never become a synthetic
     /// playlist row. This also rejects error-shaped objects accepted by the
     /// permissive Spotify DTO fallback before they reach disk or SwiftUI.
-    private func validatedPlaylistSummaries(_ playlists: [SpotifyPlaylistSummary]) throws -> [SpotifyPlaylistSummary] {
+    private func validatedPlaylistSummaries(_ playlists: [MusicPlaylistSummary]) throws -> [MusicPlaylistSummary] {
         let forbiddenMessage = SpotiglassL10n.string("error.spotify.forbidden")
         let accessDeniedMessage = SpotiglassL10n.string("error.browsing.accessDenied.message")
         let invalid = playlists.contains { playlist in
@@ -172,7 +172,7 @@ extension PlaylistBrowserViewModel {
     }
 
     private func apply(
-        playlists: [SpotifyPlaylistSummary],
+        playlists: [MusicPlaylistSummary],
         state: BrowsingLoadState<[PlaylistRowViewModel]>,
         preserveSelection: Bool
     ) {

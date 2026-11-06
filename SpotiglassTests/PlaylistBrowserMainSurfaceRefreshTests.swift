@@ -63,7 +63,7 @@ final class PlaylistBrowserMainSurfaceRefreshTests: XCTestCase {
         let api = MockBrowsingAPI(
             playlistResults: [.success([playlist])],
             trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "t1")])]],
-            savedTracksResult: .success(SpotifySavedTracksResult(
+            savedTracksResult: .success(MusicSavedTracksResult(
                 tracks: [PlaylistBrowsingTestFixtures.track(id: "fresh-liked")],
                 totalAvailable: 1
             ))

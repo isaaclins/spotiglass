@@ -183,8 +183,8 @@ final class ListDetailViewsTests: XCTestCase {
         let base = PlaylistBrowsingTestFixtures.fallbackTrack(id: "t4", name: "Collab", artistId: "a0")
         let track = TrackRowViewModel(
             topTrack: base.withArtistRefs([
-                SpotifyArtistRef(id: "a1", name: "Alpha"),
-                SpotifyArtistRef(id: "a2", name: "Beta")
+                MusicArtistRef(id: "a1", name: "Alpha"),
+                MusicArtistRef(id: "a2", name: "Beta")
             ]),
             listPosition: 4
         )
@@ -811,11 +811,11 @@ private extension ListDetailViewsTests {
         listPosition: Int = 1
     ) -> TrackRowViewModel {
         TrackRowViewModel(
-            topTrack: SpotifyTrack(
+            topTrack: MusicTrack(
                 id: id,
                 name: title,
                 artists: ["Artist"],
-                artistRefs: [SpotifyArtistRef(id: "ar1", name: "Artist")],
+                artistRefs: [MusicArtistRef(id: "ar1", name: "Artist")],
                 albumArtworkURL: nil,
                 durationMilliseconds: 180_000,
                 isExplicit: explicit,
@@ -855,7 +855,7 @@ private extension ListDetailViewsTests {
         loadingMore: Bool = false,
         allReleaseGroups: Bool = false
     ) -> ArtistDetailViewModel {
-        let artist = SpotifyArtistDetail(
+        let artist = MusicArtistDetail(
             id: "artist1",
             name: "Sample Artist",
             imageURL: nil,
@@ -867,22 +867,22 @@ private extension ListDetailViewsTests {
             PlaylistBrowsingTestFixtures.fallbackTrack(id: "top1", name: "Top Song", artistId: "artist1")
         ]
         let albums = [
-            SpotifyArtistAlbum(
+            MusicArtistAlbum(
                 id: "alb1", name: "Debut Album", imageURL: nil, releaseYear: "2020",
                 totalTracks: 10, group: .album, uri: "spotify:album:alb1"
             ),
-            SpotifyArtistAlbum(
+            MusicArtistAlbum(
                 id: "single1", name: "Hit Single", imageURL: nil, releaseYear: "2021",
                 totalTracks: 1, group: .single, uri: "spotify:album:single1"
             )
         ]
         let allAlbums = allReleaseGroups
             ? albums + [
-                SpotifyArtistAlbum(
+                MusicArtistAlbum(
                     id: "compilation1", name: "Compilation", imageURL: nil, releaseYear: "2022",
                     totalTracks: 8, group: .compilation, uri: "spotify:album:compilation1"
                 ),
-                SpotifyArtistAlbum(
+                MusicArtistAlbum(
                     id: "appears1", name: "Appears On Release", imageURL: nil, releaseYear: "2023",
                     totalTracks: 9, group: .appearsOn, uri: "spotify:album:appears1"
                 ),
@@ -1000,9 +1000,9 @@ private struct TrackListScrollRestoreHarness: View {
     }
 }
 
-private extension SpotifyTrack {
-    func withArtistRefs(_ refs: [SpotifyArtistRef]) -> SpotifyTrack {
-        SpotifyTrack(
+private extension MusicTrack {
+    func withArtistRefs(_ refs: [MusicArtistRef]) -> MusicTrack {
+        MusicTrack(
             id: id,
             name: name,
             artists: refs.map(\.name),

@@ -8,8 +8,8 @@ import XCTest
 @MainActor
 final class TrackSelectionMenuStateTests: XCTestCase {
 
-    private func makeTrack(id: String) -> SpotifyTrack {
-        SpotifyTrack(
+    private func makeTrack(id: String) -> MusicTrack {
+        MusicTrack(
             id: id, name: "Song \(id)",
             artists: ["A"], albumArtworkURL: nil,
             durationMilliseconds: 1000, isExplicit: false, isPlayable: true,
@@ -136,7 +136,7 @@ final class TrackSelectionMenuStateTests: XCTestCase {
 
     private func makeRow(id: String, playable: Bool) -> TrackRowViewModel {
         TrackRowViewModel(
-            topTrack: SpotifyTrack(
+            topTrack: MusicTrack(
                 id: id, name: "Song \(id)",
                 artists: ["A"], albumArtworkURL: nil,
                 durationMilliseconds: 1000, isExplicit: false, isPlayable: playable,

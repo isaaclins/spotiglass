@@ -1,27 +1,11 @@
 import Foundation
 
-enum SpotifyRequestCacheMode: Equatable {
-    case freshOnly
-    case allowStale
-    case bypassCache
-}
-
 protocol SpotifyAccessTokenProviding {
     func accessToken() async throws -> String
     func refreshAccessTokenAfterUnauthorized() async throws -> String
 }
 
 struct SpotifyAPIClient {
-    struct SpotifyArtistAlbumsPage {
-        let items: [SpotifyArtistAlbum]
-        let next: URL?
-    }
-
-    struct CachedResponse<Value> {
-        let value: Value
-        let isStale: Bool
-    }
-
     private let baseURL: URL
     let tokenProvider: SpotifyAccessTokenProviding
     let httpClient: HTTPClient
@@ -123,7 +107,7 @@ struct SpotifyAPIClient {
     func send<Response: Decodable>(
         path: String,
         queryItems: [URLQueryItem] = [],
-        cacheMode: SpotifyRequestCacheMode = .freshOnly
+        cacheMode: MusicRequestCacheMode = .freshOnly
     ) async throws -> Response {
         let traceSearch = path.hasPrefix("/v1/search")
         let tokenStart = Date()
@@ -155,8 +139,8 @@ struct SpotifyAPIClient {
     func sendCached<Response: Decodable>(
         path: String,
         queryItems: [URLQueryItem] = [],
-        cacheMode: SpotifyRequestCacheMode = .allowStale
-    ) async throws -> CachedResponse<Response> {
+        cacheMode: MusicRequestCacheMode = .allowStale
+    ) async throws -> MusicCachedResponse<Response> {
         var request: URLRequest?
         do {
             let accessToken = try await tokenProvider.accessToken()
@@ -175,7 +159,7 @@ struct SpotifyAPIClient {
 
     func send<Response: Decodable>(
         url: URL,
-        cacheMode: SpotifyRequestCacheMode = .freshOnly
+        cacheMode: MusicRequestCacheMode = .freshOnly
     ) async throws -> Response {
         var request: URLRequest?
         do {
@@ -201,8 +185,8 @@ struct SpotifyAPIClient {
         request: URLRequest,
         didRefreshAfterUnauthorized: Bool,
         rateLimitRetryCount: Int,
-        cacheMode: SpotifyRequestCacheMode
-    ) async throws -> CachedResponse<Response> {
+        cacheMode: MusicRequestCacheMode
+    ) async throws -> MusicCachedResponse<Response> {
         try await enforceScopeRequirement(for: request)
         if !didRefreshAfterUnauthorized,
            cacheMode != .bypassCache,
@@ -211,7 +195,7 @@ struct SpotifyAPIClient {
            let key = SpotifyGETResponseCachePolicy.normalizedCacheKey(for: request),
            let cacheHit = cache.cachedEntry(forCacheKey: key, allowExpired: cacheMode == .allowStale),
            let cachedValue = try? decoder.decode(Response.self, from: cacheHit.data) {
-            return CachedResponse(value: cachedValue, isStale: cacheHit.isExpired)
+            return MusicCachedResponse(value: cachedValue, isStale: cacheHit.isExpired)
         }
 
         let value: Response = try await send(
@@ -220,14 +204,14 @@ struct SpotifyAPIClient {
             rateLimitRetryCount: rateLimitRetryCount,
             cacheMode: .bypassCache
         )
-        return CachedResponse(value: value, isStale: false)
+        return MusicCachedResponse(value: value, isStale: false)
     }
 
     func send<Response: Decodable>(
         request: URLRequest,
         didRefreshAfterUnauthorized: Bool,
         rateLimitRetryCount: Int,
-        cacheMode: SpotifyRequestCacheMode,
+        cacheMode: MusicRequestCacheMode,
         cacheWriteOwnership: SpotifyGETResponseCacheWriteOwnership? = nil
     ) async throws -> Response {
         try await enforceScopeRequirement(for: request)

@@ -34,7 +34,7 @@ final class BrowserChromeViewsTests: XCTestCase {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
             trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]],
-            savedTracksResult: .success(SpotifySavedTracksResult(tracks: [liked], totalAvailable: 1))
+            savedTracksResult: .success(MusicSavedTracksResult(tracks: [liked], totalAvailable: 1))
         )
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
         await viewModel.load()
@@ -56,7 +56,7 @@ final class BrowserChromeViewsTests: XCTestCase {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
             trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]],
-            savedTracksResult: .success(SpotifySavedTracksResult(tracks: [liked], totalAvailable: 1))
+            savedTracksResult: .success(MusicSavedTracksResult(tracks: [liked], totalAvailable: 1))
         )
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
         await viewModel.load()

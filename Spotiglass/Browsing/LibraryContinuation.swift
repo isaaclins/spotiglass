@@ -4,34 +4,34 @@ import Foundation
 /// by the continuation ranker for co-occurrence and shared-playlist signals.
 struct LibraryContinuationPlaylist: Codable, Equatable, Identifiable {
     let id: String
-    let tracks: [SpotifyTrack]
+    let tracks: [MusicTrack]
 }
 
 /// The already-collected material used to build a library continuation. This is
 /// deliberately a value type: ranking never reaches into an API, cache, or view
 /// model, so the result is deterministic and straightforward to test.
 struct LibraryContinuationLibrary: Codable, Equatable {
-    let savedTracks: [SpotifyTrack]
+    let savedTracks: [MusicTrack]
     let playlists: [LibraryContinuationPlaylist]
-    let topTracks: [SpotifyTrack]
-    let topArtists: [SpotifyArtist]
-    let followedArtists: [SpotifyArtist]
+    let topTracks: [MusicTrack]
+    let topArtists: [MusicArtist]
+    let followedArtists: [MusicArtist]
     /// Optional artist-top-track data is only useful as a ranking signal for a
     /// track that is already in ``savedTracks``, a playlist, or ``topTracks``.
     /// The collector enforces that boundary before persisting this value.
-    let artistTopTracks: [SpotifyTrack]
+    let artistTopTracks: [MusicTrack]
     /// Artist IDs for which ``artistTopTracks`` was collected. The aggregate
     /// cache is shared by all seeds, so this scope prevents breadth data from
     /// one seed being reused for another seed's ranking.
     let artistTopTrackArtistIDs: [String]
 
     init(
-        savedTracks: [SpotifyTrack] = [],
+        savedTracks: [MusicTrack] = [],
         playlists: [LibraryContinuationPlaylist] = [],
-        topTracks: [SpotifyTrack] = [],
-        topArtists: [SpotifyArtist] = [],
-        followedArtists: [SpotifyArtist] = [],
-        artistTopTracks: [SpotifyTrack] = [],
+        topTracks: [MusicTrack] = [],
+        topArtists: [MusicArtist] = [],
+        followedArtists: [MusicArtist] = [],
+        artistTopTracks: [MusicTrack] = [],
         artistTopTrackArtistIDs: [String] = []
     ) {
         self.savedTracks = savedTracks
@@ -55,12 +55,12 @@ struct LibraryContinuationLibrary: Codable, Equatable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        savedTracks = try container.decodeIfPresent([SpotifyTrack].self, forKey: .savedTracks) ?? []
+        savedTracks = try container.decodeIfPresent([MusicTrack].self, forKey: .savedTracks) ?? []
         playlists = try container.decodeIfPresent([LibraryContinuationPlaylist].self, forKey: .playlists) ?? []
-        topTracks = try container.decodeIfPresent([SpotifyTrack].self, forKey: .topTracks) ?? []
-        topArtists = try container.decodeIfPresent([SpotifyArtist].self, forKey: .topArtists) ?? []
-        followedArtists = try container.decodeIfPresent([SpotifyArtist].self, forKey: .followedArtists) ?? []
-        artistTopTracks = try container.decodeIfPresent([SpotifyTrack].self, forKey: .artistTopTracks) ?? []
+        topTracks = try container.decodeIfPresent([MusicTrack].self, forKey: .topTracks) ?? []
+        topArtists = try container.decodeIfPresent([MusicArtist].self, forKey: .topArtists) ?? []
+        followedArtists = try container.decodeIfPresent([MusicArtist].self, forKey: .followedArtists) ?? []
+        artistTopTracks = try container.decodeIfPresent([MusicTrack].self, forKey: .artistTopTracks) ?? []
         artistTopTrackArtistIDs = try container.decodeIfPresent([String].self, forKey: .artistTopTrackArtistIDs) ?? []
     }
 
@@ -103,7 +103,7 @@ enum LibraryContinuationRanking {
     static let defaultLimit = 20
 
     private struct Candidate {
-        let track: SpotifyTrack
+        let track: MusicTrack
         let band: Int
         let cooccurrenceCount: Int
         let sharedPlaylistCount: Int
@@ -115,10 +115,10 @@ enum LibraryContinuationRanking {
     }
 
     static func rank(
-        seed: SpotifyTrack,
+        seed: MusicTrack,
         library: LibraryContinuationLibrary,
         limit: Int = Self.defaultLimit
-    ) -> [SpotifyTrack] {
+    ) -> [MusicTrack] {
         let requestedLimit = max(0, limit)
         guard requestedLimit > 0, isPlayable(seed) else { return [] }
 
@@ -162,7 +162,7 @@ enum LibraryContinuationRanking {
         }
         let sourceTracks = ownedTracks + library.topTracks + artistTopTracksInLibrary
 
-        var candidatesByKey: [String: SpotifyTrack] = [:]
+        var candidatesByKey: [String: MusicTrack] = [:]
         var encounterByKey: [String: Int] = [:]
         var candidateKeyByIdentity: [String: String] = [:]
         var encounter = 0
@@ -289,16 +289,16 @@ enum LibraryContinuationRanking {
         value ?? Int.max
     }
 
-    private static func firstTrackIndex(_ candidate: SpotifyTrack, in tracks: [SpotifyTrack]) -> Int? {
+    private static func firstTrackIndex(_ candidate: MusicTrack, in tracks: [MusicTrack]) -> Int? {
         let candidateIdentity = trackIdentityKeys(candidate)
         return tracks.firstIndex { !trackIdentityKeys($0).isDisjoint(with: candidateIdentity) }
     }
 
-    private static func firstArtistIndex(_ candidateKeys: Set<String>, in artists: [SpotifyArtist]) -> Int? {
+    private static func firstArtistIndex(_ candidateKeys: Set<String>, in artists: [MusicArtist]) -> Int? {
         artists.firstIndex { !artistKeys(for: $0).isDisjoint(with: candidateKeys) }
     }
 
-    private static func isPlayable(_ track: SpotifyTrack) -> Bool {
+    private static func isPlayable(_ track: MusicTrack) -> Bool {
         guard track.isPlayable != false,
             !track.id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
             let uri = SpotifyPlayableURI.canonical(track.uri),
@@ -307,7 +307,7 @@ enum LibraryContinuationRanking {
         return !uri.dropFirst("spotify:track:".count).isEmpty
     }
 
-    private static func canonicalTrackKey(_ track: SpotifyTrack) -> String {
+    private static func canonicalTrackKey(_ track: MusicTrack) -> String {
         if let linkedFromID = track.linkedFromID?.trimmingCharacters(in: .whitespacesAndNewlines),
             !linkedFromID.isEmpty
         {
@@ -317,7 +317,7 @@ enum LibraryContinuationRanking {
         return id.isEmpty ? (SpotifyPlayableURI.canonical(track.uri) ?? "unknown") : id
     }
 
-    private static func trackIdentityKeys(_ track: SpotifyTrack) -> Set<String> {
+    private static func trackIdentityKeys(_ track: MusicTrack) -> Set<String> {
         var keys: Set<String> = []
         let id = track.id.trimmingCharacters(in: .whitespacesAndNewlines)
         if !id.isEmpty { keys.insert("id:\(id)") }
@@ -332,7 +332,7 @@ enum LibraryContinuationRanking {
         return keys
     }
 
-    private static func artistKeys(for track: SpotifyTrack) -> Set<String> {
+    private static func artistKeys(for track: MusicTrack) -> Set<String> {
         var keys: Set<String> = []
         for ref in track.artistRefs {
             let id = ref.id.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -345,7 +345,7 @@ enum LibraryContinuationRanking {
         return keys
     }
 
-    private static func artistKeys(for artist: SpotifyArtist) -> Set<String> {
+    private static func artistKeys(for artist: MusicArtist) -> Set<String> {
         var keys: Set<String> = []
         let id = artist.id.trimmingCharacters(in: .whitespacesAndNewlines)
         if !id.isEmpty { keys.insert("id:\(id)") }
@@ -362,11 +362,11 @@ enum LibraryContinuationRanking {
     }
 }
 
-extension SpotifyPlaylistTrackItem {
+extension MusicPlaylistTrackItem {
     /// Returns the catalog track represented by a playlist item. Episodes,
     /// local files, and unavailable entries are intentionally outside the
     /// continuation candidate set.
-    var continuationTrack: SpotifyTrack? {
+    var continuationTrack: MusicTrack? {
         guard case .track(let track) = content else { return nil }
         return track
     }

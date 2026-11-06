@@ -8,7 +8,7 @@ enum PlaylistDetailHeaderPinning {
         }
         if playlist.isAlbumDetail {
             return .album(
-                SpotifyAlbum(
+                MusicAlbum(
                     id: playlist.id,
                     name: playlist.title,
                     artists: playlist.owner.isEmpty ? [] : [playlist.owner],
@@ -18,7 +18,7 @@ enum PlaylistDetailHeaderPinning {
             )
         }
         return .playlist(
-            SpotifyPlaylistSummary(
+            MusicPlaylistSummary(
                 id: playlist.id,
                 name: playlist.title,
                 ownerID: playlist.ownerID,

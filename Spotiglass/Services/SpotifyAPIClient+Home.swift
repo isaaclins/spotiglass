@@ -6,8 +6,8 @@ extension SpotifyAPIClient {
     /// most-recent play, so the home carousel never shows the same song twice in a row.
     func recentlyPlayedTracks(
         limit: Int = 50,
-        cacheMode: SpotifyRequestCacheMode = .freshOnly
-    ) async throws -> [SpotifyTrack] {
+        cacheMode: MusicRequestCacheMode = .freshOnly
+    ) async throws -> [MusicTrack] {
         let pageLimit = min(max(1, limit), 50)
         let response: SpotifyRecentlyPlayedResponseDTO = try await send(
             path: "/v1/me/player/recently-played",
@@ -15,7 +15,7 @@ extension SpotifyAPIClient {
             cacheMode: cacheMode
         )
         var seen: Set<String> = []
-        var tracks: [SpotifyTrack] = []
+        var tracks: [MusicTrack] = []
         for item in response.items {
             guard let track = item.track?.domainModel() else { continue }
             guard seen.insert(track.id).inserted else { continue }
@@ -30,8 +30,8 @@ extension SpotifyAPIClient {
     func topTracks(
         limit: Int = 20,
         timeRange: String = "short_term",
-        cacheMode: SpotifyRequestCacheMode = .freshOnly
-    ) async throws -> [SpotifyTrack] {
+        cacheMode: MusicRequestCacheMode = .freshOnly
+    ) async throws -> [MusicTrack] {
         let pageLimit = min(max(1, limit), 50)
         let page: SpotifyPagingDTO<SpotifyTrackDTO> = try await send(
             path: "/v1/me/top/tracks",
@@ -49,8 +49,8 @@ extension SpotifyAPIClient {
     func topArtists(
         limit: Int = 50,
         timeRange: String = "short_term",
-        cacheMode: SpotifyRequestCacheMode = .freshOnly
-    ) async throws -> [SpotifyArtist] {
+        cacheMode: MusicRequestCacheMode = .freshOnly
+    ) async throws -> [MusicArtist] {
         let pageLimit = min(max(1, limit), 50)
         let page: SpotifyPagingDTO<SpotifySearchArtistDTO> = try await send(
             path: "/v1/me/top/artists",

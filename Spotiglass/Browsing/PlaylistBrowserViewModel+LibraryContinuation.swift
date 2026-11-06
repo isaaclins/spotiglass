@@ -76,7 +76,7 @@ extension PlaylistBrowserViewModel {
     }
 
     private func collectLibraryContinuation(
-        seed: SpotifyTrack,
+        seed: MusicTrack,
         generation: Int
     ) async throws -> LibraryContinuationLibrary {
         try checkLibraryContinuationIsCurrent(generation)
@@ -153,7 +153,7 @@ extension PlaylistBrowserViewModel {
 
     private func canUseCachedAggregate(
         _ library: LibraryContinuationLibrary,
-        for seed: SpotifyTrack
+        for seed: MusicTrack
     ) -> Bool {
         let seedArtistIDs = Set(seedArtistIDs(for: seed))
         guard !library.artistTopTracks.isEmpty || !library.artistTopTrackArtistIDs.isEmpty else {
@@ -165,7 +165,7 @@ extension PlaylistBrowserViewModel {
             && seedArtistIDs == Set(library.artistTopTrackArtistIDs)
     }
 
-    private func seedArtistIDs(for seed: SpotifyTrack) -> [String] {
+    private func seedArtistIDs(for seed: MusicTrack) -> [String] {
         var artistIDs: [String] = []
         var seen: Set<String> = []
         for rawID in seed.artistRefs.map(\.id) {
@@ -176,7 +176,7 @@ extension PlaylistBrowserViewModel {
         return artistIDs
     }
 
-    private func continuationPlaylistSummaries() async throws -> [SpotifyPlaylistSummary] {
+    private func continuationPlaylistSummaries() async throws -> [MusicPlaylistSummary] {
         let loadedSummaries = orderedPlaylistSummaries(
             visible: visiblePlaylists.compactMap { playlistsByID[$0.id] },
             remaining: playlistsByID.values
@@ -201,10 +201,10 @@ extension PlaylistBrowserViewModel {
     }
 
     private func orderedPlaylistSummaries(
-        visible: [SpotifyPlaylistSummary],
-        remaining: some Collection<SpotifyPlaylistSummary>
-    ) -> [SpotifyPlaylistSummary] {
-        var ordered: [SpotifyPlaylistSummary] = []
+        visible: [MusicPlaylistSummary],
+        remaining: some Collection<MusicPlaylistSummary>
+    ) -> [MusicPlaylistSummary] {
+        var ordered: [MusicPlaylistSummary] = []
         var seen: Set<String> = []
         for summary in visible where seen.insert(summary.id).inserted {
             ordered.append(summary)
@@ -216,9 +216,9 @@ extension PlaylistBrowserViewModel {
     }
 
     private func continuationTracks(
-        for summary: SpotifyPlaylistSummary,
+        for summary: MusicPlaylistSummary,
         stale: LibraryContinuationLibrary?
-    ) async throws -> [SpotifyTrack] {
+    ) async throws -> [MusicTrack] {
         try Task.checkCancellation()
         if let cached = try? cache.loadTracksIgnoringAge(
             playlistID: summary.id,
@@ -253,14 +253,14 @@ extension PlaylistBrowserViewModel {
         }
     }
 
-    private func hasCachedPlaylistTracks(for summary: SpotifyPlaylistSummary) -> Bool {
+    private func hasCachedPlaylistTracks(for summary: MusicPlaylistSummary) -> Bool {
         (try? cache.loadTracksIgnoringAge(
             playlistID: summary.id,
             snapshotID: summary.snapshotID
         )) != nil
     }
 
-    private func continuationSavedTracks(stale: LibraryContinuationLibrary?) async throws -> [SpotifyTrack] {
+    private func continuationSavedTracks(stale: LibraryContinuationLibrary?) async throws -> [MusicTrack] {
         try Task.checkCancellation()
         let playlistID = SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID
         let snapshotID = SpotiglassSidebarLibrary.likedSongsCacheSnapshotID
@@ -289,7 +289,7 @@ extension PlaylistBrowserViewModel {
 
     private func continuationTopTracks(
         stale: LibraryContinuationLibrary?
-    ) async throws -> [SpotifyTrack] {
+    ) async throws -> [MusicTrack] {
         try Task.checkCancellation()
         if !homeTopTrackData.isEmpty {
             return homeTopTrackData
@@ -312,7 +312,7 @@ extension PlaylistBrowserViewModel {
 
     private func continuationTopArtists(
         stale: LibraryContinuationLibrary?
-    ) async throws -> [SpotifyArtist] {
+    ) async throws -> [MusicArtist] {
         try Task.checkCancellation()
         if let staleArtists = stale?.topArtists, !staleArtists.isEmpty {
             return staleArtists
@@ -332,7 +332,7 @@ extension PlaylistBrowserViewModel {
 
     private func continuationFollowedArtists(
         stale: LibraryContinuationLibrary?
-    ) async throws -> [SpotifyArtist] {
+    ) async throws -> [MusicArtist] {
         try Task.checkCancellation()
         if let staleArtists = stale?.followedArtists, !staleArtists.isEmpty {
             return staleArtists
@@ -350,10 +350,10 @@ extension PlaylistBrowserViewModel {
     }
 
     private func continuationArtistTopTracks(
-        seed: SpotifyTrack,
+        seed: MusicTrack,
         stale: LibraryContinuationLibrary?,
         generation: Int
-    ) async throws -> (tracks: [SpotifyTrack], artistIDs: [String]) {
+    ) async throws -> (tracks: [MusicTrack], artistIDs: [String]) {
         try checkLibraryContinuationIsCurrent(generation)
         let artistIDs = seedArtistIDs(for: seed)
         guard !artistIDs.isEmpty else { return ([], []) }
@@ -364,7 +364,7 @@ extension PlaylistBrowserViewModel {
             return (stale.artistTopTracks, stale.artistTopTrackArtistIDs)
         }
 
-        var tracks: [SpotifyTrack] = []
+        var tracks: [MusicTrack] = []
         var loadedArtistIDs: [String] = []
         var seenKeys: Set<String> = []
         for artistID in artistIDs {

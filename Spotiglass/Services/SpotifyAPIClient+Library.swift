@@ -74,7 +74,7 @@ extension SpotifyAPIClient {
     /// deleting the wrong occurrence after the playlist changes.
     func removeTracksFromPlaylist(
         playlistID: String,
-        items: [SpotifyPlaylistTrackRemoval],
+        items: [MusicPlaylistTrackRemoval],
         snapshotID: String? = nil
     ) async throws {
         let removals = normalisedTrackRemovals(items)
@@ -112,7 +112,7 @@ extension SpotifyAPIClient {
         userID: String,
         name: String,
         isPublic: Bool = false
-    ) async throws -> SpotifyPlaylistSummary {
+    ) async throws -> MusicPlaylistSummary {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else {
             throw SpotifyAPIError.invalidRequest("Playlist name is required.")
@@ -158,7 +158,7 @@ extension SpotifyAPIClient {
     /// against the snapshot returned by the previous batch. Ascending order
     /// would make every batch after the first delete the wrong occurrences,
     /// which is the exact failure this endpoint change exists to prevent.
-    private func normalisedTrackRemovals(_ removals: [SpotifyPlaylistTrackRemoval]) -> [SpotifyPlaylistTrackRemoval] {
+    private func normalisedTrackRemovals(_ removals: [MusicPlaylistTrackRemoval]) -> [MusicPlaylistTrackRemoval] {
         var positionsByURI: [String: Set<Int>] = [:]
         for removal in removals {
             let uri = removal.uri.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -172,7 +172,7 @@ extension SpotifyAPIClient {
             .flatMap { uri, positions in positions.map { (uri: uri, position: $0) } }
             .sorted { $0.position > $1.position }
 
-        return descendingPairs.map { SpotifyPlaylistTrackRemoval(uri: $0.uri, positions: [$0.position]) }
+        return descendingPairs.map { MusicPlaylistTrackRemoval(uri: $0.uri, positions: [$0.position]) }
     }
 
     private func orderedURIs(_ uris: [String]) -> [String] {
@@ -328,7 +328,7 @@ private struct SpotifyPlaylistMutationResponse: Decodable {
     }
 }
 
-private extension Array where Element == SpotifyPlaylistTrackRemoval {
+private extension Array where Element == MusicPlaylistTrackRemoval {
     /// Splits a position-descending list into requests of at most `maximum`
     /// positions, merging entries that share a URI inside a single request.
     /// Merging is safe within one request because Spotify applies it against a
@@ -353,12 +353,12 @@ private extension Array where Element == SpotifyPlaylistTrackRemoval {
                     flush()
                 }
                 if let index = current.firstIndex(where: { $0.uri == removal.uri }) {
-                    current[index] = SpotifyPlaylistTrackRemoval(
+                    current[index] = MusicPlaylistTrackRemoval(
                         uri: removal.uri,
                         positions: current[index].positions + [position]
                     )
                 } else {
-                    current.append(SpotifyPlaylistTrackRemoval(uri: removal.uri, positions: [position]))
+                    current.append(MusicPlaylistTrackRemoval(uri: removal.uri, positions: [position]))
                 }
                 currentPositionCount += 1
             }

@@ -52,7 +52,7 @@ final class CommandPaletteViewModelChromeAugmentationTests: XCTestCase {
     }
 
     func testAugmentationMergeTracksDedupesById() {
-        let a = SpotifyTrack(
+        let a = MusicTrack(
             id: "t1",
             name: "A",
             artists: ["X"],
@@ -63,7 +63,7 @@ final class CommandPaletteViewModelChromeAugmentationTests: XCTestCase {
             linkedFromID: nil,
             uri: "spotify:track:t1"
         )
-        let b = SpotifyTrack(
+        let b = MusicTrack(
             id: "t2",
             name: "B",
             artists: ["Y"],
@@ -74,7 +74,7 @@ final class CommandPaletteViewModelChromeAugmentationTests: XCTestCase {
             linkedFromID: nil,
             uri: "spotify:track:t2"
         )
-        let dup = SpotifyTrack(
+        let dup = MusicTrack(
             id: "t1",
             name: "A2",
             artists: ["X"],

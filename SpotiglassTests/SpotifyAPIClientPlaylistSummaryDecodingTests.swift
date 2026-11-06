@@ -58,7 +58,7 @@ final class SpotifyAPIClientPlaylistSummaryDecodingTests: XCTestCase {
         ])
         let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
         let removals = (0..<101).map {
-            SpotifyPlaylistTrackRemoval(uri: "spotify:track:track-\($0)", positions: [$0])
+            MusicPlaylistTrackRemoval(uri: "spotify:track:track-\($0)", positions: [$0])
         }
 
         try await client.removeTracksFromPlaylist(
@@ -113,8 +113,8 @@ final class SpotifyAPIClientPlaylistSummaryDecodingTests: XCTestCase {
         ])
         let client = SpotifyAPIClient(tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"), httpClient: httpClient)
         let removals = [
-            SpotifyPlaylistTrackRemoval(uri: "spotify:track:duplicate", positions: [0, 2]),
-            SpotifyPlaylistTrackRemoval(uri: "spotify:track:other", positions: [4])
+            MusicPlaylistTrackRemoval(uri: "spotify:track:duplicate", positions: [0, 2]),
+            MusicPlaylistTrackRemoval(uri: "spotify:track:other", positions: [4])
         ]
 
         try await client.removeTracksFromPlaylist(

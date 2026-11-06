@@ -9,7 +9,7 @@ final class PlaylistBrowserNavigationTests: XCTestCase {
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
             trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]],
             searchHandler: { _, _ in
-                SpotifySearchResults(
+                MusicSearchResults(
                     tracks: [PlaylistBrowsingTestFixtures.fallbackTrack(id: "hit", name: "Hit", artistId: "artist-xyz")],
                     artists: [],
                     albums: [],
@@ -39,7 +39,7 @@ final class PlaylistBrowserNavigationTests: XCTestCase {
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
             trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "same-id")])]],
             searchHandler: { _, _ in
-                SpotifySearchResults(
+                MusicSearchResults(
                     tracks: [PlaylistBrowsingTestFixtures.fallbackTrack(id: "same-id", name: "Artist Match", artistId: "artist-xyz")],
                     artists: [],
                     albums: [],
@@ -86,7 +86,7 @@ final class PlaylistBrowserNavigationTests: XCTestCase {
 
     func testSelectAlbumLoadsAlbumAsPlaylistStyleDetail() async {
         let albumCoverURL = URL(string: "https://example.com/cover.png")
-        let albumTrack = SpotifyTrack(
+        let albumTrack = MusicTrack(
             id: "alb-track-1",
             name: "Album Track 1",
             artists: ["Artist Name"],
@@ -125,7 +125,7 @@ final class PlaylistBrowserNavigationTests: XCTestCase {
     }
 
     func testDirectAlbumDrillInClearsSelectionBeforeMatchingRowsCanBeTargeted() async {
-        let albumTrack = SpotifyTrack(
+        let albumTrack = MusicTrack(
             id: "same-id",
             name: "Album Match",
             artists: ["Artist Name"],
@@ -157,7 +157,7 @@ final class PlaylistBrowserNavigationTests: XCTestCase {
     }
 
     func testBackNavigationReturnsFromAlbumToArtist() async {
-        let albumTrack = SpotifyTrack(
+        let albumTrack = MusicTrack(
             id: "alb-track-1",
             name: "Album Track 1",
             artists: ["Artist Name"],
@@ -226,7 +226,7 @@ final class PlaylistBrowserNavigationTests: XCTestCase {
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
             trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]],
             searchHandler: { _, _ in
-                SpotifySearchResults(
+                MusicSearchResults(
                     tracks: [PlaylistBrowsingTestFixtures.fallbackTrack(id: "hit", name: "Hit", artistId: "artist-xyz")],
                     artists: [],
                     albums: [],

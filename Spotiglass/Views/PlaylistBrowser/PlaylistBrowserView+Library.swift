@@ -114,7 +114,7 @@ extension PlaylistBrowserView {
         return pinnedAny
     }
 
-    func playlistSummaryFromRow(_ row: PlaylistRowViewModel) -> SpotifyPlaylistSummary {
+    func playlistSummaryFromRow(_ row: PlaylistRowViewModel) -> MusicPlaylistSummary {
         PlaylistBrowserLibraryActions.playlistSummaryFromRow(row)
     }
 }

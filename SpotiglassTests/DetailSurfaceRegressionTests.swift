@@ -13,7 +13,7 @@ final class DetailSurfaceRegressionTests: XCTestCase {
     }
 
     func testArtistRowsUseSharedNativeSelectionAndFeedSelectionMenuState() throws {
-        let artist = SpotifyArtistDetail(
+        let artist = MusicArtistDetail(
             id: "artist-1",
             name: "Artist",
             imageURL: nil,
@@ -176,7 +176,7 @@ final class DetailSurfaceRegressionTests: XCTestCase {
         )
 
         let artist = ArtistDetailViewModel(
-            artist: SpotifyArtistDetail(
+            artist: MusicArtistDetail(
                 id: "artist-1",
                 name: "Artist",
                 imageURL: nil,
@@ -270,7 +270,7 @@ final class DetailSurfaceRegressionTests: XCTestCase {
             tracks: []
         )
         let artist = ArtistDetailViewModel(
-            artist: SpotifyArtistDetail(
+            artist: MusicArtistDetail(
                 id: "artist-1",
                 name: "Artist",
                 imageURL: nil,

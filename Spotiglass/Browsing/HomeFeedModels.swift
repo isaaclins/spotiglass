@@ -27,7 +27,7 @@ struct HomeMediaCard: Equatable, Identifiable {
 
     /// Builds an album-keyed "jump back in" card from a recently-played track.
     /// Returns `nil` for tracks without album info (local files, podcasts).
-    init?(recentlyPlayed track: SpotifyTrack) {
+    init?(recentlyPlayed track: MusicTrack) {
         guard let albumID = track.albumID else { return nil }
         self.id = albumID
         self.title = track.albumName ?? track.name

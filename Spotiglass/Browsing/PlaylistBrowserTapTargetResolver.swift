@@ -5,7 +5,7 @@ enum PlaylistBrowserTapTargetResolver {
     static func resolveAlbumID(
         name: String,
         artistHint: String,
-        search: (_ query: String, _ limit: Int) async throws -> SpotifySearchResults
+        search: (_ query: String, _ limit: Int) async throws -> MusicSearchResults
     ) async throws -> String? {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
@@ -31,7 +31,7 @@ enum PlaylistBrowserTapTargetResolver {
 
     static func resolveArtistID(
         forName name: String,
-        search: (_ query: String, _ limit: Int) async throws -> SpotifySearchResults
+        search: (_ query: String, _ limit: Int) async throws -> MusicSearchResults
     ) async throws -> String? {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }

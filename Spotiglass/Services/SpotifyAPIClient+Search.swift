@@ -1,7 +1,7 @@
 import Foundation
 
 extension SpotifyAPIClient {
-    func search(query: String, limit: Int = 6) async throws -> SpotifySearchResults {
+    func search(query: String, limit: Int = 6) async throws -> MusicSearchResults {
         try await search(query: query, limit: limit, offset: 0)
     }
 
@@ -11,11 +11,11 @@ extension SpotifyAPIClient {
         query: String,
         limit: Int,
         offset: Int,
-        cacheMode: SpotifyRequestCacheMode = .freshOnly
-    ) async throws -> SpotifySearchResults {
+        cacheMode: MusicRequestCacheMode = .freshOnly
+    ) async throws -> MusicSearchResults {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            return SpotifySearchResults(tracks: [], artists: [], albums: [], playlists: [])
+            return MusicSearchResults(tracks: [], artists: [], albums: [], playlists: [])
         }
         /// `GET /v1/search` documents `limit` range **0–10** per returned item type (not 50).
         let cappedLimit = min(max(1, limit), 10)
@@ -36,7 +36,7 @@ extension SpotifyAPIClient {
     }
 
     /// Track-only search (`GET /v1/search` with `type=track`). `limit` is capped at **10** per Spotify’s search endpoint.
-    func searchTracks(query: String, limit: Int = 50) async throws -> [SpotifyTrack] {
+    func searchTracks(query: String, limit: Int = 50) async throws -> [MusicTrack] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }
         let capped = min(max(1, limit), 10)

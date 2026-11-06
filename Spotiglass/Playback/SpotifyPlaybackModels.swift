@@ -195,7 +195,7 @@ extension QueueItem {
         SpotifyPlayableURI.canonical(uri)
     }
 
-    static func from(track: SpotifyTrack, id: String? = nil) -> QueueItem {
+    static func from(track: MusicTrack, id: String? = nil) -> QueueItem {
         QueueItem(
             id: id,
             name: track.name,
@@ -209,7 +209,7 @@ extension QueueItem {
         )
     }
 
-    static func from(episode: SpotifyEpisode, id: String? = nil) -> QueueItem {
+    static func from(episode: MusicEpisode, id: String? = nil) -> QueueItem {
         QueueItem(
             id: id,
             name: episode.name,
@@ -243,7 +243,7 @@ extension QueueItem {
         )
     }
 
-    static func artistTapTargets(artistRefs: [SpotifyArtistRef], fallbackSubtitle: String) -> [ArtistTapTarget] {
+    static func artistTapTargets(artistRefs: [MusicArtistRef], fallbackSubtitle: String) -> [ArtistTapTarget] {
         if !artistRefs.isEmpty {
             return artistRefs.map { ArtistTapTarget(id: $0.id, name: $0.name) }
         }
@@ -365,8 +365,8 @@ struct SpotifyPlayerSnapshot: Equatable {
 
 /// Unified track-or-episode slot from the queue endpoint.
 enum SpotifyQueueTrackItem: Equatable {
-    case track(SpotifyTrack)
-    case episode(SpotifyEpisode)
+    case track(MusicTrack)
+    case episode(MusicEpisode)
 }
 
 extension SpotifyPlayerSnapshot {

@@ -52,8 +52,8 @@ enum PlaylistBrowserLibraryActions {
         return moved.map(\.id)
     }
 
-    static func playlistSummaryFromRow(_ row: PlaylistRowViewModel) -> SpotifyPlaylistSummary {
-        SpotifyPlaylistSummary(
+    static func playlistSummaryFromRow(_ row: PlaylistRowViewModel) -> MusicPlaylistSummary {
+        MusicPlaylistSummary(
             id: row.id,
             name: row.title,
             ownerID: row.ownerID,

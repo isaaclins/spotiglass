@@ -11,7 +11,7 @@ final class PlaylistBrowserArtistSelectionCoverageTests: XCTestCase {
         let vm = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
         await vm.load()
 
-        let artist = SpotifyArtistDetail(
+        let artist = MusicArtistDetail(
             id: "artist-1",
             name: "Cached Artist",
             imageURL: nil,
@@ -44,7 +44,7 @@ final class PlaylistBrowserArtistSelectionCoverageTests: XCTestCase {
             trackResults: [:]
         )
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
-        let artist = SpotifyArtistDetail(
+        let artist = MusicArtistDetail(
             id: "artist-cached-selection",
             name: "Cached Selection",
             imageURL: nil,
@@ -80,7 +80,7 @@ final class PlaylistBrowserArtistSelectionCoverageTests: XCTestCase {
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
             trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "t1")])]],
             searchHandler: { _, _ in
-                SpotifySearchResults(
+                MusicSearchResults(
                     tracks: [PlaylistBrowsingTestFixtures.fallbackTrack(id: "search", name: "Search", artistId: "artist-net")],
                     artists: [],
                     albums: [],
@@ -112,7 +112,7 @@ final class PlaylistBrowserArtistSelectionCoverageTests: XCTestCase {
             searchHandler: { _, _ in
                 searchStarted.signal()
                 await releaseSearch.wait()
-                return SpotifySearchResults(tracks: [], artists: [], albums: [], playlists: [])
+                return MusicSearchResults(tracks: [], artists: [], albums: [], playlists: [])
             },
             artistAlbumsHandler: { _, _, _ in [] }
         )
@@ -140,7 +140,7 @@ final class PlaylistBrowserArtistSelectionCoverageTests: XCTestCase {
         let vm = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
         await vm.load()
 
-        let artist = SpotifyArtistDetail(
+        let artist = MusicArtistDetail(
             id: "force-1",
             name: "Force",
             imageURL: nil,
@@ -176,7 +176,7 @@ final class PlaylistBrowserArtistSelectionCoverageTests: XCTestCase {
         let vm = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
         await vm.load()
 
-        let artist = SpotifyArtistDetail(
+        let artist = MusicArtistDetail(
             id: "stale-art",
             name: "Stale",
             imageURL: nil,

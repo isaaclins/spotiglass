@@ -10,19 +10,19 @@ private func testTarget_fetchAllArtistAlbums(
     id: String,
     includeGroups: String = "album,single,compilation,appears_on",
     limit: Int = 10
-) async throws -> [SpotifyArtistAlbum] {
+) async throws -> [MusicArtistAlbum] {
     guard !id.isEmpty else {
         throw SpotifyAPIError.invalidRequest("Artist ID is required.")
     }
     let effectiveLimit = min(max(1, limit), 10)
     let maxPages = 20
-    var results: [SpotifyArtistAlbum] = []
+    var results: [MusicArtistAlbum] = []
     var nextURL: URL?
     var pagesFetched = 0
     var seenNextURLs: Set<String> = []
     repeat {
         try Task.checkCancellation()
-        let page: SpotifyAPIClient.SpotifyArtistAlbumsPage
+        let page: MusicArtistAlbumsPage
         if let url = nextURL {
             let key = url.absoluteString
             if seenNextURLs.contains(key) {

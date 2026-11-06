@@ -7,7 +7,7 @@ final class PlaylistBrowserLikedSongsCoverageTests: XCTestCase {
         let profileGate = ProfileLookupGate()
         let profileControl = ProfileLookupControl(
             gate: profileGate,
-            profile: SpotifyUserProfile(id: "u", displayName: "Cached User", country: "US")
+            profile: MusicUserProfile(id: "u", displayName: "Cached User", country: "US")
         )
         let playlist = PlaylistBrowsingTestFixtures.playlist(id: "playlist-b", name: "Playlist B")
         let api = MockBrowsingAPI(
@@ -44,7 +44,7 @@ final class PlaylistBrowserLikedSongsCoverageTests: XCTestCase {
         let profileGate = ProfileLookupGate()
         let profileControl = ProfileLookupControl(
             gate: profileGate,
-            profile: SpotifyUserProfile(id: "u", displayName: "Stale User", country: "US")
+            profile: MusicUserProfile(id: "u", displayName: "Stale User", country: "US")
         )
         let playlist = PlaylistBrowsingTestFixtures.playlist(id: "playlist-b", name: "Playlist B")
         let api = MockBrowsingAPI(
@@ -82,7 +82,7 @@ final class PlaylistBrowserLikedSongsCoverageTests: XCTestCase {
         let profileGate = ProfileLookupGate()
         let profileControl = ProfileLookupControl(
             gate: profileGate,
-            profile: SpotifyUserProfile(id: "u", displayName: "Fresh User", country: "US")
+            profile: MusicUserProfile(id: "u", displayName: "Fresh User", country: "US")
         )
         let albumTrack = PlaylistBrowsingTestFixtures.fallbackTrack(
             id: "album-track",
@@ -94,7 +94,7 @@ final class PlaylistBrowserLikedSongsCoverageTests: XCTestCase {
             trackResults: [:],
             albumTracksHandler: { _, _, _ in [albumTrack] },
             savedTracksResult: .success(
-                SpotifySavedTracksResult(
+                MusicSavedTracksResult(
                     tracks: [PlaylistBrowsingTestFixtures.track(id: "liked-fresh")],
                     totalAvailable: 1
                 )
@@ -129,13 +129,13 @@ final class PlaylistBrowserLikedSongsCoverageTests: XCTestCase {
         let profileGate = ProfileLookupGate()
         let profileControl = ProfileLookupControl(
             gate: profileGate,
-            profile: SpotifyUserProfile(id: "u", displayName: "Fresh User", country: "US")
+            profile: MusicUserProfile(id: "u", displayName: "Fresh User", country: "US")
         )
         let playlist = PlaylistBrowsingTestFixtures.playlist(id: "playlist-b", name: "Playlist B")
         let api = MockBrowsingAPI(
             playlistResults: [.success([playlist])],
             trackResults: [playlist.id: [.success([PlaylistBrowsingTestFixtures.track(id: "playlist-track")])]],
-            savedTracksResult: .success(SpotifySavedTracksResult(tracks: [], totalAvailable: 0)),
+            savedTracksResult: .success(MusicSavedTracksResult(tracks: [], totalAvailable: 0)),
             profileHandler: { try await profileControl.nextProfile() }
         )
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
@@ -162,7 +162,7 @@ final class PlaylistBrowserLikedSongsCoverageTests: XCTestCase {
         let profileGate = ProfileLookupGate()
         let profileControl = ProfileLookupControl(
             gate: profileGate,
-            profile: SpotifyUserProfile(id: "u", displayName: "Fresh User", country: "US")
+            profile: MusicUserProfile(id: "u", displayName: "Fresh User", country: "US")
         )
         let albumTrack = PlaylistBrowsingTestFixtures.fallbackTrack(
             id: "album-track",
@@ -174,7 +174,7 @@ final class PlaylistBrowserLikedSongsCoverageTests: XCTestCase {
             trackResults: [:],
             albumTracksHandler: { _, _, _ in [albumTrack] },
             savedTracksResult: .success(
-                SpotifySavedTracksResult(
+                MusicSavedTracksResult(
                     tracks: [PlaylistBrowsingTestFixtures.track(id: "liked-fresh")],
                     totalAvailable: 1
                 )
@@ -210,7 +210,7 @@ final class PlaylistBrowserLikedSongsCoverageTests: XCTestCase {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
             trackResults: [:],
-            savedTracksResult: .success(SpotifySavedTracksResult(tracks: [], totalAvailable: 0))
+            savedTracksResult: .success(MusicSavedTracksResult(tracks: [], totalAvailable: 0))
         )
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
         await viewModel.load()
@@ -260,9 +260,9 @@ final class PlaylistBrowserLikedSongsCoverageTests: XCTestCase {
     func testLikedSongsUsesProfileDisplayNameWhenPresent() async {
         let liked = PlaylistBrowsingTestFixtures.track(id: "liked-one")
         let api = ProfileAwareMockBrowsingAPI(
-            profile: SpotifyUserProfile(id: "u", displayName: "Taylor", country: "US"),
+            profile: MusicUserProfile(id: "u", displayName: "Taylor", country: "US"),
             playlists: [PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")],
-            savedTracks: SpotifySavedTracksResult(tracks: [liked], totalAvailable: 1)
+            savedTracks: MusicSavedTracksResult(tracks: [liked], totalAvailable: 1)
         )
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
         await viewModel.load()
@@ -275,9 +275,9 @@ final class PlaylistBrowserLikedSongsCoverageTests: XCTestCase {
 
     func testLikedSongsEpisodeArtworkIsUsed() async {
         let artwork = URL(string: "https://cdn.example/episode.jpg")!
-        let episodeItem = SpotifyPlaylistTrackItem(
+        let episodeItem = MusicPlaylistTrackItem(
             id: "ep-1",
-            content: .episode(SpotifyEpisode(
+            content: .episode(MusicEpisode(
                 id: "ep-1",
                 name: "Episode",
                 showName: "Show",
@@ -290,7 +290,7 @@ final class PlaylistBrowserLikedSongsCoverageTests: XCTestCase {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
             trackResults: [:],
-            savedTracksResult: .success(SpotifySavedTracksResult(tracks: [episodeItem], totalAvailable: 1))
+            savedTracksResult: .success(MusicSavedTracksResult(tracks: [episodeItem], totalAvailable: 1))
         )
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
         await viewModel.load()
@@ -334,16 +334,16 @@ private struct ProfileLookupFailure: Error {}
 
 private actor ProfileLookupControl {
     private let gate: ProfileLookupGate
-    private let profile: SpotifyUserProfile
+    private let profile: MusicUserProfile
     private var callCount = 0
     private var delayedFailure = false
 
-    init(gate: ProfileLookupGate, profile: SpotifyUserProfile) {
+    init(gate: ProfileLookupGate, profile: MusicUserProfile) {
         self.gate = gate
         self.profile = profile
     }
 
-    func nextProfile() async throws -> SpotifyUserProfile {
+    func nextProfile() async throws -> MusicUserProfile {
         callCount += 1
         if callCount == 2 {
             await gate.wait()
@@ -359,36 +359,36 @@ private actor ProfileLookupControl {
     }
 }
 
-private final class ProfileAwareMockBrowsingAPI: SpotifyBrowsingAPI {
-    let profile: SpotifyUserProfile
-    let playlists: [SpotifyPlaylistSummary]
-    let savedTracks: SpotifySavedTracksResult
+private final class ProfileAwareMockBrowsingAPI: MusicBrowsingProvider {
+    let profile: MusicUserProfile
+    let playlists: [MusicPlaylistSummary]
+    let savedTracks: MusicSavedTracksResult
 
-    init(profile: SpotifyUserProfile, playlists: [SpotifyPlaylistSummary], savedTracks: SpotifySavedTracksResult) {
+    init(profile: MusicUserProfile, playlists: [MusicPlaylistSummary], savedTracks: MusicSavedTracksResult) {
         self.profile = profile
         self.playlists = playlists
         self.savedTracks = savedTracks
     }
 
-    func currentUserProfile() async throws -> SpotifyUserProfile { profile }
+    func currentUserProfile() async throws -> MusicUserProfile { profile }
     func updatePlaylist(playlistID: String, name: String) async throws {}
-    func currentUserPlaylists(limit: Int) async throws -> [SpotifyPlaylistSummary] { playlists }
-    func playlistTracks(playlistID: String, limit: Int, maxPages: Int) async throws -> [SpotifyPlaylistTrackItem] { [] }
-    func currentUserSavedTracks(limit: Int, maxPages: Int?) async throws -> SpotifySavedTracksResult { savedTracks }
-    func artist(id: String, cacheMode: SpotifyRequestCacheMode) async throws -> SpotifyArtistDetail {
-        SpotifyArtistDetail(id: id, name: id, imageURL: nil, followersTotal: nil, genres: [], uri: "spotify:artist:\(id)")
+    func currentUserPlaylists(limit: Int) async throws -> [MusicPlaylistSummary] { playlists }
+    func playlistTracks(playlistID: String, limit: Int, maxPages: Int) async throws -> [MusicPlaylistTrackItem] { [] }
+    func currentUserSavedTracks(limit: Int, maxPages: Int?) async throws -> MusicSavedTracksResult { savedTracks }
+    func artist(id: String, cacheMode: MusicRequestCacheMode) async throws -> MusicArtistDetail {
+        MusicArtistDetail(id: id, name: id, imageURL: nil, followersTotal: nil, genres: [], uri: "spotify:artist:\(id)")
     }
-    func artistCached(id: String, cacheMode: SpotifyRequestCacheMode) async throws -> SpotifyAPIClient.CachedResponse<SpotifyArtistDetail> {
-        SpotifyAPIClient.CachedResponse(value: try await artist(id: id, cacheMode: cacheMode), isStale: false)
+    func artistCached(id: String, cacheMode: MusicRequestCacheMode) async throws -> MusicCachedResponse<MusicArtistDetail> {
+        MusicCachedResponse(value: try await artist(id: id, cacheMode: cacheMode), isStale: false)
     }
-    func search(query: String, limit: Int) async throws -> SpotifySearchResults {
-        SpotifySearchResults(tracks: [], artists: [], albums: [], playlists: [])
+    func search(query: String, limit: Int) async throws -> MusicSearchResults {
+        MusicSearchResults(tracks: [], artists: [], albums: [], playlists: [])
     }
-    func albumTracks(albumID: String, market: String?, limit: Int) async throws -> [SpotifyTrack] { [] }
-    func artistAlbumsCached(id: String, includeGroups: String, limit: Int, cacheMode: SpotifyRequestCacheMode) async throws -> SpotifyAPIClient.CachedResponse<[SpotifyArtistAlbum]> {
-        SpotifyAPIClient.CachedResponse(value: [], isStale: false)
+    func albumTracks(albumID: String, market: String?, limit: Int) async throws -> [MusicTrack] { [] }
+    func artistAlbumsCached(id: String, includeGroups: String, limit: Int, cacheMode: MusicRequestCacheMode) async throws -> MusicCachedResponse<[MusicArtistAlbum]> {
+        MusicCachedResponse(value: [], isStale: false)
     }
-    func artistAlbumsPage(id: String, includeGroups: String, limit: Int, offset: Int, nextURL: URL?, cacheMode: SpotifyRequestCacheMode) async throws -> SpotifyAPIClient.SpotifyArtistAlbumsPage {
-        SpotifyAPIClient.SpotifyArtistAlbumsPage(items: [], next: nil)
+    func artistAlbumsPage(id: String, includeGroups: String, limit: Int, offset: Int, nextURL: URL?, cacheMode: MusicRequestCacheMode) async throws -> MusicArtistAlbumsPage {
+        MusicArtistAlbumsPage(items: [], next: nil)
     }
 }

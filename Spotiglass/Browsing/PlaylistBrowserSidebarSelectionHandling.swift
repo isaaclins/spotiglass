@@ -38,7 +38,7 @@ enum PlaylistBrowserSidebarSelectionHandling {
 
     struct ActivationCallbacks {
         var setSidebarSelection: (SidebarSelection?) -> Void
-        var selectSidebarPlaylist: (SpotifyPlaylistSummary) async -> Void
+        var selectSidebarPlaylist: (MusicPlaylistSummary) async -> Void
         var selectArtist: (String, BrowserNavigationOrigin, String?) async -> Void
         var selectAlbum: (String, String, String, URL?, BrowserNavigationOrigin) async -> Void
         var playURI: (String) async -> Void

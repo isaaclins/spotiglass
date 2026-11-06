@@ -40,7 +40,7 @@ extension PlaylistBrowserViewModel {
             var nextOffset = 0
             var pagesFetched = 0
             var seenNextURLs: Set<String> = []
-            var albumList: [SpotifyArtistAlbum] = []
+            var albumList: [MusicArtistAlbum] = []
             repeat {
                 if let url = nextURL {
                     let key = url.absoluteString
@@ -87,8 +87,8 @@ extension PlaylistBrowserViewModel {
         return try await task.value
     }
 
-    static func dedupeAlbums(_ albums: [SpotifyArtistAlbum]) -> [SpotifyArtistAlbum] {
-        var deduped: [SpotifyArtistAlbum] = []
+    static func dedupeAlbums(_ albums: [MusicArtistAlbum]) -> [MusicArtistAlbum] {
+        var deduped: [MusicArtistAlbum] = []
         var seenIDs: Set<String> = []
         deduped.reserveCapacity(albums.count)
         for album in albums {

@@ -21,10 +21,10 @@ final class CatalogSearchViewTests: XCTestCase {
         return PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
     }
 
-    private func makeCatalogResults() -> SpotifySearchResults {
-        SpotifySearchResults(
+    private func makeCatalogResults() -> MusicSearchResults {
+        MusicSearchResults(
             tracks: [
-                SpotifyTrack(
+                MusicTrack(
                     id: "t1",
                     name: "Found Song",
                     artists: ["Found Artist"],
@@ -37,10 +37,10 @@ final class CatalogSearchViewTests: XCTestCase {
                 )
             ],
             artists: [
-                SpotifyArtist(id: "a1", name: "Found Artist", imageURL: nil, uri: "spotify:artist:a1")
+                MusicArtist(id: "a1", name: "Found Artist", imageURL: nil, uri: "spotify:artist:a1")
             ],
             albums: [
-                SpotifyAlbum(id: "al1", name: "Found Album", artists: ["Found Artist"], imageURL: nil, uri: "spotify:album:al1")
+                MusicAlbum(id: "al1", name: "Found Album", artists: ["Found Artist"], imageURL: nil, uri: "spotify:album:al1")
             ],
             playlists: [
                 PlaylistBrowsingTestFixtures.playlist(id: "p1", name: "Found Playlist")
@@ -50,7 +50,7 @@ final class CatalogSearchViewTests: XCTestCase {
 
     /// Search view model whose provider records every call it receives.
     private func makeSearchViewModel(
-        results: SpotifySearchResults? = nil,
+        results: MusicSearchResults? = nil,
         onCall: (@Sendable () -> Void)? = nil
     ) -> CatalogSearchViewModel {
         let viewModel = CatalogSearchViewModel()
@@ -60,7 +60,7 @@ final class CatalogSearchViewTests: XCTestCase {
             // Only the first page carries results, so paging terminates.
             return offset == 0
                 ? payload
-                : SpotifySearchResults(tracks: [], artists: [], albums: [], playlists: [])
+                : MusicSearchResults(tracks: [], artists: [], albums: [], playlists: [])
         }
         return viewModel
     }
@@ -179,7 +179,7 @@ final class CatalogSearchViewTests: XCTestCase {
                 indexes = []
             }
             let tracks = indexes.map { index in
-                SpotifyTrack(
+                MusicTrack(
                     id: "track-\(index)",
                     name: "Track \(index)",
                     artists: ["Artist"],
@@ -191,7 +191,7 @@ final class CatalogSearchViewTests: XCTestCase {
                     uri: "spotify:track:track-\(index)"
                 )
             }
-            return SpotifySearchResults(tracks: tracks, artists: [], albums: [], playlists: [])
+            return MusicSearchResults(tracks: tracks, artists: [], albums: [], playlists: [])
         }
 
         viewModel.query = "many results"
@@ -249,15 +249,15 @@ final class CatalogSearchViewTests: XCTestCase {
         let browserViewModel = makeBrowserViewModel()
         await browserViewModel.selectSidebar(.search)
         var callCount = 0
-        var cacheModes: [SpotifyRequestCacheMode] = []
+        var cacheModes: [MusicRequestCacheMode] = []
         browserViewModel.catalogSearch.searchProvider = { _, offset, cacheMode in
             cacheModes.append(cacheMode)
             guard offset == 0 else {
-                return SpotifySearchResults(tracks: [], artists: [], albums: [], playlists: [])
+                return MusicSearchResults(tracks: [], artists: [], albums: [], playlists: [])
             }
             callCount += 1
             let trackID = callCount == 1 ? "before-refresh" : "after-refresh"
-            let track = SpotifyTrack(
+            let track = MusicTrack(
                 id: trackID,
                 name: trackID,
                 artists: ["Artist"],
@@ -268,7 +268,7 @@ final class CatalogSearchViewTests: XCTestCase {
                 linkedFromID: nil,
                 uri: "spotify:track:\(trackID)"
             )
-            return SpotifySearchResults(tracks: [track], artists: [], albums: [], playlists: [])
+            return MusicSearchResults(tracks: [track], artists: [], albums: [], playlists: [])
         }
         browserViewModel.catalogSearch.query = "found"
         browserViewModel.catalogSearch.queryDidChange()
@@ -328,7 +328,7 @@ final class CatalogSearchViewTests: XCTestCase {
         let browserViewModel = makeBrowserViewModel()
         let searchViewModel = browserViewModel.catalogSearch
         searchViewModel.searchProvider = { _, _, _ in
-            SpotifySearchResults(tracks: [], artists: [], albums: [], playlists: [])
+            MusicSearchResults(tracks: [], artists: [], albums: [], playlists: [])
         }
 
         let palette = CommandPaletteViewModel()

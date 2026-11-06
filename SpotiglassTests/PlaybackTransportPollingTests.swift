@@ -252,7 +252,7 @@ final class PlaybackTransportPollingTests: XCTestCase {
             name: "Phone",
             type: "smartphone"
         )
-        let remoteTrack = SpotifyTrack(
+        let remoteTrack = MusicTrack(
             id: "remote-track",
             name: "Remote song",
             artists: ["Remote artist"],
@@ -364,7 +364,7 @@ final class PlaybackTransportPollingTests: XCTestCase {
             name: "Phone",
             type: "smartphone"
         )
-        let episode = SpotifyEpisode(
+        let episode = MusicEpisode(
             id: "episode-1",
             name: "Remote episode",
             showName: "Remote show",

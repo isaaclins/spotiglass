@@ -5,10 +5,10 @@ import XCTest
 final class PlaylistBrowserConcurrencyTests: XCTestCase {
 
     func testConcurrentSelectArtistCoalescesSingleNetworkChain() async {
-        let page1 = SpotifyArtistAlbum(
+        let page1 = MusicArtistAlbum(
             id: "alb-1", name: "First", imageURL: nil, releaseYear: "2024", totalTracks: 1, group: .album, uri: "spotify:album:alb-1"
         )
-        let page2 = SpotifyArtistAlbum(
+        let page2 = MusicArtistAlbum(
             id: "alb-2", name: "Second", imageURL: nil, releaseYear: "2023", totalTracks: 1, group: .album, uri: "spotify:album:alb-2"
         )
         let firstPageStarted = AsyncSignal()
@@ -22,12 +22,12 @@ final class PlaylistBrowserConcurrencyTests: XCTestCase {
                     await releaseFirstPage.wait()
                 }
                 if offset == 0 {
-                    return SpotifyAPIClient.SpotifyArtistAlbumsPage(
+                    return MusicArtistAlbumsPage(
                         items: [page1],
                         next: URL(string: "https://api.spotify.com/v1/artists/artist-xyz/albums?offset=10&limit=10")
                     )
                 }
-                return SpotifyAPIClient.SpotifyArtistAlbumsPage(items: [page2], next: nil)
+                return MusicArtistAlbumsPage(items: [page2], next: nil)
             }
         )
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
@@ -50,12 +50,12 @@ final class PlaylistBrowserConcurrencyTests: XCTestCase {
             trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]],
             artistAlbumsPageHandler: { _, _, _, offset, _ in
                 if offset == 0 {
-                    return SpotifyAPIClient.SpotifyArtistAlbumsPage(
-                        items: [SpotifyArtistAlbum(id: "alb-1", name: "First", imageURL: nil, releaseYear: "2024", totalTracks: 1, group: .album, uri: "spotify:album:alb-1")],
+                    return MusicArtistAlbumsPage(
+                        items: [MusicArtistAlbum(id: "alb-1", name: "First", imageURL: nil, releaseYear: "2024", totalTracks: 1, group: .album, uri: "spotify:album:alb-1")],
                         next: nil
                     )
                 }
-                return SpotifyAPIClient.SpotifyArtistAlbumsPage(items: [], next: nil)
+                return MusicArtistAlbumsPage(items: [], next: nil)
             }
         )
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache(), now: { now }, artistDetailCacheTTL: 120)
@@ -73,13 +73,13 @@ final class PlaylistBrowserConcurrencyTests: XCTestCase {
     func testLateArtistLoadMoreSuccessCannotReplaceNewerArtistDetail() async {
         let firstPageURL = URL(string: "https://api.spotify.com/v1/artists/artist-a/albums?offset=10&limit=10")!
         let aLoadMoreGate = TestDeferred<Void>()
-        let pageA1 = SpotifyArtistAlbum(
+        let pageA1 = MusicArtistAlbum(
             id: "a-alb-1", name: "A First", imageURL: nil, releaseYear: "2024", totalTracks: 1, group: .album, uri: "spotify:album:a-alb-1"
         )
-        let pageA2 = SpotifyArtistAlbum(
+        let pageA2 = MusicArtistAlbum(
             id: "a-alb-2", name: "A Second", imageURL: nil, releaseYear: "2023", totalTracks: 1, group: .album, uri: "spotify:album:a-alb-2"
         )
-        let pageB1 = SpotifyArtistAlbum(
+        let pageB1 = MusicArtistAlbum(
             id: "b-alb-1", name: "B First", imageURL: nil, releaseYear: "2024", totalTracks: 1, group: .album, uri: "spotify:album:b-alb-1"
         )
         let api = MockBrowsingAPI(
@@ -88,12 +88,12 @@ final class PlaylistBrowserConcurrencyTests: XCTestCase {
             artistAlbumsPageHandler: { id, _, _, offset, _ in
                 if id == "artist-a" {
                     if offset == 0 {
-                        return SpotifyAPIClient.SpotifyArtistAlbumsPage(items: [pageA1], next: firstPageURL)
+                        return MusicArtistAlbumsPage(items: [pageA1], next: firstPageURL)
                     }
                     await aLoadMoreGate.wait()
-                    return SpotifyAPIClient.SpotifyArtistAlbumsPage(items: [pageA2], next: nil)
+                    return MusicArtistAlbumsPage(items: [pageA2], next: nil)
                 }
-                return SpotifyAPIClient.SpotifyArtistAlbumsPage(items: [pageB1], next: nil)
+                return MusicArtistAlbumsPage(items: [pageB1], next: nil)
             }
         )
         let viewModel = PlaylistBrowserViewModel(
@@ -127,10 +127,10 @@ final class PlaylistBrowserConcurrencyTests: XCTestCase {
         struct LoadMoreFailure: Error {}
         let firstPageURL = URL(string: "https://api.spotify.com/v1/artists/artist-a/albums?offset=10&limit=10")!
         let aLoadMoreGate = TestDeferred<Void>()
-        let pageA1 = SpotifyArtistAlbum(
+        let pageA1 = MusicArtistAlbum(
             id: "a-alb-1", name: "A First", imageURL: nil, releaseYear: "2024", totalTracks: 1, group: .album, uri: "spotify:album:a-alb-1"
         )
-        let pageB1 = SpotifyArtistAlbum(
+        let pageB1 = MusicArtistAlbum(
             id: "b-alb-1", name: "B First", imageURL: nil, releaseYear: "2024", totalTracks: 1, group: .album, uri: "spotify:album:b-alb-1"
         )
         let api = MockBrowsingAPI(
@@ -139,12 +139,12 @@ final class PlaylistBrowserConcurrencyTests: XCTestCase {
             artistAlbumsPageHandler: { id, _, _, offset, _ in
                 if id == "artist-a" {
                     if offset == 0 {
-                        return SpotifyAPIClient.SpotifyArtistAlbumsPage(items: [pageA1], next: firstPageURL)
+                        return MusicArtistAlbumsPage(items: [pageA1], next: firstPageURL)
                     }
                     await aLoadMoreGate.wait()
                     throw LoadMoreFailure()
                 }
-                return SpotifyAPIClient.SpotifyArtistAlbumsPage(items: [pageB1], next: nil)
+                return MusicArtistAlbumsPage(items: [pageB1], next: nil)
             }
         )
         let viewModel = PlaylistBrowserViewModel(
@@ -186,13 +186,13 @@ final class PlaylistBrowserConcurrencyTests: XCTestCase {
             trackResults: [:],
             artistAlbumsPageHandler: { _, _, _, offset, _ in
                 if offset == 0 {
-                    return SpotifyAPIClient.SpotifyArtistAlbumsPage(
-                        items: [SpotifyArtistAlbum(id: "alb-1", name: "First", imageURL: nil, releaseYear: "2024", totalTracks: 1, group: .album, uri: "spotify:album:alb-1")],
+                    return MusicArtistAlbumsPage(
+                        items: [MusicArtistAlbum(id: "alb-1", name: "First", imageURL: nil, releaseYear: "2024", totalTracks: 1, group: .album, uri: "spotify:album:alb-1")],
                         next: nextURL
                     )
                 }
                 await loadMoreGate.wait()
-                return SpotifyAPIClient.SpotifyArtistAlbumsPage(items: [], next: nil)
+                return MusicArtistAlbumsPage(items: [], next: nil)
             }
         )
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache(), initialArtistAlbumPageCount: 1)
@@ -225,14 +225,14 @@ final class PlaylistBrowserConcurrencyTests: XCTestCase {
             trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]],
             artistAlbumsPageHandler: { _, _, _, offset, providedNext in
                 if offset == 0 {
-                    return SpotifyAPIClient.SpotifyArtistAlbumsPage(
-                        items: [SpotifyArtistAlbum(id: "alb-1", name: "First", imageURL: nil, releaseYear: "2024", totalTracks: 1, group: .album, uri: "spotify:album:alb-1")],
+                    return MusicArtistAlbumsPage(
+                        items: [MusicArtistAlbum(id: "alb-1", name: "First", imageURL: nil, releaseYear: "2024", totalTracks: 1, group: .album, uri: "spotify:album:alb-1")],
                         next: nextURL
                     )
                 }
                 XCTAssertEqual(providedNext, nextURL)
-                return SpotifyAPIClient.SpotifyArtistAlbumsPage(
-                    items: [SpotifyArtistAlbum(id: "alb-2", name: "Second", imageURL: nil, releaseYear: "2023", totalTracks: 1, group: .single, uri: "spotify:album:alb-2")],
+                return MusicArtistAlbumsPage(
+                    items: [MusicArtistAlbum(id: "alb-2", name: "Second", imageURL: nil, releaseYear: "2023", totalTracks: 1, group: .single, uri: "spotify:album:alb-2")],
                     next: nil
                 )
             }

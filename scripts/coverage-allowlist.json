@@ -7,7 +7,7 @@
     "Spotiglass/Browsing/PlaylistBrowserViewModel+ArtistSelection.swift",
     "Spotiglass/Browsing/PlaylistBrowserViewModel+TrackMutations.swift",
     "Spotiglass/Browsing/PlaylistOwnerDisplay.swift",
-    "Spotiglass/Browsing/SpotifyBrowsingAPI.swift",
+    "Spotiglass/Browsing/MusicBrowsingProvider.swift",
     "Spotiglass/CommandPalette/CommandPaletteEventMonitor.swift",
     "Spotiglass/CommandPalette/CommandPaletteSettingsView.swift",
     "Spotiglass/CommandPalette/HotkeyRecorderField.swift",

@@ -32,7 +32,7 @@
 		BB10000000000000000000001 /* SpotiglassSidebarLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB10000000000000000000011 /* SpotiglassSidebarLibrary.swift */; };
 		BB10000000000000000000002 /* BrowsingSidebarModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB10000000000000000000012 /* BrowsingSidebarModels.swift */; };
 		SRC000000000000000000001C /* CatalogSearchViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC000000000000000008001C /* CatalogSearchViewModel.swift */; };
-		BB10000000000000000000003 /* SpotifyBrowsingAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB10000000000000000000013 /* SpotifyBrowsingAPI.swift */; };
+		BB10000000000000000000003 /* MusicBrowsingProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB10000000000000000000013 /* MusicBrowsingProvider.swift */; };
 		SRC0000000000000000000021 /* PlaylistBrowserViewModel+LibraryContinuation.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC0000000000000000080021 /* PlaylistBrowserViewModel+LibraryContinuation.swift */; };
 		SRC0000000000000000000020 /* LibraryContinuation.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC0000000000000000080020 /* LibraryContinuation.swift */; };
 		BB10000000000000000000004 /* SpotifyBrowsingCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB10000000000000000000014 /* SpotifyBrowsingCache.swift */; };
@@ -41,7 +41,7 @@
 		BB10000000000000000000007 /* TrackRowViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB10000000000000000000017 /* TrackRowViewModel.swift */; };
 		BB10000000000000000000008 /* ArtistBrowsingModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB10000000000000000000018 /* ArtistBrowsingModels.swift */; };
 		BB10000000000000000000009 /* ArtistFallbackCooldownStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB10000000000000000000019 /* ArtistFallbackCooldownStore.swift */; };
-		C30000000000000000000001 /* SpotifyWebAPIDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000011 /* SpotifyWebAPIDomain.swift */; };
+		C30000000000000000000001 /* MusicDomain.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000011 /* MusicDomain.swift */; };
 		C30000000000000000000002 /* SpotifyAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000012 /* SpotifyAPIClient.swift */; };
 		C30000000000000000000003 /* SpotifyAPIError.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000013 /* SpotifyAPIError.swift */; };
 		C30000000000000000000004 /* SpotifyDTOs+Paging.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000014 /* SpotifyDTOs+Paging.swift */; };
@@ -441,7 +441,7 @@
 		BB10000000000000000000011 /* SpotiglassSidebarLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotiglassSidebarLibrary.swift; sourceTree = "<group>"; };
 		BB10000000000000000000012 /* BrowsingSidebarModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowsingSidebarModels.swift; sourceTree = "<group>"; };
 		SRC000000000000000008001C /* CatalogSearchViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogSearchViewModel.swift; sourceTree = "<group>"; };
-		BB10000000000000000000013 /* SpotifyBrowsingAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyBrowsingAPI.swift; sourceTree = "<group>"; };
+		BB10000000000000000000013 /* MusicBrowsingProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicBrowsingProvider.swift; sourceTree = "<group>"; };
 		SRC0000000000000000080021 /* PlaylistBrowserViewModel+LibraryContinuation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlaylistBrowserViewModel+LibraryContinuation.swift"; sourceTree = "<group>"; };
 		SRC0000000000000000080020 /* LibraryContinuation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryContinuation.swift; sourceTree = "<group>"; };
 		BB10000000000000000000014 /* SpotifyBrowsingCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyBrowsingCache.swift; sourceTree = "<group>"; };
@@ -450,7 +450,7 @@
 		BB10000000000000000000017 /* TrackRowViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackRowViewModel.swift; sourceTree = "<group>"; };
 		BB10000000000000000000018 /* ArtistBrowsingModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtistBrowsingModels.swift; sourceTree = "<group>"; };
 		BB10000000000000000000019 /* ArtistFallbackCooldownStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtistFallbackCooldownStore.swift; sourceTree = "<group>"; };
-		C30000000000000000000011 /* SpotifyWebAPIDomain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyWebAPIDomain.swift; sourceTree = "<group>"; };
+		C30000000000000000000011 /* MusicDomain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicDomain.swift; sourceTree = "<group>"; };
 		C30000000000000000000012 /* SpotifyAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyAPIClient.swift; sourceTree = "<group>"; };
 		C30000000000000000000013 /* SpotifyAPIError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyAPIError.swift; sourceTree = "<group>"; };
 		C30000000000000000000014 /* SpotifyDTOs+Paging.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SpotifyDTOs+Paging.swift"; sourceTree = "<group>"; };
@@ -892,7 +892,7 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000013 /* AppConnectionState.swift */,
-				C30000000000000000000011 /* SpotifyWebAPIDomain.swift */,
+				C30000000000000000000011 /* MusicDomain.swift */,
 			);
 			path = Domain;
 			sourceTree = "<group>";
@@ -1172,7 +1172,7 @@
 				BB10000000000000000000011 /* SpotiglassSidebarLibrary.swift */,
 				BB10000000000000000000012 /* BrowsingSidebarModels.swift */,
 				SRC000000000000000008001C /* CatalogSearchViewModel.swift */,
-				BB10000000000000000000013 /* SpotifyBrowsingAPI.swift */,
+				BB10000000000000000000013 /* MusicBrowsingProvider.swift */,
 				SRC0000000000000000080021 /* PlaylistBrowserViewModel+LibraryContinuation.swift */,
 				SRC0000000000000000080020 /* LibraryContinuation.swift */,
 				BB10000000000000000000014 /* SpotifyBrowsingCache.swift */,
@@ -1554,7 +1554,7 @@
 				B20000000000000000000006 /* AuthPersistence.swift in Sources */,
 				KRS0000000000000000000001 /* KeychainRefreshTokenStore.swift in Sources */,
 				B20000000000000000000007 /* AuthViewModel.swift in Sources */,
-				C30000000000000000000001 /* SpotifyWebAPIDomain.swift in Sources */,
+				C30000000000000000000001 /* MusicDomain.swift in Sources */,
 				C30000000000000000000002 /* SpotifyAPIClient.swift in Sources */,
 				C30000000000000000000009 /* SpotifyAPIClient+CurrentUser.swift in Sources */,
 				C3000000000000000000000a /* SpotifyAPIClient+Playlists.swift in Sources */,
@@ -1574,7 +1574,7 @@
 				BB10000000000000000000001 /* SpotiglassSidebarLibrary.swift in Sources */,
 				BB10000000000000000000002 /* BrowsingSidebarModels.swift in Sources */,
 				SRC000000000000000000001C /* CatalogSearchViewModel.swift in Sources */,
-				BB10000000000000000000003 /* SpotifyBrowsingAPI.swift in Sources */,
+				BB10000000000000000000003 /* MusicBrowsingProvider.swift in Sources */,
 				SRC0000000000000000000021 /* PlaylistBrowserViewModel+LibraryContinuation.swift in Sources */,
 				SRC0000000000000000000020 /* LibraryContinuation.swift in Sources */,
 				BB10000000000000000000004 /* SpotifyBrowsingCache.swift in Sources */,

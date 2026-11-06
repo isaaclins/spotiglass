@@ -4,9 +4,9 @@ import XCTest
 final class TrackRowViewModelContentTests: XCTestCase {
     func testPlaylistItemTrackMapsExplicitAndUnavailableBadges() {
         let playable = TrackRowViewModel(
-            SpotifyPlaylistTrackItem(
+            MusicPlaylistTrackItem(
                 id: "t1",
-                content: .track(SpotifyTrack(
+                content: .track(MusicTrack(
                     id: "t1",
                     name: "Song",
                     artists: ["A"],
@@ -25,9 +25,9 @@ final class TrackRowViewModelContentTests: XCTestCase {
         XCTAssertEqual(playable.playableURI, "spotify:track:t1")
 
         let blocked = TrackRowViewModel(
-            SpotifyPlaylistTrackItem(
+            MusicPlaylistTrackItem(
                 id: "t2",
-                content: .track(SpotifyTrack(
+                content: .track(MusicTrack(
                     id: "t2",
                     name: "Blocked",
                     artists: ["A"],
@@ -48,9 +48,9 @@ final class TrackRowViewModelContentTests: XCTestCase {
 
     func testEpisodeLocalAndUnavailablePlaylistItems() {
         let episode = TrackRowViewModel(
-            SpotifyPlaylistTrackItem(
+            MusicPlaylistTrackItem(
                 id: "ep1",
-                content: .episode(SpotifyEpisode(
+                content: .episode(MusicEpisode(
                     id: "ep1",
                     name: "Episode",
                     showName: "Show",
@@ -67,9 +67,9 @@ final class TrackRowViewModelContentTests: XCTestCase {
         XCTAssertEqual(episode.playableURI, "spotify:episode:ep1")
 
         let local = TrackRowViewModel(
-            SpotifyPlaylistTrackItem(
+            MusicPlaylistTrackItem(
                 id: "local1",
-                content: .localTrack(SpotifyLocalTrack(
+                content: .localTrack(MusicLocalTrack(
                     name: "Local",
                     artists: [],
                     durationMilliseconds: 120_000,
@@ -83,7 +83,7 @@ final class TrackRowViewModelContentTests: XCTestCase {
         XCTAssertNil(local.playableURI)
 
         let missing = TrackRowViewModel(
-            SpotifyPlaylistTrackItem(id: "x", content: .unavailable(reason: "Region locked")),
+            MusicPlaylistTrackItem(id: "x", content: .unavailable(reason: "Region locked")),
             listPosition: 3
         )
         XCTAssertEqual(missing.title, "Unavailable item")
@@ -125,7 +125,7 @@ final class TrackRowViewModelContentTests: XCTestCase {
     }
 
     func testPlaylistOccurrenceKeepsRowIDButPinsCanonicalTrackIdentity() {
-        let canonicalTrack = SpotifyTrack(
+        let canonicalTrack = MusicTrack(
             id: "track-real",
             name: "Same Song",
             artists: ["Artist"],
@@ -137,7 +137,7 @@ final class TrackRowViewModelContentTests: XCTestCase {
             uri: "spotify:track:track-real"
         )
         let row = TrackRowViewModel(
-            SpotifyPlaylistTrackItem(id: "track-real:7", content: .track(canonicalTrack)),
+            MusicPlaylistTrackItem(id: "track-real:7", content: .track(canonicalTrack)),
             listPosition: 8
         )
 
@@ -146,7 +146,7 @@ final class TrackRowViewModelContentTests: XCTestCase {
         XCTAssertEqual(row.pinnedTrackItem()?.spotifyURI, "spotify:track:track-real")
 
         let movedRow = TrackRowViewModel(
-            SpotifyPlaylistTrackItem(id: "track-real:2", content: .track(canonicalTrack)),
+            MusicPlaylistTrackItem(id: "track-real:2", content: .track(canonicalTrack)),
             listPosition: 3
         )
         XCTAssertEqual(movedRow.pinnedTrackItem(), row.pinnedTrackItem())

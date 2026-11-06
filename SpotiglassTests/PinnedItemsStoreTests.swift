@@ -21,7 +21,7 @@ final class PinnedItemsStoreTests: XCTestCase {
         let store = PinnedItemsStore(cache: cache)
         store.bind(userID: "u1")
         let playlist = PinnedItem.playlist(
-            SpotifyPlaylistSummary(
+            MusicPlaylistSummary(
                 id: "p1",
                 name: "A",
                 ownerID: "test-owner",
@@ -41,11 +41,11 @@ final class PinnedItemsStoreTests: XCTestCase {
         let store = PinnedItemsStore(cache: cache)
         store.bind(userID: "u1")
         let a = PinnedItem.playlist(
-            SpotifyPlaylistSummary(id: "a", name: "A",
+            MusicPlaylistSummary(id: "a", name: "A",
                 ownerID: "test-owner", ownerName: "o", imageURL: nil, trackCount: 0, snapshotID: "1")
         )
         let b = PinnedItem.playlist(
-            SpotifyPlaylistSummary(id: "b", name: "B",
+            MusicPlaylistSummary(id: "b", name: "B",
                 ownerID: "test-owner", ownerName: "o", imageURL: nil, trackCount: 0, snapshotID: "2")
         )
         store.pin(a)
@@ -59,15 +59,15 @@ final class PinnedItemsStoreTests: XCTestCase {
         let store = PinnedItemsStore(cache: cache)
         store.bind(userID: "u1")
         let a = PinnedItem.playlist(
-            SpotifyPlaylistSummary(id: "a", name: "A",
+            MusicPlaylistSummary(id: "a", name: "A",
                 ownerID: "test-owner", ownerName: "o", imageURL: nil, trackCount: 0, snapshotID: "1")
         )
         let b = PinnedItem.playlist(
-            SpotifyPlaylistSummary(id: "b", name: "B",
+            MusicPlaylistSummary(id: "b", name: "B",
                 ownerID: "test-owner", ownerName: "o", imageURL: nil, trackCount: 0, snapshotID: "2")
         )
         let c = PinnedItem.playlist(
-            SpotifyPlaylistSummary(id: "c", name: "C",
+            MusicPlaylistSummary(id: "c", name: "C",
                 ownerID: "test-owner", ownerName: "o", imageURL: nil, trackCount: 0, snapshotID: "3")
         )
 
@@ -82,11 +82,11 @@ final class PinnedItemsStoreTests: XCTestCase {
         let store = PinnedItemsStore(cache: cache)
         store.bind(userID: "u1")
         let a = PinnedItem.playlist(
-            SpotifyPlaylistSummary(id: "a", name: "A",
+            MusicPlaylistSummary(id: "a", name: "A",
                 ownerID: "test-owner", ownerName: "o", imageURL: nil, trackCount: 0, snapshotID: "1")
         )
         let b = PinnedItem.playlist(
-            SpotifyPlaylistSummary(id: "b", name: "B",
+            MusicPlaylistSummary(id: "b", name: "B",
                 ownerID: "test-owner", ownerName: "o", imageURL: nil, trackCount: 0, snapshotID: "2")
         )
         store.pin(a)
@@ -101,7 +101,7 @@ final class PinnedItemsStoreTests: XCTestCase {
         let store = PinnedItemsStore(cache: cache)
         store.bind(userID: "alice")
         let item = PinnedItem.artist(
-            SpotifyArtist(id: "ar1", name: "Artist", imageURL: nil, uri: "spotify:artist:ar1")
+            MusicArtist(id: "ar1", name: "Artist", imageURL: nil, uri: "spotify:artist:ar1")
         )
         store.pin(item)
         XCTAssertEqual(try cache.loadPinnedItems(userID: "alice").count, 1)
@@ -177,7 +177,7 @@ final class PinnedItemsStoreTests: XCTestCase {
         let store = PinnedItemsStore(cache: cache)
         store.bind(userID: "u")
         let p = PinnedItem.playlist(
-            SpotifyPlaylistSummary(id: "x", name: "X",
+            MusicPlaylistSummary(id: "x", name: "X",
                 ownerID: "test-owner", ownerName: "o", imageURL: nil, trackCount: 0, snapshotID: "s")
         )
         store.pin(p)
@@ -190,7 +190,7 @@ final class PinnedItemsStoreTests: XCTestCase {
         let store = PinnedItemsStore(cache: cache)
         store.bind(userID: "u")
         let p = PinnedItem.playlist(
-            SpotifyPlaylistSummary(id: "x", name: "X",
+            MusicPlaylistSummary(id: "x", name: "X",
                 ownerID: "test-owner", ownerName: "o", imageURL: nil, trackCount: 0, snapshotID: "s")
         )
         store.pin(p)
@@ -206,11 +206,11 @@ final class PinnedItemsStoreTests: XCTestCase {
         let cache = RecordingPinnedCache()
         let store = PinnedItemsStore(cache: cache)
         let alicePlaylist = PinnedItem.playlist(
-            SpotifyPlaylistSummary(id: "alice-playlist", name: "Alice",
+            MusicPlaylistSummary(id: "alice-playlist", name: "Alice",
                 ownerID: "test-owner", ownerName: "Alice", imageURL: nil, trackCount: 0, snapshotID: "a")
         )
         let bobArtist = PinnedItem.artist(
-            SpotifyArtist(id: "bob-artist", name: "Bob", imageURL: nil, uri: "spotify:artist:bob-artist")
+            MusicArtist(id: "bob-artist", name: "Bob", imageURL: nil, uri: "spotify:artist:bob-artist")
         )
 
         store.bind(userID: "alice")
@@ -230,7 +230,7 @@ final class PinnedItemsStoreTests: XCTestCase {
         let cache = RecordingPinnedCache()
         let store = PinnedItemsStore(cache: cache)
         let alicePlaylist = PinnedItem.playlist(
-            SpotifyPlaylistSummary(id: "alice-playlist", name: "Alice",
+            MusicPlaylistSummary(id: "alice-playlist", name: "Alice",
                 ownerID: "test-owner", ownerName: "Alice", imageURL: nil, trackCount: 0, snapshotID: "a")
         )
         store.bind(userID: "alice")
@@ -316,7 +316,7 @@ final class PinnedItemsStoreTests: XCTestCase {
         let store = PinnedItemsStore(cache: cache)
         store.bind(userID: "u1")
         let playlist = PinnedItem.playlist(
-            SpotifyPlaylistSummary(
+            MusicPlaylistSummary(
                 id: "p1",
                 name: "A",
                 ownerID: "test-owner",

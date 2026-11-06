@@ -18,8 +18,8 @@ struct SpotifyUserProfileDTO: Decodable {
         country = try container.decodeIfPresent(String.self, forKey: .country)
     }
 
-    func domainModel() -> SpotifyUserProfile {
-        SpotifyUserProfile(
+    func domainModel() -> MusicUserProfile {
+        MusicUserProfile(
             id: id,
             displayName: displayName,
             country: country
@@ -60,8 +60,8 @@ struct SpotifyPlaylistDTO: Decodable {
         snapshotID = try container.decodeIfPresent(String.self, forKey: .snapshotID) ?? id
     }
 
-    func domainModel() -> SpotifyPlaylistSummary {
-        SpotifyPlaylistSummary(
+    func domainModel() -> MusicPlaylistSummary {
+        MusicPlaylistSummary(
             id: id,
             name: name,
             ownerID: owner.id,
@@ -147,8 +147,8 @@ struct SpotifyPlaylistTrackItemDTO: Decodable {
         item = itemPayload ?? trackPayload
     }
 
-    func domainModel(position: Int) -> SpotifyPlaylistTrackItem {
-        let content: SpotifyPlaylistItemContent
+    func domainModel(position: Int) -> MusicPlaylistTrackItem {
+        let content: MusicPlaylistItemContent
         switch item {
         case let .track(track):
             if isLocal == true || track.isLocal == true {
@@ -168,7 +168,7 @@ struct SpotifyPlaylistTrackItemDTO: Decodable {
             content = .unavailable(reason: "Playlist item has no playable content.")
         }
 
-        return SpotifyPlaylistTrackItem(
+        return MusicPlaylistTrackItem(
             id: itemID(position: position, content: content),
             content: content
         )
@@ -176,7 +176,7 @@ struct SpotifyPlaylistTrackItemDTO: Decodable {
 
     /// Playlist rows must be uniquely identifiable for SwiftUI (`List`/`ForEach`). The same catalog
     /// track or episode can appear multiple times in one playlist, so the Spotify id alone is not unique.
-    private func itemID(position: Int, content: SpotifyPlaylistItemContent) -> String {
+    private func itemID(position: Int, content: MusicPlaylistItemContent) -> String {
         switch content {
         case let .track(track):
             return "\(track.id):\(position)"

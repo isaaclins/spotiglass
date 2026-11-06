@@ -233,7 +233,7 @@ enum PlaylistBrowserPaletteSearchBuilder {
     ) -> [CommandPaletteItem] {
         var libraryRows: [(item: CommandPaletteItem, score: Int)] = []
         for row in visiblePlaylists {
-            let summary = SpotifyPlaylistSummary(
+            let summary = MusicPlaylistSummary(
                 id: row.id,
                 name: row.title,
                 ownerID: row.ownerID,
@@ -273,7 +273,7 @@ enum PlaylistBrowserPaletteSearchBuilder {
     }
 
     private static func trackPaletteItem(
-        _ track: SpotifyTrack,
+        _ track: MusicTrack,
         environment: PlaylistBrowserPaletteSearchEnvironment,
         pinUnpinClosures: (PinnedItem) -> (pin: (@MainActor () -> Void)?, unpin: (@MainActor () -> Void)?)
     ) -> CommandPaletteItem {

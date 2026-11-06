@@ -8,7 +8,7 @@ final class PlaylistBrowserPrefetchAllTracksTests: XCTestCase {
     /// Pre-seeds the view-model so `runBulkPlaylistTrackPrefetch()` skips
     /// `loadIfNeeded()` (which would otherwise trigger a side-effect detail
     /// fetch for the auto-selected playlist).
-    private func seed(_ vm: PlaylistBrowserViewModel, with playlists: [SpotifyPlaylistSummary]) {
+    private func seed(_ vm: PlaylistBrowserViewModel, with playlists: [MusicPlaylistSummary]) {
         vm.playlistsByID = Dictionary(uniqueKeysWithValues: playlists.map { ($0.id, $0) })
         vm.playlistState = .loaded(playlists.map(PlaylistRowViewModel.init))
         vm.hasLoaded = true
@@ -36,7 +36,7 @@ final class PlaylistBrowserPrefetchAllTracksTests: XCTestCase {
             counter: counter,
             trackFactory: { id in [PlaylistBrowsingTestFixtures.track(id: "\(id)-fetched")] },
             savedTracksFactory: {
-                SpotifySavedTracksResult(
+                MusicSavedTracksResult(
                     tracks: [PlaylistBrowsingTestFixtures.track(id: "liked-1")],
                     totalAvailable: 1
                 )
@@ -114,7 +114,7 @@ final class PlaylistBrowserPrefetchAllTracksTests: XCTestCase {
                     .success([PlaylistBrowsingTestFixtures.track(id: "p1-fetched")])
                 ]
             ],
-            savedTracksResult: .success(SpotifySavedTracksResult(tracks: [], totalAvailable: 0))
+            savedTracksResult: .success(MusicSavedTracksResult(tracks: [], totalAvailable: 0))
         )
 
         let vm = PlaylistBrowserViewModel(api: api, cache: cache)
@@ -137,7 +137,7 @@ final class PlaylistBrowserPrefetchAllTracksTests: XCTestCase {
                 if await attempts.next() == 1 {
                     throw SpotifyAPIError.rateLimited(retryAfter: 0.2)
                 }
-                return SpotifySavedTracksResult(
+                return MusicSavedTracksResult(
                     tracks: [PlaylistBrowsingTestFixtures.track(id: "liked-1")],
                     totalAvailable: 1
                 )
@@ -173,7 +173,7 @@ final class PlaylistBrowserPrefetchAllTracksTests: XCTestCase {
         let api = MockBrowsingAPI(
             playlistResults: [.success([])],
             trackResults: [:],
-            savedTracksResult: .success(SpotifySavedTracksResult(tracks: [], totalAvailable: 0))
+            savedTracksResult: .success(MusicSavedTracksResult(tracks: [], totalAvailable: 0))
         )
         let vm = PlaylistBrowserViewModel(api: api, cache: cache)
         seed(vm, with: [])
@@ -230,7 +230,7 @@ final class PlaylistBrowserPrefetchAllTracksTests: XCTestCase {
         let api = MockBrowsingAPI(
             playlistResults: [.success([p1])],
             trackResults: ["p1": [.success([PlaylistBrowsingTestFixtures.track(id: "p1-new")])]],
-            savedTracksResult: .success(SpotifySavedTracksResult(tracks: [], totalAvailable: 0))
+            savedTracksResult: .success(MusicSavedTracksResult(tracks: [], totalAvailable: 0))
         )
         let vm = PlaylistBrowserViewModel(api: api, cache: cache)
         seed(vm, with: [p1])
@@ -262,20 +262,20 @@ private actor ConcurrencyCounter {
     func recordSavedTracks() { savedTracksCount += 1 }
 }
 
-private final class ConcurrencyTrackingBrowsingAPI: SpotifyBrowsingAPI, @unchecked Sendable {
-    private let playlistsList: [SpotifyPlaylistSummary]
+private final class ConcurrencyTrackingBrowsingAPI: MusicBrowsingProvider, @unchecked Sendable {
+    private let playlistsList: [MusicPlaylistSummary]
     private let counter: ConcurrencyCounter
-    private let trackFactory: @Sendable (String) -> [SpotifyPlaylistTrackItem]
-    private let savedTracksFactory: @Sendable () -> SpotifySavedTracksResult
+    private let trackFactory: @Sendable (String) -> [MusicPlaylistTrackItem]
+    private let savedTracksFactory: @Sendable () -> MusicSavedTracksResult
     private let playlistTracksStarted: AsyncSignal?
     private let releasePlaylistTracks: AsyncSignal?
 
     init(
-        playlists: [SpotifyPlaylistSummary],
+        playlists: [MusicPlaylistSummary],
         counter: ConcurrencyCounter,
-        trackFactory: @escaping @Sendable (String) -> [SpotifyPlaylistTrackItem] = { _ in [] },
-        savedTracksFactory: @escaping @Sendable () -> SpotifySavedTracksResult = {
-            SpotifySavedTracksResult(tracks: [], totalAvailable: 0)
+        trackFactory: @escaping @Sendable (String) -> [MusicPlaylistTrackItem] = { _ in [] },
+        savedTracksFactory: @escaping @Sendable () -> MusicSavedTracksResult = {
+            MusicSavedTracksResult(tracks: [], totalAvailable: 0)
         },
         playlistTracksStarted: AsyncSignal? = nil,
         releasePlaylistTracks: AsyncSignal? = nil
@@ -288,10 +288,10 @@ private final class ConcurrencyTrackingBrowsingAPI: SpotifyBrowsingAPI, @uncheck
         self.releasePlaylistTracks = releasePlaylistTracks
     }
 
-    func currentUserPlaylists(limit: Int) async throws -> [SpotifyPlaylistSummary] { playlistsList }
+    func currentUserPlaylists(limit: Int) async throws -> [MusicPlaylistSummary] { playlistsList }
     func updatePlaylist(playlistID: String, name: String) async throws {}
 
-    func playlistTracks(playlistID: String, limit: Int, maxPages: Int) async throws -> [SpotifyPlaylistTrackItem] {
+    func playlistTracks(playlistID: String, limit: Int, maxPages: Int) async throws -> [MusicPlaylistTrackItem] {
         await counter.enter()
         do {
             playlistTracksStarted?.signal()
@@ -308,30 +308,30 @@ private final class ConcurrencyTrackingBrowsingAPI: SpotifyBrowsingAPI, @uncheck
         }
     }
 
-    func currentUserSavedTracks(limit: Int, maxPages: Int?) async throws -> SpotifySavedTracksResult {
+    func currentUserSavedTracks(limit: Int, maxPages: Int?) async throws -> MusicSavedTracksResult {
         await counter.enter()
         await counter.recordSavedTracks()
         await counter.exit()
         return savedTracksFactory()
     }
 
-    func currentUserProfile() async throws -> SpotifyUserProfile {
-        SpotifyUserProfile(id: "u", displayName: nil, country: "US")
+    func currentUserProfile() async throws -> MusicUserProfile {
+        MusicUserProfile(id: "u", displayName: nil, country: "US")
     }
-    func artist(id: String, cacheMode: SpotifyRequestCacheMode) async throws -> SpotifyArtistDetail {
-        SpotifyArtistDetail(id: id, name: id, imageURL: nil, followersTotal: nil, genres: [], uri: "spotify:artist:\(id)")
+    func artist(id: String, cacheMode: MusicRequestCacheMode) async throws -> MusicArtistDetail {
+        MusicArtistDetail(id: id, name: id, imageURL: nil, followersTotal: nil, genres: [], uri: "spotify:artist:\(id)")
     }
-    func artistCached(id: String, cacheMode: SpotifyRequestCacheMode) async throws -> SpotifyAPIClient.CachedResponse<SpotifyArtistDetail> {
-        SpotifyAPIClient.CachedResponse(value: try await artist(id: id, cacheMode: cacheMode), isStale: false)
+    func artistCached(id: String, cacheMode: MusicRequestCacheMode) async throws -> MusicCachedResponse<MusicArtistDetail> {
+        MusicCachedResponse(value: try await artist(id: id, cacheMode: cacheMode), isStale: false)
     }
-    func artistAlbumsCached(id: String, includeGroups: String, limit: Int, cacheMode: SpotifyRequestCacheMode) async throws -> SpotifyAPIClient.CachedResponse<[SpotifyArtistAlbum]> {
-        SpotifyAPIClient.CachedResponse(value: [], isStale: false)
+    func artistAlbumsCached(id: String, includeGroups: String, limit: Int, cacheMode: MusicRequestCacheMode) async throws -> MusicCachedResponse<[MusicArtistAlbum]> {
+        MusicCachedResponse(value: [], isStale: false)
     }
-    func artistAlbumsPage(id: String, includeGroups: String, limit: Int, offset: Int, nextURL: URL?, cacheMode: SpotifyRequestCacheMode) async throws -> SpotifyAPIClient.SpotifyArtistAlbumsPage {
-        SpotifyAPIClient.SpotifyArtistAlbumsPage(items: [], next: nil)
+    func artistAlbumsPage(id: String, includeGroups: String, limit: Int, offset: Int, nextURL: URL?, cacheMode: MusicRequestCacheMode) async throws -> MusicArtistAlbumsPage {
+        MusicArtistAlbumsPage(items: [], next: nil)
     }
-    func search(query: String, limit: Int) async throws -> SpotifySearchResults {
-        SpotifySearchResults(tracks: [], artists: [], albums: [], playlists: [])
+    func search(query: String, limit: Int) async throws -> MusicSearchResults {
+        MusicSearchResults(tracks: [], artists: [], albums: [], playlists: [])
     }
-    func albumTracks(albumID: String, market: String?, limit: Int) async throws -> [SpotifyTrack] { [] }
+    func albumTracks(albumID: String, market: String?, limit: Int) async throws -> [MusicTrack] { [] }
 }

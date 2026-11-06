@@ -15,7 +15,7 @@ struct PlaylistRowViewModel: Equatable, Identifiable {
         snapshotID.hasPrefix("album-")
     }
 
-    init(_ playlist: SpotifyPlaylistSummary) {
+    init(_ playlist: MusicPlaylistSummary) {
         self.id = playlist.id
         self.title = playlist.name
         self.owner = playlist.ownerName
