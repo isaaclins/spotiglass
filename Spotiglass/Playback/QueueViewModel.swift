@@ -52,6 +52,9 @@ final class QueueViewModel: ObservableObject {
     var isRefreshInFlight = false
     var pendingRefreshRequested = false
     var pendingRefreshAllowsHiddenPanel = false
+    /// Callers that asked for a refresh while one was in flight. They resume
+    /// once the follow-up round that covers their request has finished.
+    var pendingRefreshWaiters: [CheckedContinuation<Void, Never>] = []
     var unchangedPollTickCount = 0
     var queueCooldownUntil: Date?
     var lastQueuePollingKey: String?

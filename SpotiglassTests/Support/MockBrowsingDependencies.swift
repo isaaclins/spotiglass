@@ -4,8 +4,11 @@ import Foundation
 final class LimitCapturingBrowsingAPI: MusicBrowsingProvider {
     let playlists: [MusicPlaylistSummary]
     let tracks: [MusicPlaylistTrackItem]
-    private(set) var lastTracksLimit: Int?
-    private(set) var lastTracksMaxPages: Int?
+    private let lock = NSLock()
+    private var recordedTracksLimit: Int?
+    private var recordedTracksMaxPages: Int?
+    var lastTracksLimit: Int? { lock.withLock { recordedTracksLimit } }
+    var lastTracksMaxPages: Int? { lock.withLock { recordedTracksMaxPages } }
 
     init(playlists: [MusicPlaylistSummary], tracks: [MusicPlaylistTrackItem]) {
         self.playlists = playlists
@@ -62,8 +65,10 @@ final class LimitCapturingBrowsingAPI: MusicBrowsingProvider {
     }
 
     func playlistTracks(playlistID: String, limit: Int, maxPages: Int) async throws -> [MusicPlaylistTrackItem] {
-        lastTracksLimit = limit
-        lastTracksMaxPages = maxPages
+        lock.withLock {
+            recordedTracksLimit = limit
+            recordedTracksMaxPages = maxPages
+        }
         return tracks
     }
 
@@ -73,8 +78,46 @@ final class LimitCapturingBrowsingAPI: MusicBrowsingProvider {
 }
 
 final class MockBrowsingAPI: MusicBrowsingProvider {
-    private var playlistResults: [Result<[MusicPlaylistSummary], Error>]
-    private var trackResults: [String: [Result<[MusicPlaylistTrackItem], Error>]]
+    // The view model calls this API from background tasks (home feed loads,
+    // concurrent refreshes) while tests read the call log on the main thread,
+    // so every piece of mutable state lives in `state` and goes through `lock`.
+    // Unlocked counters raced two concurrent home feed loads under Thread
+    // Sanitizer in `testConcurrentPlaylistRefreshesShareSingleInFlightRequest`.
+    private struct State {
+        var playlistResults: [Result<[MusicPlaylistSummary], Error>]
+        var trackResults: [String: [Result<[MusicPlaylistTrackItem], Error>]]
+        var savedTracksCallCount = 0
+        var currentUserPlaylistsCallCount = 0
+        var searchCallCount = 0
+        var albumTracksCallCount = 0
+        var artistAlbumsPageCallCount = 0
+        var playlistTracksInvocationCountByID: [String: Int] = [:]
+        var updatePlaylistCalls: [(playlistID: String, name: String)] = []
+        var addTracksCalls: [(playlistID: String, uris: [String])] = []
+        var removeTracksCalls: [(playlistID: String, items: [MusicPlaylistTrackRemoval], snapshotID: String?)] = []
+        var saveTracksCalls: [[String]] = []
+        var removeSavedTracksCalls: [[String]] = []
+        var savedTrackStatusesCalls: [[String]] = []
+        var playlistTracksDelayOnInvocation: UInt64?
+        var onPlaylistTracksInvocation: ((String) -> Void)?
+        var onCurrentUserPlaylistsInvocation: (() async -> Void)?
+        var recentlyPlayedHandler: ((Int) async throws -> [MusicTrack])?
+        var topTracksHandler: ((Int, String) async throws -> [MusicTrack])?
+        var topArtistsHandler: ((Int, String) async throws -> [MusicArtist])?
+        var followedArtistsHandler: ((Int, Int?) async throws -> [MusicArtist])?
+        var artistTopTracksHandler: ((String, String?) async throws -> [MusicTrack])?
+        var recentlyPlayedCallCount = 0
+        var recentlyPlayedCacheModes: [MusicRequestCacheMode] = []
+        var topTracksCallCount = 0
+        var topTracksCacheModes: [MusicRequestCacheMode] = []
+        var topArtistsCallCount = 0
+        var followedArtistsCallCount = 0
+        var artistTopTracksCallCount = 0
+        var artistTopTracksRequestedIDs: [String] = []
+    }
+
+    private let lock = NSLock()
+    private var state: State
 
     private let searchHandler: ((String, Int) async throws -> MusicSearchResults)?
     private let artistAlbumsHandler: ((String, String, Int) async throws -> [MusicArtistAlbum])?
@@ -90,21 +133,33 @@ final class MockBrowsingAPI: MusicBrowsingProvider {
     private let removeSavedTracksHandler: (([String]) async throws -> Void)?
     private let savedTrackStatusesHandler: (([String]) async throws -> [Bool])?
     private let profileHandler: (() async throws -> MusicUserProfile)?
-    private(set) var savedTracksCallCount = 0
-    private(set) var currentUserPlaylistsCallCount = 0
-    private(set) var searchCallCount = 0
-    private(set) var albumTracksCallCount = 0
-    private(set) var artistAlbumsPageCallCount = 0
-    private(set) var playlistTracksInvocationCountByID: [String: Int] = [:]
-    private(set) var updatePlaylistCalls: [(playlistID: String, name: String)] = []
-    private(set) var addTracksCalls: [(playlistID: String, uris: [String])] = []
-    private(set) var removeTracksCalls: [(playlistID: String, items: [MusicPlaylistTrackRemoval], snapshotID: String?)] = []
-    private(set) var saveTracksCalls: [[String]] = []
-    private(set) var removeSavedTracksCalls: [[String]] = []
-    private(set) var savedTrackStatusesCalls: [[String]] = []
-    var playlistTracksDelayOnInvocation: UInt64?
-    var onPlaylistTracksInvocation: ((String) -> Void)?
-    var onCurrentUserPlaylistsInvocation: (() async -> Void)?
+
+    var savedTracksCallCount: Int { locked { $0.savedTracksCallCount } }
+    var currentUserPlaylistsCallCount: Int { locked { $0.currentUserPlaylistsCallCount } }
+    var searchCallCount: Int { locked { $0.searchCallCount } }
+    var albumTracksCallCount: Int { locked { $0.albumTracksCallCount } }
+    var artistAlbumsPageCallCount: Int { locked { $0.artistAlbumsPageCallCount } }
+    var playlistTracksInvocationCountByID: [String: Int] { locked { $0.playlistTracksInvocationCountByID } }
+    var updatePlaylistCalls: [(playlistID: String, name: String)] { locked { $0.updatePlaylistCalls } }
+    var addTracksCalls: [(playlistID: String, uris: [String])] { locked { $0.addTracksCalls } }
+    var removeTracksCalls: [(playlistID: String, items: [MusicPlaylistTrackRemoval], snapshotID: String?)] {
+        locked { $0.removeTracksCalls }
+    }
+    var saveTracksCalls: [[String]] { locked { $0.saveTracksCalls } }
+    var removeSavedTracksCalls: [[String]] { locked { $0.removeSavedTracksCalls } }
+    var savedTrackStatusesCalls: [[String]] { locked { $0.savedTrackStatusesCalls } }
+    var playlistTracksDelayOnInvocation: UInt64? {
+        get { locked { $0.playlistTracksDelayOnInvocation } }
+        set { locked { $0.playlistTracksDelayOnInvocation = newValue } }
+    }
+    var onPlaylistTracksInvocation: ((String) -> Void)? {
+        get { locked { $0.onPlaylistTracksInvocation } }
+        set { locked { $0.onPlaylistTracksInvocation = newValue } }
+    }
+    var onCurrentUserPlaylistsInvocation: (() async -> Void)? {
+        get { locked { $0.onCurrentUserPlaylistsInvocation } }
+        set { locked { $0.onCurrentUserPlaylistsInvocation = newValue } }
+    }
 
     init(
         playlistResults: [Result<[MusicPlaylistSummary], Error>],
@@ -124,8 +179,7 @@ final class MockBrowsingAPI: MusicBrowsingProvider {
         savedTrackStatusesHandler: (([String]) async throws -> [Bool])? = nil,
         profileHandler: (() async throws -> MusicUserProfile)? = nil
     ) {
-        self.playlistResults = playlistResults
-        self.trackResults = trackResults
+        self.state = State(playlistResults: playlistResults, trackResults: trackResults)
         self.searchHandler = searchHandler
         self.artistAlbumsHandler = artistAlbumsHandler
         self.artistAlbumsPageHandler = artistAlbumsPageHandler
@@ -142,13 +196,19 @@ final class MockBrowsingAPI: MusicBrowsingProvider {
         self.profileHandler = profileHandler
     }
 
+    private func locked<T>(_ body: (inout State) throws -> T) rethrows -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return try body(&state)
+    }
+
     func updatePlaylist(playlistID: String, name: String) async throws {
-        updatePlaylistCalls.append((playlistID: playlistID, name: name))
+        locked { $0.updatePlaylistCalls.append((playlistID: playlistID, name: name)) }
         try await updatePlaylistHandler?(playlistID, name)
     }
 
     func addTracksToPlaylist(playlistID: String, uris: [String]) async throws {
-        addTracksCalls.append((playlistID: playlistID, uris: uris))
+        locked { $0.addTracksCalls.append((playlistID: playlistID, uris: uris)) }
         try await addTracksHandler?(playlistID, uris)
     }
 
@@ -157,22 +217,22 @@ final class MockBrowsingAPI: MusicBrowsingProvider {
         items: [MusicPlaylistTrackRemoval],
         snapshotID: String?
     ) async throws {
-        removeTracksCalls.append((playlistID: playlistID, items: items, snapshotID: snapshotID))
+        locked { $0.removeTracksCalls.append((playlistID: playlistID, items: items, snapshotID: snapshotID)) }
         try await removeTracksHandler?(playlistID, items, snapshotID)
     }
 
     func saveTracks(ids: [String]) async throws {
-        saveTracksCalls.append(ids)
+        locked { $0.saveTracksCalls.append(ids) }
         try await saveTracksHandler?(ids)
     }
 
     func removeSavedTracks(ids: [String]) async throws {
-        removeSavedTracksCalls.append(ids)
+        locked { $0.removeSavedTracksCalls.append(ids) }
         try await removeSavedTracksHandler?(ids)
     }
 
     func savedTrackStatuses(ids: [String]) async throws -> [Bool] {
-        savedTrackStatusesCalls.append(ids)
+        locked { $0.savedTrackStatusesCalls.append(ids) }
         if let savedTrackStatusesHandler {
             return try await savedTrackStatusesHandler(ids)
         }
@@ -180,25 +240,34 @@ final class MockBrowsingAPI: MusicBrowsingProvider {
     }
 
     func currentUserPlaylists(limit: Int) async throws -> [MusicPlaylistSummary] {
-        currentUserPlaylistsCallCount += 1
-        await onCurrentUserPlaylistsInvocation?()
+        let onInvocation = locked { state -> (() async -> Void)? in
+            state.currentUserPlaylistsCallCount += 1
+            return state.onCurrentUserPlaylistsInvocation
+        }
+        await onInvocation?()
         if let playlistsHandler {
             return try await playlistsHandler()
         }
-        guard !playlistResults.isEmpty else { return [] }
-        return try playlistResults.removeFirst().get()
+        let next = locked { state in
+            state.playlistResults.isEmpty ? nil : state.playlistResults.removeFirst()
+        }
+        return try next?.get() ?? []
     }
 
     func playlistTracks(playlistID: String, limit: Int, maxPages: Int) async throws -> [MusicPlaylistTrackItem] {
-        onPlaylistTracksInvocation?(playlistID)
-        if let playlistTracksDelayOnInvocation {
-            try await Task.sleep(nanoseconds: playlistTracksDelayOnInvocation)
+        let (onInvocation, delay) = locked { ($0.onPlaylistTracksInvocation, $0.playlistTracksDelayOnInvocation) }
+        onInvocation?(playlistID)
+        if let delay {
+            try await Task.sleep(nanoseconds: delay)
         }
-        playlistTracksInvocationCountByID[playlistID, default: 0] += 1
-        guard var results = trackResults[playlistID], !results.isEmpty else { return [] }
-        let result = results.removeFirst()
-        trackResults[playlistID] = results
-        return try result.get()
+        let result = locked { state -> Result<[MusicPlaylistTrackItem], Error>? in
+            state.playlistTracksInvocationCountByID[playlistID, default: 0] += 1
+            guard var results = state.trackResults[playlistID], !results.isEmpty else { return nil }
+            let result = results.removeFirst()
+            state.trackResults[playlistID] = results
+            return result
+        }
+        return try result?.get() ?? []
     }
 
     func currentUserProfile() async throws -> MusicUserProfile {
@@ -220,7 +289,7 @@ final class MockBrowsingAPI: MusicBrowsingProvider {
     }
 
     func search(query: String, limit: Int) async throws -> MusicSearchResults {
-        searchCallCount += 1
+        locked { $0.searchCallCount += 1 }
         if let searchHandler {
             return try await searchHandler(query, limit)
         }
@@ -228,7 +297,7 @@ final class MockBrowsingAPI: MusicBrowsingProvider {
     }
 
     func albumTracks(albumID: String, market: String?, limit: Int) async throws -> [MusicTrack] {
-        albumTracksCallCount += 1
+        locked { $0.albumTracksCallCount += 1 }
         if let albumTracksHandler {
             return try await albumTracksHandler(albumID, market, limit)
         }
@@ -258,7 +327,7 @@ final class MockBrowsingAPI: MusicBrowsingProvider {
         nextURL: URL?,
         cacheMode: MusicRequestCacheMode
     ) async throws -> MusicArtistAlbumsPage {
-        artistAlbumsPageCallCount += 1
+        locked { $0.artistAlbumsPageCallCount += 1 }
         if let artistAlbumsPageHandler {
             return try await artistAlbumsPageHandler(id, SpotifyAPIClient.includeGroupsQueryValue(includeGroups), limit, offset, nextURL)
         }
@@ -275,7 +344,7 @@ final class MockBrowsingAPI: MusicBrowsingProvider {
     }
 
     func currentUserSavedTracks(limit: Int, maxPages: Int?) async throws -> MusicSavedTracksResult {
-        savedTracksCallCount += 1
+        locked { $0.savedTracksCallCount += 1 }
         if let savedTracksHandler {
             return try await savedTracksHandler()
         }
@@ -287,28 +356,46 @@ final class MockBrowsingAPI: MusicBrowsingProvider {
 
     // MARK: - Home feed (set the handlers per test; default to empty results)
 
-    var recentlyPlayedHandler: ((Int) async throws -> [MusicTrack])?
-    var topTracksHandler: ((Int, String) async throws -> [MusicTrack])?
-    private(set) var recentlyPlayedCallCount = 0
-    private(set) var recentlyPlayedCacheModes: [MusicRequestCacheMode] = []
-    private(set) var topTracksCallCount = 0
-    private(set) var topTracksCacheModes: [MusicRequestCacheMode] = []
-    var topArtistsHandler: ((Int, String) async throws -> [MusicArtist])?
-    var followedArtistsHandler: ((Int, Int?) async throws -> [MusicArtist])?
-    var artistTopTracksHandler: ((String, String?) async throws -> [MusicTrack])?
-    private(set) var topArtistsCallCount = 0
-    private(set) var followedArtistsCallCount = 0
-    private(set) var artistTopTracksCallCount = 0
-    private(set) var artistTopTracksRequestedIDs: [String] = []
+    var recentlyPlayedHandler: ((Int) async throws -> [MusicTrack])? {
+        get { locked { $0.recentlyPlayedHandler } }
+        set { locked { $0.recentlyPlayedHandler = newValue } }
+    }
+    var topTracksHandler: ((Int, String) async throws -> [MusicTrack])? {
+        get { locked { $0.topTracksHandler } }
+        set { locked { $0.topTracksHandler = newValue } }
+    }
+    var topArtistsHandler: ((Int, String) async throws -> [MusicArtist])? {
+        get { locked { $0.topArtistsHandler } }
+        set { locked { $0.topArtistsHandler = newValue } }
+    }
+    var followedArtistsHandler: ((Int, Int?) async throws -> [MusicArtist])? {
+        get { locked { $0.followedArtistsHandler } }
+        set { locked { $0.followedArtistsHandler = newValue } }
+    }
+    var artistTopTracksHandler: ((String, String?) async throws -> [MusicTrack])? {
+        get { locked { $0.artistTopTracksHandler } }
+        set { locked { $0.artistTopTracksHandler = newValue } }
+    }
+    var recentlyPlayedCallCount: Int { locked { $0.recentlyPlayedCallCount } }
+    var recentlyPlayedCacheModes: [MusicRequestCacheMode] { locked { $0.recentlyPlayedCacheModes } }
+    var topTracksCallCount: Int { locked { $0.topTracksCallCount } }
+    var topTracksCacheModes: [MusicRequestCacheMode] { locked { $0.topTracksCacheModes } }
+    var topArtistsCallCount: Int { locked { $0.topArtistsCallCount } }
+    var followedArtistsCallCount: Int { locked { $0.followedArtistsCallCount } }
+    var artistTopTracksCallCount: Int { locked { $0.artistTopTracksCallCount } }
+    var artistTopTracksRequestedIDs: [String] { locked { $0.artistTopTracksRequestedIDs } }
 
     func recentlyPlayedTracks(
         limit: Int,
         cacheMode: MusicRequestCacheMode
     ) async throws -> [MusicTrack] {
-        recentlyPlayedCallCount += 1
-        recentlyPlayedCacheModes.append(cacheMode)
-        if let recentlyPlayedHandler {
-            return try await recentlyPlayedHandler(limit)
+        let handler = locked { state -> ((Int) async throws -> [MusicTrack])? in
+            state.recentlyPlayedCallCount += 1
+            state.recentlyPlayedCacheModes.append(cacheMode)
+            return state.recentlyPlayedHandler
+        }
+        if let handler {
+            return try await handler(limit)
         }
         return []
     }
@@ -318,10 +405,13 @@ final class MockBrowsingAPI: MusicBrowsingProvider {
         timeRange: MusicTopItemsTimeRange,
         cacheMode: MusicRequestCacheMode
     ) async throws -> [MusicTrack] {
-        topTracksCallCount += 1
-        topTracksCacheModes.append(cacheMode)
-        if let topTracksHandler {
-            return try await topTracksHandler(limit, timeRange.rawValue)
+        let handler = locked { state -> ((Int, String) async throws -> [MusicTrack])? in
+            state.topTracksCallCount += 1
+            state.topTracksCacheModes.append(cacheMode)
+            return state.topTracksHandler
+        }
+        if let handler {
+            return try await handler(limit, timeRange.rawValue)
         }
         return []
     }
@@ -331,17 +421,23 @@ final class MockBrowsingAPI: MusicBrowsingProvider {
         timeRange: MusicTopItemsTimeRange,
         cacheMode: MusicRequestCacheMode
     ) async throws -> [MusicArtist] {
-        topArtistsCallCount += 1
-        if let topArtistsHandler {
-            return try await topArtistsHandler(limit, timeRange.rawValue)
+        let handler = locked { state -> ((Int, String) async throws -> [MusicArtist])? in
+            state.topArtistsCallCount += 1
+            return state.topArtistsHandler
+        }
+        if let handler {
+            return try await handler(limit, timeRange.rawValue)
         }
         return []
     }
 
     func followedArtists(limit: Int, maxPages: Int?) async throws -> [MusicArtist] {
-        followedArtistsCallCount += 1
-        if let followedArtistsHandler {
-            return try await followedArtistsHandler(limit, maxPages)
+        let handler = locked { state -> ((Int, Int?) async throws -> [MusicArtist])? in
+            state.followedArtistsCallCount += 1
+            return state.followedArtistsHandler
+        }
+        if let handler {
+            return try await handler(limit, maxPages)
         }
         return []
     }
@@ -351,10 +447,13 @@ final class MockBrowsingAPI: MusicBrowsingProvider {
         market: String?,
         cacheMode: MusicRequestCacheMode
     ) async throws -> [MusicTrack] {
-        artistTopTracksCallCount += 1
-        artistTopTracksRequestedIDs.append(id)
-        if let artistTopTracksHandler {
-            return try await artistTopTracksHandler(id, market)
+        let handler = locked { state -> ((String, String?) async throws -> [MusicTrack])? in
+            state.artistTopTracksCallCount += 1
+            state.artistTopTracksRequestedIDs.append(id)
+            return state.artistTopTracksHandler
+        }
+        if let handler {
+            return try await handler(id, market)
         }
         return []
     }

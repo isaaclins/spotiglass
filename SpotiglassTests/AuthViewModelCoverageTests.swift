@@ -43,12 +43,61 @@ final class AuthViewModelCoverageTests: XCTestCase {
 
         let token = try await viewModel.playbackAccessToken()
         let browsingToken = try await viewModel.accessToken()
-        let after401 = try await viewModel.refreshAccessTokenAfterUnauthorized()
+        let after401 = try await viewModel.refreshAccessTokenAfterUnauthorized(rejectedToken: "live-token")
 
         XCTAssertEqual(token, "live-token")
         XCTAssertEqual(browsingToken, "live-token")
         XCTAssertEqual(after401, "live-token")
         XCTAssertEqual(httpClient.requests.count, 2)
+    }
+
+    /// Replays the double refresh from CI against the real token provider. Two
+    /// requests go out with the same expired token. The first 401 refreshes,
+    /// and the second 401 only lands after that refresh finished. It must
+    /// retry with the new token, not call the token endpoint a second time.
+    func testLateUnauthorizedResponseAfterFinishedRefreshReusesNewToken() async throws {
+        let redirect = URL(string: "http://127.0.0.1:43824/callback")!
+        let codeVerifier = try PKCE.makeCodeVerifier()
+        let flow = ImmediateAuthorizationFlow(
+            code: SpotifyAuthorizationCode(code: "code", codeVerifier: codeVerifier, redirectURI: redirect)
+        )
+        func grant(_ token: String) -> String {
+            """
+            {
+              "access_token": "\(token)",
+              "token_type": "Bearer",
+              "expires_in": 3600,
+              "refresh_token": "refresh-token",
+              "scope": "playlist-read-private playlist-read-collaborative user-library-read streaming"
+            }
+            """
+        }
+        let tokenHTTP = QueueHTTPClient([
+            .json(grant("token-1")),
+            .json(grant("token-2")),
+            .json(grant("token-3"))
+        ])
+        let viewModel = AuthViewModel(
+            settings: makeSettings(clientID: "client-id"),
+            authorizationFlow: flow,
+            tokenClient: SpotifyTokenClient(httpClient: tokenHTTP),
+            refreshTokenStore: InMemoryRefreshTokenStore()
+        )
+        await viewModel.signIn()
+        let apiHTTP = LateSecondUnauthorizedHTTPClient(staleToken: "token-1")
+        let client = SpotifyAPIClient(tokenProvider: viewModel, httpClient: apiHTTP)
+
+        async let first = client.currentUserProfile()
+        async let second = client.currentUserProfile()
+        let (firstProfile, secondProfile) = try await (first, second)
+
+        XCTAssertEqual(firstProfile.displayName, "AfterRefresh")
+        XCTAssertEqual(secondProfile.displayName, "AfterRefresh")
+        XCTAssertEqual(apiHTTP.unauthorizedRequestCount, 2)
+        XCTAssertEqual(apiHTTP.authorizedRequestCount, 2)
+        XCTAssertEqual(tokenHTTP.requests.count, 2, "Sign-in plus one refresh; the late 401 must not refresh again.")
+        let currentToken = try await viewModel.accessToken()
+        XCTAssertEqual(currentToken, "token-2")
     }
 
     func testSignInRejectsInsufficientScopeGrant() async throws {

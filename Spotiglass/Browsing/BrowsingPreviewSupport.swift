@@ -108,7 +108,7 @@ final class PreviewPlaybackTokenProvider: PlaybackAccessTokenProviding, SpotifyA
     func playbackAccessToken() async throws -> String { "preview-token" }
     func refreshedPlaybackAccessToken() async throws -> String { "preview-token" }
     func accessToken() async throws -> String { "preview-token" }
-    func refreshAccessTokenAfterUnauthorized() async throws -> String { "preview-token" }
+    func refreshAccessTokenAfterUnauthorized(rejectedToken: String) async throws -> String { "preview-token" }
 }
 
 #if DEBUG
