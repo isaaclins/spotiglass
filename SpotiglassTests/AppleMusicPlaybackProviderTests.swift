@@ -168,6 +168,45 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         XCTAssertEqual(Array(upcoming.prefix(3)), ["applemusic:song:a", "applemusic:song:b", Self.uris[1]])
     }
 
+    /// An add made while a play still looks its songs up goes into the queue that play starts,
+    /// not into the old one it is about to replace.
+    func testAnAddDuringAPendingPlayLandsInTheNewQueue() async throws {
+        let player = ScriptedAppleMusicPlayer()
+        let provider = AppleMusicPlaybackProvider(player: player)
+        try await provider.play(.items(uris: Self.uris, startURI: nil), deviceID: "x")
+        player.holdLookups = true
+        let newPlaylist = ["applemusic:song:b1", "applemusic:song:b2"]
+        let play = Task { try await provider.play(.items(uris: newPlaylist, startURI: nil), deviceID: "x") }
+        await Self.settle()
+        let add = Task { try await provider.enqueue(uri: "applemusic:song:x", deviceID: "x") }
+        await Self.settle()
+        XCTAssertEqual(player.waitingLookups, ["play applemusic:song:b1"], "the add waits for the play")
+
+        player.releaseLookups()
+        try await play.value
+        await Self.settle()
+        player.releaseLookups()
+        try await add.value
+
+        let state = try await provider.fetchPlaybackState()
+        XCTAssertEqual(state?.item.flatMap(Self.uri), "applemusic:song:b1")
+        let upcoming = try await provider.fetchQueue().queue.compactMap(Self.uri)
+        XCTAssertEqual(upcoming, ["applemusic:song:x", "applemusic:song:b2"])
+    }
+
+    /// Two entries that look the same (title, artist and length) keep the rows they were queued
+    /// from: the queue position decides, as long as the entry there still shows that title.
+    func testLookAlikeEntriesKeepTheRowsTheyWereQueuedFrom() {
+        typealias Row = MusicKitApplicationPlayer.QueuedRow
+        let rows = [Row(uri: "applemusic:song:standard", title: "Halo"), Row(uri: "applemusic:song:deluxe", title: "Halo")]
+        let rowURI = MusicKitApplicationPlayer.rowURI
+        XCTAssertEqual(rowURI(0, "Halo", rows), "applemusic:song:standard")
+        XCTAssertEqual(rowURI(1, "Halo", rows), "applemusic:song:deluxe")
+        XCTAssertNil(rowURI(1, "Single Ladies", rows), "the queue changed under us: fall back to the keys")
+        XCTAssertNil(rowURI(2, "Halo", rows))
+        XCTAssertNil(rowURI(nil, "Halo", rows))
+    }
+
     /// Two recordings with the same title and artist are told apart by their length; one
     /// recording whose length reads slightly differently still matches on title and artist.
     func testQueuedEntriesWithTheSameTitleAndArtistKeepTheirOwnRows() {

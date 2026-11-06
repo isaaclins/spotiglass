@@ -82,6 +82,9 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
     /// The last "Add to queue" still running. Adds run one after another, so they land in the
     /// order they were made even when one waits for a lookup.
     private var enqueueTail: Task<Void, Never>?
+    /// The latest play while it runs. An add made after it waits for it, so the song goes into
+    /// the queue that play starts instead of the one it is about to replace.
+    private var latestPlay: Task<Void, Never>?
 
     init(player: (any AppleMusicPlayerControlling)? = nil) {
         self.player = player ?? MusicKitApplicationPlayer()
@@ -108,9 +111,11 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
         playGeneration &+= 1
         let generation = playGeneration
         let queueRequest = try Self.queueRequest(for: request)
-        try await perform {
+        let run = Task { @MainActor [player] in
             try await player.play(queueRequest, isCurrent: { [weak self] in self?.playGeneration == generation })
         }
+        latestPlay = Task { _ = await run.result }
+        try await perform { try await run.value }
     }
 
     func pause(deviceID: String) async throws {
@@ -143,7 +148,9 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
 
     func enqueue(uri: String, deviceID: String) async throws {
         let previous = enqueueTail
+        let pendingPlay = latestPlay
         let add = Task { @MainActor [player] in
+            await pendingPlay?.value
             await previous?.value
             try await player.enqueue(uri: uri)
         }

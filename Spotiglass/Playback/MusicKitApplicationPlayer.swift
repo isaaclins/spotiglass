@@ -24,6 +24,11 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
     /// are matched on what they show: title, subtitle and length, then title and subtitle
     /// alone (``entryKeys(title:subtitle:durationSeconds:)``).
     private var uriByEntryKey: [String: String] = [:]
+    /// The row behind each queue position, in queue order, as this player queued it. Played
+    /// entries keep their positions, so position (checked against the title) tells two
+    /// look-alike songs apart where ``uriByEntryKey`` can't; empty once the queue changed in a
+    /// way this player didn't make.
+    private var queuedRows: [QueuedRow] = []
     /// Where the songs added with ``enqueue(uri:)`` sit in the queue, so a later one goes after
     /// those still ahead instead of jumping in front of them. Kept as positions: MusicKit gives
     /// an inserted entry a temporary id and replaces it moments later, so ids can't be kept.
@@ -57,6 +62,7 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         for item in resolved {
             remember(item.uri, for: item.entry)
         }
+        queuedRows = resolved.map { QueuedRow(uri: $0.uri, title: $0.entry.title) }
         player.queue = ApplicationMusicPlayer.Queue(resolved.map(\.entry), startingAt: start)
         addedEntries = nil
         try await Self.mapped { try await self.player.play() }
@@ -105,12 +111,15 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         let currentIndex = player.queue.currentEntry.flatMap { current in
             entries.firstIndex { $0.id == current.id }
         }
+        let row = QueuedRow(uri: uri, title: resolved.entry.title)
+        let rowsMatchQueue = queuedRows.count == entries.count
         guard let placement = Self.addPlacement(currentIndex: currentIndex, added: addedEntries) else {
             // Nothing is current: MusicKit's own insert starts a queue.
             try await Self.mapped {
                 try await self.player.queue.insert(resolved.entry, position: .afterCurrentEntry)
             }
             addedEntries = nil
+            queuedRows = entries.isEmpty ? [row] : []
             return
         }
         if let currentIndex, placement.index == currentIndex + 1 {
@@ -121,6 +130,11 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
             player.queue.entries.insert(resolved.entry, at: min(placement.index, entries.count))
         }
         addedEntries = placement.added
+        if rowsMatchQueue {
+            queuedRows.insert(row, at: min(placement.index, queuedRows.count))
+        } else {
+            queuedRows = []
+        }
     }
 
     /// The run of songs added with "Add to queue": `count` entries from queue position `start`.
@@ -145,6 +159,7 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
 
     func readState() -> AppleMusicPlayerState {
         let current = player.queue.currentEntry
+        let currentIndex = current.flatMap { current in player.queue.entries.firstIndex { $0.id == current.id } }
         let status: AppleMusicPlayerState.Status
         switch player.state.playbackStatus {
         case .playing, .seekingForward, .seekingBackward: status = .playing
@@ -155,7 +170,7 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         let seconds = player.playbackTime
         return AppleMusicPlayerState(
             status: status,
-            current: current.flatMap(track(for:)),
+            current: current.flatMap { track(for: $0, at: currentIndex) },
             positionMilliseconds: seconds.isFinite ? max(0, Int((seconds * 1000).rounded())) : 0,
             shuffle: player.state.shuffleMode == .songs,
             repeatMode: Self.repeatMode(player.state.repeatMode)
@@ -167,12 +182,12 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         guard let currentID = player.queue.currentEntry?.id,
               let currentIndex = entries.firstIndex(where: { $0.id == currentID })
         else { return [] }
-        return entries[(currentIndex + 1)...].compactMap(track(for:))
+        return entries.indices.dropFirst(currentIndex + 1).compactMap { track(for: entries[$0], at: $0) }
     }
 
     // MARK: - Mapping
 
-    private func track(for entry: MusicPlayer.Queue.Entry) -> MusicTrack? {
+    private func track(for entry: MusicPlayer.Queue.Entry, at index: Int?) -> MusicTrack? {
         let mapped: MusicTrack
         switch entry.item {
         case let .song(song):
@@ -184,9 +199,9 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         @unknown default:
             return nil
         }
-        guard let uri = Self.keys(entry).lazy.compactMap({ self.uriByEntryKey[$0] }).first,
-              uri != mapped.uri
-        else { return mapped }
+        let rowURI = Self.rowURI(at: index, title: entry.title, rows: queuedRows)
+            ?? Self.keys(entry).lazy.compactMap({ self.uriByEntryKey[$0] }).first
+        guard let uri = rowURI, uri != mapped.uri else { return mapped }
         return MusicTrack(
             id: mapped.id,
             name: mapped.name,
@@ -210,6 +225,18 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         case .none, nil: .off
         @unknown default: .off
         }
+    }
+
+    /// A queued song's row, as this player queued it.
+    struct QueuedRow: Equatable {
+        let uri: String
+        let title: String
+    }
+
+    /// The row at a queue position, when the entry there still shows that row's title.
+    static func rowURI(at index: Int?, title: String, rows: [QueuedRow]) -> String? {
+        guard let index, rows.indices.contains(index), rows[index].title == title else { return nil }
+        return rows[index].uri
     }
 
     /// The first row URI queued under each of the entry's keys wins.
