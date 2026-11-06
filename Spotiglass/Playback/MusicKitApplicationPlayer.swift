@@ -159,6 +159,9 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
     func enqueue(uri: String) async throws {
         guard let resolved = try await Self.resolveEntries([uri]).first else { throw Self.notFound(uri) }
         remember(uri, for: resolved.entry)
+        // After a shuffle the ids give the positions back; the add is then placed and
+        // recorded by position.
+        noteEntries()
         let entries = player.queue.entries
         let currentIndex = player.queue.currentEntry.flatMap { current in
             entries.firstIndex { $0.id == current.id }

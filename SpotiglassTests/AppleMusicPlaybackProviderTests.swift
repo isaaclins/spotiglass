@@ -173,6 +173,8 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         XCTAssertEqual(book.addedAhead(of: 1), 2..<3, "a is playing")
         XCTAssertNil(book.addedAhead(of: 2), "b is playing: nothing added is ahead")
         XCTAssertNil(book.addedAhead(of: nil))
+        XCTAssertNil(book.addedAhead(of: 3), "playback moved past the added songs")
+        XCTAssertNil(book.addedAhead(of: 40))
 
         book.replace(with: ["n0", "b", "n1"].map { Self.row($0) }, carryingAdded: 1, after: 0)
         XCTAssertEqual(book.added, Book.AddedRun(start: 1, count: 1))
@@ -318,6 +320,26 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         XCTAssertNil(book.rowURI(entryID: "e9", at: 0, title: "Halo"), "unknown id, no positions: the keys decide")
         book.replace(with: [])
         XCTAssertNil(book.rowURI(entryID: "e1", at: nil, title: "Halo"), "a new play forgets the old ids")
+    }
+
+    /// After shuffle the ids give the positions back, so a look-alike song added then still
+    /// gets its own row.
+    func testALookAlikeAddedAfterShuffleKeepsItsRow() {
+        var book = Book()
+        book.replace(with: [Self.row("standard", title: "Halo"), Self.row("x"), Self.row("y")])
+        book.noteEntries(ids: ["e1", "e2", "e3"], titles: ["Halo", "x", "y"])
+        book.forgetPositions()
+        // Shuffled: [y, Halo, x], Halo (e1) plays.
+        book.noteEntries(ids: ["e3", "e1", "e2"], titles: ["y", "Halo", "x"])
+        let plan = book.planAdd(Self.row("deluxe", title: "Halo"), currentIndex: 1, entryCount: 3)
+        XCTAssertEqual(plan.index, 2)
+        book.finishAdd(plan)
+        // The added entry still has MusicKit's temporary id: its position decides.
+        XCTAssertEqual(book.rowURI(entryID: "temp", at: 2, title: "Halo"), "applemusic:song:deluxe")
+        XCTAssertEqual(book.rowURI(entryID: "e1", at: 1, title: "Halo"), "applemusic:song:standard")
+        // Its final id is noted by position on the next read and finds it from then on.
+        book.noteEntries(ids: ["e3", "e1", "final", "e2"], titles: ["y", "Halo", "Halo", "x"])
+        XCTAssertEqual(book.rowURI(entryID: "final", at: nil, title: "Halo"), "applemusic:song:deluxe")
     }
 
     /// Two recordings with the same title and artist are told apart by their length; one

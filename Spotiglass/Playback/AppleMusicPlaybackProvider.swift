@@ -296,6 +296,13 @@ struct AppleMusicQueueBook: Equatable {
     /// Notes the ids of the queue's entries, in queue order, for the positions that still
     /// name their row. Run before anything reorders the queue (shuffle) and on reads.
     mutating func noteEntries(ids: [String], titles: [String]) {
+        // When every entry's row is known by id, the ids give the positions back, also
+        // after shuffle reordered the queue, so later adds and reads work by position again.
+        let known = ids.compactMap { rowsByEntryID[$0] }
+        if !ids.isEmpty, known.count == ids.count, zip(known, titles).allSatisfy({ $0.title == $1 }) {
+            rows = known
+            return
+        }
         for (index, id) in ids.enumerated() where titles.indices.contains(index) {
             guard rows.indices.contains(index), rows[index].title == titles[index] else { continue }
             rowsByEntryID[id] = rows[index]
@@ -306,8 +313,11 @@ struct AppleMusicQueueBook: Equatable {
     /// right after its first song, like Spotify's queue.
     func addedAhead(of currentIndex: Int?) -> Range<Int>? {
         guard let added, let currentIndex else { return nil }
-        let range = max(added.start, currentIndex + 1)..<(added.start + added.count)
-        return range.isEmpty ? nil : range
+        let lower = max(added.start, currentIndex + 1)
+        let upper = added.start + added.count
+        // Playback past the added songs leaves none ahead (and lower > upper).
+        guard lower < upper else { return nil }
+        return lower..<upper
     }
 
     /// A play replaced the queue with `rows` and kept `carriedCount` added songs right after
