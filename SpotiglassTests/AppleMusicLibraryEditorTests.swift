@@ -137,6 +137,18 @@ final class AppleMusicLibraryEditorTests: XCTestCase {
         XCTAssertEqual(statuses, [true])
     }
 
+    /// Liked Songs are the library, so a saved album's songs show there before MusicKit has them.
+    func testSavingAnAlbumShowsItsSongsInLikedSongsAtOnce() async throws {
+        lookup.albumsByID["1440"] = AppleMusicAlbumReference(itemID: "1440", catalogID: "1440", isInLibrary: false, librarySongs: [])
+        lookup.catalogAlbumTracksByID["1440"] = [Self.track(id: "11", name: "Numbers"), Self.track(id: "12", name: "Computer World")]
+
+        try await editor.saveAlbums(ids: ["1440"])
+
+        XCTAssertEqual(pending.applied(toLibrarySongs: [], isComplete: true).map(\.id), ["11", "12"])
+        let statuses = try await editor.songStatuses(ids: ["11", "12"])
+        XCTAssertEqual(statuses, [true, true])
+    }
+
     func testRemovingAnAlbumRemovesItsLibrarySongsThroughMusic() async throws {
         lookup.albumsByID["-24"] = AppleMusicAlbumReference(itemID: "-24", catalogID: "1440", isInLibrary: true, librarySongs: [
             Self.librarySong("i.1", catalog: "11", persistent: "000000000000000A"),
@@ -466,6 +478,32 @@ final class AppleMusicPendingLibraryEditsTests: XCTestCase {
         XCTAssertEqual(pending.applied(toPlaylistTracks: caughtUp, playlistID: "-1").map(\.id), ["-30"])
     }
 
+    /// In [A, B, A] I remove the first A: a stale read shows [B, A], not [A, B].
+    func testRemovingOneOfTwoCopiesHidesTheCopyThatWasPicked() {
+        let pending = AppleMusicPendingLibraryEdits()
+        let a = AppleMusicLibraryEditorTests.track(id: "-30", name: "A")
+        let b = AppleMusicLibraryEditorTests.track(id: "-31", name: "B")
+        pending.recordPlaylistRemoval(["-30"], removed: 1, shownBefore: 2, ordinals: [0], playlistID: "-1")
+
+        let stale = [(track: a, keys: Set(["-30", "first"])), (track: b, keys: Set(["-31"])), (track: a, keys: Set(["-30", "second"]))]
+        let shown = pending.applied(toPlaylistTracks: stale, playlistID: "-1")
+        XCTAssertEqual(shown.map(\.name), ["B", "A"])
+        XCTAssertTrue(pending.hasPendingTracks(playlistID: "-1"))
+        XCTAssertEqual(pending.applied(toPlaylistTracks: [(b, ["-31"]), (a, ["-30"])], playlistID: "-1").map(\.name), ["B", "A"])
+        XCTAssertFalse(pending.hasPendingTracks(playlistID: "-1"), "the library shows the removal")
+    }
+
+    /// A song removed from the library leaves every playlist in Music; Spotiglass shows that at once.
+    func testALibraryRemovalLeavesEveryPlaylist() {
+        let pending = AppleMusicPendingLibraryEdits()
+        pending.recordRemovedSong(["i.gone", "-30"])
+        let gone = AppleMusicLibraryEditorTests.track(id: "-30", name: "Gone")
+        let kept = AppleMusicLibraryEditorTests.track(id: "-31", name: "Kept")
+
+        let shown = pending.applied(toPlaylistTracks: [(gone, ["-30"]), (kept, ["-31"])], playlistID: "-1")
+        XCTAssertEqual(shown.map(\.id), ["-31"])
+    }
+
     /// Adding a second copy of a song the playlist has: a stale read listing the first copy
     /// doesn't end the addition.
     func testASecondCopyOfASongStaysUntilTheLibraryListsBoth() {
@@ -785,6 +823,11 @@ final class MockLibraryLookup: AppleMusicLibraryLookup, @unchecked Sendable {
 
     func catalogTracks(ids: [String]) async throws -> [MusicTrack] {
         ids.compactMap { catalogTracksByID[$0] }
+    }
+
+    var catalogAlbumTracksByID: [String: [MusicTrack]] = [:]
+    func catalogAlbumTracks(albumIDs: [String]) async throws -> [MusicTrack] {
+        albumIDs.flatMap { catalogAlbumTracksByID[$0] ?? [] }
     }
 
     func albums(ids: [String]) async throws -> [AppleMusicAlbumReference] {

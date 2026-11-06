@@ -33,6 +33,9 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
         let metadataKey: String?
         /// How many occurrences of the song the playlist keeps after the edit.
         var expectedRemaining: Int
+        /// Which occurrences were removed (0 = the song's first copy in the list), so a stale
+        /// read hides those and not just the last ones.
+        let ordinals: [Int]
         let at: Date
     }
 
@@ -174,6 +177,7 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
         metadataKey: String? = nil,
         removed: Int,
         shownBefore: Int,
+        ordinals: [Int] = [],
         playlistID: String
     ) {
         guard removed > 0 else { return }
@@ -191,11 +195,14 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
                 playlistAdditions[playlistID] = additions.isEmpty ? nil : additions
             }
             guard remaining > 0 else { return }
+            // Undone additions were the last copies; the rest are the removed ones in the read.
+            let readOrdinals = Array(ordinals.sorted().filter { $0 < shown }.prefix(remaining))
             var removals = (playlistRemovals[playlistID] ?? []).filter { $0.keys.isDisjoint(with: keys) }
             removals.append(PlaylistRemoval(
                 keys: keys,
                 metadataKey: metadataKey,
                 expectedRemaining: max(0, shown - remaining),
+                ordinals: readOrdinals,
                 at: now()
             ))
             playlistRemovals[playlistID] = Array(removals.suffix(Self.maxEntries))
@@ -312,17 +319,26 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
         }
     }
 
-    /// One playlist's tracks: songs added from Spotiglass at the end, removed occurrences left out.
+    /// One playlist's tracks: songs added from Spotiglass at the end, removed occurrences left
+    /// out, and songs removed from the library left out (Music takes them out of every playlist).
     func applied(toPlaylistTracks tracks: [(track: MusicTrack, keys: Set<String>)], playlistID: String) -> [MusicTrack] {
         locked {
             expire()
-            var result = tracks
+            var result = tracks.filter { track in
+                !removedSongs.keys.contains { !$0.isDisjoint(with: track.keys) }
+            }
             if var removals = playlistRemovals[playlistID] {
                 removals.removeAll { removal in
                     let occurrences = result.indices.filter { !result[$0].keys.isDisjoint(with: removal.keys) }
                     // The library shows the removal: nothing left to lay over it.
                     guard occurrences.count > removal.expectedRemaining else { return true }
-                    for position in occurrences.suffix(occurrences.count - removal.expectedRemaining).reversed() {
+                    let hideCount = occurrences.count - removal.expectedRemaining
+                    // The removed copies first; when the read no longer has them all, the last ones.
+                    var hidden = removal.ordinals.filter { $0 < occurrences.count }.prefix(hideCount).map { occurrences[$0] }
+                    for position in occurrences.reversed() where hidden.count < hideCount && !hidden.contains(position) {
+                        hidden.append(position)
+                    }
+                    for position in hidden.sorted(by: >) {
                         result.remove(at: position)
                     }
                     return false

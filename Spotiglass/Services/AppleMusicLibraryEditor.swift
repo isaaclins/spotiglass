@@ -138,6 +138,9 @@ protocol AppleMusicLibraryLookup: Sendable {
     func songs(ids: [String]) async throws -> [AppleMusicSongReference]
     /// Catalog songs mapped for display, for showing a just-saved song before the library has it.
     func catalogTracks(ids: [String]) async throws -> [MusicTrack]
+    /// The songs of catalog albums, mapped for display, for showing a just-saved album's songs
+    /// in Liked Songs before the library has them.
+    func catalogAlbumTracks(albumIDs: [String]) async throws -> [MusicTrack]
     func albums(ids: [String]) async throws -> [AppleMusicAlbumReference]
     /// The library playlist with this ID, or `nil`.
     func playlist(id: String) async throws -> AppleMusicPlaylistReference?
@@ -241,6 +244,14 @@ struct AppleMusicLibraryEditor: Sendable {
             .compactMap(\.catalogID)
         if !catalogIDs.isEmpty {
             try await cloud.addToLibrary(songCatalogIDs: [], albumCatalogIDs: catalogIDs)
+            // Liked Songs are the library: the album's songs show there at once, in album order
+            // (each pending save goes on top).
+            for track in ((try? await lookup.catalogAlbumTracks(albumIDs: catalogIDs)) ?? []).reversed() {
+                pending.recordSavedSong(
+                    track,
+                    reference: AppleMusicSongReference(itemID: track.id, catalogID: track.id, isInLibrary: false)
+                )
+            }
         } else if references.contains(where: { !$0.isInLibrary }) {
             throw AppleMusicLibraryEditError.notEditable
         }
@@ -309,6 +320,10 @@ struct AppleMusicLibraryEditor: Sendable {
         }
         let cloudID = try await cloudPlaylistID(for: playlistID)
         try await cloud.addToPlaylist(cloudPlaylistID: cloudID, songs: songs)
+        // Adding to a playlist puts the song back into the library.
+        for reference in references {
+            pending.forgetRemovedSong(reference.matchKeys)
+        }
         let tracks = (try? await lookup.catalogTracks(ids: references.compactMap(\.catalogID))) ?? []
         let tracksByCatalogID = Dictionary(tracks.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         var addedSoFar: [String: Int] = [:]
@@ -331,11 +346,13 @@ struct AppleMusicLibraryEditor: Sendable {
 
     /// Removes the given occurrences of songs from a playlist through the Music app.
     /// `positions` are zero-based, as the browser lists them.
-    /// `shownCounts` says how often the playlist lists each song before the edit.
+    /// `shownCounts` says how often the playlist lists each song before the edit, `shownOrdinals`
+    /// which of those copies each removal takes (0 = the first).
     func removeFromPlaylist(
         playlistID: String,
         removals: [(songID: String, positions: [Int])],
-        shownCounts: [Int]
+        shownCounts: [Int],
+        shownOrdinals: [[Int]] = []
     ) async throws {
         let references = try await lookup.songs(ids: removals.map(\.songID)).map(withPendingDetails)
         var scripted: [MusicAppPlaylistRemoval] = []
@@ -353,6 +370,7 @@ struct AppleMusicLibraryEditor: Sendable {
                 metadataKey: reference.title.map { AppleMusicPendingLibraryEdits.metadataKey(name: $0, artist: reference.artistName) },
                 removed: removal.positions.count,
                 shownBefore: index < shownCounts.count ? shownCounts[index] : removal.positions.count,
+                ordinals: index < shownOrdinals.count ? shownOrdinals[index] : [],
                 playlistID: playlistID
             )
         }

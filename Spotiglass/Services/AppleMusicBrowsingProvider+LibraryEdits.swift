@@ -70,13 +70,23 @@ extension AppleMusicBrowsingProvider {
         // How often the playlist lists each song now, so the pending edit knows when the library
         // shows the removal.
         let shown = (try? await playlistTracks(playlistID: playlistID, limit: 100, maxPages: 100)) ?? []
-        let shownCounts = removals.map { removal in
-            shown.filter { item in
-                if case let .track(track) = item.content { return track.id == removal.songID }
-                return false
-            }.count
+        let isSong: (MusicPlaylistTrackItem, String) -> Bool = { item, songID in
+            if case let .track(track) = item.content { return track.id == songID }
+            return false
         }
-        try await editor.removeFromPlaylist(playlistID: playlistID, removals: removals, shownCounts: shownCounts)
+        let shownCounts = removals.map { removal in shown.filter { isSong($0, removal.songID) }.count }
+        // Which copy of the song each position is, so the view hides the copies that were picked.
+        let shownOrdinals = removals.map { removal in
+            removal.positions.filter { $0 < shown.count }.map { position in
+                shown[..<position].filter { isSong($0, removal.songID) }.count
+            }
+        }
+        try await editor.removeFromPlaylist(
+            playlistID: playlistID,
+            removals: removals,
+            shownCounts: shownCounts,
+            shownOrdinals: shownOrdinals
+        )
     }
 
     func updatePlaylist(playlistID: String, name: String) async throws {
@@ -99,7 +109,8 @@ extension AppleMusicBrowsingProvider {
 
     func applyingPendingEdits(toPlaylistTracks tracks: [Track], playlistID: String) -> [MusicTrack] {
         editor.songReferences.remember(tracks)
-        guard editor.pending.hasPendingTracks(playlistID: playlistID) else {
+        // Removing a song from the library also takes it out of every playlist.
+        guard editor.pending.hasPendingTracks(playlistID: playlistID) || editor.pending.hasPendingSongs else {
             return tracks.map { AppleMusicItemMapping.track($0) }
         }
         let identified = tracks.map { track -> (track: MusicTrack, keys: Set<String>) in

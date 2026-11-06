@@ -147,6 +147,24 @@ struct MusicKitLibraryLookup: AppleMusicLibraryLookup {
         return tracks
     }
 
+    func catalogAlbumTracks(albumIDs: [String]) async throws -> [MusicTrack] {
+        let catalogIDs = albumIDs.filter(Self.isCatalogID)
+        guard !catalogIDs.isEmpty else { return [] }
+        var tracks: [MusicTrack] = []
+        for batch in Self.batches(catalogIDs) {
+            var request = MusicCatalogResourceRequest<Album>(matching: \.id, memberOf: batch.map { MusicItemID($0) })
+            request.properties = [.tracks]
+            for album in try await request.response().items {
+                var page = album.tracks
+                while let current = page {
+                    tracks += current.map { AppleMusicItemMapping.track($0, album: album) }
+                    page = current.hasNextBatch ? try await current.nextBatch() : nil
+                }
+            }
+        }
+        return tracks
+    }
+
     func albums(ids: [String]) async throws -> [AppleMusicAlbumReference] {
         var references: [AppleMusicAlbumReference] = []
         for id in ids {
