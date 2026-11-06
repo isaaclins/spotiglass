@@ -23,9 +23,10 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
     /// with the song's catalog id instead of the library id the row was built with, so entries
     /// are matched on what they show (title and subtitle).
     private var uriByEntryKey: [String: String] = [:]
-    /// Queue ids of the entries added with ``enqueue(uri:)``, so a later one goes after those
-    /// still ahead instead of jumping in front of them.
-    private var addedEntryIDs: Set<String> = []
+    /// Where the songs added with ``enqueue(uri:)`` sit in the queue, so a later one goes after
+    /// those still ahead instead of jumping in front of them. Kept as positions: MusicKit gives
+    /// an inserted entry a temporary id and replaces it moments later, so ids can't be kept.
+    private var addedEntries: AddedEntries?
 
     func isAuthorized() -> Bool {
         MusicAuthorization.currentStatus == .authorized
@@ -55,7 +56,7 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
             uriByEntryKey[Self.key(item.entry)] = item.uri
         }
         player.queue = ApplicationMusicPlayer.Queue(resolved.map(\.entry), startingAt: start)
-        addedEntryIDs = []
+        addedEntries = nil
         try await Self.mapped { try await self.player.play() }
     }
 
@@ -100,36 +101,46 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         if uriByEntryKey[Self.key(resolved.entry)] == nil {
             uriByEntryKey[Self.key(resolved.entry)] = uri
         }
-        let entryIDs = player.queue.entries.map(\.id)
-        addedEntryIDs.formIntersection(entryIDs)
-        let currentID = player.queue.currentEntry?.id
-        let afterCurrent = currentID.flatMap { entryIDs.firstIndex(of: $0) }.map { $0 + 1 }
-        let target = Self.addedEntryInsertionIndex(entryIDs: entryIDs, currentID: currentID, addedIDs: addedEntryIDs)
-        if let target, target != afterCurrent {
-            player.queue.entries.insert(resolved.entry, at: target)
-        } else {
+        let entries = player.queue.entries
+        let currentIndex = player.queue.currentEntry.flatMap { current in
+            entries.firstIndex { $0.id == current.id }
+        }
+        guard let placement = Self.addPlacement(currentIndex: currentIndex, added: addedEntries) else {
+            // Nothing is current: MusicKit's own insert starts a queue.
             try await Self.mapped {
                 try await self.player.queue.insert(resolved.entry, position: .afterCurrentEntry)
             }
+            addedEntries = nil
+            return
         }
-        // The queue gives the entry its own id; remember that one.
-        let entries = player.queue.entries
-        if let index = target ?? afterCurrent, entries.indices.contains(index) {
-            addedEntryIDs.insert(entries[index].id)
+        if let currentIndex, placement.index == currentIndex + 1 {
+            try await Self.mapped {
+                try await self.player.queue.insert(resolved.entry, position: .afterCurrentEntry)
+            }
+        } else {
+            player.queue.entries.insert(resolved.entry, at: min(placement.index, entries.count))
         }
+        addedEntries = placement.added
     }
 
-    /// Where "Add to queue" puts a song, given the queue's entry ids in play order: after the
-    /// current entry and after the songs added before it that are still ahead, so added songs
-    /// play in the order they were added, before the rest, like Spotify's queue. `nil` when
-    /// nothing is current.
-    static func addedEntryInsertionIndex(entryIDs: [String], currentID: String?, addedIDs: Set<String>) -> Int? {
-        guard let currentID, let currentIndex = entryIDs.firstIndex(of: currentID) else { return nil }
-        var index = currentIndex + 1
-        while index < entryIDs.count, addedIDs.contains(entryIDs[index]) {
-            index += 1
+    /// The run of songs added with "Add to queue": `count` entries from queue position `start`.
+    struct AddedEntries: Equatable {
+        var start: Int
+        var count: Int
+    }
+
+    /// Where "Add to queue" puts a song, given the current entry's position and the songs
+    /// added before: after the current entry and after the added songs still ahead of it, so
+    /// added songs play in the order they were added, before the rest, like Spotify's queue.
+    /// Played entries keep their positions in MusicKit's queue, so positions stay valid while
+    /// the queue plays on. `nil` when nothing is current.
+    static func addPlacement(currentIndex: Int?, added: AddedEntries?) -> (index: Int, added: AddedEntries)? {
+        guard let currentIndex else { return nil }
+        if let added, added.start + added.count > currentIndex + 1 {
+            let index = added.start + added.count
+            return (index, AddedEntries(start: added.start, count: added.count + 1))
         }
-        return index
+        return (currentIndex + 1, AddedEntries(start: currentIndex + 1, count: 1))
     }
 
     func readState() -> AppleMusicPlayerState {

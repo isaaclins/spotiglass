@@ -103,15 +103,25 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
 
     /// Spotify keeps added songs ahead of the rest in the order they were added, also once
     /// the first of them plays: adding a, b, playing a, then adding c plays b before c.
-    func testAddedSongsStayInOrderAfterTheFirstOneStarts() {
-        let place = MusicKitApplicationPlayer.addedEntryInsertionIndex
-        let context = ["1", "2", "3"]
-        XCTAssertEqual(place(context, "1", []), 1, "the first add goes right after the current song")
-        XCTAssertEqual(place(["1", "a", "2", "3"], "1", ["a"]), 2, "the next goes after it")
-        XCTAssertEqual(place(["1", "a", "b", "2", "3"], "a", ["a", "b"]), 3, "with a playing, c goes after b")
-        XCTAssertEqual(place(["1", "a", "b", "c", "2"], "c", ["a", "b", "c"]), 4, "added songs behind the current one don't count")
-        XCTAssertNil(place([], nil, []), "nothing plays: MusicKit starts a queue")
-        XCTAssertNil(place(context, "gone", []), "a current id the queue doesn't list")
+    func testAddedSongsStayInOrderAfterTheFirstOneStarts() throws {
+        typealias Added = MusicKitApplicationPlayer.AddedEntries
+        let place = MusicKitApplicationPlayer.addPlacement
+        // Song 0 of [0 1 2] plays.
+        let a = try XCTUnwrap(place(0, nil))
+        XCTAssertEqual(a.index, 1, "the first add goes right after the current song")
+        let b = try XCTUnwrap(place(0, a.added))
+        XCTAssertEqual(b.index, 2, "the next goes after it")
+        // [0 a b 1 2], a plays.
+        let c = try XCTUnwrap(place(1, b.added))
+        XCTAssertEqual(c.index, 3, "with a playing, c goes after b")
+        XCTAssertEqual(c.added, Added(start: 1, count: 3))
+        // [0 a b c 1 2], c plays: no added song is ahead any more.
+        let d = try XCTUnwrap(place(3, c.added))
+        XCTAssertEqual(d.index, 4)
+        XCTAssertEqual(d.added, Added(start: 4, count: 1))
+        // Back to 0 with previous: a, b and c are still ahead, so the next add goes after them.
+        XCTAssertEqual(place(0, c.added)?.index, 4)
+        XCTAssertNil(place(nil, c.added), "nothing is current: MusicKit starts a queue")
     }
 
     func testMusicKitFailuresSurfaceAsAppleMusicErrors() async {
@@ -393,7 +403,7 @@ final class ScriptedAppleMusicPlayer: AppleMusicPlayerControlling {
     private var positionAnchor = 0.0
     private var shuffle = false
     private var repeatMode: MusicRepeatMode = .off
-    private var added: Set<String> = []
+    private var added: MusicKitApplicationPlayer.AddedEntries?
     private var pending: [(at: Double, apply: () -> Void)] = []
 
     func advance(by seconds: Double) {
@@ -423,7 +433,7 @@ final class ScriptedAppleMusicPlayer: AppleMusicPlayerControlling {
         playing = true
         positionBase = 0
         positionAnchor = now
-        added = []
+        added = nil
     }
 
     func pause() {
@@ -462,12 +472,12 @@ final class ScriptedAppleMusicPlayer: AppleMusicPlayerControlling {
 
     func enqueue(uri: String) async throws {
         commands.append("enqueue \(uri)")
-        // The live player's placement rule, on this queue (its uris are its entry ids).
-        let target = MusicKitApplicationPlayer.addedEntryInsertionIndex(
-            entryIDs: queue, currentID: queue.indices.contains(index) ? queue[index] : nil, addedIDs: added
-        ) ?? queue.count
-        queue.insert(uri, at: target)
-        added.insert(uri)
+        // The live player's placement rule, on this queue.
+        let placement = MusicKitApplicationPlayer.addPlacement(
+            currentIndex: queue.indices.contains(index) ? index : nil, added: added
+        )
+        queue.insert(uri, at: min(placement?.index ?? queue.count, queue.count))
+        added = placement?.added
     }
 
     func readState() -> AppleMusicPlayerState {
