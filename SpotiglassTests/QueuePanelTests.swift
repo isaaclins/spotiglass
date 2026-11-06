@@ -942,7 +942,9 @@ final class QueuePanelTests: XCTestCase {
         )
         let fetchesBeforeInactive = api.actions.filter { $0 == "fetchQueue" }.count
 
+        let pollTask = queue.pollTask
         queue.setAppActive(false)
+        await pollTask?.value
         let fetchesAfterInactive = api.actions.filter { $0 == "fetchQueue" }.count
 
         XCTAssertGreaterThan(fetchesBeforeInactive, 0)
@@ -1073,9 +1075,15 @@ final class QueuePanelTests: XCTestCase {
         queue.isPanelVisible = true
         await queue.refreshQueue()
         queue.restartPollingIfNeeded()
+        let pollTask = queue.pollTask
+        XCTAssertNotNil(pollTask)
         let baselineFetchCount = api.actions.filter { $0 == "fetchQueue" }.count
+        XCTAssertEqual(baselineFetchCount, 1)
 
         queue.setPanelVisible(false)
+        // Let the cancelled poll loop run to its end, so a fetch it issued
+        // after waking from the cancelled sleep would be counted below.
+        await pollTask?.value
 
         let fetchCountAfterCancel = api.actions.filter { $0 == "fetchQueue" }.count
         XCTAssertEqual(
@@ -1094,7 +1102,12 @@ private final class StubWebPlaybackCommander: WebPlaybackCommanding {
 
 private final class QueueTestPlaybackAPI: SpotifyPlaybackControlling {
     private let lock = NSLock()
-    private(set) var actions: [String] = []
+    // Every read goes through the lock. `.ready` starts a transport sync whose
+    // `fetchPlayerSnapshot` appends here on a background thread while the test
+    // reads on the main thread; an unlocked read raced that append and once
+    // saw an empty log in CI (#379).
+    private var recordedActions: [String] = []
+    var actions: [String] { locked { recordedActions } }
     let fetchQueueSignal = AsyncSignal()
     var onFetchQueue: (() -> Void)?
     var queueResponse = MusicPlaybackQueue(queue: [])
@@ -1105,9 +1118,11 @@ private final class QueueTestPlaybackAPI: SpotifyPlaybackControlling {
     var queueResponses: [MusicPlaybackQueue] = []
     var addToQueueDelayNanoseconds: UInt64 = 0
     var addToQueueErrors: [Error?] = []
-    private(set) var concurrentFetchDetected = false
-    private(set) var maxConcurrentFetches = 0
+    private var recordedConcurrentFetchDetected = false
+    private var recordedMaxConcurrentFetches = 0
     private var currentConcurrentFetches = 0
+    var concurrentFetchDetected: Bool { locked { recordedConcurrentFetchDetected } }
+    var maxConcurrentFetches: Int { locked { recordedMaxConcurrentFetches } }
     private var reportedTransport = MusicPlaybackTransport(shuffle: false, repeatMode: .off)
 
     func transferPlayback(to deviceID: String, play: Bool) async throws {
@@ -1195,18 +1210,24 @@ private final class QueueTestPlaybackAPI: SpotifyPlaybackControlling {
         writeReportedTransport(MusicPlaybackTransport(shuffle: readReportedTransport().shuffle, repeatMode: mode))
     }
 
+    private func locked<T>(_ body: () -> T) -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return body()
+    }
+
     private func appendAction(_ action: String) {
         lock.lock()
-        actions.append(action)
+        recordedActions.append(action)
         lock.unlock()
     }
 
     private func beginFetch() {
         lock.lock()
         currentConcurrentFetches += 1
-        maxConcurrentFetches = max(maxConcurrentFetches, currentConcurrentFetches)
+        recordedMaxConcurrentFetches = max(recordedMaxConcurrentFetches, currentConcurrentFetches)
         if currentConcurrentFetches > 1 {
-            concurrentFetchDetected = true
+            recordedConcurrentFetchDetected = true
         }
         lock.unlock()
     }
