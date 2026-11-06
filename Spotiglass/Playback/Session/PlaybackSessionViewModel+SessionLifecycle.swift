@@ -212,6 +212,7 @@ extension PlaybackSessionViewModel {
         transportRateLimitedUntil = nil
         localMutationSettleTicksRemaining = 0
         localCommandExpectsPlaying = nil
+        skipLeftItemURI = nil
         transferAttemptInstants.removeAll()
         transferRetryCooldownUntil = nil
         playbackHostHardReloadInstants.removeAll()
