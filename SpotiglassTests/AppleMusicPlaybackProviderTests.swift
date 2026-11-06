@@ -101,27 +101,89 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         XCTAssertEqual(Array(upcoming.prefix(3)), ["applemusic:song:a", "applemusic:song:b", Self.uris[1]])
     }
 
+    // MARK: - Queue book (the live player's queue rules)
+
+    private typealias Book = AppleMusicQueueBook
+
+    private static func row(_ name: String, title: String? = nil) -> Book.Row {
+        Book.Row(uri: "applemusic:song:\(name)", title: title ?? name)
+    }
+
+    /// Runs one add through the book as the live player does: plan, insert at the planned
+    /// position (or right after the current entry), record.
+    private static func add(_ row: Book.Row, to queue: inout [Book.Row], current: Int?, book: inout Book) {
+        let plan = book.planAdd(row, currentIndex: current, entryCount: queue.count)
+        queue.insert(row, at: plan.index ?? (current.map { $0 + 1 } ?? queue.count))
+        book.finishAdd(plan)
+    }
+
     /// Spotify keeps added songs ahead of the rest in the order they were added, also once
     /// the first of them plays: adding a, b, playing a, then adding c plays b before c.
-    func testAddedSongsStayInOrderAfterTheFirstOneStarts() throws {
-        typealias Added = MusicKitApplicationPlayer.AddedEntries
-        let place = MusicKitApplicationPlayer.addPlacement
-        // Song 0 of [0 1 2] plays.
-        let a = try XCTUnwrap(place(0, nil))
-        XCTAssertEqual(a.index, 1, "the first add goes right after the current song")
-        let b = try XCTUnwrap(place(0, a.added))
-        XCTAssertEqual(b.index, 2, "the next goes after it")
-        // [0 a b 1 2], a plays.
-        let c = try XCTUnwrap(place(1, b.added))
-        XCTAssertEqual(c.index, 3, "with a playing, c goes after b")
-        XCTAssertEqual(c.added, Added(start: 1, count: 3))
-        // [0 a b c 1 2], c plays: no added song is ahead any more.
-        let d = try XCTUnwrap(place(3, c.added))
-        XCTAssertEqual(d.index, 4)
-        XCTAssertEqual(d.added, Added(start: 4, count: 1))
-        // Back to 0 with previous: a, b and c are still ahead, so the next add goes after them.
-        XCTAssertEqual(place(0, c.added)?.index, 4)
-        XCTAssertNil(place(nil, c.added), "nothing is current: MusicKit starts a queue")
+    func testAddedSongsStayInOrderAfterTheFirstOneStarts() {
+        var queue = ["0", "1", "2"].map { Self.row($0) }
+        var book = Book()
+        book.replace(with: queue)
+        XCTAssertTrue(book.planAdd(Self.row("a"), currentIndex: 0, entryCount: 3).isAfterCurrent,
+                      "the first add uses MusicKit's own insert after the current song")
+        Self.add(Self.row("a"), to: &queue, current: 0, book: &book)
+        Self.add(Self.row("b"), to: &queue, current: 0, book: &book)
+        XCTAssertFalse(book.planAdd(Self.row("x"), currentIndex: 0, entryCount: 5).isAfterCurrent,
+                       "the next goes to a position past the first")
+        XCTAssertEqual(queue.map(\.title), ["0", "a", "b", "1", "2"])
+        // a plays.
+        Self.add(Self.row("c"), to: &queue, current: 1, book: &book)
+        XCTAssertEqual(queue.map(\.title), ["0", "a", "b", "c", "1", "2"], "with a playing, c goes after b")
+        // c plays: no added song is ahead any more.
+        Self.add(Self.row("d"), to: &queue, current: 3, book: &book)
+        XCTAssertEqual(queue.map(\.title), ["0", "a", "b", "c", "d", "1", "2"])
+        // The book followed every insert, so each position still names its row.
+        for (index, row) in queue.enumerated() {
+            XCTAssertEqual(book.rowURI(at: index, title: row.title), row.uri)
+        }
+    }
+
+    /// Nothing is current: MusicKit's own insert starts a queue, and the book knows that one
+    /// row only if the queue was empty.
+    func testAnAddWithNothingCurrentStartsAQueue() {
+        var book = Book()
+        let first = book.planAdd(Self.row("a"), currentIndex: nil, entryCount: 0)
+        XCTAssertNil(first.index)
+        XCTAssertTrue(first.isAfterCurrent)
+        book.finishAdd(first)
+        XCTAssertEqual(book.rowURI(at: 0, title: "a"), "applemusic:song:a")
+
+        var unknown = Book()
+        unknown.finishAdd(unknown.planAdd(Self.row("b"), currentIndex: nil, entryCount: 3))
+        XCTAssertNil(unknown.rowURI(at: 0, title: "b"), "a queue the book didn't build: no positions")
+    }
+
+    /// Shuffle reorders what plays next, so after turning it on an add goes right after the
+    /// current song and no position is trusted any more.
+    func testShuffleForgetsThePositions() {
+        var queue = ["0", "1", "2"].map { Self.row($0) }
+        var book = Book()
+        book.replace(with: queue)
+        Self.add(Self.row("a"), to: &queue, current: 0, book: &book)
+        Self.add(Self.row("b"), to: &queue, current: 0, book: &book)
+        book.forgetPositions()
+        let plan = book.planAdd(Self.row("c"), currentIndex: 0, entryCount: queue.count)
+        XCTAssertEqual(plan.index, 1)
+        XCTAssertTrue(plan.isAfterCurrent)
+        XCTAssertNil(book.rowURI(at: 1, title: "a"))
+    }
+
+    /// A play that replaces the queue while an add waits for MusicKit wins: the add's stale
+    /// positions are dropped.
+    func testAnAddFinishingAfterANewPlayKeepsTheNewQueuesBook() {
+        var book = Book()
+        book.replace(with: ["0", "1", "2"].map { Self.row($0) })
+        let plan = book.planAdd(Self.row("a"), currentIndex: 0, entryCount: 3)
+        let newQueue = ["n0", "n1"].map { Self.row($0) }
+        book.replace(with: newQueue)
+        book.finishAdd(plan)
+        XCTAssertNil(book.added)
+        XCTAssertEqual(book.rows, newQueue)
+        XCTAssertEqual(book.planAdd(Self.row("b"), currentIndex: 0, entryCount: 2).index, 1)
     }
 
     /// A slow play (a long playlist's lookup) that finishes after a newer play must not take
@@ -197,14 +259,13 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
     /// Two entries that look the same (title, artist and length) keep the rows they were queued
     /// from: the queue position decides, as long as the entry there still shows that title.
     func testLookAlikeEntriesKeepTheRowsTheyWereQueuedFrom() {
-        typealias Row = MusicKitApplicationPlayer.QueuedRow
-        let rows = [Row(uri: "applemusic:song:standard", title: "Halo"), Row(uri: "applemusic:song:deluxe", title: "Halo")]
-        let rowURI = MusicKitApplicationPlayer.rowURI
-        XCTAssertEqual(rowURI(0, "Halo", rows), "applemusic:song:standard")
-        XCTAssertEqual(rowURI(1, "Halo", rows), "applemusic:song:deluxe")
-        XCTAssertNil(rowURI(1, "Single Ladies", rows), "the queue changed under us: fall back to the keys")
-        XCTAssertNil(rowURI(2, "Halo", rows))
-        XCTAssertNil(rowURI(nil, "Halo", rows))
+        var book = Book()
+        book.replace(with: [Self.row("standard", title: "Halo"), Self.row("deluxe", title: "Halo")])
+        XCTAssertEqual(book.rowURI(at: 0, title: "Halo"), "applemusic:song:standard")
+        XCTAssertEqual(book.rowURI(at: 1, title: "Halo"), "applemusic:song:deluxe")
+        XCTAssertNil(book.rowURI(at: 1, title: "Single Ladies"), "the queue changed under us: fall back to the keys")
+        XCTAssertNil(book.rowURI(at: 2, title: "Halo"))
+        XCTAssertNil(book.rowURI(at: nil, title: "Halo"))
     }
 
     /// Two recordings with the same title and artist are told apart by their length; one
@@ -381,6 +442,7 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
             ("playback.controls.state.connecting.title", "playback.controls.state.connecting.title.appleMusic"),
             ("playback.controls.state.connecting.subtitle", "playback.controls.state.connecting.subtitle.appleMusic"),
             ("playback.fallbackName", "playback.fallbackName.appleMusic"),
+            ("playback.controls.device.hint", "playback.controls.device.appleMusic.hint"),
         ]
         for (spotifyKey, appleMusicKey) in pairs {
             let spotify = PlaybackControlsView.serviceString(spotifyKey, appleMusic: appleMusicKey, service: .spotify)
@@ -517,7 +579,8 @@ final class ScriptedAppleMusicPlayer: AppleMusicPlayerControlling {
     private var positionAnchor = 0.0
     private var shuffle = false
     private var repeatMode: MusicRepeatMode = .off
-    private var added: MusicKitApplicationPlayer.AddedEntries?
+    /// The live player's queue rules, on this queue.
+    private var book = AppleMusicQueueBook()
     private var pending: [(at: Double, apply: () -> Void)] = []
 
     func advance(by seconds: Double) {
@@ -550,7 +613,7 @@ final class ScriptedAppleMusicPlayer: AppleMusicPlayerControlling {
         playing = true
         positionBase = 0
         positionAnchor = now
-        added = nil
+        book.replace(with: uris.map { AppleMusicQueueBook.Row(uri: $0, title: $0) })
     }
 
     func pause() {
@@ -584,18 +647,19 @@ final class ScriptedAppleMusicPlayer: AppleMusicPlayerControlling {
         later("previous") { [self] in if !restart { index -= 1 }; positionBase = 0; positionAnchor = now }
     }
 
-    func setShuffle(_ enabled: Bool) { shuffle = enabled }
+    func setShuffle(_ enabled: Bool) {
+        shuffle = enabled
+        book.forgetPositions()
+    }
     func setRepeat(_ mode: MusicRepeatMode) { repeatMode = mode }
 
     func enqueue(uri: String) async throws {
         await lookup("enqueue \(uri)")
         commands.append("enqueue \(uri)")
-        // The live player's placement rule, on this queue.
-        let placement = MusicKitApplicationPlayer.addPlacement(
-            currentIndex: queue.indices.contains(index) ? index : nil, added: added
-        )
-        queue.insert(uri, at: min(placement?.index ?? queue.count, queue.count))
-        added = placement?.added
+        let current = queue.indices.contains(index) ? index : nil
+        let plan = book.planAdd(AppleMusicQueueBook.Row(uri: uri, title: uri), currentIndex: current, entryCount: queue.count)
+        queue.insert(uri, at: min(plan.index ?? current.map { $0 + 1 } ?? queue.count, queue.count))
+        book.finishAdd(plan)
     }
 
     func readState() -> AppleMusicPlayerState {

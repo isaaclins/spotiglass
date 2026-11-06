@@ -80,7 +80,9 @@ enum AppleMusicItemMapping {
                 albumID: album?.id.rawValue,
                 durationMilliseconds: milliseconds(video.duration),
                 isExplicit: video.contentRating == .explicit,
-                isPlayable: video.playParameters != nil,
+                // MusicKit's player can't queue music videos on macOS, so their rows show as
+                // unavailable instead of starting another song when clicked.
+                isPlayable: false,
                 linkedFromID: nil,
                 uri: uri(kind: "music-video", id: video.id)
             )

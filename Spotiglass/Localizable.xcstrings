@@ -14742,6 +14742,29 @@
           }
         }
       }
+    },
+    "playback.controls.device.appleMusic.hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac audio outputs for Apple Music. Choosing one sets the system default device."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Salidas de audio del Mac para Apple Music. Al elegir una, se convierte en el dispositivo predeterminado del sistema."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Audioausgaben des Mac für Apple Music. Die gewählte wird zum Standardgerät des Systems."
+          }
+        }
+      }
     }
   },
   "version": "1.1"

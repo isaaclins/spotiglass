@@ -278,7 +278,11 @@ enum PlaylistBrowserPaletteSearchBuilder {
         let pinPayload = PinnedItem.track(track)
         let pinPair = pinUnpinClosures(pinPayload)
         let trackURI = track.uri
-        let queueAction: (@MainActor () async -> Void)? = { await environment.addToQueue(trackURI) }
+        // An Apple Music track the player can't queue (a music video) gets no Add to queue.
+        var queueAction: (@MainActor () async -> Void)?
+        if track.isPlayable != false || trackURI.hasPrefix("spotify:") {
+            queueAction = { await environment.addToQueue(trackURI) }
+        }
         return CommandPaletteItem(
             id: "track-\(track.id)",
             title: track.name,

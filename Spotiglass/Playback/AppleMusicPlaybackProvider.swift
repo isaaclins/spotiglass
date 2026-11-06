@@ -239,3 +239,110 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
         }
     }
 }
+
+/// What the Apple Music player keeps about the queue it built: which row sits at each queue
+/// position, and where the songs added with "Add to queue" are.
+///
+/// MusicKit's queue entries don't keep their ids (an inserted entry gets a temporary one that
+/// is replaced moments later), but played entries keep their positions, so both are kept as
+/// positions. The rules live here, apart from MusicKit, so the tests run them as they are.
+struct AppleMusicQueueBook: Equatable {
+    /// A queued song's row, as the player queued it.
+    struct Row: Equatable {
+        let uri: String
+        let title: String
+    }
+
+    /// The run of added songs: `count` entries from queue position `start`.
+    struct AddedRun: Equatable {
+        var start: Int
+        var count: Int
+    }
+
+    /// Where an add goes, decided before MusicKit inserts it.
+    struct AddPlan: Equatable {
+        /// The queue position for the new entry; `nil` when nothing is current, so MusicKit's
+        /// own insert starts a queue.
+        let index: Int?
+        /// Whether `index` is right after the current entry (MusicKit's `.afterCurrentEntry`).
+        let isAfterCurrent: Bool
+        fileprivate let row: Row
+        fileprivate let entryCount: Int
+        fileprivate let rowsMatchQueue: Bool
+        fileprivate let added: AddedRun?
+        fileprivate let generation: UInt64
+    }
+
+    /// The row behind each queue position; empty once the queue changed in a way the player
+    /// didn't make or can't follow.
+    private(set) var rows: [Row] = []
+    private(set) var added: AddedRun?
+    /// Bumped whenever the queue is replaced or its order can't be trusted, so an add that
+    /// finishes after that doesn't write stale positions.
+    private(set) var generation: UInt64 = 0
+
+    /// A play replaced the queue with `rows`.
+    mutating func replace(with rows: [Row]) {
+        self.rows = rows
+        added = nil
+        generation &+= 1
+    }
+
+    /// Shuffle reorders what plays next, so the positions kept so far no longer hold.
+    mutating func forgetPositions() {
+        rows = []
+        added = nil
+        generation &+= 1
+    }
+
+    /// Where "Add to queue" puts `row`: after the current entry and after the added songs
+    /// still ahead of it, so added songs play in the order they were added, before the rest,
+    /// like Spotify's queue.
+    func planAdd(_ row: Row, currentIndex: Int?, entryCount: Int) -> AddPlan {
+        let index: Int?
+        let run: AddedRun?
+        if let currentIndex {
+            if let added, added.start + added.count > currentIndex + 1 {
+                index = min(added.start + added.count, entryCount)
+                run = AddedRun(start: added.start, count: added.count + 1)
+            } else {
+                index = currentIndex + 1
+                run = AddedRun(start: currentIndex + 1, count: 1)
+            }
+        } else {
+            index = nil
+            run = nil
+        }
+        return AddPlan(
+            index: index,
+            isAfterCurrent: index == nil || index == currentIndex.map { $0 + 1 },
+            row: row,
+            entryCount: entryCount,
+            rowsMatchQueue: rows.count == entryCount,
+            added: run,
+            generation: generation
+        )
+    }
+
+    /// Records an add MusicKit made as planned. Ignored when the queue was replaced or
+    /// reordered while the add was waiting for MusicKit.
+    mutating func finishAdd(_ plan: AddPlan) {
+        guard plan.generation == generation else { return }
+        added = plan.added
+        guard let index = plan.index else {
+            rows = plan.entryCount == 0 ? [plan.row] : []
+            return
+        }
+        if plan.rowsMatchQueue {
+            rows.insert(plan.row, at: min(index, rows.count))
+        } else {
+            rows = []
+        }
+    }
+
+    /// The row at a queue position, when the entry there still shows that row's title.
+    func rowURI(at index: Int?, title: String) -> String? {
+        guard let index, rows.indices.contains(index), rows[index].title == title else { return nil }
+        return rows[index].uri
+    }
+}

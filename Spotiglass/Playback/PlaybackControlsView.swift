@@ -527,7 +527,7 @@ struct PlaybackControlsView: View {
             .opacity(hasReadyDevice ? 1 : 0.45)
             .help(SpotiglassL10n.string("tooltip.playback.device"))
             .accessibilityLabel(SpotiglassL10n.string("playback.controls.device"))
-            .accessibilityHint(SpotiglassL10n.string("playback.controls.device.hint"))
+            .accessibilityHint(Self.serviceString("playback.controls.device.hint", appleMusic: "playback.controls.device.appleMusic.hint"))
         }
     }
 

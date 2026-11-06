@@ -24,15 +24,9 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
     /// are matched on what they show: title, subtitle and length, then title and subtitle
     /// alone (``entryKeys(title:subtitle:durationSeconds:)``).
     private var uriByEntryKey: [String: String] = [:]
-    /// The row behind each queue position, in queue order, as this player queued it. Played
-    /// entries keep their positions, so position (checked against the title) tells two
-    /// look-alike songs apart where ``uriByEntryKey`` can't; empty once the queue changed in a
-    /// way this player didn't make.
-    private var queuedRows: [QueuedRow] = []
-    /// Where the songs added with ``enqueue(uri:)`` sit in the queue, so a later one goes after
-    /// those still ahead instead of jumping in front of them. Kept as positions: MusicKit gives
-    /// an inserted entry a temporary id and replaces it moments later, so ids can't be kept.
-    private var addedEntries: AddedEntries?
+    /// The row at each queue position and where the added songs are (positions, because
+    /// MusicKit's entry ids don't last); see ``AppleMusicQueueBook``.
+    private var book = AppleMusicQueueBook()
 
     func isAuthorized() -> Bool {
         MusicAuthorization.currentStatus == .authorized
@@ -57,14 +51,16 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         }
         guard isCurrent() else { throw CancellationError() }
         guard !resolved.isEmpty else { throw Self.notFound("\(request)") }
+        // The row that was clicked must play; if it couldn't be found, say so instead of
+        // quietly starting another song.
+        if let startURI, !resolved.contains(where: { $0.uri == startURI }) { throw Self.notFound(startURI) }
         let start = resolved.first { $0.uri == startURI }?.entry ?? resolved[0].entry
         uriByEntryKey = [:]
         for item in resolved {
             remember(item.uri, for: item.entry)
         }
-        queuedRows = resolved.map { QueuedRow(uri: $0.uri, title: $0.entry.title) }
+        book.replace(with: resolved.map { AppleMusicQueueBook.Row(uri: $0.uri, title: $0.entry.title) })
         player.queue = ApplicationMusicPlayer.Queue(resolved.map(\.entry), startingAt: start)
-        addedEntries = nil
         try await Self.mapped { try await self.player.play() }
     }
 
@@ -94,6 +90,7 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
 
     func setShuffle(_ enabled: Bool) {
         player.state.shuffleMode = enabled ? .songs : .off
+        book.forgetPositions()
     }
 
     func setRepeat(_ mode: MusicRepeatMode) {
@@ -111,50 +108,19 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         let currentIndex = player.queue.currentEntry.flatMap { current in
             entries.firstIndex { $0.id == current.id }
         }
-        let row = QueuedRow(uri: uri, title: resolved.entry.title)
-        let rowsMatchQueue = queuedRows.count == entries.count
-        guard let placement = Self.addPlacement(currentIndex: currentIndex, added: addedEntries) else {
-            // Nothing is current: MusicKit's own insert starts a queue.
+        let plan = book.planAdd(
+            AppleMusicQueueBook.Row(uri: uri, title: resolved.entry.title),
+            currentIndex: currentIndex,
+            entryCount: entries.count
+        )
+        if let index = plan.index, !plan.isAfterCurrent {
+            player.queue.entries.insert(resolved.entry, at: index)
+        } else {
             try await Self.mapped {
                 try await self.player.queue.insert(resolved.entry, position: .afterCurrentEntry)
             }
-            addedEntries = nil
-            queuedRows = entries.isEmpty ? [row] : []
-            return
         }
-        if let currentIndex, placement.index == currentIndex + 1 {
-            try await Self.mapped {
-                try await self.player.queue.insert(resolved.entry, position: .afterCurrentEntry)
-            }
-        } else {
-            player.queue.entries.insert(resolved.entry, at: min(placement.index, entries.count))
-        }
-        addedEntries = placement.added
-        if rowsMatchQueue {
-            queuedRows.insert(row, at: min(placement.index, queuedRows.count))
-        } else {
-            queuedRows = []
-        }
-    }
-
-    /// The run of songs added with "Add to queue": `count` entries from queue position `start`.
-    struct AddedEntries: Equatable {
-        var start: Int
-        var count: Int
-    }
-
-    /// Where "Add to queue" puts a song, given the current entry's position and the songs
-    /// added before: after the current entry and after the added songs still ahead of it, so
-    /// added songs play in the order they were added, before the rest, like Spotify's queue.
-    /// Played entries keep their positions in MusicKit's queue, so positions stay valid while
-    /// the queue plays on. `nil` when nothing is current.
-    static func addPlacement(currentIndex: Int?, added: AddedEntries?) -> (index: Int, added: AddedEntries)? {
-        guard let currentIndex else { return nil }
-        if let added, added.start + added.count > currentIndex + 1 {
-            let index = added.start + added.count
-            return (index, AddedEntries(start: added.start, count: added.count + 1))
-        }
-        return (currentIndex + 1, AddedEntries(start: currentIndex + 1, count: 1))
+        book.finishAdd(plan)
     }
 
     func readState() -> AppleMusicPlayerState {
@@ -199,7 +165,7 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         @unknown default:
             return nil
         }
-        let rowURI = Self.rowURI(at: index, title: entry.title, rows: queuedRows)
+        let rowURI = book.rowURI(at: index, title: entry.title)
             ?? Self.keys(entry).lazy.compactMap({ self.uriByEntryKey[$0] }).first
         guard let uri = rowURI, uri != mapped.uri else { return mapped }
         return MusicTrack(
@@ -225,18 +191,6 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         case .none, nil: .off
         @unknown default: .off
         }
-    }
-
-    /// A queued song's row, as this player queued it.
-    struct QueuedRow: Equatable {
-        let uri: String
-        let title: String
-    }
-
-    /// The row at a queue position, when the entry there still shows that row's title.
-    static func rowURI(at index: Int?, title: String, rows: [QueuedRow]) -> String? {
-        guard let index, rows.indices.contains(index), rows[index].title == title else { return nil }
-        return rows[index].uri
     }
 
     /// The first row URI queued under each of the entry's keys wins.
