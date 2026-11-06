@@ -466,6 +466,38 @@ final class PlaybackChromeViewsTests: XCTestCase {
         XCTAssertNoThrow(try macPicker.find(text: "Headphones"))
     }
 
+    func testDeviceMenuHidesConnectDevicesWhenTheProviderCannotTransfer() throws {
+        let playback = PlaybackSessionViewModel(provider: ReadOnlyStatePlaybackProvider())
+        playback.handle(.ready(deviceID: "local"))
+        playback.handle(.stateChanged(PlaybackNowPlaying(
+            name: "Midnight City",
+            artists: ["M83"],
+            albumName: nil,
+            albumID: nil,
+            albumArtURL: nil,
+            durationMilliseconds: 240_000,
+            positionMilliseconds: 30_000,
+            uri: "music:song:1"
+        ), isPaused: false, nextTracks: []))
+        playback.macAudioOutputDevices = [MacAudioOutputDevice(id: 11, name: "Built-in Output")]
+        playback.systemDefaultOutputDeviceID = 11
+
+        let view = PlaybackControlsView(
+            viewModel: playback,
+            isLyricsPresented: .constant(false),
+            openArtist: { _ in }
+        )
+        let macPicker = try view.inspect().find(ViewType.Picker.self) {
+            try $0.labelView().text().string() == "Mac audio outputs"
+        }
+        XCTAssertEqual(try macPicker.selectedValue(AudioDeviceID.self), 11)
+        // Search only the device menu: an exhaustive miss over the whole bar
+        // walks into views ViewInspector cannot read.
+        let menuContent = try macPicker.find(ViewType.Group.self, relation: .parent)
+        let pickers = menuContent.findAll(ViewType.Picker.self)
+        XCTAssertEqual(try pickers.map { try $0.labelView().text().string() }, ["Mac audio outputs"])
+    }
+
     func testPlaybackControlsEnablesPlayPauseForRemotePlayback() throws {
         try ViewTestHost.skipIfViewInspectorGeometryUnsupported()
         let playback = PlaybackSessionViewModel(

@@ -361,6 +361,7 @@
 		TST0000000000000000009101 /* TestOnlyConvenienceAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010129 /* TestOnlyConvenienceAPI.swift */; };
 		TST000000000000000000C1 /* PlaybackProgressAnchorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000000C0 /* PlaybackProgressAnchorTests.swift */; };
 		TST000000000000000000C2 /* PlaylistBrowserPrefetchAllTracksTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */; };
+		TST000000000000000000012E /* MusicPlaybackProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000001012E /* MusicPlaybackProviderTests.swift */; };
 		TST000000000000000000012D /* MusicBrowsingProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000001012D /* MusicBrowsingProviderTests.swift */; };
 		TST000000000000000000012C /* ScreenshotModeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000001012C /* ScreenshotModeTests.swift */; };
 		TST000000000000000000012B /* DetailSurfaceRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000001012B /* DetailSurfaceRegressionTests.swift */; };
@@ -680,6 +681,7 @@
 		TST0000000000000000010129 /* TestOnlyConvenienceAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestOnlyConvenienceAPI.swift; sourceTree = "<group>"; };
 		TST000000000000000000C0 /* PlaybackProgressAnchorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackProgressAnchorTests.swift; sourceTree = "<group>"; };
 		TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserPrefetchAllTracksTests.swift; sourceTree = "<group>"; };
+		TST000000000000000001012E /* MusicPlaybackProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicPlaybackProviderTests.swift; sourceTree = "<group>"; };
 		TST000000000000000001012D /* MusicBrowsingProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicBrowsingProviderTests.swift; sourceTree = "<group>"; };
 		TST000000000000000001012C /* ScreenshotModeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotModeTests.swift; sourceTree = "<group>"; };
 		TST000000000000000001012B /* DetailSurfaceRegressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailSurfaceRegressionTests.swift; sourceTree = "<group>"; };
@@ -996,6 +998,7 @@
 				TST00000000000000000064 /* PlaylistBrowserNavigationTests.swift */,
 				TST00000000000000000065 /* PlaylistBrowserArtistFallbackTests.swift */,
 				TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */,
+				TST000000000000000001012E /* MusicPlaybackProviderTests.swift */,
 				TST000000000000000001012D /* MusicBrowsingProviderTests.swift */,
 				TST000000000000000001012C /* ScreenshotModeTests.swift */,
 				TST000000000000000001012B /* DetailSurfaceRegressionTests.swift */,
@@ -1760,6 +1763,7 @@
 				TST00000000000000000014 /* PlaylistBrowserNavigationTests.swift in Sources */,
 				TST00000000000000000015 /* PlaylistBrowserArtistFallbackTests.swift in Sources */,
 				TST000000000000000000C2 /* PlaylistBrowserPrefetchAllTracksTests.swift in Sources */,
+				TST000000000000000000012E /* MusicPlaybackProviderTests.swift in Sources */,
 				TST000000000000000000012D /* MusicBrowsingProviderTests.swift in Sources */,
 				TST000000000000000000012C /* ScreenshotModeTests.swift in Sources */,
 				TST000000000000000000012B /* DetailSurfaceRegressionTests.swift in Sources */,
