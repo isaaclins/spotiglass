@@ -320,7 +320,8 @@ final class AppleMusicPendingLibraryEditsTests: XCTestCase {
         XCTAssertEqual(pending.applied(toPlaylists: stale).map(\.name), ["New"])
         XCTAssertEqual(pending.applied(toPlaylists: [summary("-1", "New")]).map(\.name), ["New"])
         XCTAssertNil(pending.renamedName(for: "-1"), "reconciled once the library shows the new name")
-        XCTAssertTrue(pending.isEmpty, "and the deletion once the library no longer lists the playlist")
+        XCTAssertEqual(pending.applied(toPlaylists: [summary("-2", "Gone")]).map(\.name), ["Gone"],
+                       "the deletion ended once the library no longer listed the playlist")
     }
 
     func testLikedSongsShowSavesOnTopAndHideRemovals() {
@@ -406,10 +407,10 @@ final class AppleMusicPendingLibraryEditsTests: XCTestCase {
         final class Clock: @unchecked Sendable { var now = Date(timeIntervalSince1970: 0) }
         let clock = Clock()
         let pending = AppleMusicPendingLibraryEdits(now: { clock.now })
-        pending.recordDeletedPlaylist("-1")
-        XCTAssertFalse(pending.isEmpty)
+        pending.recordRenamedPlaylist("-1", name: "New")
+        XCTAssertEqual(pending.renamedName(for: "-1"), "New")
         clock.now = clock.now.addingTimeInterval(AppleMusicPendingLibraryEdits.maxAge + 1)
-        XCTAssertTrue(pending.isEmpty)
+        XCTAssertNil(pending.renamedName(for: "-1"))
     }
 }
 

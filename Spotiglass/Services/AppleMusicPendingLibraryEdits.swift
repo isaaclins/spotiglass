@@ -48,15 +48,6 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
         self.now = now
     }
 
-    var isEmpty: Bool {
-        locked {
-            expire()
-            return savedSongs.isEmpty && removedSongs.isEmpty && savedAlbums.isEmpty && removedAlbums.isEmpty
-                && createdPlaylists.isEmpty && renamedPlaylists.isEmpty && deletedPlaylists.isEmpty
-                && playlistAdditions.isEmpty && playlistRemovals.isEmpty
-        }
-    }
-
     // MARK: - Recording
 
     func recordSavedSong(_ track: MusicTrack?, reference: AppleMusicSongReference) {
