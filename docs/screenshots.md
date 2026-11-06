@@ -48,12 +48,17 @@ scripts/screenshots.sh stop                      # quit, stop the mock, remove a
 ```
 
 Options for `start`: `--light` for the light appearance, `--now-playing "<title>"` to play
-another track from the library (useful for the lyrics view: View → Show Lyrics, ⌥⌘L).
+another track from the library (useful for the lyrics view: View → Show Lyrics, ⌥⌘L), and
+`--with-apple-music` to let the service switcher add the real Apple Music next to the Spotify
+stand-in. That run uses your own Apple Music library through MusicKit and the system permission
+prompt, so it keeps the real bundle id (MusicKit issues its token for that id only); the real
+app's preferences are saved at `start` and put back at `stop`. Without the option screenshot mode
+never reaches MusicKit.
 `SHOTS_DIR` changes the output folder, `WINDOW_FRAME="x, y, width, height"` the window size.
 
 `key` posts a real key event with its virtual key code (the app's keymap matches on key codes, so
-text typed by other tools does not trigger shortcuts). Common codes: K 40, F 3, comma 43, L 37,
-W 13, escape 53, return 36, delete 51.
+text typed by other tools does not trigger shortcuts). Modifiers are `cmd`, `shift`, `alt` and
+`ctrl`. Common codes: K 40, F 3, comma 43, L 37, W 13, 1 18, 2 19, escape 53, return 36, delete 51.
 
 Screen capture and synthetic input need the Screen Recording and Accessibility permissions for the
 terminal you run the script from.
