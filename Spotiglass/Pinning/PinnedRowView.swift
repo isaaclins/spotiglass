@@ -88,7 +88,7 @@ struct PinnedRowView: View {
             ZStack {
                 Circle().fill(.secondary.opacity(0.16))
                 if let url = item.artworkURL {
-                    CachedCircularArtwork(url: url, diameter: artworkSize)
+                    CachedCircularArtwork(url: url, diameter: artworkSize, artworkKey: item.id)
                 } else {
                     Image(systemName: "person.wave.2")
                         .font(SpotiglassDesign.Typography.pinArtistFallback)
@@ -99,7 +99,7 @@ struct PinnedRowView: View {
             .clipShape(Circle())
             .overlay { Circle().strokeBorder(SpotiglassDesign.artworkBorderColor(colorScheme: colorScheme), lineWidth: 1) }
         case .playlist, .album, .track:
-            ArtworkView(url: item.artworkURL, size: artworkSize)
+            ArtworkView(url: item.artworkURL, size: artworkSize, artworkKey: item.id)
         }
     }
 }
@@ -107,6 +107,8 @@ struct PinnedRowView: View {
 private struct CachedCircularArtwork: View {
     let url: URL
     let diameter: CGFloat
+    /// The pin's ID, so an Apple Music library cover saved last session still resolves.
+    var artworkKey: String? = nil
     @StateObject private var artworkLoader = ArtworkImageLoader()
 
     var body: some View {
@@ -116,7 +118,7 @@ private struct CachedCircularArtwork: View {
                     .resizable()
                     .scaledToFill()
             } else {
-                MusicKitArtwork(url: url, width: diameter, height: diameter)
+                MusicKitArtwork(url: url, width: diameter, height: diameter, itemKey: artworkKey)
             }
         }
         .frame(width: diameter, height: diameter)
@@ -196,7 +198,7 @@ struct PinnedItemDragPill: View {
             ZStack {
                 Circle().fill(.secondary.opacity(0.16))
                 if let url = item.artworkURL {
-                    CachedCircularArtwork(url: url, diameter: artworkSize)
+                    CachedCircularArtwork(url: url, diameter: artworkSize, artworkKey: item.id)
                 } else {
                     Image(systemName: "person.wave.2")
                         .font(SpotiglassDesign.Typography.pinKind)
