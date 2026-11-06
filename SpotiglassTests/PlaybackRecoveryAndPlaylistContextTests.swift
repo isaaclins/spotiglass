@@ -15,8 +15,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
             await releaseOldVolumeSend.wait()
         }
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: MockPlaybackAPI(),
-            webCommander: commander,
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: commander),
             defaults: makeEphemeralDefaults()
         )
         viewModel.deviceID = "old-device"
@@ -49,7 +48,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
             connectStarted.signal()
             await releaseConnect.wait()
         }
-        let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: commander)
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: commander))
 
         viewModel.start()
         let oldGeneration = viewModel.playbackHostGeneration
@@ -57,9 +56,9 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
         XCTAssertTrue(didConnectStart)
 
         await viewModel.disconnect()
-        viewModel.handle(PlaybackBridgeEventEnvelope(event: .ready(deviceID: "old-device"), hostGeneration: oldGeneration))
-        viewModel.handle(PlaybackBridgeEventEnvelope(event: .notReady(deviceID: "old-device"), hostGeneration: oldGeneration))
-        viewModel.handle(PlaybackBridgeEventEnvelope(event: .initializationError("old startup failed"), hostGeneration: oldGeneration))
+        viewModel.handle(MusicPlaybackEventEnvelope(event: .ready(deviceID: "old-device"), hostGeneration: oldGeneration))
+        viewModel.handle(MusicPlaybackEventEnvelope(event: .notReady(deviceID: "old-device"), hostGeneration: oldGeneration))
+        viewModel.handle(MusicPlaybackEventEnvelope(event: .initializationError("old startup failed"), hostGeneration: oldGeneration))
         releaseConnect.signal()
         await Task.yield()
 
@@ -83,8 +82,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
             }
         }
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: MockPlaybackAPI(),
-            webCommander: commander,
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: commander),
             playbackHostRecoveryConnectTimeout: .milliseconds(10),
             playbackHostRecoverySoftResetTimeout: .milliseconds(10)
         )
@@ -112,7 +110,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
             disconnectStarted.signal()
             await releaseDisconnect.wait()
         }
-        let viewModel = PlaybackSessionViewModel(playbackAPI: MockPlaybackAPI(), webCommander: commander)
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: commander))
         viewModel.handle(.ready(deviceID: "old-device"))
 
         let disconnectTask = Task {
@@ -151,8 +149,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
             }
         }
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: MockPlaybackAPI(),
-            webCommander: commander,
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: commander),
             playbackHostRecoveryConnectTimeout: .milliseconds(10),
             playbackHostRecoverySoftResetTimeout: .milliseconds(10)
         )
@@ -182,9 +179,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
             await releaseConnect.wait()
         }
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: MockPlaybackAPI(),
-            webCommander: commander
-        )
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: commander))
 
         viewModel.start()
         let oldGeneration = viewModel.playbackHostGeneration
@@ -213,8 +208,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
     func testExplicitReconnectCreatesFreshGenerationAndRetainsRecoveryBehavior() async {
         let commander = MockWebPlaybackCommander()
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: MockPlaybackAPI(),
-            webCommander: commander,
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: commander),
             // Long enough that recovery stops at its first connect attempt for
             // the duration of this test. This test is about generation
             // fencing, not about escalation; with 10ms timeouts the chain
@@ -239,20 +233,20 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
         let newGeneration = viewModel.playbackHostGeneration
 
         XCTAssertNotEqual(oldGeneration, newGeneration)
-        viewModel.handle(PlaybackBridgeEventEnvelope(
+        viewModel.handle(MusicPlaybackEventEnvelope(
             event: .ready(deviceID: "old-device"),
             hostGeneration: oldGeneration
         ))
         XCTAssertEqual(viewModel.connectionState, .connecting)
         XCTAssertNil(viewModel.deviceID)
 
-        viewModel.handle(PlaybackBridgeEventEnvelope(
+        viewModel.handle(MusicPlaybackEventEnvelope(
             event: .ready(deviceID: "new-device"),
             hostGeneration: newGeneration
         ))
         XCTAssertEqual(viewModel.connectionState, .ready(deviceID: "new-device"))
 
-        viewModel.handle(PlaybackBridgeEventEnvelope(
+        viewModel.handle(MusicPlaybackEventEnvelope(
             event: .notReady(deviceID: "new-device"),
             hostGeneration: newGeneration
         ))
@@ -272,8 +266,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
     func testConnectingResolvesToRetryableErrorAfterTimeout() async {
         let commander = MockWebPlaybackCommander()
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: MockPlaybackAPI(),
-            webCommander: commander,
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: commander),
             playbackHostConnectTimeout: .milliseconds(20)
         )
 
@@ -290,8 +283,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
 
     func testStaleReadyDoesNotCancelConnectionTimeout() async {
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: MockPlaybackAPI(),
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()),
             playbackHostConnectTimeout: .milliseconds(20)
         )
 
@@ -310,7 +302,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
     func testRetryPlaybackTransferCallsTransferAPIWhenDeviceKnown() async {
         let commander = MockWebPlaybackCommander()
         let playbackAPI = MockPlaybackAPI()
-        let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: commander)
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: commander))
         viewModel.handle(.ready(deviceID: "device-1"))
         viewModel.handle(.playbackError("Slow down"))
 
@@ -326,7 +318,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
 
     func testRetryPlaybackTransferWithoutDeviceStartsPlaybackHost() async {
         let commander = MockWebPlaybackCommander()
-        let viewModel = PlaybackSessionViewModel(playbackAPI: MockPlaybackAPI(), webCommander: commander)
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: commander))
 
         await viewModel.retryPlaybackTransfer()
 
@@ -337,8 +329,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
     func testRetryPlaybackTransferWithoutDeviceUsesBoundedHardReloadBudget() async {
         let commander = MockWebPlaybackCommander()
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: MockPlaybackAPI(),
-            webCommander: commander,
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: commander),
             playbackHostHardReloadCooldown: .seconds(5),
             playbackHostRecoveryConnectTimeout: .milliseconds(10),
             playbackHostRecoverySoftResetTimeout: .milliseconds(10)
@@ -355,8 +346,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
     func testInitializationErrorRunsReuseAttemptsBeforeHardReload() async {
         let commander = MockWebPlaybackCommander()
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: MockPlaybackAPI(),
-            webCommander: commander,
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: commander),
             playbackHostRecoveryConnectTimeout: .milliseconds(10),
             playbackHostRecoverySoftResetTimeout: .milliseconds(10)
         )
@@ -380,7 +370,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
     }
 
     func testPremiumAccountErrorMapsToClearState() {
-        let viewModel = PlaybackSessionViewModel(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander())
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
 
         viewModel.handle(.accountError("Premium required"))
 
@@ -393,7 +383,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
     }
 
     func testUnavailableDeviceStateIsExplicit() {
-        let viewModel = PlaybackSessionViewModel(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander())
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
         viewModel.handle(.ready(deviceID: "device-1"))
 
         viewModel.handle(.notReady(deviceID: "device-1"))
@@ -408,7 +398,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
     func testStartReconnectsFromErrorAndUnavailableStates() async {
         let commander = MockWebPlaybackCommander()
         let connectSent = AsyncSignal()
-        let viewModel = PlaybackSessionViewModel(playbackAPI: MockPlaybackAPI(), webCommander: commander)
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: commander))
         commander.onSend = { command in
             guard command == .connect else { return }
             connectSent.signal()
@@ -448,7 +438,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
     func testPlayURIOptimisticallyResetsPositionForKnownCurrentTrack() async {
         let commander = MockWebPlaybackCommander()
         let playbackAPI = MockPlaybackAPI()
-        let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: commander)
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: commander))
         viewModel.handle(.ready(deviceID: "device-1"))
         viewModel.handle(.stateChanged(PlaybackNowPlaying(
             name: "Track",
@@ -473,7 +463,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
     func testPlayFromPlaylistSendsCompleteURIListWithClickedTrackOffset() async {
         let commander = MockWebPlaybackCommander()
         let playbackAPI = MockPlaybackAPI()
-        let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: commander)
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: commander))
         viewModel.handle(.ready(deviceID: "device-1"))
         await viewModel.syncTransportFromSpotify()
 
@@ -504,9 +494,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
     func testPlayFromPlaylistIncludesEpisodesInQueueOrder() async {
         let playbackAPI = MockPlaybackAPI()
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: MockWebPlaybackCommander()
-        )
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()))
         viewModel.handle(.ready(deviceID: "device-1"))
         await viewModel.syncTransportFromSpotify()
 
@@ -528,9 +516,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
     func testPlayFromPlaylistFallsBackToSingleTrackWhenClickedURIMissing() async {
         let playbackAPI = MockPlaybackAPI()
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: MockWebPlaybackCommander()
-        )
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()))
         viewModel.handle(.ready(deviceID: "device-1"))
 
         await viewModel.playFromPlaylist(
@@ -547,9 +533,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
     func testActivePlaylistIDIsSetByPlayFromPlaylistAndClearedByPlayURI() async {
         let playbackAPI = MockPlaybackAPI()
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: MockWebPlaybackCommander()
-        )
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()))
         viewModel.handle(.ready(deviceID: "device-1"))
 
         XCTAssertNil(viewModel.activePlaylistID)
@@ -568,7 +552,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
     func testPlayURISuppressesStaleStateChangedEventsForPreviousTrack() async {
         let commander = MockWebPlaybackCommander()
         let playbackAPI = MockPlaybackAPI()
-        let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: commander)
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: commander))
         viewModel.handle(.ready(deviceID: "device-1"))
 
         // Establish a current track via the SDK.
@@ -631,9 +615,7 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
     func testActivePlaylistIDClearedByDisconnect() async {
         let playbackAPI = MockPlaybackAPI()
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: MockWebPlaybackCommander()
-        )
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()))
         viewModel.handle(.ready(deviceID: "device-1"))
 
         await viewModel.playFromPlaylist(

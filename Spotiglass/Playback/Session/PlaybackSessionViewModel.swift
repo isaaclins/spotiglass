@@ -53,6 +53,20 @@ final class PlaybackSessionViewModel: ObservableObject {
         guard let activePlaybackDeviceID, let deviceID else { return false }
         return activePlaybackDeviceID != deviceID
     }
+
+    /// Whether the player that plays right now reports its state only when read:
+    /// a remote device, or an in-app player that does not push state events
+    /// (MusicKit's `ApplicationMusicPlayer`). Such state comes from transport reads,
+    /// and play / pause are confirmed optimistically until a read agrees.
+    var isPlayerStateRead: Bool {
+        isRemotePlaybackActive || !provider.capabilities.contains(.pushesPlayerState)
+    }
+
+    /// Whether the service can move playback to another device (Spotify Connect).
+    /// The device menu hides its device list when it can't.
+    var supportsDeviceTransfer: Bool {
+        provider.deviceTransfer != nil
+    }
     /// The Spotify playlist ID that the current playback originated from, or
     /// `nil` if playback was started from a single track URI or external context.
     /// Used by the sidebar to highlight which playlist row is "now playing".
@@ -63,12 +77,12 @@ final class PlaybackSessionViewModel: ObservableObject {
     @Published private(set) var playbackVolume: Double
     /// From `GET /v1/me/player` for the active Spotify player (may be this device or another).
     @Published var shuffleEnabled = false
-    @Published var repeatMode: SpotifyRepeatMode = .off
+    @Published var repeatMode: MusicRepeatMode = .off
     /// True only after a player snapshot has supplied the current shuffle/repeat state.
     /// The values above remain harmless display defaults until this becomes true.
     @Published private(set) var isTransportStateKnown = false
     /// Spotify Connect devices from `GET /v1/me/player/devices`.
-    @Published var connectDevices: [SpotifyConnectDevice] = []
+    @Published var connectDevices: [MusicPlaybackDevice] = []
     /// Core Audio output-capable devices (system default output picker).
     @Published var macAudioOutputDevices: [MacAudioOutputDevice] = []
     /// Current HAL default output device id (for menu checkmarks).
@@ -164,8 +178,8 @@ final class PlaybackSessionViewModel: ObservableObject {
         set { diagnostics.playbackHostRecoveryFailuresByCause = newValue }
     }
 
-    let playbackAPI: SpotifyPlaybackControlling
-    let webCommander: WebPlaybackCommanding
+    /// The music service's player. Everything the session sends or reads goes through it.
+    let provider: any MusicPlaybackProvider
     let macAudioOutput: MacDefaultAudioOutputProviding
     /// Shared EQ route state used to keep system-output selections inside the
     /// equalizer instead of bypassing its virtual device.
@@ -176,7 +190,7 @@ final class PlaybackSessionViewModel: ObservableObject {
     private let defaults: UserDefaults
     /// Core Audio listener; accessed from `deinit` for removal — must be `nonisolated(unsafe)`.
     nonisolated(unsafe) var hardwareDevicesListener: AudioObjectPropertyListenerBlock?
-    var latestPlayerSnapshot: SpotifyPlayerSnapshot?
+    var latestPlayerSnapshot: MusicPlaybackSnapshot?
     private var becameActiveObserver: NSObjectProtocol?
     private var resignedActiveObserver: NSObjectProtocol?
     let clock: any PlaybackClock
@@ -210,6 +224,23 @@ final class PlaybackSessionViewModel: ObservableObject {
     var transportTransientErrorCount = 0
     var transportRateLimitedUntil: ContinuousClock.Instant?
     var localMutationSettleTicksRemaining = 0
+    /// What the last pause, resume or play asked a player without pushed state
+    /// to report: `true` playing, `false` paused, `nil` no such command in the
+    /// current settle window. Reads during the window are checked against it.
+    var localCommandExpectsPlaying: Bool?
+    /// Serial of the running transport poll loop, and of the loop whose read is
+    /// in flight (if any), so a command doesn't cancel the current loop mid-read.
+    var transportPollLoopSerial: UInt64 = 0
+    var transportPollReadingSerial: UInt64?
+
+    /// How a local command changes play / pause, for ``localCommandExpectsPlaying``.
+    enum LocalCommandPlayExpectation {
+        /// The command doesn't touch play / pause (skip, seek, shuffle, transfer);
+        /// an expectation from an earlier pause or resume stays.
+        case unchanged
+        case playing
+        case paused
+    }
     var volumeMutationVersion: UInt64 = 0
     var pendingVolumeMutation: PendingVolumeMutation?
     var playbackVolumeSendTask: Task<Void, Never>?
@@ -263,13 +294,13 @@ final class PlaybackSessionViewModel: ObservableObject {
     /// Expected repeat mode after an optimistic local toggle. While pending,
     /// stale transport reads from Spotify are ignored for a short window so the
     /// button does not snap back.
-    var pendingRepeatMode: SpotifyRepeatMode?
+    var pendingRepeatMode: MusicRepeatMode?
     var pendingRepeatDeadline: ContinuousClock.Instant?
-    var confirmedRepeatMode: SpotifyRepeatMode = .off
+    var confirmedRepeatMode: MusicRepeatMode = .off
     var repeatWriteInFlight = false
-    var desiredRepeatMode: SpotifyRepeatMode?
+    var desiredRepeatMode: MusicRepeatMode?
     var lastRepeatWriteAt: ContinuousClock.Instant?
-    var lastRepeatCommandedMode: SpotifyRepeatMode?
+    var lastRepeatCommandedMode: MusicRepeatMode?
     /// Expected shuffle state after an optimistic local toggle. Stale transport
     /// reads are ignored while this short-lived expectation is pending.
     var pendingShuffleEnabled: Bool?
@@ -282,7 +313,7 @@ final class PlaybackSessionViewModel: ObservableObject {
     var inFlightShuffleTarget: Bool?
     var queuedShuffleTarget: Bool?
     var lastConfirmedShuffleEnabled: Bool?
-    var connectDevicesRefreshTask: Task<[SpotifyConnectDevice], Error>?
+    var connectDevicesRefreshTask: Task<[MusicPlaybackDevice], Error>?
     var connectDevicesRefreshGeneration: PlaybackHostGeneration?
     var lastConnectDevicesRefreshAt: ContinuousClock.Instant?
     let connectDevicesFreshnessWindow: Duration
@@ -488,8 +519,7 @@ final class PlaybackSessionViewModel: ObservableObject {
     }
 
     init(
-        playbackAPI: SpotifyPlaybackControlling,
-        webCommander: WebPlaybackCommanding,
+        provider: any MusicPlaybackProvider,
         macAudioOutput: MacDefaultAudioOutputProviding = MacDefaultAudioOutputNameProvider(),
         equalizerEngine: AudioEqualizerEngine? = nil,
         defaults: UserDefaults = .standard,
@@ -519,8 +549,7 @@ final class PlaybackSessionViewModel: ObservableObject {
         pendingVolumeTimeout: Duration = .seconds(3),
         volumeMatchTolerance: Double = 0.01
     ) {
-        self.playbackAPI = playbackAPI
-        self.webCommander = webCommander
+        self.provider = provider
         self.macAudioOutput = macAudioOutput
         self.equalizerEngine = equalizerEngine
         self.defaults = defaults
@@ -550,6 +579,10 @@ final class PlaybackSessionViewModel: ObservableObject {
         self.playbackHostRecoverySoftResetTimeout = playbackHostRecoverySoftResetTimeout
         self.playbackHostConnectTimeout = playbackHostConnectTimeout
         self.playbackVolume = Self.loadStoredPlaybackVolume(from: defaults)
+
+        provider.eventHandler = { [weak self] envelope in
+            self?.handle(envelope)
+        }
 
         macAudioOutput.startListening { [weak self] in
             Task { @MainActor in
@@ -646,11 +679,7 @@ final class PlaybackSessionViewModel: ObservableObject {
                   self.volumeMutationVersion == version,
                   self.playbackVolumeSendSerial == serial,
                   !Task.isCancelled else { return }
-            try? await self.webCommander.send(
-                .setVolume,
-                payload: ["volume": value],
-                generation: generation
-            )
+            try? await self.provider.setVolume(value, generation: generation)
         }
     }
 

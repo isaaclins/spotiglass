@@ -7,8 +7,7 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         let commander = MockWebPlaybackCommander()
         let playbackAPI = MockPlaybackAPI()
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: commander,
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: commander),
             skipCommandMinimumSpacing: .zero
         )
         viewModel.handle(.ready(deviceID: "device-1"))
@@ -34,8 +33,7 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         let api = MockPlaybackAPI()
         api.seekDelayNanoseconds = 80_000_000
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: api,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()),
             seekRateLimitInterval: .milliseconds(10),
             seekDeduplicationWindowMilliseconds: 0
         )
@@ -53,8 +51,7 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
     func testSeekRateLimitEnforcesMinimumSendSpacing() async {
         let api = MockPlaybackAPI()
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: api,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()),
             seekRateLimitInterval: .milliseconds(90),
             seekDeduplicationWindowMilliseconds: 0
         )
@@ -73,8 +70,7 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         let api = MockPlaybackAPI()
         api.seekError = SpotifyAPIError.notFound(message: nil)
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: api,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()),
             seekRateLimitInterval: .milliseconds(10)
         )
         viewModel.handle(.ready(deviceID: "device-1"))
@@ -105,8 +101,7 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         let api = MockPlaybackAPI()
         api.seekError = SpotifyAPIError.notFound(message: nil)
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: api,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()),
             seekRateLimitInterval: .zero
         )
         viewModel.handle(.ready(deviceID: "device-1"))
@@ -143,8 +138,7 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
             }
         }
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: api,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()),
             seekRateLimitInterval: .zero
         )
         viewModel.handle(.ready(deviceID: "device-1"))
@@ -174,8 +168,7 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         let api = MockPlaybackAPI()
         api.seekError = SpotifyAPIError.notFound(message: nil)
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: api,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()),
             seekRateLimitInterval: .zero
         )
         viewModel.handle(.ready(deviceID: "device-1"))
@@ -215,8 +208,7 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
     func testFirstSeekOnNewTrackIsNotDedupedAgainstPreviousTrack() async {
         let api = MockPlaybackAPI()
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: api,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()),
             seekRateLimitInterval: .zero
         )
         viewModel.handle(.ready(deviceID: "device-1"))
@@ -265,8 +257,7 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
             }
         }
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: api,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()),
             seekRateLimitInterval: .zero,
             seekDeduplicationWindowMilliseconds: 0
         )
@@ -324,8 +315,7 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
             }
         }
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: api,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()),
             seekRateLimitInterval: .zero,
             seekDeduplicationWindowMilliseconds: 0
         )
@@ -373,8 +363,7 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
     func testSeekSuppressionPreventsSnapBackUntilStateCatchesUp() async {
         let api = MockPlaybackAPI()
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: api,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()),
             seekRateLimitInterval: .milliseconds(10),
             seekDeduplicationWindowMilliseconds: 0,
             seekMatchToleranceMilliseconds: 500
@@ -412,9 +401,7 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
         let api = MockPlaybackAPI()
         api.fetchPlayerSnapshotError = SpotifyAPIError.network("offline")
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: api,
-            webCommander: MockWebPlaybackCommander()
-        )
+            provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()))
         viewModel.handle(.ready(deviceID: "device-1"))
 
         await viewModel.cycleRepeat()
@@ -426,14 +413,13 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
 
     func testCycleRepeatAdvancesRepeatMode() async {
         let api = MockPlaybackAPI()
-        api.snapshotResponses = [SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+        api.snapshotResponses = [MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: false, repeatMode: .off),
             activeDevice: nil,
             isPlaying: false
         )]
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: api,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()),
             postRepeatSyncDelay: .milliseconds(50)
         )
         viewModel.handle(.ready(deviceID: "device-1"))
@@ -455,14 +441,13 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
 
     func testCycleRepeatFromContextTargetsTrack() async {
         let api = MockPlaybackAPI()
-        api.snapshotResponses = [SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .context),
+        api.snapshotResponses = [MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: false, repeatMode: .context),
             activeDevice: nil,
             isPlaying: false
         )]
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: api,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()),
             postRepeatSyncDelay: .seconds(10)
         )
         viewModel.handle(.ready(deviceID: "device-1"))
@@ -476,13 +461,13 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
 
     func testCycleRepeatRevertsWhenSetRepeatFails() async {
         let api = MockPlaybackAPI()
-        api.snapshotResponses = [SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+        api.snapshotResponses = [MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: false, repeatMode: .off),
             activeDevice: nil,
             isPlaying: false
         )]
         api.setRepeatError = SpotifyAPIError.notFound(message: nil)
-        let viewModel = PlaybackSessionViewModel(playbackAPI: api, webCommander: MockWebPlaybackCommander())
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()))
         viewModel.handle(.ready(deviceID: "device-1"))
         await viewModel.syncTransportFromSpotify()
         XCTAssertEqual(viewModel.repeatMode, .off)
@@ -497,14 +482,13 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
 
     func testCycleRepeatFromTrackTargetsOff() async {
         let api = MockPlaybackAPI()
-        api.snapshotResponses = [SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .track),
+        api.snapshotResponses = [MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: false, repeatMode: .track),
             activeDevice: nil,
             isPlaying: false
         )]
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: api,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()),
             postRepeatSyncDelay: .seconds(10)
         )
         viewModel.handle(.ready(deviceID: "device-1"))
@@ -519,11 +503,10 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
     func testRepeatSyncIgnoresStaleTransportWhilePending() async {
         let api = MockPlaybackAPI()
         api.transportResponses = [
-            SpotifyPlayerTransport(shuffle: false, repeatMode: .off)
+            MusicPlaybackTransport(shuffle: false, repeatMode: .off)
         ]
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: api,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()),
             pendingRepeatTimeout: .seconds(5),
             postRepeatSyncDelay: .seconds(10)
         )
@@ -540,14 +523,13 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
     func testRepeatPendingClearsWhenTransportMatchesExpectedMode() async {
         let api = MockPlaybackAPI()
         api.transportResponses = [
-            SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
-            SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
-            SpotifyPlayerTransport(shuffle: false, repeatMode: .context),
-            SpotifyPlayerTransport(shuffle: false, repeatMode: .off)
+            MusicPlaybackTransport(shuffle: false, repeatMode: .off),
+            MusicPlaybackTransport(shuffle: false, repeatMode: .off),
+            MusicPlaybackTransport(shuffle: false, repeatMode: .context),
+            MusicPlaybackTransport(shuffle: false, repeatMode: .off)
         ]
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: api,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()),
             pendingRepeatTimeout: .seconds(5),
             postRepeatSyncDelay: .seconds(10)
         )
@@ -570,12 +552,11 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
     func testRepeatPendingTimeoutEventuallyAcceptsTransportValue() async {
         let api = MockPlaybackAPI()
         api.transportResponses = [
-            SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
-            SpotifyPlayerTransport(shuffle: false, repeatMode: .off)
+            MusicPlaybackTransport(shuffle: false, repeatMode: .off),
+            MusicPlaybackTransport(shuffle: false, repeatMode: .off)
         ]
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: api,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()),
             pendingRepeatTimeout: .milliseconds(50),
             postRepeatSyncDelay: .seconds(10)
         )
@@ -592,15 +573,14 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
 
     func testCycleRepeatRapidTapsCoalesceWritesAndConvergeToLatestIntent() async {
         let api = MockPlaybackAPI()
-        api.snapshotResponses = [SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+        api.snapshotResponses = [MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: false, repeatMode: .off),
             activeDevice: nil,
             isPlaying: false
         )]
         api.setRepeatDelayNanoseconds = 80_000_000
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: api,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()),
             repeatWriteMinInterval: .milliseconds(40),
             postRepeatSyncDelay: .seconds(10)
         )
@@ -621,15 +601,14 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
 
     func testCycleRepeatRapidTapsAvoidSendingIntermediateModes() async {
         let api = MockPlaybackAPI()
-        api.snapshotResponses = [SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+        api.snapshotResponses = [MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: false, repeatMode: .off),
             activeDevice: nil,
             isPlaying: false
         )]
         api.setRepeatDelayNanoseconds = 80_000_000
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: api,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()),
             repeatWriteMinInterval: .milliseconds(40),
             postRepeatSyncDelay: .seconds(10)
         )
@@ -650,14 +629,13 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
 
     func testToggleShuffleFlipsShuffleEnabled() async {
         let api = MockPlaybackAPI()
-        api.snapshotResponses = [SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+        api.snapshotResponses = [MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: false, repeatMode: .off),
             activeDevice: nil,
             isPlaying: false
         )]
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: api,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()),
             postShuffleSyncDelay: .milliseconds(20)
         )
         viewModel.handle(.ready(deviceID: "device-1"))
@@ -678,14 +656,13 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
 
     func testToggleShuffleFromEnabledTargetsDisabled() async {
         let api = MockPlaybackAPI()
-        api.snapshotResponses = [SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: true, repeatMode: .off),
+        api.snapshotResponses = [MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: true, repeatMode: .off),
             activeDevice: nil,
             isPlaying: false
         )]
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: api,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()),
             postShuffleSyncDelay: .seconds(10)
         )
         viewModel.handle(.ready(deviceID: "device-1"))
@@ -699,13 +676,13 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
 
     func testToggleShuffleRevertsWhenSetShuffleFails() async {
         let api = MockPlaybackAPI()
-        api.snapshotResponses = [SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+        api.snapshotResponses = [MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: false, repeatMode: .off),
             activeDevice: nil,
             isPlaying: false
         )]
         api.setShuffleError = SpotifyAPIError.notFound(message: nil)
-        let viewModel = PlaybackSessionViewModel(playbackAPI: api, webCommander: MockWebPlaybackCommander())
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()))
         viewModel.handle(.ready(deviceID: "device-1"))
         await viewModel.syncTransportFromSpotify()
 
@@ -719,10 +696,9 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
 
     func testShuffleSyncIgnoresStaleTransportWhilePending() async {
         let api = MockPlaybackAPI()
-        api.transportResponses = [SpotifyPlayerTransport(shuffle: false, repeatMode: .off)]
+        api.transportResponses = [MusicPlaybackTransport(shuffle: false, repeatMode: .off)]
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: api,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()),
             pendingShuffleTimeout: .seconds(5),
             postShuffleSyncDelay: .seconds(10)
         )
@@ -739,14 +715,13 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
     func testShufflePendingClearsWhenTransportMatchesExpectedState() async {
         let api = MockPlaybackAPI()
         api.transportResponses = [
-            SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
-            SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
-            SpotifyPlayerTransport(shuffle: true, repeatMode: .off),
-            SpotifyPlayerTransport(shuffle: false, repeatMode: .off)
+            MusicPlaybackTransport(shuffle: false, repeatMode: .off),
+            MusicPlaybackTransport(shuffle: false, repeatMode: .off),
+            MusicPlaybackTransport(shuffle: true, repeatMode: .off),
+            MusicPlaybackTransport(shuffle: false, repeatMode: .off)
         ]
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: api,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()),
             pendingShuffleTimeout: .seconds(5),
             postShuffleSyncDelay: .seconds(10)
         )
@@ -769,12 +744,11 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
     func testShufflePendingTimeoutEventuallyAcceptsTransportValue() async {
         let api = MockPlaybackAPI()
         api.transportResponses = [
-            SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
-            SpotifyPlayerTransport(shuffle: false, repeatMode: .off)
+            MusicPlaybackTransport(shuffle: false, repeatMode: .off),
+            MusicPlaybackTransport(shuffle: false, repeatMode: .off)
         ]
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: api,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()),
             pendingShuffleTimeout: .milliseconds(50),
             postShuffleSyncDelay: .seconds(10)
         )
@@ -791,15 +765,14 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
 
     func testRapidShuffleTogglesCoalesceInFlightWrites() async {
         let api = MockPlaybackAPI()
-        api.snapshotResponses = [SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+        api.snapshotResponses = [MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: false, repeatMode: .off),
             activeDevice: nil,
             isPlaying: false
         )]
         api.setShuffleDelayNanoseconds = 120_000_000
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: api,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()),
             postShuffleSyncDelay: .seconds(10)
         )
         viewModel.handle(.ready(deviceID: "device-1"))
@@ -827,14 +800,13 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
 
     func testOlderShuffleSyncDoesNotOverrideNewerMutation() async {
         let api = MockPlaybackAPI()
-        api.snapshotResponses = [SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+        api.snapshotResponses = [MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: false, repeatMode: .off),
             activeDevice: nil,
             isPlaying: false
         )]
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: api,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()),
             postShuffleSyncDelay: .seconds(10)
         )
         viewModel.handle(.ready(deviceID: "device-1"))
@@ -845,7 +817,7 @@ final class PlaybackTransportSeekRepeatShuffleTests: XCTestCase {
 
         // This simulates a delayed sync response from an older mutation; it
         // should be ignored instead of regressing the newer local target.
-        api.transportResponses = [SpotifyPlayerTransport(shuffle: false, repeatMode: .off)]
+        api.transportResponses = [MusicPlaybackTransport(shuffle: false, repeatMode: .off)]
         await viewModel.syncTransportFromSpotify(minimumShuffleMutationVersion: 0)
         XCTAssertTrue(viewModel.shuffleEnabled)
     }

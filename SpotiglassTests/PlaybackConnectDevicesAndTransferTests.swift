@@ -6,7 +6,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
     func testNewReadyEventReplacesPriorAutoResumeTask() async {
         let playbackAPI = MockPlaybackAPI()
         playbackAPI.availableDevices = [
-            SpotifyConnectDevice(
+            MusicPlaybackDevice(
                 deviceID: "stale-spotiglass",
                 isActive: true,
                 isRestricted: false,
@@ -24,7 +24,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
         playbackAPI.onTransferPlayback = { _, _ in
             transferStarted.signal()
         }
-        let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander())
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()))
         viewModel.autoResumeOnNextReady = true
         viewModel.handle(.ready(deviceID: "device-1"))
 
@@ -47,7 +47,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
 
     func testDisconnectDuringAutoResumeDeviceRefreshSuppressesLateRefreshAndTransfer() async {
         let playbackAPI = MockPlaybackAPI()
-        let staleDevice = SpotifyConnectDevice(
+        let staleDevice = MusicPlaybackDevice(
             deviceID: "stale-spotiglass",
             isActive: true,
             isRestricted: false,
@@ -65,7 +65,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
         playbackAPI.onTransferPlayback = { _, _ in
             transferStarted.signal()
         }
-        let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander())
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()))
         viewModel.autoResumeOnNextReady = true
         viewModel.handle(.ready(deviceID: "new-spotiglass"))
 
@@ -89,7 +89,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
         playbackAPI.onTransferPlaybackCompleted = { _, _ in
             transferCompleted.signal()
         }
-        let staleDevice = SpotifyConnectDevice(
+        let staleDevice = MusicPlaybackDevice(
             deviceID: "stale-spotiglass",
             isActive: true,
             isRestricted: false,
@@ -97,15 +97,13 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
             type: "computer"
         )
         playbackAPI.availableDevices = [staleDevice]
-        playbackAPI.snapshotResponses = [SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+        playbackAPI.snapshotResponses = [MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: false, repeatMode: .off),
             activeDevice: staleDevice,
             isPlaying: true
         )]
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: MockWebPlaybackCommander()
-        )
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()))
         viewModel.autoResumeOnNextReady = true
         viewModel.handle(.ready(deviceID: "new-spotiglass"))
 
@@ -124,7 +122,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
 
     func testAutoResumePreservesPausedStateFromStaleSpotiglassDevice() async {
         let playbackAPI = MockPlaybackAPI()
-        let staleDevice = SpotifyConnectDevice(
+        let staleDevice = MusicPlaybackDevice(
             deviceID: "stale-spotiglass",
             isActive: true,
             isRestricted: false,
@@ -132,15 +130,13 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
             type: "computer"
         )
         playbackAPI.availableDevices = [staleDevice]
-        playbackAPI.snapshotResponses = [SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+        playbackAPI.snapshotResponses = [MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: false, repeatMode: .off),
             activeDevice: staleDevice,
             isPlaying: false
         )]
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: MockWebPlaybackCommander()
-        )
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()))
         viewModel.deviceID = "new-spotiglass"
         viewModel.setConnectionState(.ready(deviceID: "new-spotiglass"))
 
@@ -154,7 +150,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
 
     func testAutoResumePreservesPlayingStateFromStaleSpotiglassDevice() async {
         let playbackAPI = MockPlaybackAPI()
-        let staleDevice = SpotifyConnectDevice(
+        let staleDevice = MusicPlaybackDevice(
             deviceID: "stale-spotiglass",
             isActive: true,
             isRestricted: false,
@@ -162,15 +158,13 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
             type: "computer"
         )
         playbackAPI.availableDevices = [staleDevice]
-        playbackAPI.snapshotResponses = [SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+        playbackAPI.snapshotResponses = [MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: false, repeatMode: .off),
             activeDevice: staleDevice,
             isPlaying: true
         )]
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: MockWebPlaybackCommander()
-        )
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()))
         viewModel.deviceID = "new-spotiglass"
         viewModel.setConnectionState(.ready(deviceID: "new-spotiglass"))
 
@@ -184,14 +178,14 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
 
     func testAutoResumeDoesNotUsePlayingStateFromDifferentActiveDevice() async {
         let playbackAPI = MockPlaybackAPI()
-        let staleDevice = SpotifyConnectDevice(
+        let staleDevice = MusicPlaybackDevice(
             deviceID: "stale-spotiglass",
             isActive: true,
             isRestricted: false,
             name: SpotifyPlaybackHost.deviceName,
             type: "computer"
         )
-        let otherDevice = SpotifyConnectDevice(
+        let otherDevice = MusicPlaybackDevice(
             deviceID: "other-device",
             isActive: true,
             isRestricted: false,
@@ -199,15 +193,13 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
             type: "speaker"
         )
         playbackAPI.availableDevices = [staleDevice]
-        playbackAPI.snapshotResponses = [SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+        playbackAPI.snapshotResponses = [MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: false, repeatMode: .off),
             activeDevice: otherDevice,
             isPlaying: true
         )]
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: MockWebPlaybackCommander()
-        )
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()))
         viewModel.deviceID = "new-spotiglass"
         viewModel.setConnectionState(.ready(deviceID: "new-spotiglass"))
 
@@ -221,7 +213,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
 
     func testAutoResumeUsesSafePauseWhenPlayerSnapshotIsAbsent() async {
         let playbackAPI = MockPlaybackAPI()
-        let staleDevice = SpotifyConnectDevice(
+        let staleDevice = MusicPlaybackDevice(
             deviceID: "stale-spotiglass",
             isActive: true,
             isRestricted: false,
@@ -231,9 +223,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
         playbackAPI.availableDevices = [staleDevice]
         playbackAPI.snapshotResponses = [nil]
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: MockWebPlaybackCommander()
-        )
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()))
         viewModel.deviceID = "new-spotiglass"
         viewModel.setConnectionState(.ready(deviceID: "new-spotiglass"))
 
@@ -247,7 +237,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
 
     func testAutoResumeUsesSafePauseWhenPlayerSnapshotReadFails() async {
         let playbackAPI = MockPlaybackAPI()
-        let staleDevice = SpotifyConnectDevice(
+        let staleDevice = MusicPlaybackDevice(
             deviceID: "stale-spotiglass",
             isActive: true,
             isRestricted: false,
@@ -257,9 +247,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
         playbackAPI.availableDevices = [staleDevice]
         playbackAPI.fetchPlayerSnapshotError = SpotifyAPIError.network("offline")
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: MockWebPlaybackCommander()
-        )
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()))
         viewModel.deviceID = "new-spotiglass"
         viewModel.setConnectionState(.ready(deviceID: "new-spotiglass"))
 
@@ -274,11 +262,10 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
     func testRefreshConnectDevicesSkipsNetworkInsideFreshnessWindow() async {
         let playbackAPI = MockPlaybackAPI()
         playbackAPI.availableDevices = [
-            SpotifyConnectDevice(deviceID: "a", isActive: false, isRestricted: false, name: "Mac", type: "computer")
+            MusicPlaybackDevice(deviceID: "a", isActive: false, isRestricted: false, name: "Mac", type: "computer")
         ]
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()),
             connectDevicesFreshnessWindow: .seconds(5)
         )
 
@@ -293,11 +280,10 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
         let playbackAPI = MockPlaybackAPI()
         playbackAPI.fetchAvailableDevicesDelayNanoseconds = 80_000_000
         playbackAPI.availableDevices = [
-            SpotifyConnectDevice(deviceID: "a", isActive: false, isRestricted: false, name: "Mac", type: "computer")
+            MusicPlaybackDevice(deviceID: "a", isActive: false, isRestricted: false, name: "Mac", type: "computer")
         ]
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()),
             connectDevicesFreshnessWindow: .seconds(0)
         )
 
@@ -313,11 +299,10 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
     func testTransferPlaybackForcesDeviceRefreshOutsideFreshnessWindow() async {
         let playbackAPI = MockPlaybackAPI()
         playbackAPI.availableDevices = [
-            SpotifyConnectDevice(deviceID: "target", isActive: false, isRestricted: false, name: "Speaker", type: "speaker")
+            MusicPlaybackDevice(deviceID: "target", isActive: false, isRestricted: false, name: "Speaker", type: "speaker")
         ]
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()),
             connectDevicesFreshnessWindow: .seconds(30)
         )
         viewModel.handle(.ready(deviceID: "device-1"))
@@ -331,9 +316,9 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
 
     func testStaleTransportSnapshotCannotReplaceSelectedConnectDevice() async {
         let playbackAPI = MockPlaybackAPI()
-        playbackAPI.snapshotResponses = [SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
-            activeDevice: SpotifyConnectDevice(
+        playbackAPI.snapshotResponses = [MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: false, repeatMode: .off),
+            activeDevice: MusicPlaybackDevice(
                 deviceID: "sdk-device",
                 isActive: true,
                 isRestricted: false,
@@ -343,12 +328,10 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
             isPlaying: false
         )]
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: MockWebPlaybackCommander()
-        )
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()))
         viewModel.deviceID = "sdk-device"
         viewModel.setActivePlaybackDeviceID("sdk-device")
-        viewModel.connectDevices = [SpotifyConnectDevice(
+        viewModel.connectDevices = [MusicPlaybackDevice(
             deviceID: "living-room",
             isActive: false,
             isRestricted: false,
@@ -364,7 +347,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
     func testConnectTransferMakesNextCommandUseSelectedDevice() async {
         let playbackAPI = MockPlaybackAPI()
         playbackAPI.availableDevices = [
-            SpotifyConnectDevice(
+            MusicPlaybackDevice(
                 deviceID: "living-room",
                 isActive: false,
                 isRestricted: false,
@@ -373,8 +356,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
             )
         ]
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()),
             skipCommandMinimumSpacing: .zero
         )
         viewModel.handle(.ready(deviceID: "sdk-device"))
@@ -393,7 +375,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
     func testConnectTransferRoutesSupportedCommandsToSelectedDevice() async {
         let playbackAPI = MockPlaybackAPI()
         playbackAPI.availableDevices = [
-            SpotifyConnectDevice(
+            MusicPlaybackDevice(
                 deviceID: "living-room",
                 isActive: false,
                 isRestricted: false,
@@ -405,8 +387,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
         playbackAPI.onSeek = { _ in seekSent.signal() }
         let commander = MockWebPlaybackCommander()
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: commander,
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: commander),
             postShuffleSyncDelay: .seconds(10),
             postRepeatSyncDelay: .seconds(10),
             skipCommandMinimumSpacing: .zero
@@ -421,7 +402,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
         let didSeek = await seekSent.wait(timeout: .seconds(1))
         await viewModel.cycleRepeat()
         await viewModel.toggleShuffle()
-        let queue = QueueViewModel(playbackAPI: playbackAPI, playbackSession: viewModel)
+        let queue = QueueViewModel(provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI), playbackSession: viewModel)
         await queue.addToQueue(uri: "spotify:track:queued")
         await viewModel.play(uri: "spotify:track:played")
         await viewModel.togglePlayPause()
@@ -444,8 +425,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
     func testPreviousBurstWithinCooldownIssuesSinglePOST() async {
         let playbackAPI = MockPlaybackAPI()
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()),
             skipCommandMinimumSpacing: .seconds(60)
         )
         viewModel.handle(.ready(deviceID: "device-1"))
@@ -465,8 +445,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
     func testNextAndPreviousShareSkipCooldownGate() async {
         let playbackAPI = MockPlaybackAPI()
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()),
             skipCommandMinimumSpacing: .seconds(60)
         )
         viewModel.handle(.ready(deviceID: "device-1"))
@@ -486,8 +465,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
     func testSkipCommandsAreReleasedOnceCooldownElapses() async throws {
         let playbackAPI = MockPlaybackAPI()
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()),
             skipCommandMinimumSpacing: .milliseconds(500)
         )
         viewModel.handle(.ready(deviceID: "device-1"))
@@ -521,8 +499,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
             await releaseNext.wait()
         }
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()),
             skipCommandMinimumSpacing: .zero,
             skipCommandLockoutTimeout: .seconds(2)
         )
@@ -572,8 +549,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
             await releaseNext.wait()
         }
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()),
             skipCommandMinimumSpacing: .zero,
             skipCommandLockoutTimeout: .seconds(2)
         )
@@ -624,8 +600,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
         let playbackAPI = MockPlaybackAPI()
         playbackAPI.nextError = URLError(.notConnectedToInternet)
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()),
             skipCommandMinimumSpacing: .zero
         )
         viewModel.handle(.ready(deviceID: "device-1"))
@@ -649,8 +624,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
             await releaseNext.wait()
         }
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()),
             skipCommandMinimumSpacing: .zero,
             skipCommandLockoutTimeout: .seconds(2)
         )
@@ -691,8 +665,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
             await releaseNext.wait()
         }
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()),
             skipCommandMinimumSpacing: .zero,
             skipCommandLockoutTimeout: .seconds(2)
         )
@@ -725,8 +698,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
     func testPreviousPreservesAnUnresolvedNextLockout() async {
         let playbackAPI = MockPlaybackAPI()
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()),
             skipCommandMinimumSpacing: .zero,
             skipCommandLockoutTimeout: .seconds(2)
         )
@@ -758,8 +730,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
     func testNextLocksOutUntilPlaybackURIAdvances() async {
         let playbackAPI = MockPlaybackAPI()
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()),
             skipCommandMinimumSpacing: .zero,
             skipCommandLockoutTimeout: .seconds(2)
         )
@@ -805,8 +776,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
     func testNextLockoutTimeoutEventuallyAllowsAnotherDispatch() async {
         let playbackAPI = MockPlaybackAPI()
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()),
             skipCommandMinimumSpacing: .zero,
             skipCommandLockoutTimeout: .milliseconds(40)
         )
@@ -845,7 +815,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
             transferStarted.signal()
             await releaseTransfer.wait()
         }
-        let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander())
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()))
         viewModel.handle(.ready(deviceID: "device-1"))
         viewModel.handle(.playbackError("retry me"))
 
@@ -871,7 +841,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
             transferStarted.signal()
             await releaseTransfer.wait()
         }
-        let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander())
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()))
         viewModel.handle(.ready(deviceID: "device-1"))
 
         let playTask = Task {
@@ -898,7 +868,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
             await releaseTransfer.wait()
         }
         playbackAPI.availableDevices = [
-            SpotifyConnectDevice(
+            MusicPlaybackDevice(
                 deviceID: "target",
                 isActive: false,
                 isRestricted: false,
@@ -906,7 +876,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
                 type: "speaker"
             )
         ]
-        let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander())
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()))
         viewModel.handle(.ready(deviceID: "device-1"))
 
         let transferTask = Task {
@@ -934,7 +904,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
             transferStarted.signal()
             await releaseTransfer.wait()
         }
-        let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander())
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()))
         viewModel.handle(.ready(deviceID: "device-1"))
 
         let firstTransfer = Task {
@@ -964,7 +934,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
         }
         // Stretch the transfer enough that two `play()` calls overlap the in-flight PUT.
         playbackAPI.transferPlaybackDelayNanoseconds = 150_000_000
-        let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander())
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()))
         viewModel.handle(.ready(deviceID: "device-1"))
 
         async let first: Void = viewModel.play(uri: "spotify:track:1")
@@ -988,14 +958,14 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
 
     func testEnsurePlaybackSkipsTransferWhenSnapshotShowsTargetDeviceActive() async {
         let playbackAPI = MockPlaybackAPI()
-        playbackAPI.activeConnectDevice = SpotifyConnectDevice(
+        playbackAPI.activeConnectDevice = MusicPlaybackDevice(
             deviceID: "device-1",
             isActive: true,
             isRestricted: false,
             name: "Spotiglass",
             type: "computer"
         )
-        let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander())
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()))
         viewModel.handle(.ready(deviceID: "device-1"))
         // Prime `latestPlayerSnapshot` so the idempotency check reads a fresh active device.
         await viewModel.syncTransportFromSpotify()
@@ -1012,7 +982,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
     func testManualConnectTransferSkipsWhenTargetDeviceIsAlreadyActive() async {
         let playbackAPI = MockPlaybackAPI()
         playbackAPI.availableDevices = [
-            SpotifyConnectDevice(
+            MusicPlaybackDevice(
                 deviceID: "device-other",
                 isActive: true,
                 isRestricted: false,
@@ -1020,7 +990,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
                 type: "speaker"
             )
         ]
-        let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander())
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()))
         viewModel.handle(.ready(deviceID: "device-1"))
         // Connect picker reads `connectDevices`; populate it before the manual transfer.
         await viewModel.refreshConnectDevices(force: true)
@@ -1036,7 +1006,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
     func testRateLimitedTransferSetsCooldownAndShortCircuitsImmediateRetry() async {
         let playbackAPI = MockPlaybackAPI()
         playbackAPI.transferPlaybackErrors = [SpotifyAPIError.rateLimited(retryAfter: 5)]
-        let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander())
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()))
         viewModel.handle(.ready(deviceID: "device-1"))
         viewModel.handle(.notReady(deviceID: "device-1"))
         viewModel.handle(.ready(deviceID: "device-1"))
@@ -1063,8 +1033,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
     func testAutomaticTransferBudgetBlocksFurtherRetriesAfterCap() async {
         let playbackAPI = MockPlaybackAPI()
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()),
             autoTransferRollingWindow: .seconds(60),
             autoTransferRollingWindowMax: 2
         )

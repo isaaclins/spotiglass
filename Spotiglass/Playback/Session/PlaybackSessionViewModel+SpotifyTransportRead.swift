@@ -52,7 +52,7 @@ extension PlaybackSessionViewModel {
 
             do {
                 let volumeMutationVersionAtRequest = volumeMutationVersion
-                let snapshot = try await playbackAPI.fetchPlayerSnapshot()
+                let snapshot = try await provider.fetchPlaybackState()
                 guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
                 if let snapshot {
                     latestPlayerSnapshot = snapshot
@@ -77,11 +77,17 @@ extension PlaybackSessionViewModel {
                     expirePendingVolumeMutationIfNeeded(
                         startedWithVolumeMutationVersion: volumeMutationVersionAtRequest
                     )
+                    applyEmptyReadForReadOnlyPlayer()
                 }
                 transportTransientErrorCount = 0
                 transportRateLimitedUntil = nil
                 if localMutationSettleTicksRemaining > 0 {
                     localMutationSettleTicksRemaining -= 1
+                    // A play still waiting to start keeps its expectation past
+                    // the settle window; `clearPendingPlay()` ends it then.
+                    if localMutationSettleTicksRemaining == 0, pendingPlayTransition == nil {
+                        localCommandExpectsPlaying = nil
+                    }
                 }
                 refreshTrayOutputSymbol()
             } catch {
@@ -113,25 +119,38 @@ extension PlaybackSessionViewModel {
         }
     }
 
-    /// Publishes the Web API player item only while Spotify is playing on a
-    /// Connect device other than the embedded Web Playback SDK device. Local
+    /// Publishes the read player item while the playing player's state is only
+    /// read: Spotify on a Connect device other than the embedded Web Playback
+    /// SDK device, or an in-app player that does not push state events. Pushed
     /// SDK state remains authoritative for the Spotiglass device.
-    private func applyRemotePlaybackSnapshot(_ snapshot: SpotifyPlayerSnapshot) {
-        guard let localDeviceID = deviceID,
-              let activeDevice = snapshot.activeDevice,
-              activeDevice.deviceID != localDeviceID else { return }
-        // A just-issued local command can be followed by one stale player
-        // snapshot. Preserve the selected target during that settle window,
-        // but accept the snapshot once it agrees with that target.
-        guard localMutationSettleTicksRemaining == 0
-            || activePlaybackDeviceID == activeDevice.deviceID else { return }
+    private func applyRemotePlaybackSnapshot(_ snapshot: MusicPlaybackSnapshot) {
+        guard let localDeviceID = deviceID else { return }
+        let snapshotDeviceID: String
+        if provider.capabilities.contains(.pushesPlayerState) {
+            guard let activeDevice = snapshot.activeDevice,
+                  activeDevice.deviceID != localDeviceID else { return }
+            // A just-issued local command can be followed by one stale player
+            // snapshot. Preserve the selected target during that settle window,
+            // but accept the snapshot once it agrees with that target.
+            guard localMutationSettleTicksRemaining == 0
+                || activePlaybackDeviceID == activeDevice.deviceID else { return }
+            snapshotDeviceID = activeDevice.deviceID
+        } else {
+            // The in-app player's own reads lag its commands (a player can
+            // still report "playing" right after it was stopped), so during
+            // the settle window after a local command only a read that agrees
+            // with that command is applied.
+            guard localMutationSettleTicksRemaining == 0
+                || readAgreesWithLocalCommand(snapshot) else { return }
+            snapshotDeviceID = snapshot.activeDevice?.deviceID ?? localDeviceID
+        }
 
-        setActivePlaybackDeviceID(activeDevice.deviceID)
+        setActivePlaybackDeviceID(snapshotDeviceID)
         let remoteNowPlaying = snapshot.playbackNowPlaying
         let suppressed = shouldSuppressStaleStateChange(nowPlaying: remoteNowPlaying)
         SpotiglassLog.info(
             .playback,
-            "Remote player snapshot deviceID=\(activeDevice.deviceID) itemURI=\(remoteNowPlaying?.uri ?? "<nil>") isPlaying=\(snapshot.isPlaying) progressMs=\(snapshot.progressMilliseconds ?? 0) suppressed=\(suppressed)"
+            "Remote player snapshot deviceID=\(snapshotDeviceID) itemURI=\(remoteNowPlaying?.uri ?? "<nil>") isPlaying=\(snapshot.isPlaying) progressMs=\(snapshot.progressMilliseconds ?? 0) suppressed=\(suppressed)"
         )
         observeSkipAdvance(nowPlayingURI: remoteNowPlaying?.uri)
         guard !suppressed else { return }
@@ -151,6 +170,36 @@ extension PlaybackSessionViewModel {
         }
     }
 
+    /// For a player whose state is only read: whether a read taken during the
+    /// settle window confirms the last local command instead of predating it.
+    /// Only play / pause can be stale this way (a player still reports
+    /// "playing" right after it was stopped); which item plays is fenced by the
+    /// pending play and skip tracking.
+    private func readAgreesWithLocalCommand(_ snapshot: MusicPlaybackSnapshot) -> Bool {
+        guard let localCommandExpectsPlaying else { return true }
+        return snapshot.isPlaying == localCommandExpectsPlaying
+    }
+
+    /// For a player whose state is only read, an empty read means nothing is
+    /// playing on it any more. Nothing else will correct a `.playing` or
+    /// `.paused` item, so fall back to `.ready`, unless a play command is still
+    /// waiting for the player to start.
+    private func applyEmptyReadForReadOnlyPlayer() {
+        guard !provider.capabilities.contains(.pushesPlayerState),
+              pendingPlayTransition == nil,
+              let localDeviceID = deviceID else { return }
+        switch connectionState {
+        case .playing, .paused:
+            SpotiglassLog.info(.playback, "Empty player read; nothing is playing on deviceID=\(localDeviceID)")
+            // Nothing is left to pause or resume, so the next toggle must not
+            // follow the expectation of a command the player already finished.
+            localCommandExpectsPlaying = nil
+            setConnectionState(.ready(deviceID: localDeviceID))
+        case .disconnected, .connecting, .ready, .transferring, .unavailable, .error:
+            break
+        }
+    }
+
     private func expirePendingVolumeMutationIfNeeded(
         startedWithVolumeMutationVersion requestVersion: UInt64
     ) {
@@ -161,7 +210,7 @@ extension PlaybackSessionViewModel {
     }
 
     private func applyTransportVolume(
-        _ snapshot: SpotifyPlayerSnapshot,
+        _ snapshot: MusicPlaybackSnapshot,
         startedWithVolumeMutationVersion requestVersion: UInt64
     ) {
         guard requestVersion == volumeMutationVersion else { return }
@@ -270,6 +319,8 @@ extension PlaybackSessionViewModel {
     ) async {
         let generation = generation ?? playbackHostGeneration
         guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
+        // Services without device transfer have no device list to show.
+        guard let deviceTransfer = provider.deviceTransfer else { return }
         if !force,
            let lastConnectDevicesRefreshAt,
            clock.now < lastConnectDevicesRefreshAt.advanced(by: connectDevicesFreshnessWindow) {
@@ -299,7 +350,7 @@ extension PlaybackSessionViewModel {
         }
 
         let refreshTask = Task {
-            try await playbackAPI.fetchAvailableDevices()
+            try await deviceTransfer.fetchAvailableDevices()
         }
         connectDevicesRefreshTask = refreshTask
         connectDevicesRefreshGeneration = generation
@@ -323,9 +374,26 @@ extension PlaybackSessionViewModel {
         }
     }
 
-    func noteLocalPlaybackMutation(shouldSyncTransportImmediately: Bool = true) {
+    func noteLocalPlaybackMutation(
+        shouldSyncTransportImmediately: Bool = true,
+        playExpectation: LocalCommandPlayExpectation = .unchanged
+    ) {
         localMutationSettleTicksRemaining = max(localMutationSettleTicksRemaining, 2)
         transportRateLimitedUntil = nil
+        switch playExpectation {
+        case .unchanged: break
+        case .playing: localCommandExpectsPlaying = true
+        case .paused: localCommandExpectsPlaying = false
+        }
+        if !provider.capabilities.contains(.pushesPlayerState),
+           transportPollReadingSerial != transportPollLoopSerial {
+            // Reads are this player's only state source. Restart the poll loop
+            // so it reads at the settle cadence now instead of finishing a long
+            // sleep picked before the command (20 s while `.ready`). A loop
+            // that is mid-read picks the settle cadence itself after the read,
+            // and cancelling it would drop the read queued below.
+            restartTransportPollingIfNeeded()
+        }
         guard shouldSyncTransportImmediately else { return }
         scheduleTransportSync()
     }

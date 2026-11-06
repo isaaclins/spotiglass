@@ -3,7 +3,7 @@ import Foundation
 @MainActor
 extension PlaybackSessionViewModel {
     func togglePlayPause() async {
-        if isRemotePlaybackActive {
+        if isPlayerStateRead {
             await toggleRemotePlayback()
             return
         }
@@ -11,16 +11,17 @@ extension PlaybackSessionViewModel {
         togglePlayPauseAwaitingBridgeAck = true
         scheduleTogglePlayPauseAckTimeout()
         do {
-            try await webCommander.send(.togglePlay, payload: [:])
+            try await provider.togglePlayPause()
         } catch {
             clearTogglePlayPauseAckWait()
             setConnectionState(.error(Self.displayError(for: error)))
         }
     }
 
-    /// Uses Spotify's Web API when the selected Connect device is not the
-    /// embedded Web Playback SDK device. The SDK cannot control a remote
-    /// player, so silently returning here would make the transport a dead
+    /// Uses explicit pause / resume commands when the playing player's state is
+    /// only read (``isPlayerStateRead``): a remote Connect device, which the
+    /// embedded Web Playback SDK cannot control, or an in-app player without
+    /// state events. Silently returning here would make the transport a dead
     /// button.
     private func toggleRemotePlayback() async {
         guard Self.isPlaybackTransportReady(for: connectionState),
@@ -29,15 +30,23 @@ extension PlaybackSessionViewModel {
         guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
 
         let shouldPause: Bool
-        switch connectionState {
-        case .playing:
-            shouldPause = true
-        case .paused:
-            shouldPause = false
-        case .ready, .transferring:
-            shouldPause = latestPlayerSnapshot?.isPlaying == true
-        case .disconnected, .connecting, .unavailable, .error:
-            return
+        if !provider.capabilities.contains(.pushesPlayerState),
+           let localCommandExpectsPlaying {
+            // A player without pushed state may not have confirmed the last
+            // pause, resume or play yet (a new item can still show `.ready`
+            // or the previous `.paused` item). Toggle what was asked for.
+            shouldPause = localCommandExpectsPlaying
+        } else {
+            switch connectionState {
+            case .playing:
+                shouldPause = true
+            case .paused:
+                shouldPause = false
+            case .ready, .transferring:
+                shouldPause = latestPlayerSnapshot?.isPlaying == true
+            case .disconnected, .connecting, .unavailable, .error:
+                return
+            }
         }
         let action = shouldPause ? "pause" : "resume"
         SpotiglassLog.info(
@@ -48,9 +57,9 @@ extension PlaybackSessionViewModel {
         do {
             try await performPrioritizedControlCommand {
                 if shouldPause {
-                    try await playbackAPI.pause(deviceID: commandDeviceID)
+                    try await provider.pause(deviceID: commandDeviceID)
                 } else {
-                    try await playbackAPI.resume(deviceID: commandDeviceID)
+                    try await provider.resume(deviceID: commandDeviceID)
                 }
             }
             guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
@@ -66,7 +75,7 @@ extension PlaybackSessionViewModel {
             } else {
                 setConnectionState(.playing(optimisticNowPlaying ?? fallbackNowPlaying()))
             }
-            noteLocalPlaybackMutation()
+            noteLocalPlaybackMutation(playExpectation: shouldPause ? .paused : .playing)
         } catch {
             guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
             setConnectionState(.error(Self.displayError(for: error)))
@@ -144,13 +153,13 @@ extension PlaybackSessionViewModel {
         )
         pendingSkipDispatch = dispatch
         isSkipCommandPending = true
-        let succeeded = await sendDeviceCommand(dispatch: dispatch) { [playbackAPI] deviceID in
+        let succeeded = await sendDeviceCommand(dispatch: dispatch) { [provider] deviceID in
             try await performPrioritizedControlCommand {
                 switch kind {
                 case .previous:
-                    try await playbackAPI.previous(deviceID: deviceID)
+                    try await provider.skipToPrevious(deviceID: deviceID)
                 case .next:
-                    try await playbackAPI.next(deviceID: deviceID)
+                    try await provider.skipToNext(deviceID: deviceID)
                 }
             }
         }
@@ -272,6 +281,12 @@ extension PlaybackSessionViewModel {
                   ownsPlaybackHostGeneration(dispatch.hostGeneration),
                   !Task.isCancelled
             else { return false }
+            if !provider.capabilities.contains(.pushesPlayerState) {
+                // The player has moved past the item a pending play waits for,
+                // so that fence would reject every read of the new item. Only
+                // reads can confirm the skip; let them through.
+                clearPendingPlay()
+            }
             noteLocalPlaybackMutation()
             return true
         } catch {

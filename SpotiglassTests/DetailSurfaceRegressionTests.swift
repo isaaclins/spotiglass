@@ -196,8 +196,7 @@ final class DetailSurfaceRegressionTests: XCTestCase {
     func testShuffleHeaderEnablesShuffleBeforePlayingContext() async {
         let playbackAPI = MockPlaybackAPI()
         let playbackViewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()),
             postShuffleSyncDelay: .seconds(60)
         )
         playbackViewModel.deviceID = "device-1"
@@ -223,9 +222,7 @@ final class DetailSurfaceRegressionTests: XCTestCase {
     func testLikedSongsHeaderPlaysItsLoadedURIList() async {
         let playbackAPI = MockPlaybackAPI()
         let playbackViewModel = PlaybackSessionViewModel(
-            playbackAPI: playbackAPI,
-            webCommander: MockWebPlaybackCommander()
-        )
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()))
         playbackViewModel.deviceID = "device-1"
         playbackViewModel.hasTransferredPlaybackToCurrentDevice = true
 

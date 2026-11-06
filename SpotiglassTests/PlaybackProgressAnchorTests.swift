@@ -29,9 +29,7 @@ final class PlaybackProgressAnchorTests: XCTestCase {
     @MainActor
     func testReanchorOnStateChangedUpdatesAnchor() async {
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: MockPlaybackAPI(),
-            webCommander: MockWebPlaybackCommander()
-        )
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
         viewModel.handle(.stateChanged(PlaybackNowPlaying(
             name: "Track",
             artists: ["Artist"],

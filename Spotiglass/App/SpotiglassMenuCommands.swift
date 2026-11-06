@@ -68,7 +68,7 @@ struct SpotiglassMenuCommands: Commands {
         activeCommandPaletteManager?.shuffleEnabled ?? false
     }
 
-    var selectedRepeatMode: SpotifyRepeatMode {
+    var selectedRepeatMode: MusicRepeatMode {
         activeCommandPaletteManager?.repeatMode ?? .off
     }
 
@@ -192,7 +192,7 @@ struct SpotiglassMenuCommands: Commands {
             // Keep this native Picker unshortcutted so its live selection state
             // remains represented by AppKit's menu-item checkmark (#320).
             Picker(SpotiglassL10n.string("menu.playback.repeat", locale: currentLocale), selection: repeatModeBinding) {
-                ForEach(SpotifyRepeatMode.allCases, id: \.self) { mode in
+                ForEach(MusicRepeatMode.allCases, id: \.self) { mode in
                     Text(repeatModeLabel(for: mode))
                         .tag(mode)
                 }
@@ -304,7 +304,7 @@ struct SpotiglassMenuCommands: Commands {
         )
     }
 
-    private var repeatModeBinding: Binding<SpotifyRepeatMode> {
+    private var repeatModeBinding: Binding<MusicRepeatMode> {
         Binding(
             get: { selectedRepeatMode },
             set: { [weak manager = activeCommandPaletteManager] newMode in
@@ -314,7 +314,7 @@ struct SpotiglassMenuCommands: Commands {
         )
     }
 
-    private func repeatModeLabel(for mode: SpotifyRepeatMode) -> String {
+    private func repeatModeLabel(for mode: MusicRepeatMode) -> String {
         switch mode {
         case .off:
             SpotiglassL10n.string("playback.repeat.off", locale: locale)

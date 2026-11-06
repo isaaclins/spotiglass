@@ -12,10 +12,8 @@ final class PlaylistBrowserCommandPaletteConfigurationTests: XCTestCase {
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
         await viewModel.load()
         let playback = PlaybackSessionViewModel(
-            playbackAPI: MockPlaybackAPI(),
-            webCommander: MockWebPlaybackCommander()
-        )
-        let queue = QueueViewModel(playbackAPI: MockPlaybackAPI(), playbackSession: playback)
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
+        let queue = QueueViewModel(provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI()), playbackSession: playback)
         let manager = CommandPaletteManager()
         let store = PinnedItemsStore(cache: InMemoryPinnedItemsCache())
         store.bind(userID: "u1")
@@ -81,11 +79,9 @@ final class PlaylistBrowserCommandPaletteConfigurationTests: XCTestCase {
             cache: MockBrowsingCache()
         )
         let queue = QueueViewModel(
-            playbackAPI: MockPlaybackAPI(),
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI()),
             playbackSession: PlaybackSessionViewModel(
-                playbackAPI: MockPlaybackAPI(),
-                webCommander: MockWebPlaybackCommander()
-            )
+                provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
         )
         let manager = CommandPaletteManager()
         var pinnedIDs: Set<String> = []

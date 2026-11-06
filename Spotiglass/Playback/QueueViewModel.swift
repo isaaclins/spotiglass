@@ -12,9 +12,10 @@ final class QueueViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var lastError: BrowsingDisplayError?
 
-    let playbackAPI: SpotifyPlaybackControlling
+    /// The music service's player; the queue is read from and added to through it.
+    let provider: any MusicPlaybackProvider
     let playbackSession: PlaybackSessionViewModel
-    var lastFetchedQueue: SpotifyQueueResponse?
+    var lastFetchedQueue: MusicPlaybackQueue?
     /// Immediate queue projection used while waiting for Spotify queue
     /// reconciliation (e.g. optimistic shuffle UX).
     var optimisticUpcomingItems: [QueueItem]?
@@ -88,7 +89,7 @@ final class QueueViewModel: ObservableObject {
     }
 
     init(
-        playbackAPI: SpotifyPlaybackControlling,
+        provider: any MusicPlaybackProvider,
         playbackSession: PlaybackSessionViewModel,
         pollIntervalNanoseconds: UInt64 = 4_000_000_000,
         pausedPollIntervalNanoseconds: UInt64 = 12_000_000_000,
@@ -104,7 +105,7 @@ final class QueueViewModel: ObservableObject {
         enqueueUnknownOutcomeCooldown: Duration = .seconds(5),
         enqueueMinimumRetryDelay: Duration = .seconds(1)
     ) {
-        self.playbackAPI = playbackAPI
+        self.provider = provider
         self.playbackSession = playbackSession
         self.pollIntervalNanoseconds = pollIntervalNanoseconds
         self.pausedPollIntervalNanoseconds = pausedPollIntervalNanoseconds

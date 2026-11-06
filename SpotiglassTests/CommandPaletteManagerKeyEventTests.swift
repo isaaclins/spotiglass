@@ -244,9 +244,7 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
             replaceConflicting: true
         )
         let playback = PlaybackSessionViewModel(
-            playbackAPI: MockPlaybackAPI(),
-            webCommander: MockWebPlaybackCommander()
-        )
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
         manager.bindPlaybackReadiness(to: playback)
         var toggled = 0
         manager.toggleLyrics = { toggled += 1 }

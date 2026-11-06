@@ -53,9 +53,7 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
         let browserVM = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
         await browserVM.load()
         let playbackVM = PlaybackSessionViewModel(
-            playbackAPI: MockPlaybackAPI(),
-            webCommander: MockWebPlaybackCommander()
-        )
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
         let store = PinnedItemsStore(cache: InMemoryPinnedItemsCache())
         store.bind(userID: "user")
         let liked = PlaylistRowViewModel(likedSongsOwnerDisplay: "You", totalTrackCount: nil, artworkURL: nil)
@@ -89,11 +87,9 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
             cache: MockBrowsingCache()
         )
         let playbackVM = PlaybackSessionViewModel(
-            playbackAPI: MockPlaybackAPI(),
-            webCommander: MockWebPlaybackCommander()
-        )
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
         let queueVM = QueueViewModel(
-            playbackAPI: MockPlaybackAPI(),
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI()),
             playbackSession: playbackVM
         )
         let split = PlaylistBrowserDetailWithQueueSplit(
@@ -137,10 +133,8 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
         )
         browserVM.detailState = .loading
         let playbackVM = PlaybackSessionViewModel(
-            playbackAPI: MockPlaybackAPI(),
-            webCommander: MockWebPlaybackCommander()
-        )
-        let queueVM = QueueViewModel(playbackAPI: MockPlaybackAPI(), playbackSession: playbackVM)
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
+        let queueVM = QueueViewModel(provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI()), playbackSession: playbackVM)
         let column = PlaylistBrowserMainDetailColumn(
             viewModel: browserVM,
             playbackViewModel: playbackVM,
@@ -203,9 +197,7 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
             cache: MockBrowsingCache()
         )
         let playbackVM = PlaybackSessionViewModel(
-            playbackAPI: MockPlaybackAPI(),
-            webCommander: MockWebPlaybackCommander()
-        )
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
         let store = PinnedItemsStore(cache: InMemoryPinnedItemsCache())
         store.bind(userID: "u1")
         let liked = PlaylistRowViewModel(likedSongsOwnerDisplay: "You", totalTrackCount: nil, artworkURL: nil)
@@ -243,10 +235,8 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
         browserVM.detailState = .loading
 
         let playbackVM = PlaybackSessionViewModel(
-            playbackAPI: MockPlaybackAPI(),
-            webCommander: MockWebPlaybackCommander()
-        )
-        let queueVM = QueueViewModel(playbackAPI: MockPlaybackAPI(), playbackSession: playbackVM)
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
+        let queueVM = QueueViewModel(provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI()), playbackSession: playbackVM)
         let column = PlaylistBrowserMainDetailColumn(
             viewModel: browserVM,
             playbackViewModel: playbackVM,

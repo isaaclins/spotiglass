@@ -24,7 +24,7 @@ extension PlaybackSessionViewModel {
         do {
             try await performPrioritizedControlCommand {
                 try await ensurePlaybackTransferredIfNeeded(deviceID: commandDeviceID)
-                try await playbackAPI.play(uri: uri, deviceID: commandDeviceID)
+                try await provider.play(.item(uri: uri), deviceID: commandDeviceID)
             }
             SpotiglassLog.info(.playback, "play(uri:) API ok uri=\(uri)")
             guard ownsPlaybackHostGeneration(generation), !Task.isCancelled,
@@ -32,12 +32,12 @@ extension PlaybackSessionViewModel {
                 SpotiglassLog.info(.playback, "play(uri:) superseded after API uri=\(uri)")
                 return
             }
-            noteLocalPlaybackMutation(shouldSyncTransportImmediately: false)
+            noteLocalPlaybackMutation(shouldSyncTransportImmediately: false, playExpectation: .playing)
             if let optimisticNowPlaying = optimisticNowPlaying(for: uri) {
                 setConnectionState(.playing(optimisticNowPlaying.with(positionMilliseconds: 0)))
             }
             if !isRemotePlaybackActive {
-                try await webCommander.send(.playURI, payload: ["uri": uri])
+                try await provider.didStartLocalPlayback(uri: uri)
             }
             finalizePlayCommandDispatchIfCurrent(dispatch)
         } catch {
@@ -66,13 +66,13 @@ extension PlaybackSessionViewModel {
         do {
             try await performPrioritizedControlCommand {
                 try await ensurePlaybackTransferredIfNeeded(deviceID: commandDeviceID)
-                try await playbackAPI.play(contextURI: contextURI, deviceID: commandDeviceID)
+                try await provider.play(.context(uri: contextURI), deviceID: commandDeviceID)
             }
             guard ownsPlaybackHostGeneration(generation), !Task.isCancelled,
                   isPlayCommandDispatchCurrent(dispatch) else { return }
-            noteLocalPlaybackMutation(shouldSyncTransportImmediately: false)
+            noteLocalPlaybackMutation(shouldSyncTransportImmediately: false, playExpectation: .playing)
             if !isRemotePlaybackActive {
-                try await webCommander.send(.playURI, payload: ["uri": contextURI])
+                try await provider.didStartLocalPlayback(uri: contextURI)
             }
             finalizePlayCommandDispatchIfCurrent(dispatch)
         } catch {
@@ -123,9 +123,8 @@ extension PlaybackSessionViewModel {
         do {
             try await performPrioritizedControlCommand {
                 try await ensurePlaybackTransferredIfNeeded(deviceID: commandDeviceID)
-                try await playbackAPI.play(
-                    uris: queue,
-                    offsetURI: clickedURI,
+                try await provider.play(
+                    .items(uris: queue, startURI: clickedURI),
                     deviceID: commandDeviceID
                 )
             }
@@ -135,12 +134,12 @@ extension PlaybackSessionViewModel {
                 SpotiglassLog.info(.playback, "playFromPlaylist superseded after API clickedURI=\(clickedURI)")
                 return
             }
-            noteLocalPlaybackMutation(shouldSyncTransportImmediately: false)
+            noteLocalPlaybackMutation(shouldSyncTransportImmediately: false, playExpectation: .playing)
             if let optimisticNowPlaying = optimisticNowPlaying(for: clickedURI) {
                 setConnectionState(.playing(optimisticNowPlaying.with(positionMilliseconds: 0)))
             }
             if !isRemotePlaybackActive {
-                try await webCommander.send(.playURI, payload: ["uri": clickedURI])
+                try await provider.didStartLocalPlayback(uri: clickedURI)
             }
             finalizePlayCommandDispatchIfCurrent(dispatch)
         } catch {
@@ -210,6 +209,11 @@ extension PlaybackSessionViewModel {
         pendingPlayTransitionSerial &+= 1
         guard pendingPlayTransition != nil else { return }
         pendingPlayTransition = nil
+        if localMutationSettleTicksRemaining == 0 {
+            // The settle window already ended; the pending play was the last
+            // thing holding the play / pause expectation.
+            localCommandExpectsPlaying = nil
+        }
         objectWillChange.send()
     }
 

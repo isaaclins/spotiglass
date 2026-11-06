@@ -91,9 +91,11 @@
 		D4000000000000000000007B /* PlaylistBrowserViewModel+ArtistTrackFallback.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000038 /* PlaylistBrowserViewModel+ArtistTrackFallback.swift */; };
 		D4000000000000000000007C /* PlaylistBrowserViewModel+PrefetchAllTracks.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4000000000000000000007D /* PlaylistBrowserViewModel+PrefetchAllTracks.swift */; };
 		D40000000000000000000091 /* PlaylistBrowserViewModel+TrackMutations.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000041 /* PlaylistBrowserViewModel+TrackMutations.swift */; };
-		E50000000000000000000001 /* SpotifyPlaybackModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000011 /* SpotifyPlaybackModels.swift */; };
+		E50000000000000000000001 /* MusicPlaybackModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000011 /* MusicPlaybackModels.swift */; };
 		E50000000000000000000002 /* SpotifyPlaybackBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000012 /* SpotifyPlaybackBridge.swift */; };
 		E50000000000000000000003 /* SpotifyPlaybackAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000013 /* SpotifyPlaybackAPI.swift */; };
+		SRC0000000000000000000026 /* SpotifyPlaybackProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC0000000000000000080026 /* SpotifyPlaybackProvider.swift */; };
+		SRC0000000000000000000025 /* MusicPlaybackProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC0000000000000000080025 /* MusicPlaybackProvider.swift */; };
 		E50000000000000000000004 /* PlaybackSessionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000014 /* PlaybackSessionViewModel.swift */; };
 		E50000000000000000000005 /* HiddenPlaybackWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000015 /* HiddenPlaybackWebView.swift */; };
 		E50000000000000000000006 /* PlaybackControlsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000016 /* PlaybackControlsView.swift */; };
@@ -359,6 +361,7 @@
 		TST0000000000000000009101 /* TestOnlyConvenienceAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010129 /* TestOnlyConvenienceAPI.swift */; };
 		TST000000000000000000C1 /* PlaybackProgressAnchorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000000C0 /* PlaybackProgressAnchorTests.swift */; };
 		TST000000000000000000C2 /* PlaylistBrowserPrefetchAllTracksTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */; };
+		TST000000000000000000012E /* MusicPlaybackProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000001012E /* MusicPlaybackProviderTests.swift */; };
 		TST000000000000000000012D /* MusicBrowsingProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000001012D /* MusicBrowsingProviderTests.swift */; };
 		TST000000000000000000012C /* ScreenshotModeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000001012C /* ScreenshotModeTests.swift */; };
 		TST000000000000000000012B /* DetailSurfaceRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000001012B /* DetailSurfaceRegressionTests.swift */; };
@@ -502,9 +505,11 @@
 		D40000000000000000000038 /* PlaylistBrowserViewModel+ArtistTrackFallback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlaylistBrowserViewModel+ArtistTrackFallback.swift"; sourceTree = "<group>"; };
 		D40000000000000000000041 /* PlaylistBrowserViewModel+TrackMutations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlaylistBrowserViewModel+TrackMutations.swift"; sourceTree = "<group>"; };
 		D4000000000000000000007D /* PlaylistBrowserViewModel+PrefetchAllTracks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlaylistBrowserViewModel+PrefetchAllTracks.swift"; sourceTree = "<group>"; };
-		E50000000000000000000011 /* SpotifyPlaybackModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyPlaybackModels.swift; sourceTree = "<group>"; };
+		E50000000000000000000011 /* MusicPlaybackModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicPlaybackModels.swift; sourceTree = "<group>"; };
 		E50000000000000000000012 /* SpotifyPlaybackBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyPlaybackBridge.swift; sourceTree = "<group>"; };
 		E50000000000000000000013 /* SpotifyPlaybackAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyPlaybackAPI.swift; sourceTree = "<group>"; };
+		SRC0000000000000000080026 /* SpotifyPlaybackProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyPlaybackProvider.swift; sourceTree = "<group>"; };
+		SRC0000000000000000080025 /* MusicPlaybackProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicPlaybackProvider.swift; sourceTree = "<group>"; };
 		E50000000000000000000014 /* PlaybackSessionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackSessionViewModel.swift; sourceTree = "<group>"; };
 		E50000000000000000000015 /* HiddenPlaybackWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HiddenPlaybackWebView.swift; sourceTree = "<group>"; };
 		E50000000000000000000016 /* PlaybackControlsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackControlsView.swift; sourceTree = "<group>"; };
@@ -676,6 +681,7 @@
 		TST0000000000000000010129 /* TestOnlyConvenienceAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestOnlyConvenienceAPI.swift; sourceTree = "<group>"; };
 		TST000000000000000000C0 /* PlaybackProgressAnchorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackProgressAnchorTests.swift; sourceTree = "<group>"; };
 		TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserPrefetchAllTracksTests.swift; sourceTree = "<group>"; };
+		TST000000000000000001012E /* MusicPlaybackProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicPlaybackProviderTests.swift; sourceTree = "<group>"; };
 		TST000000000000000001012D /* MusicBrowsingProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicBrowsingProviderTests.swift; sourceTree = "<group>"; };
 		TST000000000000000001012C /* ScreenshotModeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotModeTests.swift; sourceTree = "<group>"; };
 		TST000000000000000001012B /* DetailSurfaceRegressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailSurfaceRegressionTests.swift; sourceTree = "<group>"; };
@@ -949,11 +955,13 @@
 				H80000000000000000000012 /* ScrubberView.swift */,
 				SRC000000000000000008001F /* PlaybackSeekStep.swift */,
 				E50000000000000000000013 /* SpotifyPlaybackAPI.swift */,
+				SRC0000000000000000080026 /* SpotifyPlaybackProvider.swift */,
+				SRC0000000000000000080025 /* MusicPlaybackProvider.swift */,
 				E50000000000000000000012 /* SpotifyPlaybackBridge.swift */,
 				E50000000000000000000041 /* PlaybackOutputSFResolver.swift */,
 				E50000000000000000000043 /* MacDefaultAudioOutputNameProvider.swift */,
 				E50000000000000000000049 /* MacAudioOutputHardware.swift */,
-				E50000000000000000000011 /* SpotifyPlaybackModels.swift */,
+				E50000000000000000000011 /* MusicPlaybackModels.swift */,
 			);
 			path = Playback;
 			sourceTree = "<group>";
@@ -990,6 +998,7 @@
 				TST00000000000000000064 /* PlaylistBrowserNavigationTests.swift */,
 				TST00000000000000000065 /* PlaylistBrowserArtistFallbackTests.swift */,
 				TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */,
+				TST000000000000000001012E /* MusicPlaybackProviderTests.swift */,
 				TST000000000000000001012D /* MusicBrowsingProviderTests.swift */,
 				TST000000000000000001012C /* ScreenshotModeTests.swift */,
 				TST000000000000000001012B /* DetailSurfaceRegressionTests.swift */,
@@ -1653,9 +1662,11 @@
 				D40000000000000000000005 /* TrackListRow.swift in Sources */,
 				SRC000000000000000000001B /* TrackListView.swift in Sources */,
 				D40000000000000000000006 /* ArtistDetailView.swift in Sources */,
-				E50000000000000000000001 /* SpotifyPlaybackModels.swift in Sources */,
+				E50000000000000000000001 /* MusicPlaybackModels.swift in Sources */,
 				E50000000000000000000002 /* SpotifyPlaybackBridge.swift in Sources */,
 				E50000000000000000000003 /* SpotifyPlaybackAPI.swift in Sources */,
+				SRC0000000000000000000026 /* SpotifyPlaybackProvider.swift in Sources */,
+				SRC0000000000000000000025 /* MusicPlaybackProvider.swift in Sources */,
 				E50000000000000000000004 /* PlaybackSessionViewModel.swift in Sources */,
 				E50000000000000000000052 /* WebPlaybackViewCommander.swift in Sources */,
 				E50000000000000000000054 /* PlaybackSessionViewModel+Timers.swift in Sources */,
@@ -1752,6 +1763,7 @@
 				TST00000000000000000014 /* PlaylistBrowserNavigationTests.swift in Sources */,
 				TST00000000000000000015 /* PlaylistBrowserArtistFallbackTests.swift in Sources */,
 				TST000000000000000000C2 /* PlaylistBrowserPrefetchAllTracksTests.swift in Sources */,
+				TST000000000000000000012E /* MusicPlaybackProviderTests.swift in Sources */,
 				TST000000000000000000012D /* MusicBrowsingProviderTests.swift in Sources */,
 				TST000000000000000000012C /* ScreenshotModeTests.swift in Sources */,
 				TST000000000000000000012B /* DetailSurfaceRegressionTests.swift in Sources */,

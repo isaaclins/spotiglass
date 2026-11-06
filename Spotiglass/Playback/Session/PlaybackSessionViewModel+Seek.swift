@@ -18,11 +18,11 @@ extension PlaybackSessionViewModel {
     func updateSeekOwnership(from state: PlaybackConnectionState) {
         switch state {
         case let .playing(nowPlaying):
-            guard let trackURI = SpotifyPlayableURI.canonical(nowPlaying.uri) else { return }
+            guard let trackURI = MusicPlayableURI.canonical(nowPlaying.uri) else { return }
             updateSeekOwnership(trackURI: trackURI)
         case let .paused(nowPlaying):
             guard let nowPlaying,
-                  let trackURI = SpotifyPlayableURI.canonical(nowPlaying.uri) else { return }
+                  let trackURI = MusicPlayableURI.canonical(nowPlaying.uri) else { return }
             updateSeekOwnership(trackURI: trackURI)
         case .disconnected, .connecting, .ready, .transferring, .unavailable, .error:
             return
@@ -159,7 +159,7 @@ extension PlaybackSessionViewModel {
         }
         do {
             try await performPrioritizedControlCommand {
-                try await playbackAPI.seek(to: intent.milliseconds, deviceID: commandDeviceID)
+                try await provider.seek(to: intent.milliseconds, deviceID: commandDeviceID)
             }
             guard intent.owner == seekOwnershipKey, !Task.isCancelled else { return false }
             return true

@@ -29,7 +29,7 @@ final class PlaybackBridgeAndModelsTests: XCTestCase {
 
         XCTAssertEqual(
             envelope,
-            PlaybackBridgeEventEnvelope(
+            MusicPlaybackEventEnvelope(
                 event: .ready(deviceID: "device-1"),
                 hostGeneration: PlaybackHostGeneration(rawValue: 7)
             )
@@ -53,9 +53,7 @@ final class PlaybackBridgeAndModelsTests: XCTestCase {
     func testStaleWebPlaybackEventsCannotReplaceNewerConnectionAfterHostReload() {
         let commander = MockWebPlaybackCommander()
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: MockPlaybackAPI(),
-            webCommander: commander
-        )
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: commander))
         viewModel.handle(.ready(deviceID: "old-device"))
         viewModel.handle(.notReady(deviceID: "old-device"))
         viewModel.start()
@@ -109,7 +107,7 @@ final class PlaybackBridgeAndModelsTests: XCTestCase {
     func testTogglePlayPauseSerializesUntilBridgeAck() async {
         let commander = MockWebPlaybackCommander()
         let playbackAPI = MockPlaybackAPI()
-        let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: commander)
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: commander))
 
         await viewModel.togglePlayPause()
         XCTAssertEqual(commander.commands.filter { $0.command == .togglePlay }.count, 1)
@@ -126,7 +124,7 @@ final class PlaybackBridgeAndModelsTests: XCTestCase {
     func testPlaybackErrorClearsToggleAckWait() async {
         let commander = MockWebPlaybackCommander()
         let playbackAPI = MockPlaybackAPI()
-        let viewModel = PlaybackSessionViewModel(playbackAPI: playbackAPI, webCommander: commander)
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: commander))
 
         await viewModel.togglePlayPause()
         viewModel.handle(.playbackError("Spotify toggle failed"))

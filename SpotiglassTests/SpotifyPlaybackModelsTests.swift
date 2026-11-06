@@ -64,9 +64,9 @@ final class SpotifyPlaybackModelsTests: XCTestCase {
     }
 
     func testSpotifyRepeatModeCycles() {
-        XCTAssertEqual(SpotifyRepeatMode.off.next, .context)
-        XCTAssertEqual(SpotifyRepeatMode.context.next, .track)
-        XCTAssertEqual(SpotifyRepeatMode.track.next, .off)
+        XCTAssertEqual(MusicRepeatMode.off.next, .context)
+        XCTAssertEqual(MusicRepeatMode.context.next, .track)
+        XCTAssertEqual(MusicRepeatMode.track.next, .off)
     }
 
     func testQueueItemFromTrackEpisodeAndPlayback() {
@@ -162,7 +162,7 @@ final class SpotifyPlaybackModelsTests: XCTestCase {
     }
 
     func testSpotifyPlayerSnapshotAndConnectDevice() {
-        let device = SpotifyConnectDevice(
+        let device = MusicPlaybackDevice(
             deviceID: "d1",
             isActive: true,
             isRestricted: false,
@@ -170,8 +170,8 @@ final class SpotifyPlaybackModelsTests: XCTestCase {
             type: "computer"
         )
         XCTAssertEqual(device.id, "d1")
-        let snapshot = SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: true, repeatMode: .context),
+        let snapshot = MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: true, repeatMode: .context),
             activeDevice: device,
             isPlaying: true
         )

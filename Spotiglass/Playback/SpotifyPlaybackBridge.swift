@@ -54,7 +54,7 @@ enum SpotifyPlaybackBridgeParser {
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    static func parse(_ body: Any) throws -> PlaybackBridgeEvent {
+    static func parse(_ body: Any) throws -> MusicPlaybackEvent {
         guard let dictionary = body as? [String: Any],
               let name = dictionary["name"] as? String else {
             throw PlaybackBridgeMessageError.invalidEnvelope
@@ -151,7 +151,7 @@ enum SpotifyPlaybackWebViewCoordinatorDispatch {
         }
     }
 
-    static func playbackEvent(body: Any) -> PlaybackBridgeEvent {
+    static func playbackEvent(body: Any) -> MusicPlaybackEvent {
         do {
             return try SpotifyPlaybackBridgeParser.parse(body)
         } catch {
@@ -159,7 +159,7 @@ enum SpotifyPlaybackWebViewCoordinatorDispatch {
         }
     }
 
-    static func playbackEventEnvelope(body: Any) -> PlaybackBridgeEventEnvelope {
+    static func playbackEventEnvelope(body: Any) -> MusicPlaybackEventEnvelope {
         let generation = ((body as? [String: Any])?["payload"] as? [String: Any])?["hostGeneration"]
             .flatMap { value -> UInt64? in
                 if let number = value as? NSNumber {
@@ -173,7 +173,7 @@ enum SpotifyPlaybackWebViewCoordinatorDispatch {
                 }
                 return nil
             } ?? PlaybackHostGeneration.initial.rawValue
-        return PlaybackBridgeEventEnvelope(
+        return MusicPlaybackEventEnvelope(
             event: playbackEvent(body: body),
             hostGeneration: PlaybackHostGeneration(rawValue: generation)
         )
@@ -183,7 +183,7 @@ enum SpotifyPlaybackWebViewCoordinatorDispatch {
 @MainActor
 final class SpotifyPlaybackWebViewCoordinator: NSObject, WKScriptMessageHandlerWithReply, WKScriptMessageHandler {
     let tokenBridge: PlaybackTokenBridge
-    var onEvent: ((PlaybackBridgeEventEnvelope) -> Void)?
+    var onEvent: ((MusicPlaybackEventEnvelope) -> Void)?
 
     init(tokenBridge: PlaybackTokenBridge) {
         self.tokenBridge = tokenBridge
