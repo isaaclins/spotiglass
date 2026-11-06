@@ -338,6 +338,100 @@ final class MusicServiceStoreTests: XCTestCase {
         XCTAssertNoThrow(try view.inspect().find(text: "Spotify"))
     }
 
+    /// The menu lists every added service in ⌃ order with a checkmark on the active one, shows
+    /// each service's shortcut, and "Add a service…" is only enabled while one is left to add.
+    func testMenuListsServicesWithCheckmarkShortcutsAndAdd() throws {
+        let store = MusicServiceStore(
+            storage: InMemoryMusicServiceSelectionStorage(services: [.spotify, .appleMusic], active: .spotify)
+        )
+        var switched: [MusicService] = []
+        let switcher = MusicServiceSwitcher(
+            store: store,
+            keymapStore: makeKeymapStore(),
+            switchTo: { switched.append($0) },
+            add: { _ in XCTFail("nothing left to add") }
+        )
+        let anchor = MusicServiceMenuAnchor()
+        let menu = anchor.makeMenu(items: switcher.menuItems())
+
+        XCTAssertEqual(menu.items.map(\.title), ["Apple Music", "Spotify", "", "Add a service…"])
+        XCTAssertEqual(menu.items[0].state, .off)
+        XCTAssertEqual(menu.items[1].state, .on)
+        XCTAssertEqual(menu.items[0].keyEquivalent, "1")
+        XCTAssertEqual(menu.items[1].keyEquivalent, "2")
+        XCTAssertEqual(menu.items[1].keyEquivalentModifierMask, [.control])
+        XCTAssertNotNil(menu.items[0].image)
+        XCTAssertTrue(menu.items[2].isSeparatorItem)
+        XCTAssertFalse(menu.items[3].isEnabled)
+
+        let item = menu.items[0]
+        _ = (item.target as? NSObject)?.perform(item.action, with: item)
+        let ran = expectation(description: "menu action runs after the menu closes")
+        DispatchQueue.main.async { ran.fulfill() }
+        wait(for: [ran], timeout: 1)
+        XCTAssertEqual(switched, [.appleMusic])
+    }
+
+    func testMenuAddsTheMissingService() throws {
+        let store = MusicServiceStore(
+            storage: InMemoryMusicServiceSelectionStorage(services: [.spotify], active: .spotify)
+        )
+        var added: [MusicService] = []
+        let switcher = MusicServiceSwitcher(
+            store: store,
+            keymapStore: makeKeymapStore(),
+            switchTo: { _ in },
+            add: { added.append($0) }
+        )
+        let anchor = MusicServiceMenuAnchor()
+        let menu = anchor.makeMenu(items: switcher.menuItems())
+        let addItem = try XCTUnwrap(menu.items.last)
+        XCTAssertTrue(addItem.isEnabled)
+        XCTAssertEqual(addItem.title, SpotiglassL10n.string("switcher.addService"))
+
+        _ = (addItem.target as? NSObject)?.perform(addItem.action, with: addItem)
+        let ran = expectation(description: "add runs")
+        DispatchQueue.main.async { ran.fulfill() }
+        wait(for: [ran], timeout: 1)
+        XCTAssertEqual(added, [.appleMusic])
+        XCTAssertNil(MusicServiceMenuItem.separator.title)
+        withExtendedLifetime(anchor) {}
+    }
+
+    func testWelcomeChoiceStartsThatService() throws {
+        var chosen: [MusicService] = []
+        let view = MusicServiceWelcomeView(services: [.appleMusic, .spotify]) { chosen.append($0) }
+        ViewTestHost.host(view)
+        let buttons = try view.inspect().findAll(ViewType.Button.self)
+        XCTAssertEqual(buttons.count, 2)
+        try buttons[1].tap()
+        try buttons[0].tap()
+        XCTAssertEqual(chosen, [.spotify, .appleMusic])
+        ViewTestHost.assertFindLocalizedText("welcome.service.appleMusic.detail", in: view)
+        ViewTestHost.assertFindLocalizedText("welcome.service.spotify.detail", in: view)
+    }
+
+    func testSignInFooterSwitchesToAnAddedService() throws {
+        let store = MusicServiceStore(
+            storage: InMemoryMusicServiceSelectionStorage(services: [.spotify, .appleMusic], active: .spotify)
+        )
+        var switched: [MusicService] = []
+        let view = MusicServiceSignInFooter(store: store, switchTo: { switched.append($0) }, add: { _ in })
+        ViewTestHost.host(view)
+
+        try view.inspect().find(button: SpotiglassL10n.format("switcher.switchTo", "Apple Music")).tap()
+
+        XCTAssertEqual(switched, [.appleMusic])
+    }
+
+    func testSwitcherLogoUsesTheServiceAsset() throws {
+        let logo = MusicServiceLogo(service: .appleMusic, size: 30)
+        ViewTestHost.host(logo)
+        XCTAssertNoThrow(try logo.inspect().find(ViewType.Image.self))
+        XCTAssertEqual(MusicService.spotify.logoAssetName, "SpotifyIcon")
+        XCTAssertEqual(MusicService.appleMusic.logoAssetName, "AppleMusicIcon")
+    }
+
     func testWelcomeOffersEveryService() throws {
         var chosen: [MusicService] = []
         let view = MusicServiceWelcomeView(services: [.appleMusic, .spotify]) { chosen.append($0) }
