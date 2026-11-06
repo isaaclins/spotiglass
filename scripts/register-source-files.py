@@ -37,6 +37,19 @@ def next_src_pair(text):
     raise RuntimeError("no free ID")
 
 
+def pbx_path(name):
+    """Xcode quotes paths that contain characters outside [A-Za-z0-9._/],
+    e.g. `SpotifyAPIClient+Search.swift`."""
+    return name if re.fullmatch(r'[A-Za-z0-9._/]+', name) else f'"{name}"'
+
+
+def replace_once(text, old, new, what):
+    """Fail loudly instead of silently writing a half-registered file."""
+    if old not in text:
+        raise SystemExit(f"could not find the anchor's {what}; nothing written")
+    return text.replace(old, new, 1)
+
+
 def find_anchor_ids(text, anchor_name):
     """Find the PBXBuildFile id and PBXFileReference id for `anchor_name`."""
     fileref_match = re.search(
@@ -64,7 +77,7 @@ def main():
     GROUP_ANCHOR_LINE = f"{anchor_ref_id} /* {anchor_name} */,"
     SOURCES_ANCHOR_LINE = f"{anchor_build_id} /* {anchor_name} in Sources */,"
     BUILDFILE_DEF = f"{anchor_build_id} /* {anchor_name} in Sources */ = {{isa = PBXBuildFile; fileRef = {anchor_ref_id} /* {anchor_name} */; }};"
-    FILEREF_DEF = f"{anchor_ref_id} /* {anchor_name} */ = {{isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = {anchor_name}; sourceTree = \"<group>\"; }};"
+    FILEREF_DEF = f"{anchor_ref_id} /* {anchor_name} */ = {{isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = {pbx_path(anchor_name)}; sourceTree = \"<group>\"; }};"
 
     for f in files:
         name = Path(f).name
@@ -76,25 +89,29 @@ def main():
 
         # 1) PBXBuildFile
         new_buildfile = f"\t\t{build_id} /* {name} in Sources */ = {{isa = PBXBuildFile; fileRef = {ref_id} /* {name} */; }};"
-        text = text.replace(BUILDFILE_DEF, BUILDFILE_DEF + "\n" + new_buildfile)
+        text = replace_once(text, BUILDFILE_DEF, BUILDFILE_DEF + "\n" + new_buildfile, "PBXBuildFile entry")
 
         # 2) PBXFileReference
         new_fileref = (
             f"\t\t{ref_id} /* {name} */ = {{isa = PBXFileReference; "
-            f"lastKnownFileType = sourcecode.swift; path = {name}; sourceTree = \"<group>\"; }};"
+            f"lastKnownFileType = sourcecode.swift; path = {pbx_path(name)}; sourceTree = \"<group>\"; }};"
         )
-        text = text.replace(FILEREF_DEF, FILEREF_DEF + "\n" + new_fileref)
+        text = replace_once(text, FILEREF_DEF, FILEREF_DEF + "\n" + new_fileref, "PBXFileReference entry")
 
         # 3) Group children
-        text = text.replace(
+        text = replace_once(
+            text,
             GROUP_ANCHOR_LINE,
             GROUP_ANCHOR_LINE + f"\n\t\t\t\t{ref_id} /* {name} */,",
+            "group children line",
         )
 
         # 4) Sources build phase
-        text = text.replace(
+        text = replace_once(
+            text,
             SOURCES_ANCHOR_LINE,
             SOURCES_ANCHOR_LINE + f"\n\t\t\t\t{build_id} /* {name} in Sources */,",
+            "Sources build phase line",
         )
 
         print(f"registered {name}  (build={build_id}, ref={ref_id})")
