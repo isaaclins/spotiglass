@@ -53,7 +53,7 @@ implements `MusicBrowsingProvider`; the MusicKit requests themselves live in
 | Home: Recently played | `MusicRecentlyPlayedRequest<Song>`, with one catalog request to attach each song's album (Home groups them by album) |
 | Home: Your top tracks | The songs of your personal mix from `MusicPersonalRecommendationsRequest` (the Favourites mix is built from what you play most); otherwise the first recommended playlist |
 | Playlist / album / artist detail | Library first, then the catalog (`MusicCatalogResourceRequest`) |
-| Search and the ⌘K palette | Library matches first (`MusicLibrarySearchRequest`), then the catalog (`MusicCatalogSearchRequest`, 25 per page); later pages are catalog only |
+| Search and the ⌘K palette | Library matches first (`MusicLibrarySearchRequest`, up to 100 per type on the first page, since the library can't be paged), then the catalog (`MusicCatalogSearchRequest`, the requested page size, at most 25). Later pages are catalog only. Catalog copies of library items are hidden on every page, and each result type pages on its own. |
 | Artwork | Catalog artwork is a plain https URL and goes through the normal image cache. Library artwork comes as `musicKit://` URLs that only MusicKit can draw, so the artwork views render it with MusicKit's `ArtworkImage` ([`AppleMusicArtworkRegistry`](../Spotiglass/Services/AppleMusicArtworkRegistry.swift)). |
 
 Apple Music items keep their MusicKit IDs, and their `uri` is `applemusic:<kind>:<id>`. Pins and

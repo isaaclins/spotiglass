@@ -89,6 +89,15 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         XCTAssertNil(own.trackCount)
     }
 
+    /// A blank-named library playlist gets a real name, so the browser's playlist check (made
+    /// for Spotify's error items) never fails the whole library over it.
+    func testABlankPlaylistNameBecomesUntitled() throws {
+        let summary = AppleMusicItemMapping.playlistSummary(
+            try AppleMusicFixtures.playlist(id: "p.blank", name: "  "), fallbackOwnerName: "You"
+        )
+        XCTAssertEqual(summary.name, SpotiglassL10n.string("appleMusic.playlist.untitled"))
+    }
+
     func testArtistAlbumGroupsAndReleaseYear() throws {
         let single = AppleMusicItemMapping.artistAlbum(try AppleMusicFixtures.album(id: "s", title: "S", isSingle: true))
         let compilation = AppleMusicItemMapping.artistAlbum(try AppleMusicFixtures.album(id: "c", title: "C", isCompilation: true))
@@ -364,7 +373,7 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
             query: "one", limit: 50, offset: 25, cacheMode: .bypassCache
         )
 
-        XCTAssertEqual(source.calls, ["catalogSearch(one,25,25)"])
+        XCTAssertTrue(source.calls.contains("catalogSearch(one,25,25)"))
         XCTAssertEqual(results.tracks.count, 1)
         XCTAssertNil(results.tracksPaging?.next)
         // The total must end here too, or the Search view keeps offering Load More.
@@ -491,21 +500,108 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         }
     }
 
+    /// Each Search tab pages one type. More songs must not keep Load More on the Artists tab.
+    func testEachResultTypePagesOnItsOwn() async throws {
+        let source = MockAppleMusicSource()
+        var catalog = AppleMusicSearchItems(
+            songs: [try AppleMusicFixtures.song(id: "1", title: "Kerala")],
+            artists: [try AppleMusicFixtures.artist(id: "5201", name: "Bonobo")]
+        )
+        catalog.moreSongs = true
+        source.catalogSearchItems = catalog
+        let results = try await AppleMusicBrowsingProvider(source: source).search(query: "bonobo", limit: 10)
+
+        XCTAssertNotNil(results.tracksPaging?.next)
+        XCTAssertNil(results.artistsPaging?.next)
+        XCTAssertEqual(results.artistsPaging?.total, 1)
+        XCTAssertNil(results.albumsPaging?.next)
+    }
+
+    /// A library song that is catalog result 12 must stay hidden on page two as well, or the
+    /// Tracks tab lists it twice (library and catalog IDs differ for the same song).
+    func testLaterPagesStillHideCatalogCopiesOfLibraryItems() async throws {
+        let source = MockAppleMusicSource()
+        source.librarySearchItems = AppleMusicSearchItems(songs: [
+            try AppleMusicFixtures.song(id: "i.1", title: "Kerala", artist: "Bonobo"),
+        ])
+        source.catalogSearchItems = AppleMusicSearchItems(songs: [
+            try AppleMusicFixtures.song(id: "12", title: "Kerala", artist: "Bonobo"),
+            try AppleMusicFixtures.song(id: "13", title: "Cirrus", artist: "Bonobo"),
+        ])
+        let page2 = try await AppleMusicBrowsingProvider(source: source).search(
+            query: "bonobo", limit: 10, offset: 10, cacheMode: .freshOnly
+        )
+
+        XCTAssertEqual(page2.tracks.map(\.id), ["13"])
+    }
+
+    /// Catalog results 0–19 are all in my library. Page 10 dedups to nothing; the Search view
+    /// stops at an empty page, so the provider must move on to catalog page 20 itself.
+    func testALaterPageEmptiedByDedupSkipsToTheNextCatalogPage() async throws {
+        let source = MockAppleMusicSource()
+        source.librarySearchItems = AppleMusicSearchItems(
+            songs: try (0..<20).map { try AppleMusicFixtures.song(id: "i.\($0)", title: "Song \($0)", artist: "A") }
+        )
+        for page in 0..<4 {
+            source.catalogPagesByOffset[page * 10] = AppleMusicSearchItems(
+                songs: try (page * 10..<page * 10 + 10).map { try AppleMusicFixtures.song(id: "\($0)", title: "Song \($0)", artist: "A") },
+                hasMore: page < 3
+            )
+        }
+        let page = try await AppleMusicBrowsingProvider(source: source).search(
+            query: "song", limit: 10, offset: 10, cacheMode: .freshOnly
+        )
+
+        XCTAssertEqual(page.tracks.first?.id, "20")
+        XCTAssertEqual(page.tracks.count, 10)
+        XCTAssertTrue(source.calls.contains("catalogSearch(song,10,20)"))
+        let next = try XCTUnwrap(page.tracksPaging?.next)
+        XCTAssertEqual(URLComponents(url: next, resolvingAgainstBaseURL: false)?.queryItems?.first?.value, "30")
+    }
+
+    /// An artist page asks for albums once per page. The artist and its album batches are
+    /// loaded once, not again for every page.
+    func testArtistAlbumPagesLoadTheArtistOnce() async throws {
+        let source = MockAppleMusicSource()
+        source.artistsByID["5201"] = try AppleMusicFixtures.artist(id: "5201", name: "Bonobo")
+        source.extraAlbumsByArtistID["5201"] = try (0..<30).map { try AppleMusicFixtures.album(id: "a\($0)", title: "Album \($0)") }
+        let provider = AppleMusicBrowsingProvider(source: source)
+
+        let first = try await provider.artistAlbumsPage(
+            id: "5201", includeGroups: [], limit: 10, offset: 0, nextURL: nil, cacheMode: .allowStale
+        )
+        let second = try await provider.artistAlbumsPage(
+            id: "5201", includeGroups: [], limit: 10, offset: 10, nextURL: nil, cacheMode: .allowStale
+        )
+
+        XCTAssertEqual(first.items.first?.id, "a0")
+        XCTAssertEqual(second.items.first?.id, "a10")
+        XCTAssertEqual(source.calls.filter { $0 == "artist(5201)" }.count, 1)
+    }
+
+    func testArtistAlbumsCacheIsBoundedInCountAndAge() async {
+        final class Clock: @unchecked Sendable { var now = Date(timeIntervalSince1970: 0) }
+        let clock = Clock()
+        let cache = AppleMusicArtistAlbumsCache(now: { clock.now })
+        for index in 0...AppleMusicArtistAlbumsCache.maxArtists {
+            clock.now = Date(timeIntervalSince1970: TimeInterval(index))
+            await cache.store([], forArtistID: "artist-\(index)")
+        }
+        let oldest = await cache.albums(forArtistID: "artist-0")
+        XCTAssertNil(oldest, "the oldest artist is dropped past the bound")
+        let newest = await cache.albums(forArtistID: "artist-\(AppleMusicArtistAlbumsCache.maxArtists)")
+        XCTAssertNotNil(newest)
+
+        clock.now = clock.now.addingTimeInterval(AppleMusicArtistAlbumsCache.maxAge + 1)
+        let expired = await cache.albums(forArtistID: "artist-\(AppleMusicArtistAlbumsCache.maxArtists)")
+        XCTAssertNil(expired, "entries expire")
+    }
+
     func testBlankSearchDoesNotReachMusicKit() async throws {
         let source = MockAppleMusicSource()
         let results = try await AppleMusicBrowsingProvider(source: source).search(query: "   ", limit: 10)
         XCTAssertEqual(results.tracks, [])
         XCTAssertEqual(source.calls, [])
-    }
-
-    func testEditsReportUnsupported() async {
-        let provider = AppleMusicBrowsingProvider(source: MockAppleMusicSource())
-        do {
-            try await provider.saveTracks(ids: ["1"])
-            XCTFail("expected unsupported")
-        } catch {
-            XCTAssertFalse(error.localizedDescription.isEmpty)
-        }
     }
 }
 
@@ -529,6 +625,21 @@ final class AppleMusicArtworkRegistryTests: XCTestCase {
         XCTAssertEqual(registry.artwork(for: libraryURL), library)
         XCTAssertNil(registry.artwork(for: catalogURL))
         XCTAssertNil(AppleMusicItemMapping.artworkURL(nil, size: 120, registry: registry))
+    }
+
+    /// Pins keep last session's library artwork URL, which MusicKit no longer knows. The pin
+    /// finds this session's cover through its pin ID once the item is mapped again.
+    func testAPinFindsThisSessionsCoverByItsID() throws {
+        let registry = AppleMusicArtworkRegistry()
+        let artwork = try AppleMusicFixtures.decode(Artwork.self, #"{"url":"musicKit://artwork/transient/{w}x{h}?id=NEW","width":600,"height":600}"#)
+        _ = AppleMusicItemMapping.artworkURL(
+            artwork, size: 600, pinKind: .playlist, itemID: MusicItemID("p.1"), registry: registry
+        )
+        let lastSessionsURL = try XCTUnwrap(URL(string: "musicKit://artwork/transient/600x600?id=OLD"))
+
+        XCTAssertNil(registry.artwork(for: lastSessionsURL))
+        XCTAssertEqual(registry.artwork(for: lastSessionsURL, itemKey: "playlist:p.1"), artwork)
+        XCTAssertEqual(PinnedItem.id(forKind: .playlist, spotifyID: "p.1"), "playlist:p.1")
     }
 
     func testRegistryStaysBounded() throws {
@@ -651,6 +762,8 @@ private final class MockAppleMusicSource: AppleMusicContentSource, @unchecked Se
     var artistsByID: [String: Artist] = [:]
     var topSongsByArtistID: [String: [Song]] = [:]
     var catalogSearchItems = AppleMusicSearchItems()
+    /// Catalog pages by offset, for tests that page; others get `catalogSearchItems`.
+    var catalogPagesByOffset: [Int: AppleMusicSearchItems] = [:]
     var librarySearchItems = AppleMusicSearchItems()
     var catalogSearchError: Error?
     var librarySearchError: Error?
@@ -720,7 +833,7 @@ private final class MockAppleMusicSource: AppleMusicContentSource, @unchecked Se
     func catalogSearch(term: String, limit: Int, offset: Int) async throws -> AppleMusicSearchItems {
         record("catalogSearch(\(term),\(limit),\(offset))")
         if let catalogSearchError { throw catalogSearchError }
-        return catalogSearchItems
+        return catalogPagesByOffset[offset] ?? catalogSearchItems
     }
 
     func librarySearch(term: String, limit: Int) async throws -> AppleMusicSearchItems {

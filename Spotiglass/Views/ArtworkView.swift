@@ -5,12 +5,14 @@ import SwiftUI
 struct ArtworkView: View {
     let url: URL?
     let size: CGFloat
+    /// The item's pin ID, for Apple Music library covers saved with an expired URL.
+    var artworkKey: String? = nil
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Group {
             if let url {
-                CachedArtworkImage(url: url, size: size)
+                CachedArtworkImage(url: url, size: size, artworkKey: artworkKey)
             } else {
                 ArtworkPlaceholderContent(state: .none, size: size)
             }
@@ -30,12 +32,13 @@ struct ArtworkView: View {
 struct CircularArtworkView: View {
     let url: URL?
     let size: CGFloat
+    var artworkKey: String? = nil
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Group {
             if let url {
-                CachedArtworkImage(url: url, size: size)
+                CachedArtworkImage(url: url, size: size, artworkKey: artworkKey)
             } else {
                 ArtworkPlaceholderContent(state: .none, size: size)
             }
@@ -113,10 +116,12 @@ struct MusicKitArtwork: View {
     let url: URL?
     let width: CGFloat
     let height: CGFloat
+    /// A pin's ID: pins keep last session's URL, which MusicKit no longer knows.
+    var itemKey: String? = nil
 
     var body: some View {
         if let url, AppleMusicArtworkRegistry.needsMusicKit(url),
-            let artwork = AppleMusicArtworkRegistry.shared.artwork(for: url)
+            let artwork = AppleMusicArtworkRegistry.shared.artwork(for: url, itemKey: itemKey)
         {
             ArtworkImage(artwork, width: width, height: height)
         }
@@ -126,6 +131,7 @@ struct MusicKitArtwork: View {
 private struct CachedArtworkImage: View {
     let url: URL
     let size: CGFloat
+    var artworkKey: String? = nil
     @StateObject private var artworkLoader = ArtworkImageLoader()
 
     var body: some View {
@@ -135,7 +141,7 @@ private struct CachedArtworkImage: View {
             // cloud library), so the placeholder underneath shows through.
             ZStack {
                 ArtworkPlaceholderContent(state: .none, size: size, describesState: false)
-                MusicKitArtwork(url: url, width: size, height: size)
+                MusicKitArtwork(url: url, width: size, height: size, itemKey: artworkKey)
             }
         } else {
             downloadedArtwork

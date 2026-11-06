@@ -15,6 +15,10 @@ final class AppleMusicArtworkRegistry: @unchecked Sendable {
 
     private let lock = NSLock()
     private var artworkByURL: [String: Artwork] = [:]
+    /// The same artwork under the item's pin ID (`playlist:<id>`, ...). Library artwork URLs
+    /// change between launches, so a pin saved with last session's URL finds its cover here
+    /// once the item has been mapped again in this session.
+    private var artworkByItemKey: [String: Artwork] = [:]
 
     /// URLs a URL loader can't fetch and only this registry can resolve.
     static func needsMusicKit(_ url: URL) -> Bool {
@@ -22,16 +26,24 @@ final class AppleMusicArtworkRegistry: @unchecked Sendable {
         return scheme != "https" && scheme != "http"
     }
 
-    func register(_ artwork: Artwork, for url: URL) {
+    func register(_ artwork: Artwork, for url: URL, itemKey: String? = nil) {
         lock.withLock {
             if artworkByURL.count >= Self.maxEntries {
                 artworkByURL.removeAll(keepingCapacity: true)
             }
             artworkByURL[url.absoluteString] = artwork
+            guard let itemKey else { return }
+            if artworkByItemKey.count >= Self.maxEntries {
+                artworkByItemKey.removeAll(keepingCapacity: true)
+            }
+            artworkByItemKey[itemKey] = artwork
         }
     }
 
-    func artwork(for url: URL) -> Artwork? {
-        lock.withLock { artworkByURL[url.absoluteString] }
+    /// The artwork for `url`, or else the artwork last registered for `itemKey`.
+    func artwork(for url: URL, itemKey: String? = nil) -> Artwork? {
+        lock.withLock {
+            artworkByURL[url.absoluteString] ?? itemKey.flatMap { artworkByItemKey[$0] }
+        }
     }
 }

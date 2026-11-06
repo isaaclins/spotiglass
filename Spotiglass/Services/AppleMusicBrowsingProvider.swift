@@ -31,6 +31,7 @@ enum AppleMusicBrowsingError: LocalizedError, Equatable {
 ///   music before the rest of Apple Music. Later pages are catalog only.
 /// - **Edits**: MusicKit's library is read-only on macOS, so edits go through the Apple Music API
 ///   and the Music app (`AppleMusicLibraryEditor`, `AppleMusicBrowsingProvider+LibraryEdits`).
+///   Their failures are `AppleMusicLibraryEditError`, never the protocol's Spotify defaults.
 ///   Reads lay the edits the library on this Mac has not caught up with over their results.
 ///
 /// Response caching is MusicKit's own, so `cacheMode` is accepted and ignored.
@@ -45,19 +46,28 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
     static let maxLibraryPlaylists = 5_000
     /// Library matches per type on the first search page.
     static let maxLibrarySearchMatches = 100
+    /// Catalog pages a later search page may skip because deduplication left them empty.
+    static let maxSkippedSearchPages = 10
     /// Pages of album tracks `albumTracks` follows, the same as the Spotify client.
     static let albumTrackPages = 6
     /// Upper bound for one artist's albums, singles and compilations.
     static let maxArtistAlbums = 1_000
 
     let source: any AppleMusicContentSource
+
+    /// An artist page asks for its albums once per page; MusicKit delivers all of them in
+    /// batches, so they are kept here briefly instead of being fetched again for every page.
+    /// One cache per provider: the browser keeps its provider for its lifetime.
+    let artistAlbumsCache: AppleMusicArtistAlbumsCache
     let editor: AppleMusicLibraryEditor
 
     init(
         source: any AppleMusicContentSource = MusicKitContentSource(),
+        artistAlbumsCache: AppleMusicArtistAlbumsCache = AppleMusicArtistAlbumsCache(),
         editor: AppleMusicLibraryEditor = AppleMusicLibraryEditor()
     ) {
         self.source = source
+        self.artistAlbumsCache = artistAlbumsCache
         self.editor = editor
     }
 
@@ -200,11 +210,17 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
     }
 
     private func artistAlbums(id: String, includeGroups: [MusicArtistAlbumGroup]) async throws -> [MusicArtistAlbum] {
-        let artist = try await loadArtist(id: id)
         let groups = Set(includeGroups)
-        return try await source.albums(of: artist, limit: Self.maxArtistAlbums)
-            .map(AppleMusicItemMapping.artistAlbum)
-            .filter { groups.isEmpty || groups.contains($0.group) }
+        let all: [MusicArtistAlbum]
+        if let cached = await artistAlbumsCache.albums(forArtistID: id) {
+            all = cached
+        } else {
+            let artist = try await loadArtist(id: id)
+            all = try await source.albums(of: artist, limit: Self.maxArtistAlbums)
+                .map(AppleMusicItemMapping.artistAlbum)
+            await artistAlbumsCache.store(all, forArtistID: id)
+        }
+        return all.filter { groups.isEmpty || groups.contains($0.group) }
     }
 
     // MARK: - Search
@@ -220,15 +236,45 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         }
         let pageLimit = min(max(1, limit), MusicKitContentSource.catalogSearchPageLimit)
 
-        async let catalogResult = Self.capture { try await source.catalogSearch(term: term, limit: pageLimit, offset: offset) }
+        // The library can't be paged (no offset in MusicKit), so the first page shows all of
+        // its matches, up to a bound, and later pages show catalog items only. Every page still
+        // reads the library (a local query) so catalog copies of library items stay hidden on
+        // later pages too.
         async let libraryResult = Self.capture {
-            // The library can't be paged (no offset in MusicKit), so the first page carries all
-            // of its matches, up to a bound; later pages are catalog only.
-            offset == 0
-                ? try await source.librarySearch(term: term, limit: Self.maxLibrarySearchMatches)
-                : AppleMusicSearchItems()
+            try await source.librarySearch(term: term, limit: Self.maxLibrarySearchMatches)
         }
-        let (catalog, library) = await (catalogResult, libraryResult)
+        let firstCatalog = await Self.capture {
+            try await source.catalogSearch(term: term, limit: pageLimit, offset: offset)
+        }
+        let library = await libraryResult
+        var page = try searchPage(
+            catalog: firstCatalog, library: library, limit: limit, pageLimit: pageLimit, offset: offset
+        )
+        // A later page can come out empty only because every catalog item on it is a copy of a
+        // library item. The Search view stops at an empty page, which would make everything
+        // after it unreachable, so such a page is skipped while the catalog reports more.
+        var pageOffset = offset
+        var skipped = 0
+        while offset > 0, page.isEmptyPage, page.hasNextPage, skipped < Self.maxSkippedSearchPages {
+            try Task.checkCancellation()
+            pageOffset += pageLimit
+            skipped += 1
+            let catalog = await Self.capture {
+                try await source.catalogSearch(term: term, limit: pageLimit, offset: pageOffset)
+            }
+            page = try searchPage(catalog: catalog, library: library, limit: limit, pageLimit: pageLimit, offset: pageOffset)
+        }
+        return page
+    }
+
+    /// One search page from one catalog page and the library matches.
+    private func searchPage(
+        catalog: Result<AppleMusicSearchItems, Error>,
+        library: Result<AppleMusicSearchItems, Error>,
+        limit: Int,
+        pageLimit: Int,
+        offset: Int
+    ) throws -> MusicSearchResults {
         // Past the first page only the catalog answers, so its failure is the page's failure:
         // reporting an empty page would end the results instead of letting the user retry.
         if case let .failure(error) = catalog {
@@ -237,27 +283,29 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         }
         let catalogItems = (try? catalog.get()) ?? AppleMusicSearchItems()
         let libraryItems = (try? library.get()) ?? AppleMusicSearchItems()
+        let showsLibrary = offset == 0
 
-        let next = catalogItems.hasMore ? Self.continuationURL(offset: offset + pageLimit) : nil
         // `total` must not promise more than there is: the Search view keeps Load More while
-        // `offset + items < total`, so a made-up total on the last page pages forever.
-        func paging(_ count: Int) -> MusicSearchPaging {
-            MusicSearchPaging(total: offset + count + (next == nil ? 0 : pageLimit), next: next)
+        // `offset + items < total`, so a made-up total on the last page pages forever. Each
+        // type pages on its own: a tab must not keep Load More because another type has more.
+        func paging(_ count: Int, more: Bool) -> MusicSearchPaging {
+            let next = more ? Self.continuationURL(offset: offset + pageLimit) : nil
+            return MusicSearchPaging(total: offset + count + (more ? pageLimit : 0), next: next)
         }
         // The match key says "same recording" across library and catalog, whose IDs differ:
         // title, artist, album and rating (a clean and an explicit version share the rest).
-        let tracks = Self.merged(libraryItems.songs, catalogItems.songs, limit: limit, id: { $0.id.rawValue }) {
+        let tracks = Self.merged(libraryItems.songs, catalogItems.songs, limit: limit, showsLibrary: showsLibrary, id: { $0.id.rawValue }) {
             "\($0.title)|\($0.artistName)|\($0.albumTitle ?? "")|\($0.contentRating == .explicit)".lowercased()
         }
         // Artists match by name on purpose: the same artist in the library and in the catalog
         // is far more common than two different artists with one name, one of them saved.
-        let artists = Self.merged(libraryItems.artists, catalogItems.artists, limit: limit, id: { $0.id.rawValue }) {
+        let artists = Self.merged(libraryItems.artists, catalogItems.artists, limit: limit, showsLibrary: showsLibrary, id: { $0.id.rawValue }) {
             $0.name.lowercased()
         }
-        let albums = Self.merged(libraryItems.albums, catalogItems.albums, limit: limit, id: { $0.id.rawValue }) {
+        let albums = Self.merged(libraryItems.albums, catalogItems.albums, limit: limit, showsLibrary: showsLibrary, id: { $0.id.rawValue }) {
             "\($0.title)|\($0.artistName)|\($0.contentRating == .explicit)".lowercased()
         }
-        let playlists = Self.merged(libraryItems.playlists, catalogItems.playlists, limit: limit, id: { $0.id.rawValue }) {
+        let playlists = Self.merged(libraryItems.playlists, catalogItems.playlists, limit: limit, showsLibrary: showsLibrary, id: { $0.id.rawValue }) {
             $0.id.rawValue
         }
         return MusicSearchResults(
@@ -265,10 +313,10 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
             artists: artists.map(AppleMusicItemMapping.artist),
             albums: albums.map(AppleMusicItemMapping.album),
             playlists: playlists.map { AppleMusicItemMapping.playlistSummary($0, fallbackOwnerName: libraryOwnerName) },
-            tracksPaging: paging(tracks.count),
-            artistsPaging: paging(artists.count),
-            albumsPaging: paging(albums.count),
-            playlistsPaging: paging(playlists.count)
+            tracksPaging: paging(tracks.count, more: catalogItems.moreSongs),
+            artistsPaging: paging(artists.count, more: catalogItems.moreArtists),
+            albumsPaging: paging(albums.count, more: catalogItems.moreAlbums),
+            playlistsPaging: paging(playlists.count, more: catalogItems.morePlaylists)
         )
     }
 
@@ -292,10 +340,13 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
     /// recordings with the same title stay two rows. A catalog item is only dropped as a
     /// duplicate when the library shows the same `match` (library and catalog IDs differ for
     /// the same song).
+    /// `showsLibrary` is `false` on later pages: the library items are only used to hide their
+    /// catalog copies there.
     static func merged<Item>(
         _ library: [Item],
         _ catalog: [Item],
         limit: Int,
+        showsLibrary: Bool = true,
         id: (Item) -> String,
         match: (Item) -> String
     ) -> [Item] {
@@ -304,7 +355,7 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         var result: [Item] = []
         for item in library where seenIDs.insert(id(item)).inserted {
             libraryMatches.insert(match(item))
-            result.append(item)
+            if showsLibrary { result.append(item) }
         }
         for item in catalog.prefix(limit)
         where !libraryMatches.contains(match(item)) && seenIDs.insert(id(item)).inserted {
@@ -319,5 +370,46 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         } catch {
             return .failure(error)
         }
+    }
+}
+
+/// A few artists' album lists, kept for a short while so paging an artist page doesn't walk
+/// MusicKit's album batches again for every page. Bounded in count and age.
+actor AppleMusicArtistAlbumsCache {
+    static let maxArtists = 8
+    static let maxAge: TimeInterval = 10 * 60
+
+    private var entries: [String: (albums: [MusicArtistAlbum], storedAt: Date)] = [:]
+    private let now: @Sendable () -> Date
+
+    init(now: @escaping @Sendable () -> Date = Date.init) {
+        self.now = now
+    }
+
+    func albums(forArtistID id: String) -> [MusicArtistAlbum]? {
+        guard let entry = entries[id] else { return nil }
+        guard now().timeIntervalSince(entry.storedAt) < Self.maxAge else {
+            entries[id] = nil
+            return nil
+        }
+        return entry.albums
+    }
+
+    func store(_ albums: [MusicArtistAlbum], forArtistID id: String) {
+        entries[id] = (albums, now())
+        while entries.count > Self.maxArtists,
+              let oldest = entries.min(by: { $0.value.storedAt < $1.value.storedAt })?.key {
+            entries[oldest] = nil
+        }
+    }
+}
+
+private extension MusicSearchResults {
+    var isEmptyPage: Bool {
+        tracks.isEmpty && artists.isEmpty && albums.isEmpty && playlists.isEmpty
+    }
+
+    var hasNextPage: Bool {
+        [tracksPaging, artistsPaging, albumsPaging, playlistsPaging].contains { $0?.next != nil }
     }
 }

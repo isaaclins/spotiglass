@@ -23,14 +23,21 @@ enum AppleMusicItemMapping {
         "\(uriScheme):\(kind):\(id.rawValue)"
     }
 
+    /// `pinKind` and `itemID` name the item in pins (`PinnedItem.id`), so a pin saved last
+    /// session can find this session's library cover.
     static func artworkURL(
         _ artwork: Artwork?,
         size: Int,
+        pinKind: PinnedItemKind? = nil,
+        itemID: MusicItemID? = nil,
         registry: AppleMusicArtworkRegistry = .shared
     ) -> URL? {
         guard let artwork, let url = artwork.url(width: size, height: size) else { return nil }
         if AppleMusicArtworkRegistry.needsMusicKit(url) {
-            registry.register(artwork, for: url)
+            let key = pinKind.flatMap { kind in
+                itemID.map { PinnedItem.id(forKind: kind, spotifyID: $0.rawValue) }
+            }
+            registry.register(artwork, for: url, itemKey: key)
         }
         return url
     }
@@ -43,7 +50,7 @@ enum AppleMusicItemMapping {
             name: song.title,
             artists: artistNames(song.artistName),
             artistRefs: artistRefs(song.artists),
-            albumArtworkURL: artworkURL(song.artwork, size: ArtworkSize.row),
+            albumArtworkURL: artworkURL(song.artwork, size: ArtworkSize.row, pinKind: .track, itemID: song.id),
             albumName: song.albumTitle,
             albumID: song.albums?.first?.id.rawValue,
             durationMilliseconds: milliseconds(song.duration),
@@ -103,12 +110,15 @@ enum AppleMusicItemMapping {
         let curator = playlist.curatorName
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .flatMap { $0.isEmpty ? nil : $0 }
+        // A blank name would read as a broken response to the browser's playlist check (built
+        // for Spotify's error items) and fail the whole library with a Spotify-style error.
+        let name = playlist.name.trimmingCharacters(in: .whitespacesAndNewlines)
         return MusicPlaylistSummary(
             id: playlist.id.rawValue,
-            name: playlist.name,
+            name: name.isEmpty ? SpotiglassL10n.string("appleMusic.playlist.untitled") : playlist.name,
             ownerID: curator ?? AppleMusicBrowsingProvider.libraryUserID,
             ownerName: curator ?? fallbackOwnerName,
-            imageURL: artworkURL(playlist.artwork, size: ArtworkSize.cover),
+            imageURL: artworkURL(playlist.artwork, size: ArtworkSize.cover, pinKind: .playlist, itemID: playlist.id),
             trackCount: playlist.tracks?.count,
             snapshotID: playlistSnapshotID
         )
@@ -119,7 +129,7 @@ enum AppleMusicItemMapping {
             id: album.id.rawValue,
             name: album.title,
             artists: artistNames(album.artistName),
-            imageURL: artworkURL(album.artwork, size: ArtworkSize.cover),
+            imageURL: artworkURL(album.artwork, size: ArtworkSize.cover, pinKind: .album, itemID: album.id),
             uri: uri(kind: "album", id: album.id)
         )
     }
@@ -136,7 +146,7 @@ enum AppleMusicItemMapping {
         return MusicArtistAlbum(
             id: album.id.rawValue,
             name: album.title,
-            imageURL: artworkURL(album.artwork, size: ArtworkSize.cover),
+            imageURL: artworkURL(album.artwork, size: ArtworkSize.cover, pinKind: .album, itemID: album.id),
             releaseYear: album.releaseDate.map { String(Calendar(identifier: .gregorian).component(.year, from: $0)) },
             totalTracks: album.trackCount,
             group: group,
@@ -148,7 +158,7 @@ enum AppleMusicItemMapping {
         MusicArtist(
             id: artist.id.rawValue,
             name: artist.name,
-            imageURL: artworkURL(artist.artwork, size: ArtworkSize.cover),
+            imageURL: artworkURL(artist.artwork, size: ArtworkSize.cover, pinKind: .artist, itemID: artist.id),
             uri: uri(kind: "artist", id: artist.id)
         )
     }
@@ -157,7 +167,7 @@ enum AppleMusicItemMapping {
         MusicArtistDetail(
             id: artist.id.rawValue,
             name: artist.name,
-            imageURL: artworkURL(artist.artwork, size: ArtworkSize.cover),
+            imageURL: artworkURL(artist.artwork, size: ArtworkSize.cover, pinKind: .artist, itemID: artist.id),
             followersTotal: nil,
             genres: artist.genreNames ?? [],
             uri: uri(kind: "artist", id: artist.id)
