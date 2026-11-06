@@ -329,7 +329,7 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         XCTAssertEqual(results.albums.map(\.id), ["a"])
         XCTAssertEqual(results.artists.map(\.id), ["5201"])
         XCTAssertTrue(source.calls.contains("catalogSearch(bonobo,10,0)"))
-        XCTAssertTrue(source.calls.contains("librarySearch(bonobo,10)"))
+        XCTAssertTrue(source.calls.contains("librarySearch(bonobo,\(AppleMusicBrowsingProvider.maxLibrarySearchMatches))"))
         let next = try XCTUnwrap(results.tracksPaging?.next)
         XCTAssertEqual(URLComponents(url: next, resolvingAgainstBaseURL: false)?.queryItems?.first?.value, "10")
     }
@@ -405,6 +405,34 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
             try AppleMusicFixtures.song(id: "2", title: "Song", artist: "A", explicit: true),
         ])
         let results = try await AppleMusicBrowsingProvider(source: source).search(query: "song", limit: 10)
+
+        XCTAssertEqual(results.tracks.map(\.id), ["i.1", "2"])
+    }
+
+    /// MusicKit's library search can't be paged, so the first page must carry every library
+    /// match (up to its bound), not just the page size, or the rest never shows.
+    func testTheFirstSearchPageCarriesEveryLibraryMatch() async throws {
+        let source = MockAppleMusicSource()
+        source.librarySearchItems = AppleMusicSearchItems(
+            songs: try (0..<12).map { try AppleMusicFixtures.song(id: "i.\($0)", title: "Rehearsal \($0)", artist: "Me") }
+        )
+        let results = try await AppleMusicBrowsingProvider(source: source).search(query: "rehearsal", limit: 10)
+
+        XCTAssertEqual(results.tracks.count, 12)
+        XCTAssertNil(results.tracksPaging?.next)
+    }
+
+    /// Same title and artist on a different album is a different recording.
+    func testALibraryMatchDoesNotHideTheSameTitleFromAnotherAlbum() async throws {
+        let source = MockAppleMusicSource()
+        source.librarySearchItems = AppleMusicSearchItems(songs: [
+            try AppleMusicFixtures.song(id: "i.1", title: "Intro", artist: "A", album: "First"),
+        ])
+        source.catalogSearchItems = AppleMusicSearchItems(songs: [
+            try AppleMusicFixtures.song(id: "1", title: "Intro", artist: "A", album: "First"),
+            try AppleMusicFixtures.song(id: "2", title: "Intro", artist: "A", album: "Second"),
+        ])
+        let results = try await AppleMusicBrowsingProvider(source: source).search(query: "intro", limit: 10)
 
         XCTAssertEqual(results.tracks.map(\.id), ["i.1", "2"])
     }
@@ -698,7 +726,9 @@ private final class MockAppleMusicSource: AppleMusicContentSource, @unchecked Se
     func librarySearch(term: String, limit: Int) async throws -> AppleMusicSearchItems {
         record("librarySearch(\(term),\(limit))")
         if let librarySearchError { throw librarySearchError }
-        return librarySearchItems
+        var items = librarySearchItems
+        items.songs = Array(items.songs.prefix(limit))
+        return items
     }
 
     func storefrontCountryCode() async throws -> String {

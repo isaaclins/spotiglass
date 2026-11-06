@@ -42,6 +42,8 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
     static let librarySongsPageSize = 200
     /// Upper bound for library playlists; far above any real library, it only stops a runaway.
     static let maxLibraryPlaylists = 5_000
+    /// Library matches per type on the first search page.
+    static let maxLibrarySearchMatches = 100
     /// Pages of album tracks `albumTracks` follows, the same as the Spotify client.
     static let albumTrackPages = 6
     /// Upper bound for one artist's albums, singles and compilations.
@@ -210,7 +212,11 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
 
         async let catalogResult = Self.capture { try await source.catalogSearch(term: term, limit: pageLimit, offset: offset) }
         async let libraryResult = Self.capture {
-            offset == 0 ? try await source.librarySearch(term: term, limit: pageLimit) : AppleMusicSearchItems()
+            // The library can't be paged (no offset in MusicKit), so the first page carries all
+            // of its matches, up to a bound; later pages are catalog only.
+            offset == 0
+                ? try await source.librarySearch(term: term, limit: Self.maxLibrarySearchMatches)
+                : AppleMusicSearchItems()
         }
         let (catalog, library) = await (catalogResult, libraryResult)
         // Past the first page only the catalog answers, so its failure is the page's failure:
@@ -228,11 +234,13 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         func paging(_ count: Int) -> MusicSearchPaging {
             MusicSearchPaging(total: offset + count + (next == nil ? 0 : pageLimit), next: next)
         }
-        // The match key says "same recording" across library and catalog, whose IDs differ.
-        // A clean and an explicit version share title and artist, so the rating is part of it.
+        // The match key says "same recording" across library and catalog, whose IDs differ:
+        // title, artist, album and rating (a clean and an explicit version share the rest).
         let tracks = Self.merged(libraryItems.songs, catalogItems.songs, limit: limit, id: { $0.id.rawValue }) {
-            "\($0.title)|\($0.artistName)|\($0.contentRating == .explicit)".lowercased()
+            "\($0.title)|\($0.artistName)|\($0.albumTitle ?? "")|\($0.contentRating == .explicit)".lowercased()
         }
+        // Artists match by name on purpose: the same artist in the library and in the catalog
+        // is far more common than two different artists with one name, one of them saved.
         let artists = Self.merged(libraryItems.artists, catalogItems.artists, limit: limit, id: { $0.id.rawValue }) {
             $0.name.lowercased()
         }
@@ -267,7 +275,8 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
 
     /// Library items first, then the catalog items the library does not already show.
     ///
-    /// Each side keeps up to `limit` items. Library matches must not push catalog items off the
+    /// The library side is already bounded by its request; the catalog side keeps up to `limit`
+    /// items (its page). Library matches must not push catalog items off the
     /// page: the next page starts after this page's catalog items, so a catalog item cut here
     /// would never be shown at all. Within a side, items are told apart by `id`, so two
     /// recordings with the same title stay two rows. A catalog item is only dropped as a
@@ -283,7 +292,7 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         var seenIDs: Set<String> = []
         var libraryMatches: Set<String> = []
         var result: [Item] = []
-        for item in library.prefix(limit) where seenIDs.insert(id(item)).inserted {
+        for item in library where seenIDs.insert(id(item)).inserted {
             libraryMatches.insert(match(item))
             result.append(item)
         }

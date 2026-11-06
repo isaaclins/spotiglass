@@ -168,18 +168,20 @@ struct MusicKitContentSource: AppleMusicContentSource {
         )
     }
 
+    /// MusicKit's library search has no offset, so it can't page like the catalog. This asks
+    /// for MusicKit's page size and follows its batches up to `limit` per type.
     func librarySearch(term: String, limit: Int) async throws -> AppleMusicSearchItems {
         var request = MusicLibrarySearchRequest(
             term: term,
             types: [Song.self, Album.self, Artist.self, Playlist.self]
         )
-        request.limit = limit
+        request.limit = min(limit, Self.catalogSearchPageLimit)
         let response = try await request.response()
         return AppleMusicSearchItems(
-            songs: Array(response.songs),
-            albums: Array(response.albums),
-            artists: Array(response.artists),
-            playlists: Array(response.playlists)
+            songs: try await Self.collect(response.songs, limit: limit),
+            albums: try await Self.collect(response.albums, limit: limit),
+            artists: try await Self.collect(response.artists, limit: limit),
+            playlists: try await Self.collect(response.playlists, limit: limit)
         )
     }
 
