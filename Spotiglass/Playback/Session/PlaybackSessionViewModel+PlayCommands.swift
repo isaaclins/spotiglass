@@ -3,6 +3,10 @@ import Foundation
 @MainActor
 extension PlaybackSessionViewModel {
     func play(uri: String) async {
+        guard !refusesNewPlayback else {
+            SpotiglassLog.info(.playback, "play(uri:) refused: another service is on screen")
+            return
+        }
         guard let commandDeviceID else {
             SpotiglassLog.error(.playback, "play(uri:) aborted: no command device. uri=\(uri)")
             setConnectionState(.error(Self.playbackDeviceNotReadyError()))
@@ -51,6 +55,10 @@ extension PlaybackSessionViewModel {
     }
 
     func play(contextURI: String) async {
+        guard !refusesNewPlayback else {
+            SpotiglassLog.info(.playback, "play(contextURI:) refused: another service is on screen")
+            return
+        }
         guard let commandDeviceID else {
             setConnectionState(.error(Self.playbackDeviceNotReadyError()))
             return
@@ -85,6 +93,10 @@ extension PlaybackSessionViewModel {
     }
 
     func playFromPlaylist(clickedURI: String, playableURIs: [String], playlistID: String? = nil) async {
+        guard !refusesNewPlayback else {
+            SpotiglassLog.info(.playback, "playFromPlaylist refused: another service is on screen")
+            return
+        }
         guard let commandDeviceID else {
             SpotiglassLog.error(.playback, "playFromPlaylist aborted: no command device. clickedURI=\(clickedURI)")
             setConnectionState(.error(Self.playbackDeviceNotReadyError()))

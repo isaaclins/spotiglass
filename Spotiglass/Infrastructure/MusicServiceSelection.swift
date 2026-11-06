@@ -157,13 +157,19 @@ final class MusicServiceStore: ObservableObject {
     /// idempotent, so the windows' own handling of the sign-in stays as it is.
     func followSpotifySignIn<States: Publisher>(_ states: States)
     where States.Output == AppConnectionState, States.Failure == Never {
+        // Only a move from signed out to signed in counts. A token refresh (signed in → refreshing
+        // → signed in) never adds Spotify, so one finishing just as Spotify is signed out can't put
+        // it back in the menu.
+        var wasSignedIn = false
         spotifySignInObservation = states.sink { [weak self] state in
+            let isSignedIn: Bool
             switch state {
-            case .signedIn, .refreshing(.some):
-                self?.completeAddition(of: .spotify)
-            case .signedOut, .signingIn, .failed, .refreshing(.none):
-                break
+            case .signedIn, .refreshing(.some): isSignedIn = true
+            case .signedOut, .signingIn, .failed, .refreshing(.none): isSignedIn = false
             }
+            defer { wasSignedIn = isSignedIn }
+            guard isSignedIn, !wasSignedIn else { return }
+            self?.completeAddition(of: .spotify)
         }
     }
 

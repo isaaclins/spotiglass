@@ -49,7 +49,9 @@ extension PlaylistBrowserView {
         PlaylistBrowserPlaybackHelpers.isCurrentlyPlaying(connectionState: playbackViewModel.connectionState)
     }
 
+    /// Only a space that plays its own music offers Play and Shuffle: the Apple Music space must
+    /// not reach Spotify's player just because Spotify's space started it earlier (#373).
     var hasPlaybackDevice: Bool {
-        playbackViewModel.deviceID != nil
+        playbackMode == .live && playbackViewModel.deviceID != nil
     }
 }

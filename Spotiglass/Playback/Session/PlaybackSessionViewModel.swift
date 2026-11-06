@@ -32,6 +32,10 @@ final class PlaybackSessionViewModel: ObservableObject {
     @Published var progressAnchor: PlaybackProgressAnchor?
     /// The device ID owned by the embedded Web Playback SDK.
     @Published var deviceID: String?
+    /// Another service's library is on screen (#373). What is already playing keeps playing and can
+    /// still be paused or skipped, but nothing from that library may start in this player: its
+    /// items aren't Spotify's, and Spotify would reject them and show an error after switching back.
+    @Published var refusesNewPlayback = false
     /// The Spotify Connect device currently targeted by Web API playback commands.
     /// This can be remote while ``deviceID`` remains ready for local SDK events.
     @Published private(set) var activePlaybackDeviceID: String?

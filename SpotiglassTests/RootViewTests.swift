@@ -100,6 +100,45 @@ final class RootViewTests: XCTestCase {
         XCTAssertEqual(palette.viewModel.query, "")
     }
 
+    /// Spotify's player starts new music only while Spotify is on screen (#373): the window keeps
+    /// the app-wide player's gate in step with the service on screen, from the first frame on.
+    func testSpotifyPlayerOnlyStartsMusicInTheSpotifySpace() async throws {
+        let services = MusicServiceStore(storage: InMemoryMusicServiceSelectionStorage(
+            services: [.appleMusic, .spotify], active: .appleMusic
+        ))
+        let session = AppleMusicSession(authorization: DeniedMusicAuthorization())
+        await session.refresh()
+        let settings = try ViewTestHost.makeSettingsStore()
+        let playbackHost = SpotiglassPlaybackHost(tokenProvider: MockPlaybackTokenProvider(
+            accessToken: "test", refreshedAccessToken: "test-refresh"
+        ))
+        let root = RootView(
+            keymapStore: CommandPaletteKeymapStore(settingsStore: settings),
+            sceneRegistry: SpotiglassSceneRegistry(),
+            playbackHost: playbackHost,
+            serviceStore: services,
+            appleMusicSession: session
+        )
+        .environmentObject(settings)
+        .environmentObject(AuthViewModel(
+            settings: SpotifyAuthSettings(defaults: makeEphemeralDefaults()),
+            refreshTokenStore: MemoryOnlyRefreshTokenStore(),
+            signOutDataCleaner: {}
+        ))
+        .environmentObject(PinnedItemsStore(cache: InMemoryPinnedItemsCache()))
+        ViewTestHost.host(root)
+        AppKitTestSupport.pumpRunLoop(for: 0.1)
+        XCTAssertTrue(playbackHost.playbackViewModel.refusesNewPlayback)
+
+        services.activate(.spotify)
+        AppKitTestSupport.pumpRunLoop(for: 0.1)
+        XCTAssertFalse(playbackHost.playbackViewModel.refusesNewPlayback)
+
+        services.activate(.appleMusic)
+        AppKitTestSupport.pumpRunLoop(for: 0.1)
+        XCTAssertTrue(playbackHost.playbackViewModel.refusesNewPlayback)
+    }
+
     /// Disconnect Spotify in Settings while Apple Music is on screen, then add Spotify again before
     /// the sign-out has finished clearing caches. The saved sign-in is already deleted, so adding
     /// must wait for a fresh sign-in instead of taking the session that is being torn down.

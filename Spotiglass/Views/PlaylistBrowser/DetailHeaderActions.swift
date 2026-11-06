@@ -62,6 +62,8 @@ enum DetailHeaderPlayback {
         target: DetailHeaderPlaybackTarget,
         using playbackViewModel: PlaybackSessionViewModel
     ) async {
+        // Another service on screen: don't flip shuffle on an account whose play would be refused.
+        guard !playbackViewModel.refusesNewPlayback else { return }
         if !playbackViewModel.shuffleEnabled {
             await playbackViewModel.toggleShuffle()
         }

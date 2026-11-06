@@ -462,6 +462,10 @@ struct RootView: View {
                     commandPaletteManager.isSignedIn = isSpotifySignedIn
                 }
             }
+            .onChange(of: serviceStore.active, initial: true) { _, active in
+                // Spotify's player is app-wide: it starts new music only while Spotify is on screen.
+                playbackHost.playbackViewModel.refusesNewPlayback = active != .spotify
+            }
             .onChange(of: serviceStore.services) { _, _ in
                 commandPaletteManager.switchableServices = serviceStore.switchTargets
                 // Signing out of Apple Music ends its space: adding it again starts fresh instead of

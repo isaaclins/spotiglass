@@ -529,6 +529,25 @@ final class MusicServiceStoreTests: XCTestCase {
 
         XCTAssertEqual(store.services, [.appleMusic])
     }
+
+    /// A token refresh that finishes just as Spotify is signed out must not put it back: only a
+    /// real sign-in (signed out → signed in) adds Spotify.
+    func testTokenRefreshAfterSignOutDoesNotReaddSpotify() {
+        let session = AuthenticatedSession(
+            accessToken: "a", tokenType: "Bearer", scope: "", expiresAt: .distantFuture
+        )
+        let states = CurrentValueSubject<AppConnectionState, Never>(.signedIn(session))
+        let store = MusicServiceStore(
+            storage: InMemoryMusicServiceSelectionStorage(services: [.appleMusic, .spotify], active: .appleMusic)
+        )
+        store.followSpotifySignIn(states)
+
+        store.signOutRemoving(.spotify)
+        states.send(.refreshing(session))
+        states.send(.signedIn(session))
+
+        XCTAssertEqual(store.services, [.appleMusic])
+    }
 }
 
 private struct ImmediateSpotifyAuthorizationFlow: SpotifyAuthorizationFlowing {
