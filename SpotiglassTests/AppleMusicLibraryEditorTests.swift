@@ -141,7 +141,7 @@ final class AppleMusicLibraryEditorTests: XCTestCase {
     /// is the bridge, and it has to be unique.
     func testAddingToALibraryPlaylistFindsItsCloudIDByName() async throws {
         lookup.playlistsByID["-107247429512612591"] = AppleMusicPlaylistReference(
-            itemID: "-107247429512612591", name: "Spotiglass test", musicAppPersistentID: "FE82FB07F4D3B511"
+            name: "Spotiglass test", musicAppPersistentID: "FE82FB07F4D3B511"
         )
         cloud.playlists = [
             AppleMusicCloudPlaylist(id: "p.other", name: "Italian"),
@@ -154,7 +154,7 @@ final class AppleMusicLibraryEditorTests: XCTestCase {
     }
 
     func testTwoPlaylistsWithTheSameNameAreNotGuessed() async {
-        lookup.playlistsByID["-1"] = AppleMusicPlaylistReference(itemID: "-1", name: "Mix", musicAppPersistentID: "FFFFFFFFFFFFFFFF")
+        lookup.playlistsByID["-1"] = AppleMusicPlaylistReference(name: "Mix", musicAppPersistentID: "FFFFFFFFFFFFFFFF")
         cloud.playlists = [AppleMusicCloudPlaylist(id: "p.a", name: "Mix"), AppleMusicCloudPlaylist(id: "p.b", name: "Mix")]
 
         await XCTAssertThrowsEditError(.ambiguousPlaylist) {

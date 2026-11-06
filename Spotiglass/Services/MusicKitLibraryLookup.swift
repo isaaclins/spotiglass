@@ -187,7 +187,6 @@ struct MusicKitLibraryLookup: AppleMusicLibraryLookup {
         guard let playlist = try await request.response().items.first else { return nil }
         let persistent = AppleMusicSongIdentity(encoding: playlist).musicKitPersistentID ?? playlist.id.rawValue
         return AppleMusicPlaylistReference(
-            itemID: id,
             name: playlist.name,
             musicAppPersistentID: AppleMusicLibraryEditor.musicAppPersistentID(fromMusicKitID: persistent)
         )

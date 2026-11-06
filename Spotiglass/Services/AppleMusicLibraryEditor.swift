@@ -118,7 +118,6 @@ struct AppleMusicAlbumReference: Equatable, Sendable {
 
 /// A library playlist with what the two routes need to find it.
 struct AppleMusicPlaylistReference: Equatable, Sendable {
-    let itemID: String
     let name: String
     /// The Music app's persistent ID (hex), unknown for a playlist created through Apple Music
     /// that has not reached this Mac's library yet.
