@@ -199,14 +199,14 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
     var onSeekAttempt: ((Int) async -> Void)?
     private(set) var seekCallTimestamps: [Date] = []
     /// Returned by `fetchPlayerSnapshot`; updated when mock `setShuffle` / `setRepeat` succeed so background sync matches optimistic UI.
-    private var reportedTransport = SpotifyPlayerTransport(shuffle: false, repeatMode: .off)
+    private var reportedTransport = MusicPlaybackTransport(shuffle: false, repeatMode: .off)
     private var reportedIsPlaying = true
     /// Optional transport snapshots returned before `reportedTransport`; useful for simulating stale reads.
-    var transportResponses: [SpotifyPlayerTransport?] = []
+    var transportResponses: [MusicPlaybackTransport?] = []
     /// Optional full player snapshots (supersedes `reportedTransport` / `activeConnectDevice` when non-empty).
-    var snapshotResponses: [SpotifyPlayerSnapshot?] = []
-    var activeConnectDevice: SpotifyConnectDevice?
-    var availableDevices: [SpotifyConnectDevice] = []
+    var snapshotResponses: [MusicPlaybackSnapshot?] = []
+    var activeConnectDevice: MusicPlaybackDevice?
+    var availableDevices: [MusicPlaybackDevice] = []
     var onFetchPlayerSnapshot: (() async -> Void)?
     var onFetchAvailableDevices: (() async -> Void)?
     var fetchAvailableDevicesDelayNanoseconds: UInt64 = 0
@@ -325,11 +325,11 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
         actionRecorder.append("previous:\(deviceID)")
     }
 
-    var queueResponse = SpotifyQueueResponse(queue: [])
+    var queueResponse = MusicPlaybackQueue(queue: [])
     var addToQueueErrors: [Error] = []
     var onFetchQueue: (() async -> Void)?
 
-    func fetchQueue() async throws -> SpotifyQueueResponse {
+    func fetchQueue() async throws -> MusicPlaybackQueue {
         actionRecorder.append("fetchQueue")
         await onFetchQueue?()
         return queueResponse
@@ -342,7 +342,7 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
         }
     }
 
-    func fetchPlayerSnapshot() async throws -> SpotifyPlayerSnapshot? {
+    func fetchPlayerSnapshot() async throws -> MusicPlaybackSnapshot? {
         actionRecorder.append("fetchPlayerSnapshot")
         await onFetchPlayerSnapshot?()
         if fetchPlayerSnapshotDelayNanoseconds > 0 {
@@ -357,12 +357,12 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
         if !transportResponses.isEmpty {
             let transport = transportResponses.removeFirst()
             guard let transport else { return nil }
-            return SpotifyPlayerSnapshot(transport: transport, activeDevice: activeConnectDevice, isPlaying: reportedIsPlaying)
+            return MusicPlaybackSnapshot(transport: transport, activeDevice: activeConnectDevice, isPlaying: reportedIsPlaying)
         }
-        return SpotifyPlayerSnapshot(transport: reportedTransport, activeDevice: activeConnectDevice, isPlaying: reportedIsPlaying)
+        return MusicPlaybackSnapshot(transport: reportedTransport, activeDevice: activeConnectDevice, isPlaying: reportedIsPlaying)
     }
 
-    func fetchAvailableDevices() async throws -> [SpotifyConnectDevice] {
+    func fetchAvailableDevices() async throws -> [MusicPlaybackDevice] {
         actionRecorder.append("fetchAvailableDevices")
         await onFetchAvailableDevices?()
         if fetchAvailableDevicesDelayNanoseconds > 0 {
@@ -378,15 +378,15 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
             try? await Task.sleep(nanoseconds: setShuffleDelayNanoseconds)
         }
         actionRecorder.append("setShuffle:\(deviceID):\(enabled)")
-        reportedTransport = SpotifyPlayerTransport(shuffle: enabled, repeatMode: reportedTransport.repeatMode)
+        reportedTransport = MusicPlaybackTransport(shuffle: enabled, repeatMode: reportedTransport.repeatMode)
     }
 
-    func setRepeat(mode: SpotifyRepeatMode, deviceID: String) async throws {
+    func setRepeat(mode: MusicRepeatMode, deviceID: String) async throws {
         if setRepeatDelayNanoseconds > 0 {
             try? await Task.sleep(nanoseconds: setRepeatDelayNanoseconds)
         }
         if let setRepeatError { throw setRepeatError }
         actionRecorder.append("setRepeat:\(deviceID):\(mode.rawValue)")
-        reportedTransport = SpotifyPlayerTransport(shuffle: reportedTransport.shuffle, repeatMode: mode)
+        reportedTransport = MusicPlaybackTransport(shuffle: reportedTransport.shuffle, repeatMode: mode)
     }
 }

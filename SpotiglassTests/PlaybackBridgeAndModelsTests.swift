@@ -29,7 +29,7 @@ final class PlaybackBridgeAndModelsTests: XCTestCase {
 
         XCTAssertEqual(
             envelope,
-            PlaybackBridgeEventEnvelope(
+            MusicPlaybackEventEnvelope(
                 event: .ready(deviceID: "device-1"),
                 hostGeneration: PlaybackHostGeneration(rawValue: 7)
             )

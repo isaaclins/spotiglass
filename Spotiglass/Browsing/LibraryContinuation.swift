@@ -301,7 +301,7 @@ enum LibraryContinuationRanking {
     private static func isPlayable(_ track: MusicTrack) -> Bool {
         guard track.isPlayable != false,
             !track.id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-            let uri = SpotifyPlayableURI.canonical(track.uri),
+            let uri = MusicPlayableURI.canonical(track.uri),
             uri.hasPrefix("spotify:track:")
         else { return false }
         return !uri.dropFirst("spotify:track:".count).isEmpty
@@ -314,7 +314,7 @@ enum LibraryContinuationRanking {
             return linkedFromID
         }
         let id = track.id.trimmingCharacters(in: .whitespacesAndNewlines)
-        return id.isEmpty ? (SpotifyPlayableURI.canonical(track.uri) ?? "unknown") : id
+        return id.isEmpty ? (MusicPlayableURI.canonical(track.uri) ?? "unknown") : id
     }
 
     private static func trackIdentityKeys(_ track: MusicTrack) -> Set<String> {
@@ -326,7 +326,7 @@ enum LibraryContinuationRanking {
         {
             keys.insert("id:\(linkedFromID)")
         }
-        if let uri = SpotifyPlayableURI.canonical(track.uri), !uri.isEmpty {
+        if let uri = MusicPlayableURI.canonical(track.uri), !uri.isEmpty {
             keys.insert("uri:\(uri)")
         }
         return keys

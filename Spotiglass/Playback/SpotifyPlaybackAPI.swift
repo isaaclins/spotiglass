@@ -21,7 +21,7 @@ private enum SpotifyQueueUnionDTO: Decodable {
         }
     }
 
-    var domainModel: SpotifyQueueTrackItem? {
+    var domainModel: MusicPlaybackItem? {
         switch self {
         case let .track(dto):
             guard let track = dto.domainModel() else { return nil }
@@ -49,8 +49,8 @@ private struct SpotifyConnectDeviceDTO: Decodable {
         case volumePercent = "volume_percent"
     }
 
-    func domainModel() -> SpotifyConnectDevice {
-        SpotifyConnectDevice(
+    func domainModel() -> MusicPlaybackDevice {
+        MusicPlaybackDevice(
             deviceID: id,
             isActive: isActive,
             isRestricted: isRestricted,
@@ -78,11 +78,11 @@ private struct SpotifyPlayerSnapshotDTO: Decodable {
         case progressMilliseconds = "progress_ms"
     }
 
-    func domainModel() -> SpotifyPlayerSnapshot {
-        SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(
+    func domainModel() -> MusicPlaybackSnapshot {
+        MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(
                 shuffle: shuffleState,
-                repeatMode: SpotifyRepeatMode(rawValue: repeatState) ?? .off
+                repeatMode: MusicRepeatMode(rawValue: repeatState) ?? .off
             ),
             activeDevice: device?.domainModel(),
             isPlaying: isPlaying,
@@ -95,7 +95,7 @@ private struct SpotifyPlayerSnapshotDTO: Decodable {
 private struct SpotifyDevicesListDTO: Decodable {
     let devices: [SpotifyConnectDeviceDTO]
 
-    func domainModels() -> [SpotifyConnectDevice] {
+    func domainModels() -> [MusicPlaybackDevice] {
         devices.map { $0.domainModel() }
     }
 }
@@ -115,9 +115,9 @@ private struct SpotifyQueueResponseDTO: Decodable {
         queue = try container.decodeIfPresent([SpotifyQueueUnionDTO].self, forKey: .queue) ?? []
     }
 
-    func domainModel() -> SpotifyQueueResponse {
+    func domainModel() -> MusicPlaybackQueue {
         let queued = queue.compactMap(\.domainModel)
-        return SpotifyQueueResponse(queue: queued)
+        return MusicPlaybackQueue(queue: queued)
     }
 }
 
@@ -132,13 +132,13 @@ protocol SpotifyPlaybackControlling {
     func seek(to milliseconds: Int, deviceID: String) async throws
     func next(deviceID: String) async throws
     func previous(deviceID: String) async throws
-    func fetchQueue() async throws -> SpotifyQueueResponse
+    func fetchQueue() async throws -> MusicPlaybackQueue
     func addToQueue(uri: String, deviceID: String) async throws
     /// `nil` when Spotify returns **204** (no active player).
-    func fetchPlayerSnapshot() async throws -> SpotifyPlayerSnapshot?
-    func fetchAvailableDevices() async throws -> [SpotifyConnectDevice]
+    func fetchPlayerSnapshot() async throws -> MusicPlaybackSnapshot?
+    func fetchAvailableDevices() async throws -> [MusicPlaybackDevice]
     func setShuffle(enabled: Bool, deviceID: String) async throws
-    func setRepeat(mode: SpotifyRepeatMode, deviceID: String) async throws
+    func setRepeat(mode: MusicRepeatMode, deviceID: String) async throws
 }
 
 extension SpotifyPlaybackControlling {
@@ -149,11 +149,11 @@ extension SpotifyPlaybackControlling {
 
 /// Coalesces concurrent `GET /v1/me/player` calls into one in-flight URLSession task.
 private actor PlayerSnapshotFetchCoalescer {
-    private var inFlight: Task<SpotifyPlayerSnapshot?, Error>?
+    private var inFlight: Task<MusicPlaybackSnapshot?, Error>?
 
     func fetch(
-        _ operation: @Sendable @escaping () async throws -> SpotifyPlayerSnapshot?
-    ) async throws -> SpotifyPlayerSnapshot? {
+        _ operation: @Sendable @escaping () async throws -> MusicPlaybackSnapshot?
+    ) async throws -> MusicPlaybackSnapshot? {
         if let inFlight {
             return try await inFlight.value
         }
@@ -259,7 +259,7 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
         try await send(path: "/v1/me/player/previous", method: "POST", body: EmptyBody(), queryItems: [URLQueryItem(name: "device_id", value: deviceID)])
     }
 
-    func fetchQueue() async throws -> SpotifyQueueResponse {
+    func fetchQueue() async throws -> MusicPlaybackQueue {
         let data = try await get(path: "/v1/me/player/queue", queryItems: [])
         let dto = try decoder.decode(SpotifyQueueResponseDTO.self, from: data)
         return dto.domainModel()
@@ -273,13 +273,13 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
         try await send(path: "/v1/me/player/queue", method: "POST", body: EmptyBody(), queryItems: queryItems)
     }
 
-    func fetchPlayerSnapshot() async throws -> SpotifyPlayerSnapshot? {
+    func fetchPlayerSnapshot() async throws -> MusicPlaybackSnapshot? {
         try await playerSnapshotFetchCoalescer.fetch { [self] in
             try await fetchPlayerSnapshotUncoalesced()
         }
     }
 
-    private func fetchPlayerSnapshotUncoalesced() async throws -> SpotifyPlayerSnapshot? {
+    private func fetchPlayerSnapshotUncoalesced() async throws -> MusicPlaybackSnapshot? {
         let (data, response) = try await performGET(path: "/v1/me/player", queryItems: [])
         if response.statusCode == 204 {
             return nil
@@ -291,7 +291,7 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
         return dto.domainModel()
     }
 
-    func fetchAvailableDevices() async throws -> [SpotifyConnectDevice] {
+    func fetchAvailableDevices() async throws -> [MusicPlaybackDevice] {
         let data = try await get(path: "/v1/me/player/devices", queryItems: [])
         let dto = try decoder.decode(SpotifyDevicesListDTO.self, from: data)
         return dto.domainModels()
@@ -309,7 +309,7 @@ struct SpotifyPlaybackAPI: SpotifyPlaybackControlling {
         )
     }
 
-    func setRepeat(mode: SpotifyRepeatMode, deviceID: String) async throws {
+    func setRepeat(mode: MusicRepeatMode, deviceID: String) async throws {
         try await send(
             path: "/v1/me/player/repeat",
             method: "PUT",

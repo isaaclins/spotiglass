@@ -384,7 +384,7 @@ extension PlaylistBrowserViewModel {
                     {
                         key = linkedFromID
                     } else {
-                        key = SpotifyPlayableURI.canonical(track.uri) ?? track.id
+                        key = MusicPlayableURI.canonical(track.uri) ?? track.id
                     }
                     guard seenKeys.insert(key).inserted else { continue }
                     tracks.append(track)

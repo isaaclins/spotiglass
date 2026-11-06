@@ -91,7 +91,7 @@
 		D4000000000000000000007B /* PlaylistBrowserViewModel+ArtistTrackFallback.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000038 /* PlaylistBrowserViewModel+ArtistTrackFallback.swift */; };
 		D4000000000000000000007C /* PlaylistBrowserViewModel+PrefetchAllTracks.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4000000000000000000007D /* PlaylistBrowserViewModel+PrefetchAllTracks.swift */; };
 		D40000000000000000000091 /* PlaylistBrowserViewModel+TrackMutations.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000041 /* PlaylistBrowserViewModel+TrackMutations.swift */; };
-		E50000000000000000000001 /* SpotifyPlaybackModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000011 /* SpotifyPlaybackModels.swift */; };
+		E50000000000000000000001 /* MusicPlaybackModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000011 /* MusicPlaybackModels.swift */; };
 		E50000000000000000000002 /* SpotifyPlaybackBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000012 /* SpotifyPlaybackBridge.swift */; };
 		E50000000000000000000003 /* SpotifyPlaybackAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000013 /* SpotifyPlaybackAPI.swift */; };
 		E50000000000000000000004 /* PlaybackSessionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000014 /* PlaybackSessionViewModel.swift */; };
@@ -502,7 +502,7 @@
 		D40000000000000000000038 /* PlaylistBrowserViewModel+ArtistTrackFallback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlaylistBrowserViewModel+ArtistTrackFallback.swift"; sourceTree = "<group>"; };
 		D40000000000000000000041 /* PlaylistBrowserViewModel+TrackMutations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlaylistBrowserViewModel+TrackMutations.swift"; sourceTree = "<group>"; };
 		D4000000000000000000007D /* PlaylistBrowserViewModel+PrefetchAllTracks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlaylistBrowserViewModel+PrefetchAllTracks.swift"; sourceTree = "<group>"; };
-		E50000000000000000000011 /* SpotifyPlaybackModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyPlaybackModels.swift; sourceTree = "<group>"; };
+		E50000000000000000000011 /* MusicPlaybackModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicPlaybackModels.swift; sourceTree = "<group>"; };
 		E50000000000000000000012 /* SpotifyPlaybackBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyPlaybackBridge.swift; sourceTree = "<group>"; };
 		E50000000000000000000013 /* SpotifyPlaybackAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyPlaybackAPI.swift; sourceTree = "<group>"; };
 		E50000000000000000000014 /* PlaybackSessionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackSessionViewModel.swift; sourceTree = "<group>"; };
@@ -953,7 +953,7 @@
 				E50000000000000000000041 /* PlaybackOutputSFResolver.swift */,
 				E50000000000000000000043 /* MacDefaultAudioOutputNameProvider.swift */,
 				E50000000000000000000049 /* MacAudioOutputHardware.swift */,
-				E50000000000000000000011 /* SpotifyPlaybackModels.swift */,
+				E50000000000000000000011 /* MusicPlaybackModels.swift */,
 			);
 			path = Playback;
 			sourceTree = "<group>";
@@ -1653,7 +1653,7 @@
 				D40000000000000000000005 /* TrackListRow.swift in Sources */,
 				SRC000000000000000000001B /* TrackListView.swift in Sources */,
 				D40000000000000000000006 /* ArtistDetailView.swift in Sources */,
-				E50000000000000000000001 /* SpotifyPlaybackModels.swift in Sources */,
+				E50000000000000000000001 /* MusicPlaybackModels.swift in Sources */,
 				E50000000000000000000002 /* SpotifyPlaybackBridge.swift in Sources */,
 				E50000000000000000000003 /* SpotifyPlaybackAPI.swift in Sources */,
 				E50000000000000000000004 /* PlaybackSessionViewModel.swift in Sources */,

@@ -10,7 +10,7 @@ import SwiftUI
 /// state the control is in. The accessibility label keeps naming the state, so
 /// VoiceOver still reports where playback currently stands.
 enum PlaybackTransportTooltips {
-    static func repeatTooltip(currentMode: SpotifyRepeatMode) -> String {
+    static func repeatTooltip(currentMode: MusicRepeatMode) -> String {
         switch currentMode.next {
         case .off:
             SpotiglassL10n.string("tooltip.playback.repeat.toOff")
@@ -548,7 +548,7 @@ struct PlaybackControlsView: View {
         )
     }
 
-    private func connectDeviceRowSymbol(for device: SpotifyConnectDevice) -> String {
+    private func connectDeviceRowSymbol(for device: MusicPlaybackDevice) -> String {
         PlaybackOutputSFResolver.symbolName(deviceName: device.name, spotifyDeviceType: device.type)
     }
 

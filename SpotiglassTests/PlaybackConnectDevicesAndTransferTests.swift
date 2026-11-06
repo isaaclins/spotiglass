@@ -6,7 +6,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
     func testNewReadyEventReplacesPriorAutoResumeTask() async {
         let playbackAPI = MockPlaybackAPI()
         playbackAPI.availableDevices = [
-            SpotifyConnectDevice(
+            MusicPlaybackDevice(
                 deviceID: "stale-spotiglass",
                 isActive: true,
                 isRestricted: false,
@@ -47,7 +47,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
 
     func testDisconnectDuringAutoResumeDeviceRefreshSuppressesLateRefreshAndTransfer() async {
         let playbackAPI = MockPlaybackAPI()
-        let staleDevice = SpotifyConnectDevice(
+        let staleDevice = MusicPlaybackDevice(
             deviceID: "stale-spotiglass",
             isActive: true,
             isRestricted: false,
@@ -89,7 +89,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
         playbackAPI.onTransferPlaybackCompleted = { _, _ in
             transferCompleted.signal()
         }
-        let staleDevice = SpotifyConnectDevice(
+        let staleDevice = MusicPlaybackDevice(
             deviceID: "stale-spotiglass",
             isActive: true,
             isRestricted: false,
@@ -97,8 +97,8 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
             type: "computer"
         )
         playbackAPI.availableDevices = [staleDevice]
-        playbackAPI.snapshotResponses = [SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+        playbackAPI.snapshotResponses = [MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: false, repeatMode: .off),
             activeDevice: staleDevice,
             isPlaying: true
         )]
@@ -124,7 +124,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
 
     func testAutoResumePreservesPausedStateFromStaleSpotiglassDevice() async {
         let playbackAPI = MockPlaybackAPI()
-        let staleDevice = SpotifyConnectDevice(
+        let staleDevice = MusicPlaybackDevice(
             deviceID: "stale-spotiglass",
             isActive: true,
             isRestricted: false,
@@ -132,8 +132,8 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
             type: "computer"
         )
         playbackAPI.availableDevices = [staleDevice]
-        playbackAPI.snapshotResponses = [SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+        playbackAPI.snapshotResponses = [MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: false, repeatMode: .off),
             activeDevice: staleDevice,
             isPlaying: false
         )]
@@ -154,7 +154,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
 
     func testAutoResumePreservesPlayingStateFromStaleSpotiglassDevice() async {
         let playbackAPI = MockPlaybackAPI()
-        let staleDevice = SpotifyConnectDevice(
+        let staleDevice = MusicPlaybackDevice(
             deviceID: "stale-spotiglass",
             isActive: true,
             isRestricted: false,
@@ -162,8 +162,8 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
             type: "computer"
         )
         playbackAPI.availableDevices = [staleDevice]
-        playbackAPI.snapshotResponses = [SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+        playbackAPI.snapshotResponses = [MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: false, repeatMode: .off),
             activeDevice: staleDevice,
             isPlaying: true
         )]
@@ -184,14 +184,14 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
 
     func testAutoResumeDoesNotUsePlayingStateFromDifferentActiveDevice() async {
         let playbackAPI = MockPlaybackAPI()
-        let staleDevice = SpotifyConnectDevice(
+        let staleDevice = MusicPlaybackDevice(
             deviceID: "stale-spotiglass",
             isActive: true,
             isRestricted: false,
             name: SpotifyPlaybackHost.deviceName,
             type: "computer"
         )
-        let otherDevice = SpotifyConnectDevice(
+        let otherDevice = MusicPlaybackDevice(
             deviceID: "other-device",
             isActive: true,
             isRestricted: false,
@@ -199,8 +199,8 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
             type: "speaker"
         )
         playbackAPI.availableDevices = [staleDevice]
-        playbackAPI.snapshotResponses = [SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+        playbackAPI.snapshotResponses = [MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: false, repeatMode: .off),
             activeDevice: otherDevice,
             isPlaying: true
         )]
@@ -221,7 +221,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
 
     func testAutoResumeUsesSafePauseWhenPlayerSnapshotIsAbsent() async {
         let playbackAPI = MockPlaybackAPI()
-        let staleDevice = SpotifyConnectDevice(
+        let staleDevice = MusicPlaybackDevice(
             deviceID: "stale-spotiglass",
             isActive: true,
             isRestricted: false,
@@ -247,7 +247,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
 
     func testAutoResumeUsesSafePauseWhenPlayerSnapshotReadFails() async {
         let playbackAPI = MockPlaybackAPI()
-        let staleDevice = SpotifyConnectDevice(
+        let staleDevice = MusicPlaybackDevice(
             deviceID: "stale-spotiglass",
             isActive: true,
             isRestricted: false,
@@ -274,7 +274,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
     func testRefreshConnectDevicesSkipsNetworkInsideFreshnessWindow() async {
         let playbackAPI = MockPlaybackAPI()
         playbackAPI.availableDevices = [
-            SpotifyConnectDevice(deviceID: "a", isActive: false, isRestricted: false, name: "Mac", type: "computer")
+            MusicPlaybackDevice(deviceID: "a", isActive: false, isRestricted: false, name: "Mac", type: "computer")
         ]
         let viewModel = PlaybackSessionViewModel(
             playbackAPI: playbackAPI,
@@ -293,7 +293,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
         let playbackAPI = MockPlaybackAPI()
         playbackAPI.fetchAvailableDevicesDelayNanoseconds = 80_000_000
         playbackAPI.availableDevices = [
-            SpotifyConnectDevice(deviceID: "a", isActive: false, isRestricted: false, name: "Mac", type: "computer")
+            MusicPlaybackDevice(deviceID: "a", isActive: false, isRestricted: false, name: "Mac", type: "computer")
         ]
         let viewModel = PlaybackSessionViewModel(
             playbackAPI: playbackAPI,
@@ -313,7 +313,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
     func testTransferPlaybackForcesDeviceRefreshOutsideFreshnessWindow() async {
         let playbackAPI = MockPlaybackAPI()
         playbackAPI.availableDevices = [
-            SpotifyConnectDevice(deviceID: "target", isActive: false, isRestricted: false, name: "Speaker", type: "speaker")
+            MusicPlaybackDevice(deviceID: "target", isActive: false, isRestricted: false, name: "Speaker", type: "speaker")
         ]
         let viewModel = PlaybackSessionViewModel(
             playbackAPI: playbackAPI,
@@ -331,9 +331,9 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
 
     func testStaleTransportSnapshotCannotReplaceSelectedConnectDevice() async {
         let playbackAPI = MockPlaybackAPI()
-        playbackAPI.snapshotResponses = [SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
-            activeDevice: SpotifyConnectDevice(
+        playbackAPI.snapshotResponses = [MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: false, repeatMode: .off),
+            activeDevice: MusicPlaybackDevice(
                 deviceID: "sdk-device",
                 isActive: true,
                 isRestricted: false,
@@ -348,7 +348,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
         )
         viewModel.deviceID = "sdk-device"
         viewModel.setActivePlaybackDeviceID("sdk-device")
-        viewModel.connectDevices = [SpotifyConnectDevice(
+        viewModel.connectDevices = [MusicPlaybackDevice(
             deviceID: "living-room",
             isActive: false,
             isRestricted: false,
@@ -364,7 +364,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
     func testConnectTransferMakesNextCommandUseSelectedDevice() async {
         let playbackAPI = MockPlaybackAPI()
         playbackAPI.availableDevices = [
-            SpotifyConnectDevice(
+            MusicPlaybackDevice(
                 deviceID: "living-room",
                 isActive: false,
                 isRestricted: false,
@@ -393,7 +393,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
     func testConnectTransferRoutesSupportedCommandsToSelectedDevice() async {
         let playbackAPI = MockPlaybackAPI()
         playbackAPI.availableDevices = [
-            SpotifyConnectDevice(
+            MusicPlaybackDevice(
                 deviceID: "living-room",
                 isActive: false,
                 isRestricted: false,
@@ -898,7 +898,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
             await releaseTransfer.wait()
         }
         playbackAPI.availableDevices = [
-            SpotifyConnectDevice(
+            MusicPlaybackDevice(
                 deviceID: "target",
                 isActive: false,
                 isRestricted: false,
@@ -988,7 +988,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
 
     func testEnsurePlaybackSkipsTransferWhenSnapshotShowsTargetDeviceActive() async {
         let playbackAPI = MockPlaybackAPI()
-        playbackAPI.activeConnectDevice = SpotifyConnectDevice(
+        playbackAPI.activeConnectDevice = MusicPlaybackDevice(
             deviceID: "device-1",
             isActive: true,
             isRestricted: false,
@@ -1012,7 +1012,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
     func testManualConnectTransferSkipsWhenTargetDeviceIsAlreadyActive() async {
         let playbackAPI = MockPlaybackAPI()
         playbackAPI.availableDevices = [
-            SpotifyConnectDevice(
+            MusicPlaybackDevice(
                 deviceID: "device-other",
                 isActive: true,
                 isRestricted: false,

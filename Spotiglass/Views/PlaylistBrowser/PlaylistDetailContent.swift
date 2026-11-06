@@ -447,7 +447,7 @@ struct TrackOpsMenuItems: View {
         case .unavailable:
             break
         }
-        if SpotifyPlayableURI.canonical(copyableURI) != nil {
+        if MusicPlayableURI.canonical(copyableURI) != nil {
             actions.insert(.copyURI)
         }
         return actions
@@ -538,7 +538,7 @@ struct TrackOpsMenuItems: View {
         }
 
         if menuActionKinds.contains(.addToQueue), let addToQueue {
-            let playableURIs = targets.compactMap { SpotifyPlayableURI.canonical($0.playableURI) }
+            let playableURIs = targets.compactMap { MusicPlayableURI.canonical($0.playableURI) }
             Button(SpotiglassL10n.string("browser.addToQueue")) {
                 Task {
                     for uri in playableURIs {
@@ -567,7 +567,7 @@ struct TrackOpsMenuItems: View {
         }
 
         if menuActionKinds.contains(.copyURI),
-           let uri = SpotifyPlayableURI.canonical(copyableURI) {
+           let uri = MusicPlayableURI.canonical(copyableURI) {
             Button(SpotiglassL10n.string("queue.copyURI")) {
                 copySpotifyURI(uri)
             }

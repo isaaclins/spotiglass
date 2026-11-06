@@ -63,12 +63,12 @@ final class PlaybackSessionViewModel: ObservableObject {
     @Published private(set) var playbackVolume: Double
     /// From `GET /v1/me/player` for the active Spotify player (may be this device or another).
     @Published var shuffleEnabled = false
-    @Published var repeatMode: SpotifyRepeatMode = .off
+    @Published var repeatMode: MusicRepeatMode = .off
     /// True only after a player snapshot has supplied the current shuffle/repeat state.
     /// The values above remain harmless display defaults until this becomes true.
     @Published private(set) var isTransportStateKnown = false
     /// Spotify Connect devices from `GET /v1/me/player/devices`.
-    @Published var connectDevices: [SpotifyConnectDevice] = []
+    @Published var connectDevices: [MusicPlaybackDevice] = []
     /// Core Audio output-capable devices (system default output picker).
     @Published var macAudioOutputDevices: [MacAudioOutputDevice] = []
     /// Current HAL default output device id (for menu checkmarks).
@@ -176,7 +176,7 @@ final class PlaybackSessionViewModel: ObservableObject {
     private let defaults: UserDefaults
     /// Core Audio listener; accessed from `deinit` for removal — must be `nonisolated(unsafe)`.
     nonisolated(unsafe) var hardwareDevicesListener: AudioObjectPropertyListenerBlock?
-    var latestPlayerSnapshot: SpotifyPlayerSnapshot?
+    var latestPlayerSnapshot: MusicPlaybackSnapshot?
     private var becameActiveObserver: NSObjectProtocol?
     private var resignedActiveObserver: NSObjectProtocol?
     let clock: any PlaybackClock
@@ -263,13 +263,13 @@ final class PlaybackSessionViewModel: ObservableObject {
     /// Expected repeat mode after an optimistic local toggle. While pending,
     /// stale transport reads from Spotify are ignored for a short window so the
     /// button does not snap back.
-    var pendingRepeatMode: SpotifyRepeatMode?
+    var pendingRepeatMode: MusicRepeatMode?
     var pendingRepeatDeadline: ContinuousClock.Instant?
-    var confirmedRepeatMode: SpotifyRepeatMode = .off
+    var confirmedRepeatMode: MusicRepeatMode = .off
     var repeatWriteInFlight = false
-    var desiredRepeatMode: SpotifyRepeatMode?
+    var desiredRepeatMode: MusicRepeatMode?
     var lastRepeatWriteAt: ContinuousClock.Instant?
-    var lastRepeatCommandedMode: SpotifyRepeatMode?
+    var lastRepeatCommandedMode: MusicRepeatMode?
     /// Expected shuffle state after an optimistic local toggle. Stale transport
     /// reads are ignored while this short-lived expectation is pending.
     var pendingShuffleEnabled: Bool?
@@ -282,7 +282,7 @@ final class PlaybackSessionViewModel: ObservableObject {
     var inFlightShuffleTarget: Bool?
     var queuedShuffleTarget: Bool?
     var lastConfirmedShuffleEnabled: Bool?
-    var connectDevicesRefreshTask: Task<[SpotifyConnectDevice], Error>?
+    var connectDevicesRefreshTask: Task<[MusicPlaybackDevice], Error>?
     var connectDevicesRefreshGeneration: PlaybackHostGeneration?
     var lastConnectDevicesRefreshAt: ContinuousClock.Instant?
     let connectDevicesFreshnessWindow: Duration

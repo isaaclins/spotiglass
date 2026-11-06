@@ -43,7 +43,7 @@ final class CommandPaletteManager: ObservableObject {
     var toggleShuffle: (() async -> Void)?
     var cycleRepeat: (() async -> Void)?
     /// Sets a specific repeat mode from the Playback menu's native Picker.
-    var setRepeatModeAction: ((SpotifyRepeatMode) async -> Void)?
+    var setRepeatModeAction: ((MusicRepeatMode) async -> Void)?
     /// Menu bar equivalents of the row context menu, acting on the track
     /// table's selection (#132).
     var enqueueTrackSelection: (() async -> Void)?
@@ -79,7 +79,7 @@ final class CommandPaletteManager: ObservableObject {
     /// Mirrors the session's live shuffle state for the Playback menu.
     @Published private(set) var shuffleEnabled = false
     /// Mirrors the session's live repeat mode for the Playback menu.
-    @Published private(set) var repeatMode: SpotifyRepeatMode = .off
+    @Published private(set) var repeatMode: MusicRepeatMode = .off
     /// Mirrors the session's confirmed shuffle/repeat readiness for the menu bar.
     @Published var canMutatePlaybackTransport = false
     /// Bulk prefetch state is owned by the browser, but the app menu and palette
@@ -149,7 +149,7 @@ final class CommandPaletteManager: ObservableObject {
 
     /// Requests a concrete repeat mode from the native Picker. The command
     /// remains guarded by the same readiness predicate as the cycling shortcut.
-    func requestRepeatMode(_ mode: SpotifyRepeatMode) {
+    func requestRepeatMode(_ mode: MusicRepeatMode) {
         guard playbackTransportMutationPrerequisite?() ?? false else { return }
         Task { await setRepeatModeAction?(mode) }
     }

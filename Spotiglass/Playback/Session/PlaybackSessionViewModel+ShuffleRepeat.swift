@@ -77,7 +77,7 @@ extension PlaybackSessionViewModel {
 
     /// Applies an explicitly selected repeat mode. The Playback menu uses this
     /// instead of forcing users to cycle through unknown intermediate states.
-    func setRepeatMode(_ mode: SpotifyRepeatMode) async {
+    func setRepeatMode(_ mode: MusicRepeatMode) async {
         guard isTransportStateKnown else { return }
         guard let commandDeviceID else {
             setConnectionState(.error(Self.playbackDeviceReconnectRequiredError()))
@@ -89,7 +89,7 @@ extension PlaybackSessionViewModel {
         await flushDesiredRepeatWrites(deviceID: commandDeviceID)
     }
 
-    func setPendingRepeat(mode: SpotifyRepeatMode) {
+    func setPendingRepeat(mode: MusicRepeatMode) {
         pendingRepeatMode = mode
         pendingRepeatDeadline = clock.now.advanced(by: pendingRepeatTimeout)
     }
@@ -136,7 +136,7 @@ extension PlaybackSessionViewModel {
 
     /// Applies repeat from Spotify transport while suppressing stale reads
     /// during a short optimistic-repeat window.
-    func applyTransportRepeatMode(_ transportMode: SpotifyRepeatMode) {
+    func applyTransportRepeatMode(_ transportMode: MusicRepeatMode) {
         guard let expected = pendingRepeatMode else {
             repeatMode = transportMode
             confirmedRepeatMode = transportMode
@@ -195,7 +195,7 @@ extension PlaybackSessionViewModel {
         }
     }
 
-    private func shouldSkipRepeatWrite(targetMode: SpotifyRepeatMode) -> Bool {
+    private func shouldSkipRepeatWrite(targetMode: MusicRepeatMode) -> Bool {
         if targetMode == confirmedRepeatMode {
             if repeatWriteInFlight {
                 return false

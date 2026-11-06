@@ -171,16 +171,16 @@ final class PlaybackTransportPollingTests: XCTestCase {
 
         XCTAssertEqual(viewModel.currentTransportPollDelay(), .seconds(20))
 
-        viewModel.latestPlayerSnapshot = SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+        viewModel.latestPlayerSnapshot = MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: false, repeatMode: .off),
             activeDevice: nil,
             isPlaying: true
         )
         viewModel.setConnectionState(.playing(track))
         XCTAssertEqual(viewModel.currentTransportPollDelay(), .seconds(2))
 
-        viewModel.latestPlayerSnapshot = SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+        viewModel.latestPlayerSnapshot = MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: false, repeatMode: .off),
             activeDevice: nil,
             isPlaying: false
         )
@@ -245,7 +245,7 @@ final class PlaybackTransportPollingTests: XCTestCase {
 
     func testRemoteSnapshotDrivesPlayingTransportWithInterpolatedProgress() async {
         let playbackAPI = MockPlaybackAPI()
-        let remoteDevice = SpotifyConnectDevice(
+        let remoteDevice = MusicPlaybackDevice(
             deviceID: "phone-device",
             isActive: true,
             isRestricted: false,
@@ -265,8 +265,8 @@ final class PlaybackTransportPollingTests: XCTestCase {
             linkedFromID: nil,
             uri: "spotify:track:remote-track"
         )
-        playbackAPI.snapshotResponses = [SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+        playbackAPI.snapshotResponses = [MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: false, repeatMode: .off),
             activeDevice: remoteDevice,
             isPlaying: true,
             item: .track(remoteTrack),
@@ -312,7 +312,7 @@ final class PlaybackTransportPollingTests: XCTestCase {
 
     func testLocalSDKStateRemainsAuthoritativeWhenSnapshotContainsItem() async {
         let playbackAPI = MockPlaybackAPI()
-        let localDevice = SpotifyConnectDevice(
+        let localDevice = MusicPlaybackDevice(
             deviceID: "local-device",
             isActive: true,
             isRestricted: false,
@@ -324,8 +324,8 @@ final class PlaybackTransportPollingTests: XCTestCase {
             name: "Snapshot track",
             artistId: "snapshot-artist"
         )
-        playbackAPI.snapshotResponses = [SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+        playbackAPI.snapshotResponses = [MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: false, repeatMode: .off),
             activeDevice: localDevice,
             isPlaying: true,
             item: .track(snapshotTrack),
@@ -357,7 +357,7 @@ final class PlaybackTransportPollingTests: XCTestCase {
 
     func testRemoteSnapshotDrivesPausedEpisodeTransportState() async {
         let playbackAPI = MockPlaybackAPI()
-        let remoteDevice = SpotifyConnectDevice(
+        let remoteDevice = MusicPlaybackDevice(
             deviceID: "phone-device",
             isActive: true,
             isRestricted: false,
@@ -373,8 +373,8 @@ final class PlaybackTransportPollingTests: XCTestCase {
             isPlayable: true,
             uri: "spotify:episode:episode-1"
         )
-        playbackAPI.snapshotResponses = [SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+        playbackAPI.snapshotResponses = [MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: false, repeatMode: .off),
             activeDevice: remoteDevice,
             isPlaying: false,
             item: .episode(episode),
@@ -400,7 +400,7 @@ final class PlaybackTransportPollingTests: XCTestCase {
 
     func testRemotePlayPauseCommandsTargetActiveConnectDevice() async {
         let playbackAPI = MockPlaybackAPI()
-        let remoteDevice = SpotifyConnectDevice(
+        let remoteDevice = MusicPlaybackDevice(
             deviceID: "phone-device",
             isActive: true,
             isRestricted: false,
@@ -412,8 +412,8 @@ final class PlaybackTransportPollingTests: XCTestCase {
             name: "Remote song",
             artistId: "remote-artist"
         )
-        playbackAPI.snapshotResponses = [SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+        playbackAPI.snapshotResponses = [MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: false, repeatMode: .off),
             activeDevice: remoteDevice,
             isPlaying: true,
             item: .track(track),

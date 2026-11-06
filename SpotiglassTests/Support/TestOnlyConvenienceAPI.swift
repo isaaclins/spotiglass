@@ -14,8 +14,8 @@ extension PlaybackSessionViewModel {
     }
 
     /// Delivers a bridge event stamped with the current host generation.
-    func handle(_ event: PlaybackBridgeEvent) {
-        handle(PlaybackBridgeEventEnvelope(event: event, hostGeneration: playbackHostGeneration))
+    func handle(_ event: MusicPlaybackEvent) {
+        handle(MusicPlaybackEventEnvelope(event: event, hostGeneration: playbackHostGeneration))
     }
 }
 

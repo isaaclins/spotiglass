@@ -438,14 +438,14 @@ final class PlaybackChromeViewsTests: XCTestCase {
     func testConnectDeviceMenuUsesNativePickerRowsAndSelectionState() throws {
         let playback = makePlayingPlayback()
         playback.connectDevices = [
-            SpotifyConnectDevice(
+            MusicPlaybackDevice(
                 deviceID: "connect-1",
                 isActive: true,
                 isRestricted: false,
                 name: "Living Room",
                 type: "speaker"
             ),
-            SpotifyConnectDevice(
+            MusicPlaybackDevice(
                 deviceID: "connect-2",
                 isActive: false,
                 isRestricted: true,
@@ -629,8 +629,8 @@ final class PlaybackChromeViewsTests: XCTestCase {
 
     func testQueuePanelEmptyStates() async throws {
         let api = MockPlaybackAPI()
-        api.snapshotResponses = [SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+        api.snapshotResponses = [MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: false, repeatMode: .off),
             activeDevice: nil,
             isPlaying: false
         )]
@@ -734,7 +734,7 @@ final class PlaybackChromeViewsTests: XCTestCase {
             linkedFromID: nil,
             uri: "spotify:track:next"
         )
-        api.queueResponse = SpotifyQueueResponse(queue: [.track(trackCurrent), .track(trackNext)])
+        api.queueResponse = MusicPlaybackQueue(queue: [.track(trackCurrent), .track(trackNext)])
 
         queue.setPanelVisible(true)
         await queue.refreshQueue()
@@ -772,8 +772,8 @@ final class PlaybackChromeViewsTests: XCTestCase {
 
     func testQueuePanelRepeatOneSubtitle() async throws {
         let api = MockPlaybackAPI()
-        api.snapshotResponses = [SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .track),
+        api.snapshotResponses = [MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: false, repeatMode: .track),
             activeDevice: nil,
             isPlaying: false
         )]

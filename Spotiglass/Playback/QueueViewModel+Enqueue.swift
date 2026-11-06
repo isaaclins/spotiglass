@@ -25,7 +25,7 @@ extension QueueViewModel {
         var uniqueURIs: [String] = []
         var seen: Set<String> = []
         for uri in uris {
-            guard let canonical = SpotifyPlayableURI.canonical(uri), seen.insert(canonical).inserted else { continue }
+            guard let canonical = MusicPlayableURI.canonical(uri), seen.insert(canonical).inserted else { continue }
             uniqueURIs.append(canonical)
         }
         guard !uniqueURIs.isEmpty else {

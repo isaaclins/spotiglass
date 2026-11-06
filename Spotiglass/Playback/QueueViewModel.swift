@@ -14,7 +14,7 @@ final class QueueViewModel: ObservableObject {
 
     let playbackAPI: SpotifyPlaybackControlling
     let playbackSession: PlaybackSessionViewModel
-    var lastFetchedQueue: SpotifyQueueResponse?
+    var lastFetchedQueue: MusicPlaybackQueue?
     /// Immediate queue projection used while waiting for Spotify queue
     /// reconciliation (e.g. optimistic shuffle UX).
     var optimisticUpcomingItems: [QueueItem]?

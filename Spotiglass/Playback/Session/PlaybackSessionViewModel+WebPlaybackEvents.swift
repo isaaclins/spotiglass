@@ -2,7 +2,7 @@ import Foundation
 
 @MainActor
 extension PlaybackSessionViewModel {
-    func handle(_ envelope: PlaybackBridgeEventEnvelope) {
+    func handle(_ envelope: MusicPlaybackEventEnvelope) {
         guard ownsPlaybackHostGeneration(envelope.hostGeneration) else {
             SpotiglassLog.info(.playback, "Ignoring stale SDK event generation=\(envelope.hostGeneration.rawValue) current=\(playbackHostGeneration.rawValue)")
             return
@@ -10,7 +10,7 @@ extension PlaybackSessionViewModel {
         handleCurrentPlaybackEvent(envelope.event)
     }
 
-    private func handleCurrentPlaybackEvent(_ event: PlaybackBridgeEvent) {
+    private func handleCurrentPlaybackEvent(_ event: MusicPlaybackEvent) {
         switch event {
         case let .ready(deviceID):
             SpotiglassLog.info(.playback, "SDK ready deviceID=\(deviceID) previousDeviceID=\(self.deviceID ?? "<nil>") autoResumeOnNextReady=\(autoResumeOnNextReady)")

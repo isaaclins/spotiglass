@@ -116,7 +116,7 @@ extension PlaybackSessionViewModel {
     /// Publishes the Web API player item only while Spotify is playing on a
     /// Connect device other than the embedded Web Playback SDK device. Local
     /// SDK state remains authoritative for the Spotiglass device.
-    private func applyRemotePlaybackSnapshot(_ snapshot: SpotifyPlayerSnapshot) {
+    private func applyRemotePlaybackSnapshot(_ snapshot: MusicPlaybackSnapshot) {
         guard let localDeviceID = deviceID,
               let activeDevice = snapshot.activeDevice,
               activeDevice.deviceID != localDeviceID else { return }
@@ -161,7 +161,7 @@ extension PlaybackSessionViewModel {
     }
 
     private func applyTransportVolume(
-        _ snapshot: SpotifyPlayerSnapshot,
+        _ snapshot: MusicPlaybackSnapshot,
         startedWithVolumeMutationVersion requestVersion: UInt64
     ) {
         guard requestVersion == volumeMutationVersion else { return }

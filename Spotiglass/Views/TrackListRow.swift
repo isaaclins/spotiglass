@@ -147,7 +147,7 @@ struct TrackListRow: View {
             if isCurrent {
                 return .toggle(action: .play)
             }
-            guard let playableURI = SpotifyPlayableURI.canonical(playableURI) else {
+            guard let playableURI = MusicPlayableURI.canonical(playableURI) else {
                 return .unavailable
             }
             return .play(uri: playableURI)

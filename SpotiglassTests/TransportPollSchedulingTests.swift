@@ -173,8 +173,8 @@ final class TransportPollSchedulingTests: XCTestCase {
         XCTAssertEqual(viewModel.transportTransientErrorCount, 2)
 
         api.fetchPlayerSnapshotError = nil
-        api.snapshotResponses = [SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+        api.snapshotResponses = [MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: false, repeatMode: .off),
             activeDevice: nil,
             isPlaying: false
         )]
@@ -187,8 +187,8 @@ final class TransportPollSchedulingTests: XCTestCase {
     func testSyncTransportClearsExpiredRateLimitOnSuccessfulRead() async {
         let api = MockPlaybackAPI()
         api.snapshotResponses = [
-            SpotifyPlayerSnapshot(
-                transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+            MusicPlaybackSnapshot(
+                transport: MusicPlaybackTransport(shuffle: false, repeatMode: .off),
                 activeDevice: nil,
                 isPlaying: false
             )

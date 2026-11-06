@@ -136,9 +136,9 @@ final class MenuKeyEquivalentTests: XCTestCase {
     func testRepeatCycleCommandAdvancesThroughAllModes() async {
         let manager = CommandPaletteManager(keymapStore: makeStore())
         manager.playbackTransportMutationPrerequisite = { true }
-        var mode = SpotifyRepeatMode.off
+        var mode = MusicRepeatMode.off
 
-        for expectedMode in [SpotifyRepeatMode.context, .track, .off] {
+        for expectedMode in [MusicRepeatMode.context, .track, .off] {
             let advanced = expectation(description: "repeat advanced to \(expectedMode.rawValue)")
             manager.cycleRepeat = {
                 mode = mode.next
@@ -184,7 +184,7 @@ final class MenuKeyEquivalentTests: XCTestCase {
         let manager = CommandPaletteManager(keymapStore: makeStore())
         manager.playbackTransportMutationPrerequisite = { true }
         let selected = expectation(description: "specific repeat mode selected")
-        var selectedMode: SpotifyRepeatMode?
+        var selectedMode: MusicRepeatMode?
         manager.setRepeatModeAction = { mode in
             selectedMode = mode
             selected.fulfill()

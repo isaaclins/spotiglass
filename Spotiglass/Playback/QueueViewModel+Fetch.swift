@@ -261,7 +261,7 @@ extension QueueViewModel {
 
     /// Spotify’s queue and Web Playback `next_tracks` still list contextual “next”
     /// items while repeat-one is active; playback loops the current track instead.
-    private static func applyRepeatOneGate(_ items: [QueueItem], repeatMode: SpotifyRepeatMode) -> [QueueItem] {
+    private static func applyRepeatOneGate(_ items: [QueueItem], repeatMode: MusicRepeatMode) -> [QueueItem] {
         repeatMode == .track ? [] : items
     }
 
@@ -286,7 +286,7 @@ extension QueueViewModel {
         return QueueItem.from(playback: np, id: identity)
     }
 
-    private static func mergedUpcoming(apiResponse: SpotifyQueueResponse, sdkNext: [PlaybackNowPlaying], limit: Int) -> [QueueItem] {
+    private static func mergedUpcoming(apiResponse: MusicPlaybackQueue, sdkNext: [PlaybackNowPlaying], limit: Int) -> [QueueItem] {
         let apiQueue = apiResponse.queue
         guard !apiQueue.isEmpty else {
             return sdkUpcomingItems(from: sdkNext, limit: limit)

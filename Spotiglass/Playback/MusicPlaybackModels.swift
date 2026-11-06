@@ -145,7 +145,7 @@ struct AlbumTapTarget: Equatable {
     let name: String
 }
 
-enum SpotifyPlayableURI {
+enum MusicPlayableURI {
     static func canonical(_ uri: String?) -> String? {
         guard let uri else { return nil }
         let trimmed = uri.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -192,7 +192,7 @@ extension QueueItem {
     /// Returns the canonical URI used by playback gestures, or nil for a
     /// missing, empty, or whitespace-only URI.
     var playableURI: String? {
-        SpotifyPlayableURI.canonical(uri)
+        MusicPlayableURI.canonical(uri)
     }
 
     static func from(track: MusicTrack, id: String? = nil) -> QueueItem {
@@ -220,7 +220,7 @@ extension QueueItem {
         )
     }
 
-    static func from(queueItem: SpotifyQueueTrackItem, id: String? = nil) -> QueueItem {
+    static func from(queueItem: MusicPlaybackItem, id: String? = nil) -> QueueItem {
         switch queueItem {
         case let .track(track):
             .from(track: track, id: id)
@@ -273,19 +273,20 @@ extension QueueItem {
     }
 }
 
-/// Response from `GET /v1/me/player/queue`.
-struct SpotifyQueueResponse: Equatable {
-    let queue: [SpotifyQueueTrackItem]
+/// What plays after the current item (Spotify: `GET /v1/me/player/queue`).
+struct MusicPlaybackQueue: Equatable {
+    let queue: [MusicPlaybackItem]
 }
 
-/// Spotify Web API `repeat_state` for the active player (`GET/PUT /v1/me/player` repeat).
-enum SpotifyRepeatMode: String, Equatable, Codable, CaseIterable, Hashable {
+/// Repeat mode of the active player. Raw values match Spotify's `repeat_state`
+/// (`off` / `context` / `track`); other services map their own modes onto these.
+enum MusicRepeatMode: String, Equatable, Codable, CaseIterable, Hashable {
     case off
     case context
     case track
 
     /// Cycles the repeat button: off → context → track → off.
-    var next: SpotifyRepeatMode {
+    var next: MusicRepeatMode {
         switch self {
         case .off: return .context
         case .context: return .track
@@ -294,21 +295,24 @@ enum SpotifyRepeatMode: String, Equatable, Codable, CaseIterable, Hashable {
     }
 }
 
-/// Shuffle + repeat from `GET /v1/me/player` (subset of the full player object).
-struct SpotifyPlayerTransport: Equatable {
+/// Shuffle and repeat of the active player, as read from the service
+/// (Spotify: a subset of `GET /v1/me/player`).
+struct MusicPlaybackTransport: Equatable {
     let shuffle: Bool
-    let repeatMode: SpotifyRepeatMode
+    let repeatMode: MusicRepeatMode
 }
 
-/// A Spotify Connect endpoint from `GET /v1/me/player/devices` or the nested `device` on `GET /v1/me/player`.
-struct SpotifyConnectDevice: Equatable, Identifiable {
+/// A player the service can route playback to. Spotify: a Spotify Connect
+/// endpoint from `GET /v1/me/player/devices` or the nested `device` on
+/// `GET /v1/me/player`. `deviceID` is opaque and owned by the service.
+struct MusicPlaybackDevice: Equatable, Identifiable {
     let deviceID: String
     let isActive: Bool
     let isRestricted: Bool
     let name: String
-    /// Spotify device type string (e.g. `computer`, `smartphone`, `speaker`).
+    /// The service's device type string (Spotify: `computer`, `smartphone`, `speaker`, ...).
     let type: String
-    /// Optional percentage reported by Spotify for the device's volume.
+    /// Optional percentage the service reports for the device's volume.
     let volumePercent: Int?
 
     init(
@@ -327,7 +331,7 @@ struct SpotifyConnectDevice: Equatable, Identifiable {
         self.volumePercent = volumePercent
     }
 
-    /// Maps Spotify's optional 0...100 volume to the Web Playback slider range.
+    /// Maps the optional 0...100 device volume to the 0...1 slider range.
     /// Invalid server values are kept safe at the application boundary.
     var volumeFraction: Double? {
         guard let volumePercent else { return nil }
@@ -337,22 +341,24 @@ struct SpotifyConnectDevice: Equatable, Identifiable {
     var id: String { deviceID }
 }
 
-/// Shuffle/repeat plus optional active Connect device from `GET /v1/me/player`.
-struct SpotifyPlayerSnapshot: Equatable {
-    let transport: SpotifyPlayerTransport
-    let activeDevice: SpotifyConnectDevice?
-    /// Whether Spotify reports active playback (`is_playing` on the player object).
+/// One read of the active player: shuffle / repeat, the device it plays on (if
+/// the service has devices), whether it plays, the item and its position.
+/// Spotify: `GET /v1/me/player`.
+struct MusicPlaybackSnapshot: Equatable {
+    let transport: MusicPlaybackTransport
+    let activeDevice: MusicPlaybackDevice?
+    /// Whether the service reports active playback (Spotify: `is_playing`).
     let isPlaying: Bool
-    /// The track or episode currently reported by Spotify, if there is one.
-    let item: SpotifyQueueTrackItem?
-    /// Current playback position from Spotify's `progress_ms` field.
+    /// The track or episode currently reported by the service, if there is one.
+    let item: MusicPlaybackItem?
+    /// Current playback position (Spotify: `progress_ms`).
     let progressMilliseconds: Int?
 
     init(
-        transport: SpotifyPlayerTransport,
-        activeDevice: SpotifyConnectDevice?,
+        transport: MusicPlaybackTransport,
+        activeDevice: MusicPlaybackDevice?,
         isPlaying: Bool,
-        item: SpotifyQueueTrackItem? = nil,
+        item: MusicPlaybackItem? = nil,
         progressMilliseconds: Int? = nil
     ) {
         self.transport = transport
@@ -363,14 +369,14 @@ struct SpotifyPlayerSnapshot: Equatable {
     }
 }
 
-/// Unified track-or-episode slot from the queue endpoint.
-enum SpotifyQueueTrackItem: Equatable {
+/// A track or an episode in the player or its queue.
+enum MusicPlaybackItem: Equatable {
     case track(MusicTrack)
     case episode(MusicEpisode)
 }
 
-extension SpotifyPlayerSnapshot {
-    /// Projects Spotify's player item into the transport's common now-playing model.
+extension MusicPlaybackSnapshot {
+    /// Projects the player item into the transport's common now-playing model.
     /// The player endpoint reports progress separately from the item, so this is
     /// also where the position is clamped to the item's duration.
     var playbackNowPlaying: PlaybackNowPlaying? {
@@ -423,16 +429,20 @@ struct PlaybackHostGeneration: Equatable, Hashable, Sendable {
     }
 }
 
-struct PlaybackBridgeEventEnvelope: Equatable {
-    let event: PlaybackBridgeEvent
+/// A player event tagged with the player lifecycle it belongs to. Events from an
+/// older lifecycle are dropped by the session.
+struct MusicPlaybackEventEnvelope: Equatable {
+    let event: MusicPlaybackEvent
     let hostGeneration: PlaybackHostGeneration
 }
 
-enum PlaybackBridgeEvent: Equatable {
+/// What the in-app player reports to the playback session. Spotify sends these
+/// from the Web Playback SDK page (see `SpotifyPlaybackBridgeParser`).
+enum MusicPlaybackEvent: Equatable {
     case ready(deviceID: String)
     case notReady(deviceID: String)
     case stateChanged(PlaybackNowPlaying?, isPaused: Bool, nextTracks: [PlaybackNowPlaying])
-    /// Web Playback SDK command promise resolved (`runPlayerCommand` name, e.g. `togglePlay`).
+    /// A player command finished (Spotify: the SDK's `runPlayerCommand` name, e.g. `togglePlay`).
     case playerCommandFinished(command: String)
     case initializationError(String)
     case authenticationError(String)

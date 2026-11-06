@@ -80,9 +80,9 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
 
     func testDisconnectDuringInFlightTransportSyncSuppressesLateSnapshotMutation() async {
         let playbackAPI = MockPlaybackAPI()
-        playbackAPI.snapshotResponses = [SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: true, repeatMode: .track),
-            activeDevice: SpotifyConnectDevice(
+        playbackAPI.snapshotResponses = [MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: true, repeatMode: .track),
+            activeDevice: MusicPlaybackDevice(
                 deviceID: "old-device",
                 isActive: true,
                 isRestricted: false,
@@ -121,8 +121,8 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
 
     func testDuplicateReadyForKnownCurrentDevicePreservesTransportStateWithoutAnotherFetch() async {
         let playbackAPI = MockPlaybackAPI()
-        playbackAPI.snapshotResponses = [SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: true, repeatMode: .track),
+        playbackAPI.snapshotResponses = [MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: true, repeatMode: .track),
             activeDevice: nil,
             isPlaying: false
         )]
@@ -154,9 +154,9 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
             fetchStarted.signal()
             await releaseFetch.wait()
         }
-        playbackAPI.snapshotResponses = [SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
-            activeDevice: SpotifyConnectDevice(
+        playbackAPI.snapshotResponses = [MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: false, repeatMode: .off),
+            activeDevice: MusicPlaybackDevice(
                 deviceID: "device-1",
                 isActive: true,
                 isRestricted: false,
@@ -283,9 +283,9 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
             fetchStarted.signal()
             await releaseFetch.wait()
         }
-        playbackAPI.snapshotResponses = [SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
-            activeDevice: SpotifyConnectDevice(
+        playbackAPI.snapshotResponses = [MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: false, repeatMode: .off),
+            activeDevice: MusicPlaybackDevice(
                 deviceID: "device-1",
                 isActive: true,
                 isRestricted: false,
@@ -324,9 +324,9 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
         )
         viewModel.deviceID = "device-1"
         viewModel.setPlaybackVolume(0.80)
-        playbackAPI.snapshotResponses = [SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
-            activeDevice: SpotifyConnectDevice(
+        playbackAPI.snapshotResponses = [MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: false, repeatMode: .off),
+            activeDevice: MusicPlaybackDevice(
                 deviceID: "device-1",
                 isActive: true,
                 isRestricted: false,
@@ -352,9 +352,9 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
         )
         viewModel.deviceID = "device-1"
         viewModel.setPlaybackVolume(0.80)
-        playbackAPI.snapshotResponses = [SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
-            activeDevice: SpotifyConnectDevice(
+        playbackAPI.snapshotResponses = [MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: false, repeatMode: .off),
+            activeDevice: MusicPlaybackDevice(
                 deviceID: "device-1",
                 isActive: true,
                 isRestricted: false,
@@ -375,9 +375,9 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
         let playbackAPI = MockPlaybackAPI()
         let defaults = makeEphemeralDefaults()
         defaults.set(0.70, forKey: "spotiglass.playbackVolume")
-        playbackAPI.snapshotResponses = [SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
-            activeDevice: SpotifyConnectDevice(
+        playbackAPI.snapshotResponses = [MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: false, repeatMode: .off),
+            activeDevice: MusicPlaybackDevice(
                 deviceID: "remote-device",
                 isActive: true,
                 isRestricted: false,
@@ -410,9 +410,9 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
         )
         viewModel.deviceID = "device-1"
         viewModel.setPlaybackVolume(0.80)
-        playbackAPI.snapshotResponses = [SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
-            activeDevice: SpotifyConnectDevice(
+        playbackAPI.snapshotResponses = [MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: false, repeatMode: .off),
+            activeDevice: MusicPlaybackDevice(
                 deviceID: "device-1",
                 isActive: true,
                 isRestricted: false,
@@ -433,9 +433,9 @@ final class PlaybackSessionPlayAndDedupeTests: XCTestCase {
     func testTransportSnapshotUpdatesPlaybackVolumeForCurrentLocalDevice() async {
         let playbackAPI = MockPlaybackAPI()
         let defaults = makeEphemeralDefaults()
-        playbackAPI.snapshotResponses = [SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
-            activeDevice: SpotifyConnectDevice(
+        playbackAPI.snapshotResponses = [MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: false, repeatMode: .off),
+            activeDevice: MusicPlaybackDevice(
                 deviceID: "device-1",
                 isActive: true,
                 isRestricted: false,

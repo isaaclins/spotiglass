@@ -57,9 +57,9 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
         XCTAssertTrue(didConnectStart)
 
         await viewModel.disconnect()
-        viewModel.handle(PlaybackBridgeEventEnvelope(event: .ready(deviceID: "old-device"), hostGeneration: oldGeneration))
-        viewModel.handle(PlaybackBridgeEventEnvelope(event: .notReady(deviceID: "old-device"), hostGeneration: oldGeneration))
-        viewModel.handle(PlaybackBridgeEventEnvelope(event: .initializationError("old startup failed"), hostGeneration: oldGeneration))
+        viewModel.handle(MusicPlaybackEventEnvelope(event: .ready(deviceID: "old-device"), hostGeneration: oldGeneration))
+        viewModel.handle(MusicPlaybackEventEnvelope(event: .notReady(deviceID: "old-device"), hostGeneration: oldGeneration))
+        viewModel.handle(MusicPlaybackEventEnvelope(event: .initializationError("old startup failed"), hostGeneration: oldGeneration))
         releaseConnect.signal()
         await Task.yield()
 
@@ -239,20 +239,20 @@ final class PlaybackRecoveryAndPlaylistContextTests: XCTestCase {
         let newGeneration = viewModel.playbackHostGeneration
 
         XCTAssertNotEqual(oldGeneration, newGeneration)
-        viewModel.handle(PlaybackBridgeEventEnvelope(
+        viewModel.handle(MusicPlaybackEventEnvelope(
             event: .ready(deviceID: "old-device"),
             hostGeneration: oldGeneration
         ))
         XCTAssertEqual(viewModel.connectionState, .connecting)
         XCTAssertNil(viewModel.deviceID)
 
-        viewModel.handle(PlaybackBridgeEventEnvelope(
+        viewModel.handle(MusicPlaybackEventEnvelope(
             event: .ready(deviceID: "new-device"),
             hostGeneration: newGeneration
         ))
         XCTAssertEqual(viewModel.connectionState, .ready(deviceID: "new-device"))
 
-        viewModel.handle(PlaybackBridgeEventEnvelope(
+        viewModel.handle(MusicPlaybackEventEnvelope(
             event: .notReady(deviceID: "new-device"),
             hostGeneration: newGeneration
         ))

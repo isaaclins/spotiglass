@@ -482,9 +482,9 @@ final class PlaybackSessionPlayCommandsAndTrayTests: XCTestCase {
             macAudioOutput: mac
         )
         viewModel.handle(.ready(deviceID: "local-device"))
-        viewModel.latestPlayerSnapshot = SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
-            activeDevice: SpotifyConnectDevice(
+        viewModel.latestPlayerSnapshot = MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: false, repeatMode: .off),
+            activeDevice: MusicPlaybackDevice(
                 deviceID: "remote",
                 isActive: true,
                 isRestricted: false,
@@ -496,9 +496,9 @@ final class PlaybackSessionPlayCommandsAndTrayTests: XCTestCase {
         viewModel.refreshTrayOutputSymbol()
         XCTAssertNotEqual(viewModel.trayOutputSymbolName, "headphones")
 
-        viewModel.latestPlayerSnapshot = SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
-            activeDevice: SpotifyConnectDevice(
+        viewModel.latestPlayerSnapshot = MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: false, repeatMode: .off),
+            activeDevice: MusicPlaybackDevice(
                 deviceID: "local-device",
                 isActive: true,
                 isRestricted: false,
