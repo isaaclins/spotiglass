@@ -11,10 +11,22 @@ extension QueueViewModel {
         if isRefreshInFlight {
             pendingRefreshRequested = true
             pendingRefreshAllowsHiddenPanel = pendingRefreshAllowsHiddenPanel || allowsHiddenPanel
+            // Wait for the follow-up round this request joined. Callers await a
+            // refresh (after an enqueue, a shuffle or the toolbar refresh) and
+            // expect the queue they asked for once it returns.
+            await withCheckedContinuation { pendingRefreshWaiters.append($0) }
             return
         }
 
         var nextAllowsHiddenPanel = allowsHiddenPanel
+        // Waiters whose request the current round answers.
+        var roundWaiters: [CheckedContinuation<Void, Never>] = []
+        defer {
+            // The loop can also stop early (panel hidden, cooldown). Nobody
+            // waits for a round that will not run.
+            for waiter in roundWaiters + pendingRefreshWaiters { waiter.resume() }
+            pendingRefreshWaiters = []
+        }
         while true {
             guard shouldAllowQueueRequest(allowsHiddenPanel: nextAllowsHiddenPanel) else { break }
             if let cooldownUntil = queueCooldownUntil, cooldownUntil > Date() {
@@ -75,7 +87,12 @@ extension QueueViewModel {
                 unchangedPollTickCount = 0
             }
 
+            for waiter in roundWaiters { waiter.resume() }
+            roundWaiters = []
+
             guard pendingRefreshRequested else { break }
+            roundWaiters = pendingRefreshWaiters
+            pendingRefreshWaiters = []
             nextAllowsHiddenPanel = pendingRefreshAllowsHiddenPanel
             pendingRefreshRequested = false
             pendingRefreshAllowsHiddenPanel = false

@@ -888,6 +888,37 @@ final class QueuePanelTests: XCTestCase {
         XCTAssertEqual(api.maxConcurrentFetches, 1)
     }
 
+    /// The failure behind the flaky coalescing test: a manual refresh that
+    /// joined an in-flight refresh returned at once, before any fetch it asked
+    /// for had run. It now returns only after its follow-up fetch finished.
+    func testManualRefreshThatJoinsAnInFlightRefreshWaitsForItsFollowUpFetch() async {
+        let api = QueueTestPlaybackAPI()
+        let gate = AsyncSignal()
+        api.fetchQueueGate = gate
+        let playback = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: StubWebPlaybackCommander()))
+        playback.handle(.ready(deviceID: "device-1"))
+        playback.handle(.stateChanged(
+            PlaybackNowPlaying(name: "T", artists: ["A"], albumName: nil, albumID: nil, albumArtURL: nil, durationMilliseconds: 60_000, positionMilliseconds: 0, uri: "spotify:track:t"),
+            isPaused: false,
+            nextTracks: []
+        ))
+        let queue = QueueViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api), playbackSession: playback, pollIntervalNanoseconds: 60_000_000_000, pollJitterFraction: 0)
+        queue.isPanelVisible = true
+
+        let inFlight = Task { await queue.refreshQueue() }
+        await api.fetchQueueSignal.wait()
+        // Runs once the main actor is free, which is after the joined refresh
+        // below has registered and suspended.
+        let release = Task { @MainActor in gate.signal() }
+        await queue.refreshQueue()
+        let fetchesWhenJoinedRefreshReturned = api.actions.filter { $0 == "fetchQueue" }.count
+        await inFlight.value
+        await release.value
+
+        XCTAssertEqual(fetchesWhenJoinedRefreshReturned, 2, "A joined refresh returns after its own follow-up fetch, not before.")
+        XCTAssertFalse(api.concurrentFetchDetected)
+    }
+
     func testQueueRefreshShortCircuitsDuringRateLimitCooldown() async {
         let api = QueueTestPlaybackAPI()
         let playback = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: StubWebPlaybackCommander()))
@@ -1101,29 +1132,77 @@ private final class StubWebPlaybackCommander: WebPlaybackCommanding {
 }
 
 private final class QueueTestPlaybackAPI: SpotifyPlaybackControlling {
+    // Playback calls run on background threads while tests read and set this
+    // mock on the main thread, so every field lives in `state` behind `lock`.
+    // An unlocked read of the call log raced a background `fetchPlayerSnapshot`
+    // append and once saw an empty log in CI (#379).
+    private struct State {
+        var actions: [String] = []
+        var onFetchQueue: (() -> Void)?
+        var fetchQueueGate: AsyncSignal?
+        var queueResponse = MusicPlaybackQueue(queue: [])
+        var queueResponses: [MusicPlaybackQueue] = []
+        var errorToThrow: Error?
+        var setShuffleError: Error?
+        var setRepeatError: Error?
+        var fetchQueueDelayNanoseconds: UInt64 = 0
+        var addToQueueDelayNanoseconds: UInt64 = 0
+        var addToQueueErrors: [Error?] = []
+        var concurrentFetchDetected = false
+        var maxConcurrentFetches = 0
+        var currentConcurrentFetches = 0
+        var reportedTransport = MusicPlaybackTransport(shuffle: false, repeatMode: .off)
+    }
+
     private let lock = NSLock()
-    // Every read goes through the lock. `.ready` starts a transport sync whose
-    // `fetchPlayerSnapshot` appends here on a background thread while the test
-    // reads on the main thread; an unlocked read raced that append and once
-    // saw an empty log in CI (#379).
-    private var recordedActions: [String] = []
-    var actions: [String] { locked { recordedActions } }
+    private var state = State()
     let fetchQueueSignal = AsyncSignal()
-    var onFetchQueue: (() -> Void)?
-    var queueResponse = MusicPlaybackQueue(queue: [])
-    var errorToThrow: Error?
-    var setShuffleError: Error?
-    var setRepeatError: Error?
-    var fetchQueueDelayNanoseconds: UInt64 = 0
-    var queueResponses: [MusicPlaybackQueue] = []
-    var addToQueueDelayNanoseconds: UInt64 = 0
-    var addToQueueErrors: [Error?] = []
-    private var recordedConcurrentFetchDetected = false
-    private var recordedMaxConcurrentFetches = 0
-    private var currentConcurrentFetches = 0
-    var concurrentFetchDetected: Bool { locked { recordedConcurrentFetchDetected } }
-    var maxConcurrentFetches: Int { locked { recordedMaxConcurrentFetches } }
-    private var reportedTransport = MusicPlaybackTransport(shuffle: false, repeatMode: .off)
+
+    var actions: [String] { locked { $0.actions } }
+    var concurrentFetchDetected: Bool { locked { $0.concurrentFetchDetected } }
+    var maxConcurrentFetches: Int { locked { $0.maxConcurrentFetches } }
+    var onFetchQueue: (() -> Void)? {
+        get { locked { $0.onFetchQueue } }
+        set { locked { $0.onFetchQueue = newValue } }
+    }
+    /// When set, `fetchQueue` waits for this signal after it is recorded, so a
+    /// test can hold a fetch in flight without a timing window.
+    var fetchQueueGate: AsyncSignal? {
+        get { locked { $0.fetchQueueGate } }
+        set { locked { $0.fetchQueueGate = newValue } }
+    }
+    var queueResponse: MusicPlaybackQueue {
+        get { locked { $0.queueResponse } }
+        set { locked { $0.queueResponse = newValue } }
+    }
+    var queueResponses: [MusicPlaybackQueue] {
+        get { locked { $0.queueResponses } }
+        set { locked { $0.queueResponses = newValue } }
+    }
+    var errorToThrow: Error? {
+        get { locked { $0.errorToThrow } }
+        set { locked { $0.errorToThrow = newValue } }
+    }
+    var setShuffleError: Error? {
+        get { locked { $0.setShuffleError } }
+        set { locked { $0.setShuffleError = newValue } }
+    }
+    var setRepeatError: Error? {
+        get { locked { $0.setRepeatError } }
+        set { locked { $0.setRepeatError = newValue } }
+    }
+    var fetchQueueDelayNanoseconds: UInt64 {
+        get { locked { $0.fetchQueueDelayNanoseconds } }
+        set { locked { $0.fetchQueueDelayNanoseconds = newValue } }
+    }
+    var addToQueueDelayNanoseconds: UInt64 {
+        get { locked { $0.addToQueueDelayNanoseconds } }
+        set { locked { $0.addToQueueDelayNanoseconds = newValue } }
+    }
+    var addToQueueErrors: [Error?] {
+        get { locked { $0.addToQueueErrors } }
+        set { locked { $0.addToQueueErrors = newValue } }
+    }
 
     func transferPlayback(to deviceID: String, play: Bool) async throws {
         appendAction("transfer:\(deviceID):\(play)")
@@ -1160,37 +1239,51 @@ private final class QueueTestPlaybackAPI: SpotifyPlaybackControlling {
     func previous(deviceID: String) async throws {}
 
     func fetchQueue() async throws -> MusicPlaybackQueue {
-        appendAction("fetchQueue")
+        let (onFetchQueue, gate, delay) = locked { state -> ((() -> Void)?, AsyncSignal?, UInt64) in
+            state.actions.append("fetchQueue")
+            state.currentConcurrentFetches += 1
+            state.maxConcurrentFetches = max(state.maxConcurrentFetches, state.currentConcurrentFetches)
+            if state.currentConcurrentFetches > 1 {
+                state.concurrentFetchDetected = true
+            }
+            return (state.onFetchQueue, state.fetchQueueGate, state.fetchQueueDelayNanoseconds)
+        }
+        defer { locked { $0.currentConcurrentFetches -= 1 } }
         fetchQueueSignal.signal()
         onFetchQueue?()
-        beginFetch()
-        defer { endFetch() }
-        if fetchQueueDelayNanoseconds > 0 {
-            try? await Task.sleep(nanoseconds: fetchQueueDelayNanoseconds)
+        await gate?.wait()
+        if delay > 0 {
+            try? await Task.sleep(nanoseconds: delay)
         }
-        if let errorToThrow {
-            throw errorToThrow
+        return try locked { state -> MusicPlaybackQueue in
+            if let errorToThrow = state.errorToThrow {
+                throw errorToThrow
+            }
+            if !state.queueResponses.isEmpty {
+                return state.queueResponses.removeFirst()
+            }
+            return state.queueResponse
         }
-        if let next = dequeueQueueResponse() {
-            return next
-        }
-        return readQueueResponse()
     }
 
     func addToQueue(uri: String, deviceID: String) async throws {
         // Track attempted submissions so ambiguous transport failures are visible in tests.
         appendAction("addToQueue:\(deviceID):\(uri)")
-        if addToQueueDelayNanoseconds > 0 {
-            try? await Task.sleep(nanoseconds: addToQueueDelayNanoseconds)
+        let delay = locked { $0.addToQueueDelayNanoseconds }
+        if delay > 0 {
+            try? await Task.sleep(nanoseconds: delay)
         }
-        if let error = dequeueAddToQueueError() {
+        let error = locked { state -> Error? in
+            state.addToQueueErrors.isEmpty ? nil : state.addToQueueErrors.removeFirst()
+        }
+        if let error {
             throw error
         }
     }
 
     func fetchPlayerSnapshot() async throws -> MusicPlaybackSnapshot? {
         appendAction("fetchPlayerSnapshot")
-        return MusicPlaybackSnapshot(transport: readReportedTransport(), activeDevice: nil, isPlaying: true)
+        return MusicPlaybackSnapshot(transport: locked { $0.reportedTransport }, activeDevice: nil, isPlaying: true)
     }
 
     func fetchAvailableDevices() async throws -> [MusicPlaybackDevice] {
@@ -1200,73 +1293,27 @@ private final class QueueTestPlaybackAPI: SpotifyPlaybackControlling {
 
     func setShuffle(enabled: Bool, deviceID: String) async throws {
         if let setShuffleError { throw setShuffleError }
-        appendAction("setShuffle:\(deviceID):\(enabled)")
-        writeReportedTransport(MusicPlaybackTransport(shuffle: enabled, repeatMode: readReportedTransport().repeatMode))
+        locked { state in
+            state.actions.append("setShuffle:\(deviceID):\(enabled)")
+            state.reportedTransport = MusicPlaybackTransport(shuffle: enabled, repeatMode: state.reportedTransport.repeatMode)
+        }
     }
 
     func setRepeat(mode: MusicRepeatMode, deviceID: String) async throws {
         if let setRepeatError { throw setRepeatError }
-        appendAction("setRepeat:\(deviceID):\(mode.rawValue)")
-        writeReportedTransport(MusicPlaybackTransport(shuffle: readReportedTransport().shuffle, repeatMode: mode))
+        locked { state in
+            state.actions.append("setRepeat:\(deviceID):\(mode.rawValue)")
+            state.reportedTransport = MusicPlaybackTransport(shuffle: state.reportedTransport.shuffle, repeatMode: mode)
+        }
     }
 
-    private func locked<T>(_ body: () -> T) -> T {
+    private func locked<T>(_ body: (inout State) throws -> T) rethrows -> T {
         lock.lock()
         defer { lock.unlock() }
-        return body()
+        return try body(&state)
     }
 
     private func appendAction(_ action: String) {
-        lock.lock()
-        recordedActions.append(action)
-        lock.unlock()
-    }
-
-    private func beginFetch() {
-        lock.lock()
-        currentConcurrentFetches += 1
-        recordedMaxConcurrentFetches = max(recordedMaxConcurrentFetches, currentConcurrentFetches)
-        if currentConcurrentFetches > 1 {
-            recordedConcurrentFetchDetected = true
-        }
-        lock.unlock()
-    }
-
-    private func endFetch() {
-        lock.lock()
-        currentConcurrentFetches -= 1
-        lock.unlock()
-    }
-
-    private func dequeueQueueResponse() -> MusicPlaybackQueue? {
-        lock.lock()
-        defer { lock.unlock() }
-        guard !queueResponses.isEmpty else { return nil }
-        return queueResponses.removeFirst()
-    }
-
-    private func readQueueResponse() -> MusicPlaybackQueue {
-        lock.lock()
-        defer { lock.unlock() }
-        return queueResponse
-    }
-
-    private func dequeueAddToQueueError() -> Error? {
-        lock.lock()
-        defer { lock.unlock() }
-        guard !addToQueueErrors.isEmpty else { return nil }
-        return addToQueueErrors.removeFirst()
-    }
-
-    private func readReportedTransport() -> MusicPlaybackTransport {
-        lock.lock()
-        defer { lock.unlock() }
-        return reportedTransport
-    }
-
-    private func writeReportedTransport(_ value: MusicPlaybackTransport) {
-        lock.lock()
-        reportedTransport = value
-        lock.unlock()
+        locked { $0.actions.append(action) }
     }
 }
