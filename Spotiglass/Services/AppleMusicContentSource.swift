@@ -33,6 +33,10 @@ protocol AppleMusicContentSource: Sendable {
     func album(id: String) async throws -> Album?
     /// One artist with its albums loaded.
     func artist(id: String) async throws -> Artist?
+    /// Every track of an album from `album(id:)`, following MusicKit's batches up to `limit`.
+    func tracks(of album: Album, limit: Int) async throws -> [Track]
+    /// Every album of an artist from `artist(id:)`, following MusicKit's batches up to `limit`.
+    func albums(of artist: Artist, limit: Int) async throws -> [Album]
     func artistTopSongs(artistID: String) async throws -> [Song]
     func catalogSearch(term: String, limit: Int, offset: Int) async throws -> AppleMusicSearchItems
     func librarySearch(term: String, limit: Int) async throws -> AppleMusicSearchItems
@@ -124,6 +128,16 @@ struct MusicKitContentSource: AppleMusicContentSource {
         let catalog = try await MusicCatalogResourceRequest<Artist>(matching: \.id, equalTo: itemID)
             .response().items.first
         return try await catalog?.with([.albums])
+    }
+
+    /// `with([.tracks])` loads only the relationship's first batch; the rest needs `nextBatch()`.
+    func tracks(of album: Album, limit: Int) async throws -> [Track] {
+        try await Self.collect(album.tracks, limit: limit)
+    }
+
+    /// Like album tracks, an artist's albums arrive one batch at a time.
+    func albums(of artist: Artist, limit: Int) async throws -> [Album] {
+        try await Self.collect(artist.albums, limit: limit)
     }
 
     func artistTopSongs(artistID: String) async throws -> [Song] {

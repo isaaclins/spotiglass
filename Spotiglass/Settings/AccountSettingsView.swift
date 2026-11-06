@@ -4,9 +4,31 @@ import AppKit
 struct AccountSettingsView: View {
     @ObservedObject var viewModel: AuthViewModel
     var onSignOut: () -> Void = {}
+    /// Under Apple Music the Spotify session is never restored, so this pane would say "Signed
+    /// out" and offer Connect, and starting a sign-in deletes the saved Spotify token before it
+    /// succeeds. Apple Music mode shows a plain note instead and leaves Spotify untouched.
+    var musicService: MusicService = MusicServiceSelection.current
 
     var body: some View {
         Form {
+            if musicService == .appleMusic {
+                Section {
+                    Text(SpotiglassL10n.string("settings.account.appleMusicActive"))
+                        .foregroundStyle(.secondary)
+                } header: {
+                    Text(SpotiglassL10n.string("settings.account.connection"))
+                }
+            } else {
+                spotifySections
+            }
+            diagnosticsSection
+        }
+        .formStyle(.grouped)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+
+    @ViewBuilder
+    private var spotifySections: some View {
             Section {
                 LabeledContent(SpotiglassL10n.string("settings.account.status")) {
                     Text(viewModel.state.title)
@@ -38,7 +60,9 @@ struct AccountSettingsView: View {
                 Text(SpotiglassL10n.string("settings.account.developerApp.hint"))
                     .foregroundStyle(.secondary)
             }
+    }
 
+    private var diagnosticsSection: some View {
             Section {
                 if let session = activeSession {
                     LabeledContent(SpotiglassL10n.string("settings.account.accessToken")) {
@@ -84,9 +108,6 @@ struct AccountSettingsView: View {
                 Text(SpotiglassL10n.string("settings.account.diagnostics.footer"))
                     .foregroundStyle(.secondary)
             }
-        }
-        .formStyle(.grouped)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
     private var activeSession: AuthenticatedSession? {

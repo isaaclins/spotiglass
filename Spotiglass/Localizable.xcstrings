@@ -14420,6 +14420,29 @@
           }
         }
       }
+    },
+    "settings.account.appleMusicActive": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass is browsing Apple Music. Your Spotify sign-in stays as it is and is used again when you switch back to Spotify."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass está explorando Apple Music. Tu sesión de Spotify se queda como está y se vuelve a usar cuando cambies a Spotify."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass zeigt gerade Apple Music. Deine Spotify-Anmeldung bleibt, wie sie ist, und wird wieder verwendet, sobald du zu Spotify zurückwechselst."
+          }
+        }
+      }
     }
   },
   "version": "1.1"

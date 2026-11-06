@@ -366,6 +366,50 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         XCTAssertEqual(source.calls, ["catalogSearch(one,25,25)"])
         XCTAssertEqual(results.tracks.count, 1)
         XCTAssertNil(results.tracksPaging?.next)
+        // The total must end here too, or the Search view keeps offering Load More.
+        XCTAssertEqual(results.tracksPaging?.total, 26)
+    }
+
+    /// Two different recordings with the same title and artist are two results; only a catalog
+    /// copy of something the library already shows is dropped.
+    func testSearchKeepsDistinctItemsThatShareAName() async throws {
+        let source = MockAppleMusicSource()
+        source.catalogSearchItems = AppleMusicSearchItems(
+            songs: [
+                try AppleMusicFixtures.song(id: "1", title: "Intro", artist: "The xx"),
+                try AppleMusicFixtures.song(id: "2", title: "Intro", artist: "The xx"),
+            ],
+            artists: [
+                try AppleMusicFixtures.artist(id: "10", name: "Nova"),
+                try AppleMusicFixtures.artist(id: "11", name: "Nova"),
+            ]
+        )
+        let results = try await AppleMusicBrowsingProvider(source: source).search(query: "intro", limit: 10)
+
+        XCTAssertEqual(results.tracks.map(\.id), ["1", "2"])
+        XCTAssertEqual(results.artists.map(\.id), ["10", "11"])
+        XCTAssertNil(results.tracksPaging?.next)
+        XCTAssertEqual(results.tracksPaging?.total, 2)
+    }
+
+    /// MusicKit loads an artist's albums and an album's tracks one batch at a time; the
+    /// provider must ask the source for all of them, not stop at the first batch.
+    func testArtistAlbumsAndAlbumTracksGoPastTheFirstBatch() async throws {
+        let source = MockAppleMusicSource()
+        source.artistsByID["5201"] = try AppleMusicFixtures.artist(
+            id: "5201", name: "Bonobo", albums: [(id: "a0", single: false)]
+        )
+        source.extraAlbumsByArtistID["5201"] = try (1..<40).map { try AppleMusicFixtures.album(id: "a\($0)", title: "Album \($0)") }
+        source.albumsByID["a1"] = try AppleMusicFixtures.album(id: "a1", title: "Long", tracks: [("i.0", "Track 0")])
+        source.extraTracksByAlbumID["a1"] = try (1..<150).map {
+            .song(try AppleMusicFixtures.song(id: "i.\($0)", title: "Track \($0)"))
+        }
+        let provider = AppleMusicBrowsingProvider(source: source)
+
+        let albums = try await provider.artistAlbumsCached(id: "5201", includeGroups: [], limit: 100, cacheMode: .allowStale)
+        XCTAssertEqual(albums.value.count, 40)
+        let tracks = try await provider.albumTracks(albumID: "a1", market: nil, limit: 500)
+        XCTAssertEqual(tracks.count, 150)
     }
 
     func testSearchSurvivesOneSideFailingButNotBoth() async throws {
@@ -423,7 +467,6 @@ final class AppleMusicArtworkRegistryTests: XCTestCase {
 
         XCTAssertEqual(registry.artwork(for: libraryURL), library)
         XCTAssertNil(registry.artwork(for: catalogURL))
-        XCTAssertEqual(registry.count, 1)
         XCTAssertNil(AppleMusicItemMapping.artworkURL(nil, size: 120, registry: registry))
     }
 
@@ -433,7 +476,8 @@ final class AppleMusicArtworkRegistryTests: XCTestCase {
         for index in 0...AppleMusicArtworkRegistry.maxEntries {
             registry.register(artwork, for: try XCTUnwrap(URL(string: "musicKit://artwork/\(index)")))
         }
-        XCTAssertLessThanOrEqual(registry.count, AppleMusicArtworkRegistry.maxEntries)
+        // Past the bound the registry starts over: the oldest entry is gone, the newest is kept.
+        XCTAssertNil(registry.artwork(for: try XCTUnwrap(URL(string: "musicKit://artwork/0"))))
         XCTAssertNotNil(registry.artwork(for: try XCTUnwrap(URL(string: "musicKit://artwork/\(AppleMusicArtworkRegistry.maxEntries)"))))
     }
 }
@@ -579,6 +623,20 @@ private final class MockAppleMusicSource: AppleMusicContentSource, @unchecked Se
     func artist(id: String) async throws -> Artist? {
         record("artist(\(id))")
         return artistsByID[id]
+    }
+
+    /// MusicKit's later relationship batches, which a decoded fixture can't carry.
+    var extraTracksByAlbumID: [String: [Track]] = [:]
+    var extraAlbumsByArtistID: [String: [Album]] = [:]
+
+    func tracks(of album: Album, limit: Int) async throws -> [Track] {
+        let all = Array(album.tracks ?? []) + (extraTracksByAlbumID[album.id.rawValue] ?? [])
+        return Array(all.prefix(limit))
+    }
+
+    func albums(of artist: Artist, limit: Int) async throws -> [Album] {
+        let all = Array(artist.albums ?? []) + (extraAlbumsByArtistID[artist.id.rawValue] ?? [])
+        return Array(all.prefix(limit))
     }
 
     func artistTopSongs(artistID: String) async throws -> [Song] {

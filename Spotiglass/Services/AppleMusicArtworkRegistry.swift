@@ -34,8 +34,4 @@ final class AppleMusicArtworkRegistry: @unchecked Sendable {
     func artwork(for url: URL) -> Artwork? {
         lock.withLock { artworkByURL[url.absoluteString] }
     }
-
-    var count: Int {
-        lock.withLock { artworkByURL.count }
-    }
 }

@@ -42,6 +42,8 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
     static let librarySongsPageSize = 200
     /// Upper bound for library playlists; far above any real library, it only stops a runaway.
     static let maxLibraryPlaylists = 5_000
+    /// Upper bound for one artist's albums, singles and compilations.
+    static let maxArtistAlbums = 1_000
 
     let source: any AppleMusicContentSource
 
@@ -123,7 +125,7 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         guard let album = try await source.album(id: albumID) else {
             throw AppleMusicBrowsingError.notFound
         }
-        let tracks = album.tracks.map(Array.init) ?? []
+        let tracks = try await source.tracks(of: album, limit: max(1, limit))
         return tracks.prefix(limit).map { AppleMusicItemMapping.track($0, album: album) }
     }
 
@@ -176,7 +178,7 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
     private func artistAlbums(id: String, includeGroups: [MusicArtistAlbumGroup]) async throws -> [MusicArtistAlbum] {
         let artist = try await loadArtist(id: id)
         let groups = Set(includeGroups)
-        return (artist.albums.map(Array.init) ?? [])
+        return try await source.albums(of: artist, limit: Self.maxArtistAlbums)
             .map(AppleMusicItemMapping.artistAlbum)
             .filter { groups.isEmpty || groups.contains($0.group) }
     }
@@ -205,27 +207,33 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         let catalogItems = (try? catalog.get()) ?? AppleMusicSearchItems()
         let libraryItems = (try? library.get()) ?? AppleMusicSearchItems()
 
-        let paging = MusicSearchPaging(
-            total: offset + pageLimit + (catalogItems.hasMore ? pageLimit : 0),
-            next: catalogItems.hasMore ? Self.continuationURL(offset: offset + pageLimit) : nil
-        )
+        let next = catalogItems.hasMore ? Self.continuationURL(offset: offset + pageLimit) : nil
+        // `total` must not promise more than there is: the Search view keeps Load More while
+        // `offset + items < total`, so a made-up total on the last page pages forever.
+        func paging(_ count: Int) -> MusicSearchPaging {
+            MusicSearchPaging(total: offset + count + (next == nil ? 0 : pageLimit), next: next)
+        }
+        let tracks = Self.merged(libraryItems.songs, catalogItems.songs, limit: limit, id: { $0.id.rawValue }) {
+            "\($0.title)|\($0.artistName)".lowercased()
+        }
+        let artists = Self.merged(libraryItems.artists, catalogItems.artists, limit: limit, id: { $0.id.rawValue }) {
+            $0.name.lowercased()
+        }
+        let albums = Self.merged(libraryItems.albums, catalogItems.albums, limit: limit, id: { $0.id.rawValue }) {
+            "\($0.title)|\($0.artistName)".lowercased()
+        }
+        let playlists = Self.merged(libraryItems.playlists, catalogItems.playlists, limit: limit, id: { $0.id.rawValue }) {
+            $0.id.rawValue
+        }
         return MusicSearchResults(
-            tracks: Self.merged(libraryItems.songs, catalogItems.songs, limit: limit) {
-                "\($0.title)|\($0.artistName)".lowercased()
-            }.map(AppleMusicItemMapping.track),
-            artists: Self.merged(libraryItems.artists, catalogItems.artists, limit: limit) {
-                $0.name.lowercased()
-            }.map(AppleMusicItemMapping.artist),
-            albums: Self.merged(libraryItems.albums, catalogItems.albums, limit: limit) {
-                "\($0.title)|\($0.artistName)".lowercased()
-            }.map(AppleMusicItemMapping.album),
-            playlists: Self.merged(libraryItems.playlists, catalogItems.playlists, limit: limit) {
-                $0.id.rawValue
-            }.map { AppleMusicItemMapping.playlistSummary($0, fallbackOwnerName: libraryOwnerName) },
-            tracksPaging: paging,
-            artistsPaging: paging,
-            albumsPaging: paging,
-            playlistsPaging: paging
+            tracks: tracks.map(AppleMusicItemMapping.track),
+            artists: artists.map(AppleMusicItemMapping.artist),
+            albums: albums.map(AppleMusicItemMapping.album),
+            playlists: playlists.map { AppleMusicItemMapping.playlistSummary($0, fallbackOwnerName: libraryOwnerName) },
+            tracksPaging: paging(tracks.count),
+            artistsPaging: paging(artists.count),
+            albumsPaging: paging(albums.count),
+            playlistsPaging: paging(playlists.count)
         )
     }
 
@@ -244,14 +252,26 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
     ///
     /// Each side keeps up to `limit` items. Library matches must not push catalog items off the
     /// page: the next page starts after this page's catalog items, so a catalog item cut here
-    /// would never be shown at all.
-    static func merged<Item>(_ library: [Item], _ catalog: [Item], limit: Int, key: (Item) -> String) -> [Item] {
-        var seen: Set<String> = []
+    /// would never be shown at all. Within a side, items are told apart by `id`, so two
+    /// recordings with the same title stay two rows. A catalog item is only dropped as a
+    /// duplicate when the library shows the same `match` (library and catalog IDs differ for
+    /// the same song).
+    static func merged<Item>(
+        _ library: [Item],
+        _ catalog: [Item],
+        limit: Int,
+        id: (Item) -> String,
+        match: (Item) -> String
+    ) -> [Item] {
+        var seenIDs: Set<String> = []
+        var libraryMatches: Set<String> = []
         var result: [Item] = []
-        for item in library.prefix(limit) where seen.insert(key(item)).inserted {
+        for item in library.prefix(limit) where seenIDs.insert(id(item)).inserted {
+            libraryMatches.insert(match(item))
             result.append(item)
         }
-        for item in catalog.prefix(limit) where seen.insert(key(item)).inserted {
+        for item in catalog.prefix(limit)
+        where !libraryMatches.contains(match(item)) && seenIDs.insert(id(item)).inserted {
             result.append(item)
         }
         return result
