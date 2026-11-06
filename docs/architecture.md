@@ -57,11 +57,12 @@ anyone sees.
 |-------|-------|--------|
 | Domain models (`MusicTrack`, `MusicPlaylistSummary`, `MusicArtistDetail`, `MusicSearchResults`, ...) | `Domain/MusicDomain.swift` | Neutral. Renamed from `Spotify*`; the Codable shape is unchanged, so existing caches keep loading. |
 | Browsing: home feed, library playlists, playlist / album / artist detail, liked tracks, search, library edits | `Browsing/MusicBrowsingProvider.swift` | Neutral protocol. `SpotifyAPIClient` conforms in `Services/SpotifyAPIClient+MusicBrowsingProvider.swift`. |
+| Apple Music browsing | `Services/AppleMusic*.swift`, `Views/AppleMusicBrowserRoot.swift` | `AppleMusicBrowsingProvider` over MusicKit, read-only. Behind a hidden developer switch until the service switcher (#373); see [Apple Music](apple-music.md). |
 | Playback (play items or a context, pause, seek, skip, queue, shuffle / repeat, state stream) | `Playback/` | Still Spotify-specific. Next slice. |
 | Auth and session (connect, disconnect, current account) | `Auth/` | Still Spotify-specific. Next slice. |
-| Browsing errors | `SpotifyAPIError` | Still Spotify-specific; a neutral error type comes with the Apple Music browsing slice. |
-| Track URIs (`spotify:track:` checks) | `Browsing/PlaylistBrowserViewModel+TrackMutations.swift`, `Browsing/TrackRowViewModel.swift`, `Browsing/LibraryContinuation.swift`, `Browsing/BrowsingLoadState.swift`, `Pinning/PinnedItem.swift`, `Views/PlaylistBrowser/` | Still Spotify-specific: playlist edits, Liked Songs, pinning a track row and some detail actions only accept `spotify:track:` URIs, so another provider's tracks would be skipped there. Moves behind the provider with the Apple Music browsing slice. Pins are saved on disk, so that change has to keep existing pins loading. |
-| Search paging (`MusicSearchPaging.next`) | `Browsing/CatalogSearchViewModel.swift` | Still Spotify-shaped: the Search view reads the `offset` query item out of Spotify's `next` URL, falling back to `offset + pageSize`. A provider without that URL still pages by the fallback; a neutral continuation comes with the Apple Music browsing slice. |
+| Browsing errors | `SpotifyAPIError` | The view models still map Spotify errors. Apple Music failures surface through `localizedDescription` (`AppleMusicBrowsingError` and MusicKit's own errors). |
+| Track URIs (`spotify:track:` checks) | `Browsing/PlaylistBrowserViewModel+TrackMutations.swift`, `Browsing/TrackRowViewModel.swift`, `Browsing/LibraryContinuation.swift`, `Browsing/BrowsingLoadState.swift`, `Pinning/PinnedItem.swift`, `Views/PlaylistBrowser/` | Still Spotify-specific: playlist edits, Liked Songs, pinning a track row and some detail actions only accept `spotify:track:` URIs, so Apple Music tracks (`applemusic:song:...`) are skipped there. That is harmless while Apple Music is read-only; it moves behind the provider with Apple Music library edits (#374). Pins are saved on disk, so that change has to keep existing pins loading. |
+| Search paging (`MusicSearchPaging.next`) | `Browsing/CatalogSearchViewModel.swift` | Still Spotify-shaped: the Search view reads the `offset` query item out of Spotify's `next` URL, falling back to `offset + pageSize`. The Apple Music provider hands back an opaque `applemusic://page?offset=` continuation in the same shape, so its 25-item pages line up. |
 
 Rules for the neutral layer:
 
@@ -76,9 +77,10 @@ Rules for the neutral layer:
   reconnect, client-ID entry) become optional capabilities on the playback and
   session protocols, so the UI asks instead of assuming.
 
-The layer is shaped to fit Apple's MusicKit later (`MusicLibraryRequest`,
-`MusicCatalogSearchRequest`, `MusicRecentlyPlayedRequest`,
-`MusicPersonalRecommendationsRequest`, `ApplicationMusicPlayer`).
+Apple Music browsing uses `MusicLibraryRequest`, `MusicCatalogSearchRequest`,
+`MusicLibrarySearchRequest`, `MusicRecentlyPlayedRequest` and
+`MusicPersonalRecommendationsRequest`; playback through `ApplicationMusicPlayer` is the
+next slice.
 
 ## Data and secrets
 
