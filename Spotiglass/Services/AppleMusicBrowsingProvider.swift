@@ -49,6 +49,8 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
     static let maxLibraryPlaylists = 5_000
     /// Library matches per type on the first search page.
     static let maxLibrarySearchMatches = 100
+    /// Catalog pages a later search page may skip because deduplication left them empty.
+    static let maxSkippedSearchPages = 10
     /// Pages of album tracks `albumTracks` follows, the same as the Spotify client.
     static let albumTrackPages = 6
     /// Upper bound for one artist's albums, singles and compilations.
@@ -230,7 +232,6 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         }
         let pageLimit = min(max(1, limit), MusicKitContentSource.catalogSearchPageLimit)
 
-        async let catalogResult = Self.capture { try await source.catalogSearch(term: term, limit: pageLimit, offset: offset) }
         // The library can't be paged (no offset in MusicKit), so the first page shows all of
         // its matches, up to a bound, and later pages show catalog items only. Every page still
         // reads the library (a local query) so catalog copies of library items stay hidden on
@@ -238,7 +239,38 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         async let libraryResult = Self.capture {
             try await source.librarySearch(term: term, limit: Self.maxLibrarySearchMatches)
         }
-        let (catalog, library) = await (catalogResult, libraryResult)
+        let firstCatalog = await Self.capture {
+            try await source.catalogSearch(term: term, limit: pageLimit, offset: offset)
+        }
+        let library = await libraryResult
+        var page = try searchPage(
+            catalog: firstCatalog, library: library, limit: limit, pageLimit: pageLimit, offset: offset
+        )
+        // A later page can come out empty only because every catalog item on it is a copy of a
+        // library item. The Search view stops at an empty page, which would make everything
+        // after it unreachable, so such a page is skipped while the catalog reports more.
+        var pageOffset = offset
+        var skipped = 0
+        while offset > 0, page.isEmptyPage, page.hasNextPage, skipped < Self.maxSkippedSearchPages {
+            try Task.checkCancellation()
+            pageOffset += pageLimit
+            skipped += 1
+            let catalog = await Self.capture {
+                try await source.catalogSearch(term: term, limit: pageLimit, offset: pageOffset)
+            }
+            page = try searchPage(catalog: catalog, library: library, limit: limit, pageLimit: pageLimit, offset: pageOffset)
+        }
+        return page
+    }
+
+    /// One search page from one catalog page and the library matches.
+    private func searchPage(
+        catalog: Result<AppleMusicSearchItems, Error>,
+        library: Result<AppleMusicSearchItems, Error>,
+        limit: Int,
+        pageLimit: Int,
+        offset: Int
+    ) throws -> MusicSearchResults {
         // Past the first page only the catalog answers, so its failure is the page's failure:
         // reporting an empty page would end the results instead of letting the user retry.
         if case let .failure(error) = catalog {
@@ -399,5 +431,15 @@ actor AppleMusicArtistAlbumsCache {
               let oldest = entries.min(by: { $0.value.storedAt < $1.value.storedAt })?.key {
             entries[oldest] = nil
         }
+    }
+}
+
+private extension MusicSearchResults {
+    var isEmptyPage: Bool {
+        tracks.isEmpty && artists.isEmpty && albums.isEmpty && playlists.isEmpty
+    }
+
+    var hasNextPage: Bool {
+        [tracksPaging, artistsPaging, albumsPaging, playlistsPaging].contains { $0?.next != nil }
     }
 }

@@ -535,6 +535,30 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         XCTAssertEqual(page2.tracks.map(\.id), ["13"])
     }
 
+    /// Catalog results 0–19 are all in my library. Page 10 dedups to nothing; the Search view
+    /// stops at an empty page, so the provider must move on to catalog page 20 itself.
+    func testALaterPageEmptiedByDedupSkipsToTheNextCatalogPage() async throws {
+        let source = MockAppleMusicSource()
+        source.librarySearchItems = AppleMusicSearchItems(
+            songs: try (0..<20).map { try AppleMusicFixtures.song(id: "i.\($0)", title: "Song \($0)", artist: "A") }
+        )
+        for page in 0..<4 {
+            source.catalogPagesByOffset[page * 10] = AppleMusicSearchItems(
+                songs: try (page * 10..<page * 10 + 10).map { try AppleMusicFixtures.song(id: "\($0)", title: "Song \($0)", artist: "A") },
+                hasMore: page < 3
+            )
+        }
+        let page = try await AppleMusicBrowsingProvider(source: source).search(
+            query: "song", limit: 10, offset: 10, cacheMode: .freshOnly
+        )
+
+        XCTAssertEqual(page.tracks.first?.id, "20")
+        XCTAssertEqual(page.tracks.count, 10)
+        XCTAssertTrue(source.calls.contains("catalogSearch(song,10,20)"))
+        let next = try XCTUnwrap(page.tracksPaging?.next)
+        XCTAssertEqual(URLComponents(url: next, resolvingAgainstBaseURL: false)?.queryItems?.first?.value, "30")
+    }
+
     /// An artist page asks for albums once per page. The artist and its album batches are
     /// loaded once, not again for every page.
     func testArtistAlbumPagesLoadTheArtistOnce() async throws {
@@ -768,6 +792,8 @@ private final class MockAppleMusicSource: AppleMusicContentSource, @unchecked Se
     var artistsByID: [String: Artist] = [:]
     var topSongsByArtistID: [String: [Song]] = [:]
     var catalogSearchItems = AppleMusicSearchItems()
+    /// Catalog pages by offset, for tests that page; others get `catalogSearchItems`.
+    var catalogPagesByOffset: [Int: AppleMusicSearchItems] = [:]
     var librarySearchItems = AppleMusicSearchItems()
     var catalogSearchError: Error?
     var librarySearchError: Error?
@@ -837,7 +863,7 @@ private final class MockAppleMusicSource: AppleMusicContentSource, @unchecked Se
     func catalogSearch(term: String, limit: Int, offset: Int) async throws -> AppleMusicSearchItems {
         record("catalogSearch(\(term),\(limit),\(offset))")
         if let catalogSearchError { throw catalogSearchError }
-        return catalogSearchItems
+        return catalogPagesByOffset[offset] ?? catalogSearchItems
     }
 
     func librarySearch(term: String, limit: Int) async throws -> AppleMusicSearchItems {
