@@ -45,6 +45,7 @@ flowchart TB
 - **Views** depend on view models and services; they do not decode JSON directly.
 - **Services** map Spotify DTOs → **Domain** models via `domainModel()`.
 - **Browsing** and the views it feeds talk to a `MusicBrowsingProvider`, not to `SpotifyAPIClient`. See [Music providers](#music-providers).
+- **Playback** (`PlaybackSessionViewModel`, `QueueViewModel` and the playback controls) talks to a `MusicPlaybackProvider`, not to `SpotifyPlaybackAPI` or the SDK page.
 - **Auth** owns tokens; **Playback** requests playback-scoped access tokens through a bridge.
 
 ## Music providers
@@ -58,7 +59,8 @@ anyone sees.
 | Domain models (`MusicTrack`, `MusicPlaylistSummary`, `MusicArtistDetail`, `MusicSearchResults`, ...) | `Domain/MusicDomain.swift` | Neutral. Renamed from `Spotify*`; the Codable shape is unchanged, so existing caches keep loading. |
 | Browsing: home feed, library playlists, playlist / album / artist detail, liked tracks, search, library edits | `Browsing/MusicBrowsingProvider.swift` | Neutral protocol. `SpotifyAPIClient` conforms in `Services/SpotifyAPIClient+MusicBrowsingProvider.swift`. |
 | Apple Music browsing | `Services/AppleMusic*.swift`, `Views/AppleMusicBrowserRoot.swift` | `AppleMusicBrowsingProvider` over MusicKit, read-only. Behind a hidden developer switch until the service switcher (#373); see [Apple Music](apple-music.md). |
-| Playback (play items or a context, pause, seek, skip, queue, shuffle / repeat, state stream) | `Playback/` | Still Spotify-specific. Next slice. |
+| Playback models (`MusicPlaybackSnapshot`, `MusicRepeatMode`, `MusicPlaybackDevice`, `MusicPlaybackQueue`, `MusicPlaybackEvent`, ...) | `Playback/MusicPlaybackModels.swift` | Neutral. Renamed from `Spotify*`; the Spotify wire DTOs keep their names. |
+| Playback: play items or a context, pause / resume, seek, skip, shuffle / repeat, volume, queue read and enqueue, player state reads and events | `Playback/MusicPlaybackProvider.swift` | Neutral protocol. `SpotifyPlaybackProvider` wraps `SpotifyPlaybackAPI` (Web API) and the Web Playback SDK page. `PlaybackSessionViewModel` and `QueueViewModel` only see the protocol. |
 | Auth and session (connect, disconnect, current account) | `Auth/` | Still Spotify-specific. Next slice. |
 | Browsing errors | `SpotifyAPIError` | The view models still map Spotify errors. Apple Music failures surface through `localizedDescription` (`AppleMusicBrowsingError` and MusicKit's own errors). |
 | Track URIs (`spotify:track:` checks) | `Browsing/PlaylistBrowserViewModel+TrackMutations.swift`, `Browsing/TrackRowViewModel.swift`, `Browsing/LibraryContinuation.swift`, `Browsing/BrowsingLoadState.swift`, `Pinning/PinnedItem.swift`, `Views/PlaylistBrowser/` | Still Spotify-specific: playlist edits, Liked Songs, pinning a track row and some detail actions only accept `spotify:track:` URIs, so Apple Music tracks (`applemusic:song:...`) are skipped there. That is harmless while Apple Music is read-only; it moves behind the provider with Apple Music library edits (#374). Pins are saved on disk, so that change has to keep existing pins loading. |
@@ -73,9 +75,22 @@ Rules for the neutral layer:
   same provider unchanged, never built by callers.
 - Requirements a service cannot serve keep the protocol's default: an empty result
   for feeds (shown as an empty section) or an "unsupported" error for library edits.
-- Spotify-only features (Spotify Connect device transfer, Web Playback SDK
-  reconnect, client-ID entry) become optional capabilities on the playback and
-  session protocols, so the UI asks instead of assuming.
+- Spotify-only features are optional capabilities, so the UI asks instead of
+  assuming. On the playback provider: `deviceTransfer` (Spotify Connect; the
+  device menu hides its device list without it), `.reloadablePlayer` (soft reset
+  and reload of the hidden SDK page; without it recovery only retries connect)
+  and `.pushesPlayerState` (SDK state events; without it the in-app player is
+  treated like a remote device: state comes from reads and play / pause are
+  confirmed optimistically until a read agrees). Client-ID entry follows with
+  the session protocol.
+- Player state reads may lag commands (MusicKit's `ApplicationMusicPlayer`
+  still reports "playing" right after `stop()`). For a few reads after a pause,
+  resume or play the session only applies a read whose play / pause agrees with
+  it; a skip in between keeps that expectation. Seek, shuffle and repeat have
+  their own pending-command guards.
+  Without pushed state it also keeps polling while the app is in the background,
+  treats an empty read as "nothing playing", and doesn't mark a constant player
+  id as stale when it reconnects.
 
 Apple Music browsing uses `MusicLibraryRequest`, `MusicCatalogSearchRequest`,
 `MusicLibrarySearchRequest`, `MusicRecentlyPlayedRequest` and
@@ -94,9 +109,9 @@ next slice.
 ## Playback pipeline
 
 1. The app-scoped `SpotiglassPlaybackHost` retains one `WKWebView`; `SpotiglassPlaybackHostView` mounts it into a live scene and it loads bundled `SpotifyPlaybackHost.html`.
-2. JavaScript SDK posts events to Swift (`SpotifyPlaybackBridge`).
-3. `PlaybackSessionViewModel` coordinates device transfer, transport polls, and UI state.
-4. `SpotifyPlaybackAPI` calls REST endpoints for queue, devices, and transport when needed.
+2. JavaScript SDK posts events to Swift (`SpotifyPlaybackBridge`), which hands them to `SpotifyPlaybackProvider`; the provider passes them to the session through `eventHandler`.
+3. `PlaybackSessionViewModel` coordinates device transfer, transport polls, and UI state, and sends every command through its `MusicPlaybackProvider`.
+4. `SpotifyPlaybackProvider` turns those commands into `SpotifyPlaybackAPI` REST calls (play, queue, devices, transport) or SDK page commands (connect, toggle, volume).
 
 ## Browsing layout (current)
 

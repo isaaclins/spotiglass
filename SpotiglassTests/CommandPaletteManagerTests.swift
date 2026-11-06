@@ -191,9 +191,7 @@ final class CommandPaletteManagerTests: XCTestCase {
         let manager = CommandPaletteManager()
         manager.isSignedIn = true
         let playback = PlaybackSessionViewModel(
-            playbackAPI: MockPlaybackAPI(),
-            webCommander: MockWebPlaybackCommander()
-        )
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
         manager.bindPlaybackReadiness(to: playback)
         var dispatchCount = 0
         manager.toggleLyrics = { dispatchCount += 1 }
@@ -275,9 +273,7 @@ final class CommandPaletteManagerTests: XCTestCase {
     func testPlaybackToggleAvailabilityFollowsPlaybackLifecycleAndRemoteRouting() {
         let manager = CommandPaletteManager()
         let playback = PlaybackSessionViewModel(
-            playbackAPI: MockPlaybackAPI(),
-            webCommander: MockWebPlaybackCommander()
-        )
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
         manager.bindPlaybackReadiness(to: playback)
         XCTAssertFalse(manager.canTogglePlayback)
 
@@ -297,9 +293,7 @@ final class CommandPaletteManagerTests: XCTestCase {
     func testPlaybackToggleDispatchesForReadyPausedAndPlayingLocalStates() async {
         let manager = CommandPaletteManager()
         let playback = PlaybackSessionViewModel(
-            playbackAPI: MockPlaybackAPI(),
-            webCommander: MockWebPlaybackCommander()
-        )
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
         playback.deviceID = "local-device"
         manager.bindPlaybackReadiness(to: playback)
         manager.playbackTogglePrerequisite = { playback.isPlaybackToggleReady }

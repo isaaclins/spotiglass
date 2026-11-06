@@ -2,7 +2,7 @@ import Foundation
 
 @MainActor
 extension PlaybackSessionViewModel {
-    func handle(_ envelope: PlaybackBridgeEventEnvelope) {
+    func handle(_ envelope: MusicPlaybackEventEnvelope) {
         guard ownsPlaybackHostGeneration(envelope.hostGeneration) else {
             SpotiglassLog.info(.playback, "Ignoring stale SDK event generation=\(envelope.hostGeneration.rawValue) current=\(playbackHostGeneration.rawValue)")
             return
@@ -10,11 +10,16 @@ extension PlaybackSessionViewModel {
         handleCurrentPlaybackEvent(envelope.event)
     }
 
-    private func handleCurrentPlaybackEvent(_ event: PlaybackBridgeEvent) {
+    private func handleCurrentPlaybackEvent(_ event: MusicPlaybackEvent) {
         switch event {
         case let .ready(deviceID):
             SpotiglassLog.info(.playback, "SDK ready deviceID=\(deviceID) previousDeviceID=\(self.deviceID ?? "<nil>") autoResumeOnNextReady=\(autoResumeOnNextReady)")
-            if supersededSDKDeviceIDs.contains(deviceID) {
+            // A reloaded SDK page registers a new device, so a late `ready` for
+            // a superseded one comes from an old page. A player that keeps one
+            // constant id reports that same id on every reconnect, and the
+            // event's generation already fences stale lifecycles.
+            if provider.capabilities.contains(.reloadablePlayer),
+               supersededSDKDeviceIDs.contains(deviceID) {
                 guard self.deviceID == nil, reclaimableSDKDeviceID == deviceID else {
                     SpotiglassLog.info(.playback, "Ignoring stale SDK ready deviceID=\(deviceID)")
                     return
@@ -214,10 +219,6 @@ extension PlaybackSessionViewModel {
         guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
         guard mutationVersion == volumeMutationVersion,
               sendSerial == playbackVolumeSendSerial else { return }
-        try? await webCommander.send(
-            .setVolume,
-            payload: ["volume": volume],
-            generation: generation
-        )
+        try? await provider.setVolume(volume, generation: generation)
     }
 }

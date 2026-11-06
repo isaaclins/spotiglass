@@ -23,7 +23,7 @@ final class PlaybackSessionViewModelCoreTests: XCTestCase {
     }
 
     func testPlaybackToggleReadinessMatchesLocalTransportStates() {
-        let viewModel = PlaybackSessionViewModel(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander())
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
         XCTAssertFalse(viewModel.isPlaybackToggleReady)
 
         viewModel.deviceID = "local-device"
@@ -64,7 +64,7 @@ final class PlaybackSessionViewModelCoreTests: XCTestCase {
     }
 
     func testTransportReadyAndNowPlayingAccessors() {
-        let viewModel = PlaybackSessionViewModel(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander())
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
         XCTAssertFalse(viewModel.isPlaybackTransportReady)
 
         let track = PlaybackNowPlaying(
@@ -99,7 +99,7 @@ final class PlaybackSessionViewModelCoreTests: XCTestCase {
     }
 
     func testFallbackNowPlayingAndStableTrackURI() {
-        let viewModel = PlaybackSessionViewModel(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander())
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
         XCTAssertEqual(viewModel.fallbackNowPlaying().name, "Spotify playback")
 
         let track = PlaybackNowPlaying(
@@ -123,8 +123,7 @@ final class PlaybackSessionViewModelCoreTests: XCTestCase {
         let defaults = makeEphemeralDefaults()
         defaults.set(NSNumber(value: 0.42), forKey: key)
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: MockPlaybackAPI(),
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()),
             defaults: defaults
         )
         XCTAssertEqual(viewModel.playbackVolume, 0.42, accuracy: 0.000_001)

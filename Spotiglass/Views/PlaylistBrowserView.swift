@@ -83,7 +83,7 @@ struct PlaylistBrowserView: View {
     ) {
         let playbackViewModel = playbackHost.playbackViewModel
         let queueViewModel = QueueViewModel(
-            playbackAPI: playbackHost.playbackAPI,
+            provider: playbackHost.playbackProvider,
             playbackSession: playbackViewModel
         )
 

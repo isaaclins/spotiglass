@@ -5,7 +5,9 @@ extension PlaybackSessionViewModel {
     func restartTransportPollingIfNeeded() {
         transportPollTask?.cancel()
         transportPollTask = nil
+        transportPollLoopSerial &+= 1
         guard shouldRunTransportPolling(for: nil) else { return }
+        let loopSerial = transportPollLoopSerial
         transportPollTask = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self else { break }
@@ -18,7 +20,11 @@ extension PlaybackSessionViewModel {
                 guard !Task.isCancelled else { break }
                 let shouldPoll = await MainActor.run { self.shouldRunTransportPolling(for: nil) }
                 guard shouldPoll else { break }
+                self.transportPollReadingSerial = loopSerial
                 await self.syncTransportFromSpotify()
+                if self.transportPollReadingSerial == loopSerial {
+                    self.transportPollReadingSerial = nil
+                }
             }
         }
     }
@@ -27,6 +33,7 @@ extension PlaybackSessionViewModel {
         let state = state ?? connectionState
         return TransportPollScheduling.shouldRunTransportPolling(
             isAppActive: isAppActive,
+            playerPushesState: provider.capabilities.contains(.pushesPlayerState),
             deviceID: deviceID,
             localMutationSettleTicksRemaining: localMutationSettleTicksRemaining,
             state: state
@@ -63,6 +70,8 @@ extension PlaybackSessionViewModel {
             transportRateLimitedUntil: transportRateLimitedUntil,
             localMutationSettleTicksRemaining: localMutationSettleTicksRemaining,
             hasPendingVolumeMutation: pendingVolumeMutation != nil,
+            isAwaitingReadOnlyPlayerStart: pendingPlayTransition != nil
+                && !provider.capabilities.contains(.pushesPlayerState),
             transportTransientErrorCount: transportTransientErrorCount,
             hasLatestPlayerSnapshot: latestPlayerSnapshot != nil,
             isPlaybackActiveForPolling: isPlaybackActiveForPolling,

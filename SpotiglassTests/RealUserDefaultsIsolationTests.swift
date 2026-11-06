@@ -60,8 +60,7 @@ final class RealUserDefaultsIsolationTests: XCTestCase {
 
         let defaults = makeEphemeralDefaults()
         let viewModel = PlaybackSessionViewModel(
-            playbackAPI: MockPlaybackAPI(),
-            webCommander: MockWebPlaybackCommander(),
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()),
             defaults: defaults
         )
         viewModel.setPlaybackVolume(0.33)

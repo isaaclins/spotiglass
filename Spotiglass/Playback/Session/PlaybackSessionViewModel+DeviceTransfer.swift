@@ -106,6 +106,14 @@ extension PlaybackSessionViewModel {
         guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else {
             throw CancellationError()
         }
+        guard let deviceTransfer = provider.deviceTransfer else {
+            // Without device transfer the in-app player is the only player, so
+            // there is nothing to move playback to.
+            if deviceID == self.deviceID {
+                hasTransferredPlaybackToCurrentDevice = true
+            }
+            return false
+        }
         let alreadyActive: Bool
         switch origin {
         case .userManualConnect:
@@ -137,7 +145,7 @@ extension PlaybackSessionViewModel {
         }
         transferAttemptInstants.append(clock.now)
         do {
-            try await playbackAPI.transferPlayback(to: deviceID, play: play)
+            try await deviceTransfer.transferPlayback(to: deviceID, play: play)
             guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else {
                 throw CancellationError()
             }
@@ -178,6 +186,11 @@ extension PlaybackSessionViewModel {
         }
         guard !hasTransferredPlaybackToCurrentDevice else {
             SpotiglassLog.info(.playback, "ensureTransferred skipped (already transferred) deviceID=\(deviceID)")
+            return
+        }
+        guard supportsDeviceTransfer else {
+            // The in-app player is the only player; there is nothing to move.
+            hasTransferredPlaybackToCurrentDevice = true
             return
         }
         SpotiglassLog.info(.playback, "ensureTransferred starting deviceID=\(deviceID)")

@@ -26,13 +26,18 @@ enum TransportPollScheduling {
         }
     }
 
+    /// `playerPushesState` is false for a player whose state is only read
+    /// (no Web Playback SDK events). Reads are then the only way the session
+    /// learns that a track advanced or ended, so polling keeps running while
+    /// the app is in the background.
     static func shouldRunTransportPolling(
         isAppActive: Bool,
+        playerPushesState: Bool = true,
         deviceID: String?,
         localMutationSettleTicksRemaining: Int,
         state: PlaybackConnectionState
     ) -> Bool {
-        guard isAppActive else { return false }
+        guard isAppActive || !playerPushesState else { return false }
         if localMutationSettleTicksRemaining > 0 { return true }
         guard deviceID != nil else { return false }
         switch state {
@@ -48,6 +53,9 @@ enum TransportPollScheduling {
         var transportRateLimitedUntil: ContinuousClock.Instant?
         var localMutationSettleTicksRemaining: Int
         var hasPendingVolumeMutation: Bool
+        /// A play command waits for a player without pushed state to start;
+        /// only a read can tell the session that it did.
+        var isAwaitingReadOnlyPlayerStart = false
         var transportTransientErrorCount: Int
         var hasLatestPlayerSnapshot: Bool
         var isPlaybackActiveForPolling: Bool
@@ -61,7 +69,8 @@ enum TransportPollScheduling {
             }
             return .seconds(15)
         }
-        if inputs.localMutationSettleTicksRemaining > 0 || inputs.hasPendingVolumeMutation {
+        if inputs.localMutationSettleTicksRemaining > 0 || inputs.hasPendingVolumeMutation
+            || inputs.isAwaitingReadOnlyPlayerStart {
             return .seconds(1)
         }
         if inputs.transportTransientErrorCount > 0 {

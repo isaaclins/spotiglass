@@ -25,7 +25,7 @@ extension QueueViewModel {
         var uniqueURIs: [String] = []
         var seen: Set<String> = []
         for uri in uris {
-            guard let canonical = SpotifyPlayableURI.canonical(uri), seen.insert(canonical).inserted else { continue }
+            guard let canonical = MusicPlayableURI.canonical(uri), seen.insert(canonical).inserted else { continue }
             uniqueURIs.append(canonical)
         }
         guard !uniqueURIs.isEmpty else {
@@ -106,7 +106,7 @@ extension QueueViewModel {
         inFlightEnqueueKeys.insert(key)
         defer { inFlightEnqueueKeys.remove(key) }
         do {
-            try await playbackAPI.addToQueue(uri: uri, deviceID: deviceID)
+            try await provider.enqueue(uri: uri, deviceID: deviceID)
             lastError = nil
             enqueueSuccessCooldownUntil[key] = clock.now.advanced(by: enqueueSuccessCooldown)
             enqueueUnknownOutcomeUntil.removeValue(forKey: key)

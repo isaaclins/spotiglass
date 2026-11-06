@@ -33,9 +33,9 @@ final class LyricsOverlayControllerTests: XCTestCase {
     func testAttachDetachAndDismiss() async {
         let controller = LyricsOverlayController()
         let api = MockPlaybackAPI()
-        let playback = PlaybackSessionViewModel(playbackAPI: api, webCommander: MockWebPlaybackCommander())
+        let playback = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()))
         let queue = QueueViewModel(
-            playbackAPI: api,
+            provider: SpotifyPlaybackProvider(playbackAPI: api),
             playbackSession: playback,
             pollIntervalNanoseconds: 60_000_000_000
         )
@@ -175,11 +175,9 @@ final class LyricsOverlayControllerTests: XCTestCase {
 
         let firstAPI = MockPlaybackAPI()
         let firstPlayback = PlaybackSessionViewModel(
-            playbackAPI: firstAPI,
-            webCommander: MockWebPlaybackCommander()
-        )
+            provider: SpotifyPlaybackProvider(playbackAPI: firstAPI, webCommander: MockWebPlaybackCommander()))
         let firstQueue = QueueViewModel(
-            playbackAPI: firstAPI,
+            provider: SpotifyPlaybackProvider(playbackAPI: firstAPI),
             playbackSession: firstPlayback,
             pollIntervalNanoseconds: 60_000_000_000
         )
@@ -193,11 +191,9 @@ final class LyricsOverlayControllerTests: XCTestCase {
 
         let secondAPI = MockPlaybackAPI()
         let secondPlayback = PlaybackSessionViewModel(
-            playbackAPI: secondAPI,
-            webCommander: MockWebPlaybackCommander()
-        )
+            provider: SpotifyPlaybackProvider(playbackAPI: secondAPI, webCommander: MockWebPlaybackCommander()))
         let secondQueue = QueueViewModel(
-            playbackAPI: secondAPI,
+            provider: SpotifyPlaybackProvider(playbackAPI: secondAPI),
             playbackSession: secondPlayback,
             pollIntervalNanoseconds: 60_000_000_000
         )

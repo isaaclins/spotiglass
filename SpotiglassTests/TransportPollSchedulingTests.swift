@@ -157,7 +157,7 @@ final class TransportPollSchedulingTests: XCTestCase {
     @MainActor
     func testSyncTransportAppliesRateLimitAndTransientBackoff() async {
         let api = MockPlaybackAPI()
-        let viewModel = PlaybackSessionViewModel(playbackAPI: api, webCommander: MockWebPlaybackCommander())
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()))
         viewModel.handle(.ready(deviceID: "device-1"))
 
         api.fetchPlayerSnapshotError = SpotifyAPIError.rateLimited(retryAfter: 9)
@@ -173,8 +173,8 @@ final class TransportPollSchedulingTests: XCTestCase {
         XCTAssertEqual(viewModel.transportTransientErrorCount, 2)
 
         api.fetchPlayerSnapshotError = nil
-        api.snapshotResponses = [SpotifyPlayerSnapshot(
-            transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+        api.snapshotResponses = [MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: false, repeatMode: .off),
             activeDevice: nil,
             isPlaying: false
         )]
@@ -187,13 +187,13 @@ final class TransportPollSchedulingTests: XCTestCase {
     func testSyncTransportClearsExpiredRateLimitOnSuccessfulRead() async {
         let api = MockPlaybackAPI()
         api.snapshotResponses = [
-            SpotifyPlayerSnapshot(
-                transport: SpotifyPlayerTransport(shuffle: false, repeatMode: .off),
+            MusicPlaybackSnapshot(
+                transport: MusicPlaybackTransport(shuffle: false, repeatMode: .off),
                 activeDevice: nil,
                 isPlaying: false
             )
         ]
-        let viewModel = PlaybackSessionViewModel(playbackAPI: api, webCommander: MockWebPlaybackCommander())
+        let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()))
         viewModel.handle(.ready(deviceID: "device-1"))
         viewModel.transportRateLimitedUntil = viewModel.clock.now.advanced(by: .seconds(-2))
 

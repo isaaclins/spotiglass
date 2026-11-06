@@ -456,7 +456,7 @@ struct TrackOpsMenuItems: View {
     /// The URI behind "Copy Spotify URI", only when it really is one. Other services' items
     /// (`applemusic:song:…`) have no Spotify URI, so the item is hidden for them.
     static func copyableSpotifyURI(_ uri: String?) -> String? {
-        guard let canonical = SpotifyPlayableURI.canonical(uri), canonical.hasPrefix("spotify:") else {
+        guard let canonical = MusicPlayableURI.canonical(uri), canonical.hasPrefix("spotify:") else {
             return nil
         }
         return canonical
@@ -547,7 +547,7 @@ struct TrackOpsMenuItems: View {
         }
 
         if menuActionKinds.contains(.addToQueue), let addToQueue {
-            let playableURIs = targets.compactMap { SpotifyPlayableURI.canonical($0.playableURI) }
+            let playableURIs = targets.compactMap { MusicPlayableURI.canonical($0.playableURI) }
             Button(SpotiglassL10n.string("browser.addToQueue")) {
                 Task {
                     for uri in playableURIs {
