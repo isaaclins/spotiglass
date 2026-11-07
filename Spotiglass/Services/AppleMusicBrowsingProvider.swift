@@ -119,15 +119,20 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
     /// batches, so they are kept here briefly instead of being fetched again for every page.
     /// One cache per provider: the browser keeps its provider for its lifetime.
     let artistAlbumsCache: AppleMusicArtistAlbumsCache
+    /// Library playlists come without a track count; counts loaded once are kept here so a
+    /// sidebar refresh shows them straight away.
+    let trackCountCache: AppleMusicPlaylistTrackCountCache
     let editor: AppleMusicLibraryEditor
 
     init(
         source: any AppleMusicContentSource = MusicKitContentSource(),
         artistAlbumsCache: AppleMusicArtistAlbumsCache = AppleMusicArtistAlbumsCache(),
+        trackCountCache: AppleMusicPlaylistTrackCountCache = AppleMusicPlaylistTrackCountCache(),
         editor: AppleMusicLibraryEditor = AppleMusicLibraryEditor()
     ) {
         self.source = source
         self.artistAlbumsCache = artistAlbumsCache
+        self.trackCountCache = trackCountCache
         self.editor = editor
     }
 
@@ -154,9 +159,20 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
             playlists.append(contentsOf: page)
             if page.count < requested { break }
         }
+        let counts = await trackCountCache.counts(
+            forVersions: Dictionary(playlists.map { ($0.id.rawValue, $0.lastModifiedDate) }, uniquingKeysWith: { first, _ in first })
+        )
         return editor.pending.applied(toPlaylists: playlists.map {
-            AppleMusicItemMapping.playlistSummary($0, fallbackOwnerName: libraryOwnerName)
+            AppleMusicItemMapping.playlistSummary($0, fallbackOwnerName: libraryOwnerName, cachedTrackCount: counts[$0.id.rawValue])
         })
+    }
+
+    func playlistTrackCounts(playlistIDs: [String]) async -> [String: Int] {
+        guard !playlistIDs.isEmpty else { return [:] }
+        // A failed lookup only leaves those rows without a count; the sidebar itself is loaded.
+        guard let counts = try? await source.libraryPlaylistTrackCounts(playlistIDs: playlistIDs) else { return [:] }
+        await trackCountCache.store(counts)
+        return counts
     }
 
     func playlistTracks(playlistID: String, limit: Int, maxPages: Int) async throws -> [MusicPlaylistTrackItem] {
@@ -458,6 +474,56 @@ actor AppleMusicArtistAlbumsCache {
     func store(_ albums: [MusicArtistAlbum], forArtistID id: String) {
         entries[id] = (albums, now())
         while entries.count > Self.maxArtists,
+              let oldest = entries.min(by: { $0.value.storedAt < $1.value.storedAt })?.key {
+            entries[oldest] = nil
+        }
+    }
+}
+
+/// Track counts of library playlists, keyed by playlist ID, for `AppleMusicBrowsingProvider`.
+///
+/// A count is used again only while the playlist's `lastModifiedDate` is the one it was counted
+/// at and for `maxAge`, so an edit made in Music or on another device shows up on a later
+/// refresh. Bounded twice: playlists no longer in the library are dropped on every listing, and
+/// never more than `maxPlaylists` entries are kept.
+actor AppleMusicPlaylistTrackCountCache {
+    static let maxPlaylists = AppleMusicBrowsingProvider.maxLibraryPlaylists
+    static let maxAge: TimeInterval = 10 * 60
+
+    private struct Entry {
+        let count: Int
+        /// The playlist's `lastModifiedDate` when it was counted; `nil` until a listing saw it.
+        var version: Date?
+        let storedAt: Date
+    }
+
+    private var entries: [String: Entry] = [:]
+    /// The latest `lastModifiedDate` a listing reported per playlist.
+    private var versions: [String: Date?] = [:]
+    private let now: @Sendable () -> Date
+
+    init(now: @escaping @Sendable () -> Date = Date.init) {
+        self.now = now
+    }
+
+    /// The still valid counts for a fresh listing (playlist ID to `lastModifiedDate`). Playlists
+    /// missing from the listing are forgotten.
+    func counts(forVersions listing: [String: Date?]) -> [String: Int] {
+        versions = listing
+        let current = now()
+        entries = entries.filter { id, entry in
+            guard let listed = listing[id] else { return false }
+            return entry.version == listed && current.timeIntervalSince(entry.storedAt) < Self.maxAge
+        }
+        return entries.mapValues(\.count)
+    }
+
+    func store(_ counts: [String: Int]) {
+        let storedAt = now()
+        for (id, count) in counts {
+            entries[id] = Entry(count: count, version: versions[id] ?? nil, storedAt: storedAt)
+        }
+        while entries.count > Self.maxPlaylists,
               let oldest = entries.min(by: { $0.value.storedAt < $1.value.storedAt })?.key {
             entries[oldest] = nil
         }

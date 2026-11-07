@@ -1110,6 +1110,7 @@ final class EditTestContentSource: AppleMusicContentSource, @unchecked Sendable 
     var tracksByPlaylistID: [String: [Track]] = [:]
 
     func libraryPlaylists(limit: Int, offset: Int) async throws -> [Playlist] { [] }
+    func libraryPlaylistTrackCounts(playlistIDs: [String]) async throws -> [String: Int] { [:] }
     func playlistTracks(playlistID: String, limit: Int) async throws -> [Track]? { tracksByPlaylistID[playlistID] }
     func librarySongs(limit: Int, offset: Int) async throws -> [Song] { offset == 0 ? songs : [] }
     func recentlyPlayedSongs(limit: Int) async throws -> [Song] { [] }

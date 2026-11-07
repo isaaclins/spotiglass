@@ -62,7 +62,7 @@ implements `MusicBrowsingProvider`; the MusicKit requests themselves live in
 
 | Spotiglass | Apple Music |
 |---|---|
-| Library playlists | `MusicLibraryRequest<Playlist>` |
+| Library playlists | `MusicLibraryRequest<Playlist>`. It lists playlists without their tracks, so the sidebar shows first and the track counts follow, 25 playlists per `MusicLibrarySectionedRequest<Playlist, Track>`. Counts are kept in memory (up to 5,000 playlists, 10 minutes, dropped when a playlist's `lastModifiedDate` changes), so a refresh shows them straight away. A count that can't be read leaves the line blank. |
 | Liked Songs | The songs in your library, newest first (`MusicLibraryRequest<Song>`). Apple Music has no separate "liked" list a Mac app can read; loving a song is a rating, and MusicKit on macOS has no request for loved songs. The library is what you chose to keep, which is what Liked Songs is on Spotify. |
 | Home: Recently played | `MusicRecentlyPlayedRequest<Song>`, with one catalog request to attach each song's album (Home groups them by album) |
 | Home: Your top tracks | The songs of your personal mix from `MusicPersonalRecommendationsRequest` (the Favourites mix is built from what you play most); otherwise the first recommended playlist |

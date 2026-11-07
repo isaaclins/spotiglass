@@ -46,6 +46,9 @@ struct AppleMusicSearchItems {
 protocol AppleMusicContentSource: Sendable {
     /// One page of the user's library playlists, in the library's own order.
     func libraryPlaylists(limit: Int, offset: Int) async throws -> [Playlist]
+    /// How many tracks each of these library playlists has, keyed by playlist ID. Playlists the
+    /// library returns no tracks for are left out, so an unknown count never reads as zero.
+    func libraryPlaylistTrackCounts(playlistIDs: [String]) async throws -> [String: Int]
     /// The tracks of one playlist, or `nil` when no playlist has that ID.
     func playlistTracks(playlistID: String, limit: Int) async throws -> [Track]?
     /// The user's library songs, most recently added first.
@@ -81,6 +84,20 @@ struct MusicKitContentSource: AppleMusicContentSource {
         // No `sort(by:)`: on macOS MusicKit's library backend aborts the process on sort
         // descriptors it does not support (seen on macOS 27 with `lastPlayedDate`).
         return Array(try await request.response().items)
+    }
+
+    func libraryPlaylistTrackCounts(playlistIDs: [String]) async throws -> [String: Int] {
+        guard !playlistIDs.isEmpty else { return [:] }
+        // One local library query for the whole batch: each playlist comes back as a section
+        // holding its tracks, which MusicKit delivers in full for library sections.
+        var request = MusicLibrarySectionedRequest<Playlist, Track>()
+        request.filterSections(matching: \.id, memberOf: playlistIDs.map { MusicItemID($0) })
+        let sections = try await request.response().sections
+        var counts: [String: Int] = [:]
+        for section in sections where !section.items.isEmpty {
+            counts[section.id.rawValue] = section.items.count
+        }
+        return counts
     }
 
     func playlistTracks(playlistID: String, limit: Int) async throws -> [Track]? {

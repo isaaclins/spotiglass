@@ -126,6 +126,8 @@ final class PlaylistBrowserViewModel: ObservableObject {
     var inFlightPlaylistListRefreshTask: Task<([MusicPlaylistSummary], MusicUserProfile), Error>?
     var playlistListRefreshGeneration = 0
     var lastManualPlaylistRefreshAt: Date?
+    /// Fills in sidebar track counts the playlist listing came without (Apple Music).
+    var playlistTrackCountTask: Task<Void, Never>?
     /// Collapses concurrent liked-songs refresh triggers into one network run.
     var likedSongsRevalidationTask: Task<MusicSavedTracksResult, Error>?
     var likedSongsRevalidationTaskGeneration: Int?
@@ -222,6 +224,8 @@ final class PlaylistBrowserViewModel: ObservableObject {
     }
 
     func clearForSignOut() {
+        playlistTrackCountTask?.cancel()
+        playlistTrackCountTask = nil
         adjacentPlaylistSelectionTask?.cancel()
         adjacentPlaylistSelectionTask = nil
         pendingAdjacentPlaylistOffset = 0

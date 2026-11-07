@@ -23,6 +23,8 @@ struct PlaylistRowViewModel: Equatable, Identifiable {
         self.trackCount = playlist.trackCount
         if let trackCount = playlist.trackCount {
             self.trackCountText = SpotiglassL10n.format("browser.trackCount", Int64(trackCount))
+        } else if playlist.snapshotID == AppleMusicItemMapping.playlistSnapshotID {
+            self.trackCountText = ""
         } else {
             self.trackCountText = SpotiglassL10n.string("browser.trackCountUnavailable")
         }
@@ -53,6 +55,11 @@ struct PlaylistRowViewModel: Equatable, Identifiable {
             translated = SpotiglassL10n.string("browser.likedSongs.savedTracks", locale: locale)
         } else if let trackCount {
             translated = SpotiglassL10n.format("browser.trackCount", locale: locale, Int64(trackCount))
+        } else if snapshotID == AppleMusicItemMapping.playlistSnapshotID {
+            // Apple Music lists library playlists without their tracks and the count arrives a
+            // moment later; until then, or if it never does, the row says nothing rather than
+            // calling every playlist broken (#407).
+            translated = ""
         } else {
             translated = SpotiglassL10n.string("browser.trackCountUnavailable", locale: locale)
         }

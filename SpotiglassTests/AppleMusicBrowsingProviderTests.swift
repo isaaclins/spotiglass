@@ -241,6 +241,109 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         XCTAssertEqual(playlists.count, AppleMusicBrowsingProvider.maxLibraryPlaylists)
     }
 
+    // MARK: - Playlist track counts (#407)
+
+    /// MusicKit lists library playlists without their tracks, so the listing itself has no count.
+    func testLibraryPlaylistsAreListedWithoutACountUntilOneWasLoaded() async throws {
+        let source = MockAppleMusicSource()
+        source.playlists = [try AppleMusicFixtures.playlist(id: "p.1", name: "Road")]
+        source.trackCountsByPlaylistID = ["p.1": 8]
+        let provider = AppleMusicBrowsingProvider(source: source)
+
+        let first = try await provider.currentUserPlaylists(limit: 50)
+        XCTAssertNil(first.first?.trackCount)
+        XCTAssertEqual(source.calls, ["libraryPlaylists(50,0)"], "listing must not wait for counts")
+
+        let counts = await provider.playlistTrackCounts(playlistIDs: ["p.1"])
+        XCTAssertEqual(counts, ["p.1": 8])
+
+        let second = try await provider.currentUserPlaylists(limit: 50)
+        XCTAssertEqual(second.first?.trackCount, 8, "a refresh shows the loaded count at once")
+        XCTAssertEqual(source.calls.filter { $0.hasPrefix("trackCounts") }.count, 1)
+    }
+
+    func testACountIsDroppedOnceThePlaylistChanged() async throws {
+        let source = MockAppleMusicSource()
+        source.playlists = [try AppleMusicFixtures.playlist(id: "p.1", name: "Road", lastModified: "2026-11-01T10:00:00Z")]
+        source.trackCountsByPlaylistID = ["p.1": 8]
+        let provider = AppleMusicBrowsingProvider(source: source)
+        _ = try await provider.currentUserPlaylists(limit: 50)
+        _ = await provider.playlistTrackCounts(playlistIDs: ["p.1"])
+
+        source.playlists = [try AppleMusicFixtures.playlist(id: "p.1", name: "Road", lastModified: "2026-11-07T10:00:00Z")]
+        let refreshed = try await provider.currentUserPlaylists(limit: 50)
+
+        XCTAssertNil(refreshed.first?.trackCount)
+    }
+
+    func testAFailedCountLookupLeavesTheRowsWithoutACount() async throws {
+        let source = MockAppleMusicSource()
+        source.trackCountsError = URLError(.cannotConnectToHost)
+        let counts = await AppleMusicBrowsingProvider(source: source).playlistTrackCounts(playlistIDs: ["p.1"])
+        XCTAssertEqual(counts, [:])
+    }
+
+    func testTrackCountCacheExpiresAndForgetsPlaylistsThatLeftTheLibrary() async {
+        let clock = TrackCountTestClock()
+        let cache = AppleMusicPlaylistTrackCountCache(now: { clock.now })
+        let stillThere = await cache.counts(forVersions: ["a": nil, "b": nil])
+        XCTAssertEqual(stillThere, [:])
+        await cache.store(["a": 3, "b": 4])
+
+        let afterDelete = await cache.counts(forVersions: ["a": nil])
+        XCTAssertEqual(afterDelete, ["a": 3])
+        let readded = await cache.counts(forVersions: ["a": nil, "b": nil])
+        XCTAssertEqual(readded, ["a": 3], "a deleted playlist's count is gone, not kept around")
+
+        clock.now = clock.now.addingTimeInterval(AppleMusicPlaylistTrackCountCache.maxAge + 1)
+        let expired = await cache.counts(forVersions: ["a": nil])
+        XCTAssertEqual(expired, [:])
+    }
+
+    func testTrackCountCacheKeepsAtMostItsBound() async {
+        let clock = TrackCountTestClock()
+        let cache = AppleMusicPlaylistTrackCountCache(now: { clock.now })
+        let total = AppleMusicPlaylistTrackCountCache.maxPlaylists + 5
+        for index in 0..<total {
+            clock.now = clock.now.addingTimeInterval(0.01)
+            await cache.store(["p.\(index)": index])
+        }
+        let listing = Dictionary(uniqueKeysWithValues: (0..<total).map { ("p.\($0)", Date?.none) })
+        let kept = await cache.counts(forVersions: listing)
+        XCTAssertEqual(kept.count, AppleMusicPlaylistTrackCountCache.maxPlaylists)
+        XCTAssertNil(kept["p.0"], "the oldest entries go first")
+    }
+
+    /// The sidebar shows right away; counts arrive in batches afterwards and an unknown count stays
+    /// quiet instead of reading "Track count unavailable" on every row.
+    @MainActor
+    func testSidebarFillsInCountsAfterItIsShownAndKeepsUnknownOnesQuiet() async throws {
+        let source = MockAppleMusicSource()
+        let total = PlaylistBrowserViewModel.playlistTrackCountBatchSize + 3
+        source.playlists = try (0..<total).map { try AppleMusicFixtures.playlist(id: "p.\($0)", name: "Playlist \($0)") }
+        source.trackCountsByPlaylistID = Dictionary(uniqueKeysWithValues: (1..<total).map { ("p.\($0)", $0) })
+        let viewModel = PlaylistBrowserViewModel(api: AppleMusicBrowsingProvider(source: source), cache: MockBrowsingCache())
+
+        await viewModel.refreshPlaylists()
+        await viewModel.playlistTrackCountTask?.value
+
+        let rows = try XCTUnwrap(viewModel.playlistState.currentValue)
+        XCTAssertEqual(rows.count, total)
+        XCTAssertEqual(rows[1].trackCount, 1)
+        XCTAssertEqual(rows[total - 1].trackCount, total - 1, "later batches are filled in too")
+        XCTAssertEqual(source.calls.filter { $0.hasPrefix("trackCounts") }.count, 2)
+
+        let unknown = rows[0]
+        XCTAssertNil(unknown.trackCount)
+        let line = unknown.ownerTracksLine(currentUserID: AppleMusicBrowsingProvider.libraryUserID)
+        XCTAssertEqual(line, "")
+        XCTAssertFalse(line.contains(SpotiglassL10n.string("browser.trackCountUnavailable")))
+        XCTAssertEqual(
+            rows[1].ownerTracksLine(currentUserID: AppleMusicBrowsingProvider.libraryUserID),
+            SpotiglassL10n.format("browser.trackCount", Int64(1))
+        )
+    }
+
     func testPlaylistTracksAskForEveryPageAndReportMissingPlaylists() async throws {
         let source = MockAppleMusicSource()
         source.playlistTracksByID["p.1"] = [.song(try AppleMusicFixtures.song(id: "1", title: "One"))]
@@ -805,6 +908,10 @@ private final class MockAppleMusicAuthorization: AppleMusicAuthorizing, @uncheck
     func canPlayCatalogContent() async -> Bool? { canPlay }
 }
 
+private final class TrackCountTestClock: @unchecked Sendable {
+    var now = Date(timeIntervalSince1970: 1_800_000_000)
+}
+
 private final class MockAppleMusicSource: AppleMusicContentSource, @unchecked Sendable {
     private let lock = NSLock()
     private var recordedCalls: [String] = []
@@ -834,6 +941,15 @@ private final class MockAppleMusicSource: AppleMusicContentSource, @unchecked Se
         record("libraryPlaylists(\(limit),\(offset))")
         guard offset < playlists.count else { return [] }
         return Array(playlists[offset..<min(playlists.count, offset + limit)])
+    }
+
+    var trackCountsByPlaylistID: [String: Int] = [:]
+    var trackCountsError: Error?
+
+    func libraryPlaylistTrackCounts(playlistIDs: [String]) async throws -> [String: Int] {
+        record("trackCounts(\(playlistIDs.joined(separator: ",")))")
+        if let trackCountsError { throw trackCountsError }
+        return trackCountsByPlaylistID.filter { playlistIDs.contains($0.key) }
     }
 
     func playlistTracks(playlistID: String, limit: Int) async throws -> [Track]? {
@@ -987,10 +1103,12 @@ enum AppleMusicFixtures {
         name: String,
         curator: String? = nil,
         kind: String? = nil,
-        trackCount: Int? = nil
+        trackCount: Int? = nil,
+        lastModified: String? = nil
     ) throws -> Playlist {
         var attributes: [String: Any] = ["name": name, "artwork": artwork(id)]
         if let curator { attributes["curatorName"] = curator }
+        if let lastModified { attributes["lastModifiedDate"] = lastModified }
         if let kind { attributes["playlistType"] = kind }
         var resource: [String: Any] = ["id": id, "type": "playlists", "attributes": attributes]
         if let trackCount {

@@ -178,6 +178,7 @@ extension PlaylistBrowserViewModel {
     ) {
         playlistsByID = Dictionary(uniqueKeysWithValues: playlists.map { ($0.id, $0) })
         playlistState = state
+        loadMissingPlaylistTrackCounts()
 
         if preserveSelection, let selection = sidebarSelection {
             switch selection {
@@ -201,5 +202,80 @@ extension PlaylistBrowserViewModel {
         }
         // Default landing surface is Home, not the first playlist.
         sidebarSelection = .home
+    }
+
+    /// Playlists asked for per batch: the rows at the top fill in first, and one MusicKit
+    /// library query stays small.
+    static let playlistTrackCountBatchSize = 25
+
+    /// Asks the provider for the counts the listing came without, after the sidebar is on
+    /// screen, and patches each batch into the rows as it arrives. A newer listing cancels it.
+    private func loadMissingPlaylistTrackCounts() {
+        playlistTrackCountTask?.cancel()
+        let missing = (playlistState.currentValue ?? [])
+            .filter { $0.trackCount == nil && $0.id != SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID }
+            .map(\.id)
+        guard !missing.isEmpty else {
+            playlistTrackCountTask = nil
+            return
+        }
+        playlistTrackCountTask = Task { [weak self, api] in
+            for start in stride(from: 0, to: missing.count, by: Self.playlistTrackCountBatchSize) {
+                guard !Task.isCancelled else { return }
+                let batch = Array(missing[start..<min(missing.count, start + Self.playlistTrackCountBatchSize)])
+                let counts = await api.playlistTrackCounts(playlistIDs: batch)
+                guard !Task.isCancelled, let self else { return }
+                self.applyPlaylistTrackCounts(counts)
+            }
+        }
+    }
+
+    private func applyPlaylistTrackCounts(_ counts: [String: Int]) {
+        var changed = false
+        for (id, count) in counts {
+            guard let summary = playlistsByID[id], summary.trackCount == nil else { continue }
+            playlistsByID[id] = MusicPlaylistSummary(
+                id: summary.id,
+                name: summary.name,
+                ownerID: summary.ownerID,
+                ownerName: summary.ownerName,
+                imageURL: summary.imageURL,
+                trackCount: count,
+                snapshotID: summary.snapshotID
+            )
+            changed = true
+        }
+        guard changed else { return }
+        if case let .playlist(detail)? = detailState.currentValue,
+           detail.playlist.trackCount == nil,
+           counts[detail.playlist.id] != nil,
+           let summary = playlistsByID[detail.playlist.id] {
+            let counted = PlaylistDetailViewModel(playlist: PlaylistRowViewModel(summary), tracks: detail.tracks)
+            switch detailState {
+            case .loading, .empty, .error:
+                break
+            case .loaded:
+                detailState = .loaded(.playlist(counted))
+            case .refreshing:
+                detailState = .refreshing(.playlist(counted))
+            case let .staleCache(_, displayError):
+                detailState = .staleCache(.playlist(counted), displayError)
+            }
+        }
+        guard let rows = playlistState.currentValue else { return }
+        let patched = rows.map { row in
+            guard counts[row.id] != nil, row.trackCount == nil, let summary = playlistsByID[row.id] else { return row }
+            return PlaylistRowViewModel(summary)
+        }
+        switch playlistState {
+        case .loading, .empty, .error:
+            return
+        case .loaded:
+            playlistState = .loaded(patched)
+        case .refreshing:
+            playlistState = .refreshing(patched)
+        case let .staleCache(_, displayError):
+            playlistState = .staleCache(patched, displayError)
+        }
     }
 }

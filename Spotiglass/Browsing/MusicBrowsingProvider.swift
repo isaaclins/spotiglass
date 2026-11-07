@@ -56,6 +56,11 @@ struct MusicArtistAlbumsPage {
 /// browser shows as an empty section, or an "unsupported" error for edits.
 protocol MusicBrowsingProvider {
     func currentUserPlaylists(limit: Int) async throws -> [MusicPlaylistSummary]
+    /// Track counts for library playlists listed without one, keyed by playlist ID. The browser
+    /// asks after the sidebar is on screen, a batch at a time; IDs without a known count are left
+    /// out and their rows show no count. Spotify lists counts with the playlists, so its default
+    /// is empty.
+    func playlistTrackCounts(playlistIDs: [String]) async -> [String: Int]
     func playlistTracks(playlistID: String, limit: Int, maxPages: Int) async throws -> [MusicPlaylistTrackItem]
     func currentUserSavedTracks(limit: Int, maxPages: Int?) async throws -> MusicSavedTracksResult
     func currentUserProfile() async throws -> MusicUserProfile
@@ -166,6 +171,8 @@ extension MusicBrowsingProvider {
     func savedTrackStatuses(ids: [String]) async throws -> [Bool] {
         throw SpotifyAPIError.invalidRequest("Saved-track status lookup is not supported by this API implementation.")
     }
+
+    func playlistTrackCounts(playlistIDs: [String]) async -> [String: Int] { [:] }
 
     var supportedLibraryEdits: MusicLibraryEdits { [] }
     func deletePlaylist(playlistID: String) async throws {
