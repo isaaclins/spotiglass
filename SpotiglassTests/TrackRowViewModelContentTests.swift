@@ -151,4 +151,30 @@ final class TrackRowViewModelContentTests: XCTestCase {
         )
         XCTAssertEqual(movedRow.pinnedTrackItem(), row.pinnedTrackItem())
     }
+
+    /// Apple Music songs pin from their row (context menu, Playback menu, drag) under the same
+    /// ID the palette pins them with, so a palette pin can be undone from the row (#400).
+    func testAppleMusicSongRowPinsLikeThePalette() {
+        let song = MusicTrack(
+            id: "i.8WEXyq3cKlvL",
+            name: "Diamonds",
+            artists: ["Rihanna"],
+            albumArtworkURL: nil,
+            durationMilliseconds: 225_000,
+            isExplicit: false,
+            isPlayable: true,
+            linkedFromID: nil,
+            uri: "applemusic:song:i.8WEXyq3cKlvL"
+        )
+        let row = TrackRowViewModel(
+            MusicPlaylistTrackItem(id: "i.8WEXyq3cKlvL:3", content: .track(song)),
+            listPosition: 4
+        )
+
+        XCTAssertEqual(row.pinnedTrackItem(), PinnedItem.track(song))
+        XCTAssertEqual(row.pinnedTrackItem()?.spotifyURI, "applemusic:song:i.8WEXyq3cKlvL")
+        XCTAssertEqual(TrackRowViewModel(topTrack: song, listPosition: 1).pinnedTrackItem(), PinnedItem.track(song))
+        // The library continuation stays a Spotify feature.
+        XCTAssertNil(row.spotifyTrackForPinning())
+    }
 }
