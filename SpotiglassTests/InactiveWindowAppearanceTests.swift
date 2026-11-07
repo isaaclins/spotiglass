@@ -127,8 +127,15 @@ final class InactiveWindowAppearanceTests: XCTestCase {
 
     func testScrubberRendersInAnInactiveWindow() throws {
         let view = ScrubberView(
-            displayFraction: 0.4,
-            durationMilliseconds: 240_000,
+            progress: ScrubberProgress(
+                anchor: PlaybackProgressAnchor(
+                    positionMilliseconds: 96_000,
+                    anchorDate: Date(),
+                    durationMilliseconds: 240_000,
+                    isAdvancing: false
+                ),
+                durationMilliseconds: 240_000
+            ),
             onSeek: { _ in },
             onDragUpdate: { _ in }
         )
