@@ -344,6 +344,38 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         )
     }
 
+    /// A refresh after the counts expired keeps each row's count until the fresh one arrives
+    /// (no blank sidebar), and a playlist the library no longer counts goes back to no count.
+    @MainActor
+    func testARefreshKeepsTheShownCountsUntilFreshOnesArrive() async throws {
+        let clock = TrackCountTestClock()
+        let source = MockAppleMusicSource()
+        source.playlists = [
+            try AppleMusicFixtures.playlist(id: "p.1", name: "Road"),
+            try AppleMusicFixtures.playlist(id: "p.2", name: "Chill"),
+        ]
+        source.trackCountsByPlaylistID = ["p.1": 5, "p.2": 7]
+        let provider = AppleMusicBrowsingProvider(
+            source: source,
+            trackCountCache: AppleMusicPlaylistTrackCountCache(now: { clock.now })
+        )
+        let viewModel = PlaylistBrowserViewModel(api: provider, cache: MockBrowsingCache())
+        await viewModel.refreshPlaylists()
+        await viewModel.playlistTrackCountTask?.value
+        XCTAssertEqual(viewModel.playlistState.currentValue?.map(\.trackCount), [5, 7])
+
+        clock.now = clock.now.addingTimeInterval(AppleMusicPlaylistTrackCountCache.maxAge + 1)
+        source.trackCountsByPlaylistID = ["p.1": 6]
+        let gate = TrackCountGate()
+        source.trackCountsGate = gate
+        await viewModel.refreshPlaylists()
+
+        XCTAssertEqual(viewModel.playlistState.currentValue?.map(\.trackCount), [5, 7], "no row goes blank while counting")
+        gate.open()
+        await viewModel.playlistTrackCountTask?.value
+        XCTAssertEqual(viewModel.playlistState.currentValue?.map(\.trackCount), [6, nil])
+    }
+
     func testPlaylistTracksAskForEveryPageAndReportMissingPlaylists() async throws {
         let source = MockAppleMusicSource()
         source.playlistTracksByID["p.1"] = [.song(try AppleMusicFixtures.song(id: "1", title: "One"))]
@@ -912,6 +944,35 @@ private final class TrackCountTestClock: @unchecked Sendable {
     var now = Date(timeIntervalSince1970: 1_800_000_000)
 }
 
+/// Holds a count lookup until `open()`, like a slow library.
+private final class TrackCountGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var isOpen = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func wait() async {
+        await withCheckedContinuation { continuation in
+            lock.lock()
+            if isOpen {
+                lock.unlock()
+                continuation.resume()
+            } else {
+                waiters.append(continuation)
+                lock.unlock()
+            }
+        }
+    }
+
+    func open() {
+        lock.lock()
+        isOpen = true
+        let resumed = waiters
+        waiters = []
+        lock.unlock()
+        resumed.forEach { $0.resume() }
+    }
+}
+
 private final class MockAppleMusicSource: AppleMusicContentSource, @unchecked Sendable {
     private let lock = NSLock()
     private var recordedCalls: [String] = []
@@ -946,8 +1007,11 @@ private final class MockAppleMusicSource: AppleMusicContentSource, @unchecked Se
     var trackCountsByPlaylistID: [String: Int] = [:]
     var trackCountsError: Error?
 
+    var trackCountsGate: TrackCountGate?
+
     func libraryPlaylistTrackCounts(playlistIDs: [String]) async throws -> [String: Int] {
         record("trackCounts(\(playlistIDs.joined(separator: ",")))")
+        await trackCountsGate?.wait()
         if let trackCountsError { throw trackCountsError }
         return trackCountsByPlaylistID.filter { playlistIDs.contains($0.key) }
     }

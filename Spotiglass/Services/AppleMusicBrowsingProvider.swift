@@ -163,15 +163,32 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
             forVersions: Dictionary(playlists.map { ($0.id.rawValue, $0.lastModifiedDate) }, uniquingKeysWith: { first, _ in first })
         )
         return editor.pending.applied(toPlaylists: playlists.map {
-            AppleMusicItemMapping.playlistSummary($0, fallbackOwnerName: libraryOwnerName, cachedTrackCount: counts[$0.id.rawValue])
+            // A playlist edited from Spotiglass is counted again (`playlistTrackCounts`), with
+            // the edits the library doesn't show yet.
+            let id = $0.id.rawValue
+            let cached = editor.pending.hasPendingTracks(playlistID: id) ? nil : counts[id]
+            return AppleMusicItemMapping.playlistSummary($0, fallbackOwnerName: libraryOwnerName, cachedTrackCount: cached)
         })
     }
 
     func playlistTrackCounts(playlistIDs: [String]) async -> [String: Int] {
         guard !playlistIDs.isEmpty else { return [:] }
+        // The library can take hours to show an add or remove made from Spotiglass, so those
+        // playlists are counted from their tracks with the edit applied, like the open playlist.
+        let edited = playlistIDs.filter { editor.pending.hasPendingTracks(playlistID: $0) }
+        let unedited = playlistIDs.filter { !edited.contains($0) }
+        var counts: [String: Int] = [:]
         // A failed lookup only leaves those rows without a count; the sidebar itself is loaded.
-        guard let counts = try? await source.libraryPlaylistTrackCounts(playlistIDs: playlistIDs) else { return [:] }
-        await trackCountCache.store(counts)
+        if !unedited.isEmpty, let library = try? await source.libraryPlaylistTrackCounts(playlistIDs: unedited) {
+            await trackCountCache.store(library)
+            counts = library
+        }
+        for id in edited {
+            guard !Task.isCancelled else { break }
+            if let tracks = try? await playlistTracks(playlistID: id, limit: 100, maxPages: 100), !tracks.isEmpty {
+                counts[id] = tracks.count
+            }
+        }
         return counts
     }
 
@@ -523,6 +540,12 @@ actor AppleMusicPlaylistTrackCountCache {
             return entry.version == listed && current.timeIntervalSince(entry.storedAt) < Self.maxAge
         }
         return entries.mapValues(\.count)
+    }
+
+    /// Drops the counts of playlists that were just edited, so no listing brings back the count
+    /// from before the edit.
+    func forget(_ playlistIDs: [String]) {
+        for id in playlistIDs { entries[id] = nil }
     }
 
     func store(_ counts: [String: Int]) {

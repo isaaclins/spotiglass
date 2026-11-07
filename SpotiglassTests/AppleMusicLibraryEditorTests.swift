@@ -1129,9 +1129,14 @@ private extension MusicPlaylistTrackItem {
 final class EditTestContentSource: AppleMusicContentSource, @unchecked Sendable {
     var songs: [Song] = []
     var tracksByPlaylistID: [String: [Track]] = [:]
+    var playlists: [Playlist] = []
+    /// What the library counts: like the real one, it doesn't see an edit made moments ago.
+    var trackCountsByPlaylistID: [String: Int] = [:]
 
-    func libraryPlaylists(limit: Int, offset: Int) async throws -> [Playlist] { [] }
-    func libraryPlaylistTrackCounts(playlistIDs: [String]) async throws -> [String: Int] { [:] }
+    func libraryPlaylists(limit: Int, offset: Int) async throws -> [Playlist] { offset == 0 ? playlists : [] }
+    func libraryPlaylistTrackCounts(playlistIDs: [String]) async throws -> [String: Int] {
+        trackCountsByPlaylistID.filter { playlistIDs.contains($0.key) }
+    }
     func playlistTracks(playlistID: String, limit: Int) async throws -> [Track]? { tracksByPlaylistID[playlistID] }
     func librarySongs(limit: Int, offset: Int) async throws -> [Song] { offset == 0 ? songs : [] }
     func recentlyPlayedSongs(limit: Int) async throws -> [Song] { [] }
@@ -1427,6 +1432,28 @@ final class AppleMusicPlaylistEditFixTests: XCTestCase {
         let items = try await provider.playlistTracks(playlistID: created.id, limit: 100, maxPages: 1)
 
         XCTAssertEqual(Self.names(items), ["Don't Stop The Music"], "the sidebar says 1 track, so the page shows it")
+    }
+
+    /// #407 after #395: the library can take hours to show an add made from Spotiglass, so
+    /// neither a refresh nor the count lookup may bring back the count from before the add.
+    func testAPlaylistEditedFromSpotiglassIsCountedWithTheEdit() async throws {
+        let row = try remembered18P1Row()
+        let playlistID = "-107247429512612591"
+        let source = EditTestContentSource()
+        source.playlists = [try AppleMusicFixtures.playlist(id: playlistID, name: "Spotiglass test")]
+        source.tracksByPlaylistID[playlistID] = [.song(try AppleMusicFixtures.song(id: "i.1", title: "One", artist: "Someone"))]
+        source.trackCountsByPlaylistID[playlistID] = 1
+        let provider = AppleMusicBrowsingProvider(source: source, editor: editor)
+        _ = try await provider.currentUserPlaylists(limit: 50)
+        let before = await provider.playlistTrackCounts(playlistIDs: [playlistID])
+        XCTAssertEqual(before, [playlistID: 1])
+
+        try await provider.addTracksToPlaylist(playlistID: playlistID, uris: ["applemusic:song:\(row.itemID)"])
+
+        let listed = try await provider.currentUserPlaylists(limit: 50)
+        XCTAssertNil(listed.first?.trackCount, "the count from before the add stays out of the listing")
+        let after = await provider.playlistTrackCounts(playlistIDs: [playlistID])
+        XCTAssertEqual(after, [playlistID: 2], "counted like the open playlist, with the added song")
     }
 
     func testALibraryRowAddedToAPlaylistShowsThereBeforeTheLibraryListsIt() async throws {

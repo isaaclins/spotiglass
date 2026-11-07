@@ -90,6 +90,7 @@ struct PlaylistListRow: View {
     }
 }
 
-private extension String {
+extension String {
+    /// A blank line instead of an empty one, so a subtitle that is still loading keeps its height.
     var nonEmptyLine: String { isEmpty ? " " : self }
 }

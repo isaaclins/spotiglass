@@ -72,6 +72,7 @@ extension AppleMusicBrowsingProvider {
             return nil
         }
         try await editor.addToPlaylist(playlistID: playlistID, songIDs: ids, shownTracks: shownTracks)
+        await trackCountCache.forget([playlistID])
     }
 
     /// `snapshotID` is Spotify's; Apple Music has none.
@@ -104,6 +105,7 @@ extension AppleMusicBrowsingProvider {
             shownCounts: shownCounts,
             shownOrdinals: shownOrdinals
         )
+        await trackCountCache.forget([playlistID])
     }
 
     func updatePlaylist(playlistID: String, name: String) async throws {

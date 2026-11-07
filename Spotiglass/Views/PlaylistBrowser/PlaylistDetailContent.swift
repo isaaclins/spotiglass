@@ -260,7 +260,7 @@ struct PlaylistDetailContent: View {
                 Text(detail.playlist.ownerTracksLine(
                     currentUserID: currentUserSpotifyID,
                     locale: spotiglassLocale
-                ))
+                ).nonEmptyLine)
                     .foregroundStyle(.secondary)
 
                 DetailHeaderActions(

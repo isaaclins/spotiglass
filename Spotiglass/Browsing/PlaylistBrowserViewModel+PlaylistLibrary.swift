@@ -176,9 +176,10 @@ extension PlaylistBrowserViewModel {
         state: BrowsingLoadState<[PlaylistRowViewModel]>,
         preserveSelection: Bool
     ) {
+        let shownCounts = playlistsByID.compactMapValues(\.trackCount)
         playlistsByID = Dictionary(uniqueKeysWithValues: playlists.map { ($0.id, $0) })
         playlistState = state
-        loadMissingPlaylistTrackCounts()
+        loadMissingPlaylistTrackCounts(shownCounts: shownCounts)
 
         if preserveSelection, let selection = sidebarSelection {
             switch selection {
@@ -210,7 +211,9 @@ extension PlaylistBrowserViewModel {
 
     /// Asks the provider for the counts the listing came without, after the sidebar is on
     /// screen, and patches each batch into the rows as it arrives. A newer listing cancels it.
-    private func loadMissingPlaylistTrackCounts() {
+    /// Rows that showed a count before this listing keep it until the fresh one arrives, so a
+    /// refresh doesn't blank them; one the provider can't count any more goes back to none.
+    private func loadMissingPlaylistTrackCounts(shownCounts: [String: Int]) {
         playlistTrackCountTask?.cancel()
         let missing = (playlistState.currentValue ?? [])
             .filter { $0.trackCount == nil && $0.id != SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID }
@@ -219,21 +222,33 @@ extension PlaylistBrowserViewModel {
             playlistTrackCountTask = nil
             return
         }
+        let awaiting = Set(missing)
+        applyPlaylistTrackCounts(shownCounts.filter { awaiting.contains($0.key) }, replacing: awaiting)
         playlistTrackCountTask = Task { [weak self, api] in
+            var answered = Set<String>()
             for start in stride(from: 0, to: missing.count, by: Self.playlistTrackCountBatchSize) {
                 guard !Task.isCancelled else { return }
                 let batch = Array(missing[start..<min(missing.count, start + Self.playlistTrackCountBatchSize)])
                 let counts = await api.playlistTrackCounts(playlistIDs: batch)
                 guard !Task.isCancelled, let self else { return }
-                self.applyPlaylistTrackCounts(counts)
+                answered.formUnion(counts.keys)
+                self.applyPlaylistTrackCounts(counts, replacing: awaiting)
             }
+            guard !Task.isCancelled, let self else { return }
+            let unanswered = Dictionary(uniqueKeysWithValues: awaiting.subtracting(answered).map { ($0, Int?.none) })
+            self.applyPlaylistTrackCounts(unanswered, replacing: awaiting)
         }
     }
 
-    private func applyPlaylistTrackCounts(_ counts: [String: Int]) {
-        var changed = false
+    /// Writes `counts` into the rows and the open playlist's header. A row gets a count when it
+    /// has none, or when it is in `replacing` (its count is a stand-in from before the listing);
+    /// a `nil` count takes a stand-in away.
+    private func applyPlaylistTrackCounts(_ counts: [String: Int?], replacing: Set<String>) {
+        var patchedIDs = Set<String>()
         for (id, count) in counts {
-            guard let summary = playlistsByID[id], summary.trackCount == nil else { continue }
+            guard let summary = playlistsByID[id],
+                  summary.trackCount != count,
+                  summary.trackCount == nil || replacing.contains(id) else { continue }
             playlistsByID[id] = MusicPlaylistSummary(
                 id: summary.id,
                 name: summary.name,
@@ -243,12 +258,11 @@ extension PlaylistBrowserViewModel {
                 trackCount: count,
                 snapshotID: summary.snapshotID
             )
-            changed = true
+            patchedIDs.insert(id)
         }
-        guard changed else { return }
+        guard !patchedIDs.isEmpty else { return }
         if case let .playlist(detail)? = detailState.currentValue,
-           detail.playlist.trackCount == nil,
-           counts[detail.playlist.id] != nil,
+           patchedIDs.contains(detail.playlist.id),
            let summary = playlistsByID[detail.playlist.id] {
             let counted = PlaylistDetailViewModel(playlist: PlaylistRowViewModel(summary), tracks: detail.tracks)
             switch detailState {
@@ -264,7 +278,7 @@ extension PlaylistBrowserViewModel {
         }
         guard let rows = playlistState.currentValue else { return }
         let patched = rows.map { row in
-            guard counts[row.id] != nil, row.trackCount == nil, let summary = playlistsByID[row.id] else { return row }
+            guard patchedIDs.contains(row.id), let summary = playlistsByID[row.id] else { return row }
             return PlaylistRowViewModel(summary)
         }
         switch playlistState {
