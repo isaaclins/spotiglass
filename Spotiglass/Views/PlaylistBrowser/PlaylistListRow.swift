@@ -57,10 +57,12 @@ struct PlaylistListRow: View {
                         .lineLimit(1)
                 }
 
+                // A count still loading (or unknown) leaves the line blank but keeps its height,
+                // so rows don't jump when the count arrives.
                 Text(playlist.ownerTracksLine(
                     currentUserID: currentUserSpotifyID,
                     locale: spotiglassLocale
-                ))
+                ).nonEmptyLine)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -86,4 +88,9 @@ struct PlaylistListRow: View {
             )
         )
     }
+}
+
+extension String {
+    /// A blank line instead of an empty one, so a subtitle that is still loading keeps its height.
+    var nonEmptyLine: String { isEmpty ? " " : self }
 }

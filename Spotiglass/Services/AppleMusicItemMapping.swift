@@ -118,7 +118,9 @@ enum AppleMusicItemMapping {
 
     // MARK: - Collections
 
-    static func playlistSummary(_ playlist: Playlist, fallbackOwnerName: String) -> MusicPlaylistSummary {
+    /// `cachedTrackCount` stands in when MusicKit lists the playlist without its tracks, which
+    /// library listings always do.
+    static func playlistSummary(_ playlist: Playlist, fallbackOwnerName: String, cachedTrackCount: Int? = nil) -> MusicPlaylistSummary {
         // Playlists the user made have no curator; Apple's own and shared ones name theirs.
         let curator = playlist.curatorName
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -132,7 +134,7 @@ enum AppleMusicItemMapping {
             ownerID: curator ?? AppleMusicBrowsingProvider.libraryUserID,
             ownerName: curator ?? fallbackOwnerName,
             imageURL: artworkURL(playlist.artwork, size: ArtworkSize.cover, pinKind: .playlist, itemID: playlist.id),
-            trackCount: playlist.tracks?.count,
+            trackCount: playlist.tracks?.count ?? cachedTrackCount,
             snapshotID: playlistSnapshotID
         )
     }
