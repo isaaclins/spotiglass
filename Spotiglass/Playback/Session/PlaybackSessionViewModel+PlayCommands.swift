@@ -55,7 +55,9 @@ extension PlaybackSessionViewModel {
         }
     }
 
-    func play(contextURI: String) async {
+    /// `playlistID` marks the sidebar row of the list that plays (the header Play and Shuffle
+    /// of a playlist or album, #396), the way ``playFromPlaylist(clickedURI:playableURIs:playlistID:)`` does.
+    func play(contextURI: String, playlistID: String? = nil) async {
         guard !refusesNewPlayback else {
             SpotiglassLog.info(.playback, "play(contextURI:) refused: another service is on screen")
             return
@@ -70,7 +72,7 @@ extension PlaybackSessionViewModel {
         guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
         let commandKey = PlayCommandKey.contextURI(deviceID: commandDeviceID, contextURI: contextURI)
         guard let dispatch = beginPlayCommandDispatchIfNeeded(for: commandKey) else { return }
-        activePlaylistID = nil
+        activePlaylistID = playlistID
         beginPendingContextPlay(dispatch: dispatch)
 
         do {

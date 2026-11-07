@@ -42,8 +42,9 @@ protocol AppleMusicPlayerControlling: AnyObject {
     func play(_ request: AppleMusicQueueRequest, isCurrent: @escaping @MainActor () -> Bool) async throws
     func pause()
     func resume() async throws
-    /// Stops playback and keeps the queue.
-    func stop()
+    /// Stops playback and empties the queue: the session is over (signing out of Apple Music),
+    /// and adding Apple Music again starts with nothing loaded.
+    func endSession()
     func seek(toMilliseconds milliseconds: Int)
     func skipToNext() async throws
     func skipToPrevious() async throws
@@ -73,6 +74,7 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
     /// The one in-app player's id. Opaque to the session.
     static let deviceID = "apple-music-this-mac"
 
+    let service: MusicService = .appleMusic
     let capabilities: MusicPlaybackCapabilities = []
     var eventHandler: ((MusicPlaybackEventEnvelope) -> Void)?
 
@@ -101,8 +103,11 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
         eventHandler?(MusicPlaybackEventEnvelope(event: .ready(deviceID: Self.deviceID), hostGeneration: generation))
     }
 
+    /// Disconnecting ends the session (signing out of Apple Music, #396): the music stops and
+    /// the queue goes, so nothing keeps playing that the window can't control, and adding Apple
+    /// Music again starts fresh instead of showing the old song.
     func disconnectPlayer(generation: PlaybackHostGeneration) async throws {
-        player.stop()
+        player.endSession()
     }
 
     // MARK: - Commands for a device

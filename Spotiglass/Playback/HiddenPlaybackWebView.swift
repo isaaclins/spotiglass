@@ -92,12 +92,16 @@ struct HiddenPlaybackWebView: NSViewRepresentable {
 /// MusicKit, which a Spotify-only setup, screenshot mode and the unit-test host never should.
 ///
 /// What's playing keeps playing across a switch, until something starts in the other library:
-/// starting music in one player pauses the other.
+/// starting music in one player pauses the other. One rule holds across both (#396): what you
+/// hear is what the bar and Space control (``PlaybackSessionViewModel/audiblePlayer``), and
+/// signing out of a service stops its player.
 @MainActor
 final class SpotiglassPlaybackHosts: ObservableObject {
     let spotify: SpotiglassPlaybackHost
     private let makeAppleMusic: () -> SpotiglassPlaybackHost
     private(set) var appleMusicIfCreated: SpotiglassPlaybackHost?
+    private var addedServices: [MusicService]?
+    private var cancellables: Set<AnyCancellable> = []
 
     init(spotify: SpotiglassPlaybackHost, makeAppleMusic: @escaping () -> SpotiglassPlaybackHost) {
         self.spotify = spotify
@@ -107,8 +111,8 @@ final class SpotiglassPlaybackHosts: ObservableObject {
     var appleMusic: SpotiglassPlaybackHost {
         if let appleMusicIfCreated { return appleMusicIfCreated }
         let created = makeAppleMusic()
-        Self.handOver(from: spotify.playbackViewModel, to: created.playbackViewModel)
-        Self.handOver(from: created.playbackViewModel, to: spotify.playbackViewModel)
+        link(spotify.playbackViewModel, created.playbackViewModel)
+        link(created.playbackViewModel, spotify.playbackViewModel)
         appleMusicIfCreated = created
         return created
     }
@@ -120,10 +124,39 @@ final class SpotiglassPlaybackHosts: ObservableObject {
         appleMusicIfCreated?.playbackViewModel.refusesNewPlayback = activeService != .appleMusic
     }
 
-    private static func handOver(from starting: PlaybackSessionViewModel, to other: PlaybackSessionViewModel) {
+    /// Follows the added services (``MusicServiceStore/services``) for the whole app, with or
+    /// without a window open.
+    func follow<Services: Publisher>(addedServices services: Services)
+    where Services.Output == [MusicService], Services.Failure == Never {
+        services
+            .sink { [weak self] in self?.servicesChanged(to: $0) }
+            .store(in: &cancellables)
+    }
+
+    /// Signing out of Apple Music removes it, and its player stops with it (#396): nothing keeps
+    /// playing that the window offers no way to control, and adding it again starts fresh.
+    /// Spotify's player already disconnects with Spotify's sign-out, which every removal of
+    /// Spotify goes through, so it is left to that path.
+    func servicesChanged(to services: [MusicService]) {
+        defer { addedServices = services }
+        guard let previous = addedServices,
+              previous.contains(.appleMusic), !services.contains(.appleMusic),
+              let appleMusic = appleMusicIfCreated?.playbackViewModel
+        else { return }
+        Task { await appleMusic.disconnect() }
+    }
+
+    /// `starting` pauses `other` when it starts music, and knows whether `other` is playing.
+    private func link(_ starting: PlaybackSessionViewModel, _ other: PlaybackSessionViewModel) {
         starting.onWillStartPlayback = { [weak other] in
             other?.pauseForHandover()
         }
+        starting.otherServicePlayer = other
+        other.$connectionState
+            .map { PlaylistBrowserPlaybackHelpers.isCurrentlyPlaying(connectionState: $0) }
+            .removeDuplicates()
+            .sink { [weak starting] in starting?.isOtherServicePlaying = $0 }
+            .store(in: &cancellables)
     }
 }
 

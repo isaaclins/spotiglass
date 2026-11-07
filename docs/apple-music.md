@@ -22,8 +22,13 @@ you left it. Switching never signs you out.
   **Switch to Spotify** / **Switch to Apple Music** in the command palette (`>switch`).
 - What is playing keeps playing until you start something from the other library: each service
   has its own player, and starting music in one pauses the other.
+- What you hear is what the bar controls. While the other service's music plays and nothing plays
+  in the one on screen, the bar shows that music with "In Apple Music" (or "In Spotify") next to
+  the title, and Play/Pause, Space, next, previous and seeking act on it. Once it's paused the bar
+  is the on-screen service's own again.
 - Settings › Account signs each service in and out on its own. Signing out of Apple Music
-  removes it from the menu (its pins stay for when you add it again); the access itself is a
+  stops its music, empties its queue and removes it from the menu (its pins stay for when you add
+  it again); the access itself is a
   system permission in System Settings › Privacy & Security › Media & Apple Music. Signing out of
   Spotify while Apple Music is added hands the window to Apple Music; as the only service,
   Spotify shows its own sign-in again, as before.
@@ -138,6 +143,7 @@ implements `MusicPlaybackProvider` on MusicKit's `ApplicationMusicPlayer`
 |---|---|
 | Play a row, Liked Songs, a playlist, an album, an artist | The songs are queued one by one as `ApplicationMusicPlayer.Queue` entries, starting at the row you picked. Rows are played as the exact MusicKit song they were built from ([`AppleMusicPlayableRegistry`](../Spotiglass/Services/AppleMusicPlayableRegistry.swift), bounded to 20,000 songs): a library request for a playlist track's id answers with a song under a different id, so a second lookup can't be matched back to the row. |
 | Pause, resume, seek, next, previous, shuffle, repeat | The player's own commands. Repeat off / context / track maps to none / all / one. |
+| Play with nothing loaded | Off: MusicKit's player keeps no last song to resume (after a launch, or once a queue ran out), so the bar says "Choose a track to play." until a row, a list or Play in a header starts something. |
 | Add to queue | After the current song and after the songs added before it, like Spotify's queue. |
 | Queue panel | The entries after the current one. |
 | Player state | Read, not pushed: the session polls it (every second after a command, while the app is in the background too). |

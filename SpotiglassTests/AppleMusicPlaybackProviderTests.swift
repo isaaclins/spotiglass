@@ -620,8 +620,8 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
             playlist: PlaylistRowViewModel(albumDisplayName: "Album", artistsDisplay: "A", totalTrackCount: 1, artworkURL: nil, albumID: "1440857781"),
             tracks: []
         )
-        XCTAssertEqual(DetailHeaderPlayback.target(for: album, service: .appleMusic), .context(uri: "applemusic:album:1440857781"))
-        XCTAssertEqual(DetailHeaderPlayback.target(for: album, service: .spotify), .context(uri: "spotify:album:1440857781"))
+        XCTAssertEqual(DetailHeaderPlayback.target(for: album, service: .appleMusic), .context(uri: "applemusic:album:1440857781", playlistID: "1440857781"))
+        XCTAssertEqual(DetailHeaderPlayback.target(for: album, service: .spotify), .context(uri: "spotify:album:1440857781", playlistID: "1440857781"))
     }
 
     // MARK: - Fixtures
@@ -681,7 +681,7 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
 /// skip already reports position 0 for the old item, as the real player does).
 @MainActor
 final class ScriptedAppleMusicPlayer: AppleMusicPlayerControlling {
-    static let lag: [String: Double] = ["pause": 0.333, "resume": 0.297, "next": 0.305, "previous": 0.189, "stop": 0.074]
+    static let lag: [String: Double] = ["pause": 0.333, "resume": 0.297, "next": 0.305, "previous": 0.189, "endSession": 0.074]
 
     var authorized = true
     var failure: Error?
@@ -767,8 +767,16 @@ final class ScriptedAppleMusicPlayer: AppleMusicPlayerControlling {
         later("resume") { [self] in positionAnchor = now; playing = true }
     }
 
-    func stop() {
-        later("stop") { [self] in positionBase = position(); playing = false }
+    /// Like `ApplicationMusicPlayer.stop()`, the stop lands after a lag; then the queue is gone
+    /// and a read shows nothing loaded.
+    func endSession() {
+        later("endSession") { [self] in
+            playing = false
+            queue = []
+            index = 0
+            positionBase = 0
+            book = AppleMusicQueueBook()
+        }
     }
 
     func seek(toMilliseconds milliseconds: Int) {

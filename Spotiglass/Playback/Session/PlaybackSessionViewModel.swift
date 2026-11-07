@@ -40,10 +40,32 @@ final class PlaybackSessionViewModel: ObservableObject {
     /// only one library plays at a time (#373).
     var onWillStartPlayback: (() -> Void)?
 
+    /// The other service's player (#396), linked by ``SpotiglassPlaybackHosts`` once both exist.
+    weak var otherServicePlayer: PlaybackSessionViewModel?
+    /// Whether the other service's player is playing right now, kept by ``SpotiglassPlaybackHosts``.
+    @Published var isOtherServicePlaying = false
+
     /// The other service's player started something: pause what plays here, if anything.
     func pauseForHandover() {
         guard PlaylistBrowserPlaybackHelpers.isCurrentlyPlaying(connectionState: connectionState) else { return }
         Task { await togglePlayPause() }
+    }
+
+    /// The player the transport bar, Space, the Playback menu and the palette control (#396):
+    /// the one you hear. While the other service's music plays and nothing plays here, that is
+    /// the other service's player, so Play/Pause pauses what you hear instead of starting this
+    /// service's paused song. Otherwise it is this player.
+    var audiblePlayer: PlaybackSessionViewModel {
+        guard isOtherServicePlaying,
+              !PlaylistBrowserPlaybackHelpers.isCurrentlyPlaying(connectionState: connectionState),
+              let otherServicePlayer
+        else { return self }
+        return otherServicePlayer
+    }
+
+    /// The service whose player this is.
+    var service: MusicService {
+        provider.service
     }
     /// The Spotify Connect device currently targeted by Web API playback commands.
     /// This can be remote while ``deviceID`` remains ready for local SDK events.
@@ -480,16 +502,30 @@ final class PlaybackSessionViewModel: ObservableObject {
         return Self.isPlaybackToggleReady(
             connectionState: connectionState,
             deviceID: deviceID,
-            activePlaybackDeviceID: activePlaybackDeviceID
+            activePlaybackDeviceID: activePlaybackDeviceID,
+            playerPushesState: playerPushesState
         )
+    }
+
+    /// Whether the in-app player pushes its state (Spotify's Web Playback SDK) rather than being
+    /// read (MusicKit).
+    var playerPushesState: Bool {
+        provider.capabilities.contains(.pushesPlayerState)
     }
 
     static func isPlaybackToggleReady(
         connectionState: PlaybackConnectionState,
         deviceID: String?,
-        activePlaybackDeviceID: String?
+        activePlaybackDeviceID: String?,
+        playerPushesState: Bool = true
     ) -> Bool {
         guard Self.isPlaybackTransportReady(for: connectionState) else { return false }
+        // A read player that is only ready has nothing loaded (an empty read puts it back to
+        // ready): MusicKit's player has no "last played" to resume, so Play would only fail
+        // (#396). Choosing a track is the way to start; Spotify resumes the account's last item.
+        if !playerPushesState, case .ready = connectionState {
+            return false
+        }
         // Both the SDK device and a remote Connect device are valid targets;
         // commandDeviceID selects which path the action takes.
         return deviceID != nil || activePlaybackDeviceID != nil

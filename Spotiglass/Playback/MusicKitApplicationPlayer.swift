@@ -117,8 +117,11 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         try await Self.mapped { try await self.player.play() }
     }
 
-    func stop() {
+    func endSession() {
         player.stop()
+        player.queue = []
+        uriByEntryKey = [:]
+        book = AppleMusicQueueBook()
     }
 
     func seek(toMilliseconds milliseconds: Int) {

@@ -74,6 +74,8 @@ protocol MusicPlaybackDeviceTransfer: AnyObject {
 /// events carry the generation they belong to.
 @MainActor
 protocol MusicPlaybackProvider: AnyObject {
+    /// The service whose player this is.
+    var service: MusicService { get }
     var capabilities: MusicPlaybackCapabilities { get }
 
     /// Spotify Connect style device transfer, or `nil` when the service has none.
@@ -123,6 +125,8 @@ protocol MusicPlaybackProvider: AnyObject {
 }
 
 extension MusicPlaybackProvider {
+    var service: MusicService { .spotify }
+
     var deviceTransfer: (any MusicPlaybackDeviceTransfer)? { nil }
 
     func didStartLocalPlayback(uri: String) async throws {}

@@ -9727,6 +9727,29 @@
         }
       }
     },
+    "playback.controls.otherService.label": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En %@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In %@"
+          }
+        }
+      }
+    },
     "playback.controls.playPause.hint": {
       "extractionState": "stale",
       "localizations": {
@@ -10138,6 +10161,29 @@
           "stringUnit": {
             "state": "translated",
             "value": "Elige una canción o pulsa Reproducir."
+          }
+        }
+      }
+    },
+    "playback.controls.state.ready.subtitle.appleMusic": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a track to play."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elige una canción para reproducir."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wählen Sie einen Titel aus."
           }
         }
       }

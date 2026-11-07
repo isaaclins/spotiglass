@@ -168,18 +168,27 @@ final class CommandPaletteManager: ObservableObject {
         repeatMode = playback.repeatMode
         canMutatePlaybackTransport = playback.isTransportMutationReady
 
-        Publishers.CombineLatest4(
-            playback.$connectionState,
-            playback.$deviceID,
-            playback.$activePlaybackDeviceID,
-            playback.$isTransportStateKnown
+        let playerPushesState = playback.playerPushesState
+        Publishers.CombineLatest(
+            Publishers.CombineLatest4(
+                playback.$connectionState,
+                playback.$deviceID,
+                playback.$activePlaybackDeviceID,
+                playback.$isTransportStateKnown
+            ),
+            playback.$isOtherServicePlaying
         )
-        .sink { [weak self] connectionState, deviceID, activePlaybackDeviceID, isTransportStateKnown in
+        .sink { [weak self] state, isOtherServicePlaying in
+            let (connectionState, deviceID, activePlaybackDeviceID, isTransportStateKnown) = state
+            // While the other service's music is what you hear, Play/Pause pauses it (#396).
+            let pausesOtherService = isOtherServicePlaying
+                && !PlaylistBrowserPlaybackHelpers.isCurrentlyPlaying(connectionState: connectionState)
             self?.setPlaybackToggleAvailability(
-                PlaybackSessionViewModel.isPlaybackToggleReady(
+                pausesOtherService || PlaybackSessionViewModel.isPlaybackToggleReady(
                     connectionState: connectionState,
                     deviceID: deviceID,
-                    activePlaybackDeviceID: activePlaybackDeviceID
+                    activePlaybackDeviceID: activePlaybackDeviceID,
+                    playerPushesState: playerPushesState
                 )
             )
             self?.setLyricsToggleAvailability(connectionState.currentLyricTrack != nil)

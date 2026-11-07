@@ -4,12 +4,14 @@ import SwiftUI
 /// Most detail surfaces have a Spotify context URI; Liked Songs is a local
 /// collection, so it starts the loaded playable URI list instead.
 enum DetailHeaderPlaybackTarget: Equatable {
-    case context(uri: String)
+    /// `playlistID` is the sidebar row that shows the playing badge, like a double-clicked row
+    /// of the same list (#396); `nil` for an artist.
+    case context(uri: String, playlistID: String? = nil)
     case tracks(uris: [String], playlistID: String?)
 
     var isPlayable: Bool {
         switch self {
-        case .context(let uri):
+        case .context(let uri, _):
             !uri.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .tracks(let uris, _):
             !uris.isEmpty
@@ -37,7 +39,7 @@ enum DetailHeaderPlayback {
         // The context URI names the service that owns the id: an Apple Music album id is
         // meaningless to Spotify and the other way round.
         let scheme = service == .appleMusic ? AppleMusicItemMapping.uriScheme : "spotify"
-        return .context(uri: "\(scheme):\(kind):\(playlist.id)")
+        return .context(uri: "\(scheme):\(kind):\(playlist.id)", playlistID: playlist.id)
     }
 
     static func target(for detail: ArtistDetailViewModel) -> DetailHeaderPlaybackTarget {
@@ -49,8 +51,8 @@ enum DetailHeaderPlayback {
         using playbackViewModel: PlaybackSessionViewModel
     ) async {
         switch target {
-        case .context(let uri):
-            await playbackViewModel.play(contextURI: uri)
+        case .context(let uri, let playlistID):
+            await playbackViewModel.play(contextURI: uri, playlistID: playlistID)
         case .tracks(let uris, let playlistID):
             guard let firstURI = uris.first else { return }
             await playbackViewModel.playFromPlaylist(
