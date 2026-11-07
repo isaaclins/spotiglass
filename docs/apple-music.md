@@ -68,7 +68,7 @@ implements `MusicBrowsingProvider`; the MusicKit requests themselves live in
 | Home: Your top tracks | The songs of your personal mix from `MusicPersonalRecommendationsRequest` (the Favourites mix is built from what you play most); otherwise the first recommended playlist |
 | Playlist / album / artist detail | Library first, then the catalog (`MusicCatalogResourceRequest`) |
 | Search and the ⌘K palette | Library matches first (`MusicLibrarySearchRequest`, up to 100 per type on the first page, since the library can't be paged), then the catalog (`MusicCatalogSearchRequest`, the requested page size, at most 25). Later pages are catalog only. Catalog copies of library items are hidden on every page, and each result type pages on its own. |
-| Artwork | Catalog artwork is a plain https URL and goes through the normal image cache. Library artwork comes as `musicKit://` URLs that only MusicKit can draw, so the artwork views render it with MusicKit's `ArtworkImage` ([`AppleMusicArtworkRegistry`](../Spotiglass/Services/AppleMusicArtworkRegistry.swift)). |
+| Artwork | Catalog artwork is a plain https URL and goes through the normal image cache. Library artwork comes as `musicKit://` URLs that only MusicKit can draw, so the artwork views render it with MusicKit's `ArtworkImage` ([`AppleMusicArtworkRegistry`](../Spotiglass/Services/AppleMusicArtworkRegistry.swift), bounded to 20,000 artworks, least recently drawn first out, so covers on screen and on pins keep drawing). |
 
 Apple Music items keep their MusicKit IDs, and their `uri` is `applemusic:<kind>:<id>`. Pins and
 the library row order are stored under their own user ID (`apple-music-library`), so they never
@@ -163,7 +163,7 @@ implements `MusicPlaybackProvider` on MusicKit's `ApplicationMusicPlayer`
 
 | Spotiglass | Apple Music |
 |---|---|
-| Play a row, Liked Songs, a playlist, an album, an artist | The songs are queued one by one as `ApplicationMusicPlayer.Queue` entries, starting at the row you picked. Rows are played as the exact MusicKit song they were built from ([`AppleMusicPlayableRegistry`](../Spotiglass/Services/AppleMusicPlayableRegistry.swift), bounded to 20,000 songs): a library request for a playlist track's id answers with a song under a different id, so a second lookup can't be matched back to the row. |
+| Play a row, Liked Songs, a playlist, an album, an artist | The songs are queued one by one as `ApplicationMusicPlayer.Queue` entries, starting at the row you picked. Rows are played as the exact MusicKit song they were built from ([`AppleMusicPlayableRegistry`](../Spotiglass/Services/AppleMusicPlayableRegistry.swift), bounded to 20,000 songs, least recently used first out): a library request for a playlist track's id answers with a song under a different id, so a second lookup can't be matched back to the row. |
 | Pause, resume, seek, next, previous, shuffle, repeat | The player's own commands. Repeat off / context / track maps to none / all / one. |
 | Add to queue | After the current song and after the songs added before it, like Spotify's queue. |
 | Queue panel | The entries after the current one. |
@@ -193,7 +193,8 @@ default output, so Apple Music goes through it as well.
 - **Track counts** for library playlists: MusicKit only knows them after loading the tracks, so
   the sidebar says "Track count unavailable".
 - **Artist pages** opened from the library show the albums in your library and tracks from them,
-  not the artist's whole catalog.
+  not the artist's whole catalog. A library album's track count is the number of its songs in
+  your library, the same songs its album page lists.
 - **Disconnect** is hidden for Apple Music (toolbar, palette, app menu): signing out of it lives in Settings › Account. An Apple Music-only setup never reads, refreshes or deletes a saved Spotify sign-in.
 - Cover art of songs that only live in your cloud library may not load; those rows show the
   placeholder.

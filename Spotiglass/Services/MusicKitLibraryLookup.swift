@@ -64,7 +64,8 @@ struct AppleMusicSongIdentity: Equatable {
 /// Inside a library playlist MusicKit lists a song under the Music app's persistent ID (as a
 /// signed decimal), which `MusicLibraryRequest<Song>` filtered by ID does not find. The provider
 /// records each such song here when it reads the playlist, so an edit on that row knows the
-/// song's other IDs. Bounded to `maxEntries`, oldest first out; memory only.
+/// song's other IDs. Bounded to `maxEntries`, least recently used first out (reading a playlist
+/// again or editing one of its rows counts as a use); memory only.
 final class AppleMusicSongReferenceRegistry: @unchecked Sendable {
     static let shared = AppleMusicSongReferenceRegistry()
     static let maxEntries = 5_000
@@ -78,24 +79,14 @@ final class AppleMusicSongReferenceRegistry: @unchecked Sendable {
     }
 
     private let lock = NSLock()
-    private var references: [String: AppleMusicSongReference] = [:]
-    private var order: [String] = []
+    private var references = LRUDictionary<String, AppleMusicSongReference>(capacity: AppleMusicSongReferenceRegistry.maxEntries)
 
     func remember(_ reference: AppleMusicSongReference) {
-        lock.withLock {
-            if references.updateValue(reference, forKey: reference.itemID) == nil {
-                order.append(reference.itemID)
-            }
-            if order.count > Self.maxEntries {
-                let dropped = order.prefix(order.count - Self.maxEntries)
-                dropped.forEach { references[$0] = nil }
-                order.removeFirst(dropped.count)
-            }
-        }
+        lock.withLock { references.setValue(reference, forKey: reference.itemID) }
     }
 
     func reference(for itemID: String) -> AppleMusicSongReference? {
-        lock.withLock { references[itemID] }
+        lock.withLock { references.value(forKey: itemID) }
     }
 
     /// Records the songs of a library playlist or album that MusicKit listed under a persistent
