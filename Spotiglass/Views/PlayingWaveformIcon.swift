@@ -102,6 +102,9 @@ private struct WaveformBars: NSViewRepresentable {
 
 final class WaveformBarsView: NSView {
     static let animationKey = "waveform"
+    /// The short ease from wherever a bar is to its paused height.
+    static let settleKey = "waveform.settle"
+    static let settleDuration: CFTimeInterval = 0.25
 
     private let barLayers: [CALayer] = PlayingWaveformIcon.bars.map { _ in CALayer() }
     private(set) var isAnimating = false
@@ -174,6 +177,7 @@ final class WaveformBarsView: NSView {
     private func startAnimating() {
         let now = CACurrentMediaTime()
         for (index, bar) in barLayers.enumerated() {
+            bar.removeAnimation(forKey: Self.settleKey)
             let spec = PlayingWaveformIcon.bars[index]
             guard let timing = PlayingWaveformIcon.barTiming(
                 isAnimating: true,
@@ -193,11 +197,29 @@ final class WaveformBarsView: NSView {
         }
     }
 
+    /// Pausing eases each bar from where it is to its paused height, as the
+    /// SwiftUI version did, instead of snapping there mid-swing.
     private func stopAnimating() {
+        let current = barLayers.map { $0.presentation()?.value(forKeyPath: "transform.scale.y") as? CGFloat }
         for bar in barLayers {
             bar.removeAnimation(forKey: Self.animationKey)
         }
         applyFrozenScales()
+        for (index, bar) in barLayers.enumerated() {
+            let frozen = PlayingWaveformIcon.barScale(
+                index: index,
+                baseFraction: PlayingWaveformIcon.bars[index].baseFraction,
+                isAnimating: false
+            )
+            // Off screen there is nothing to ease.
+            guard let from = current[index], abs(from - frozen) > 0.01 else { continue }
+            let settle = CABasicAnimation(keyPath: "transform.scale.y")
+            settle.fromValue = from
+            settle.toValue = frozen
+            settle.duration = Self.settleDuration
+            settle.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            bar.add(settle, forKey: Self.settleKey)
+        }
     }
 }
 

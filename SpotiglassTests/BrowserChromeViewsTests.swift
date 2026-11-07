@@ -153,6 +153,57 @@ final class BrowserChromeViewsTests: XCTestCase {
         }
     }
 
+    /// Pausing mid-swing eases the bars to their paused heights instead of
+    /// snapping there, as the SwiftUI animation did before the bars moved to
+    /// Core Animation.
+    func testPausingEasesTheBarsToTheirPausedHeights() throws {
+        let bars = WaveformBarsView()
+        bars.frame = CGRect(x: 0, y: 0, width: 13, height: 14)
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 40, height: 40),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.isReleasedWhenClosed = false
+        window.contentView?.addSubview(bars)
+        window.orderFrontRegardless()
+        defer { AppKitTestSupport.closeWindowSafely(window) }
+        bars.layout()
+
+        let color = CGColor(red: 0, green: 0.5, blue: 1, alpha: 1)
+        bars.update(color: color, isAnimating: true)
+        AppKitTestSupport.pumpRunLoop(for: 0.3)
+        bars.update(color: color, isAnimating: false)
+
+        let layers = try XCTUnwrap(bars.layer?.sublayers)
+        var eased = 0
+        for (index, bar) in layers.enumerated() {
+            XCTAssertNil(bar.animation(forKey: WaveformBarsView.animationKey))
+            let frozen = PlayingWaveformIcon.barScale(
+                index: index,
+                baseFraction: PlayingWaveformIcon.bars[index].baseFraction,
+                isAnimating: false
+            )
+            XCTAssertEqual(bar.transform.m22, frozen, accuracy: 0.0001, "the bar rests at its paused height")
+            guard let settle = bar.animation(forKey: WaveformBarsView.settleKey) as? CABasicAnimation else { continue }
+            eased += 1
+            XCTAssertEqual(settle.toValue as? CGFloat, frozen)
+            XCTAssertNotEqual(settle.fromValue as? CGFloat, frozen)
+            XCTAssertEqual(settle.repeatCount, 0)
+            XCTAssertLessThanOrEqual(settle.duration, 0.3)
+        }
+        // 0.3 s into the swing at least one bar is away from its paused height.
+        XCTAssertGreaterThan(eased, 0, "pausing mid-swing snapped every bar")
+
+        // Playing again drops the ease and swings from the paused heights.
+        bars.update(color: color, isAnimating: true)
+        for bar in layers {
+            XCTAssertNil(bar.animation(forKey: WaveformBarsView.settleKey))
+            XCTAssertNotNil(bar.animation(forKey: WaveformBarsView.animationKey))
+        }
+    }
+
     func testPlayingWaveformIconFollowsPlaybackChanges() throws {
         let driver = WaveformMotionDriver(isPlaying: false)
         let view = WaveformMotionDriverView(driver: driver)

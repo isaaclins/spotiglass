@@ -478,6 +478,44 @@ final class PlaybackChromeViewsTests: XCTestCase {
         return store.frames
     }
 
+    /// VoiceOver moves through the bar in the order it is laid out on screen,
+    /// not in the order the parts are declared: in one row the scrubber sits
+    /// between the summary and the transport buttons, in two rows it comes
+    /// last, under them, as it did on main.
+    func testVoiceOverReadsTheScrubberWhereItSits() throws {
+        for (width, scrubberLast) in [(CGFloat(640), true), (CGFloat(1_100), false)] {
+            let controller = NSHostingController(
+                rootView: PlaybackControlsView(
+                    viewModel: makePlayingPlayback(),
+                    isLyricsPresented: .constant(false),
+                    openArtist: { _ in }
+                )
+            )
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: width, height: 140),
+                styleMask: [.titled],
+                backing: .buffered,
+                defer: false
+            )
+            window.title = "AXTestOrder\(Int(width))"
+            window.contentViewController = controller
+            window.isReleasedWhenClosed = false
+            window.setContentSize(NSSize(width: width, height: 140))
+            window.orderFrontRegardless()
+            defer { AppKitTestSupport.closeWindowSafely(window) }
+            AppKitTestSupport.pumpRunLoop(for: 0.4)
+
+            let order = try voiceOverOrder(in: window)
+            let scrubber = try XCTUnwrap(order.firstIndex(of: "Playback progress"), "\(order)")
+            let next = try XCTUnwrap(order.firstIndex(of: "Next track"), "\(order)")
+            if scrubberLast {
+                XCTAssertGreaterThan(scrubber, next, "two rows at \(width): the scrubber comes after the buttons")
+            } else {
+                XCTAssertLessThan(scrubber, next, "one row at \(width): the scrubber comes before the buttons")
+            }
+        }
+    }
+
     func testPlaybackTransportLayoutAtWindowMinimumKeepsScrubberUsable() throws {
         for size in [CGSize(width: 520, height: 360), CGSize(width: 700, height: 500)] {
             let controller = ViewTestHost.host(
@@ -1101,6 +1139,22 @@ final class PlaybackChromeViewsTests: XCTestCase {
         )
         let children = (try? axChildren(of: element, attribute: kAXChildrenAttribute)) ?? []
         return [snapshot] + children.flatMap { axDescendants(of: $0, depth: depth + 1) }
+    }
+
+    /// Descriptions in the order VoiceOver moves through them: each element's
+    /// children in navigation order, which sort priorities change, where the
+    /// plain child list keeps the declaration order.
+    private func voiceOverOrder(in window: NSWindow) throws -> [String] {
+        let application = AXUIElementCreateApplication(ProcessInfo.processInfo.processIdentifier)
+        let windows = try axChildren(of: application, attribute: kAXWindowsAttribute)
+        let windowElement = try XCTUnwrap(windows.first { axString($0, attribute: kAXTitleAttribute) == window.title })
+        func walk(_ element: AXUIElement) -> [String] {
+            let children = (try? axChildren(of: element, attribute: "AXChildrenInNavigationOrder"))
+                ?? (try? axChildren(of: element, attribute: kAXChildrenAttribute)) ?? []
+            let own = axString(element, attribute: kAXDescriptionAttribute)
+            return (own.isEmpty ? [] : [own]) + children.flatMap(walk)
+        }
+        return walk(windowElement)
     }
 
     private func axChildren(of element: AXUIElement, attribute: String) throws -> [AXUIElement] {
