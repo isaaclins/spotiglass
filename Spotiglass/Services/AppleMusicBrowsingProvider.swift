@@ -183,14 +183,18 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         let pageSize = max(limit, Self.librarySongsPageSize)
         let cap = maxPages.map { min(Self.maxLibrarySongs, max(1, $0) * max(1, limit)) } ?? Self.maxLibrarySongs
         var songs: [Song] = []
-        while songs.count < cap {
+        var read = 0
+        while read < cap {
             try Task.checkCancellation()
-            let requested = min(pageSize, cap - songs.count)
-            let page = try await source.librarySongs(limit: requested, offset: songs.count)
-            songs.append(contentsOf: page)
+            let requested = min(pageSize, cap - read)
+            let page = try await source.librarySongs(limit: requested, offset: read)
+            read += page.count
+            // MusicKit lists songs that are only in a playlist among the library's songs; they
+            // aren't liked (#401).
+            songs.append(contentsOf: page.filter(source.isInLibrary))
             if page.count < requested { break }
         }
-        let tracks = applyingPendingEdits(toLibrarySongs: songs, isComplete: songs.count < cap)
+        let tracks = applyingPendingEdits(toLibrarySongs: songs, isComplete: read < cap)
         return MusicSavedTracksResult(
             tracks: AppleMusicItemMapping.playlistItems(tracks),
             totalAvailable: tracks.count

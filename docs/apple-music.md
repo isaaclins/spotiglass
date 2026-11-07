@@ -123,7 +123,9 @@ added (`libraryAddedDate`), which is what the track menu goes by: no date offers
 Songs (checked against the Music app on 22 rows of two playlists, #401). Liking such a song saves
 it through the API by its catalog ID, which MusicKit keeps only on the song's library entry
 (found by title, matched by persistent ID). Removing an album from the library leaves out its songs
-that are only in a playlist, since Music couldn't find them there.
+that are only in a playlist, since Music couldn't find them there. Liked Songs leaves them out too:
+on one library MusicKit listed 2552 songs, and the 956 with a date were exactly the 956 the Apple
+Music API counts as library songs.
 
 Scripts to Music run off the main thread, one at a time, and each Apple Event gives up after 60
 seconds (the Music app still loading or syncing), so the window never waits on Music. A lookup
