@@ -191,6 +191,8 @@ extension PlaylistBrowserViewModel {
 
         do {
             try await api.addTracksToPlaylist(playlistID: destinationPlaylistID, uris: uris)
+            // The songs are in the destination now, even if taking them out of the source fails.
+            adjustSidebarTrackCountAfterEdit(playlistID: destinationPlaylistID, by: uris.count)
             if !sourcePlaylistID.isEmpty, !sourceIsLikedSongs {
                 let snapshotID = playlistsByID[sourcePlaylistID]?.snapshotID
                     ?? knownPlaylistSummariesByID[sourcePlaylistID]?.snapshotID
@@ -221,7 +223,6 @@ extension PlaylistBrowserViewModel {
                 )
             }
             invalidateTracksCache(playlistID: destinationPlaylistID)
-            adjustSidebarTrackCountAfterEdit(playlistID: destinationPlaylistID, by: uris.count)
             await refreshCurrentPlaylistMutationDetail(
                 for: [sourcePlaylistID, destinationPlaylistID]
             )

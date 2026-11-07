@@ -160,11 +160,26 @@ enum MusicAppScripts {
     }
 
     /// Finds every track first, then adds them in order, so a song Music can't find stops the
-    /// edit before anything is added.
+    /// edit before anything is added. When an add fails partway, the songs this script already
+    /// appended are taken out of the playlist again (by position, never from the library), so
+    /// the edit is all or nothing.
     static func addToPlaylist(_ playlist: MusicAppPlaylistMatch, tracks: [MusicAppTrackMatch], now: Date = Date()) -> String {
         var lines = [scriptNowLine, "tell application \"Music\""] + findPlaylist(playlist)
         lines += findTracks(tracks, now: now)
-        lines += ["repeat with songItem in pickedSongs", "duplicate (contents of songItem) to pl", "end repeat", "end tell"]
+        lines += [
+            "set countBefore to (count of tracks of pl)",
+            "try",
+            "repeat with songItem in pickedSongs",
+            "duplicate (contents of songItem) to pl",
+            "end repeat",
+            "on error errorMessage number errorNumber",
+            "repeat with i from (count of tracks of pl) to (countBefore + 1) by -1",
+            "delete track i of pl",
+            "end repeat",
+            "error errorMessage number errorNumber",
+            "end try",
+            "end tell",
+        ]
         return lines.joined(separator: "\n")
     }
 

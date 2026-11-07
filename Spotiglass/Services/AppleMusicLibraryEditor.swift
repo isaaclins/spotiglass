@@ -535,6 +535,11 @@ struct AppleMusicLibraryEditor: Sendable {
             guard pending.existingIDsWithSameName(asCreated: playlistID).isEmpty else {
                 throw AppleMusicLibraryEditError.ambiguousPlaylist
             }
+            // Renamed since: an older playlist may already have the new name, and the cloud list
+            // can't tell the two apart. Wait until this Mac lists it under its own ID.
+            guard pending.renamedName(for: playlistID) == nil else {
+                throw AppleMusicLibraryEditError.notInMusicYet
+            }
             listedName = created.name
             createdMomentsAgo = true
         } else {

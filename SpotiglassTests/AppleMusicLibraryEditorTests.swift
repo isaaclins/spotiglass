@@ -1226,7 +1226,9 @@ final class AppleMusicPlaylistEditFixTests: XCTestCase {
         let notFound = try XCTUnwrap(script.range(of: "if (count of found) is 0 then error"))
         XCTAssertLessThan(library.lowerBound, source.lowerBound)
         XCTAssertLessThan(source.lowerBound, notFound.lowerBound)
-        XCTAssertFalse(script.contains("delete"), "an add never deletes anything")
+        // The only delete takes back songs this add appended to the target playlist, by position.
+        let deletes = script.components(separatedBy: "\n").filter { $0.contains("delete") }
+        XCTAssertEqual(deletes, ["delete track i of pl"])
     }
 
     func testCatalogSongsStillGoThroughTheAPI() async throws {
@@ -1448,6 +1450,35 @@ final class AppleMusicPlaylistEditFixTests: XCTestCase {
         await XCTAssertThrowsEditError(.notInMusicYet) {
             try await self.editor.addToPlaylist(playlistID: created.id, songIDs: ["699902614"])
         }
+    }
+
+    /// Created through Music, then renamed to the name an older playlist has: the cloud list
+    /// shows only the older one, which must never get the song.
+    func testACatalogSongIsNeverAddedToAnOlderPlaylistWithTheNewName() async throws {
+        musicApp.createdPersistentID = "FE82FB07F4D3B512"
+        let created = try await editor.createPlaylist(name: "Spotiglass test", ownerName: "You", songIDs: [rowID])
+        cloud.playlists = [AppleMusicCloudPlaylist(id: "p.older", name: "Spotiglass mix")]
+        try await editor.renamePlaylist(playlistID: created.id, name: "Spotiglass mix")
+
+        await XCTAssertThrowsEditError(.notInMusicYet) {
+            try await self.editor.addToPlaylist(playlistID: created.id, songIDs: ["699902614"])
+        }
+        XCTAssertFalse(cloud.calls.contains { $0.hasPrefix("addToPlaylist") })
+    }
+
+    func testAMusicAddThatFailsPartwayTakesBackWhatItAdded() throws {
+        let script = MusicAppScripts.addToPlaylist(
+            .persistentID("FE82FB07F4D3B511"),
+            tracks: [.persistentID(rowPersistentID), .persistentID("EF749F4BE5C06047")]
+        )
+
+        let before = try XCTUnwrap(script.range(of: "set countBefore to (count of tracks of pl)"))
+        let add = try XCTUnwrap(script.range(of: "duplicate (contents of songItem) to pl"))
+        let rollback = try XCTUnwrap(script.range(
+            of: "on error errorMessage number errorNumber\nrepeat with i from (count of tracks of pl) to (countBefore + 1) by -1\ndelete track i of pl\nend repeat\nerror errorMessage number errorNumber"
+        ))
+        XCTAssertLessThan(before.lowerBound, add.lowerBound)
+        XCTAssertLessThan(add.lowerBound, rollback.lowerBound)
     }
 
     func testACatalogSongIsNeverAddedToANamesakeOfAPlaylistMusicJustCreated() async throws {

@@ -307,6 +307,20 @@ final class PlaylistBrowserLibraryEditsTests: XCTestCase {
         XCTAssertEqual(viewModel.playlistsByID["-1"]?.trackCount, 2)
     }
 
+    /// The add went through, taking the songs out of the source didn't: the destination still
+    /// has them, so its count says so.
+    func testAPartialMoveStillCountsTheSongsInTheDestination() async {
+        let api = LibraryEditsMockAPI(edits: .all)
+        api.playlists = [playlist("-1", "18P1"), playlist("-2", "Spotiglass test")]
+        api.removeError = AppleMusicLibraryEditError.musicControlDenied
+        let viewModel = await makeViewModel(api)
+
+        await viewModel.moveRowsBetweenPlaylists([row("-30", position: 1)], from: "-1", to: "-2", destinationName: "Spotiglass test")
+
+        XCTAssertEqual(viewModel.playlistsByID["-2"]?.trackCount, 3)
+        XCTAssertEqual(viewModel.playlistsByID["-1"]?.trackCount, 2, "nothing left the source")
+    }
+
     func testSpotifysSidebarCountsAreLeftAlone() async {
         let api = LibraryEditsMockAPI(edits: [])
         api.playlists = [playlist("pl1", "Mine")]
@@ -354,8 +368,11 @@ final class LibraryEditsMockAPI: MusicBrowsingProvider {
 
     var supportedLibraryEdits: MusicLibraryEdits { edits }
 
+    /// Fails only the removal, for a move whose add went through.
+    var removeError: Error?
+
     func removeTracksFromPlaylist(playlistID: String, items: [MusicPlaylistTrackRemoval], snapshotID: String?) async throws {
-        if let error { throw error }
+        if let error = error ?? removeError { throw error }
         removals += items
         calls.append("removeTracks(\(playlistID))")
     }
