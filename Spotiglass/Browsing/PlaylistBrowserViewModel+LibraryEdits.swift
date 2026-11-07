@@ -121,7 +121,7 @@ extension PlaylistBrowserViewModel {
         case let .staleCache(_, displayError):
             playlistState = .staleCache(updated, displayError)
         }
-        try? cache.savePlaylists(Array(playlistsByID.values), cachedAt: now())
+        try? cache.savePlaylists(playlistsInSidebarOrder(), cachedAt: now())
     }
 
     private func removeSidebarPlaylist(id: String) {
@@ -142,7 +142,7 @@ extension PlaylistBrowserViewModel {
         case let .staleCache(_, displayError):
             playlistState = .staleCache(remaining, displayError)
         }
-        try? cache.savePlaylists(Array(playlistsByID.values), cachedAt: now())
+        try? cache.savePlaylists(playlistsInSidebarOrder(), cachedAt: now())
     }
 
     // MARK: - Albums

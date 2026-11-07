@@ -232,6 +232,14 @@ extension PlaylistBrowserViewModel {
         sidebarSelection = .home
     }
 
+    /// The sidebar's playlists in the order it shows them, for saving the list after an edit:
+    /// the next launch shows the saved order, and a dictionary's order changes from run to run.
+    func playlistsInSidebarOrder() -> [MusicPlaylistSummary] {
+        let shown = (playlistState.currentValue ?? []).compactMap { playlistsByID[$0.id] }
+        let shownIDs = Set(shown.map(\.id))
+        return shown + playlistsByID.values.filter { !shownIDs.contains($0.id) }.sorted { $0.id < $1.id }
+    }
+
     /// Playlists asked for per batch: the rows at the top fill in first, and one MusicKit
     /// library query stays small.
     static let playlistTrackCountBatchSize = 25

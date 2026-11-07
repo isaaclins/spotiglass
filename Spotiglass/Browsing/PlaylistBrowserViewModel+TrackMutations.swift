@@ -478,7 +478,7 @@ extension PlaylistBrowserViewModel {
             }
         }
 
-        try? cache.savePlaylists(Array(playlistsByID.values), cachedAt: now())
+        try? cache.savePlaylists(playlistsInSidebarOrder(), cachedAt: now())
     }
 
     func invalidateTracksCache(playlistID: String) {
@@ -538,7 +538,7 @@ extension PlaylistBrowserViewModel {
                 playlistState = .staleCache(rows, displayError)
             }
         }
-        try? cache.savePlaylists(Array(playlistsByID.values), cachedAt: now())
+        try? cache.savePlaylists(playlistsInSidebarOrder(), cachedAt: now())
         invalidateLibraryContinuationCache()
     }
 }

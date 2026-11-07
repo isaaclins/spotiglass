@@ -378,6 +378,20 @@ final class PlaylistBrowserLibraryEditsTests: XCTestCase {
         XCTAssertEqual(api.trackCountLookups, 0)
     }
 
+    /// An edit saves the playlist list, and the next launch shows it as saved: in the
+    /// sidebar's order, not a dictionary's.
+    func testAnEditSavesThePlaylistsInSidebarOrder() async throws {
+        let api = LibraryEditsMockAPI(edits: .all)
+        api.playlists = (1...12).map { playlist("-\($0)", "Playlist \($0)") }
+        let cache = MockBrowsingCache()
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: cache)
+        await viewModel.load()
+
+        await viewModel.addRowsToPlaylist([row("699902614", position: 1)], playlistID: "-3", playlistName: "Playlist 3")
+
+        XCTAssertEqual(cache.savedPlaylists?.map(\.id), api.playlists.map(\.id))
+    }
+
     /// Spotify's unlike only leaves Liked Songs, so it keeps going through at once.
     func testProvidersWithoutTheConfirmationUnlikeAtOnce() async {
         let api = LibraryEditsMockAPI(edits: [.removeFromPlaylist, .deletePlaylist, .saveAlbums])
