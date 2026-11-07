@@ -300,6 +300,8 @@ final class PlaybackChromeViewsTests: XCTestCase {
     /// arrangement and back, and the release seeks once, at the pointer.
     func testPressOnTheBarSurvivesUpdatesAndRearrangement() throws {
         let api = MockPlaybackAPI()
+        let sentSeeks = SentSeeks()
+        api.onSeekAttempt = { sentSeeks.append($0) }
         let playback = PlaybackSessionViewModel(
             provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()))
         playback.handle(.ready(deviceID: "device-1"))
@@ -313,8 +315,11 @@ final class PlaybackChromeViewsTests: XCTestCase {
             )
         )
         controller.sizingOptions = [.minSize]
+        // A one-row width and a two-row width that fit small CI screens too.
+        let rowSize = NSSize(width: 880, height: 120)
+        let stackedSize = NSSize(width: 640, height: 120)
         let window = KeyTestPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 1_240, height: 120),
+            contentRect: NSRect(origin: .zero, size: rowSize),
             styleMask: [.titled, .resizable, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -322,22 +327,24 @@ final class PlaybackChromeViewsTests: XCTestCase {
         window.title = "AXTestTransportClick"
         window.contentViewController = controller
         window.isReleasedWhenClosed = false
-        // Wider than the content's minimum, like the app's 1280 pt window.
-        window.setContentSize(NSSize(width: 1_240, height: 120))
+        window.setContentSize(rowSize)
         window.orderFrontRegardless()
         window.makeKey()
         defer { AppKitTestSupport.closeWindowSafely(window) }
         AppKitTestSupport.pumpRunLoop(for: 0.5)
 
-        let scrubber = try XCTUnwrap(
-            try realizedAccessibilityTree(in: window).first { $0.axDescription == "Playback progress" }
-        )
-        let position = try XCTUnwrap(scrubber.position)
-        let size = try XCTUnwrap(scrubber.size)
         // AX frames are in screen points from the top of the main screen.
         let screenHeight = try XCTUnwrap(NSScreen.screens.first).frame.height
-        let pointOnScreen = NSPoint(x: position.x + size.width * 0.75, y: screenHeight - (position.y + size.height / 2))
-        let location = window.convertPoint(fromScreen: pointOnScreen)
+        func scrubberFrameOnScreen() throws -> NSRect {
+            let scrubber = try XCTUnwrap(
+                try realizedAccessibilityTree(in: window).first { $0.axDescription == "Playback progress" }
+            )
+            let position = try XCTUnwrap(scrubber.position)
+            let size = try XCTUnwrap(scrubber.size)
+            return NSRect(x: position.x, y: screenHeight - position.y - size.height, width: size.width, height: size.height)
+        }
+        let bar = try scrubberFrameOnScreen()
+        let location = window.convertPoint(fromScreen: NSPoint(x: bar.minX + bar.width * 0.75, y: bar.midY))
 
         func send(_ type: NSEvent.EventType) {
             window.sendEvent(NSEvent.mouseEvent(
@@ -356,16 +363,23 @@ final class PlaybackChromeViewsTests: XCTestCase {
         AppKitTestSupport.pumpRunLoop(for: 0.15)
         playback.handle(.stateChanged(Self.midnightCity(positionMilliseconds: 32_000), isPaused: false, nextTracks: []))
         AppKitTestSupport.pumpRunLoop(for: 0.2)
-        window.setContentSize(NSSize(width: 640, height: 120))
+        window.setContentSize(stackedSize)
         AppKitTestSupport.pumpRunLoop(for: 0.2)
-        window.setContentSize(NSSize(width: 1_240, height: 120))
+        window.setContentSize(rowSize)
         AppKitTestSupport.pumpRunLoop(for: 0.2)
+        // Where the pointer now sits on the bar, should the window not have
+        // got its size back exactly.
+        let barAtRelease = try scrubberFrameOnScreen()
+        let pointer = window.convertPoint(toScreen: location)
+        let fraction = min(max((pointer.x - barAtRelease.minX) / barAtRelease.width, 0), 1)
         send(.leftMouseUp)
         AppKitTestSupport.pumpRunLoop(for: 0.5)
 
-        XCTAssertEqual(api.seekCallTimestamps.count, 1, "the click must seek once")
-        // Three quarters of the 4:00 track, where the pointer was.
-        XCTAssertEqual(Double(playback.progressAnchor?.positionMilliseconds ?? 0), 180_000, accuracy: 2_000)
+        let seeks = sentSeeks.values
+        XCTAssertEqual(seeks.count, 1, "the click must seek once; window \(window.frame), bar \(bar) then \(barAtRelease)")
+        if let seek = seeks.first {
+            XCTAssertEqual(Double(seek), Double(fraction) * 240_000, accuracy: 4_000, "the seek lands where the pointer is")
+        }
     }
 
     func testPlaybackTransportLayoutAtWindowMinimumKeepsScrubberUsable() throws {
@@ -1081,4 +1095,16 @@ final class PlaybackChromeViewsTests: XCTestCase {
 private final class KeyTestPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var isKeyWindow: Bool { true }
+}
+
+/// Seeks the mock API was asked for. Playback calls run on background tasks.
+private final class SentSeeks: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: [Int] = []
+
+    var values: [Int] { lock.withLock { stored } }
+
+    func append(_ milliseconds: Int) {
+        lock.withLock { stored.append(milliseconds) }
+    }
 }
