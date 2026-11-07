@@ -51,8 +51,8 @@ struct PlaylistBrowserView: View {
     /// searches never share its request state.
     let catalogProvider: any MusicBrowsingProvider
     let signOut: () -> Void
-    /// Whether the transport bar drives real playback. Apple Music browsing ships before its
-    /// playback, so that service shows a calm placeholder and never starts the Spotify player.
+    /// Whether the transport bar drives real playback. A service that can't play here (Apple
+    /// Music without a subscription) shows a calm placeholder and never starts a player.
     let playbackMode: BrowserPlaybackMode
     /// `false` hides Disconnect (toolbar, palette): Apple Music access is a system permission,
     /// and switching services belongs to the service switcher (#373).
@@ -174,8 +174,8 @@ struct PlaylistBrowserView: View {
                         openArtistFromTapTarget(target)
                     }
                 )
-            case let .comingSoon(message):
-                PlaybackComingSoonBar(message: message)
+            case let .unavailable(message):
+                PlaybackUnavailableBar(message: message)
             }
         }
     }
@@ -188,7 +188,7 @@ struct PlaylistBrowserView: View {
             commitBrowserContentWidthIfNeeded(newWidth)
         }
         .task(id: lyricsPrefetchTrack?.uri) {
-            guard let track = lyricsPrefetchTrack, track.spotifyTrackIDForLyrics != nil else { return }
+            guard let track = lyricsPrefetchTrack, track.lyricsTrackKey != nil else { return }
             await Task(priority: .userInitiated) {
                 await lyricsViewModel.preload(track: track)
             }.value
@@ -196,7 +196,7 @@ struct PlaylistBrowserView: View {
         .task(id: lyricsHalfwayNextPreloadTaskID) {
             guard let current = lyricsPrefetchTrack,
                   current.durationMilliseconds > 0,
-                  current.spotifyTrackIDForLyrics != nil
+                  current.lyricsTrackKey != nil
             else { return }
             let halfMs = current.durationMilliseconds / 2
             let waitMs = max(0, halfMs - current.positionMilliseconds)
@@ -207,9 +207,9 @@ struct PlaylistBrowserView: View {
             await Task(priority: .userInitiated) {
                 await queueViewModel.prefetchQueueForLyricsOverlay()
                 guard let nextPlayback = queueViewModel.upcomingItems.first?.playbackNowPlayingForLyricsPrefetch(),
-                      let nextID = nextPlayback.spotifyTrackIDForLyrics
+                      let nextID = nextPlayback.lyricsTrackKey
                 else { return }
-                guard nextID != current.spotifyTrackIDForLyrics else { return }
+                guard nextID != current.lyricsTrackKey else { return }
                 await lyricsViewModel.preload(track: nextPlayback)
             }.value
         }

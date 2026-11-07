@@ -57,8 +57,7 @@ extension QueueViewModel {
                 }
             } catch {
                 if requestGeneration == queueSessionGeneration, !isQueueSessionBoundary {
-                    if let apiError = error as? SpotifyAPIError,
-                       case let .rateLimited(retryAfter) = apiError {
+                    if case let .rateLimited(retryAfter) = MusicPlaybackError.from(error)?.reason {
                         let fallback = max(1, min(defaultRateLimitCooldownSeconds, maxRateLimitCooldownSeconds))
                         let effectiveRetry = min(max(retryAfter ?? fallback, 1), maxRateLimitCooldownSeconds)
                         queueCooldownUntil = Date().addingTimeInterval(effectiveRetry)
@@ -354,51 +353,89 @@ extension QueueViewModel {
         if let urlError = error as? URLError, urlError.code == .cancelled {
             return nil
         }
-        if let apiError = error as? SpotifyAPIError {
-            if case let .network(message) = apiError, message.contains("cancelled") {
-                return nil
-            }
-            switch apiError {
-            case .unauthorized:
-                return BrowsingDisplayError(
-                    title: SpotiglassL10n.string("error.queue.signInAgain.title"),
-                    message: SpotiglassL10n.string("error.queue.signInAgain.message"),
-                    canRetry: false
-                )
-            case .insufficientScope:
-                return BrowsingDisplayError(
-                    title: SpotiglassL10n.string("error.queue.loadFailed.title"),
-                    message: SpotiglassL10n.string("error.spotify.insufficientPermissions"),
-                    canRetry: false,
-                    diagnosticDetails: apiError.diagnosticDetails
-                )
-            case let .forbidden(message, _):
-                return BrowsingDisplayError(
-                    title: SpotiglassL10n.string("error.queue.loadFailed.title"),
-                    message: message ?? SpotiglassL10n.string("error.queue.loadFailed.message"),
-                    canRetry: false
-                )
-            case let .rateLimited(retryAfter):
-                let clause = SpotifyRateLimitDisplay.retryAfterClause(seconds: retryAfter)
-                return BrowsingDisplayError(
-                    title: SpotiglassL10n.string("error.queue.rateLimited.title"),
-                    message: String(format: SpotiglassL10n.string("error.queue.rateLimited.message"), clause),
-                    canRetry: true,
-                    diagnosticDetails: SpotifyRateLimitDisplay.rawRetryDiagnostic(seconds: retryAfter)
-                )
-            default:
-                return BrowsingDisplayError(
-                    title: SpotiglassL10n.string("error.queue.updateFailed.title"),
-                    message: String(format: SpotiglassL10n.string("error.queue.updateFailed.message"), String(describing: apiError)),
-                    canRetry: true
-                )
-            }
+        guard let playbackError = MusicPlaybackError.from(error) else {
+            return BrowsingDisplayError(
+                title: SpotiglassL10n.string("error.queue.updateFailed.title"),
+                message: String(format: SpotiglassL10n.string("error.queue.updateFailed.message"), error.localizedDescription),
+                canRetry: true
+            )
         }
-        return BrowsingDisplayError(
-            title: SpotiglassL10n.string("error.queue.updateFailed.title"),
-            message: String(format: SpotiglassL10n.string("error.queue.updateFailed.message"), error.localizedDescription),
-            canRetry: true
-        )
+        if case let .network(message) = playbackError.reason, message.contains("cancelled") {
+            return nil
+        }
+        switch playbackError.service {
+        case .spotify:
+            return spotifyDisplayError(for: playbackError, original: error)
+        case .appleMusic:
+            return appleMusicDisplayError(for: playbackError)
+        }
+    }
+
+    private static func spotifyDisplayError(for error: MusicPlaybackError, original: Error) -> BrowsingDisplayError {
+        switch error.reason {
+        case .signInExpired:
+            return BrowsingDisplayError(
+                title: SpotiglassL10n.string("error.queue.signInAgain.title"),
+                message: SpotiglassL10n.string("error.queue.signInAgain.message"),
+                canRetry: false
+            )
+        case .missingPermission:
+            return BrowsingDisplayError(
+                title: SpotiglassL10n.string("error.queue.loadFailed.title"),
+                message: SpotiglassL10n.string("error.spotify.insufficientPermissions"),
+                canRetry: false,
+                diagnosticDetails: (original as? SpotifyAPIError)?.diagnosticDetails
+            )
+        case let .subscriptionRequired(message):
+            return BrowsingDisplayError(
+                title: SpotiglassL10n.string("error.queue.loadFailed.title"),
+                message: message ?? SpotiglassL10n.string("error.queue.loadFailed.message"),
+                canRetry: false
+            )
+        case let .rateLimited(retryAfter):
+            let clause = SpotifyRateLimitDisplay.retryAfterClause(seconds: retryAfter)
+            return BrowsingDisplayError(
+                title: SpotiglassL10n.string("error.queue.rateLimited.title"),
+                message: String(format: SpotiglassL10n.string("error.queue.rateLimited.message"), clause),
+                canRetry: true,
+                diagnosticDetails: SpotifyRateLimitDisplay.rawRetryDiagnostic(seconds: retryAfter)
+            )
+        case .network, .server, .notFound, .failed:
+            return BrowsingDisplayError(
+                title: SpotiglassL10n.string("error.queue.updateFailed.title"),
+                message: String(format: SpotiglassL10n.string("error.queue.updateFailed.message"), error.detail),
+                canRetry: true
+            )
+        }
+    }
+
+    private static func appleMusicDisplayError(for error: MusicPlaybackError) -> BrowsingDisplayError {
+        switch error.reason {
+        case .signInExpired, .missingPermission:
+            return BrowsingDisplayError(
+                title: SpotiglassL10n.string("error.queue.loadFailed.title"),
+                message: SpotiglassL10n.string("error.playback.appleMusic.permission.message"),
+                canRetry: false
+            )
+        case .subscriptionRequired:
+            return BrowsingDisplayError(
+                title: SpotiglassL10n.string("error.queue.loadFailed.title"),
+                message: SpotiglassL10n.string("error.playback.appleMusic.subscription.message"),
+                canRetry: false
+            )
+        case .notFound:
+            return BrowsingDisplayError(
+                title: SpotiglassL10n.string("error.queue.updateFailed.title"),
+                message: SpotiglassL10n.string("error.playback.appleMusic.notPlayable"),
+                canRetry: false
+            )
+        case .rateLimited, .network, .server, .failed:
+            return BrowsingDisplayError(
+                title: SpotiglassL10n.string("error.queue.updateFailed.title"),
+                message: SpotiglassL10n.string("error.playback.appleMusic.failed"),
+                canRetry: true
+            )
+        }
     }
 
     static func isAmbiguousTransportError(_ error: Error) -> Bool {
@@ -410,9 +447,7 @@ extension QueueViewModel {
                 return false
             }
         }
-        if let apiError = error as? SpotifyAPIError {
-            if case .network = apiError { return true }
-        }
+        if case .network = MusicPlaybackError.from(error)?.reason { return true }
         return false
     }
 

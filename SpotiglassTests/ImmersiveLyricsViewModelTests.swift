@@ -78,7 +78,7 @@ final class ImmersiveLyricsViewModelTests: XCTestCase {
         let disk = try LyricsDiskCache(directory: directory)
         let gate = TrackLyricsFetchGate()
         let vm = ImmersiveLyricsViewModel(fetchLyrics: { track in
-            guard let trackID = track.spotifyTrackIDForLyrics else {
+            guard let trackID = track.lyricsTrackKey else {
                 return .instrumental
             }
             await gate.fetchStarted(trackID)
@@ -103,10 +103,10 @@ final class ImmersiveLyricsViewModelTests: XCTestCase {
             return XCTFail("expected current track failure, got \(vm.phase)")
         }
         XCTAssertTrue(message.contains("No lyrics"))
-        XCTAssertEqual(disk.load(spotifyTrackID: "cancelled-A"), .unsyncedPlain(["Track A"]))
-        XCTAssertNil(disk.loadTrackBackoffMetadata(spotifyTrackID: "cancelled-A"))
+        XCTAssertEqual(disk.load(trackKey: "cancelled-A"), .unsyncedPlain(["Track A"]))
+        XCTAssertNil(disk.loadTrackBackoffMetadata(trackKey: "cancelled-A"))
         XCTAssertEqual(
-            disk.loadTrackBackoffMetadata(spotifyTrackID: "current-B")?.failureClass,
+            disk.loadTrackBackoffMetadata(trackKey: "current-B")?.failureClass,
             .noLyrics
         )
         try? FileManager.default.removeItem(at: directory)
@@ -118,7 +118,7 @@ final class ImmersiveLyricsViewModelTests: XCTestCase {
         let disk = try LyricsDiskCache(directory: directory)
         let gate = TrackLyricsFetchGate()
         let vm = ImmersiveLyricsViewModel(fetchLyrics: { track in
-            guard let trackID = track.spotifyTrackIDForLyrics else {
+            guard let trackID = track.lyricsTrackKey else {
                 return .instrumental
             }
             await gate.fetchStarted(trackID)
@@ -139,9 +139,9 @@ final class ImmersiveLyricsViewModelTests: XCTestCase {
         await loadB.value
 
         XCTAssertEqual(vm.phase, .ready(.instrumental))
-        XCTAssertNil(disk.loadTrackBackoffMetadata(spotifyTrackID: "failed-A"))
-        XCTAssertEqual(disk.load(spotifyTrackID: "ready-B"), .instrumental)
-        XCTAssertNil(disk.loadTrackBackoffMetadata(spotifyTrackID: "ready-B"))
+        XCTAssertNil(disk.loadTrackBackoffMetadata(trackKey: "failed-A"))
+        XCTAssertEqual(disk.load(trackKey: "ready-B"), .instrumental)
+        XCTAssertNil(disk.loadTrackBackoffMetadata(trackKey: "ready-B"))
         try? FileManager.default.removeItem(at: directory)
     }
 
@@ -163,7 +163,7 @@ final class ImmersiveLyricsViewModelTests: XCTestCase {
         let trackID = "diskHit-\(UUID().uuidString)"
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("SpotiglassLyricsDiskTests-\(UUID().uuidString)")
         let disk = try LyricsDiskCache(directory: dir)
-        try disk.save(spotifyTrackID: trackID, lyrics: .instrumental)
+        try disk.save(trackKey: trackID, lyrics: .instrumental)
 
         var fetchCount = 0
         let vm = ImmersiveLyricsViewModel(fetchLyrics: { _ in
@@ -235,7 +235,7 @@ final class ImmersiveLyricsViewModelTests: XCTestCase {
         await vm.load(track: sampleTrack(spotifyID: trackID))
 
         return try XCTUnwrap(
-            disk.loadTrackBackoffMetadata(spotifyTrackID: trackID),
+            disk.loadTrackBackoffMetadata(trackKey: trackID),
             "A failed load should record backoff metadata."
         )
     }
@@ -296,9 +296,9 @@ final class ImmersiveLyricsViewModelTests: XCTestCase {
         let now = Date()
         let expiry = now.addingTimeInterval(120)
 
-        XCTAssertNil(disk.loadMissCooldownExpiry(spotifyTrackID: "track-miss"))
-        try disk.saveMissCooldownExpiry(spotifyTrackID: "track-miss", expiresAt: expiry)
-        let loaded = disk.loadMissCooldownExpiry(spotifyTrackID: "track-miss")
+        XCTAssertNil(disk.loadMissCooldownExpiry(trackKey: "track-miss"))
+        try disk.saveMissCooldownExpiry(trackKey: "track-miss", expiresAt: expiry)
+        let loaded = disk.loadMissCooldownExpiry(trackKey: "track-miss")
         XCTAssertNotNil(loaded)
         if let loaded {
             XCTAssertEqual(loaded.timeIntervalSince1970, expiry.timeIntervalSince1970, accuracy: 0.5)
@@ -358,14 +358,14 @@ final class ImmersiveLyricsViewModelTests: XCTestCase {
             nextEligibleFetchAt: nextEligible
         )
 
-        XCTAssertNil(disk.loadTrackBackoffMetadata(spotifyTrackID: "track-backoff"))
-        try disk.saveTrackBackoffMetadata(spotifyTrackID: "track-backoff", metadata: metadata)
-        let loaded = disk.loadTrackBackoffMetadata(spotifyTrackID: "track-backoff")
+        XCTAssertNil(disk.loadTrackBackoffMetadata(trackKey: "track-backoff"))
+        try disk.saveTrackBackoffMetadata(trackKey: "track-backoff", metadata: metadata)
+        let loaded = disk.loadTrackBackoffMetadata(trackKey: "track-backoff")
         XCTAssertEqual(loaded?.failureClass, .transient)
         XCTAssertEqual(loaded?.failureCount, 3)
         XCTAssertEqual(loaded?.nextEligibleFetchAt.timeIntervalSince1970 ?? 0, metadata.nextEligibleFetchAt.timeIntervalSince1970, accuracy: 0.5)
-        try disk.clearTrackBackoffMetadata(spotifyTrackID: "track-backoff")
-        XCTAssertNil(disk.loadTrackBackoffMetadata(spotifyTrackID: "track-backoff"))
+        try disk.clearTrackBackoffMetadata(trackKey: "track-backoff")
+        XCTAssertNil(disk.loadTrackBackoffMetadata(trackKey: "track-backoff"))
         try? FileManager.default.removeItem(at: dir)
     }
 }

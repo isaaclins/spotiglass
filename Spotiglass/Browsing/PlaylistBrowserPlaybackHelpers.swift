@@ -40,7 +40,7 @@ enum PlaylistBrowserPlaybackHelpers {
     ) -> String? {
         guard let np = prefetchTrack,
               np.durationMilliseconds > 0,
-              np.spotifyTrackIDForLyrics != nil
+              np.lyricsTrackKey != nil
         else { return nil }
         let nextURI = nextQueueURI ?? ""
         return "\(np.uri ?? "")|\(np.durationMilliseconds)|\(nextURI)"

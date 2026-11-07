@@ -4,7 +4,7 @@ enum LyricsDiskCacheError: Error, Equatable {
     case applicationSupportUnavailable
 }
 
-/// Persists LRCLIB-resolved ``FetchedLyrics`` per Spotify track id under Application Support.
+/// Persists LRCLIB-resolved ``FetchedLyrics`` per lyrics track key (``PlaybackNowPlaying/lyricsTrackKey``) under Application Support.
 struct LyricsDiskCache: Sendable {
     struct TrackBackoffMetadata: Codable, Equatable, Sendable {
         enum FailureClass: String, Codable, Equatable, Sendable {
@@ -45,28 +45,28 @@ struct LyricsDiskCache: Sendable {
         self.fileManager = fileManager
     }
 
-    func load(spotifyTrackID: String) -> FetchedLyrics? {
-        let url = fileURL(for: spotifyTrackID)
+    func load(trackKey: String) -> FetchedLyrics? {
+        let url = fileURL(for: trackKey)
         guard fileManager.fileExists(atPath: url.path) else { return nil }
         guard let data = try? Data(contentsOf: url) else { return nil }
         return try? JSONDecoder().decode(FetchedLyrics.self, from: data)
     }
 
-    func save(spotifyTrackID: String, lyrics: FetchedLyrics) throws {
+    func save(trackKey: String, lyrics: FetchedLyrics) throws {
         let data = try JSONEncoder().encode(lyrics)
-        let url = fileURL(for: spotifyTrackID)
+        let url = fileURL(for: trackKey)
         try data.write(to: url, options: .atomic)
     }
 
-    func loadMissCooldownExpiry(spotifyTrackID: String) -> Date? {
-        let key = normalizedTrackID(spotifyTrackID)
+    func loadMissCooldownExpiry(trackKey: String) -> Date? {
+        let key = normalizedTrackID(trackKey)
         guard !key.isEmpty else { return nil }
         guard let entries = loadMissCooldownEntries() else { return nil }
         return entries[key]
     }
 
-    func saveMissCooldownExpiry(spotifyTrackID: String, expiresAt: Date) throws {
-        let key = normalizedTrackID(spotifyTrackID)
+    func saveMissCooldownExpiry(trackKey: String, expiresAt: Date) throws {
+        let key = normalizedTrackID(trackKey)
         guard !key.isEmpty else { return }
         let now = Date()
         var entries = loadMissCooldownEntries() ?? [:]
@@ -76,15 +76,15 @@ struct LyricsDiskCache: Sendable {
         try data.write(to: missCooldownFileURL, options: .atomic)
     }
 
-    func loadTrackBackoffMetadata(spotifyTrackID: String) -> TrackBackoffMetadata? {
-        let key = normalizedTrackID(spotifyTrackID)
+    func loadTrackBackoffMetadata(trackKey: String) -> TrackBackoffMetadata? {
+        let key = normalizedTrackID(trackKey)
         guard !key.isEmpty else { return nil }
         guard let map = loadBackoffMetadataEntries() else { return nil }
         return map[key]
     }
 
-    func saveTrackBackoffMetadata(spotifyTrackID: String, metadata: TrackBackoffMetadata) throws {
-        let key = normalizedTrackID(spotifyTrackID)
+    func saveTrackBackoffMetadata(trackKey: String, metadata: TrackBackoffMetadata) throws {
+        let key = normalizedTrackID(trackKey)
         guard !key.isEmpty else { return }
         var map = loadBackoffMetadataEntries() ?? [:]
         map = map.filter { $0.value.nextEligibleFetchAt > Date().addingTimeInterval(-24 * 60 * 60) }
@@ -93,8 +93,8 @@ struct LyricsDiskCache: Sendable {
         try data.write(to: backoffMetadataFileURL, options: .atomic)
     }
 
-    func clearTrackBackoffMetadata(spotifyTrackID: String) throws {
-        let key = normalizedTrackID(spotifyTrackID)
+    func clearTrackBackoffMetadata(trackKey: String) throws {
+        let key = normalizedTrackID(trackKey)
         guard !key.isEmpty else { return }
         guard var map = loadBackoffMetadataEntries() else { return }
         map.removeValue(forKey: key)
@@ -102,8 +102,8 @@ struct LyricsDiskCache: Sendable {
         try data.write(to: backoffMetadataFileURL, options: .atomic)
     }
 
-    private func fileURL(for spotifyTrackID: String) -> URL {
-        let safe = normalizedTrackID(spotifyTrackID)
+    private func fileURL(for trackKey: String) -> URL {
+        let safe = normalizedTrackID(trackKey)
         let name = safe.isEmpty ? "invalid" : safe
         return directory.appendingPathComponent("\(name).json")
     }
@@ -116,8 +116,8 @@ struct LyricsDiskCache: Sendable {
         directory.appendingPathComponent(backoffMetadataFileName)
     }
 
-    private func normalizedTrackID(_ spotifyTrackID: String) -> String {
-        spotifyTrackID.filter { $0.isLetter || $0.isNumber || $0 == "-" }
+    private func normalizedTrackID(_ trackKey: String) -> String {
+        trackKey.filter { $0.isLetter || $0.isNumber || $0 == "-" }
     }
 
     private func loadMissCooldownEntries() -> [String: Date]? {

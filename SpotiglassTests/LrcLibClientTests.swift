@@ -87,8 +87,8 @@ final class LrcLibClientTests: XCTestCase {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("SpotiglassLyricsExpandedCache-\(UUID().uuidString)")
         let disk = try LyricsDiskCache(directory: directory)
-        try disk.save(spotifyTrackID: "abc123def456", lyrics: lyrics)
-        XCTAssertEqual(disk.load(spotifyTrackID: "abc123def456"), expected)
+        try disk.save(trackKey: "abc123def456", lyrics: lyrics)
+        XCTAssertEqual(disk.load(trackKey: "abc123def456"), expected)
         try? FileManager.default.removeItem(at: directory)
     }
 
@@ -253,12 +253,12 @@ final class LrcLibClientTests: XCTestCase {
         XCTAssertEqual(np.lrcLibArtistQuery, "A, B")
         XCTAssertEqual(np.lrcLibAlbumQuery, "Album")
         XCTAssertEqual(np.lrcLibDurationSeconds, 1)
-        XCTAssertEqual(np.spotifyTrackIDForLyrics, "track-id")
+        XCTAssertEqual(np.lyricsTrackKey, "track-id")
         XCTAssertNil(
             PlaybackNowPlaying(
                 name: "X", artists: [], albumName: nil, albumID: nil, albumArtURL: nil,
                 durationMilliseconds: 1, positionMilliseconds: 0, uri: "not-spotify"
-            ).spotifyTrackIDForLyrics
+            ).lyricsTrackKey
         )
     }
 

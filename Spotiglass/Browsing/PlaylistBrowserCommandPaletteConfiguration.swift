@@ -12,8 +12,8 @@ enum PlaylistBrowserCommandPaletteConfiguration {
         var catalogProvider: any MusicBrowsingProvider
         var signOut: () -> Void
         var syncUnifiedRefreshRouting: () -> Void
-        /// `false` while the browsed service has no player yet (Apple Music browsing). Then
-        /// "Connect playback" must not start the Spotify player behind it.
+        /// `false` while the browsed service can't play (Apple Music without a subscription).
+        /// Then "Connect playback" must not start a player behind it.
         var isPlaybackAvailable = true
         /// `false` when the service has no Disconnect (Apple Music: access is a system permission).
         var canDisconnect = true
@@ -127,9 +127,9 @@ enum PlaylistBrowserCommandPaletteConfiguration {
             await playback?.play(uri: uri)
         }
         if !dependencies.isPlaybackAvailable {
-            // No player for this service yet (Apple Music browsing): none of the transport
-            // commands may reach the Spotify player behind it, from the palette, a shortcut or
-            // the menu. The palette also hides the ones it lists.
+            // The service can't play (Apple Music without a subscription): none of the
+            // transport commands may reach the player, from the palette, a shortcut or the
+            // menu. The palette also hides the ones it lists.
             manager.togglePlayback = nil
             manager.nextTrack = nil
             manager.previousTrack = nil

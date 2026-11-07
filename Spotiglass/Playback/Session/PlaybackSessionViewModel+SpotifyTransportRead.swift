@@ -88,6 +88,9 @@ extension PlaybackSessionViewModel {
                     if localMutationSettleTicksRemaining == 0, pendingPlayTransition == nil {
                         localCommandExpectsPlaying = nil
                     }
+                    if localMutationSettleTicksRemaining == 0 {
+                        skipLeftItemURI = nil
+                    }
                 }
                 refreshTrayOutputSymbol()
             } catch {
@@ -171,11 +174,17 @@ extension PlaybackSessionViewModel {
     }
 
     /// For a player whose state is only read: whether a read taken during the
-    /// settle window confirms the last local command instead of predating it.
-    /// Only play / pause can be stale this way (a player still reports
-    /// "playing" right after it was stopped); which item plays is fenced by the
-    /// pending play and skip tracking.
+    /// settle window confirms the last local command instead of predating it:
+    /// its play / pause must match the last pause, resume or play (a player
+    /// still reports "playing" right after it was paused), and after a skip it
+    /// must no longer show the item the skip left. Which item a play starts is
+    /// fenced by the pending play.
     private func readAgreesWithLocalCommand(_ snapshot: MusicPlaybackSnapshot) -> Bool {
+        if let skipLeftItemURI {
+            let readURI = snapshot.playbackNowPlaying?.uri
+            if readURI == skipLeftItemURI { return false }
+            if readURI != nil { self.skipLeftItemURI = nil }
+        }
         guard let localCommandExpectsPlaying else { return true }
         return snapshot.isPlaying == localCommandExpectsPlaying
     }
@@ -281,11 +290,7 @@ extension PlaybackSessionViewModel {
     }
 
     private static func isMissingPlaybackScope(_ error: Error) -> Bool {
-        guard let apiError = error as? SpotifyAPIError else { return false }
-        if case .insufficientScope = apiError {
-            return true
-        }
-        return false
+        MusicPlaybackError.from(error)?.reason == .missingPermission
     }
 
     private static func isBenignTransportSyncCancellation(_ error: Error) -> Bool {
@@ -295,20 +300,18 @@ extension PlaybackSessionViewModel {
     }
 
     private func applyTransportPollingBackoff(for error: Error) {
-        guard let apiError = error as? SpotifyAPIError else {
+        guard let playbackError = MusicPlaybackError.from(error) else {
             transportTransientErrorCount = 0
             return
         }
-        switch apiError {
+        switch playbackError.reason {
         case let .rateLimited(retryAfter):
             let retryDelay = max(1, retryAfter ?? 15)
             transportRateLimitedUntil = clock.now.advanced(by: .seconds(retryDelay))
             transportTransientErrorCount = 0
-        case let .server(statusCode, _, _) where statusCode >= 500:
+        case .server, .network:
             transportTransientErrorCount = min(transportTransientErrorCount + 1, 4)
-        case .network:
-            transportTransientErrorCount = min(transportTransientErrorCount + 1, 4)
-        default:
+        case .signInExpired, .missingPermission, .subscriptionRequired, .notFound, .failed:
             transportTransientErrorCount = 0
         }
     }
