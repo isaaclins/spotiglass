@@ -259,14 +259,15 @@ struct AppleMusicLibraryEditor: Sendable {
 
     /// What is known about a song without reading the library: what the playlist or album read
     /// found for its row (a song can be in a playlist without being in the library, #401), else a
-    /// song listed under a library ID (a persistent ID or `i.…`) is in the library, unless
-    /// Spotiglass changed it moments ago. `nil` for a catalog ID, which only a lookup can answer.
+    /// song listed under a cloud library ID (`i.…`) is in the library, unless Spotiglass changed
+    /// it moments ago. `nil` for a catalog ID or a persistent ID no read remembers (a row of a
+    /// very long playlist can drop out of the registry), which only a lookup can answer.
     func knownSongStatus(id: String) -> Bool? {
         let keys = songReferences.reference(for: id)?.matchKeys ?? [id]
         if pending.isRemoved(keys) { return false }
         if pending.isSaved(keys) { return true }
         if let listed = songReferences.reference(for: id) { return listed.isInLibrary }
-        return MusicKitLibraryLookup.isLibraryID(id) ? true : nil
+        return id.hasPrefix("i.") ? true : nil
     }
 
     // MARK: - Albums

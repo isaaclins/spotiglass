@@ -134,12 +134,27 @@ struct MusicAppLibraryScripting: MusicAppLibraryControlling {
         } catch let late as MusicAppLateChange {
             switch end(late.progress) {
             case let .finish(script):
-                try await runner.settle(script)
+                try await settle(script)
                 return nil
             case let .takeBack(script):
-                try await runner.settle(script)
+                try await settle(script)
                 throw AppleMusicLibraryEditError.musicUnavailable
             }
+        }
+    }
+
+    /// Runs a settle script. Once a change answered late, Music may have carried it out, so a
+    /// settle that fails says the change may still go through; only two playlists or songs that
+    /// match alike are a state worth naming as it is.
+    private func settle(_ script: String) async throws {
+        do {
+            try await runner.settle(script)
+        } catch let error as AppleMusicLibraryEditError where error == .ambiguousPlaylist || error == .ambiguousSong {
+            throw error
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            throw AppleMusicLibraryEditError.musicStillBusy
         }
     }
 }
@@ -343,6 +358,7 @@ enum MusicAppScripts {
     /// After a late change in `createPlaylist`: deletes the new playlist, so a failed create
     /// leaves none behind. `progress` is "newID|namesakesBefore": without the new ID (the make
     /// itself answered late), the new one is the playlist with the name that wasn't there before.
+    /// Two such playlists (one made on another device meanwhile) can't be told apart: both stay.
     static func takeBackCreate(name: String, progress: String) -> String {
         let parts = progress.components(separatedBy: "|")
         let newID = parts.first ?? ""
@@ -353,9 +369,12 @@ enum MusicAppScripts {
         } else {
             lines += [
                 "set namesakesBefore to {\(before.map(quoted).joined(separator: ", "))}",
+                "set made to {}",
                 "repeat with candidate in (every user playlist whose name is \(quoted(name)))",
-                "if namesakesBefore does not contain (persistent ID of candidate) then delete candidate",
+                "if namesakesBefore does not contain (persistent ID of candidate) then set end of made to (contents of candidate)",
                 "end repeat",
+                "if (count of made) is greater than 1 then error \"ambiguous\" number \(ambiguousError)",
+                "if (count of made) is 1 then delete (item 1 of made)",
             ]
         }
         lines.append("end tell")

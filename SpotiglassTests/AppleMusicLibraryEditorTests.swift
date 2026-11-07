@@ -1639,9 +1639,10 @@ final class AppleMusicPlaylistEditFixTests: XCTestCase {
     // Item 4
 
     func testALibrarySongReadsAsLikedBeforeAnyLookup() {
-        XCTAssertEqual(editor.knownSongStatus(id: rowID), true)
         XCTAssertEqual(editor.knownSongStatus(id: "i.aJGomv4H36dmrrA"), true)
         XCTAssertNil(editor.knownSongStatus(id: "699902614"), "a catalog song needs the lookup")
+        // A persistent ID no read remembers can be a song that is only in a playlist (#401).
+        XCTAssertNil(editor.knownSongStatus(id: rowID), "a forgotten playlist row needs the lookup")
         pending.recordRemovedSong([rowID])
         XCTAssertEqual(editor.knownSongStatus(id: rowID), false, "removed moments ago")
     }
@@ -1801,7 +1802,30 @@ final class AppleMusicLateMusicChangeTests: XCTestCase {
 
         XCTAssertTrue(settle.contains("set namesakesBefore to {\"AAAAAAAAAAAAAAAA\"}"))
         XCTAssertTrue(settle.contains("repeat with candidate in (every user playlist whose name is \"Spotiglass test\")"))
-        XCTAssertTrue(settle.contains("if namesakesBefore does not contain (persistent ID of candidate) then delete candidate"))
+        XCTAssertTrue(settle.contains("if (count of made) is 1 then delete (item 1 of made)"))
+    }
+
+    /// The namesake search, run for real on stand-in playlists: one new namesake is the one this
+    /// edit made; two (one made on another device during the wait) can't be told apart.
+    func testOnlyAPlaylistThatIsClearlyTheNewOneIsDeleted() throws {
+        let settle = MusicAppScripts.takeBackCreate(name: "Spotiglass test", progress: "|AAAA")
+        let start = try XCTUnwrap(settle.range(of: "set made to {}")?.lowerBound)
+        let end = try XCTUnwrap(settle.range(of: "end tell", options: .backwards)?.lowerBound)
+        let search = String(settle[start..<end])
+            .replacingOccurrences(of: "(every user playlist whose name is \"Spotiglass test\")", with: "namesakes")
+            .replacingOccurrences(of: "(persistent ID of candidate)", with: "(contents of candidate)")
+            .replacingOccurrences(of: "delete (item 1 of made)", with: "return \"deleted \" & (item 1 of made)")
+        func run(_ namesakes: [String]) throws -> String? {
+            let list = namesakes.map { "\"\($0)\"" }.joined(separator: ", ")
+            let source = "set namesakesBefore to {\"AAAA\"}\nset namesakes to {\(list)}\n\(search)\nreturn \"kept\""
+            return try AppleEventMusicAppScriptRunner.executeAppleScript(source)
+        }
+
+        XCTAssertEqual(try run(["AAAA", "BBBB"]), "deleted BBBB")
+        XCTAssertEqual(try run(["AAAA"]), "kept", "the make never happened")
+        XCTAssertThrowsError(try run(["AAAA", "BBBB", "CCCC"])) { error in
+            XCTAssertEqual(error as? AppleMusicLibraryEditError, .ambiguousPlaylist)
+        }
     }
 
     func testAPlaylistRemovalThatAnswersLateDeletesTheEntriesItPicked() async throws {
@@ -1833,6 +1857,26 @@ final class AppleMusicLateMusicChangeTests: XCTestCase {
         XCTAssertTrue(settle.contains(
             "if (count of (every user playlist whose name is \"Spotiglass test\")) is 0 and (count of (every user playlist whose name is \"Renamed\")) is greater than 0 then return"
         ))
+    }
+
+    /// An unlike timed out, Music carried the delete out, then quit before the settle got an
+    /// answer: the song may be gone, so "Music didn't respond, try again" would be untrue.
+    func testASettleThatFailsAnyOtherWaySaysTheChangeMayStillHappen() async {
+        runner.lateProgress = ""
+        runner.settleError = AppleMusicLibraryEditError.musicUnavailable
+
+        await XCTAssertThrowsEditError(.musicStillBusy) {
+            try await self.editor.removeSongs(ids: [self.rowID])
+        }
+        runner.settleError = AppleMusicLibraryEditError.notInMusicYet
+        await XCTAssertThrowsEditError(.musicStillBusy) {
+            try await self.editor.removeSongs(ids: [self.rowID])
+        }
+        runner.settleError = AppleMusicLibraryEditError.ambiguousSong
+        // Two songs that match alike is a state worth naming as it is.
+        await XCTAssertThrowsEditError(.ambiguousSong) {
+            try await self.editor.removeSongs(ids: [self.rowID])
+        }
     }
 
     func testAMusicThatStaysBusySaysTheChangeMayStillHappen() async {

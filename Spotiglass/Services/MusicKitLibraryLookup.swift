@@ -229,11 +229,6 @@ struct MusicKitLibraryLookup: AppleMusicLibraryLookup {
         !isCatalogID(id) && Int64(id) != nil
     }
 
-    /// A library song's ID: a persistent ID, or a cloud library ID (`i.…`).
-    static func isLibraryID(_ id: String) -> Bool {
-        isPersistentID(id) || id.hasPrefix("i.")
-    }
-
     /// The library song with this persistent ID, as MusicKit keeps it under its cloud library ID.
     /// A song that is only in a playlist has such an entry too, and only that entry carries its
     /// catalog ID (#401); its title finds it, its persistent ID tells it from namesakes.
