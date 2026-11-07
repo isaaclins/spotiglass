@@ -390,18 +390,34 @@ final class PlaybackChromeViewsTests: XCTestCase {
     /// shrink to its floor.
     ///
     /// One deliberate difference: where main ran the trailing controls into the
-    /// gap before the scrubber (Spotify, rows about 950 to 1080 pt wide), the
-    /// arrangement keeps the gap and the summary and scrubber give up the room.
+    /// gap before the scrubber (Spotify, rows about 950 to 1080 pt wide, and
+    /// wherever the 170 pt Reconnect or Retry button shows), the arrangement
+    /// keeps the gap and the summary and scrubber give up the room. Every part
+    /// also has to lie inside the size the arrangement reports, or it spills
+    /// into the bar's padding.
     func testTransportArrangementPlacesEveryPartWhereTheOldStacksDid() throws {
         let spacing = SpotiglassDesign.spacingM
-        for withVolume in [true, false] {
+        for (withVolume, recovery) in [(true, false), (false, false), (true, true), (false, true)] {
             var mismatches: [String] = []
             var overlapping = 0
+            let label = "volume: \(withVolume), recovery button: \(recovery)"
             // From the narrowest transport the 520 pt window leaves.
             for width in stride(from: CGFloat(456), through: 1_400, by: 8) {
-                let old = try partFrames(of: OldTransportArrangement(withVolume: withVolume), width: width)
-                let new = try partFrames(of: NewTransportArrangement(withVolume: withVolume), width: width)
+                let old = try partFrames(
+                    of: OldTransportArrangement(withVolume: withVolume, recovery: recovery), width: width
+                )
+                let new = try partFrames(
+                    of: NewTransportArrangement(withVolume: withVolume, recovery: recovery), width: width
+                )
                 XCTAssertEqual(Set(old.keys), Set(new.keys), "parts at \(width)")
+                if let whole = new[PartFrameKey.whole] {
+                    for (part, frame) in new where part != PartFrameKey.whole {
+                        XCTAssertTrue(
+                            frame.minX >= whole.minX - 0.5 && frame.maxX <= whole.maxX + 0.5,
+                            "\(part) \(frame) spills out of the bar \(whole) at \(width), \(label)"
+                        )
+                    }
+                }
                 // One row when the scrubber and the controls share a centre line.
                 func inOneRow(_ a: CGRect, _ b: CGRect) -> Bool { abs(a.midY - b.midY) < 1 }
                 if let scrubber = new["scrubber"], let controls = new["controls"], inOneRow(scrubber, controls) {
@@ -423,9 +439,26 @@ final class PlaybackChromeViewsTests: XCTestCase {
                     }
                 }
             }
-            XCTAssertEqual(mismatches, [], "volume: \(withVolume)")
-            // The overlap is Spotify's slider row only, and only a narrow band of it.
-            XCTAssertLessThanOrEqual(overlapping, withVolume ? 20 : 0, "volume: \(withVolume)")
+            // The narrowest the bar can get, which the window's minimum size
+            // comes from: the same as main, so the parts always fit in it.
+            let oldMinimum = try XCTUnwrap(
+                partFrames(of: OldTransportArrangement(withVolume: withVolume, recovery: recovery), width: 0)[PartFrameKey.whole]
+            )
+            let newMinimum = try partFrames(
+                of: NewTransportArrangement(withVolume: withVolume, recovery: recovery), width: 0
+            )
+            XCTAssertEqual(newMinimum[PartFrameKey.whole]?.width ?? 0, oldMinimum.width, accuracy: 0.5, "minimum, \(label)")
+            if let whole = newMinimum[PartFrameKey.whole] {
+                for (part, frame) in newMinimum where part != PartFrameKey.whole {
+                    XCTAssertLessThanOrEqual(frame.maxX, whole.maxX + 0.5, "\(part) spills out at the minimum, \(label)")
+                }
+            }
+            XCTAssertEqual(mismatches, [], label)
+            if !recovery {
+                // Without the wide button the overlap is Spotify's slider row
+                // only, and only a narrow band of it.
+                XCTAssertLessThanOrEqual(overlapping, withVolume ? 20 : 0, label)
+            }
         }
     }
 
@@ -434,6 +467,7 @@ final class PlaybackChromeViewsTests: XCTestCase {
         let store = PartFrameStore()
         let host = NSHostingView(
             rootView: view
+                .reportsFrame(as: PartFrameKey.whole)
                 .frame(width: width)
                 .coordinateSpace(.named(PartFrameKey.space))
                 .onPreferenceChange(PartFrameKey.self) { store.frames = $0 }
@@ -1179,6 +1213,7 @@ private final class PartFrameStore {
 
 private struct PartFrameKey: PreferenceKey {
     static let space = "transport"
+    static let whole = "the whole bar"
     static let defaultValue: [String: CGRect] = [:]
     static func reduce(value: inout [String: CGRect], nextValue: () -> [String: CGRect]) {
         value.merge(nextValue()) { $1 }
@@ -1216,7 +1251,11 @@ private enum TransportStandIns {
         }
     }
 
-    static var controls: some View { Color.red.frame(width: 142, height: 28) }
+    /// The transport buttons, with the 170 pt Reconnect or Retry button in
+    /// front of them while the player needs it.
+    static func controls(recovery: Bool) -> some View {
+        Color.red.frame(width: recovery ? 142 + 170 + SpotiglassDesign.spacingS : 142, height: 28)
+    }
     /// The device menu's bezel lets it shrink from 52 to 38 pt, measured in the app.
     static var device: some View { Color.blue.frame(minWidth: 38, idealWidth: 52, maxWidth: 52).frame(height: 28) }
 
@@ -1239,6 +1278,7 @@ private enum TransportStandIns {
 /// The arrangement as it was on main: `ViewThatFits` over two rows and a stack.
 private struct OldTransportArrangement: View {
     var withVolume: Bool
+    var recovery: Bool
 
     var body: some View {
         let candidates = PlaybackTransportLayoutPolicy.transportLayoutCandidates()
@@ -1289,7 +1329,7 @@ private struct OldTransportArrangement: View {
                     .clipped()
                     .reportsFrame(as: "summary")
             }
-            TransportStandIns.controls.reportsFrame(as: "controls")
+            TransportStandIns.controls(recovery: recovery).reportsFrame(as: "controls")
             TransportStandIns.device.reportsFrame(as: "device")
             if withVolume {
                 if compactVolume {
@@ -1305,6 +1345,7 @@ private struct OldTransportArrangement: View {
 /// The same parts in `PlaybackTransportArrangementLayout`, as `PlaybackControlsView` builds it.
 private struct NewTransportArrangement: View {
     var withVolume: Bool
+    var recovery: Bool
 
     private typealias Part = PlaybackTransportArrangementLayout.PartKey
 
@@ -1326,7 +1367,7 @@ private struct NewTransportArrangement: View {
                 .frame(minWidth: PlaybackTransportLayoutPolicy.scrubberMinimumWidth, maxWidth: .infinity)
                 .reportsFrame(as: "scrubber")
                 .layoutValue(key: Part.self, value: .scrubber)
-            TransportStandIns.controls
+            TransportStandIns.controls(recovery: recovery)
                 .reportsFrame(as: "controls")
                 .layoutValue(key: Part.self, value: .controls)
             TransportStandIns.device

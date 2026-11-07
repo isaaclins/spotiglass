@@ -254,14 +254,19 @@ struct PlaybackTransportArrangementLayout: Layout {
                 widths.reduce(0, +) + spacing * CGFloat(max(widths.count - 1, 0))
             }
             let trailingMaximum = trailingTotal(trailingWidths(.infinity))
+            // The share the controls were offered, to place them as measured.
+            var actionsOffer: CGFloat = 0
             let row = Self.distribute(width, spacing: spacing, among: [
                 Sizing(flexibility: Self.summaryMaximumWidth - PlaybackTransportLayoutPolicy.nowPlayingSummaryMinimumWidth) {
                     min(max($0, PlaybackTransportLayoutPolicy.nowPlayingSummaryMinimumWidth), Self.summaryMaximumWidth)
                 },
                 Sizing(flexibility: .infinity) { max($0, measuredWidth(scrubber, 0)) },
-                Sizing(flexibility: max(floor, trailingMaximum) - floor) { max(floor, trailingTotal(trailingWidths($0))) },
+                Sizing(flexibility: max(floor, trailingMaximum) - floor) { offer in
+                    actionsOffer = offer
+                    return max(floor, trailingTotal(trailingWidths(offer)))
+                },
             ])
-            let actionsWidths = trailingWidths(row[2])
+            let actionsWidths = trailingWidths(actionsOffer)
             let actionsHeights: [CGFloat] = zip(trailing, actionsWidths).map { height($0, $1) }
             let summaryHeight = height(summaryIndex, row[0])
             let scrubberHeight = height(scrubberIndex, row[1])
@@ -285,10 +290,13 @@ struct PlaybackTransportArrangementLayout: Layout {
             let summaryMinimum = PlaybackTransportLayoutPolicy.nowPlayingSummaryMinimumWidth
             let topSizings = [Sizing(flexibility: .infinity) { max($0, summaryMinimum) }]
                 + trailing.map { sizing($0, compactVolume: true) }
-            let topMinimum = Self.distribute(0, spacing: spacing, among: topSizings).reduce(0, +)
-                + spacing * CGFloat(trailing.count)
-            let width = max(proposedWidth ?? 0, topMinimum, measuredWidth(scrubber, 0))
-            let top = Self.distribute(width, spacing: spacing, among: topSizings)
+            func topTotal(_ widths: [CGFloat]) -> CGFloat {
+                widths.reduce(0, +) + spacing * CGFloat(trailing.count)
+            }
+            // The row is shared out over the offered width, as the stack did; when
+            // its parts cannot shrink that far it reports the width they take.
+            let top = Self.distribute(proposedWidth ?? 0, spacing: spacing, among: topSizings)
+            let width = max(proposedWidth ?? 0, topTotal(top), measuredWidth(scrubber, 0))
             let topParts = [summaryIndex] + trailing
             let topHeight = zip(topParts, top).map { height($0, $1) }.max() ?? 0
             var x: CGFloat = 0
