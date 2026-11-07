@@ -88,7 +88,7 @@ MusicKit's own library is read-only on macOS, so edits take one of two routes
 | Add album to library | Apple Music API: `POST /v1/me/library` |
 | Remove album from library | Music app: removes the album's songs from the library |
 | New playlist | Apple Music API: `POST /v1/me/library/playlists`, with the songs in the same request; for songs only the Music app knows (below), the Music app, which deletes the new playlist again if a song can't be added. Either way a failed create leaves no empty playlist. |
-| Add to playlist | Apple Music API: `POST /v1/me/library/playlists/{id}/tracks`; for songs only the Music app knows, the Music app |
+| Add to playlist | Apple Music API: `POST /v1/me/library/playlists/{id}/tracks`; for songs only the Music app knows, the Music app, which takes its own adds out again if one fails partway |
 | Remove from this playlist, move to playlist | Music app (move adds through the API first) |
 | Rename and delete playlist | Music app |
 
