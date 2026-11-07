@@ -229,6 +229,7 @@ struct AppleMusicLibraryEditor: Sendable {
         }
         for reference in references {
             pending.forgetRemovedSong(reference.matchKeys)
+            rememberLibraryState(of: reference, isInLibrary: true)
             // The love rating is a nicety on top of the save; a failed rating does not undo it.
             try? await rate(reference, .love)
         }
@@ -236,7 +237,12 @@ struct AppleMusicLibraryEditor: Sendable {
 
     /// Removes songs from the library through the Music app and clears the love a like gave them.
     func removeSongs(ids: [String]) async throws {
-        let references = try await lookup.songs(ids: ids).map(withPendingDetails)
+        var references: [AppleMusicSongReference] = []
+        for reference in try await lookup.songs(ids: ids).map(withPendingDetails) {
+            // A row listed only under its persistent ID (a song liked from a playlist moments
+            // ago) needs its catalog ID to clear the love and to end the like everywhere (#401).
+            references.append((try? await withLibraryIDs(reference)) ?? reference)
+        }
         let matches = references.compactMap(\.musicAppMatch)
         guard matches.count == references.count, !matches.isEmpty else {
             throw AppleMusicLibraryEditError.notInMusicYet
@@ -244,8 +250,20 @@ struct AppleMusicLibraryEditor: Sendable {
         try await musicApp.removeFromLibrary(matches)
         for reference in references {
             pending.recordRemovedSong(reference.matchKeys)
+            rememberLibraryState(of: reference, isInLibrary: false)
             try? await rate(reference, nil)
         }
+    }
+
+    /// A playlist or album row remembers whether its song was in the library when it was read;
+    /// a like or unlike changes that, and the pending edit that covers it ends once the library
+    /// shows the change, before the row is read again.
+    private func rememberLibraryState(of reference: AppleMusicSongReference, isInLibrary: Bool) {
+        guard var listed = songReferences.reference(for: reference.itemID) else { return }
+        listed.isInLibrary = isInLibrary
+        listed.catalogID = listed.catalogID ?? reference.catalogID
+        listed.cloudLibraryID = listed.cloudLibraryID ?? reference.cloudLibraryID
+        songReferences.remember(listed)
     }
 
     /// Whether each song is in the library, counting edits the library has not caught up with.

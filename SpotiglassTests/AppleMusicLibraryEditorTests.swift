@@ -2064,9 +2064,26 @@ final class AppleMusicPlaylistOnlySongTests: XCTestCase {
         try await editor.removeSongs(ids: [rowID])
 
         XCTAssertEqual(musicApp.calls, ["removeFromLibrary([persistentID(\"\(rowPersistentID)\")])"])
+        XCTAssertEqual(cloud.calls.last, "rate(clear,1441154439,catalog)", "the like's love comes off again")
+        XCTAssertTrue(pending.isRemoved(["1441154439"]), "Liked Songs and search know it under its catalog ID")
         XCTAssertEqual(editor.knownSongStatus(id: rowID), false)
         let statuses = try await editor.songStatuses(ids: [rowID])
         XCTAssertEqual(statuses, [false])
+    }
+
+    /// The pending like ends as soon as Liked Songs shows the song, long before 18P1 is read
+    /// again: the row must not fall back to what its first read said.
+    func testALikedRowStaysLikedOnceThePendingLikeEnds() async throws {
+        registry.remember([.song(try row())], playlistID: playlistID)
+        try await editor.saveSongs(ids: [rowID])
+
+        _ = pending.applied(
+            toLibrarySongs: [(track: AppleMusicLibraryEditorTests.track(id: "i.aJGod6dt36dmrrA", name: "Don't Stop The Music"), keys: Set(["i.aJGod6dt36dmrrA", "1441154439", rowID]))],
+            isComplete: true
+        )
+
+        XCTAssertFalse(pending.isSaved([rowID]), "the library shows the like")
+        XCTAssertEqual(editor.knownSongStatus(id: rowID), true)
     }
 
     func testAPlaylistOnlySongWithoutALibraryEntryIsNotLikedBlindly() async throws {
