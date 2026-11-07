@@ -55,8 +55,10 @@ struct PlaylistBrowserView: View {
     /// Music without a subscription) shows a calm placeholder and never starts a player.
     let playbackMode: BrowserPlaybackMode
     /// `false` hides Disconnect (toolbar, palette): Apple Music access is a system permission,
-    /// and switching services belongs to the service switcher (#373).
+    /// and signing out of it lives in Settings › Account (#373).
     let canDisconnect: Bool
+    /// Drawn above the sidebar list: the service switcher (#373).
+    let sidebarHeader: AnyView?
 
     private func requestCreatePlaylist(_ rows: [TrackRowViewModel]) {
         newPlaylistInitialRows = rows
@@ -79,7 +81,8 @@ struct PlaylistBrowserView: View {
         commandPaletteManager: CommandPaletteManager,
         signOut: @escaping () -> Void,
         playbackMode: BrowserPlaybackMode = .live,
-        canDisconnect: Bool = true
+        canDisconnect: Bool = true,
+        sidebarHeader: AnyView? = nil
     ) {
         let playbackViewModel = playbackHost.playbackViewModel
         let queueViewModel = QueueViewModel(
@@ -95,6 +98,7 @@ struct PlaylistBrowserView: View {
         self.signOut = signOut
         self.playbackMode = playbackMode
         self.canDisconnect = canDisconnect
+        self.sidebarHeader = sidebarHeader
     }
 
     /// Where you are, falling back to the app name at the root.
@@ -130,7 +134,8 @@ struct PlaylistBrowserView: View {
                     moveLibraryRows: { source, destination in
                         moveLibraryRows(fromOffsets: source, toOffset: destination)
                     },
-                    pinDroppedTransfers: pinDroppedTransfers
+                    pinDroppedTransfers: pinDroppedTransfers,
+                    header: sidebarHeader
                 )
                 .toolbar(removing: lyricsOverlay.isPresented ? .sidebarToggle : nil)
                 .navigationSplitViewColumnWidth(

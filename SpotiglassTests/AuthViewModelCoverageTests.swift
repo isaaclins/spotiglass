@@ -256,10 +256,13 @@ final class AuthViewModelCoverageTests: XCTestCase {
         let signOutTask = Task { await viewModel.signOut() }
         await gate.waitUntilStarted()
         XCTAssertEqual(viewModel.state, .signedIn(session))
+        // The state still says signed in, but the session is already being torn down.
+        XCTAssertTrue(viewModel.isSigningOut)
 
         await gate.release()
         await signOutTask.value
         XCTAssertEqual(viewModel.state, .signedOut)
+        XCTAssertFalse(viewModel.isSigningOut)
     }
 
     func testReconnectInvalidatesDelayedRefreshCompletion() async throws {

@@ -10,7 +10,7 @@ enum BrowserPlaybackMode: Equatable {
     case unavailable(String)
 }
 
-/// Main-window content while Apple Music is the selected service (see `MusicServiceSelection`).
+/// Main-window content while Apple Music is the service on screen (see `MusicServiceStore`).
 ///
 /// It asks for the Apple Music permission, then shows the normal browser on top of
 /// `AppleMusicBrowsingProvider`. Spotify's session, Keychain item and caches are never touched,
@@ -19,10 +19,20 @@ struct AppleMusicBrowserRoot: View {
     @ObservedObject var session: AppleMusicSession
     let playbackHost: SpotiglassPlaybackHost
     let commandPaletteManager: CommandPaletteManager
+    /// Kept by the scene while Spotify is on screen, so switching back returns to the same place.
+    let viewModel: PlaylistBrowserViewModel
+    /// Apple Music is being added ("Add a service…" or the welcome screen): ask for access at once.
+    var isAdding = false
     /// Clears every window's browser state. Access is app-wide, so losing it affects all windows.
     let prepareForReset: () -> Void
     /// Re-arms this window's own palette callbacks (Settings, Sign Out) after a detach.
     let rewireScene: () -> Void
+    /// Access was granted (or already was): Apple Music counts as added.
+    var onAuthorized: () -> Void = {}
+    /// The service switcher at the top of the sidebar.
+    var sidebarHeader: AnyView? = nil
+    /// Below the permission screen: Cancel, or a way to another service.
+    var signInFooter: AnyView? = nil
 
 
     enum AccessTransition: Equatable {
@@ -59,6 +69,10 @@ struct AppleMusicBrowserRoot: View {
         }
         .task {
             await session.refresh()
+            // The user just chose Apple Music: the system prompt is the whole sign-in.
+            if isAdding, session.state == .needsPermission {
+                await session.requestAccess()
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             // Access is changed in System Settings; pick it up when the user comes back.
@@ -66,6 +80,9 @@ struct AppleMusicBrowserRoot: View {
         }
         .onChange(of: session.state, initial: true) { old, state in
             commandPaletteManager.isSignedIn = state == .authorized
+            if state == .authorized {
+                onAuthorized()
+            }
             switch Self.accessTransition(from: old, to: state) {
             case .granted: rewireScene()
             case .lost: prepareForReset()
@@ -76,16 +93,18 @@ struct AppleMusicBrowserRoot: View {
 
     private var browser: some View {
         PlaylistBrowserView(
-            viewModel: Self.makeViewModel(),
+            viewModel: viewModel,
             playbackHost: playbackHost,
             catalogProvider: AppleMusicBrowsingProvider(),
             commandPaletteManager: commandPaletteManager,
             // No Disconnect: access is a system permission, turned off in System Settings,
-            // and switching services belongs to the service switcher (#373).
+            // and signing out of Apple Music lives in Settings › Account (#373).
             signOut: {},
             playbackMode: playbackMode,
-            canDisconnect: false
+            canDisconnect: false,
+            sidebarHeader: sidebarHeader
         )
+        .id(MusicService.appleMusic)
     }
 
     /// MusicKit's player needs an Apple Music subscription. While that is unknown the bar is
@@ -131,6 +150,10 @@ struct AppleMusicBrowserRoot: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .controlSize(.large)
+                    }
+
+                    if let signInFooter {
+                        signInFooter
                     }
                 }
                 .padding(SpotiglassDesign.spacingL)

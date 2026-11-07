@@ -3,32 +3,44 @@
 Spotiglass is getting Apple Music support next to Spotify (#372). You can browse your Apple
 Music library, playlists, Home and search, play them, and edit your library (like, save albums,
 create, rename and delete playlists, add and remove songs; see [Library edits](#library-edits)),
-through Apple's MusicKit. The service switcher (#373) comes next. Until the switcher
-exists, Apple Music is reachable only through a hidden developer switch. A normal launch is
-Spotify, exactly as before.
+through Apple's MusicKit, and switch between Apple Music and Spotify at any time.
 
 ## Turning it on
 
-Pass a launch argument:
+Pick Apple Music on the welcome screen of a fresh install, or click the service name at the top
+left of the sidebar and choose **Add a service…**. The system asks for access to Apple Music;
+there is no client ID and nothing else to set up.
 
-```sh
-make build
-open build/DerivedData/Build/Products/Debug/Spotiglass.app --args -SpotiglassMusicService appleMusic
-```
+## Switching between Spotify and Apple Music
 
-or set it for every launch, and remove it again to go back to Spotify:
+Each added service is its own space, like a browser profile: its own sign-in, pins and the place
+you left it. Switching never signs you out.
 
-```sh
-defaults write com.isaaclins.spotiglass SpotiglassMusicService appleMusic
-defaults delete com.isaaclins.spotiglass SpotiglassMusicService
-```
+- Click the service at the top left of the sidebar: every added service is listed, the one on
+  screen has a checkmark.
+- ⌃1 switches to Apple Music, ⌃2 to Spotify (rebindable in Settings › Keyboard), or use
+  **Switch to Spotify** / **Switch to Apple Music** in the command palette (`>switch`).
+- What is playing keeps playing until you start something from the other library: each service
+  has its own player, and starting music in one pauses the other.
+- Settings › Account signs each service in and out on its own. Signing out of Apple Music
+  removes it from the menu (its pins stay for when you add it again); the access itself is a
+  system permission in System Settings › Privacy & Security › Media & Apple Music. Signing out of
+  Spotify while Apple Music is added hands the window to Apple Music; as the only service,
+  Spotify shows its own sign-in again, as before.
 
-Screenshot mode and the unit-test host ignore the switch and always run Spotify
-([`MusicServiceSelection`](../Spotiglass/Infrastructure/MusicServiceSelection.swift)).
+The list of added services and the one on screen are kept in `UserDefaults`
+([`MusicServiceStore`](../Spotiglass/Infrastructure/MusicServiceSelection.swift)). The first
+launch of this version sets them up from what is already there: a saved Spotify client ID adds
+Spotify, so an existing Spotify setup opens straight into Spotify with its pins and caches
+untouched (both are keyed by the Spotify account, not by the service). The old developer switch
+`SpotiglassMusicService=appleMusic` carries over as an added Apple Music.
 
-On first launch the app asks for Apple Music access. The grant belongs to the app's code
-signature, so a build signed with a different identity asks again. If you said no, the app points
-you to System Settings → Privacy & Security → Media & Apple Music.
+Screenshot mode only offers Apple Music when started with `--with-apple-music`, and the unit-test
+host never reaches MusicKit.
+
+The grant belongs to the app's code signature, so a build signed with a different identity asks
+again. If you said no, the app points you to System Settings → Privacy & Security → Media & Apple
+Music.
 
 ### Requirements
 
@@ -155,6 +167,6 @@ default output, so Apple Music goes through it as well.
   the sidebar says "Track count unavailable".
 - **Artist pages** opened from the library show the albums in your library and tracks from them,
   not the artist's whole catalog.
-- **Disconnect** is hidden in Apple Music mode (toolbar, palette, app menu): access is a system permission, turned off in System Settings → Privacy & Security → Media & Apple Music, and switching services belongs to #373. Settings › Account shows a note instead of the Spotify sign-in, and Apple Music mode never reads, refreshes or deletes the saved Spotify sign-in.
+- **Disconnect** is hidden for Apple Music (toolbar, palette, app menu): signing out of it lives in Settings › Account. An Apple Music-only setup never reads, refreshes or deletes a saved Spotify sign-in.
 - Cover art of songs that only live in your cloud library may not load; those rows show the
   placeholder.

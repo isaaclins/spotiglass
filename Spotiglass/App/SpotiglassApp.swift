@@ -14,10 +14,14 @@ struct SpotiglassApp: App {
     /// The Spotify Web Playback SDK is account-scoped, so its model, commander
     /// and hidden web view live for the lifetime of the app rather than a
     /// particular WindowGroup scene.
-    @StateObject private var playbackHost: SpotiglassPlaybackHost
+    /// One player per service (#373); Apple Music's is created the first time it's on screen.
+    @StateObject private var playbackHosts: SpotiglassPlaybackHosts
     /// Apple Music access is a system permission for the whole app, so one session serves every
-    /// window and the menu bar. Only consulted when Apple Music is the selected service.
+    /// window, the menu bar and Settings.
     @StateObject private var appleMusicSession = AppleMusicSession()
+    /// The added services and the one on screen (#373), shared by every window, the menu bar
+    /// and Settings.
+    @StateObject private var serviceStore: MusicServiceStore
     /// Same storage key ``PlaylistBrowserView`` writes, read here so the View menu
     /// can say "Show Queue" or "Hide Queue" instead of a stateless "Toggle".
     @AppStorage("queue.panel.visible") private var isQueueVisible = false
@@ -57,18 +61,13 @@ struct SpotiglassApp: App {
             authVM = AuthViewModel(
                 refreshTokenStore: MemoryOnlyRefreshTokenStore(refreshToken: ScreenshotMode.refreshToken)
             )
-        } else if MusicServiceSelection.current == .appleMusic {
-            // Apple Music mode must never read, refresh or delete the saved Spotify sign-in: any
-            // Spotify code path still reachable here (Connect playback, a token refresh) sees an
-            // empty in-memory store instead of the Keychain item, and signing out clears nothing.
-            authVM = AuthViewModel(
-                refreshTokenStore: MemoryOnlyRefreshTokenStore(),
-                signOutDataCleaner: {}
-            )
         } else {
             authVM = AuthViewModel()
         }
         _authViewModel = StateObject(wrappedValue: authVM)
+        let services = MusicServiceStore.live()
+        services.followSpotifySignIn(authVM.$state)
+        _serviceStore = StateObject(wrappedValue: services)
 
         let equalizer = AudioEqualizerEngine()
         // Screenshot mode never touches the audio driver, so a seeded EQ stays editable on screen.
@@ -77,12 +76,16 @@ struct SpotiglassApp: App {
             equalizer.observe(settingsStore: store)
         }
         _equalizerEngine = StateObject(wrappedValue: equalizer)
-        // Apple Music plays through MusicKit's own player: no Web Playback SDK page, and the
-        // Spotify player is never created in that mode.
-        let playbackHost = MusicServiceSelection.current == .appleMusic
-            ? SpotiglassPlaybackHost(provider: AppleMusicPlaybackProvider(), equalizerEngine: equalizer)
-            : SpotiglassPlaybackHost(tokenProvider: authVM, equalizerEngine: equalizer)
-        _playbackHost = StateObject(wrappedValue: playbackHost)
+        // Built lazily (after NSApp exists). Apple Music plays through MusicKit's own player:
+        // no Web Playback SDK page, created only once Apple Music is on screen.
+        _playbackHosts = StateObject(
+            wrappedValue: SpotiglassPlaybackHosts(
+                spotify: SpotiglassPlaybackHost(tokenProvider: authVM, equalizerEngine: equalizer),
+                makeAppleMusic: {
+                    SpotiglassPlaybackHost(provider: AppleMusicPlaybackProvider(), equalizerEngine: equalizer)
+                }
+            )
+        )
         SpotiglassL10n.settingsStore = store
     }
 
@@ -124,7 +127,7 @@ struct SpotiglassApp: App {
     /// items dim in step with the commands actually being wired up.
     private var isSignedIn: Bool {
         Self.menuIsSignedIn(
-            service: MusicServiceSelection.current,
+            service: serviceStore.active,
             spotifyState: authViewModel.state,
             appleMusicState: appleMusicSession.state
         )
@@ -132,18 +135,28 @@ struct SpotiglassApp: App {
 
     /// Apple Music can play once the account has a subscription; Spotify always has its player.
     private var hasPlayback: Bool {
-        MusicServiceSelection.current == .spotify || appleMusicSession.canPlayCatalogContent != false
+        switch serviceStore.active {
+        case .spotify: true
+        // Apple Music without a subscription can browse but not play.
+        case .appleMusic: appleMusicSession.canPlayCatalogContent != false
+        case nil: false
+        }
     }
 
     /// Apple Music never signs in to Spotify: its permission is what wires the browser up, so
     /// under Apple Music the menu follows that permission instead of the Spotify session.
     static func menuIsSignedIn(
-        service: MusicService,
+        service: MusicService?,
         spotifyState: AppConnectionState,
         appleMusicState: AppleMusicSession.State
     ) -> Bool {
-        if service == .appleMusic {
+        switch service {
+        case nil:
+            return false
+        case .appleMusic:
             return appleMusicState == .authorized
+        case .spotify:
+            break
         }
         switch spotifyState {
         case .signedIn, .refreshing(.some):
@@ -158,7 +171,8 @@ struct SpotiglassApp: App {
             RootView(
                 keymapStore: keymapStore,
                 sceneRegistry: sceneRegistry,
-                playbackHost: playbackHost,
+                playbackHosts: playbackHosts,
+                serviceStore: serviceStore,
                 appleMusicSession: appleMusicSession
             )
                 .environmentObject(authViewModel)
@@ -166,7 +180,7 @@ struct SpotiglassApp: App {
                 .environmentObject(pinnedStore)
                 .environment(\.locale, settingsStore.appLocale)
                 .environment(\.spotiglassLocale, settingsStore.appLocale)
-                .environmentObject(playbackHost)
+                .environmentObject(playbackHosts.spotify)
                 .preferredColorScheme(preferredColorScheme)
                 // List rows and other cached scene content can otherwise keep
                 // the old localized strings. The host itself is app-scoped and
@@ -201,6 +215,7 @@ struct SpotiglassApp: App {
                     sceneRegistry: sceneRegistry,
                     keymapStore: keymapStore,
                     settingsStore: settingsStore,
+                    serviceStore: serviceStore,
                     isSignedIn: isSignedIn,
                     isQueueVisible: isQueueVisible,
                     hasPlayback: hasPlayback
@@ -210,6 +225,7 @@ struct SpotiglassApp: App {
                     sceneRegistry: sceneRegistry,
                     keymapStore: keymapStore,
                     settingsStore: settingsStore,
+                    serviceStore: serviceStore,
                     isSignedIn: isSignedIn,
                     isQueueVisible: isQueueVisible,
                     hasPlayback: hasPlayback
@@ -219,6 +235,7 @@ struct SpotiglassApp: App {
                     sceneRegistry: sceneRegistry,
                     keymapStore: keymapStore,
                     settingsStore: settingsStore,
+                    serviceStore: serviceStore,
                     isSignedIn: isSignedIn,
                     isQueueVisible: isQueueVisible,
                     hasPlayback: hasPlayback
@@ -239,7 +256,9 @@ struct SpotiglassApp: App {
                 },
                 onHotkeyRecordingChange: { isRecording in
                     sceneRegistry.setHotkeyRecording(isRecording)
-                }
+                },
+                serviceStore: serviceStore,
+                appleMusicSession: appleMusicSession
             )
             .environmentObject(authViewModel)
             .environment(\.locale, settingsStore.appLocale)

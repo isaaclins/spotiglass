@@ -21,6 +21,8 @@ struct PlaylistBrowserSidebar: View {
     /// Drag-to-pin: a `PinnedItemTransfer` dropped anywhere on the sidebar
     /// pins the item (appended to the end of the pins group).
     let pinDroppedTransfers: ([PinnedItemTransfer]) -> Bool
+    /// Pinned above the list, under the window buttons: the service switcher (#373).
+    var header: AnyView? = nil
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -94,6 +96,16 @@ struct PlaylistBrowserSidebar: View {
             }
             .listStyle(.sidebar)
             .tint(SpotiglassDesign.controlAccent)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if let header {
+                    HStack(spacing: 0) {
+                        header
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, SpotiglassDesign.spacingS)
+                    .padding(.bottom, SpotiglassDesign.spacingXS)
+                }
+            }
         }
     }
 

@@ -85,6 +85,48 @@ struct HiddenPlaybackWebView: NSViewRepresentable {
     }
 }
 
+/// One player per service (#373), app-wide like the choice of service. Every window, the menu
+/// bar and Settings use the player of the service on screen.
+///
+/// Apple Music's player is created the first time Apple Music is on screen: creating it reaches
+/// MusicKit, which a Spotify-only setup, screenshot mode and the unit-test host never should.
+///
+/// What's playing keeps playing across a switch, until something starts in the other library:
+/// starting music in one player pauses the other.
+@MainActor
+final class SpotiglassPlaybackHosts: ObservableObject {
+    let spotify: SpotiglassPlaybackHost
+    private let makeAppleMusic: () -> SpotiglassPlaybackHost
+    private(set) var appleMusicIfCreated: SpotiglassPlaybackHost?
+
+    init(spotify: SpotiglassPlaybackHost, makeAppleMusic: @escaping () -> SpotiglassPlaybackHost) {
+        self.spotify = spotify
+        self.makeAppleMusic = makeAppleMusic
+    }
+
+    var appleMusic: SpotiglassPlaybackHost {
+        if let appleMusicIfCreated { return appleMusicIfCreated }
+        let created = makeAppleMusic()
+        Self.handOver(from: spotify.playbackViewModel, to: created.playbackViewModel)
+        Self.handOver(from: created.playbackViewModel, to: spotify.playbackViewModel)
+        appleMusicIfCreated = created
+        return created
+    }
+
+    /// Each player starts new music only while its service is on screen, so nothing from one
+    /// library ever reaches the other service's player.
+    func gate(activeService: MusicService?) {
+        spotify.playbackViewModel.refusesNewPlayback = activeService != .spotify
+        appleMusicIfCreated?.playbackViewModel.refusesNewPlayback = activeService != .appleMusic
+    }
+
+    private static func handOver(from starting: PlaybackSessionViewModel, to other: PlaybackSessionViewModel) {
+        starting.onWillStartPlayback = { [weak other] in
+            other?.pauseForHandover()
+        }
+    }
+}
+
 /// The one Web Playback SDK host for the application. Main-window scenes retain
 /// only views of this object; they must never create another SDK player for the
 /// same Spotify account.

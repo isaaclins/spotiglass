@@ -4,22 +4,29 @@ import AppKit
 struct AccountSettingsView: View {
     @ObservedObject var viewModel: AuthViewModel
     var onSignOut: () -> Void = {}
-    /// Under Apple Music the Spotify session is never restored, so this pane would say "Signed
-    /// out" and offer Connect, and starting a sign-in deletes the saved Spotify token before it
-    /// succeeds. Apple Music mode shows a plain note instead and leaves Spotify untouched.
-    var musicService: MusicService = MusicServiceSelection.current
+    /// The added services (#373). Each one signs in and out here on its own; `nil` (previews and
+    /// older tests) shows Spotify only, as before services existed.
+    var serviceStore: MusicServiceStore? = nil
+    var appleMusicSession: AppleMusicSession? = nil
+
+    /// Clears every window's palette and lyrics state before a sign-out, but only when the service
+    /// being signed out is the one on screen. Signing out of the other one changes nothing on
+    /// screen, so nothing would wire the palette up again and the library left on screen would
+    /// lose its commands.
+    private func prepareForSignOut(of service: MusicService) {
+        if let serviceStore, serviceStore.active != service { return }
+        onSignOut()
+    }
 
     var body: some View {
         Form {
-            if musicService == .appleMusic {
-                Section {
-                    Text(SpotiglassL10n.string("settings.account.appleMusicActive"))
-                        .foregroundStyle(.secondary)
-                } header: {
-                    Text(SpotiglassL10n.string("settings.account.connection"))
-                }
-            } else {
-                spotifySections
+            spotifySections
+            if let serviceStore, let appleMusicSession, serviceStore.availableServices.contains(.appleMusic) {
+                AppleMusicAccountSection(
+                    store: serviceStore,
+                    session: appleMusicSession,
+                    onSignOut: { prepareForSignOut(of: .appleMusic) }
+                )
             }
             diagnosticsSection
         }
@@ -45,14 +52,17 @@ struct AccountSettingsView: View {
                     }
                 }
             } header: {
-                Text(SpotiglassL10n.string("settings.account.connection"))
+                Text(MusicService.spotify.displayName)
             }
 
             Section {
                 SpotifyClientIDAndActionsView(
                     viewModel: viewModel,
                     layout: .settings,
-                    onSignOut: onSignOut
+                    onSignOut: {
+                        prepareForSignOut(of: .spotify)
+                        serviceStore?.signOutRemoving(.spotify)
+                    }
                 )
             } header: {
                 Text(SpotiglassL10n.string("settings.account.developerApp"))
@@ -119,5 +129,80 @@ struct AccountSettingsView: View {
         case .signedOut, .signingIn, .failed, .refreshing(.none):
             nil
         }
+    }
+}
+
+/// Settings › Account for Apple Music: its status, and signing in or out of it in Spotiglass.
+/// Access itself is a system permission, so signing out only removes Apple Music from the service
+/// menu; the footer says where the permission lives.
+private struct AppleMusicAccountSection: View {
+    @ObservedObject var store: MusicServiceStore
+    @ObservedObject var session: AppleMusicSession
+    let onSignOut: () -> Void
+
+    private var statusText: String {
+        guard store.isAdded(.appleMusic) else {
+            // Asked from here and refused: say so, the footer says where to allow it.
+            return session.state == .denied
+                ? SpotiglassL10n.string("settings.account.appleMusic.status.denied")
+                : SpotiglassL10n.string("settings.account.appleMusic.status.notAdded")
+        }
+        switch session.state {
+        case .authorized: return SpotiglassL10n.string("settings.account.appleMusic.status.allowed")
+        case .denied: return SpotiglassL10n.string("settings.account.appleMusic.status.denied")
+        case .needsPermission, .checking: return SpotiglassL10n.string("settings.account.appleMusic.status.checking")
+        }
+    }
+
+    var body: some View {
+        Section {
+            LabeledContent(SpotiglassL10n.string("settings.account.status")) {
+                Text(statusText)
+            }
+            HStack {
+                Spacer(minLength: 0)
+                if store.isAdded(.appleMusic) {
+                    Button {
+                        onSignOut()
+                        store.signOutRemoving(.appleMusic)
+                    } label: {
+                        Label(
+                            SpotiglassL10n.string("settings.account.appleMusic.signOut"),
+                            systemImage: "rectangle.portrait.and.arrow.right"
+                        )
+                        .symbolRenderingMode(.hierarchical)
+                    }
+                    .buttonStyle(.bordered)
+                } else {
+                    Button {
+                        Task { await addAppleMusic() }
+                    } label: {
+                        Label(SpotiglassL10n.string("settings.account.appleMusic.add"), systemImage: "plus.circle")
+                            .symbolRenderingMode(.hierarchical)
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+        } header: {
+            Text(MusicService.appleMusic.displayName)
+        } footer: {
+            Text(SpotiglassL10n.string("settings.account.appleMusic.footer"))
+                .foregroundStyle(.secondary)
+        }
+        .task {
+            await session.refresh()
+        }
+    }
+
+    /// Adds Apple Music from here, like connecting Spotify from here: the system permission is the
+    /// whole sign-in, so it is asked right away and, once allowed, Apple Music joins the service
+    /// menu without moving any window. This also works with every main window closed.
+    private func addAppleMusic() async {
+        await session.refresh()
+        if session.state == .needsPermission {
+            await session.requestAccess()
+        }
+        guard session.state == .authorized else { return }
+        store.completeAddition(of: .appleMusic)
     }
 }

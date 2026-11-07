@@ -193,6 +193,37 @@ final class DetailSurfaceRegressionTests: XCTestCase {
         )
     }
 
+    /// With Apple Music on screen after Spotify's player started (#373), Play, Shuffle and a song's
+    /// play button must not reach Spotify. They used to flip shuffle on the Spotify account and
+    /// send it `spotify:playlist:<Apple Music id>` / `applemusic:song:` URIs it rejects.
+    func testAppleMusicSpaceNeverStartsSpotifyPlayback() async {
+        let playbackAPI = MockPlaybackAPI()
+        let playbackViewModel = PlaybackSessionViewModel(
+            provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()),
+            postShuffleSyncDelay: .seconds(60)
+        )
+        // Spotify's player, started by the Spotify space before switching.
+        playbackViewModel.deviceID = "device-1"
+        playbackViewModel.hasTransferredPlaybackToCurrentDevice = true
+        playbackViewModel.setTransportStateKnown(true)
+        // What the window sets while Apple Music is on screen.
+        playbackViewModel.refusesNewPlayback = true
+        let appleMusicPlaylist = PlaylistDetailViewModel(
+            playlist: PlaylistRowViewModel(PlaylistBrowsingTestFixtures.playlist(id: "p.AbCdEf123", name: "Road Trip")),
+            tracks: []
+        )
+        let target = DetailHeaderPlayback.target(for: appleMusicPlaylist)
+
+        await DetailHeaderPlayback.shuffleAndPlay(target: target, using: playbackViewModel)
+        await DetailHeaderPlayback.play(target: target, using: playbackViewModel)
+        await playbackViewModel.playFromPlaylist(
+            clickedURI: "applemusic:song:1", playableURIs: ["applemusic:song:1"], playlistID: "p.AbCdEf123"
+        )
+        await playbackViewModel.play(uri: "applemusic:song:1")
+
+        XCTAssertEqual(playbackAPI.actions, [])
+    }
+
     func testShuffleHeaderEnablesShuffleBeforePlayingContext() async {
         let playbackAPI = MockPlaybackAPI()
         let playbackViewModel = PlaybackSessionViewModel(

@@ -145,6 +145,19 @@ enum CommandPaletteCommandCatalog {
             defaultWhen: .signedIn,
             defaultKeystroke: nil
         ),
+        // `.always`: switching also works from a service's sign-in screen.
+        spec(
+            commandID: CommandPaletteCommandID.switchToAppleMusic,
+            iconSystemName: "arrow.left.arrow.right",
+            defaultWhen: .always,
+            defaultKeystroke: "ctrl-1"
+        ),
+        spec(
+            commandID: CommandPaletteCommandID.switchToSpotify,
+            iconSystemName: "arrow.left.arrow.right",
+            defaultWhen: .always,
+            defaultKeystroke: "ctrl-2"
+        ),
     ]
 
     /// Stable on-disk order for default `keymap.json` (matches historical Spotiglass defaults).
@@ -161,6 +174,8 @@ enum CommandPaletteCommandCatalog {
         CommandPaletteCommandID.openSettings,
         CommandPaletteCommandID.pinSelected,
         CommandPaletteCommandID.enqueueSelected,
+        CommandPaletteCommandID.switchToAppleMusic,
+        CommandPaletteCommandID.switchToSpotify,
     ]
 
     /// Canonical default keymap JSON (matches `CommandPaletteKeymapStore` bootstrap).

@@ -9,6 +9,10 @@ import SwiftUI
 final class SpotiglassSceneHost: ObservableObject {
     let commandPaletteManager: CommandPaletteManager
     let lyricsOverlayController: LyricsOverlayController
+    /// Each service's browser state, kept while another service is on screen, so switching back
+    /// shows that library instantly at the place it was left (#373). Dropped when the service's
+    /// session ends.
+    private var browserViewModels: [MusicService: PlaylistBrowserViewModel] = [:]
 
     private var childCancellables: Set<AnyCancellable> = []
 
@@ -33,6 +37,22 @@ final class SpotiglassSceneHost: ObservableObject {
     func resetTransientState() {
         commandPaletteManager.detach()
         lyricsOverlayController.detach()
+    }
+
+    func browserViewModel(
+        for service: MusicService,
+        make: () -> PlaylistBrowserViewModel
+    ) -> PlaylistBrowserViewModel {
+        if let existing = browserViewModels[service] {
+            return existing
+        }
+        let created = make()
+        browserViewModels[service] = created
+        return created
+    }
+
+    func discardBrowserViewModel(for service: MusicService) {
+        browserViewModels[service] = nil
     }
 }
 
@@ -186,12 +206,11 @@ struct RootView: View {
     @EnvironmentObject private var pinnedStore: PinnedItemsStore
     @StateObject private var sceneHost: SpotiglassSceneHost
     private let sceneRegistry: SpotiglassSceneRegistry?
-    /// The app-scoped playback model and its single Web Playback SDK host.
-    private let playbackHost: SpotiglassPlaybackHost
-    /// Which service this scene browses; Spotify unless the hidden developer switch says otherwise.
-    private let musicService: MusicService
-    /// Apple Music permission state, shared app-wide with the menu bar. Only consulted when
-    /// ``musicService`` is `.appleMusic`.
+    /// The app-scoped players, one per service (#373); Spotify's owns the single Web Playback SDK host.
+    private let playbackHosts: SpotiglassPlaybackHosts
+    /// The added services and the one on screen, app-wide (#373).
+    @ObservedObject private var serviceStore: MusicServiceStore
+    /// Apple Music permission state, shared app-wide with the menu bar and Settings.
     @ObservedObject private var appleMusicSession: AppleMusicSession
     @Environment(\.openSettings) private var openSettingsAction
 
@@ -211,15 +230,18 @@ struct RootView: View {
     ) {
         _sceneHost = StateObject(wrappedValue: SpotiglassSceneHost(commandPaletteManager: commandPaletteManager))
         sceneRegistry = nil
-        self.playbackHost = playbackHost
-        musicService = .spotify
+        playbackHosts = Self.hosts(spotify: playbackHost)
+        _serviceStore = ObservedObject(wrappedValue: MusicServiceStore(
+            storage: InMemoryMusicServiceSelectionStorage(services: [.spotify], active: .spotify)
+        ))
         _appleMusicSession = ObservedObject(wrappedValue: AppleMusicSession())
     }
 
     init(
         keymapStore: CommandPaletteKeymapStore,
         sceneRegistry: SpotiglassSceneRegistry,
-        playbackHost: SpotiglassPlaybackHost,
+        playbackHosts: SpotiglassPlaybackHosts,
+        serviceStore: MusicServiceStore,
         appleMusicSession: AppleMusicSession
     ) {
         _sceneHost = StateObject(
@@ -228,9 +250,15 @@ struct RootView: View {
             )
         )
         self.sceneRegistry = sceneRegistry
-        self.playbackHost = playbackHost
-        musicService = MusicServiceSelection.current
+        self.playbackHosts = playbackHosts
+        _serviceStore = ObservedObject(wrappedValue: serviceStore)
         _appleMusicSession = ObservedObject(wrappedValue: appleMusicSession)
+    }
+
+    private static func hosts(spotify: SpotiglassPlaybackHost) -> SpotiglassPlaybackHosts {
+        SpotiglassPlaybackHosts(spotify: spotify) {
+            SpotiglassPlaybackHost(provider: AppleMusicPlaybackProvider())
+        }
     }
 
     /// Clears all scene-local state before the shared auth state can replace a
@@ -255,12 +283,39 @@ struct RootView: View {
     private var signOutAction: () -> Void {
         let authViewModel = self.viewModel
         let prepareForAuthLoss = authLossPreparationAction
+        let serviceStore = self.serviceStore
         // Under Apple Music the browser supplies its own disconnect; this fallback must never
         // sign the Spotify account out (and delete its Keychain item) behind the user's back.
-        guard musicService == .spotify else { return prepareForAuthLoss }
+        guard serviceStore.active == .spotify else { return prepareForAuthLoss }
         return {
             prepareForAuthLoss()
+            serviceStore.signOutRemoving(.spotify)
             Task { await authViewModel.signOut() }
+        }
+    }
+
+    /// Switches every window to another added service. Each window's palette and lyrics state is
+    /// cleared first, so nothing from one library can act on the other; playback is app-scoped and
+    /// keeps playing (#373).
+    private var switchServiceAction: (MusicService) -> Void {
+        let serviceStore = self.serviceStore
+        let prepare = authLossPreparationAction
+        return { service in
+            guard serviceStore.isAdded(service),
+                serviceStore.active != service || serviceStore.pendingAddition != nil
+            else { return }
+            prepare()
+            serviceStore.activate(service)
+        }
+    }
+
+    /// "Add a service…" and the welcome screen: show that service's sign-in.
+    private var addServiceAction: (MusicService) -> Void {
+        let serviceStore = self.serviceStore
+        let prepare = authLossPreparationAction
+        return { service in
+            prepare()
+            serviceStore.beginAddition(of: service)
         }
     }
 
@@ -268,9 +323,36 @@ struct RootView: View {
     /// them, so every path that detaches has to be able to restore them.
     private func wireSceneCallbacks() {
         // Apple Music has no Disconnect: its access is a system permission.
-        commandPaletteManager.signOut = musicService == .spotify ? signOutAction : nil
+        commandPaletteManager.signOut = serviceStore.active == .spotify ? signOutAction : nil
         commandPaletteManager.openSettings = {
             openSettingsAction()
+        }
+        commandPaletteManager.switchService = switchServiceAction
+        commandPaletteManager.switchableServices = serviceStore.switchTargets
+    }
+
+    private var isSpotifySignedIn: Bool {
+        switch spotifyState {
+        case .signedIn, .refreshing(.some): true
+        case .signedOut, .signingIn, .failed, .refreshing(.none): false
+        }
+    }
+
+    /// Spotify's state as the window shows it: a session that is being signed out already lost its
+    /// saved sign-in, so it counts as signed out at once (no old browser, no adding Spotify with it).
+    private var spotifyState: AppConnectionState {
+        viewModel.isSigningOut ? .signedOut : viewModel.state
+    }
+
+    /// The sign-in a pins list belongs to is the account's, not the service's: Spotify pins are
+    /// keyed by the Spotify user ID exactly as before, Apple Music's by its library ID. On a
+    /// switch the list is cleared at once and, when the other space's ID is already known, bound
+    /// to it straight away, so pins never show (or get added to) the wrong library.
+    private func rebindPinsForActiveService() {
+        pinnedStore.clearForSignOut()
+        guard let active = serviceStore.active, serviceStore.pendingAddition == nil else { return }
+        if let userID = serviceStore.lastPinnedUserID[active] {
+            pinnedStore.bind(userID: userID)
         }
     }
 
@@ -315,7 +397,7 @@ struct RootView: View {
                     .frame(width: 0, height: 0)
             }
             .background {
-                SpotiglassPlaybackHostView(host: playbackHost)
+                SpotiglassPlaybackHostView(host: playbackHosts.spotify)
                     .frame(width: 1, height: 1)
                     .opacity(0.01)
                     .accessibilityHidden(true)
@@ -329,8 +411,9 @@ struct RootView: View {
                 }
             }
             .task {
-                // Apple Music never reads the Spotify Keychain item.
-                guard musicService == .spotify else { return }
+                // A Spotify session is only restored when Spotify is added: an Apple Music-only
+                // setup never reads the Spotify Keychain item.
+                guard serviceStore.isAdded(.spotify) else { return }
                 await viewModel.restoreSessionIfAvailable()
             }
             .onAppear {
@@ -354,49 +437,133 @@ struct RootView: View {
             .onChange(of: viewModel.state) { _, newState in
                 switch newState {
                 case .signedIn, .refreshing(.some):
+                    // Signing in to Spotify (welcome screen, "Add a service…" or Settings) adds it.
+                    serviceStore.completeAddition(of: .spotify)
+                    guard serviceStore.active == .spotify else {
+                        commandPaletteManager.switchableServices = serviceStore.switchTargets
+                        return
+                    }
                     // A previous sign-out cleared every closure on this scene's
                     // palette, and `onAppear` does not run again for a root that
                     // stayed mounted. Re-arm them before the browser returns.
                     wireSceneCallbacks()
                     commandPaletteManager.isSignedIn = true
                 case .signedOut, .signingIn, .failed, .refreshing(.none):
-                    resetTransientStateForAuthLoss()
+                    sceneHost.discardBrowserViewModel(for: .spotify)
+                    serviceStore.lastPinnedUserID[.spotify] = nil
                     if sceneRegistry == nil || sceneRegistry?.activeScene === sceneHost {
-                        Task { await playbackHost.playbackViewModel.disconnect() }
+                        Task { await playbackHosts.spotify.playbackViewModel.disconnect() }
                     }
+                    // Another service on screen keeps its browser, palette and pins.
+                    guard serviceStore.active == .spotify else { return }
+                    resetTransientStateForAuthLoss()
                     commandPaletteManager.isSignedIn = false
                     pinnedStore.clearForSignOut()
                 }
+            }
+            .onChange(of: serviceStore.active) { _, _ in
+                rebindPinsForActiveService()
+                wireSceneCallbacks()
+                if serviceStore.active == .spotify {
+                    commandPaletteManager.isSignedIn = isSpotifySignedIn
+                }
+            }
+            .onChange(of: serviceStore.active, initial: true) { _, active in
+                // The players are app-wide: each starts new music only while its service is on screen.
+                playbackHosts.gate(activeService: active)
+            }
+            .onChange(of: serviceStore.services) { _, _ in
+                commandPaletteManager.switchableServices = serviceStore.switchTargets
+                // Signing out of Apple Music ends its space: adding it again starts fresh instead of
+                // showing the library and place from before the sign-out.
+                if !serviceStore.isAdded(.appleMusic), serviceStore.pendingAddition != .appleMusic {
+                    sceneHost.discardBrowserViewModel(for: .appleMusic)
+                }
+            }
+            .onChange(of: serviceStore.pendingAddition) { old, new in
+                // Leaving an unfinished Spotify sign-in closes its browser round trip too.
+                if old == .spotify, new == nil, !serviceStore.isAdded(.spotify) {
+                    viewModel.cancelSignIn()
+                }
+                // Spotify was still signed in (Settings): nothing to sign in to.
+                if new == .spotify, isSpotifySignedIn {
+                    serviceStore.completeAddition(of: .spotify)
+                    return
+                }
+                // An addition that finished on the space already on screen: that space's browser
+                // is up and binds its own pins. Clearing them here would throw its lookup away and
+                // leave the new library without pins, dropping every pin made until the next switch.
+                if let old, new == nil, serviceStore.active == old, serviceStore.isAdded(old) {
+                    return
+                }
+                rebindPinsForActiveService()
+            }
+            .onChange(of: pinnedStore.boundUserID) { _, userID in
+                guard let userID, let active = serviceStore.active, serviceStore.pendingAddition == nil else { return }
+                serviceStore.lastPinnedUserID[active] = userID
             }
     }
 
     @ViewBuilder
     private var content: some View {
-        switch musicService {
+        switch serviceStore.active {
+        case nil:
+            MusicServiceWelcomeView(
+                services: serviceStore.availableServices,
+                choose: addServiceAction
+            )
         case .spotify:
             spotifyContent
         case .appleMusic:
             AppleMusicBrowserRoot(
                 session: appleMusicSession,
-                playbackHost: playbackHost,
+                playbackHost: playbackHosts.appleMusic,
                 commandPaletteManager: commandPaletteManager,
+                viewModel: sceneHost.browserViewModel(for: .appleMusic) {
+                    AppleMusicBrowserRoot.makeViewModel()
+                },
+                isAdding: serviceStore.pendingAddition == .appleMusic,
                 prepareForReset: authLossPreparationAction,
-                rewireScene: { wireSceneCallbacks() }
+                rewireScene: { wireSceneCallbacks() },
+                onAuthorized: { serviceStore.completeAddition(of: .appleMusic) },
+                sidebarHeader: AnyView(serviceSwitcher),
+                signInFooter: AnyView(signInFooter)
             )
         }
     }
 
+    private var serviceSwitcher: some View {
+        MusicServiceSwitcher(
+            store: serviceStore,
+            keymapStore: commandPaletteManager.keymapStore,
+            switchTo: switchServiceAction,
+            add: addServiceAction
+        )
+    }
+
+    private var signInFooter: some View {
+        MusicServiceSignInFooter(
+            store: serviceStore,
+            switchTo: switchServiceAction,
+            add: addServiceAction
+        )
+    }
+
     @ViewBuilder
     private var spotifyContent: some View {
-        switch viewModel.state {
+        switch spotifyState {
         case .signedIn, .refreshing(.some):
             PlaylistBrowserView(
-                viewModel: .live(tokenProvider: viewModel),
-                playbackHost: playbackHost,
+                viewModel: sceneHost.browserViewModel(for: .spotify) {
+                    .live(tokenProvider: viewModel)
+                },
+                playbackHost: playbackHosts.spotify,
                 catalogProvider: SpotifyAPIClient(tokenProvider: viewModel, getResponseCache: .shared),
                 commandPaletteManager: commandPaletteManager,
-                signOut: signOutAction
+                signOut: signOutAction,
+                sidebarHeader: AnyView(serviceSwitcher)
             )
+            .id(MusicService.spotify)
         case .refreshing(.none):
             ZStack {
                 ShellBackground()
@@ -439,8 +606,13 @@ struct RootView: View {
                     SpotifyClientIDAndActionsView(
                         viewModel: viewModel,
                         layout: .welcome,
-                        onSignOut: authLossPreparationAction
+                        onSignOut: {
+                            authLossPreparationAction()
+                            serviceStore.signOutRemoving(.spotify)
+                        }
                     )
+
+                    signInFooter
                 }
                 .padding(SpotiglassDesign.spacingL)
             }

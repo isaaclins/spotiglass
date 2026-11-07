@@ -27,6 +27,9 @@ final class MenuKeyEquivalentTests: XCTestCase {
             sceneRegistry: registry,
             keymapStore: manager.keymapStore,
             settingsStore: makeSettingsStore(),
+            serviceStore: MusicServiceStore(
+                storage: InMemoryMusicServiceSelectionStorage(services: [.spotify], active: .spotify)
+            ),
             isSignedIn: true,
             isQueueVisible: false
         )
@@ -279,6 +282,9 @@ final class MenuKeyEquivalentTests: XCTestCase {
             sceneRegistry: registry,
             keymapStore: manager.keymapStore,
             settingsStore: makeSettingsStore(),
+            serviceStore: MusicServiceStore(
+                storage: InMemoryMusicServiceSelectionStorage(services: [.spotify], active: .spotify)
+            ),
             isSignedIn: true,
             isQueueVisible: false
         )
