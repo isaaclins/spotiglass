@@ -247,6 +247,61 @@ final class CrossServicePlaybackTests: XCTestCase {
         XCTAssertFalse(upcoming.contains("applemusic:song:slow-add"))
     }
 
+    /// Signed out, Apple Music added again, a song started and Add to Queue pressed while
+    /// that first play still runs: the add waits for the play and must go through, every time.
+    /// Run many times, because the play and the waiting add finish in the same turn.
+    func testAnAddMadeDuringTheFirstPlayAfterSigningOutGoesThrough() async throws {
+        for attempt in 0..<300 {
+            let player = ScriptedAppleMusicPlayer()
+            let provider = AppleMusicPlaybackProvider(player: player)
+            try await provider.disconnectPlayer(generation: .initial)
+            player.holdLookups = true
+            let play = Task {
+                try await provider.play(.items(uris: ["applemusic:song:first"], startURI: nil), deviceID: AppleMusicPlaybackProvider.deviceID)
+            }
+            while player.waitingLookups.isEmpty { await Task.yield() }
+            let add = Task {
+                try await provider.enqueue(uri: "applemusic:song:added", deviceID: AppleMusicPlaybackProvider.deviceID)
+            }
+            await Task.yield()
+            player.holdLookups = false
+            player.releaseLookups()
+            try await play.value
+            do {
+                try await add.value
+            } catch {
+                XCTFail("attempt \(attempt): the add was dropped (\(error))")
+                return
+            }
+            XCTAssertTrue(player.commands.contains("enqueue applemusic:song:added"))
+        }
+    }
+
+    /// After a sign-out, song A starts and, while MusicKit's play of A is still finishing,
+    /// song B is asked for and fails: A plays, so it must show in the bar.
+    func testASongThatStartedShowsEvenWhenANewerPlayFails() async throws {
+        let player = ScriptedAppleMusicPlayer()
+        let provider = AppleMusicPlaybackProvider(player: player)
+        try await provider.disconnectPlayer(generation: .initial)
+
+        player.holdAfterQueueSet = true
+        let playA = Task {
+            try await provider.play(.items(uris: ["applemusic:song:a"], startURI: nil), deviceID: AppleMusicPlaybackProvider.deviceID)
+        }
+        for _ in 0..<40 where player.waitingLookups.isEmpty {
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        XCTAssertEqual(player.waitingLookups, ["started applemusic:song:a"])
+        player.holdAfterQueueSet = false
+        player.failure = NSError(domain: "MusicKit", code: 404)
+        _ = try? await provider.play(.items(uris: ["applemusic:song:b"], startURI: nil), deviceID: AppleMusicPlaybackProvider.deviceID)
+        player.releaseLookups()
+        _ = try? await playA.value
+
+        let state = try await provider.fetchPlaybackState()
+        XCTAssertEqual(state?.playbackNowPlaying?.uri, "applemusic:song:a", "A plays, so the bar shows it")
+    }
+
     // MARK: - 2. The bar and Space follow the music you hear
 
     /// The report: Spotify's bar said "Midnight City · Paused" while Apple Music played, and

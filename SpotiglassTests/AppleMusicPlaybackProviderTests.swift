@@ -689,6 +689,9 @@ final class ScriptedAppleMusicPlayer: AppleMusicPlayerControlling {
     /// While true, play and enqueue wait in their lookup (like a slow MusicKit request) until
     /// ``releaseLookups()``. ``waitingLookups`` names who waits.
     var holdLookups = false
+    /// While true, play waits after it set its queue (like MusicKit's own `play()` finishing)
+    /// until ``releaseLookups()``; it waits as "started <uri>".
+    var holdAfterQueueSet = false
     private var lookupWaiters: [(name: String, resume: CheckedContinuation<Void, Never>)] = []
     var waitingLookups: [String] { lookupWaiters.map(\.name) }
 
@@ -757,6 +760,9 @@ final class ScriptedAppleMusicPlayer: AppleMusicPlayerControlling {
             carryingAdded: carried.count,
             after: startIndex
         )
+        if holdAfterQueueSet {
+            await withCheckedContinuation { lookupWaiters.append(("started \(newQueue[startIndex])", $0)) }
+        }
     }
 
     func pause() {

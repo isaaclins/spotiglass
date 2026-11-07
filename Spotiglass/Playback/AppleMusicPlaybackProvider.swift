@@ -132,13 +132,17 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
         playGeneration &+= 1
         let generation = playGeneration
         let queueRequest = try Self.queueRequest(for: request)
-        let run = Task { @MainActor [player] in
+        let session = session
+        let run = Task { @MainActor [weak self, player] in
             try await player.play(queueRequest, isCurrent: { [weak self] in self?.playGeneration == generation })
+            // A play that returns has set its queue, so the ended session's songs are gone,
+            // even if a newer play is on its way. Cleared here, inside the play, so an add
+            // waiting for it (``latestPlay``) sees it; a play that failed leaves the old queue
+            // hidden, and one that outlived a sign-out doesn't count.
+            if let self, self.session == session { self.isSessionEnded = false }
         }
         latestPlay = Task { _ = await run.result }
         try await perform { try await run.value }
-        // Only now is the old queue replaced; a play that failed leaves it hidden.
-        if playGeneration == generation { isSessionEnded = false }
     }
 
     func pause(deviceID: String) async throws {
