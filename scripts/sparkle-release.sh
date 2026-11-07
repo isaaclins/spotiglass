@@ -255,10 +255,13 @@ fi
 TAG="v${MARKETING_VERSION}"
 
 # Fetch and verify the Sparkle tools before the long build and notarization, so a
-# bad download fails in seconds. They are extracted into a fresh directory from
-# the verified tarball on every run; a directory left by an earlier run may come
-# from a tarball that was never checked, so it is not reused. A GENERATE_APPCAST
-# set by the caller is the caller's own choice and is used as given.
+# bad download fails in seconds. On every run the cached tarball is copied into a
+# private temporary directory, and that copy is verified and extracted there, so
+# the tool that runs is the one that was checked: nothing reopens the shared
+# cache after the check, and tools left in build/ by an earlier run are never
+# reused. A GENERATE_APPCAST set by the caller is the caller's own choice and is
+# used as given.
+SPARKLE_TOOLS_DIR=""
 if [[ -z "$GENERATE_APPCAST" ]]; then
   mkdir -p "$ROOT/build/sparkle"
   if [[ ! -f "$SPARKLE_TARBALL" ]]; then
@@ -273,11 +276,13 @@ if [[ -z "$GENERATE_APPCAST" ]]; then
     fi
     mv "$SPARKLE_DOWNLOAD" "$SPARKLE_TARBALL"
   fi
-  SPARKLE_TOOLS_DIR="$ROOT/build/sparkle/Sparkle-${SPARKLE_VERSION}-verified"
-  rm -rf "$SPARKLE_TOOLS_DIR"
-  mkdir -p "$SPARKLE_TOOLS_DIR"
-  tar -xf "$SPARKLE_TARBALL" -C "$SPARKLE_TOOLS_DIR"
-  GENERATE_APPCAST="$SPARKLE_TOOLS_DIR/bin/generate_appcast"
+  SPARKLE_TOOLS_DIR="$(mktemp -d)"
+  trap 'rm -rf "$SPARKLE_TOOLS_DIR"' EXIT
+  cp "$SPARKLE_TARBALL" "$SPARKLE_TOOLS_DIR/Sparkle.tar.xz"
+  verify_sparkle_tarball "$SPARKLE_TOOLS_DIR/Sparkle.tar.xz"
+  mkdir "$SPARKLE_TOOLS_DIR/tools"
+  tar -xf "$SPARKLE_TOOLS_DIR/Sparkle.tar.xz" -C "$SPARKLE_TOOLS_DIR/tools"
+  GENERATE_APPCAST="$SPARKLE_TOOLS_DIR/tools/bin/generate_appcast"
   if [[ ! -x "$GENERATE_APPCAST" ]]; then
     echo "ERROR: generate_appcast not found in the Sparkle ${SPARKLE_VERSION} tarball" >&2
     exit 1
@@ -504,7 +509,7 @@ echo "==> Generating appcast (docs/appcast.xml)"
 # and rejects as "zero length data". Give it a path that does not exist yet.
 APPCAST_TMP_DIR="$(mktemp -d)"
 APPCAST_TMP="$APPCAST_TMP_DIR/appcast.xml"
-trap 'rm -rf "$APPCAST_TMP_DIR"' EXIT
+trap 'rm -rf "$APPCAST_TMP_DIR" ${SPARKLE_TOOLS_DIR:+"$SPARKLE_TOOLS_DIR"}' EXIT
 
 "$GENERATE_APPCAST" \
   "${APPCAST_ARGS[@]}" \
@@ -514,6 +519,9 @@ trap 'rm -rf "$APPCAST_TMP_DIR"' EXIT
 rewrite_appcast_download_urls "$APPCAST_TMP"
 mv "$APPCAST_TMP" "$ROOT/docs/appcast.xml"
 rm -rf "$APPCAST_TMP_DIR"
+if [[ -n "$SPARKLE_TOOLS_DIR" ]]; then
+  rm -rf "$SPARKLE_TOOLS_DIR"
+fi
 trap - EXIT
 echo "==> Wrote docs/appcast.xml"
 
