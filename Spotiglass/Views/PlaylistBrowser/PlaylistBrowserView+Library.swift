@@ -58,12 +58,7 @@ extension PlaylistBrowserView {
         for rows: [TrackRowViewModel],
         isSaved: (String) -> Bool
     ) -> TrackSelectionLikedState {
-        let ids = rows.compactMap { row -> String? in
-            guard let uri = row.playableURI,
-                  uri.hasPrefix("spotify:track:") else { return nil }
-            let id = String(uri.dropFirst("spotify:track:".count))
-            return id.isEmpty ? nil : id
-        }
+        let ids = rows.compactMap { LibraryEditableTrackURI.trackID($0.playableURI) }
         guard !ids.isEmpty else { return .unavailable }
         return ids.allSatisfy(isSaved) ? .remove : .add
     }
@@ -116,5 +111,82 @@ extension PlaylistBrowserView {
 
     func playlistSummaryFromRow(_ row: PlaylistRowViewModel) -> MusicPlaylistSummary {
         PlaylistBrowserLibraryActions.playlistSummaryFromRow(row)
+    }
+}
+
+/// "Delete “Name”?" for the playlist the view model is about to delete. One confirmation serves
+/// the sidebar row and the playlist header, which both ask through `requestPlaylistDeletion`.
+/// It sits on the browser, not the sidebar, so it shows while the sidebar is hidden too.
+struct PlaylistDeletionConfirmation: ViewModifier {
+    @ObservedObject var viewModel: PlaylistBrowserViewModel
+
+    private var isPresented: Binding<Bool> {
+        Binding(
+            get: { viewModel.playlistPendingDeletion != nil },
+            set: { if !$0 { viewModel.playlistPendingDeletion = nil } }
+        )
+    }
+
+    func body(content: Content) -> some View {
+        content.alert(
+            SpotiglassL10n.format("playlist.delete.confirm.title", viewModel.playlistPendingDeletion?.name ?? ""),
+            isPresented: isPresented,
+            presenting: viewModel.playlistPendingDeletion
+        ) { summary in
+            Button(SpotiglassL10n.string("playlist.delete.confirm.delete"), role: .destructive) {
+                Task { await viewModel.deletePlaylist(summary) }
+            }
+            Button(SpotiglassL10n.string("playlist.detail.newPlaylist.cancel"), role: .cancel) {
+                viewModel.playlistPendingDeletion = nil
+            }
+        } message: { _ in
+            Text(SpotiglassL10n.string("playlist.delete.confirm.message"))
+        }
+    }
+}
+
+/// "Remove from your library?" before an unlike or album removal that also takes the songs out of
+/// every playlist (`MusicLibraryEdits.confirmLibraryRemoval`, Apple Music). Spotify never asks.
+struct LibraryRemovalConfirmation: ViewModifier {
+    @ObservedObject var viewModel: PlaylistBrowserViewModel
+
+    private var isPresented: Binding<Bool> {
+        Binding(
+            get: { viewModel.pendingLibraryRemoval != nil },
+            set: { if !$0 { viewModel.pendingLibraryRemoval = nil } }
+        )
+    }
+
+    private var title: String {
+        switch viewModel.pendingLibraryRemoval {
+        case let .album(_, name):
+            SpotiglassL10n.format("libraryRemoval.confirm.album.title", name)
+        case .songs, nil:
+            SpotiglassL10n.string("libraryRemoval.confirm.songs.title")
+        }
+    }
+
+    private var message: String {
+        switch viewModel.pendingLibraryRemoval {
+        case .album:
+            SpotiglassL10n.string("libraryRemoval.confirm.album.message")
+        case .songs, nil:
+            SpotiglassL10n.string("libraryRemoval.confirm.songs.message")
+        }
+    }
+
+    func body(content: Content) -> some View {
+        // `presenting` hands the removal to the button: SwiftUI clears the binding (and with it
+        // `pendingLibraryRemoval`) when it dismisses the alert, before the task below runs.
+        content.alert(title, isPresented: isPresented, presenting: viewModel.pendingLibraryRemoval) { removal in
+            Button(SpotiglassL10n.string("libraryRemoval.confirm.remove"), role: .destructive) {
+                Task { await viewModel.confirmLibraryRemoval(removal) }
+            }
+            Button(SpotiglassL10n.string("playlist.detail.newPlaylist.cancel"), role: .cancel) {
+                viewModel.pendingLibraryRemoval = nil
+            }
+        } message: { _ in
+            Text(message)
+        }
     }
 }

@@ -132,6 +132,11 @@ struct PlaylistsSidebarSectionContent: View {
                 Button(SpotiglassL10n.string("browser.editPlaylistName")) {
                     beginPlaylistNameEditing(for: playlist)
                 }
+                if viewModel.canDeletePlaylist(summary) {
+                    Button(SpotiglassL10n.string("browser.deletePlaylist"), role: .destructive) {
+                        viewModel.requestPlaylistDeletion(summary)
+                    }
+                }
                 Divider()
             }
             if pinned {

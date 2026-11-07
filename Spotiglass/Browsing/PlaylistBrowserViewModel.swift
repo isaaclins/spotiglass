@@ -30,6 +30,12 @@ final class PlaylistBrowserViewModel: ObservableObject {
     /// Saved state keyed by canonical Spotify track ID. Context menus fill this
     /// lazily from `/v1/me/tracks/contains` when a surface needs it.
     @Published internal(set) var savedTrackStates: [String: Bool] = [:]
+    /// Library state keyed by album ID, for providers that can save albums.
+    @Published internal(set) var savedAlbumStates: [String: Bool] = [:]
+    /// The playlist whose "Delete Playlist" confirmation is showing.
+    @Published var playlistPendingDeletion: MusicPlaylistSummary?
+    /// The library removal whose confirmation is showing (`MusicLibraryEdits.confirmLibraryRemoval`).
+    @Published var pendingLibraryRemoval: PendingLibraryRemoval?
     /// User-facing toast banner published after a successful track-ops mutation
     /// ("Added 4 tracks to My Workout"). Read+set by views; auto-clears.
     @Published var trackMutationToast: String?
@@ -231,6 +237,9 @@ final class PlaylistBrowserViewModel: ObservableObject {
         likedSongsMutationGeneration += 1
         lastLikedSongsRevalidationAt = nil
         savedTrackStates = [:]
+        savedAlbumStates = [:]
+        playlistPendingDeletion = nil
+        pendingLibraryRemoval = nil
         sidebarSelection = nil
         trackMutationToast = nil
         playlistsByID = [:]
