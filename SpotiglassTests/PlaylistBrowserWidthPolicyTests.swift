@@ -159,4 +159,41 @@ final class PlaylistBrowserWidthPolicyTests: XCTestCase {
             .none
         )
     }
+
+    /// Queue opened at 600 (window grows to 640, sidebar held), then closed, then the window
+    /// widened to 800: no breakpoint is crossed, but the sidebar comes back as it would have
+    /// without the queue. Closing alone leaves it (restoring then would grow the window).
+    func testWideningAfterClosingTheQueueBringsTheHeldSidebarBack() {
+        let toOpen = Self.widen(from: 600, to: SpotiglassDesign.detailAndQueueMinWidth)
+        XCTAssertEqual(
+            BrowserWidthCommitPolicy.sidebarOnWidening(
+                toOpen, sidebarCollapsed: true, heldForQueue: false, isQueueVisible: true, isNarrow: true
+            ),
+            .hold
+        )
+        let to800 = Self.widen(from: SpotiglassDesign.detailAndQueueMinWidth, to: 800)
+        XCTAssertFalse(to800.crossedOutOfSidebarCollapse)
+        XCTAssertFalse(to800.crossedOutOfNarrow)
+        XCTAssertEqual(
+            BrowserWidthCommitPolicy.sidebarOnWidening(
+                to800, sidebarCollapsed: true, heldForQueue: true, isQueueVisible: false, isNarrow: true
+            ),
+            .restore
+        )
+        // A width that only jitters by less than a point isn't a widening.
+        XCTAssertEqual(
+            BrowserWidthCommitPolicy.sidebarOnWidening(
+                Self.widen(from: 640, to: 640.5), sidebarCollapsed: true, heldForQueue: true,
+                isQueueVisible: false, isNarrow: true
+            ),
+            .none
+        )
+        // Not held: a sidebar hidden by hand stays hidden while the window grows.
+        XCTAssertEqual(
+            BrowserWidthCommitPolicy.sidebarOnWidening(
+                to800, sidebarCollapsed: true, heldForQueue: false, isQueueVisible: false, isNarrow: true
+            ),
+            .none
+        )
+    }
 }

@@ -25,6 +25,8 @@ enum BrowserWidthCommitPolicy {
         var lastCommitTime: CFAbsoluteTime
         var crossedIntoNarrow: Bool
         var crossedOutOfNarrow: Bool = false
+        /// The committed width grew by more than a point (layout jitter isn't a widening).
+        var widened: Bool = false
         var crossedIntoSidebarCollapse: Bool
         var crossedOutOfSidebarCollapse: Bool
     }
@@ -67,6 +69,7 @@ enum BrowserWidthCommitPolicy {
             lastCommitTime: input.now,
             crossedIntoNarrow: narrowNew && !narrowCommitted,
             crossedOutOfNarrow: !narrowNew && narrowCommitted,
+            widened: input.newWidth > input.committedWidth + 1,
             crossedIntoSidebarCollapse: crossedIntoSidebarCollapse,
             crossedOutOfSidebarCollapse: crossedOutOfSidebarCollapse
         )
@@ -93,7 +96,12 @@ enum BrowserWidthCommitPolicy {
         isNarrow: Bool
     ) -> SidebarOnWidening {
         guard sidebarCollapsed,
-              result.crossedOutOfSidebarCollapse || (heldForQueue && result.crossedOutOfNarrow)
+              result.crossedOutOfSidebarCollapse
+              || (heldForQueue && result.crossedOutOfNarrow)
+              // Held and the queue closed since: the next widening brings the sidebar back,
+              // as crossing the collapse width would have without the queue. Restoring it the
+              // moment the queue closes would make macOS grow the window for it.
+              || (heldForQueue && !isQueueVisible && result.widened)
         else { return .none }
         return isQueueVisible && isNarrow ? .hold : .restore
     }

@@ -85,6 +85,11 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
     /// The latest play while it runs. An add made after it waits for it, so the song goes into
     /// the queue that play starts instead of the one it is about to replace.
     private var latestPlay: Task<Void, Never>?
+    /// The generation of the play still running, if the latest play hasn't finished yet.
+    private var runningPlayGeneration: UInt64?
+    /// Queue reads waiting for the latest play. A newer play takes them over, so a read never
+    /// waits for a play that was replaced (#413).
+    private var queueReadWaiters: [CheckedContinuation<Void, Never>] = []
 
     init(player: (any AppleMusicPlayerControlling)? = nil) {
         self.player = player ?? MusicKitApplicationPlayer()
@@ -114,7 +119,11 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
         let run = Task { @MainActor [player] in
             try await player.play(queueRequest, isCurrent: { [weak self] in self?.playGeneration == generation })
         }
-        latestPlay = Task { _ = await run.result }
+        runningPlayGeneration = generation
+        latestPlay = Task { [weak self] in
+            _ = await run.result
+            self?.playFinished(generation: generation)
+        }
         try await perform { try await run.value }
     }
 
@@ -187,11 +196,23 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
     }
 
     /// A play still looking up its songs hasn't handed the player its queue yet, so a read
-    /// then would return the old queue (or none). The read waits for that play, so a panel
+    /// then would return the old queue (or none). The read waits for the latest play, so a panel
     /// opened right after starting a long list shows the list it started (#413).
     func fetchQueue() async throws -> MusicPlaybackQueue {
-        await latestPlay?.value
+        if runningPlayGeneration != nil {
+            await withCheckedContinuation { queueReadWaiters.append($0) }
+        }
         return MusicPlaybackQueue(queue: player.readUpcoming().map { .track($0) })
+    }
+
+    /// Only the latest play's end lets the queue reads go: a replaced play finishing late (or
+    /// still looking up its songs) leaves them waiting for the play that replaced it.
+    private func playFinished(generation: UInt64) {
+        guard runningPlayGeneration == generation else { return }
+        runningPlayGeneration = nil
+        let waiters = queueReadWaiters
+        queueReadWaiters = []
+        waiters.forEach { $0.resume() }
     }
 
     // MARK: - Mapping

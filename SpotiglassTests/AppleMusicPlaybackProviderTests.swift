@@ -151,6 +151,35 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         XCTAssertEqual(queue.upcomingItems.map(\.uri), Array(likedSongs[1...20]))
     }
 
+    /// A slow play is replaced by a quick one while the panel is reading the queue. The read
+    /// shows the newer play's list as soon as that play is in, without waiting for the
+    /// replaced play's lookup to end.
+    func testAReadDuringAReplacedPlayShowsTheNewerPlay() async throws {
+        let player = ScriptedAppleMusicPlayer()
+        let provider = AppleMusicPlaybackProvider(player: player)
+        player.holdLookups = true
+        let slow = Task { try await provider.play(.items(uris: Self.uris, startURI: nil), deviceID: "x") }
+        await Self.settle()
+        XCTAssertEqual(player.waitingLookups.count, 1)
+
+        var upcoming: [String]?
+        let read = Task { upcoming = try await provider.fetchQueue().queue.compactMap(Self.uri) }
+        await Self.settle()
+        XCTAssertNil(upcoming, "the read waits for the play that is still looking up its songs")
+
+        player.holdLookups = false
+        let newer = ["applemusic:song:n1", "applemusic:song:n2", "applemusic:song:n3"]
+        try await provider.play(.items(uris: newer, startURI: nil), deviceID: "x")
+        try await read.value
+        XCTAssertEqual(upcoming, Array(newer.dropFirst()))
+        XCTAssertEqual(player.waitingLookups.count, 1, "the replaced play is still looking up")
+
+        player.releaseLookups()
+        _ = try? await slow.value
+        let after = try await provider.fetchQueue().queue.compactMap(Self.uri)
+        XCTAssertEqual(after, Array(newer.dropFirst()), "the replaced play finishing late changes nothing")
+    }
+
     /// What showing the panel does (``QueueViewModel/setPanelVisible(_:)``), awaited.
     private static func openPanel(_ queue: QueueViewModel) async {
         queue.isPanelVisible = true

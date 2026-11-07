@@ -47,7 +47,7 @@ struct PlaylistBrowserView: View {
     @State var lastOpenedSidebar: SidebarKind = .playlist
     /// The window widened past the sidebar's collapse width while the queue was open but not
     /// enough for all three columns, so the sidebar stayed collapsed; it comes back once they
-    /// fit (``BrowserWidthCommitPolicy/sidebarOnWidening(_:sidebarCollapsed:heldForQueue:isQueueVisible:isNarrow:)``).
+    /// fit, or at the next widening after the queue closed (``BrowserWidthCommitPolicy/sidebarOnWidening(_:sidebarCollapsed:heldForQueue:isQueueVisible:isNarrow:)``).
     @State var isSidebarHeldForQueue = false
     @ObservedObject var commandPaletteManager: CommandPaletteManager
     /// Catalog search and profile lookups for the command palette, Search view
