@@ -27,8 +27,9 @@ struct AppleMusicCloudPlaylist: Equatable, Sendable {
 /// The library edits the Apple Music API offers. `MusicDataRequestCloudLibrary` is the live one.
 protocol AppleMusicCloudLibrary: Sendable {
     func addToLibrary(songCatalogIDs: [String], albumCatalogIDs: [String]) async throws
-    /// Creates an empty playlist and returns its cloud library ID (`p.…`).
-    func createPlaylist(name: String) async throws -> String
+    /// Creates a playlist with these songs in one request and returns its cloud library ID
+    /// (`p.…`). One request, so a failure leaves no empty playlist behind.
+    func createPlaylist(name: String, songs: [AppleMusicCloudSong]) async throws -> String
     func addToPlaylist(cloudPlaylistID: String, songs: [AppleMusicCloudSong]) async throws
     /// `nil` clears the rating.
     func setRating(_ rating: AppleMusicRating?, songID: String, isLibraryID: Bool) async throws
@@ -72,8 +73,8 @@ struct MusicDataRequestCloudLibrary: AppleMusicCloudLibrary {
         _ = try await send(request)
     }
 
-    func createPlaylist(name: String) async throws -> String {
-        let data = try await send(AppleMusicCloudRequests.createPlaylist(name: name))
+    func createPlaylist(name: String, songs: [AppleMusicCloudSong]) async throws -> String {
+        let data = try await send(AppleMusicCloudRequests.createPlaylist(name: name, songs: songs))
         guard let id = try JSONDecoder().decode(ResourceList.self, from: data).data.first?.id else {
             throw AppleMusicLibraryEditError.requestFailed
         }
@@ -168,8 +169,13 @@ enum AppleMusicCloudRequests {
         return request(components.url!, method: "POST")
     }
 
-    static func createPlaylist(name: String) -> URLRequest {
-        let body: [String: Any] = ["attributes": ["name": name, "description": ""]]
+    /// The songs go into the same request (`relationships.tracks`), so the playlist is created
+    /// with them or not at all.
+    static func createPlaylist(name: String, songs: [AppleMusicCloudSong] = []) -> URLRequest {
+        var body: [String: Any] = ["attributes": ["name": name, "description": ""]]
+        if !songs.isEmpty {
+            body["relationships"] = ["tracks": ["data": songs.map { ["id": $0.id, "type": $0.kind.rawValue] }]]
+        }
         return request(baseURL.appendingPathComponent("/v1/me/library/playlists"), method: "POST", json: body)
     }
 

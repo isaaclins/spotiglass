@@ -107,6 +107,10 @@ struct MusicKitContentSource: AppleMusicContentSource {
         let playlist: Playlist?
         if let libraryPlaylist = try await libraryRequest.response().items.first {
             playlist = libraryPlaylist
+        } else if Self.isLibraryPlaylistID(playlistID) {
+            // A library playlist this Mac doesn't list yet (created moments ago). The catalog
+            // answers its ID with an error, which took over the whole page (#395).
+            return nil
         } else {
             playlist = try await MusicCatalogResourceRequest<Playlist>(matching: \.id, equalTo: id)
                 .response().items.first
@@ -114,6 +118,11 @@ struct MusicKitContentSource: AppleMusicContentSource {
         guard let playlist else { return nil }
         let detailed = try await playlist.with([.tracks])
         return try await Self.collect(detailed.tracks, limit: limit)
+    }
+
+    /// Library playlists are `p.…` (cloud library) or a persistent ID; catalog ones are `pl.…`.
+    static func isLibraryPlaylistID(_ id: String) -> Bool {
+        AppleMusicLibraryEditor.isCloudPlaylistID(id) || Int64(id) != nil
     }
 
     func librarySongs(limit: Int, offset: Int) async throws -> [Song] {
