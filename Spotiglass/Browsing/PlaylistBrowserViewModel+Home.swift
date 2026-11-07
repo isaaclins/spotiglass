@@ -18,7 +18,8 @@ extension PlaylistBrowserViewModel {
             HomeMediaCard(
                 id: playlist.id,
                 title: playlist.title,
-                subtitle: playlist.owner,
+                // The row keeps the owner it was loaded with; resolve it like the sidebar (#398).
+                subtitle: playlist.localizedOwner(),
                 artworkURL: playlist.artworkURL,
                 destination: .playlist(id: playlist.id)
             )
