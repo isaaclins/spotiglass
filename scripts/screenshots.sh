@@ -31,9 +31,9 @@ usage() { sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; exit 1; }
 REAL_BUNDLE_ID="com.isaaclins.spotiglass"
 # What start and appearance change outside the app's own sandbox (the real app's defaults, the macOS
 # appearance) is per Mac, not per checkout, so its backups live outside the build folder, where
-# wiping build/ can't lose them. The checkout that saves the first backup owns them: only its stop
-# puts them back (or any checkout's, once the owner's folder is gone), so a stop elsewhere never
-# takes them from a run that is still starting or running.
+# wiping build/ can't lose them. The checkout that saves the first backup owns them until its stop
+# puts them back: other checkouts can't change either setting meanwhile, and their stop leaves the
+# backups alone. Once the owner's folder is gone, any checkout takes them over.
 STATE_DIR="$HOME/Library/Application Support/Spotiglass Screenshot Mode"
 STATE_OWNER="$STATE_DIR/owner"
 REAL_DEFAULTS_BACKUP="$STATE_DIR/real-defaults.plist"
@@ -41,10 +41,16 @@ REAL_DEFAULTS_MARKER="$STATE_DIR/real-defaults.saved"
 SERVICES_SUITE="com.isaaclins.spotiglass.screenshots.services"
 
 app_pid() { pgrep -f "$APP/Contents/MacOS/Spotiglass" | head -1; }
-# Records this checkout as the backups' owner unless another checkout already is.
+# Makes this checkout the backups' owner, or stops when another checkout owns them.
 claim_state() {
+    local owner; owner="$(state_owner)"
+    if [ -n "$owner" ] && [ "$owner" != "$ROOT" ]; then
+        echo "screenshots: the run in $owner has changed the real app's defaults or the macOS" \
+            "appearance; run 'stop' there first" >&2
+        exit 1
+    fi
     mkdir -p "$STATE_DIR"
-    [ -s "$STATE_OWNER" ] || echo "$ROOT" >"$STATE_OWNER"
+    echo "$ROOT" >"$STATE_OWNER"
 }
 # The checkout that owns the backups, empty when none does or its folder was deleted.
 state_owner() {
@@ -84,6 +90,7 @@ start() {
         shift
     done
     [ -z "$(app_pid)" ] || { echo "screenshots: already running; run 'stop' first" >&2; exit 1; }
+    [ "$apple_music" = 0 ] || claim_state
     mkdir -p "$WORK" "$SHOTS_DIR"
 
     echo "==> building Debug app"
@@ -92,7 +99,6 @@ start() {
     local bundle_id="$BUNDLE_ID"
     if [ "$apple_music" = 1 ]; then
         bundle_id="$REAL_BUNDLE_ID"
-        claim_state
         if [ ! -f "$REAL_DEFAULTS_MARKER" ]; then
             rm -f "$REAL_DEFAULTS_BACKUP"
             defaults export "$REAL_BUNDLE_ID" "$REAL_DEFAULTS_BACKUP" >/dev/null 2>&1 || true

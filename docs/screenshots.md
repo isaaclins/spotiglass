@@ -63,9 +63,9 @@ remembers your appearance and `stop` puts it back.
 
 Both backups (the real app's preferences and your appearance) are kept in
 `~/Library/Application Support/Spotiglass Screenshot Mode`, outside `build/`, so cleaning the build
-folder can't lose them. The checkout that saved them owns them: only its `stop` puts them back,
-and `stop` in another checkout leaves them alone (unless the owner's folder was deleted, then any
-`stop` restores them). If one can't be put back, `stop` says so, keeps that backup and exits with
+folder can't lose them. The checkout that saved them owns them until its `stop` puts them back:
+meanwhile `start --with-apple-music` and `appearance` in another checkout refuse to run, and `stop`
+there leaves the backups alone. If the owner's folder was deleted, any checkout takes them over. If one can't be put back, `stop` says so, keeps that backup and exits with
 an error; run it again.
 
 `key` posts a real key event with its virtual key code (the app's keymap matches on key codes, so
