@@ -1,3 +1,4 @@
+import os
 import XCTest
 @testable import Spotiglass
 
@@ -19,7 +20,7 @@ final class SpotiglassL10nTests: XCTestCase {
 
     func testLocaleFallsBackToEnglishOffMainThread() {
         SpotiglassL10n.settingsStore = nil
-        let locale = DispatchQueue.global().sync { SpotiglassL10n.locale }
+        let locale = onBackgroundThread { SpotiglassL10n.locale }
         XCTAssertEqual(locale.identifier, "en")
     }
 
@@ -72,6 +73,22 @@ final class SpotiglassL10nTests: XCTestCase {
         }
     }
 
+    /// Runs `body` on a thread of its own and waits for it. `DispatchQueue.global().sync` would
+    /// run it inline on the main thread, where the old main-thread-only lookup already worked.
+    private func onBackgroundThread<T: Sendable>(_ body: @escaping @Sendable () -> T) -> T {
+        let result = OSAllocatedUnfairLock<(value: T, onMain: Bool)?>(initialState: nil)
+        let done = expectation(description: "background lookup")
+        Thread.detachNewThread {
+            let value = body()
+            result.withLock { $0 = (value, Thread.isMainThread) }
+            done.fulfill()
+        }
+        wait(for: [done], timeout: 5)
+        let outcome = result.withLock { $0 }!
+        XCTAssertFalse(outcome.onMain)
+        return outcome.value
+    }
+
     /// Providers build "You" and "Untitled Playlist" on background tasks. Off the main thread
     /// the language used to fall back to English whatever the user picked (#398).
     func testLocaleFollowsTheStoreOffTheMainThread() throws {
@@ -81,18 +98,18 @@ final class SpotiglassL10nTests: XCTestCase {
         try store.mutate { $0.appearance.language = .german }
         SpotiglassL10n.settingsStore = store
 
-        XCTAssertEqual(DispatchQueue.global().sync { SpotiglassL10n.locale }.identifier, "de")
+        XCTAssertEqual(onBackgroundThread { SpotiglassL10n.locale }.identifier, "de")
         XCTAssertEqual(
-            DispatchQueue.global().sync { SpotiglassL10n.string("appleMusic.library.owner") },
+            onBackgroundThread { SpotiglassL10n.string("appleMusic.library.owner") },
             "Du"
         )
 
         // A language switch reaches background lookups too.
         try store.mutate { $0.appearance.language = .spanish }
-        XCTAssertEqual(DispatchQueue.global().sync { SpotiglassL10n.locale }.identifier, "es")
+        XCTAssertEqual(onBackgroundThread { SpotiglassL10n.locale }.identifier, "es")
 
         SpotiglassL10n.settingsStore = nil
-        XCTAssertEqual(DispatchQueue.global().sync { SpotiglassL10n.locale }.identifier, "en")
+        XCTAssertEqual(onBackgroundThread { SpotiglassL10n.locale }.identifier, "en")
     }
 
     /// Naming the service in these sentences kept the German Spotify text as it was

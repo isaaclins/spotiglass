@@ -121,7 +121,9 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
 
     /// Rows and pins keep the owner they were built with. Pins saved before #398 store the
     /// English "You"; library rows outlive a language switch. Both show the app's language.
-    func testLibraryOwnerAndUntitledNameAreResolvedWhereTheyAreShown() {
+    /// Playlist names are never translated: Music names new playlists "Untitled Playlist"
+    /// itself, and that is the playlist's real name.
+    func testLibraryOwnerIsResolvedWhereItIsShownAndNamesAreLeftAlone() {
         let german = Locale(identifier: "de")
         let library = MusicPlaylistSummary(
             id: "p.1", name: "Untitled Playlist", ownerID: AppleMusicBrowsingProvider.libraryUserID,
@@ -129,11 +131,11 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         )
         let row = PlaylistRowViewModel(library)
         XCTAssertEqual(row.localizedOwner(locale: german), "Du")
-        XCTAssertEqual(row.localizedTitle(locale: german), "Unbenannte Playlist")
+        XCTAssertEqual(row.localizedTitle(locale: german), "Untitled Playlist")
 
         let pin = PinnedItem.playlist(library)
         XCTAssertEqual(pin.localizedSubtitle(locale: german), "Du")
-        XCTAssertEqual(pin.localizedTitle(locale: Locale(identifier: "es")), "Lista sin título")
+        XCTAssertEqual(pin.localizedTitle(locale: Locale(identifier: "es")), "Untitled Playlist")
 
         // Spotify playlists, curated ones and real names are left alone.
         let spotify = MusicPlaylistSummary(

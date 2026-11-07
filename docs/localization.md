@@ -57,6 +57,8 @@ thread and a locked copy of the language everywhere else; the store refreshes th
 copy whenever its settings change. Strings that are stored (pin subtitles) or cached
 across a language switch are resolved again where they are shown
 (`PinnedItem.localizedSubtitle`, `PlaylistRowViewModel.localizedOwner`).
+Playlist names are never translated where they are shown: the Music app names new
+playlists "Untitled Playlist" itself, so that text can be a real name.
 
 Dates and numbers shown in the UI format with the app locale
 (`.formatted(... .locale(SpotiglassL10n.locale))`), not the system one.

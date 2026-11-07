@@ -157,14 +157,8 @@ extension PinnedItem {
     /// Virtual Liked Songs metadata is persisted with pins, but its localized
     /// title and fallback owner must be resolved when the row renders.
     func localizedTitle(locale: Locale = SpotiglassL10n.locale) -> String {
-        switch kind {
-        case .likedSongs:
-            return SpotiglassL10n.string("pin.likedSongs", locale: locale)
-        case .playlist:
-            return AppleMusicItemMapping.localizedPlaylistName(title, ownerID: playlistOwnerID, locale: locale)
-        case .artist, .album, .track:
-            return title
-        }
+        guard kind == .likedSongs else { return title }
+        return SpotiglassL10n.string("pin.likedSongs", locale: locale)
     }
 
     func localizedSubtitle(locale: Locale = SpotiglassL10n.locale) -> String {

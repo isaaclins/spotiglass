@@ -32,7 +32,7 @@ struct PlaylistRowViewModel: Equatable, Identifiable {
 
     func localizedTitle(locale: Locale = SpotiglassL10n.locale) -> String {
         guard id == SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID else {
-            return AppleMusicItemMapping.localizedPlaylistName(title, ownerID: ownerID, locale: locale)
+            return title
         }
         return SpotiglassL10n.string("browser.likedSongs.title", locale: locale)
     }
