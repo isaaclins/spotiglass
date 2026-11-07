@@ -23,8 +23,10 @@ The workflow **CI** lives at [.github/workflows/ci.yml](../.github/workflows/ci.
 
 The static audits run on Linux so an obvious violation fails in about a minute instead of waiting on a macOS runner. The `test` job is pinned to `macos-26` for the same deployment-target reason as the release workflow below.
 
-CI does **not** publish a release. It has no access to the Developer ID identity,
-the Sparkle private key, or the notary profile, so releases stay local.
+CI does **not** publish a release. It has no access to the Developer ID identity
+or the notary profile, and no workflow reads the Sparkle private key (the
+`SPARKLE_EDDSA_PRIVATE_KEY` secret is only a backup, see the one-time setup below),
+so releases stay local.
 
 > Before this workflow existed, nothing ran the suite automatically and two tests rotted unnoticed on `main` ([#73](https://github.com/isaaclins/spotiglass/issues/73), [#74](https://github.com/isaaclins/spotiglass/issues/74)). Both were found by hand.
 
@@ -62,7 +64,7 @@ The app checks the feed automatically about once per day, or via **Spotiglass â†
    - Download [Sparkle 2.7.1](https://github.com/sparkle-project/Sparkle/releases/download/2.7.1/Sparkle-2.7.1.tar.xz) or use SPM artifacts under `build/DerivedData/SourcePackages/artifacts/sparkle/`.
    - Run `bin/generate_keys` and confirm `SUPublicEDKey` in [Spotiglass/App/SparkleInfo.plist](../Spotiglass/App/SparkleInfo.plist) matches the printed public key.
    - Export the private key: `bin/generate_keys -x scripts/sparkle_eddsa_private.key` (do **not** commit this file).
-2. **GitHub Actions secret**: add repository secret `SPARKLE_EDDSA_PRIVATE_KEY` with the **full contents** of `sparkle_eddsa_private.key`.
+2. **Backup of the update key**: store the **full contents** of `sparkle_eddsa_private.key` as the repository Actions secret `SPARKLE_EDDSA_PRIVATE_KEY`. No workflow reads it, since releases are signed locally. It is the off-machine backup of the key: every installed copy trusts only the matching `SUPublicEDKey`, so losing the private key means no existing install can ever be updated again. Keep the secret, and update it if the key is ever rotated. GitHub never shows a secret's value again, so keep another copy (for example in a password manager) to restore from.
 3. **GitHub Pages**: repo **Settings â†’ Pages â†’ Build from branch `main` / folder `/docs`**. The feed URL must be `https://isaaclins.com/spotiglass/appcast.xml` (matches `SUFeedURL`).
 
 > **`SUFeedURL` must be the final HTTPS URL, never a redirecting alias.** `isaaclins.github.io`
@@ -85,9 +87,9 @@ The app checks the feed automatically about once per day, or via **Spotiglass â†
    security find-identity -v -p codesigning | grep 'Developer ID Application'
    xcrun notarytool history --keychain-profile spotiglass
    ```
-3. Validate the version without building or writing files:
+3. Validate the version and release notes without building or writing files:
    ```sh
-   SPARKLE_RELEASE_VALIDATE_ONLY=1 ./scripts/sparkle-release.sh 0.5.0 7
+   SPARKLE_RELEASE_VALIDATE_ONLY=1 ./scripts/sparkle-release.sh 0.5.0 7 docs/release-notes/v0.5.0.md
    ```
 4. Run the local release:
    ```sh
@@ -114,13 +116,17 @@ The script is the source of truth for versioning and enforces these before it bu
 | Build number must be strictly greater than the one recorded in `project.pbxproj` | `CFBundleVersion` must increase or Sparkle will not offer the update |
 | All build configurations must agree on `CURRENT_PROJECT_VERSION` | Disagreement means a manual edit, a bad merge, or an aborted run |
 | Omitting the build number uses the recorded build plus one | Keeps the sequence contiguous |
+| A release-notes path that is given must exist | A typo would otherwise ship the update without notes |
+| The Sparkle tools tarball must match the SHA-256 pinned in the script for `SPARKLE_VERSION` | `generate_appcast` runs next to the signing identity and update key, so nothing from an unverified download runs |
+
+The Sparkle tools come from `build/sparkle/Sparkle-<version>.tar.xz`, downloaded on the first run. Before the build starts, the script checks it against the checksum pinned in `sparkle_tarball_sha256` and extracts it into a fresh directory, so tools left over from an earlier run are never reused. A mismatch stops the release before anything from the tarball runs; delete the file and run again for a fresh download. To move to a newer Sparkle, add the official checksum of its `Sparkle-<version>.tar.xz` (the SHA-256 digest GitHub shows for the asset on the [Sparkle release page](https://github.com/sparkle-project/Sparkle/releases)) next to the existing one. Setting `GENERATE_APPCAST` to your own copy of the tool skips the download and the check.
 
 On success the script rewrites `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` in `Spotiglass.xcodeproj/project.pbxproj`, so **the release commit carries the bump** and a later `make build` reports the shipped version. That write happens **last**, after the zip, dmg and appcast exist, so a failure part-way through leaves the project file untouched and the same command can simply be retried.
 
-To check the version arguments without building or writing anything:
+To check the version arguments, the release-notes path and an already downloaded Sparkle tarball without building or writing anything:
 
 ```bash
-SPARKLE_RELEASE_VALIDATE_ONLY=1 ./scripts/sparkle-release.sh 0.5.0 7
+SPARKLE_RELEASE_VALIDATE_ONLY=1 ./scripts/sparkle-release.sh 0.5.0 7 docs/release-notes/v0.5.0.md
 ```
 
 ### Testing updates

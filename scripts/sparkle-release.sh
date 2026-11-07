@@ -181,24 +181,102 @@ if [[ -z "$BUILD_NUMBER" ]]; then
   echo "==> No build number given, using $BUILD_NUMBER (recorded build plus one)"
 fi
 
+# A notes path that was given but does not exist is a typo, not a request for a
+# release without notes. Shipping silently without them is the wrong default.
+validate_release_notes() {
+  [[ -z "$RELEASE_NOTES" ]] && return 0
+  if [[ ! -f "$RELEASE_NOTES" ]]; then
+    echo "ERROR: Release notes file not found: $RELEASE_NOTES" >&2
+    echo "       Fix the path, or omit the third argument to release without notes." >&2
+    return 1
+  fi
+  echo "==> Using release notes $RELEASE_NOTES"
+}
+
+SPARKLE_VERSION="${SPARKLE_VERSION:-2.7.1}"
+SPARKLE_TARBALL="$ROOT/build/sparkle/Sparkle-${SPARKLE_VERSION}.tar.xz"
+GENERATE_APPCAST="${GENERATE_APPCAST:-}"
+
+# SHA-256 of the official Sparkle-<version>.tar.xz from
+# https://github.com/sparkle-project/Sparkle/releases (the asset digest GitHub
+# shows on the release page). generate_appcast runs on the machine that holds the
+# Developer ID identity and the EdDSA update key, so nothing from the tarball
+# runs until it matches. Bumping SPARKLE_VERSION means adding its checksum here.
+sparkle_tarball_sha256() {
+  case "$1" in
+    2.7.1) echo "f7385c3e8c70c37e5928939e6246ac9070757b4b37a5cb558afa1b0d5ef189de" ;;
+    *) return 1 ;;
+  esac
+}
+
+# Fails unless the tarball at $1 has the pinned checksum for SPARKLE_VERSION.
+verify_sparkle_tarball() {
+  local tarball="$1"
+  local expected actual
+  if ! expected="$(sparkle_tarball_sha256 "$SPARKLE_VERSION")"; then
+    echo "ERROR: No pinned SHA-256 for Sparkle ${SPARKLE_VERSION}." >&2
+    echo "       Add the checksum of the official Sparkle-${SPARKLE_VERSION}.tar.xz to sparkle_tarball_sha256 in $0." >&2
+    return 1
+  fi
+  actual="$(shasum -a 256 "$tarball" | awk '{ print $1 }')"
+  if [[ "$actual" != "$expected" ]]; then
+    echo "ERROR: Sparkle ${SPARKLE_VERSION} tarball checksum mismatch: $tarball" >&2
+    echo "       expected $expected" >&2
+    echo "       got      $actual" >&2
+    echo "       Nothing from it was run. Delete the file if it is still there and run the script again to download a fresh copy." >&2
+    return 1
+  fi
+  echo "==> Verified Sparkle ${SPARKLE_VERSION} tarball (sha256 $actual)"
+}
+
 validate_release_versions
+validate_release_notes
+if [[ -z "$GENERATE_APPCAST" ]]; then
+  # Fail on an unknown version (no pinned checksum) before anything else runs.
+  if ! sparkle_tarball_sha256 "$SPARKLE_VERSION" >/dev/null; then
+    verify_sparkle_tarball "$SPARKLE_TARBALL"
+  fi
+  # In validation-only mode an already downloaded tarball is checked too, so a
+  # bad copy is caught before a real run spends time building and notarizing.
+  if [[ -f "$SPARKLE_TARBALL" ]]; then
+    verify_sparkle_tarball "$SPARKLE_TARBALL"
+  fi
+fi
 if [[ "${SPARKLE_RELEASE_VALIDATE_ONLY:-0}" == "1" ]]; then
   echo "Validation-only mode: no build or project changes performed."
   exit 0
 fi
 
 TAG="v${MARKETING_VERSION}"
-SPARKLE_VERSION="${SPARKLE_VERSION:-2.7.1}"
-SPARKLE_TARBALL="$ROOT/build/sparkle/Sparkle-${SPARKLE_VERSION}.tar.xz"
-GENERATE_APPCAST="${GENERATE_APPCAST:-}"
-if [[ -z "$GENERATE_APPCAST" && -x "$ROOT/build/sparkle/Sparkle-${SPARKLE_VERSION}/bin/generate_appcast" ]]; then
-  GENERATE_APPCAST="$ROOT/build/sparkle/Sparkle-${SPARKLE_VERSION}/bin/generate_appcast"
-fi
-if [[ -z "$GENERATE_APPCAST" && -x "$ROOT/build/sparkle/bin/generate_appcast" ]]; then
-  GENERATE_APPCAST="$ROOT/build/sparkle/bin/generate_appcast"
-fi
-if [[ -z "$GENERATE_APPCAST" && -x /tmp/sparkle-dl/bin/generate_appcast ]]; then
-  GENERATE_APPCAST="/tmp/sparkle-dl/bin/generate_appcast"
+
+# Fetch and verify the Sparkle tools before the long build and notarization, so a
+# bad download fails in seconds. They are extracted into a fresh directory from
+# the verified tarball on every run; a directory left by an earlier run may come
+# from a tarball that was never checked, so it is not reused. A GENERATE_APPCAST
+# set by the caller is the caller's own choice and is used as given.
+if [[ -z "$GENERATE_APPCAST" ]]; then
+  mkdir -p "$ROOT/build/sparkle"
+  if [[ ! -f "$SPARKLE_TARBALL" ]]; then
+    echo "==> Download Sparkle ${SPARKLE_VERSION} tools for generate_appcast"
+    SPARKLE_DOWNLOAD="$SPARKLE_TARBALL.download"
+    rm -f "$SPARKLE_DOWNLOAD"
+    curl -fsSL -o "$SPARKLE_DOWNLOAD" \
+      "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-${SPARKLE_VERSION}.tar.xz"
+    if ! verify_sparkle_tarball "$SPARKLE_DOWNLOAD"; then
+      rm -f "$SPARKLE_DOWNLOAD"
+      exit 1
+    fi
+    mv "$SPARKLE_DOWNLOAD" "$SPARKLE_TARBALL"
+  fi
+  SPARKLE_TOOLS_DIR="$ROOT/build/sparkle/Sparkle-${SPARKLE_VERSION}-verified"
+  rm -rf "$SPARKLE_TOOLS_DIR"
+  mkdir -p "$SPARKLE_TOOLS_DIR"
+  tar -xf "$SPARKLE_TARBALL" -C "$SPARKLE_TOOLS_DIR"
+  GENERATE_APPCAST="$SPARKLE_TOOLS_DIR/bin/generate_appcast"
+  if [[ ! -x "$GENERATE_APPCAST" ]]; then
+    echo "ERROR: generate_appcast not found in the Sparkle ${SPARKLE_VERSION} tarball" >&2
+    exit 1
+  fi
 fi
 
 DERIVED_DATA="$ROOT/build/DerivedData"
@@ -392,24 +470,11 @@ if [[ -n "$DEVELOPER_ID_IDENTITY" ]]; then
   fi
 fi
 
-if [[ -n "$RELEASE_NOTES" && -f "$RELEASE_NOTES" ]]; then
+if [[ -n "$RELEASE_NOTES" ]]; then
   # generate_appcast recognizes matching .txt and .html files, not Markdown.
   # Keep the source notes as Markdown in docs/release-notes, and give Sparkle a
   # plain-text copy so the update window embeds the release notes.
   cp "$RELEASE_NOTES" "$ARCHIVES_DIR/Spotiglass-${MARKETING_VERSION}.txt"
-fi
-
-if [[ -z "$GENERATE_APPCAST" ]]; then
-  echo "==> Download Sparkle ${SPARKLE_VERSION} tools for generate_appcast"
-  mkdir -p "$ROOT/build/sparkle"
-  curl -fsSL -o "$SPARKLE_TARBALL" \
-    "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-${SPARKLE_VERSION}.tar.xz"
-  tar -xf "$SPARKLE_TARBALL" -C "$ROOT/build/sparkle"
-  if [[ -x "$ROOT/build/sparkle/Sparkle-${SPARKLE_VERSION}/bin/generate_appcast" ]]; then
-    GENERATE_APPCAST="$ROOT/build/sparkle/Sparkle-${SPARKLE_VERSION}/bin/generate_appcast"
-  else
-    GENERATE_APPCAST="$ROOT/build/sparkle/bin/generate_appcast"
-  fi
 fi
 
 # Keep the argument array non-empty. macOS still ships Bash 3.2, where
