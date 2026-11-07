@@ -162,6 +162,10 @@ extension PinnedItem {
     }
 
     func localizedSubtitle(locale: Locale = SpotiglassL10n.locale) -> String {
+        // Apple Music pins saved before #398 stored the English "You".
+        if kind == .playlist {
+            return AppleMusicItemMapping.localizedOwnerName(subtitle, ownerID: playlistOwnerID, locale: locale)
+        }
         guard kind == .likedSongs else { return subtitle }
         let englishFallback = SpotiglassL10n.string(
             "browser.likedSongs.owner.you",

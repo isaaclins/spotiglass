@@ -281,6 +281,24 @@ final class AccountSettingsViewTests: XCTestCase {
         XCTAssertEqual(scene.commandPaletteManager.viewModel.query, "")
         XCTAssertFalse(scene.lyricsOverlayController.isPresented)
     }
+
+    /// The token's expiry followed the system language: a German app on an English Mac read
+    /// "Gültig bis 7 Nov 2026 at 18:32" (#398).
+    func testValidUntilDateIsInTheAppLanguage() {
+        let date = Date(timeIntervalSince1970: 1_794_072_720)
+        let german = Locale(identifier: "de")
+        let text = AccountSettingsView.validUntilText(date, locale: german)
+
+        let expectedDate = date.formatted(
+            .dateTime.year().month().day().hour().minute().timeZone().locale(german)
+        )
+        XCTAssertEqual(text, "Gültig bis \(expectedDate)")
+        XCTAssertFalse(text.contains(" at "), text)
+
+        let spanish = AccountSettingsView.validUntilText(date, locale: Locale(identifier: "es"))
+        XCTAssertTrue(spanish.hasPrefix("Válido hasta "), spanish)
+        XCTAssertFalse(spanish.contains(" at "), spanish)
+    }
 }
 
 /// Apple Music access that hasn't been asked yet, and answers the request with `answer`.

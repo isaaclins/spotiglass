@@ -18,7 +18,8 @@ extension PlaylistBrowserViewModel {
             HomeMediaCard(
                 id: playlist.id,
                 title: playlist.title,
-                subtitle: playlist.owner,
+                // The row keeps the owner it was loaded with; resolve it like the sidebar (#398).
+                subtitle: playlist.localizedOwner(),
                 artworkURL: playlist.artworkURL,
                 destination: .playlist(id: playlist.id)
             )
@@ -79,7 +80,7 @@ extension PlaylistBrowserViewModel {
             return
         } catch {
             guard generation == homeFeedGeneration else { return }
-            homeRecentlyPlayed = homeSectionState(for: error)
+            homeRecentlyPlayed = Self.homeSectionState(for: error)
         }
     }
 
@@ -101,7 +102,7 @@ extension PlaylistBrowserViewModel {
             return
         } catch {
             guard generation == homeFeedGeneration else { return }
-            homeTopTracks = homeSectionState(for: error)
+            homeTopTracks = Self.homeSectionState(for: error)
         }
     }
 
@@ -109,7 +110,7 @@ extension PlaylistBrowserViewModel {
     /// degrade to `.unavailable` (inline reconnect hint) rather than `.failed`,
     /// so accounts authorized before the home-feed scopes were added aren't
     /// shown a scary error.
-    private func homeSectionState<Value>(for error: Error) -> HomeSectionState<Value> {
+    static func homeSectionState<Value>(for error: Error) -> HomeSectionState<Value> {
         if let apiError = error as? SpotifyAPIError {
             switch apiError {
             case .insufficientScope, .forbidden:
@@ -117,6 +118,9 @@ extension PlaylistBrowserViewModel {
             default:
                 return .failed(apiError.userMessage)
             }
+        }
+        if let appleMusicError = appleMusicDisplayError(for: error) {
+            return .failed(appleMusicError.message)
         }
         return .failed(error.localizedDescription)
     }

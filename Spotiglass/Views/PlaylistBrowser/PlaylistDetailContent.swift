@@ -214,7 +214,7 @@ struct PlaylistDetailContent: View {
             // an English "s" as a format argument, which Spanish rendered as
             // the non-word "canciónes" (#151).
             Text(newPlaylistInitialRows.isEmpty
-                 ? SpotiglassL10n.string("playlist.detail.newPlaylist.empty")
+                 ? SpotiglassL10n.format("playlist.detail.newPlaylist.empty", MusicServiceSelection.current.displayName)
                  : SpotiglassL10n.format(
                      "playlist.detail.newPlaylist.withTracks",
                      Int64(newPlaylistInitialRows.count)

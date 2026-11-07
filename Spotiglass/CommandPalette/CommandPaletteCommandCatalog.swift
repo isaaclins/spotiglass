@@ -25,6 +25,13 @@ struct CommandPaletteCommandSpec: Identifiable {
         if commandID == CommandPaletteCommandID.togglePlayback, MusicServiceSelection.current == .appleMusic {
             return SpotiglassL10n.string("palette.command.playback.toggle.subtitle.appleMusic")
         }
+        // Open Search names the service it searches.
+        if commandID == CommandPaletteCommandID.openSearch {
+            return SpotiglassL10n.format(
+                "palette.command.navigation.search.open.subtitle",
+                MusicServiceSelection.current.displayName
+            )
+        }
         return SpotiglassL10n.string(forKey: "palette.command.\(commandID).subtitle")
     }
 

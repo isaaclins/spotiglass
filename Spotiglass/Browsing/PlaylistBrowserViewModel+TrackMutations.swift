@@ -294,7 +294,7 @@ extension PlaylistBrowserViewModel {
     /// sidebar so the user immediately sees it.
     func createPlaylistWithRows(name: String, rows: [TrackRowViewModel]) async {
         guard let userID = currentUserSpotifyID, !userID.isEmpty else {
-            trackMutationToast = SpotiglassL10n.string("playlist.mutation.signInToCreate")
+            trackMutationToast = SpotiglassL10n.format("playlist.mutation.signInToCreate", MusicServiceSelection.current.displayName)
             return
         }
         guard await ensureScope(

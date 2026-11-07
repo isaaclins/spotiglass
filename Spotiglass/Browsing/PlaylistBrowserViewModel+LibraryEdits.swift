@@ -98,7 +98,7 @@ extension PlaylistBrowserViewModel {
             break
         case .loaded:
             playlistState = remaining.isEmpty
-                ? .empty(SpotiglassL10n.string("browser.empty.noPlaylists"))
+                ? .empty(SpotiglassL10n.format("browser.empty.noPlaylists", MusicServiceSelection.current.displayName))
                 : .loaded(remaining)
         case .refreshing:
             playlistState = .refreshing(remaining)
