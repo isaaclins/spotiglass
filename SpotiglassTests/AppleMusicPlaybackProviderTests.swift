@@ -180,6 +180,46 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         XCTAssertEqual(after, Array(newer.dropFirst()), "the replaced play finishing late changes nothing")
     }
 
+    /// A play whose lookup never finishes doesn't hold the read for good: disconnecting lets it
+    /// go, and so does the wait limit.
+    func testAReadDoesNotWaitForAStalledPlayForever() async throws {
+        let player = ScriptedAppleMusicPlayer()
+        let provider = AppleMusicPlaybackProvider(player: player, queueReadWaitLimit: .milliseconds(50))
+        player.holdLookups = true
+        let stalled = Task { try await provider.play(.items(uris: Self.uris, startURI: nil), deviceID: "x") }
+        await Self.settle()
+        XCTAssertEqual(player.waitingLookups.count, 1)
+
+        // The wait limit passes while the lookup still hangs.
+        _ = try await provider.fetchQueue()
+        XCTAssertEqual(player.waitingLookups.count, 1, "the read came back while the play still looks up")
+
+        // Disconnecting releases a waiting read at once.
+        let patient = AppleMusicPlaybackProvider(player: player, queueReadWaitLimit: .seconds(600))
+        let slow = Task { try await patient.play(.items(uris: Self.uris, startURI: nil), deviceID: "x") }
+        await Self.settle()
+        var returned = false
+        let read = Task { _ = try await patient.fetchQueue(); returned = true }
+        await Self.settle()
+        XCTAssertFalse(returned)
+        try await patient.disconnectPlayer(generation: .initial)
+        try await read.value
+        XCTAssertTrue(returned)
+
+        // A cancelled read lets go too.
+        let again = Task { try await patient.play(.items(uris: Self.uris, startURI: nil), deviceID: "x") }
+        await Self.settle()
+        let cancelled = Task { _ = try await patient.fetchQueue() }
+        await Self.settle()
+        cancelled.cancel()
+        _ = try? await cancelled.value
+
+        player.releaseLookups()
+        _ = try? await stalled.value
+        _ = try? await slow.value
+        _ = try? await again.value
+    }
+
     /// What showing the panel does (``QueueViewModel/setPanelVisible(_:)``), awaited.
     private static func openPanel(_ queue: QueueViewModel) async {
         queue.isPanelVisible = true

@@ -89,10 +89,15 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
     private var runningPlayGeneration: UInt64?
     /// Queue reads waiting for the latest play. A newer play takes them over, so a read never
     /// waits for a play that was replaced (#413).
-    private var queueReadWaiters: [CheckedContinuation<Void, Never>] = []
+    private var queueReadWaiters: [UUID: CheckedContinuation<Void, Never>] = [:]
+    /// The longest a queue read waits for a play. A play that never finishes (a stalled
+    /// lookup) must not hold the queue panel on "loading" for good; the read then shows what
+    /// the player has.
+    private let queueReadWaitLimit: Duration
 
-    init(player: (any AppleMusicPlayerControlling)? = nil) {
+    init(player: (any AppleMusicPlayerControlling)? = nil, queueReadWaitLimit: Duration = .seconds(15)) {
         self.player = player ?? MusicKitApplicationPlayer()
+        self.queueReadWaitLimit = queueReadWaitLimit
     }
 
     // MARK: - Player lifecycle
@@ -107,6 +112,8 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
     }
 
     func disconnectPlayer(generation: PlaybackHostGeneration) async throws {
+        runningPlayGeneration = nil
+        releaseQueueReads()
         player.stop()
     }
 
@@ -199,9 +206,7 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
     /// then would return the old queue (or none). The read waits for the latest play, so a panel
     /// opened right after starting a long list shows the list it started (#413).
     func fetchQueue() async throws -> MusicPlaybackQueue {
-        if runningPlayGeneration != nil {
-            await withCheckedContinuation { queueReadWaiters.append($0) }
-        }
+        await waitForLatestPlay()
         return MusicPlaybackQueue(queue: player.readUpcoming().map { .track($0) })
     }
 
@@ -210,9 +215,36 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
     private func playFinished(generation: UInt64) {
         guard runningPlayGeneration == generation else { return }
         runningPlayGeneration = nil
+        releaseQueueReads()
+    }
+
+    /// Waits until the latest play is in, the read is cancelled, the player disconnects or
+    /// ``queueReadWaitLimit`` passes, whichever comes first.
+    private func waitForLatestPlay() async {
+        guard runningPlayGeneration != nil, !Task.isCancelled else { return }
+        let id = UUID()
+        let limit = queueReadWaitLimit
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                queueReadWaiters[id] = continuation
+                Task { [weak self] in
+                    try? await Task.sleep(for: limit)
+                    self?.releaseQueueRead(id)
+                }
+            }
+        } onCancel: {
+            Task { @MainActor [weak self] in self?.releaseQueueRead(id) }
+        }
+    }
+
+    private func releaseQueueRead(_ id: UUID) {
+        queueReadWaiters.removeValue(forKey: id)?.resume()
+    }
+
+    private func releaseQueueReads() {
         let waiters = queueReadWaiters
-        queueReadWaiters = []
-        waiters.forEach { $0.resume() }
+        queueReadWaiters = [:]
+        waiters.values.forEach { $0.resume() }
     }
 
     // MARK: - Mapping
