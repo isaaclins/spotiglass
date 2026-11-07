@@ -29,8 +29,12 @@ usage() { sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; exit 1; }
 # --with-apple-music runs under the real bundle id (MusicKit issues its developer token for that id
 # only), so the real app's defaults domain is saved at start and put back at stop.
 REAL_BUNDLE_ID="com.isaaclins.spotiglass"
-REAL_DEFAULTS_BACKUP="$WORK/real-defaults.plist"
-REAL_DEFAULTS_MARKER="$WORK/real-defaults.saved"
+# What start and appearance change outside the app's own sandbox (the real app's defaults, the macOS
+# appearance) is per Mac, not per checkout, so its backups live outside the build folder: wiping
+# build/ or running from another checkout still finds them, and stop puts them back.
+STATE_DIR="$HOME/Library/Application Support/Spotiglass Screenshot Mode"
+REAL_DEFAULTS_BACKUP="$STATE_DIR/real-defaults.plist"
+REAL_DEFAULTS_MARKER="$STATE_DIR/real-defaults.saved"
 SERVICES_SUITE="com.isaaclins.spotiglass.screenshots.services"
 
 app_pid() { pgrep -f "$APP/Contents/MacOS/Spotiglass" | head -1; }
@@ -76,6 +80,7 @@ start() {
     if [ "$apple_music" = 1 ]; then
         bundle_id="$REAL_BUNDLE_ID"
         if [ ! -f "$REAL_DEFAULTS_MARKER" ]; then
+            mkdir -p "$STATE_DIR"
             rm -f "$REAL_DEFAULTS_BACKUP"
             defaults export "$REAL_BUNDLE_ID" "$REAL_DEFAULTS_BACKUP" >/dev/null 2>&1 || true
             touch "$REAL_DEFAULTS_MARKER"
@@ -186,26 +191,30 @@ SWIFT
 # Switches the macOS appearance while the app runs, the way System Settings does, to check a live
 # theme change (the app follows it with Settings > Appearance > System). The first switch remembers
 # the appearance from before, and `stop` puts it back.
-APPEARANCE_BACKUP="$WORK/system-appearance.saved"
+APPEARANCE_BACKUP="$STATE_DIR/system-appearance.saved"
 set_system_appearance() {
     if [ ! -x "$WORK/appearance" ]; then
+        mkdir -p "$WORK"
         cat > "$WORK/appearance.swift" <<'SWIFT'
 import Foundation
 // SkyLight's setter is what System Settings calls; AppleScript's "appearance preferences" does the
 // same but needs the Automation permission for System Events.
 let skyLight = dlopen("/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight", RTLD_NOW)
-guard let symbol = dlsym(skyLight, "SLSSetAppearanceThemeLegacy") else { exit(1) }
+guard let symbol = dlsym(skyLight, "SLSSetAppearanceThemeLegacy") else {
+    FileHandle.standardError.write("SkyLight has no SLSSetAppearanceThemeLegacy on this macOS\n".data(using: .utf8)!)
+    exit(1)
+}
 typealias SetTheme = @convention(c) (Bool) -> Void
 unsafeBitCast(symbol, to: SetTheme.self)(CommandLine.arguments[1] == "dark")
 SWIFT
-        swiftc -O "$WORK/appearance.swift" -o "$WORK/appearance"
+        swiftc -O "$WORK/appearance.swift" -o "$WORK/appearance" || return 1
     fi
     "$WORK/appearance" "$1"
 }
 appearance() {
     [ $# -eq 1 ] || usage
     case "$1" in light|dark) ;; *) usage ;; esac
-    mkdir -p "$WORK"
+    mkdir -p "$STATE_DIR"
     if [ ! -f "$APPEARANCE_BACKUP" ]; then
         if [ "$(defaults read -g AppleInterfaceStyle 2>/dev/null)" = "Dark" ]; then
             echo dark >"$APPEARANCE_BACKUP"
@@ -232,12 +241,21 @@ stop() {
         [ -f "$REAL_DEFAULTS_BACKUP" ] && defaults import "$REAL_BUNDLE_ID" "$REAL_DEFAULTS_BACKUP"
         rm -f "$REAL_DEFAULTS_BACKUP" "$REAL_DEFAULTS_MARKER"
     fi
+    local restore_failed=0
     if [ -f "$APPEARANCE_BACKUP" ]; then
-        set_system_appearance "$(cat "$APPEARANCE_BACKUP")" || true
-        rm -f "$APPEARANCE_BACKUP"
+        # The backup goes only once the appearance is back, so a failed restore can be retried.
+        if set_system_appearance "$(cat "$APPEARANCE_BACKUP")"; then
+            rm -f "$APPEARANCE_BACKUP"
+        else
+            echo "screenshots: could not put the macOS appearance back to $(cat "$APPEARANCE_BACKUP");" \
+                "run 'stop' again, or set it in System Settings and delete $APPEARANCE_BACKUP" >&2
+            restore_failed=1
+        fi
     fi
+    rmdir "$STATE_DIR" 2>/dev/null || true
     rm -rf "$FAKE_HOME" "$APP" "$WORK/windows.swift" "$WORK/key.swift" "$WORK/key" \
         "$WORK/appearance.swift" "$WORK/appearance"
+    [ "$restore_failed" = 0 ] || exit 1
     echo "stopped; screenshots stay in $SHOTS_DIR"
 }
 
