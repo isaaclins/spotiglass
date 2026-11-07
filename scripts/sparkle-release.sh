@@ -4,11 +4,16 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-cd "$ROOT"
 
 MARKETING_VERSION="${1:-}"
 BUILD_NUMBER="${2:-}"
 RELEASE_NOTES="${3:-}"
+# A relative notes path means relative to where the script was run from, so
+# resolve it before changing into the repo root.
+if [[ -n "$RELEASE_NOTES" && "$RELEASE_NOTES" != /* ]]; then
+  RELEASE_NOTES="$PWD/$RELEASE_NOTES"
+fi
+cd "$ROOT"
 
 if [[ -z "$MARKETING_VERSION" ]]; then
   echo "Usage: $0 <marketing_version> [build_number] [release_notes_markdown_file]" >&2
