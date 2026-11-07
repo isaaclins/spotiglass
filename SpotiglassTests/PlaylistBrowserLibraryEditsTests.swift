@@ -303,8 +303,30 @@ final class PlaylistBrowserLibraryEditsTests: XCTestCase {
         api.trackCounts = ["-1": 13]
         gate.open()
         await viewModel.playlistTrackCountTask?.value
+        for _ in 0..<1000 where viewModel.playlistState.currentValue?.last?.trackCount != 13 {
+            await Task.yield()
+        }
 
         XCTAssertEqual(viewModel.playlistState.currentValue?.last?.trackCount, 13)
+    }
+
+    /// A count that already has an add (the pending edit is recorded before the add returns)
+    /// must not get the add again on top: the edit counts the playlist afterwards.
+    func testACountThatAlreadyHasTheEditDoesNotGetItTwice() async throws {
+        let api = LibraryEditsMockAPI(edits: .all)
+        api.playlists = [uncounted("-1", "Road")]
+        // The library read already sees the song being added.
+        api.trackCounts = ["-1": 11]
+        let viewModel = await makeViewModel(api)
+        await viewModel.playlistTrackCountTask?.value
+        XCTAssertEqual(viewModel.playlistState.currentValue?.last?.trackCount, 11)
+
+        await viewModel.addRowsToPlaylist([row("699902614", position: 1)], playlistID: "-1", playlistName: "Road")
+        for _ in 0..<1000 where viewModel.playlistState.currentValue?.last?.trackCount != 11 {
+            await Task.yield()
+        }
+
+        XCTAssertEqual(viewModel.playlistState.currentValue?.last?.trackCount, 11)
     }
 
     /// An empty playlist has no count; adding songs to it counts it.
