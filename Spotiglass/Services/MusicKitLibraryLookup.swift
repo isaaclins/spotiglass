@@ -102,6 +102,7 @@ final class AppleMusicSongReferenceRegistry: @unchecked Sendable {
                 itemID: song.id.rawValue
             )
             reference.sourcePlaylistPersistentID = playlistPersistentID
+            reference.shownTrack = AppleMusicItemMapping.track(song)
             remember(reference)
         }
     }

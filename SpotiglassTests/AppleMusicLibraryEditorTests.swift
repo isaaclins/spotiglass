@@ -1386,6 +1386,83 @@ final class AppleMusicPlaylistEditFixTests: XCTestCase {
         XCTAssertEqual(items, [])
     }
 
+    private static func names(_ items: [MusicPlaylistTrackItem]) -> [String] {
+        items.compactMap { item in
+            guard case let .track(track) = item.content else { return nil }
+            return track.name
+        }
+    }
+
+    /// The 18P1 row the way the provider remembers it when it reads that playlist: no catalog or
+    /// cloud library ID, only the persistent ID and the row itself.
+    private func remembered18P1Row() throws -> AppleMusicSongReference {
+        let registry = AppleMusicSongReferenceRegistry()
+        registry.remember(
+            [.song(try AppleMusicFixtures.song(id: "-1192152853020385209", title: "Don't Stop The Music", artist: "Rihanna"))],
+            playlistID: "-1157253837592488300"
+        )
+        var reference = try XCTUnwrap(registry.reference(for: "-1192152853020385209"))
+        reference.catalogID = nil
+        reference.cloudLibraryID = nil
+        lookup.songsByID[reference.itemID] = reference
+        return reference
+    }
+
+    func testANewPlaylistFromALibraryRowShowsItsSongBeforeTheLibraryListsIt() async throws {
+        let row = try remembered18P1Row()
+        musicApp.createdPersistentID = "FE82FB07F4D3B512"
+        let created = try await editor.createPlaylist(name: "Spotiglass test", ownerName: "You", songIDs: [row.itemID])
+        let provider = AppleMusicBrowsingProvider(source: EditTestContentSource(), editor: editor)
+
+        let items = try await provider.playlistTracks(playlistID: created.id, limit: 100, maxPages: 1)
+
+        XCTAssertEqual(Self.names(items), ["Don't Stop The Music"], "the sidebar says 1 track, so the page shows it")
+    }
+
+    func testALibraryRowAddedToAPlaylistShowsThereBeforeTheLibraryListsIt() async throws {
+        let row = try remembered18P1Row()
+        let source = EditTestContentSource()
+        source.tracksByPlaylistID["-107247429512612591"] = []
+        let provider = AppleMusicBrowsingProvider(source: source, editor: editor)
+
+        try await editor.addToPlaylist(playlistID: "-107247429512612591", songIDs: [row.itemID])
+        let items = try await provider.playlistTracks(playlistID: "-107247429512612591", limit: 100, maxPages: 1)
+
+        XCTAssertEqual(Self.names(items), ["Don't Stop The Music"])
+    }
+
+    func testACatalogSongGoesIntoAPlaylistMusicCreatedMomentsAgo() async throws {
+        musicApp.createdPersistentID = "FE82FB07F4D3B512"
+        let created = try await editor.createPlaylist(name: "Spotiglass test", ownerName: "You", songIDs: [rowID])
+        cloud.playlists = [AppleMusicCloudPlaylist(id: "p.fromMusic", name: "Spotiglass test")]
+
+        try await editor.addToPlaylist(playlistID: created.id, songIDs: ["699902614"])
+
+        XCTAssertEqual(cloud.calls, ["editablePlaylists", "addToPlaylist(p.fromMusic,[songs:699902614])"])
+    }
+
+    func testACatalogSongWaitsWhileTheCloudDoesNotListAPlaylistMusicJustCreated() async throws {
+        musicApp.createdPersistentID = "FE82FB07F4D3B512"
+        let created = try await editor.createPlaylist(name: "Spotiglass test", ownerName: "You", songIDs: [rowID])
+
+        await XCTAssertThrowsEditError(.notInMusicYet) {
+            try await self.editor.addToPlaylist(playlistID: created.id, songIDs: ["699902614"])
+        }
+    }
+
+    func testACatalogSongIsNeverAddedToANamesakeOfAPlaylistMusicJustCreated() async throws {
+        musicApp.createdPersistentID = "FE82FB07F4D3B512"
+        let created = try await editor.createPlaylist(
+            name: "Spotiglass test", ownerName: "You", songIDs: [rowID], existingIDsWithSameName: ["p.older"]
+        )
+        cloud.playlists = [AppleMusicCloudPlaylist(id: "p.older", name: "Spotiglass test")]
+
+        await XCTAssertThrowsEditError(.ambiguousPlaylist) {
+            try await self.editor.addToPlaylist(playlistID: created.id, songIDs: ["699902614"])
+        }
+        XCTAssertFalse(cloud.calls.contains { $0.hasPrefix("addToPlaylist") })
+    }
+
     // Item 4
 
     func testALibrarySongReadsAsLikedBeforeAnyLookup() {

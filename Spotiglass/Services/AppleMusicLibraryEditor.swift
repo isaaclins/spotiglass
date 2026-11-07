@@ -60,6 +60,9 @@ struct AppleMusicSongReference: Equatable, Sendable {
     var albumTitle: String?
     /// The Music app's persistent ID (hex) of the playlist the song was listed in, when it was.
     var sourcePlaylistPersistentID: String?
+    /// The row as the browser listed it, for a song only the Music app can add: it then shows in
+    /// the playlist it was added to before the library lists it there.
+    var shownTrack: MusicTrack?
     /// When Spotiglass saved the song, for a song the Music app may not list under its persistent
     /// ID yet: the Music app then only matches tracks it added since.
     var savedAt: Date?
@@ -397,12 +400,13 @@ struct AppleMusicLibraryEditor: Sendable {
     /// Lays the added songs over later reads of the playlist until the library lists them.
     private func recordAdditions(_ references: [AppleMusicSongReference], playlistID: String, shownTracks: [MusicTrack]) async {
         let catalogIDs = references.compactMap(\.catalogID)
-        guard !catalogIDs.isEmpty else { return }
-        let tracks = (try? await lookup.catalogTracks(ids: catalogIDs)) ?? []
+        let tracks = catalogIDs.isEmpty ? [] : ((try? await lookup.catalogTracks(ids: catalogIDs)) ?? [])
         let tracksByCatalogID = Dictionary(tracks.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         var addedSoFar: [String: Int] = [:]
         for reference in references {
-            guard let catalogID = reference.catalogID, let track = tracksByCatalogID[catalogID] else { continue }
+            // A song MusicKit lists only under a persistent ID has no catalog track; the row it
+            // was listed as stands in for it.
+            guard let track = reference.catalogID.flatMap({ tracksByCatalogID[$0] }) ?? reference.shownTrack else { continue }
             let metadataKey = AppleMusicPendingLibraryEdits.metadataKey(track)
             let shown = shownTracks.filter {
                 reference.matchKeys.contains($0.id) || $0.id == track.id
@@ -520,20 +524,35 @@ struct AppleMusicLibraryEditor: Sendable {
     private func cloudPlaylistID(for playlistID: String) async throws -> String {
         if Self.isCloudPlaylistID(playlistID) { return playlistID }
         if let known = pending.cloudPlaylistID(for: playlistID) { return known }
-        guard let playlist = try await lookup.playlist(id: playlistID) else {
+        let listedName: String
+        let createdMomentsAgo: Bool
+        if let playlist = try await lookup.playlist(id: playlistID) {
+            listedName = playlist.name
+            createdMomentsAgo = false
+        } else if let created = pending.createdPlaylist(id: playlistID) {
+            // Created through the Music app moments ago: this Mac's library doesn't list it yet,
+            // the cloud may already. Only its name can find it there, and only without a namesake.
+            guard pending.existingIDsWithSameName(asCreated: playlistID).isEmpty else {
+                throw AppleMusicLibraryEditError.ambiguousPlaylist
+            }
+            listedName = created.name
+            createdMomentsAgo = true
+        } else {
             throw AppleMusicLibraryEditError.notEditable
         }
         let editable = try await cloud.editablePlaylists()
         let renamed = pending.renamedName(for: playlistID)
         // Renamed moments ago and the cloud list still shows the old name: the new name may
         // belong to another playlist there, so wait instead of guessing.
-        if let renamed, !Self.isSamePlaylistName(renamed, playlist.name),
-           editable.contains(where: { Self.isSamePlaylistName($0.name, playlist.name) }) {
+        if let renamed, !Self.isSamePlaylistName(renamed, listedName),
+           editable.contains(where: { Self.isSamePlaylistName($0.name, listedName) }) {
             throw AppleMusicLibraryEditError.notInMusicYet
         }
-        let matches = editable.filter { Self.isSamePlaylistName($0.name, renamed ?? playlist.name) }
+        let matches = editable.filter { Self.isSamePlaylistName($0.name, renamed ?? listedName) }
         guard matches.count <= 1 else { throw AppleMusicLibraryEditError.ambiguousPlaylist }
-        guard let match = matches.first else { throw AppleMusicLibraryEditError.notEditable }
+        guard let match = matches.first else {
+            throw createdMomentsAgo ? AppleMusicLibraryEditError.notInMusicYet : AppleMusicLibraryEditError.notEditable
+        }
         pending.recordCloudPlaylistID(match.id, for: playlistID)
         return match.id
     }
