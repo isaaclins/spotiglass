@@ -94,8 +94,13 @@ extension PlaylistBrowserViewModel {
     func adjustSidebarTrackCountAfterEdit(playlistID: String, by delta: Int) {
         guard supportedLibraryEdits.contains(.removeFromPlaylist), delta != 0 else { return }
         // A count run that was already reading the library has the count from before the edit.
-        playlistTrackCountStandIns.remove(playlistID)
-        guard let summary = playlistsByID[playlistID], let count = summary.trackCount else { return }
+        playlistTrackCountEdits[playlistID, default: 0] += 1
+        guard let summary = playlistsByID[playlistID] else { return }
+        guard let count = summary.trackCount else {
+            // No count to add to (an empty playlist has none): count it with the edit.
+            countPlaylistTracks(of: playlistID)
+            return
+        }
         let adjusted = MusicPlaylistSummary(
             id: summary.id,
             name: summary.name,

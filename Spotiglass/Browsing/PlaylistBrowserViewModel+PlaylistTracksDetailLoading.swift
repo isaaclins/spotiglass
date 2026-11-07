@@ -105,7 +105,8 @@ extension PlaylistBrowserViewModel {
     /// The header row with the sidebar's count when a newer one arrived while the tracks
     /// loaded (Apple Music counts arrive after the listing, #407).
     private func withSidebarTrackCount(_ row: PlaylistRowViewModel) -> PlaylistRowViewModel {
-        guard let summary = playlistsByID[row.id], summary.trackCount != row.trackCount else { return row }
+        guard api.listsPlaylistsWithoutTrackCounts,
+              let summary = playlistsByID[row.id], summary.trackCount != row.trackCount else { return row }
         return PlaylistRowViewModel(summary)
     }
 

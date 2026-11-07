@@ -61,6 +61,9 @@ protocol MusicBrowsingProvider {
     /// out and their rows show no count. Spotify lists counts with the playlists, so its default
     /// is empty.
     func playlistTrackCounts(playlistIDs: [String]) async -> [String: Int]
+    /// True when the playlist listing comes without track counts and the browser asks
+    /// `playlistTrackCounts` for them (Apple Music). Spotify lists them, so nothing changes there.
+    var listsPlaylistsWithoutTrackCounts: Bool { get }
     func playlistTracks(playlistID: String, limit: Int, maxPages: Int) async throws -> [MusicPlaylistTrackItem]
     func currentUserSavedTracks(limit: Int, maxPages: Int?) async throws -> MusicSavedTracksResult
     func currentUserProfile() async throws -> MusicUserProfile
@@ -187,6 +190,7 @@ extension MusicBrowsingProvider {
     }
 
     func playlistTrackCounts(playlistIDs: [String]) async -> [String: Int] { [:] }
+    var listsPlaylistsWithoutTrackCounts: Bool { false }
 
     var supportedLibraryEdits: MusicLibraryEdits { [] }
     func deletePlaylist(playlistID: String) async throws {

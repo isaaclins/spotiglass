@@ -12,7 +12,18 @@ extension PlaylistBrowserViewModel {
            !bundle.playlists.isEmpty,
            let cachedPlaylists = try? validatedPlaylistSummaries(bundle.playlists),
            !cachedPlaylists.isEmpty {
-            apply(playlists: cachedPlaylists, state: .loaded(cachedPlaylists.map(PlaylistRowViewModel.init)), preserveSelection: true)
+            // Counts saved with the list are shown, but counted again like any listing's, so
+            // the provider's rules for how long a count holds still apply.
+            let savedCounts = api.listsPlaylistsWithoutTrackCounts ? cachedPlaylists.compactMap { summary in
+                summary.trackCount.map { (summary.id, $0) }
+            } : []
+            let listed = api.listsPlaylistsWithoutTrackCounts ? cachedPlaylists.map { $0.withTrackCount(nil) } : cachedPlaylists
+            apply(
+                playlists: listed,
+                state: .loaded(listed.map(PlaylistRowViewModel.init)),
+                preserveSelection: true,
+                shownCounts: Dictionary(savedCounts, uniquingKeysWith: { first, _ in first })
+            )
             if bundle.age >= playlistListAutoRefreshMinInterval {
                 await refreshPlaylists(trigger: .automatic)
             } else {
@@ -188,10 +199,12 @@ extension PlaylistBrowserViewModel {
     private func apply(
         playlists: [MusicPlaylistSummary],
         state: BrowsingLoadState<[PlaylistRowViewModel]>,
-        preserveSelection: Bool
+        preserveSelection: Bool,
+        shownCounts savedCounts: [String: Int] = [:]
     ) {
-        let shownCounts = playlistsByID.compactMapValues(\.trackCount)
+        let shownCounts = playlistsByID.compactMapValues(\.trackCount).merging(savedCounts) { shown, _ in shown }
         playlistsByID = Dictionary(uniqueKeysWithValues: playlists.map { ($0.id, $0) })
+        playlistTrackCountEdits = playlistTrackCountEdits.filter { playlistsByID[$0.key] != nil }
         playlistState = state
         loadMissingPlaylistTrackCounts(shownCounts: shownCounts)
 
@@ -229,6 +242,11 @@ extension PlaylistBrowserViewModel {
     /// refresh doesn't blank them; one the provider can't count any more goes back to none.
     private func loadMissingPlaylistTrackCounts(shownCounts: [String: Int]) {
         playlistTrackCountTask?.cancel()
+        guard api.listsPlaylistsWithoutTrackCounts else {
+            playlistTrackCountTask = nil
+            playlistTrackCountStandIns = []
+            return
+        }
         let missing = (playlistState.currentValue ?? [])
             .filter { $0.trackCount == nil && $0.id != SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID }
             .map(\.id)
@@ -246,7 +264,7 @@ extension PlaylistBrowserViewModel {
     /// Music takes them out of each playlist they were in. Rows keep their count until the new
     /// one arrives. Only for providers with their own library edits (Apple Music).
     func recountPlaylistTracksAfterLibraryRemoval() {
-        guard supportedLibraryEdits.contains(.removeFromPlaylist) else { return }
+        guard api.listsPlaylistsWithoutTrackCounts else { return }
         playlistTrackCountTask?.cancel()
         let ids = (playlistState.currentValue ?? [])
             .map(\.id)
@@ -258,23 +276,46 @@ extension PlaylistBrowserViewModel {
 
     /// Asks the provider for these playlists' counts a batch at a time; each one in
     /// `playlistTrackCountStandIns` gets the fresh count, or none when the provider has none.
+    /// A count read while its playlist was edited is from before the edit: it is asked for
+    /// again once the run is through.
     private func startPlaylistTrackCountRun(_ ids: [String]) {
         let awaiting = Set(ids)
-        let missing = ids
         playlistTrackCountTask = Task { [weak self, api] in
             var answered = Set<String>()
-            for start in stride(from: 0, to: missing.count, by: Self.playlistTrackCountBatchSize) {
-                guard !Task.isCancelled else { return }
-                let batch = Array(missing[start..<min(missing.count, start + Self.playlistTrackCountBatchSize)])
-                let counts = await api.playlistTrackCounts(playlistIDs: batch)
+            var editedMeanwhile: [String] = []
+            for start in stride(from: 0, to: ids.count, by: Self.playlistTrackCountBatchSize) {
+                guard !Task.isCancelled, let editsBefore = self?.playlistTrackCountEdits else { return }
+                let batch = Array(ids[start..<min(ids.count, start + Self.playlistTrackCountBatchSize)])
+                var counts = await api.playlistTrackCounts(playlistIDs: batch)
                 guard !Task.isCancelled, let self else { return }
+                for id in batch where self.playlistTrackCountEdits[id] != editsBefore[id] {
+                    counts[id] = nil
+                    editedMeanwhile.append(id)
+                }
                 answered.formUnion(counts.keys)
+                answered.formUnion(editedMeanwhile)
                 self.applyPlaylistTrackCounts(counts)
+            }
+            if !editedMeanwhile.isEmpty, let editsBefore = self?.playlistTrackCountEdits {
+                let counts = await api.playlistTrackCounts(playlistIDs: editedMeanwhile)
+                guard !Task.isCancelled, let self else { return }
+                self.applyPlaylistTrackCounts(counts.filter { self.playlistTrackCountEdits[$0.key] == editsBefore[$0.key] })
             }
             guard !Task.isCancelled, let self else { return }
             let unanswered = Dictionary(uniqueKeysWithValues: awaiting.subtracting(answered).map { ($0, Int?.none) })
             self.applyPlaylistTrackCounts(unanswered)
             self.playlistTrackCountStandIns = []
+        }
+    }
+
+    /// Counts one playlist that has no count, after an edit made from Spotiglass.
+    func countPlaylistTracks(of playlistID: String) {
+        guard api.listsPlaylistsWithoutTrackCounts else { return }
+        let edits = playlistTrackCountEdits[playlistID]
+        Task { [weak self, api] in
+            let counts = await api.playlistTrackCounts(playlistIDs: [playlistID])
+            guard let self, self.playlistTrackCountEdits[playlistID] == edits else { return }
+            self.applyPlaylistTrackCounts(counts)
         }
     }
 

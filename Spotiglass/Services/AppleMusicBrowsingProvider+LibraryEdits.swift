@@ -144,19 +144,23 @@ extension AppleMusicBrowsingProvider {
         return editor.pending.applied(toPlaylistTracks: identified, playlistID: playlistID)
     }
 
-    /// How many of a playlist's library tracks are still in it once the songs removed from the
-    /// library from Spotiglass are left out, as the open playlist leaves them out.
-    func countLeavingOutRemovedSongs(_ tracks: [Track]) -> Int {
-        guard editor.pending.hasRemovedSongs else { return tracks.count }
-        return tracks.filter { track in
-            let keys: Set<String>
-            if case let .song(song) = track {
-                keys = Self.identified(song).keys
-            } else {
-                keys = [track.id.rawValue, AppleMusicPendingLibraryEdits.metadataKey(AppleMusicItemMapping.track(track))]
-            }
-            return !editor.pending.isRemoved(keys)
-        }.count
+    /// Each playlist's count, leaving out the songs removed from the library from Spotiglass
+    /// that the library still lists, as the open playlist leaves them out. Empty playlists have
+    /// no count.
+    func countsLeavingOutRemovedSongs(_ tracksByPlaylistID: [String: [Track]]) -> [String: Int] {
+        guard editor.pending.hasRemovedSongs else {
+            return tracksByPlaylistID.compactMapValues { $0.isEmpty ? nil : $0.count }
+        }
+        return tracksByPlaylistID.compactMapValues { tracks in
+            let count = editor.pending.countNotRemoved(tracks.map(Self.pendingKeys))
+            return count > 0 ? count : nil
+        }
+    }
+
+    /// Every key a pending edit may know a track by.
+    private static func pendingKeys(_ track: Track) -> Set<String> {
+        if case let .song(song) = track { return identified(song).keys }
+        return [track.id.rawValue, AppleMusicPendingLibraryEdits.metadataKey(AppleMusicItemMapping.track(track))]
     }
 
     /// A song with every key a pending edit may know it by.

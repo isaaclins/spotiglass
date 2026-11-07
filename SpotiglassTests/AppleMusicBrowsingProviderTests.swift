@@ -351,6 +351,8 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         source.trackCountsGate = gate
         await viewModel.refreshPlaylists()
         viewModel.adjustSidebarTrackCountAfterEdit(playlistID: "p.1", by: 1)
+        // The edit went through: asked again, the library (or the pending edit) has it.
+        source.trackCountsByPlaylistID = ["p.1": 11]
         gate.open()
         await viewModel.playlistTrackCountTask?.value
 
@@ -1213,11 +1215,13 @@ private final class MockAppleMusicSource: AppleMusicContentSource, @unchecked Se
 
     func libraryPlaylistTracks(playlistIDs: [String]) async throws -> [String: [Track]] {
         record("trackCounts(\(playlistIDs.joined(separator: ",")))")
+        // Read first, then slow to answer: the result is from before anything done meanwhile.
+        let read = try trackCountsByPlaylistID.filter { playlistIDs.contains($0.key) }.mapValues { count in
+            try (0..<count).map { Track.song(try AppleMusicFixtures.song(id: "i.\($0)", title: "Song \($0)")) }
+        }
         await trackCountsGate?.wait()
         if let trackCountsError { throw trackCountsError }
-        return try trackCountsByPlaylistID.filter { playlistIDs.contains($0.key) }.mapValues { count in
-            try (0..<count).map { .song(try AppleMusicFixtures.song(id: "i.\($0)", title: "Song \($0)")) }
-        }
+        return read
     }
 
     func playlistTracks(playlistID: String, limit: Int) async throws -> [Track]? {

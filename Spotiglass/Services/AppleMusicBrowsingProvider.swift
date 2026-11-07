@@ -167,13 +167,15 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
             forVersions: Dictionary(playlists.map { ($0.id.rawValue, $0.lastModifiedDate) }, uniquingKeysWith: { first, _ in first })
         )
         return editor.pending.applied(toPlaylists: playlists.map {
-            // A playlist edited from Spotiglass, or any while a song removed from the library may
-            // still be listed in it, is counted again (`playlistTrackCounts`) with those edits.
+            // A playlist edited from Spotiglass is counted again (`playlistTrackCounts`) with
+            // the edits the library doesn't show yet.
             let id = $0.id.rawValue
-            let cached = editor.pending.hasPendingTracks(playlistID: id) || editor.pending.hasRemovedSongs ? nil : counts[id]
+            let cached = editor.pending.hasPendingTracks(playlistID: id) ? nil : counts[id]
             return AppleMusicItemMapping.playlistSummary($0, fallbackOwnerName: libraryOwnerName, cachedTrackCount: cached)
         })
     }
+
+    var listsPlaylistsWithoutTrackCounts: Bool { true }
 
     func playlistTrackCounts(playlistIDs: [String]) async -> [String: Int] {
         guard !playlistIDs.isEmpty else { return [:] }
@@ -183,14 +185,10 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
             let start = await trackCountCache.startLookup(unedited)
             // A failed lookup only leaves those rows without a count; the sidebar itself is loaded.
             if let library = try? await source.libraryPlaylistTracks(playlistIDs: unedited) {
-                // While the library still lists a removed song, its raw count is the old one.
-                if !editor.pending.hasRemovedSongs {
-                    await trackCountCache.store(library.compactMapValues { $0.isEmpty ? nil : $0.count }, from: start)
-                }
-                counts = library.compactMapValues { tracks in
-                    let count = countLeavingOutRemovedSongs(tracks)
-                    return count > 0 ? count : nil
-                }
+                // Songs removed from the library that it still lists are left out, so what is
+                // kept is the count the library will have once it caught up.
+                counts = countsLeavingOutRemovedSongs(library)
+                await trackCountCache.store(counts, from: start)
             }
         }
         // The library can take hours to show an add or remove made from Spotiglass, so those

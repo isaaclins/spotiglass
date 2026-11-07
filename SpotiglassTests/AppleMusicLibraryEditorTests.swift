@@ -1539,7 +1539,7 @@ final class AppleMusicPlaylistEditFixTests: XCTestCase {
         let before = await provider.playlistTrackCounts(playlistIDs: [playlistID])
         XCTAssertEqual(before, [playlistID: 2])
 
-        pending.recordRemovedSong([rowID])
+        try await provider.removeSavedTracks(ids: [rowID])
 
         let listed = try await provider.currentUserPlaylists(limit: 50)
         XCTAssertNil(listed.first?.trackCount, "the count with the removed song stays out of the listing")
@@ -1610,6 +1610,27 @@ final class AppleMusicPlaylistEditFixTests: XCTestCase {
         let counts = await counting.value
 
         XCTAssertEqual(counts, [edited: 2, other: 1])
+    }
+
+    /// While a removal from the library is pending, counts are still kept (without the removed
+    /// song), so a refresh doesn't read every playlist again for hours.
+    func testCountsAreKeptWhileALibraryRemovalIsPending() async throws {
+        let playlistID = "-107247429512612591"
+        let source = EditTestContentSource()
+        source.playlists = [try AppleMusicFixtures.playlist(id: playlistID, name: "Spotiglass test")]
+        source.tracksByPlaylistID[playlistID] = [
+            .song(try AppleMusicFixtures.song(id: rowID, title: "Don't Stop The Music", artist: "Rihanna")),
+            .song(try AppleMusicFixtures.song(id: "i.1", title: "One", artist: "Someone")),
+        ]
+        let provider = AppleMusicBrowsingProvider(source: source, editor: editor)
+        try await provider.removeSavedTracks(ids: [rowID])
+        XCTAssertTrue(pending.hasRemovedSongs)
+        _ = try await provider.currentUserPlaylists(limit: 50)
+        let counted = await provider.playlistTrackCounts(playlistIDs: [playlistID])
+        XCTAssertEqual(counted, [playlistID: 1])
+
+        let listed = try await provider.currentUserPlaylists(limit: 50)
+        XCTAssertEqual(listed.first?.trackCount, 1, "kept, without the removed song")
     }
 
     func testALibraryRowAddedToAPlaylistShowsThereBeforeTheLibraryListsIt() async throws {

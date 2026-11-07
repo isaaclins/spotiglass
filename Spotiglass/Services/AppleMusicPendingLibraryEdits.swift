@@ -246,6 +246,14 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
         }
     }
 
+    /// How many of these tracks (each by its keys) are not removed from the library, in one go.
+    func countNotRemoved(_ tracks: [Set<String>]) -> Int {
+        locked {
+            expire()
+            return tracks.filter { keys in !removedSongs.keys.contains { !$0.isDisjoint(with: keys) } }.count
+        }
+    }
+
     func isRemoved(_ keys: Set<String>) -> Bool {
         locked {
             expire()
@@ -463,6 +471,18 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
 
 extension MusicPlaylistSummary {
     func renamed(_ name: String) -> MusicPlaylistSummary {
+        MusicPlaylistSummary(
+            id: id,
+            name: name,
+            ownerID: ownerID,
+            ownerName: ownerName,
+            imageURL: imageURL,
+            trackCount: trackCount,
+            snapshotID: snapshotID
+        )
+    }
+
+    func withTrackCount(_ trackCount: Int?) -> MusicPlaylistSummary {
         MusicPlaylistSummary(
             id: id,
             name: name,

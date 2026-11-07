@@ -90,13 +90,14 @@ struct MusicKitContentSource: AppleMusicContentSource {
     func libraryPlaylistTracks(playlistIDs: [String]) async throws -> [String: [Track]] {
         guard !playlistIDs.isEmpty else { return [:] }
         // One local library query for the whole batch: each playlist comes back as a section
-        // holding its tracks, which MusicKit delivers in full for library sections.
+        // holding its tracks, which follow MusicKit's batches like every other read here, up to
+        // the same bound as opening the playlist.
         var request = MusicLibrarySectionedRequest<Playlist, Track>()
         request.filterSections(matching: \.id, memberOf: playlistIDs.map { MusicItemID($0) })
         let sections = try await request.response().sections
         var tracks: [String: [Track]] = [:]
         for section in sections where !section.items.isEmpty {
-            tracks[section.id.rawValue] = Array(section.items)
+            tracks[section.id.rawValue] = try await Self.collect(section.items, limit: Self.maxCountedPlaylistTracks)
         }
         return tracks
     }
@@ -244,6 +245,9 @@ struct MusicKitContentSource: AppleMusicContentSource {
     }
 
     /// Follows MusicKit batches until `limit` items are collected or the collection ends.
+    /// The most tracks a playlist is counted to: what opening it reads (100 pages of 100).
+    static let maxCountedPlaylistTracks = 10_000
+
     private static func collect<Item>(_ collection: MusicItemCollection<Item>?, limit: Int) async throws -> [Item] {
         guard var batch = collection else { return [] }
         var items = Array(batch)
