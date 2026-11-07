@@ -291,13 +291,84 @@ final class PlaybackChromeViewsTests: XCTestCase {
         )
     }
 
-    func testPlaybackTransportLayoutAtWindowMinimumKeepsScrubberUsable() throws {
-        XCTAssertEqual(PlaybackTransportLayoutPolicy.scrubberWidth(in: 520), 180)
-        XCTAssertEqual(PlaybackTransportLayoutPolicy.scrubberWidth(in: 700), 180)
-        XCTAssertTrue(PlaybackTransportLayoutPolicy.usesCompactVolume(for: 520))
-        XCTAssertTrue(PlaybackTransportLayoutPolicy.usesCompactVolume(for: 700))
-        XCTAssertFalse(PlaybackTransportLayoutPolicy.usesCompactVolume(for: 900))
+    /// The bar keeps one scrubber in every arrangement (#394). It used to pick
+    /// its arrangement with a `ViewThatFits` over three complete copies of the
+    /// transport; in the app that rebuilt the scrubber on layout passes and the
+    /// new scrubber's timeline asked for the next pass, which kept a CPU core
+    /// busy (measured in Release builds; a test window does not loop). A press
+    /// survives a player update and the window passing through the stacked
+    /// arrangement and back, and the release seeks once, at the pointer.
+    func testPressOnTheBarSurvivesUpdatesAndRearrangement() throws {
+        let api = MockPlaybackAPI()
+        let playback = PlaybackSessionViewModel(
+            provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()))
+        playback.handle(.ready(deviceID: "device-1"))
+        playback.handle(.stateChanged(Self.midnightCity(), isPaused: false, nextTracks: []))
 
+        let controller = NSHostingController(
+            rootView: PlaybackControlsView(
+                viewModel: playback,
+                isLyricsPresented: .constant(false),
+                openArtist: { _ in }
+            )
+        )
+        controller.sizingOptions = [.minSize]
+        let window = KeyTestPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 1_240, height: 120),
+            styleMask: [.titled, .resizable, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "AXTestTransportClick"
+        window.contentViewController = controller
+        window.isReleasedWhenClosed = false
+        // Wider than the content's minimum, like the app's 1280 pt window.
+        window.setContentSize(NSSize(width: 1_240, height: 120))
+        window.orderFrontRegardless()
+        window.makeKey()
+        defer { AppKitTestSupport.closeWindowSafely(window) }
+        AppKitTestSupport.pumpRunLoop(for: 0.5)
+
+        let scrubber = try XCTUnwrap(
+            try realizedAccessibilityTree(in: window).first { $0.axDescription == "Playback progress" }
+        )
+        let position = try XCTUnwrap(scrubber.position)
+        let size = try XCTUnwrap(scrubber.size)
+        // AX frames are in screen points from the top of the main screen.
+        let screenHeight = try XCTUnwrap(NSScreen.screens.first).frame.height
+        let pointOnScreen = NSPoint(x: position.x + size.width * 0.75, y: screenHeight - (position.y + size.height / 2))
+        let location = window.convertPoint(fromScreen: pointOnScreen)
+
+        func send(_ type: NSEvent.EventType) {
+            window.sendEvent(NSEvent.mouseEvent(
+                with: type,
+                location: location,
+                modifierFlags: [],
+                timestamp: ProcessInfo.processInfo.systemUptime,
+                windowNumber: window.windowNumber,
+                context: nil,
+                eventNumber: 0,
+                clickCount: 1,
+                pressure: type == .leftMouseDown ? 1 : 0
+            )!)
+        }
+        send(.leftMouseDown)
+        AppKitTestSupport.pumpRunLoop(for: 0.15)
+        playback.handle(.stateChanged(Self.midnightCity(positionMilliseconds: 32_000), isPaused: false, nextTracks: []))
+        AppKitTestSupport.pumpRunLoop(for: 0.2)
+        window.setContentSize(NSSize(width: 640, height: 120))
+        AppKitTestSupport.pumpRunLoop(for: 0.2)
+        window.setContentSize(NSSize(width: 1_240, height: 120))
+        AppKitTestSupport.pumpRunLoop(for: 0.2)
+        send(.leftMouseUp)
+        AppKitTestSupport.pumpRunLoop(for: 0.5)
+
+        XCTAssertEqual(api.seekCallTimestamps.count, 1, "the click must seek once")
+        // Three quarters of the 4:00 track, where the pointer was.
+        XCTAssertEqual(Double(playback.progressAnchor?.positionMilliseconds ?? 0), 180_000, accuracy: 2_000)
+    }
+
+    func testPlaybackTransportLayoutAtWindowMinimumKeepsScrubberUsable() throws {
         for size in [CGSize(width: 520, height: 360), CGSize(width: 700, height: 500)] {
             let controller = ViewTestHost.host(
                 PlaybackControlsView(
@@ -331,38 +402,59 @@ final class PlaybackChromeViewsTests: XCTestCase {
         }
     }
 
-    func testPlaybackTransportMinimumWidthsReserveSummaryAndFitContainer() {
-        for width in stride(from: CGFloat(700), through: CGFloat(1600), by: 10) {
-            let minimumWidths = PlaybackTransportLayoutPolicy.transportChildMinimumWidths(in: width)
+    /// The floors a row reserves: the summary, the scrubber's seeking surface
+    /// and the trailing controls, with the two gaps between them.
+    private func rowMinimumWidth(compactVolume: Bool) -> CGFloat {
+        PlaybackTransportLayoutPolicy.nowPlayingSummaryMinimumWidth
+            + PlaybackTransportLayoutPolicy.scrubberMinimumWidth
+            + PlaybackTransportLayoutPolicy.transportActionsMinimumWidth(useCompactVolume: compactVolume)
+            + 2 * SpotiglassDesign.spacingM
+    }
 
-            XCTAssertGreaterThan(
-                minimumWidths.summary,
-                0,
-                "Now-playing summary lost its floor at transport width \(width)"
-            )
+    func testPlaybackTransportRowFloorsFitEveryWidthThatPicksARow() {
+        for width in stride(from: CGFloat(320), through: CGFloat(1600), by: 10) {
+            guard case let .row(compactVolume) = PlaybackTransportArrangementLayout.arrangement(
+                forWidth: width,
+                idealRowWidth: { _ in 0 }
+            ) else { continue }
             XCTAssertLessThanOrEqual(
-                minimumWidths.summary
-                    + minimumWidths.scrubber
-                    + minimumWidths.actions
-                    + (2 * SpotiglassDesign.spacingM),
+                rowMinimumWidth(compactVolume: compactVolume),
                 width,
-                "Transport child minimums no longer fit at width \(width)"
+                "Transport row floors no longer fit at width \(width)"
             )
         }
     }
 
-    /// Mirrors the selection `ViewThatFits` performs over
-    /// `transportLayoutCandidates()`: the first candidate whose minimum width
-    /// the proposal satisfies, falling back to the stacked arrangement. Lives
-    /// in the test target because production selects structurally, by handing
-    /// each candidate's minimum to `ViewThatFits` as a frame, rather than by
-    /// computing a candidate from a measured width.
+    /// The candidate `PlaybackTransportArrangementLayout` picks for a width
+    /// when every ideal row fits, so only the candidates' minimum widths decide.
     private func transportLayoutCandidate(
         for measuredWidth: CGFloat
     ) -> PlaybackTransportLayoutPolicy.TransportLayoutCandidate {
         let candidates = PlaybackTransportLayoutPolicy.transportLayoutCandidates()
         guard measuredWidth.isFinite else { return candidates.last! }
-        return candidates.first { measuredWidth >= $0.minimumWidth } ?? candidates.last!
+        switch PlaybackTransportArrangementLayout.arrangement(forWidth: measuredWidth, idealRowWidth: { _ in 0 }) {
+        case .row(let compactVolume):
+            return candidates.first { $0.minimumWidth > 0 && $0.useCompactVolume == compactVolume }!
+        case .stacked:
+            return candidates.last!
+        }
+    }
+
+    /// A row is only chosen when its ideal width fits too, as `ViewThatFits`
+    /// chose before: a long ideal row falls back to the compact row, then to
+    /// the stacked arrangement, and an ideal-size query gets the full row.
+    func testTransportArrangementNeedsTheIdealRowToFit() {
+        let idealRow: (Bool) -> CGFloat = { compactVolume in compactVolume ? 808 : 904 }
+        func arrangement(_ width: CGFloat?) -> PlaybackTransportArrangementLayout.Arrangement {
+            PlaybackTransportArrangementLayout.arrangement(forWidth: width, idealRowWidth: idealRow)
+        }
+        XCTAssertEqual(arrangement(1_240), .row(compactVolume: false))
+        XCTAssertEqual(arrangement(904), .row(compactVolume: false))
+        XCTAssertEqual(arrangement(903), .row(compactVolume: true))
+        XCTAssertEqual(arrangement(808), .row(compactVolume: true))
+        XCTAssertEqual(arrangement(807), .stacked)
+        XCTAssertEqual(arrangement(0), .stacked)
+        XCTAssertEqual(arrangement(nil), .row(compactVolume: false))
     }
 
     func testPlaybackTransportLayoutCandidatesReachFixedPointsAcrossDenseWidthSweep() {
@@ -390,39 +482,22 @@ final class PlaybackChromeViewsTests: XCTestCase {
 
         for width in stride(from: CGFloat(320), through: CGFloat(1600), by: 1) {
             let firstCandidate = transportLayoutCandidate(for: width)
-            let firstMinimums = PlaybackTransportLayoutPolicy.transportChildMinimumWidths(
-                in: width,
-                useCompactVolume: firstCandidate.useCompactVolume
-            )
-            // Model ViewThatFits feeding the selected candidate's frame back
-            // through layout: the selected candidate must remain selected and
-            // its complete child-minimum computation must remain unchanged.
+            // Model the selected candidate's minimum feeding back through
+            // layout: the selected candidate must remain selected.
             let measuredAgain = max(width, firstCandidate.minimumWidth)
             let secondCandidate = transportLayoutCandidate(for: measuredAgain)
-            let secondMinimums = PlaybackTransportLayoutPolicy.transportChildMinimumWidths(
-                in: measuredAgain,
-                useCompactVolume: secondCandidate.useCompactVolume
-            )
 
             XCTAssertEqual(
                 secondCandidate,
                 firstCandidate,
                 "Transport arrangement oscillated at measured width \(width)"
             )
-            XCTAssertEqual(
-                secondMinimums,
-                firstMinimums,
-                "Transport child minimums did not converge at measured width \(width)"
-            )
             // The stacked arrangement is the always-fits fallback, and is the
             // only candidate declaring a zero minimum. Every other candidate is
             // horizontal and must genuinely fit the width it was selected for.
             if firstCandidate.minimumWidth > 0 {
                 XCTAssertLessThanOrEqual(
-                    firstMinimums.summary
-                        + firstMinimums.scrubber
-                        + firstMinimums.actions
-                        + (2 * SpotiglassDesign.spacingM),
+                    rowMinimumWidth(compactVolume: firstCandidate.useCompactVolume),
                     width,
                     "Horizontal candidate does not fit at measured width \(width)"
                 )
@@ -979,17 +1054,31 @@ final class PlaybackChromeViewsTests: XCTestCase {
         let playback = PlaybackSessionViewModel(
             provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
         playback.handle(.ready(deviceID: "device-1"))
-        let nowPlaying = PlaybackNowPlaying(
+        playback.handle(.stateChanged(Self.midnightCity(artists: artists), isPaused: paused, nextTracks: []))
+        return playback
+    }
+
+    private static func midnightCity(
+        artists: [String] = ["M83"],
+        positionMilliseconds: Int = 30_000
+    ) -> PlaybackNowPlaying {
+        PlaybackNowPlaying(
             name: "Midnight City",
             artists: artists,
             albumName: nil,
             albumID: nil,
             albumArtURL: nil,
             durationMilliseconds: 240_000,
-            positionMilliseconds: 30_000,
+            positionMilliseconds: positionMilliseconds,
             uri: "spotify:track:midnight"
         )
-        playback.handle(.stateChanged(nowPlaying, isPaused: paused, nextTracks: []))
-        return playback
     }
+}
+
+/// SwiftUI hands mouse events to gestures only in the key window. A test run
+/// cannot always make its process the active app, so this window reports
+/// itself key without taking focus from whatever is in front.
+private final class KeyTestPanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+    override var isKeyWindow: Bool { true }
 }
