@@ -220,6 +220,35 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         _ = try? await again.value
     }
 
+    /// The play outlasts the read's wait: the panel shows the queue from before, and the list
+    /// the play started as soon as the play is in, without another trigger (the app is in the
+    /// background, so there's no poll).
+    func testAPlayThatOutlastsTheWaitShowsItsListOnceItIsIn() async throws {
+        let likedSongs = (1...2_543).map { "applemusic:song:\($0)" }
+        let player = ScriptedAppleMusicPlayer()
+        let provider = AppleMusicPlaybackProvider(player: player, queueReadWaitLimit: .milliseconds(50))
+        let session = PlaybackSessionViewModel(provider: provider)
+        session.deviceID = AppleMusicPlaybackProvider.deviceID
+        session.setActivePlaybackDeviceID(AppleMusicPlaybackProvider.deviceID)
+        session.handle(.ready(deviceID: AppleMusicPlaybackProvider.deviceID))
+        let queue = QueueViewModel(provider: provider, playbackSession: session)
+        queue.setAppActive(false)
+
+        player.holdLookups = true
+        let play = Task { try await provider.play(.items(uris: likedSongs, startURI: nil), deviceID: "x") }
+        while player.waitingLookups.isEmpty { await Task.yield() }
+        await Self.openPanel(queue)
+        XCTAssertTrue(queue.upcomingItems.isEmpty, "the wait ran out while the play still looks up")
+
+        player.releaseLookups()
+        try await play.value
+        let deadline = Date().addingTimeInterval(2)
+        while queue.upcomingItems.isEmpty, Date() < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertEqual(queue.upcomingItems.map(\.uri), Array(likedSongs[1...20]))
+    }
+
     /// What showing the panel does (``QueueViewModel/setPanelVisible(_:)``), awaited.
     private static func openPanel(_ queue: QueueViewModel) async {
         queue.isPanelVisible = true

@@ -102,6 +102,15 @@ extension QueueViewModel {
             pendingRefreshAllowsHiddenPanel = false
             pendingRefreshTrigger = .poll
         }
+
+        // The read gave up waiting for a slow play and showed the queue from before it. Read
+        // again, so the panel shows the new queue as soon as the play is in; the provider's
+        // wait paces these reads (#413).
+        if provider.isQueueSettling, isPanelVisible, !isQueueSessionBoundary {
+            Task { @MainActor [weak self] in
+                await self?.requestQueueRefresh(trigger: .event, allowsHiddenPanel: false)
+            }
+        }
     }
 
     /// Failures are silent so the strip still shows SDK `next_tracks` via ``publishMergedState``.

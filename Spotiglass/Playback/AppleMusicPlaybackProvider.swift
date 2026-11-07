@@ -95,6 +95,8 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
     /// the player has.
     private let queueReadWaitLimit: Duration
 
+    var isQueueSettling: Bool { runningPlayGeneration != nil }
+
     init(player: (any AppleMusicPlayerControlling)? = nil, queueReadWaitLimit: Duration = .seconds(15)) {
         self.player = player ?? MusicKitApplicationPlayer()
         self.queueReadWaitLimit = queueReadWaitLimit

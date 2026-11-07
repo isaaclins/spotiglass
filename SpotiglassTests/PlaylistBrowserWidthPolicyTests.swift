@@ -180,6 +180,23 @@ final class PlaylistBrowserWidthPolicyTests: XCTestCase {
             ),
             .restore
         )
+        // Shrunk below the sidebar's room first: widening within that range keeps it hidden,
+        // widening past it brings it back.
+        let within = Self.widen(from: 520, to: 600)
+        XCTAssertFalse(within.widenedWithRoomForSidebar)
+        XCTAssertEqual(
+            BrowserWidthCommitPolicy.sidebarOnWidening(
+                within, sidebarCollapsed: true, heldForQueue: true, isQueueVisible: false, isNarrow: true
+            ),
+            .none
+        )
+        XCTAssertEqual(
+            BrowserWidthCommitPolicy.sidebarOnWidening(
+                Self.widen(from: 600, to: 700), sidebarCollapsed: true, heldForQueue: true,
+                isQueueVisible: false, isNarrow: true
+            ),
+            .restore
+        )
         // A width that only jitters by less than a point isn't a widening.
         XCTAssertEqual(
             BrowserWidthCommitPolicy.sidebarOnWidening(
