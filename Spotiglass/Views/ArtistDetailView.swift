@@ -165,7 +165,7 @@ struct ArtistDetailContent: View {
                 // the sibling playlist screen explains itself (#135).
                 EmptyStateView(
                     title: SpotiglassL10n.string("browser.artist.empty.title"),
-                    message: SpotiglassL10n.string("browser.artist.empty.message")
+                    message: SpotiglassL10n.format("browser.artist.empty.message", MusicServiceSelection.current.displayName)
                 )
             }
         }

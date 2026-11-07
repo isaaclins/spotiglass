@@ -43,7 +43,7 @@ extension PlaylistBrowserViewModel {
             invalidateLibraryContinuationCache()
             if playlists.isEmpty {
                 playlistsByID = [:]
-                playlistState = .empty(SpotiglassL10n.string("browser.empty.noPlaylists"))
+                playlistState = .empty(SpotiglassL10n.format("browser.empty.noPlaylists", MusicServiceSelection.current.displayName))
                 if case let .playlist(id) = sidebarSelection,
                    knownPlaylistSummariesByID[id] != nil {
                     return

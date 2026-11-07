@@ -83,18 +83,21 @@ struct AccountSettingsView: View {
         )
     }
 
+    /// The token's expiry in the app's language. `formatted()` alone follows the system language,
+    /// so a German app showed "7 Nov 2026 at 18:32" on an English Mac (#398).
+    static func validUntilText(_ date: Date, locale: Locale = SpotiglassL10n.locale) -> String {
+        SpotiglassL10n.format(
+            "settings.account.validUntil",
+            locale: locale,
+            date.formatted(.dateTime.year().month().day().hour().minute().timeZone().locale(locale))
+        )
+    }
+
     private var diagnosticsSection: some View {
             Section {
                 if let session = activeSession {
                     LabeledContent(SpotiglassL10n.string("settings.account.accessToken")) {
-                        Text(
-                            String(
-                                format: SpotiglassL10n.string("settings.account.validUntil"),
-                                session.expiresAt.formatted(
-                                    .dateTime.year().month().day().hour().minute().timeZone()
-                                )
-                            )
-                        )
+                        Text(Self.validUntilText(session.expiresAt))
                             .foregroundStyle(.secondary)
                             .textSelection(.enabled)
                     }
