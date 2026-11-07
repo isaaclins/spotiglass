@@ -50,12 +50,7 @@ enum AppleMusicFailure: Equatable {
             @unknown default: return .failed
             }
         case let error as MusicDataRequest.Error:
-            switch error.status {
-            case 401: return .notSignedIn
-            case 403: return .unavailable
-            case 404: return .notFound
-            default: return .failed
-            }
+            return from(httpStatus: error.status)
         case let error as MusicSubscription.Error:
             switch error {
             case .permissionDenied: return .accessOff
@@ -68,6 +63,14 @@ enum AppleMusicFailure: Equatable {
         default:
             return nil
         }
+    }
+
+    /// The Apple Music API's HTTP status alone doesn't say which fix applies: 401 is mostly the
+    /// developer token but also a signed-out user, 403 a user-token problem or the unaccepted
+    /// privacy notice (Apple's "HTTP Status Codes" reference). Those read as the generic failure
+    /// with Retry; the precise cases come from MusicKit's token errors above.
+    static func from(httpStatus: Int) -> AppleMusicFailure {
+        httpStatus == 404 ? .notFound : .failed
     }
 }
 

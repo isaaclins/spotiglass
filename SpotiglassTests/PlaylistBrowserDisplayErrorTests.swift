@@ -93,6 +93,16 @@ final class PlaylistBrowserDisplayErrorTests: XCTestCase {
         XCTAssertTrue(unknown.canRetry)
     }
 
+    /// A 401 or 403 from the Apple Music API can mean a bad developer token, a signed-out user or
+    /// the unaccepted privacy notice, so neither claims one fix ("isn't available" with no Retry
+    /// told a user who only had to accept the notice that nothing could be done).
+    func testAppleMusicHTTPStatusesDontGuessTheFix() {
+        XCTAssertEqual(AppleMusicFailure.from(httpStatus: 401), .failed)
+        XCTAssertEqual(AppleMusicFailure.from(httpStatus: 403), .failed)
+        XCTAssertEqual(AppleMusicFailure.from(httpStatus: 404), .notFound)
+        XCTAssertEqual(AppleMusicFailure.from(httpStatus: 500), .failed)
+    }
+
     func testAppleMusicNotFoundNamesAppleMusic() {
         let display = PlaylistBrowserViewModel.displayError(for: AppleMusicBrowsingError.notFound)
         XCTAssertEqual(display.title, "Not found")
