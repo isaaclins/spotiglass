@@ -16,6 +16,7 @@ extension PlaylistBrowserViewModel {
             if bundle.age >= playlistListAutoRefreshMinInterval {
                 await refreshPlaylists(trigger: .automatic)
             } else {
+                await loadCurrentUserIfUnknown()
                 if let sidebarSelection {
                     detailSession += 1
                     let session = detailSession
@@ -91,6 +92,16 @@ extension PlaylistBrowserViewModel {
             }
             await selectHomeIfNoDetailIsShown()
         }
+    }
+
+    /// A fresh playlist cache skips the `me/playlists` refresh, which is also where the current
+    /// user is learned. Without it, own playlists read as someone else's (owner shown, no
+    /// rename). That happened on every browser rebuilt within the refresh window, e.g. after
+    /// a language switch (#400). Failing here only leaves the ID unknown, as before.
+    private func loadCurrentUserIfUnknown() async {
+        guard currentUserSpotifyID?.isEmpty ?? true else { return }
+        guard let profile = try? await api.currentUserProfile(), !profile.id.isEmpty else { return }
+        currentUserSpotifyID = profile.id
     }
 
     /// The Home feed is independent of the playlist library. On the initial

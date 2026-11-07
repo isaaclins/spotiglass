@@ -66,6 +66,26 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         XCTAssertEqual(viewModel.playlistState.currentValue?.map(\.title), ["One"])
     }
 
+    /// A language switch rebuilds the window, and the new browser loads its playlists from the
+    /// fresh disk cache. That path skipped the profile request, so the browser no longer knew
+    /// the current user: own playlists showed their owner and lost "Edit playlist name" (#400).
+    func testFreshCachedLoadStillLearnsTheCurrentUser() async {
+        let own = MusicPlaylistSummary(
+            id: "night-drive", name: "Night Drive", ownerID: "u", ownerName: "I",
+            imageURL: nil, trackCount: 8, snapshotID: "s1"
+        )
+        let api = MockBrowsingAPI(playlistResults: [], trackResults: [:])
+        let cache = MockBrowsingCache(cachedPlaylists: [own], playlistListCacheAge: 0)
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: cache)
+
+        await viewModel.load()
+
+        XCTAssertEqual(api.currentUserPlaylistsCallCount, 0, "a fresh cache still skips the playlist refresh")
+        XCTAssertEqual(viewModel.currentUserSpotifyID, "u")
+        let row = try? XCTUnwrap(viewModel.playlistState.currentValue?.first)
+        XCTAssertEqual(row?.ownerTracksLine(currentUserID: viewModel.currentUserSpotifyID), "8 tracks")
+    }
+
     func testCachedLoadUsesCacheWhenRefreshFails() async {
         let api = MockBrowsingAPI(
             playlistResults: [.failure(SpotifyAPIError.network("Offline"))],
