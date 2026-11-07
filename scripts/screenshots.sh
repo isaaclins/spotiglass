@@ -6,6 +6,7 @@
 #                                                                     build, start mock, launch app
 #   scripts/screenshots.sh shot <name> [window-title]                 capture a window to $SHOTS_DIR/<name>.png
 #   scripts/screenshots.sh key <keycode> [cmd] [shift] [alt] [ctrl]    press a shortcut, e.g. `key 40 cmd` = ⌘K
+#   scripts/screenshots.sh appearance <light|dark>                    switch the macOS appearance live
 #   scripts/screenshots.sh stop                                       quit app, stop mock, remove all state
 #
 # Between `shot`s, drive the app by hand, with `key`, or with cliclick for clicks and typing.
@@ -23,16 +24,39 @@ APP="$WORK/Spotiglass.app"
 FAKE_HOME="$WORK/home"
 WINDOW_FRAME="${WINDOW_FRAME:-120, 80, 1320, 860}"   # x, y, width, height in points
 
-usage() { sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'; exit 1; }
+usage() { sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; exit 1; }
 
 # --with-apple-music runs under the real bundle id (MusicKit issues its developer token for that id
 # only), so the real app's defaults domain is saved at start and put back at stop.
 REAL_BUNDLE_ID="com.isaaclins.spotiglass"
-REAL_DEFAULTS_BACKUP="$WORK/real-defaults.plist"
-REAL_DEFAULTS_MARKER="$WORK/real-defaults.saved"
+# What start and appearance change outside the app's own sandbox (the real app's defaults, the macOS
+# appearance) is per Mac, not per checkout, so its backups live outside the build folder, where
+# wiping build/ can't lose them. The checkout that saves the first backup owns them until its stop
+# puts them back: other checkouts can't change either setting meanwhile, and their stop leaves the
+# backups alone. Once the owner's folder is gone, any checkout takes them over.
+STATE_DIR="$HOME/Library/Application Support/Spotiglass Screenshot Mode"
+STATE_OWNER="$STATE_DIR/owner"
+REAL_DEFAULTS_BACKUP="$STATE_DIR/real-defaults.plist"
+REAL_DEFAULTS_MARKER="$STATE_DIR/real-defaults.saved"
 SERVICES_SUITE="com.isaaclins.spotiglass.screenshots.services"
 
 app_pid() { pgrep -f "$APP/Contents/MacOS/Spotiglass" | head -1; }
+# Makes this checkout the backups' owner, or stops when another checkout owns them.
+claim_state() {
+    local owner; owner="$(state_owner)"
+    if [ -n "$owner" ] && [ "$owner" != "$ROOT" ]; then
+        echo "screenshots: the run in $owner has changed the real app's defaults or the macOS" \
+            "appearance; run 'stop' there first" >&2
+        exit 1
+    fi
+    mkdir -p "$STATE_DIR"
+    echo "$ROOT" >"$STATE_OWNER"
+}
+# The checkout that owns the backups, empty when none does or its folder was deleted.
+state_owner() {
+    local owner; owner="$(cat "$STATE_OWNER" 2>/dev/null || true)"
+    if [ -n "$owner" ] && [ -d "$owner" ]; then echo "$owner"; fi
+}
 
 # Prints "<windowID> <title>" for each on-screen window of the screenshot app, largest first.
 windows() {
@@ -66,6 +90,7 @@ start() {
         shift
     done
     [ -z "$(app_pid)" ] || { echo "screenshots: already running; run 'stop' first" >&2; exit 1; }
+    [ "$apple_music" = 0 ] || claim_state
     mkdir -p "$WORK" "$SHOTS_DIR"
 
     echo "==> building Debug app"
@@ -182,6 +207,43 @@ SWIFT
     "$WORK/key" "$@"
 }
 
+# Switches the macOS appearance while the app runs, the way System Settings does, to check a live
+# theme change (the app follows it with Settings > Appearance > System). The first switch remembers
+# the appearance from before, and `stop` puts it back.
+APPEARANCE_BACKUP="$STATE_DIR/system-appearance.saved"
+set_system_appearance() {
+    if [ ! -x "$WORK/appearance" ]; then
+        mkdir -p "$WORK"
+        cat > "$WORK/appearance.swift" <<'SWIFT'
+import Foundation
+// SkyLight's setter is what System Settings calls; AppleScript's "appearance preferences" does the
+// same but needs the Automation permission for System Events.
+let skyLight = dlopen("/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight", RTLD_NOW)
+guard let symbol = dlsym(skyLight, "SLSSetAppearanceThemeLegacy") else {
+    FileHandle.standardError.write("SkyLight has no SLSSetAppearanceThemeLegacy on this macOS\n".data(using: .utf8)!)
+    exit(1)
+}
+typealias SetTheme = @convention(c) (Bool) -> Void
+unsafeBitCast(symbol, to: SetTheme.self)(CommandLine.arguments[1] == "dark")
+SWIFT
+        swiftc -O "$WORK/appearance.swift" -o "$WORK/appearance" || return 1
+    fi
+    "$WORK/appearance" "$1"
+}
+appearance() {
+    [ $# -eq 1 ] || usage
+    case "$1" in light|dark) ;; *) usage ;; esac
+    claim_state
+    if [ ! -f "$APPEARANCE_BACKUP" ]; then
+        if [ "$(defaults read -g AppleInterfaceStyle 2>/dev/null)" = "Dark" ]; then
+            echo dark >"$APPEARANCE_BACKUP"
+        else
+            echo light >"$APPEARANCE_BACKUP"
+        fi
+    fi
+    set_system_appearance "$1"
+}
+
 stop() {
     local pid; pid="$(app_pid || true)"
     if [ -n "$pid" ]; then
@@ -193,12 +255,41 @@ stop() {
     [ -f "$WORK/mock.pid" ] && { kill "$(cat "$WORK/mock.pid")" 2>/dev/null || true; rm -f "$WORK/mock.pid"; }
     defaults delete "$BUNDLE_ID" >/dev/null 2>&1 || true
     defaults delete "$SERVICES_SUITE" >/dev/null 2>&1 || true
-    if [ -f "$REAL_DEFAULTS_MARKER" ]; then
-        defaults delete "$REAL_BUNDLE_ID" >/dev/null 2>&1 || true
-        [ -f "$REAL_DEFAULTS_BACKUP" ] && defaults import "$REAL_BUNDLE_ID" "$REAL_DEFAULTS_BACKUP"
-        rm -f "$REAL_DEFAULTS_BACKUP" "$REAL_DEFAULTS_MARKER"
+    # Each backup goes only once its restore worked, so a failed one can be retried, and one failing
+    # never skips the other. Backups another checkout owns wait for that checkout's stop.
+    local restore_failed=0 owner saved; owner="$(state_owner)"
+    if [ -n "$owner" ] && [ "$owner" != "$ROOT" ]; then
+        echo "screenshots: the real app's defaults and the macOS appearance were saved by the run in" \
+            "$owner; its 'stop' puts them back" >&2
+    else
+        if [ -f "$REAL_DEFAULTS_MARKER" ]; then
+            defaults delete "$REAL_BUNDLE_ID" >/dev/null 2>&1 || true
+            if [ ! -f "$REAL_DEFAULTS_BACKUP" ] || defaults import "$REAL_BUNDLE_ID" "$REAL_DEFAULTS_BACKUP"; then
+                rm -f "$REAL_DEFAULTS_BACKUP" "$REAL_DEFAULTS_MARKER"
+            else
+                echo "screenshots: could not put back the real app's defaults from $REAL_DEFAULTS_BACKUP;" \
+                    "run 'stop' again, or import it with 'defaults import $REAL_BUNDLE_ID <file>'" >&2
+                restore_failed=1
+            fi
+        fi
+        if [ -f "$APPEARANCE_BACKUP" ]; then
+            saved="$(cat "$APPEARANCE_BACKUP" 2>/dev/null || true)"
+            if { [ "$saved" = light ] || [ "$saved" = dark ]; } && set_system_appearance "$saved"; then
+                rm -f "$APPEARANCE_BACKUP"
+            else
+                echo "screenshots: could not put the macOS appearance back to '$saved' from $APPEARANCE_BACKUP;" \
+                    "run 'stop' again, or set it in System Settings and delete that file" >&2
+                restore_failed=1
+            fi
+        fi
+        if [ ! -f "$REAL_DEFAULTS_MARKER" ] && [ ! -f "$APPEARANCE_BACKUP" ]; then
+            rm -f "$STATE_OWNER"
+            rmdir "$STATE_DIR" 2>/dev/null || true
+        fi
     fi
-    rm -rf "$FAKE_HOME" "$APP" "$WORK/windows.swift" "$WORK/key.swift" "$WORK/key"
+    rm -rf "$FAKE_HOME" "$APP" "$WORK/windows.swift" "$WORK/key.swift" "$WORK/key" \
+        "$WORK/appearance.swift" "$WORK/appearance"
+    [ "$restore_failed" = 0 ] || exit 1
     echo "stopped; screenshots stay in $SHOTS_DIR"
 }
 
@@ -207,6 +298,7 @@ case "${1:-}" in
     shot) shift; shot "$@" ;;
     windows) windows ;;
     key) shift; key "$@" ;;
+    appearance) shift; appearance "$@" ;;
     stop) stop ;;
     *) usage ;;
 esac
