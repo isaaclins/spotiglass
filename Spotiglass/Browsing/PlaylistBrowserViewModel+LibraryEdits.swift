@@ -52,6 +52,7 @@ extension PlaylistBrowserViewModel {
             )
             invalidateTracksCache(playlistID: playlistID)
             selectedDetailTrackIDs = []
+            adjustSidebarTrackCountAfterEdit(playlistID: playlistID, by: -count)
             await refreshCurrentPlaylistMutationDetail(for: [playlistID])
             trackMutationToast = SpotiglassL10n.format(
                 "playlist.mutation.removedFromPlaylist",
@@ -85,6 +86,37 @@ extension PlaylistBrowserViewModel {
             await selectSidebar(.home)
         }
         trackMutationToast = SpotiglassL10n.format("playlist.mutation.deletedPlaylist", summary.name)
+    }
+
+    /// Keeps the sidebar's "N tracks" in step with an edit, instead of the count the playlist
+    /// had when the list was loaded (#395). Only for providers with their own playlist edits
+    /// (Apple Music); Spotify's counts stay as they were, refreshed with the next playlist load.
+    func adjustSidebarTrackCountAfterEdit(playlistID: String, by delta: Int) {
+        guard supportedLibraryEdits.contains(.removeFromPlaylist), delta != 0,
+              let summary = playlistsByID[playlistID], let count = summary.trackCount else { return }
+        let adjusted = MusicPlaylistSummary(
+            id: summary.id,
+            name: summary.name,
+            ownerID: summary.ownerID,
+            ownerName: summary.ownerName,
+            imageURL: summary.imageURL,
+            trackCount: max(0, count + delta),
+            snapshotID: summary.snapshotID
+        )
+        playlistsByID[playlistID] = adjusted
+        guard let rows = playlistState.currentValue else { return }
+        let updated = rows.map { $0.id == playlistID ? PlaylistRowViewModel(adjusted) : $0 }
+        switch playlistState {
+        case .loading, .empty, .error:
+            break
+        case .loaded:
+            playlistState = .loaded(updated)
+        case .refreshing:
+            playlistState = .refreshing(updated)
+        case let .staleCache(_, displayError):
+            playlistState = .staleCache(updated, displayError)
+        }
+        try? cache.savePlaylists(Array(playlistsByID.values), cachedAt: now())
     }
 
     private func removeSidebarPlaylist(id: String) {

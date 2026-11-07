@@ -105,9 +105,15 @@ protocol MusicBrowsingProvider {
         snapshotID: String?
     ) async throws
     func createPlaylist(userID: String, name: String, isPublic: Bool) async throws -> MusicPlaylistSummary
+    /// Creates a playlist with these tracks. The default creates it, then adds them; a provider
+    /// that can do both in one step overrides it, so a failed add leaves no empty playlist.
+    func createPlaylist(userID: String, name: String, isPublic: Bool, trackURIs: [String]) async throws -> MusicPlaylistSummary
     func saveTracks(ids: [String]) async throws
     func removeSavedTracks(ids: [String]) async throws
     func savedTrackStatuses(ids: [String]) async throws -> [Bool]
+    /// Whether a track is saved, when the provider knows it without a request (an Apple Music
+    /// song listed from the library is in the library). `nil` asks `savedTrackStatuses`.
+    func knownSavedTrackStatus(id: String) -> Bool?
     /// The optional edits this provider supports; the browser hides the others.
     var supportedLibraryEdits: MusicLibraryEdits { get }
     func deletePlaylist(playlistID: String) async throws
@@ -157,6 +163,14 @@ extension MusicBrowsingProvider {
     func createPlaylist(userID: String, name: String, isPublic: Bool) async throws -> MusicPlaylistSummary {
         throw SpotifyAPIError.invalidRequest("Playlist creation is not supported by this API implementation.")
     }
+    func createPlaylist(userID: String, name: String, isPublic: Bool, trackURIs: [String]) async throws -> MusicPlaylistSummary {
+        let created = try await createPlaylist(userID: userID, name: name, isPublic: isPublic)
+        if !trackURIs.isEmpty {
+            try await addTracksToPlaylist(playlistID: created.id, uris: trackURIs)
+        }
+        return created
+    }
+    func knownSavedTrackStatus(id: String) -> Bool? { nil }
     func saveTracks(ids: [String]) async throws {
         throw SpotifyAPIError.invalidRequest("Library save is not supported by this API implementation.")
     }

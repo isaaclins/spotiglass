@@ -170,6 +170,10 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
             if let pending = try await pendingPlaylistTracks(playlistID: playlistID) {
                 return AppleMusicItemMapping.playlistItems(pending)
             }
+            // Created through the Music app moments ago: it exists, MusicKit just doesn't list it yet.
+            if editor.pending.createdPlaylist(id: playlistID) != nil {
+                return AppleMusicItemMapping.playlistItems(applyingPendingEdits(toPlaylistTracks: [], playlistID: playlistID))
+            }
             throw AppleMusicBrowsingError.notFound
         }
         return AppleMusicItemMapping.playlistItems(applyingPendingEdits(toPlaylistTracks: tracks, playlistID: playlistID))
@@ -224,6 +228,9 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
             throw AppleMusicBrowsingError.notFound
         }
         let tracks = try await source.tracks(of: album, limit: cap)
+        // A library album lists its songs under persistent IDs; edits on those rows need the
+        // song's other details (#395).
+        editor.songReferences.remember(tracks)
         return tracks.prefix(cap).map { AppleMusicItemMapping.track($0, album: album) }
     }
 
