@@ -162,8 +162,9 @@ enum MusicAppScripts {
     /// Finds every track first, then adds them in order, so a song Music can't find stops the
     /// edit before anything is added. When an add fails partway, the songs this script already
     /// appended are taken out of the playlist again, so the edit is all or nothing. Only entries
-    /// past the playlist's old end whose persistent ID this script added go, once per add: a
-    /// song another device appended meanwhile stays, and nothing leaves the library.
+    /// past the playlist's old end whose persistent ID this script added go, once per add that
+    /// succeeded: a song another device appended meanwhile stays (a failed add records nothing),
+    /// and nothing leaves the library.
     static func addToPlaylist(_ playlist: MusicAppPlaylistMatch, tracks: [MusicAppTrackMatch], now: Date = Date()) -> String {
         var lines = [scriptNowLine, "tell application \"Music\""] + findPlaylist(playlist)
         lines += findTracks(tracks, now: now)
@@ -172,8 +173,8 @@ enum MusicAppScripts {
             "set addedIDs to {}",
             "try",
             "repeat with songItem in pickedSongs",
-            "set end of addedIDs to (persistent ID of (contents of songItem))",
             "duplicate (contents of songItem) to pl",
+            "set end of addedIDs to (persistent ID of (contents of songItem))",
             "end repeat",
             "on error errorMessage number errorNumber",
             "repeat with i from (count of tracks of pl) to (countBefore + 1) by -1",

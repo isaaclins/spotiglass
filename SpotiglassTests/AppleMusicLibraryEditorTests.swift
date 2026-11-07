@@ -1483,9 +1483,11 @@ final class AppleMusicPlaylistEditFixTests: XCTestCase {
         let noted = try XCTUnwrap(script.range(of: "set end of addedIDs to (persistent ID of (contents of songItem))"))
         let add = try XCTUnwrap(script.range(of: "duplicate (contents of songItem) to pl"))
         let rollback = try XCTUnwrap(script.range(of: "on error errorMessage number errorNumber\nrepeat with i from (count of tracks of pl) to (countBefore + 1) by -1"))
-        XCTAssertLessThan(before.lowerBound, noted.lowerBound)
-        XCTAssertLessThan(noted.lowerBound, add.lowerBound)
-        XCTAssertLessThan(add.lowerBound, rollback.lowerBound)
+        XCTAssertLessThan(before.lowerBound, add.lowerBound)
+        // Noted only once its add went through: a failed add must not claim a copy another
+        // device appended meanwhile.
+        XCTAssertLessThan(add.lowerBound, noted.lowerBound)
+        XCTAssertLessThan(noted.lowerBound, rollback.lowerBound)
         // A song another device appended meanwhile has another persistent ID and stays.
         let guarded = try XCTUnwrap(script.range(of: "if addedIDs contains entryID then\ndelete track i of pl"))
         XCTAssertLessThan(rollback.lowerBound, guarded.lowerBound)
