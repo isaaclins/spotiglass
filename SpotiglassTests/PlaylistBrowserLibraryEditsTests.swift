@@ -258,6 +258,85 @@ final class PlaylistBrowserLibraryEditsTests: XCTestCase {
         XCTAssertEqual(api.calls, ["saveTracks(699902614)", "addTracks(-1,applemusic:song:699902614)"])
         XCTAssertEqual(viewModel.savedTrackState(for: "699902614"), true)
     }
+
+    // MARK: - #395
+
+    /// A provider that creates a playlist with its songs in one step (the mock, like Apple Music) gets one call, so a song
+    /// it can't add leaves no empty playlist behind.
+    func testNewPlaylistWithSongsIsOneProviderCall() async {
+        let api = LibraryEditsMockAPI(edits: .all)
+        let viewModel = await makeViewModel(api)
+
+        await viewModel.createPlaylistWithRows(name: "Spotiglass test", rows: [row("-30", position: 1)])
+
+        XCTAssertEqual(api.calls, ["createPlaylist(Spotiglass test,applemusic:song:-30)"])
+        XCTAssertEqual(viewModel.playlistState.currentValue?.first?.title, "Spotiglass test")
+    }
+
+    func testAFailedNewPlaylistAddsNothingToTheSidebar() async {
+        let api = LibraryEditsMockAPI(edits: .all)
+        api.error = AppleMusicLibraryEditError.notEditable
+        let viewModel = await makeViewModel(api)
+
+        await viewModel.createPlaylistWithRows(name: "Spotiglass test", rows: [row("-30", position: 1)])
+
+        XCTAssertEqual(viewModel.playlistState.currentValue?.map(\.title) ?? [], [])
+        XCTAssertEqual(viewModel.trackMutationToast, AppleMusicLibraryEditError.notEditable.localizedDescription)
+    }
+
+    func testRemovingFromAPlaylistUpdatesItsSidebarCount() async {
+        let api = LibraryEditsMockAPI(edits: .all)
+        api.playlists = [playlist("-1", "Spotiglass test")]
+        let viewModel = await makeViewModel(api)
+
+        await viewModel.removeRowsFromPlaylist([row("-30", position: 2)], playlistID: "-1", playlistName: "Spotiglass test")
+
+        XCTAssertEqual(viewModel.playlistsByID["-1"]?.trackCount, 1)
+        XCTAssertEqual(viewModel.playlistState.currentValue?.first?.trackCount, 1)
+    }
+
+    /// Add one, remove one: the count is back where it was, not one short (seen in a real run).
+    func testAddingAndRemovingKeepTheCountInStep() async {
+        let api = LibraryEditsMockAPI(edits: .all)
+        api.playlists = [playlist("-1", "Spotiglass test")]
+        let viewModel = await makeViewModel(api)
+
+        await viewModel.addRowsToPlaylist([row("699902614", position: 1)], playlistID: "-1", playlistName: "Spotiglass test")
+        XCTAssertEqual(viewModel.playlistsByID["-1"]?.trackCount, 3)
+        await viewModel.removeRowsFromPlaylist([row("699902614", position: 3)], playlistID: "-1", playlistName: "Spotiglass test")
+        XCTAssertEqual(viewModel.playlistsByID["-1"]?.trackCount, 2)
+    }
+
+    func testSpotifysSidebarCountsAreLeftAlone() async {
+        let api = LibraryEditsMockAPI(edits: [])
+        api.playlists = [playlist("pl1", "Mine")]
+        let viewModel = await makeViewModel(api)
+
+        await viewModel.addRowsToPlaylist([row("abc", position: 1)], playlistID: "pl1", playlistName: "Mine")
+
+        XCTAssertEqual(viewModel.playlistsByID["pl1"]?.trackCount, 2)
+    }
+
+    func testRenamingTheOpenPlaylistRenamesTheWindowTitle() async {
+        let api = LibraryEditsMockAPI(edits: .all)
+        api.playlists = [playlist("-1", "Spotiglass test")]
+        let viewModel = await makeViewModel(api)
+        await viewModel.selectSidebar(.playlist("-1"))
+        XCTAssertEqual(viewModel.breadcrumbPath.map(\.label), ["Spotiglass test"])
+
+        await viewModel.renamePlaylist(id: "-1", name: "Spotiglass test renamed")
+
+        XCTAssertEqual(viewModel.breadcrumbPath.map(\.label), ["Spotiglass test renamed"])
+    }
+
+    func testTheMenuShowsWhatTheProviderAlreadyKnowsBeforeTheLookup() async {
+        let api = LibraryEditsMockAPI(edits: .all)
+        api.knownStatuses = ["-30": true]
+        let viewModel = await makeViewModel(api)
+
+        XCTAssertEqual(viewModel.savedTrackState(for: "-30"), true, "not unknown, which showed a disabled Add")
+        XCTAssertNil(viewModel.savedTrackState(for: "699902614"))
+    }
 }
 
 /// A provider that records the optional edits; `edits` decides which it claims to support.
@@ -313,6 +392,24 @@ final class LibraryEditsMockAPI: MusicBrowsingProvider {
     func addTracksToPlaylist(playlistID: String, uris: [String]) async throws {
         if let error { throw error }
         calls.append("addTracks(\(playlistID),\(uris.joined(separator: ",")))")
+    }
+
+    var knownStatuses: [String: Bool] = [:]
+
+    func createPlaylist(userID: String, name: String, isPublic: Bool, trackURIs: [String]) async throws -> MusicPlaylistSummary {
+        if let error { throw error }
+        calls.append("createPlaylist(\(name),\(trackURIs.joined(separator: ",")))")
+        return MusicPlaylistSummary(
+            id: "p.new", name: name, ownerID: "apple-music-library", ownerName: "You",
+            imageURL: nil, trackCount: trackURIs.count, snapshotID: "applemusic"
+        )
+    }
+
+    func knownSavedTrackStatus(id: String) -> Bool? { knownStatuses[id] }
+
+    func updatePlaylist(playlistID: String, name: String) async throws {
+        if let error { throw error }
+        calls.append("updatePlaylist(\(playlistID),\(name))")
     }
 
     func currentUserPlaylists(limit: Int) async throws -> [MusicPlaylistSummary] { playlists }

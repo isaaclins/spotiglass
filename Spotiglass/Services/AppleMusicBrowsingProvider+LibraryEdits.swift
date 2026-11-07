@@ -35,13 +35,26 @@ extension AppleMusicBrowsingProvider {
 
     /// Apple Music playlists have no owner to pass and are always private to the library.
     func createPlaylist(userID: String, name: String, isPublic: Bool) async throws -> MusicPlaylistSummary {
+        try await createPlaylist(userID: userID, name: name, isPublic: isPublic, trackURIs: [])
+    }
+
+    /// The songs go in with the create itself, so a song that can't be added leaves no empty
+    /// playlist behind (#395).
+    func createPlaylist(userID: String, name: String, isPublic: Bool, trackURIs: [String]) async throws -> MusicPlaylistSummary {
+        let songIDs = trackURIs.compactMap(AppleMusicItemMapping.songID(fromURI:))
+        guard songIDs.count == trackURIs.count else { throw AppleMusicLibraryEditError.notEditable }
         // Playlists that already have this name don't count as the library showing the new one.
         let existing = (try? await currentUserPlaylists(limit: 100)) ?? []
         return try await editor.createPlaylist(
             name: name,
             ownerName: SpotiglassL10n.string("appleMusic.library.owner"),
+            songIDs: songIDs,
             existingIDsWithSameName: Set(existing.filter { AppleMusicLibraryEditor.isSamePlaylistName($0.name, name) }.map(\.id))
         )
+    }
+
+    func knownSavedTrackStatus(id: String) -> Bool? {
+        editor.knownSongStatus(id: id)
     }
 
     func addTracksToPlaylist(playlistID: String, uris: [String]) async throws {
@@ -108,7 +121,7 @@ extension AppleMusicBrowsingProvider {
     }
 
     func applyingPendingEdits(toPlaylistTracks tracks: [Track], playlistID: String) -> [MusicTrack] {
-        editor.songReferences.remember(tracks)
+        editor.songReferences.remember(tracks, playlistID: playlistID)
         // Removing a song from the library also takes it out of every playlist.
         guard editor.pending.hasPendingTracks(playlistID: playlistID) || editor.pending.hasPendingSongs else {
             return tracks.map { AppleMusicItemMapping.track($0) }

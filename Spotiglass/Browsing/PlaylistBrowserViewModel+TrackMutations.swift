@@ -89,7 +89,9 @@ extension PlaylistBrowserViewModel {
     /// Returns the cached saved state for a catalog track, if the menu has
     /// already resolved it with `/v1/me/tracks/contains`.
     func savedTrackState(for id: String) -> Bool? {
-        savedTrackStates[id]
+        // A provider may know it before any request (#395: an Apple Music library song read as
+        // unknown until the lookup came back, so the menu showed a disabled "Add").
+        savedTrackStates[id] ?? api.knownSavedTrackStatus(id: id)
     }
 
     /// Resolves the missing saved states for a menu's catalog rows. The Liked
@@ -156,6 +158,7 @@ extension PlaylistBrowserViewModel {
         do {
             try await api.addTracksToPlaylist(playlistID: playlistID, uris: uris)
             invalidateTracksCache(playlistID: playlistID)
+            adjustSidebarTrackCountAfterEdit(playlistID: playlistID, by: uris.count)
             trackMutationToast = SpotiglassL10n.format(
                 "playlist.mutation.addedToPlaylist",
                 Int64(uris.count),
@@ -212,8 +215,13 @@ extension PlaylistBrowserViewModel {
                     return
                 }
                 invalidateTracksCache(playlistID: sourcePlaylistID)
+                adjustSidebarTrackCountAfterEdit(
+                    playlistID: sourcePlaylistID,
+                    by: -removals.reduce(0) { $0 + $1.positions.count }
+                )
             }
             invalidateTracksCache(playlistID: destinationPlaylistID)
+            adjustSidebarTrackCountAfterEdit(playlistID: destinationPlaylistID, by: uris.count)
             await refreshCurrentPlaylistMutationDetail(
                 for: [sourcePlaylistID, destinationPlaylistID]
             )
@@ -302,11 +310,8 @@ extension PlaylistBrowserViewModel {
             operation: .createPlaylist
         ) else { return }
         do {
-            let created = try await api.createPlaylist(userID: userID, name: name, isPublic: false)
             let uris = playableURIs(for: rows)
-            if !uris.isEmpty {
-                try await api.addTracksToPlaylist(playlistID: created.id, uris: uris)
-            }
+            let created = try await api.createPlaylist(userID: userID, name: name, isPublic: false, trackURIs: uris)
             insertSidebarPlaylist(created, refreshedTrackCount: uris.count)
             trackMutationToast = uris.isEmpty
                 ? SpotiglassL10n.format("playlist.mutation.createdPlaylist", created.name)
@@ -429,6 +434,11 @@ extension PlaylistBrowserViewModel {
 
     private func applyPlaylistName(_ playlist: MusicPlaylistSummary) {
         playlistsByID[playlist.id] = playlist
+        // The window title is the breadcrumb trail; it kept the old name (#395).
+        breadcrumbPath = breadcrumbPath.map { crumb in
+            guard crumb.kind == .playlist(id: playlist.id), crumb.label != playlist.name else { return crumb }
+            return BrowserBreadcrumb(id: crumb.id, label: playlist.name, systemImage: crumb.systemImage, kind: crumb.kind)
+        }
 
         if let rows = playlistState.currentValue {
             let renamedRows = rows.map { row in

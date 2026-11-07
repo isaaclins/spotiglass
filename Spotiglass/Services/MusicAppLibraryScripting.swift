@@ -8,6 +8,10 @@ enum MusicAppTrackMatch: Equatable, Sendable {
     /// does not know the persistent ID of yet. `addedSince`, when set, limits it to tracks Music
     /// added after that moment, so an older song with the same details is never the one changed.
     case metadata(name: String, artist: String, album: String?, addedSince: Date? = nil)
+    /// A song listed in a playlist. Music finds it in the library, or else in that playlist: a
+    /// song from Apple Music that is in a playlist but not in the library is only there (#395).
+    /// Only adds use it; nothing is ever removed through the playlist it was found in.
+    case playlistEntry(persistentID: String, playlistPersistentID: String)
 }
 
 /// How the Music app finds a playlist.
@@ -29,12 +33,20 @@ protocol MusicAppLibraryControlling: Sendable {
     func removeFromPlaylist(_ playlist: MusicAppPlaylistMatch, removals: [MusicAppPlaylistRemoval]) async throws
     func renamePlaylist(_ playlist: MusicAppPlaylistMatch, to name: String) async throws
     func deletePlaylist(_ playlist: MusicAppPlaylistMatch) async throws
+    /// Adds library tracks to a playlist, for songs the Apple Music API has no ID for (a song
+    /// MusicKit lists only under its persistent ID).
+    func addToPlaylist(_ playlist: MusicAppPlaylistMatch, tracks: [MusicAppTrackMatch]) async throws
+    /// Creates a playlist with these library tracks and returns its persistent ID (16 hex
+    /// digits). Nothing is left behind when a track can't be added.
+    func createPlaylist(name: String, tracks: [MusicAppTrackMatch]) async throws -> String
 }
 
 /// Runs one AppleScript against the Music app. Separate from the script text so tests check
 /// the scripts without the Music app.
 protocol MusicAppScriptRunning: Sendable {
-    func run(_ source: String) async throws
+    /// The script's result as text, when it returns one.
+    @discardableResult
+    func run(_ source: String) async throws -> String?
 }
 
 /// Library edits through the Music app on this Mac, as AppleScript sent over Apple Events.
@@ -64,6 +76,19 @@ struct MusicAppLibraryScripting: MusicAppLibraryControlling {
 
     func deletePlaylist(_ playlist: MusicAppPlaylistMatch) async throws {
         try await runner.run(MusicAppScripts.deletePlaylist(playlist))
+    }
+
+    func addToPlaylist(_ playlist: MusicAppPlaylistMatch, tracks: [MusicAppTrackMatch]) async throws {
+        guard !tracks.isEmpty else { return }
+        try await runner.run(MusicAppScripts.addToPlaylist(playlist, tracks: tracks))
+    }
+
+    func createPlaylist(name: String, tracks: [MusicAppTrackMatch]) async throws -> String {
+        let result = try await runner.run(MusicAppScripts.createPlaylist(name: name, tracks: tracks))
+        guard let id = result?.trimmingCharacters(in: .whitespacesAndNewlines), UInt64(id, radix: 16) != nil else {
+            throw AppleMusicLibraryEditError.requestFailed
+        }
+        return id
     }
 }
 
@@ -134,6 +159,68 @@ enum MusicAppScripts {
         return lines.joined(separator: "\n")
     }
 
+    /// Finds every track first, then adds them in order, so a song Music can't find stops the
+    /// edit before anything is added.
+    static func addToPlaylist(_ playlist: MusicAppPlaylistMatch, tracks: [MusicAppTrackMatch], now: Date = Date()) -> String {
+        var lines = [scriptNowLine, "tell application \"Music\""] + findPlaylist(playlist)
+        lines += findTracks(tracks, now: now)
+        lines += ["repeat with songItem in pickedSongs", "duplicate (contents of songItem) to pl", "end repeat", "end tell"]
+        return lines.joined(separator: "\n")
+    }
+
+    /// Finds every track before the playlist exists, and deletes the new playlist again when a
+    /// track can't be added, so a failed edit leaves no empty playlist behind (#395). Returns the
+    /// new playlist's persistent ID.
+    static func createPlaylist(name: String, tracks: [MusicAppTrackMatch], now: Date = Date()) -> String {
+        var lines = [scriptNowLine, "tell application \"Music\""] + findTracks(tracks, now: now)
+        lines += [
+            "set pl to make new user playlist with properties {name:\(quoted(name))}",
+            "try",
+            "repeat with songItem in pickedSongs",
+            "duplicate (contents of songItem) to pl",
+            "end repeat",
+            "on error errorMessage number errorNumber",
+            "delete pl",
+            "error errorMessage number errorNumber",
+            "end try",
+            "return persistent ID of pl",
+            "end tell",
+        ]
+        return lines.joined(separator: "\n")
+    }
+
+    /// Wraps a script so each Apple Event it sends gives up after `seconds` instead of
+    /// AppleScript's default of two minutes; the script then fails with errAETimeout.
+    static func withTimeout(_ source: String, seconds: Int) -> String {
+        "with timeout of \(seconds) seconds\n\(source)\nend timeout"
+    }
+
+    /// Sets `pickedSongs` to one library track per match, in order.
+    private static func findTracks(_ tracks: [MusicAppTrackMatch], now: Date) -> [String] {
+        var lines = ["set lib to library playlist 1", "set pickedSongs to {}"]
+        for track in tracks {
+            lines += cutoffLines(track, now: now) + ["set found to (every track of lib whose \(condition(track)))"]
+            if case let .playlistEntry(_, playlistID) = track {
+                // A playlist may list the same song twice; either copy is the song.
+                lines += [
+                    "if (count of found) is 0 then",
+                    "set sourcePls to (every user playlist whose persistent ID is \(quoted(playlistID)))",
+                    "if (count of sourcePls) is greater than 0 then",
+                    "set inPlaylist to (every track of (item 1 of sourcePls) whose \(condition(track)))",
+                    "if (count of inPlaylist) is greater than 0 then set found to {item 1 of inPlaylist}",
+                    "end if",
+                    "end if",
+                ]
+            }
+            lines += [
+                "if (count of found) is 0 then error \"not found\" number \(notFoundError)",
+                "if (count of found) is greater than 1 then error \"ambiguous\" number \(ambiguousSongError)",
+                "set end of pickedSongs to item 1 of found",
+            ]
+        }
+        return lines
+    }
+
     static func renamePlaylist(_ playlist: MusicAppPlaylistMatch, to name: String) -> String {
         (["tell application \"Music\""] + findPlaylist(playlist) + ["set name of pl to \(quoted(name))", "end tell"])
             .joined(separator: "\n")
@@ -177,7 +264,7 @@ enum MusicAppScripts {
     private static func condition(_ track: MusicAppTrackMatch, of variable: String? = nil) -> String {
         let prefix = variable.map { " of \($0)" } ?? ""
         switch track {
-        case let .persistentID(id):
+        case let .persistentID(id), let .playlistEntry(id, _):
             return "persistent ID\(prefix) is \(quoted(id))"
         case let .metadata(name, artist, album, addedSince):
             var parts = ["name\(prefix) is \(quoted(name))", "artist\(prefix) is \(quoted(artist))"]

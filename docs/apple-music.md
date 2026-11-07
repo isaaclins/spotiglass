@@ -87,8 +87,8 @@ MusicKit's own library is read-only on macOS, so edits take one of two routes
 | Unlike a song | Music app: removes the song from the library; the API clears the love |
 | Add album to library | Apple Music API: `POST /v1/me/library` |
 | Remove album from library | Music app: removes the album's songs from the library |
-| New playlist | Apple Music API: `POST /v1/me/library/playlists` |
-| Add to playlist | Apple Music API: `POST /v1/me/library/playlists/{id}/tracks` |
+| New playlist | Apple Music API: `POST /v1/me/library/playlists`, with the songs in the same request; for songs only the Music app knows (below), the Music app, which deletes the new playlist again if a song can't be added. Either way a failed create leaves no empty playlist. |
+| Add to playlist | Apple Music API: `POST /v1/me/library/playlists/{id}/tracks`; for songs only the Music app knows, the Music app |
 | Remove from this playlist, move to playlist | Music app (move adds through the API first) |
 | Rename and delete playlist | Music app |
 
@@ -111,6 +111,14 @@ it out of every playlist it's in, on all your devices
 ([Apple](https://support.apple.com/en-us/HT204343)). Spotiglass asks before it does that, the way
 Music asks before Delete from Library. Spotify's unlike only leaves Liked Songs and still goes
 through at once (`MusicLibraryEdits.confirmLibraryRemoval`).
+
+Songs of library playlists and library albums come from MusicKit with only the Music persistent
+ID, no catalog or cloud library ID, so the API can't name them. Their playlist edits go through the
+Music app, which finds the song in the library or, for an Apple Music song that is in a playlist
+but not in the library, in the playlist it was listed in. One edit always takes one route.
+
+Scripts to Music run off the main thread, one at a time, and each Apple Event gives up after 60
+seconds (the Music app still loading or syncing), so the window never waits on Music.
 
 **IDs.** The API names songs by catalog or cloud library ID (`i.…`) and playlists by `p.…`; the
 Music app names both by its persistent ID, which MusicKit shows as a signed decimal (inside a

@@ -117,6 +117,25 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
         }
     }
 
+    /// Keeps a created playlist's track count in step with songs added to or removed from it
+    /// before the library lists it, so the sidebar doesn't show the count it was created with.
+    func adjustCreatedPlaylistTrackCount(_ id: String, by delta: Int) {
+        guard delta != 0 else { return }
+        locked {
+            guard let index = createdPlaylists.firstIndex(where: { $0.summary.id == id }) else { return }
+            let summary = createdPlaylists[index].summary
+            createdPlaylists[index].summary = MusicPlaylistSummary(
+                id: summary.id,
+                name: summary.name,
+                ownerID: summary.ownerID,
+                ownerName: summary.ownerName,
+                imageURL: summary.imageURL,
+                trackCount: max(0, (summary.trackCount ?? 0) + delta),
+                snapshotID: summary.snapshotID
+            )
+        }
+    }
+
     func recordRenamedPlaylist(_ id: String, name: String) {
         locked {
             if let index = createdPlaylists.firstIndex(where: { $0.summary.id == id }) {
