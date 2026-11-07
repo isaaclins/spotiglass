@@ -185,6 +185,50 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
         XCTAssertTrue(dismissed)
     }
 
+    /// ⌃1 / ⌃2 switch service from everywhere, the lyrics view included (#399). The lyrics focus
+    /// owner used to claim them, so the chord did nothing while lyrics were open.
+    func testLyricsOverlayLetsTheServiceSwitchShortcutsThrough() throws {
+        let keymap = CommandPaletteKeymapStore(fileURL: makeCommandPaletteTestsTempSettingsURL())
+        let focusContainer = LyricsOverlayFocusContainerView(
+            content: EmptyView(),
+            isActive: true,
+            keymapStore: keymap
+        )
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 80, height: 40),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        window.isReleasedWhenClosed = false
+        window.contentView = focusContainer
+        defer {
+            focusContainer.deactivate()
+            AppKitTestSupport.closeWindowSafely(window)
+        }
+        XCTAssertTrue(AppKitTestSupport.makeFirstResponder(focusContainer, in: window))
+
+        let manager = CommandPaletteManager(keymapStore: keymap)
+        manager.isSignedIn = true
+        var switched: [MusicService] = []
+        manager.switchService = { switched.append($0) }
+
+        let controlTwo = keyDown(keyCode: 19, characters: "2", modifiers: [.control], windowNumber: window.windowNumber)
+        let controlOne = keyDown(keyCode: 18, characters: "1", modifiers: [.control], windowNumber: window.windowNumber)
+        XCTAssertFalse(focusContainer.ownsKeyEvent(controlTwo))
+        XCTAssertFalse(focusContainer.ownsKeyEvent(controlOne))
+
+        manager.switchableServices = [.spotify]
+        XCTAssertTrue(manager.handleKeyEvent(controlTwo))
+        manager.switchableServices = [.appleMusic]
+        XCTAssertTrue(manager.handleKeyEvent(controlOne))
+
+        let drained = expectation(description: "switches ran")
+        DispatchQueue.main.async { drained.fulfill() }
+        wait(for: [drained], timeout: 1)
+        XCTAssertEqual(switched, [.spotify, .appleMusic])
+    }
+
     func testAutoRepeatDoesNotFireCommands() throws {
         let url = makeCommandPaletteTestsTempSettingsURL()
         let settings = SpotiglassSettingsStore(fileURL: url)
