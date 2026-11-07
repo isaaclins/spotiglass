@@ -114,13 +114,43 @@ final class BrowserChromeViewsTests: XCTestCase {
         XCTAssertEqual(frozen, 0.55 / 0.5, accuracy: 0.0001)
         XCTAssertNotEqual(frozen, animatedScales[0])
 
-        XCTAssertNotNil(
-            PlayingWaveformIcon.barAnimation(isAnimating: true, durationScale: 1, durationOffset: 0)
-        )
-        XCTAssertEqual(
-            PlayingWaveformIcon.barAnimation(isAnimating: false, durationScale: 1, durationOffset: 0),
-            .default
-        )
+        let timing = PlayingWaveformIcon.barTiming(isAnimating: true, durationScale: 1, durationOffset: 0.15)
+        XCTAssertEqual(timing?.duration ?? 0, 0.45, accuracy: 0.0001)
+        XCTAssertEqual(timing?.delay ?? 0, 0.15, accuracy: 0.0001)
+        XCTAssertNil(PlayingWaveformIcon.barTiming(isAnimating: false, durationScale: 1, durationOffset: 0))
+    }
+
+    /// The bars move through Core Animation, not a SwiftUI animation (#394). A
+    /// repeating SwiftUI animation redrew the whole window at the display's
+    /// refresh rate while any row played, even one scrolled out of sight. Here
+    /// the layers carry the animation, and pausing removes it.
+    func testPlayingWaveformIconAnimatesItsLayersOnlyWhilePlaying() throws {
+        let bars = WaveformBarsView()
+        bars.frame = CGRect(x: 0, y: 0, width: 13, height: 14)
+        bars.layout()
+
+        bars.update(color: CGColor(red: 0, green: 0.5, blue: 1, alpha: 1), isAnimating: true)
+        let layers = try XCTUnwrap(bars.layer?.sublayers)
+        XCTAssertEqual(layers.count, 3)
+        for bar in layers {
+            let animation = try XCTUnwrap(bar.animation(forKey: WaveformBarsView.animationKey) as? CABasicAnimation)
+            XCTAssertEqual(animation.keyPath, "transform.scale.y")
+            XCTAssertEqual(animation.repeatCount, .infinity)
+            XCTAssertTrue(animation.autoreverses)
+        }
+        let durations = layers.compactMap { $0.animation(forKey: WaveformBarsView.animationKey)?.duration }
+        XCTAssertEqual(Set(durations).count, 3, "each bar keeps its own pace, so the wave stays staggered")
+
+        bars.update(color: CGColor(red: 0, green: 0.5, blue: 1, alpha: 1), isAnimating: false)
+        for (index, bar) in layers.enumerated() {
+            XCTAssertNil(bar.animation(forKey: WaveformBarsView.animationKey))
+            let frozen = PlayingWaveformIcon.barScale(
+                index: index,
+                baseFraction: PlayingWaveformIcon.bars[index].baseFraction,
+                isAnimating: false
+            )
+            XCTAssertEqual(bar.transform.m22, frozen, accuracy: 0.0001)
+        }
     }
 
     func testPlayingWaveformIconFollowsPlaybackChanges() throws {

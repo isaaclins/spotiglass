@@ -159,7 +159,6 @@ struct PlaybackControlsView: View {
     @Binding var isLyricsPresented: Bool
     let openArtist: (ArtistTapTarget) -> Void
     @Environment(\.openSettings) private var openSettingsAction
-    @State private var dragFraction: Double?
     @State private var isVolumePopoverPresented = false
 
     var body: some View {
@@ -365,8 +364,7 @@ struct PlaybackControlsView: View {
             isEnabled: nowPlaying != nil,
             onSeek: { milliseconds in
                 Task { await viewModel.seek(to: milliseconds) }
-            },
-            dragFraction: $dragFraction
+            }
         )
     }
 

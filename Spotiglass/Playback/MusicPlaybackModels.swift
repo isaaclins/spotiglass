@@ -98,11 +98,6 @@ struct PlaybackProgressAnchor: Equatable {
         Self.interpolatedPositionMs(anchor: self, now: now)
     }
 
-    func fraction(at now: Date) -> Double {
-        guard durationMilliseconds > 0 else { return 0 }
-        return Double(interpolatedPositionMs(at: now)) / Double(durationMilliseconds)
-    }
-
     static func interpolatedPositionMs(anchor: PlaybackProgressAnchor, now: Date) -> Int {
         let duration = max(0, anchor.durationMilliseconds)
         let base = min(max(0, anchor.positionMilliseconds), duration)

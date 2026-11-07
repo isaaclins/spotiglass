@@ -14,61 +14,46 @@ struct PlayingWaveformIcon: View {
     /// itself out while the window is not the key window.
     var color: Color?
 
-    private let barCount = 3
-    private let barWidth: CGFloat = 3
-    private let barSpacing: CGFloat = 2
-    private let maxHeight: CGFloat = 14
+    static let barCount = 3
+    static let barWidth: CGFloat = 3
+    static let barSpacing: CGFloat = 2
+    static let maxHeight: CGFloat = 14
 
-    @State private var isAnimating: Bool = false
+    /// Height of each bar before scaling, and how its timing is offset from the others.
+    static let bars: [(baseFraction: CGFloat, durationOffset: Double, durationScale: Double)] = [
+        (0.50, 0.00, 1.00),
+        (0.85, 0.15, 0.85),
+        (0.35, 0.30, 1.10),
+    ]
+
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.appearsActive) private var appearsActive
 
     var body: some View {
-        HStack(alignment: .center, spacing: barSpacing) {
-            bar(index: 0, baseFraction: 0.50, durationOffset: 0.00, durationScale: 1.00)
-            bar(index: 1, baseFraction: 0.85, durationOffset: 0.15, durationScale: 0.85)
-            bar(index: 2, baseFraction: 0.35, durationOffset: 0.30, durationScale: 1.10)
-        }
-        .frame(width: CGFloat(barCount) * barWidth + CGFloat(barCount - 1) * barSpacing, height: maxHeight)
-        // This icon sits in every playing row, so a repeatForever animation is
-        // perpetual motion in a list for someone who asked the system for less
-        // of it. The bars hold their frozen state instead (#118).
-        .onAppear {
-            isAnimating = Self.shouldAnimate(isPlaying: isPlaying, reduceMotion: reduceMotion)
-        }
-        .onChange(of: isPlaying) { _, nowPlaying in
-            isAnimating = Self.shouldAnimate(isPlaying: nowPlaying, reduceMotion: reduceMotion)
-        }
-        .onChange(of: reduceMotion) { _, nowReduced in
-            isAnimating = Self.shouldAnimate(isPlaying: isPlaying, reduceMotion: nowReduced)
-        }
+        // The bars move through Core Animation, which runs outside the app.
+        // As a SwiftUI animation they redrew the window at the display's
+        // refresh rate for as long as a row was playing, even a row scrolled
+        // out of sight, and took most of a CPU core with it (#394). This icon
+        // sits in every playing row, so a repeating animation is perpetual
+        // motion in a list for someone who asked the system for less of it:
+        // the bars hold their frozen state instead (#118).
+        WaveformBars(
+            isAnimating: Self.shouldAnimate(isPlaying: isPlaying, reduceMotion: reduceMotion),
+            color: color ?? SpotiglassDesign.accent(appearsActive: appearsActive)
+        )
+        .frame(
+            width: CGFloat(Self.barCount) * Self.barWidth + CGFloat(Self.barCount - 1) * Self.barSpacing,
+            height: Self.maxHeight
+        )
         .help(isPlaying ? SpotiglassL10n.string("playback.nowPlaying") : SpotiglassL10n.string("playback.paused"))
         .accessibilityLabel(isPlaying ? SpotiglassL10n.string("playback.nowPlaying") : SpotiglassL10n.string("playback.paused"))
         .accessibilityAddTraits(.isImage)
     }
 
-    private func bar(index: Int, baseFraction: CGFloat, durationOffset: Double, durationScale: Double) -> some View {
-        RoundedRectangle(cornerRadius: barWidth / 2, style: .continuous)
-            .fill(color.map { AnyShapeStyle($0) } ?? AnyShapeStyle(SpotiglassAccentStyle()))
-            .frame(width: barWidth, height: maxHeight * baseFraction)
-            .scaleEffect(
-                y: Self.barScale(index: index, baseFraction: baseFraction, isAnimating: isAnimating),
-                anchor: .center
-            )
-            .animation(
-                Self.barAnimation(
-                    isAnimating: isAnimating,
-                    durationScale: durationScale,
-                    durationOffset: durationOffset
-                ),
-                value: isAnimating
-            )
-    }
-
     /// Whether the bars move at all.
     ///
-    /// Kept as a named rule rather than an inline condition because three
-    /// separate places have to agree on it, and because the answer depends on a
-    /// system setting that a hosted test cannot write.
+    /// Kept as a named rule rather than an inline condition because the answer
+    /// depends on a system setting that a hosted test cannot write.
     static func shouldAnimate(isPlaying: Bool, reduceMotion: Bool) -> Bool {
         isPlaying && !reduceMotion
     }
@@ -87,13 +72,132 @@ struct PlayingWaveformIcon: View {
         return frozenFraction / baseFraction
     }
 
-    /// The animation applied to one bar. `.default` when frozen, so settling
-    /// into the held state is not itself a jump.
-    static func barAnimation(isAnimating: Bool, durationScale: Double, durationOffset: Double) -> Animation {
-        guard isAnimating else { return .default }
-        return .easeInOut(duration: 0.45 * durationScale)
-            .repeatForever(autoreverses: true)
-            .delay(durationOffset)
+    /// One swing of a bar from its frozen height to its extreme, and how long it
+    /// waits before the first one. Nil when the bars are frozen.
+    static func barTiming(
+        isAnimating: Bool,
+        durationScale: Double,
+        durationOffset: Double
+    ) -> (duration: Double, delay: Double)? {
+        guard isAnimating else { return nil }
+        return (0.45 * durationScale, durationOffset)
+    }
+}
+
+/// The three bars as Core Animation layers.
+private struct WaveformBars: NSViewRepresentable {
+    var isAnimating: Bool
+    var color: Color
+
+    func makeNSView(context: Context) -> WaveformBarsView {
+        WaveformBarsView()
+    }
+
+    func updateNSView(_ nsView: WaveformBarsView, context: Context) {
+        // Resolved in this view's environment, so light, dark, increased
+        // contrast and the inactive-window grey all come through.
+        nsView.update(color: color.resolve(in: context.environment).cgColor, isAnimating: isAnimating)
+    }
+}
+
+final class WaveformBarsView: NSView {
+    static let animationKey = "waveform"
+
+    private let barLayers: [CALayer] = PlayingWaveformIcon.bars.map { _ in CALayer() }
+    private(set) var isAnimating = false
+
+    init() {
+        super.init(frame: .zero)
+        wantsLayer = true
+        for bar in barLayers {
+            bar.cornerRadius = PlayingWaveformIcon.barWidth / 2
+            bar.cornerCurve = .continuous
+            layer?.addSublayer(bar)
+        }
+        applyFrozenScales()
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    /// Bars are decoration; the hosting SwiftUI view carries the label.
+    override func isAccessibilityElement() -> Bool { false }
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    func update(color: CGColor, isAnimating: Bool) {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        for bar in barLayers {
+            bar.backgroundColor = color
+        }
+        CATransaction.commit()
+        guard isAnimating != self.isAnimating else { return }
+        self.isAnimating = isAnimating
+        if isAnimating {
+            startAnimating()
+        } else {
+            stopAnimating()
+        }
+    }
+
+    override func layout() {
+        super.layout()
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        let width = PlayingWaveformIcon.barWidth
+        let step = width + PlayingWaveformIcon.barSpacing
+        for (index, bar) in barLayers.enumerated() {
+            let height = PlayingWaveformIcon.maxHeight * PlayingWaveformIcon.bars[index].baseFraction
+            // Position and bounds, not frame, so the scale transform stays out of the size.
+            bar.bounds = CGRect(x: 0, y: 0, width: width, height: height)
+            bar.position = CGPoint(x: CGFloat(index) * step + width / 2, y: bounds.midY)
+        }
+        CATransaction.commit()
+    }
+
+    private func applyFrozenScales() {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        for (index, bar) in barLayers.enumerated() {
+            let scale = PlayingWaveformIcon.barScale(
+                index: index,
+                baseFraction: PlayingWaveformIcon.bars[index].baseFraction,
+                isAnimating: false
+            )
+            bar.transform = CATransform3DMakeScale(1, scale, 1)
+        }
+        CATransaction.commit()
+    }
+
+    private func startAnimating() {
+        let now = CACurrentMediaTime()
+        for (index, bar) in barLayers.enumerated() {
+            let spec = PlayingWaveformIcon.bars[index]
+            guard let timing = PlayingWaveformIcon.barTiming(
+                isAnimating: true,
+                durationScale: spec.durationScale,
+                durationOffset: spec.durationOffset
+            ) else { continue }
+            let animation = CABasicAnimation(keyPath: "transform.scale.y")
+            animation.fromValue = PlayingWaveformIcon.barScale(index: index, baseFraction: spec.baseFraction, isAnimating: false)
+            animation.toValue = PlayingWaveformIcon.barScale(index: index, baseFraction: spec.baseFraction, isAnimating: true)
+            animation.duration = timing.duration
+            animation.beginTime = bar.convertTime(now, from: nil) + timing.delay
+            animation.fillMode = .backwards
+            animation.autoreverses = true
+            animation.repeatCount = .infinity
+            animation.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            bar.add(animation, forKey: Self.animationKey)
+        }
+    }
+
+    private func stopAnimating() {
+        for bar in barLayers {
+            bar.removeAnimation(forKey: Self.animationKey)
+        }
+        applyFrozenScales()
     }
 }
 

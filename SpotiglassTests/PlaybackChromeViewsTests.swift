@@ -16,8 +16,15 @@ final class PlaybackChromeViewsTests: XCTestCase {
     func testScrubberViewExposesAccessibilityProgress() throws {
         try ViewTestHost.skipIfViewInspectorGeometryUnsupported()
         let view = ScrubberView(
-            displayFraction: 0.42,
-            durationMilliseconds: 180_000,
+            progress: ScrubberProgress(
+                anchor: PlaybackProgressAnchor(
+                    positionMilliseconds: 75_600,
+                    anchorDate: Date(),
+                    durationMilliseconds: 180_000,
+                    isAdvancing: false
+                ),
+                durationMilliseconds: 180_000
+            ),
             onSeek: { _ in },
             onDragUpdate: { _ in }
         )
@@ -28,24 +35,24 @@ final class PlaybackChromeViewsTests: XCTestCase {
         XCTAssertNoThrow(try inspected.find(viewWithAccessibilityLabel: "Playback progress"))
     }
 
-    func testPlaybackProgressScrubberGroupStaticLabels() throws {
-        let view = PlaybackProgressScrubberGroup(
-            progressAnchor: PlaybackProgressAnchor(
+    /// The times are drawn in a canvas, so they are checked through the same
+    /// functions the canvas draws from.
+    func testPlaybackProgressScrubberGroupStaticLabels() {
+        let progress = ScrubberProgress(
+            anchor: PlaybackProgressAnchor(
                 positionMilliseconds: 90_000,
                 anchorDate: Date(),
                 durationMilliseconds: 180_000,
                 isAdvancing: false
             ),
-            durationMilliseconds: 180_000,
-            isEnabled: true,
-            onSeek: { _ in },
-            dragFraction: .constant(nil)
+            durationMilliseconds: 180_000
         )
-        .frame(width: 360)
-
-        ViewTestHost.host(view, size: CGSize(width: 400, height: 48))
-        XCTAssertNoThrow(try view.inspect().find(text: "1:30"))
-        XCTAssertNoThrow(try view.inspect().find(text: "−1:30"))
+        let positionMs = progress.positionMilliseconds(at: Date().addingTimeInterval(30))
+        XCTAssertEqual(PlaybackProgressScrubberGroup.elapsedText(positionMs: positionMs), "1:30")
+        XCTAssertEqual(
+            PlaybackProgressScrubberGroup.remainingText(positionMs: positionMs, durationMs: progress.durationMilliseconds),
+            "−1:30"
+        )
     }
 
     func testPlaybackControlsDisconnectedState() throws {
