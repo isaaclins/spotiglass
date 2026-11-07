@@ -288,7 +288,7 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         let cache = AppleMusicPlaylistTrackCountCache(now: { clock.now })
         let stillThere = await cache.counts(forVersions: ["a": nil, "b": nil])
         XCTAssertEqual(stillThere, [:])
-        await cache.store(["a": 3, "b": 4])
+        await cache.store(["a": 3, "b": 4], from: cache.startLookup(["a", "b"]))
 
         let afterDelete = await cache.counts(forVersions: ["a": nil])
         XCTAssertEqual(afterDelete, ["a": 3])
@@ -306,12 +306,85 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         let total = AppleMusicPlaylistTrackCountCache.maxPlaylists + 5
         for index in 0..<total {
             clock.now = clock.now.addingTimeInterval(0.01)
-            await cache.store(["p.\(index)": index])
+            await cache.store(["p.\(index)": index], from: cache.startLookup(["p.\(index)"]))
         }
         let listing = Dictionary(uniqueKeysWithValues: (0..<total).map { ("p.\($0)", Date?.none) })
         let kept = await cache.counts(forVersions: listing)
         XCTAssertEqual(kept.count, AppleMusicPlaylistTrackCountCache.maxPlaylists)
         XCTAssertNil(kept["p.0"], "the oldest entries go first")
+    }
+
+    /// A lookup that was already reading the library when the playlist was edited, or when a
+    /// newer listing saw it change, read the count from before: it must not be kept.
+    func testACountReadBeforeAnEditOrANewerVersionIsNotKept() async {
+        let cache = AppleMusicPlaylistTrackCountCache()
+        let first = Date(timeIntervalSince1970: 1_800_000_000)
+        _ = await cache.counts(forVersions: ["a": first, "b": first])
+
+        let start = await cache.startLookup(["a", "b"])
+        await cache.forget(["a"])
+        _ = await cache.counts(forVersions: ["a": first, "b": first.addingTimeInterval(60)])
+        await cache.store(["a": 10, "b": 4], from: start)
+
+        let listed = await cache.counts(forVersions: ["a": first, "b": first.addingTimeInterval(60)])
+        XCTAssertEqual(listed, [:])
+    }
+
+    /// An edit made while a refresh is still counting keeps the edited count: the lookup that
+    /// was already running has the one from before the edit.
+    @MainActor
+    func testAnEditDuringARefreshKeepsTheEditedCount() async throws {
+        let clock = TrackCountTestClock()
+        let source = MockAppleMusicSource()
+        source.playlists = [try AppleMusicFixtures.playlist(id: "p.1", name: "Road")]
+        source.trackCountsByPlaylistID = ["p.1": 10]
+        let provider = AppleMusicBrowsingProvider(
+            source: source,
+            trackCountCache: AppleMusicPlaylistTrackCountCache(now: { clock.now })
+        )
+        let viewModel = PlaylistBrowserViewModel(api: provider, cache: MockBrowsingCache())
+        await viewModel.refreshPlaylists()
+        await viewModel.playlistTrackCountTask?.value
+
+        clock.now = clock.now.addingTimeInterval(AppleMusicPlaylistTrackCountCache.maxAge + 1)
+        let gate = TrackCountGate()
+        source.trackCountsGate = gate
+        await viewModel.refreshPlaylists()
+        viewModel.adjustSidebarTrackCountAfterEdit(playlistID: "p.1", by: 1)
+        gate.open()
+        await viewModel.playlistTrackCountTask?.value
+
+        XCTAssertEqual(viewModel.playlistState.currentValue?.first?.trackCount, 11)
+    }
+
+    /// Opening a playlist before its count arrived: the header gets the count once it does,
+    /// even when the tracks finish loading after it.
+    @MainActor
+    func testAPlaylistOpenedBeforeItsCountShowsItInTheHeader() async throws {
+        let source = MockAppleMusicSource()
+        source.playlists = [try AppleMusicFixtures.playlist(id: "p.1", name: "Road")]
+        source.trackCountsByPlaylistID = ["p.1": 1]
+        source.playlistTracksByID["p.1"] = [.song(try AppleMusicFixtures.song(id: "1", title: "One"))]
+        let countGate = TrackCountGate()
+        let tracksGate = TrackCountGate()
+        source.trackCountsGate = countGate
+        source.playlistTracksGate = tracksGate
+        let viewModel = PlaylistBrowserViewModel(api: AppleMusicBrowsingProvider(source: source), cache: MockBrowsingCache())
+        await viewModel.refreshPlaylists()
+
+        let opening = Task { await viewModel.selectSidebar(.playlist("p.1")) }
+        for _ in 0..<1000 where !source.calls.contains(where: { $0.hasPrefix("playlistTracks(p.1") }) {
+            await Task.yield()
+        }
+        countGate.open()
+        await viewModel.playlistTrackCountTask?.value
+        tracksGate.open()
+        await opening.value
+
+        guard case let .playlist(detail)? = viewModel.detailState.currentValue else {
+            return XCTFail("the playlist is open")
+        }
+        XCTAssertEqual(detail.playlist.trackCount, 1)
     }
 
     /// The sidebar shows right away; counts arrive in batches afterwards and an unknown count stays
@@ -1008,16 +1081,20 @@ private final class MockAppleMusicSource: AppleMusicContentSource, @unchecked Se
     var trackCountsError: Error?
 
     var trackCountsGate: TrackCountGate?
+    var playlistTracksGate: TrackCountGate?
 
-    func libraryPlaylistTrackCounts(playlistIDs: [String]) async throws -> [String: Int] {
+    func libraryPlaylistTracks(playlistIDs: [String]) async throws -> [String: [Track]] {
         record("trackCounts(\(playlistIDs.joined(separator: ",")))")
         await trackCountsGate?.wait()
         if let trackCountsError { throw trackCountsError }
-        return trackCountsByPlaylistID.filter { playlistIDs.contains($0.key) }
+        return try trackCountsByPlaylistID.filter { playlistIDs.contains($0.key) }.mapValues { count in
+            try (0..<count).map { .song(try AppleMusicFixtures.song(id: "i.\($0)", title: "Song \($0)")) }
+        }
     }
 
     func playlistTracks(playlistID: String, limit: Int) async throws -> [Track]? {
         record("playlistTracks(\(playlistID),\(limit))")
+        await playlistTracksGate?.wait()
         return playlistTracksByID[playlistID]
     }
 

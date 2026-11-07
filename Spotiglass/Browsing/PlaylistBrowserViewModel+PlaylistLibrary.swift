@@ -223,7 +223,8 @@ extension PlaylistBrowserViewModel {
             return
         }
         let awaiting = Set(missing)
-        applyPlaylistTrackCounts(shownCounts.filter { awaiting.contains($0.key) }, replacing: awaiting)
+        playlistTrackCountStandIns = awaiting
+        applyPlaylistTrackCounts(shownCounts.filter { awaiting.contains($0.key) })
         playlistTrackCountTask = Task { [weak self, api] in
             var answered = Set<String>()
             for start in stride(from: 0, to: missing.count, by: Self.playlistTrackCountBatchSize) {
@@ -232,23 +233,24 @@ extension PlaylistBrowserViewModel {
                 let counts = await api.playlistTrackCounts(playlistIDs: batch)
                 guard !Task.isCancelled, let self else { return }
                 answered.formUnion(counts.keys)
-                self.applyPlaylistTrackCounts(counts, replacing: awaiting)
+                self.applyPlaylistTrackCounts(counts)
             }
             guard !Task.isCancelled, let self else { return }
             let unanswered = Dictionary(uniqueKeysWithValues: awaiting.subtracting(answered).map { ($0, Int?.none) })
-            self.applyPlaylistTrackCounts(unanswered, replacing: awaiting)
+            self.applyPlaylistTrackCounts(unanswered)
+            self.playlistTrackCountStandIns = []
         }
     }
 
     /// Writes `counts` into the rows and the open playlist's header. A row gets a count when it
-    /// has none, or when it is in `replacing` (its count is a stand-in from before the listing);
-    /// a `nil` count takes a stand-in away.
-    private func applyPlaylistTrackCounts(_ counts: [String: Int?], replacing: Set<String>) {
+    /// has none, or when its count is a stand-in from before the listing
+    /// (`playlistTrackCountStandIns`); a `nil` count takes a stand-in away.
+    private func applyPlaylistTrackCounts(_ counts: [String: Int?]) {
         var patchedIDs = Set<String>()
         for (id, count) in counts {
             guard let summary = playlistsByID[id],
                   summary.trackCount != count,
-                  summary.trackCount == nil || replacing.contains(id) else { continue }
+                  summary.trackCount == nil || playlistTrackCountStandIns.contains(id) else { continue }
             playlistsByID[id] = MusicPlaylistSummary(
                 id: summary.id,
                 name: summary.name,

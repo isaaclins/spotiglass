@@ -1130,12 +1130,11 @@ final class EditTestContentSource: AppleMusicContentSource, @unchecked Sendable 
     var songs: [Song] = []
     var tracksByPlaylistID: [String: [Track]] = [:]
     var playlists: [Playlist] = []
-    /// What the library counts: like the real one, it doesn't see an edit made moments ago.
-    var trackCountsByPlaylistID: [String: Int] = [:]
 
     func libraryPlaylists(limit: Int, offset: Int) async throws -> [Playlist] { offset == 0 ? playlists : [] }
-    func libraryPlaylistTrackCounts(playlistIDs: [String]) async throws -> [String: Int] {
-        trackCountsByPlaylistID.filter { playlistIDs.contains($0.key) }
+    /// The same tracks as a playlist read: like the real library, they lag behind an edit.
+    func libraryPlaylistTracks(playlistIDs: [String]) async throws -> [String: [Track]] {
+        tracksByPlaylistID.filter { playlistIDs.contains($0.key) && !$0.value.isEmpty }
     }
     func playlistTracks(playlistID: String, limit: Int) async throws -> [Track]? { tracksByPlaylistID[playlistID] }
     func librarySongs(limit: Int, offset: Int) async throws -> [Song] { offset == 0 ? songs : [] }
@@ -1442,7 +1441,6 @@ final class AppleMusicPlaylistEditFixTests: XCTestCase {
         let source = EditTestContentSource()
         source.playlists = [try AppleMusicFixtures.playlist(id: playlistID, name: "Spotiglass test")]
         source.tracksByPlaylistID[playlistID] = [.song(try AppleMusicFixtures.song(id: "i.1", title: "One", artist: "Someone"))]
-        source.trackCountsByPlaylistID[playlistID] = 1
         let provider = AppleMusicBrowsingProvider(source: source, editor: editor)
         _ = try await provider.currentUserPlaylists(limit: 50)
         let before = await provider.playlistTrackCounts(playlistIDs: [playlistID])
@@ -1454,6 +1452,31 @@ final class AppleMusicPlaylistEditFixTests: XCTestCase {
         XCTAssertNil(listed.first?.trackCount, "the count from before the add stays out of the listing")
         let after = await provider.playlistTrackCounts(playlistIDs: [playlistID])
         XCTAssertEqual(after, [playlistID: 2], "counted like the open playlist, with the added song")
+    }
+
+    /// A song removed from the library leaves every playlist (Music takes it out); while the
+    /// library still lists it there, the count leaves it out like the open playlist does.
+    func testASongRemovedFromTheLibraryIsNotCountedInItsPlaylists() async throws {
+        let playlistID = "-107247429512612591"
+        let source = EditTestContentSource()
+        source.playlists = [try AppleMusicFixtures.playlist(id: playlistID, name: "Spotiglass test")]
+        source.tracksByPlaylistID[playlistID] = [
+            .song(try AppleMusicFixtures.song(id: rowID, title: "Don't Stop The Music", artist: "Rihanna")),
+            .song(try AppleMusicFixtures.song(id: "i.1", title: "One", artist: "Someone")),
+        ]
+        let provider = AppleMusicBrowsingProvider(source: source, editor: editor)
+        _ = try await provider.currentUserPlaylists(limit: 50)
+        let before = await provider.playlistTrackCounts(playlistIDs: [playlistID])
+        XCTAssertEqual(before, [playlistID: 2])
+
+        pending.recordRemovedSong([rowID])
+
+        let listed = try await provider.currentUserPlaylists(limit: 50)
+        XCTAssertNil(listed.first?.trackCount, "the count with the removed song stays out of the listing")
+        let after = await provider.playlistTrackCounts(playlistIDs: [playlistID])
+        let shown = try await provider.playlistTracks(playlistID: playlistID, limit: 100, maxPages: 1)
+        XCTAssertEqual(after, [playlistID: 1])
+        XCTAssertEqual(after[playlistID], shown.count, "the sidebar and the open playlist agree")
     }
 
     func testALibraryRowAddedToAPlaylistShowsThereBeforeTheLibraryListsIt() async throws {

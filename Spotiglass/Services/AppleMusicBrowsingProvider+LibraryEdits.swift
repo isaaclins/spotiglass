@@ -140,6 +140,21 @@ extension AppleMusicBrowsingProvider {
         return editor.pending.applied(toPlaylistTracks: identified, playlistID: playlistID)
     }
 
+    /// How many of a playlist's library tracks are still in it once the songs removed from the
+    /// library from Spotiglass are left out, as the open playlist leaves them out.
+    func countLeavingOutRemovedSongs(_ tracks: [Track]) -> Int {
+        guard editor.pending.hasRemovedSongs else { return tracks.count }
+        return tracks.filter { track in
+            let keys: Set<String>
+            if case let .song(song) = track {
+                keys = Self.identified(song).keys
+            } else {
+                keys = [track.id.rawValue, AppleMusicPendingLibraryEdits.metadataKey(AppleMusicItemMapping.track(track))]
+            }
+            return !editor.pending.isRemoved(keys)
+        }.count
+    }
+
     /// A song with every key a pending edit may know it by.
     private static func identified(_ song: Song) -> (track: MusicTrack, keys: Set<String>) {
         let track = AppleMusicItemMapping.track(song)

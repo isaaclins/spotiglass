@@ -398,6 +398,15 @@ final class AppleMusicPendingLibraryEdits: @unchecked Sendable {
     }
 
     /// True when Liked Songs has edits a read has to account for.
+    /// True when a song removed from the library may still be listed, in the library or in a
+    /// playlist.
+    var hasRemovedSongs: Bool {
+        locked {
+            expire()
+            return !removedSongs.isEmpty
+        }
+    }
+
     var hasPendingSongs: Bool {
         locked {
             expire()

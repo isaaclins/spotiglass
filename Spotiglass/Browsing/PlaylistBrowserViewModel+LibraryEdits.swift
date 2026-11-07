@@ -92,8 +92,10 @@ extension PlaylistBrowserViewModel {
     /// had when the list was loaded (#395). Only for providers with their own playlist edits
     /// (Apple Music); Spotify's counts stay as they were, refreshed with the next playlist load.
     func adjustSidebarTrackCountAfterEdit(playlistID: String, by delta: Int) {
-        guard supportedLibraryEdits.contains(.removeFromPlaylist), delta != 0,
-              let summary = playlistsByID[playlistID], let count = summary.trackCount else { return }
+        guard supportedLibraryEdits.contains(.removeFromPlaylist), delta != 0 else { return }
+        // A count run that was already reading the library has the count from before the edit.
+        playlistTrackCountStandIns.remove(playlistID)
+        guard let summary = playlistsByID[playlistID], let count = summary.trackCount else { return }
         let adjusted = MusicPlaylistSummary(
             id: summary.id,
             name: summary.name,
