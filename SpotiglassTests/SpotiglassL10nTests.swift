@@ -155,4 +155,13 @@ final class SpotiglassL10nTests: XCTestCase {
         try store.mutate { $0.appearance.language = .spanish }
         XCTAssertEqual(shortcut.displayChips, ["Espacio"])
     }
+
+    /// The panel lists at most 20 upcoming tracks. A full list must not claim that only 20
+    /// are queued (a 37-song playlist read "20 tracks up next", #400).
+    func testQueueCountLineSaysNextWhenTheListIsFull() {
+        SpotiglassL10n.settingsStore = nil
+        XCTAssertEqual(QueuePanelView.upcomingCountLine(count: 3, limit: 20), "3 tracks up next")
+        XCTAssertEqual(QueuePanelView.upcomingCountLine(count: 19, limit: 20), "19 tracks up next")
+        XCTAssertEqual(QueuePanelView.upcomingCountLine(count: 20, limit: 20), "Next 20 tracks")
+    }
 }

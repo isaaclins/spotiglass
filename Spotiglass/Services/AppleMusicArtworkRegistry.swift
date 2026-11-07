@@ -9,16 +9,22 @@ import MusicKit
 final class AppleMusicArtworkRegistry: @unchecked Sendable {
     static let shared = AppleMusicArtworkRegistry()
 
-    /// Enough for a large library; past it the registry starts over and items register again
-    /// the next time they are mapped.
+    /// Enough for a large library. Past it the least recently used artworks go first, so the
+    /// covers on screen and on pins (which are read on every draw) keep drawing; an evicted
+    /// item registers again the next time it is mapped (#400).
     static let maxEntries = 20_000
 
     private let lock = NSLock()
-    private var artworkByURL: [String: Artwork] = [:]
+    private var artworkByURL: LRUDictionary<String, Artwork>
     /// The same artwork under the item's pin ID (`playlist:<id>`, ...). Library artwork URLs
     /// change between launches, so a pin saved with last session's URL finds its cover here
     /// once the item has been mapped again in this session.
-    private var artworkByItemKey: [String: Artwork] = [:]
+    private var artworkByItemKey: LRUDictionary<String, Artwork>
+
+    init(capacity: Int = AppleMusicArtworkRegistry.maxEntries) {
+        artworkByURL = LRUDictionary(capacity: capacity)
+        artworkByItemKey = LRUDictionary(capacity: capacity)
+    }
 
     /// URLs a URL loader can't fetch and only this registry can resolve.
     static func needsMusicKit(_ url: URL) -> Bool {
@@ -28,22 +34,18 @@ final class AppleMusicArtworkRegistry: @unchecked Sendable {
 
     func register(_ artwork: Artwork, for url: URL, itemKey: String? = nil) {
         lock.withLock {
-            if artworkByURL.count >= Self.maxEntries {
-                artworkByURL.removeAll(keepingCapacity: true)
-            }
-            artworkByURL[url.absoluteString] = artwork
+            artworkByURL.setValue(artwork, forKey: url.absoluteString)
             guard let itemKey else { return }
-            if artworkByItemKey.count >= Self.maxEntries {
-                artworkByItemKey.removeAll(keepingCapacity: true)
-            }
-            artworkByItemKey[itemKey] = artwork
+            artworkByItemKey.setValue(artwork, forKey: itemKey)
         }
     }
 
-    /// The artwork for `url`, or else the artwork last registered for `itemKey`.
+    /// The artwork for `url`, or else the artwork last registered for `itemKey`. A hit counts
+    /// as a use, which keeps drawn covers from being evicted.
     func artwork(for url: URL, itemKey: String? = nil) -> Artwork? {
         lock.withLock {
-            artworkByURL[url.absoluteString] ?? itemKey.flatMap { artworkByItemKey[$0] }
+            artworkByURL.value(forKey: url.absoluteString)
+                ?? itemKey.flatMap { artworkByItemKey.value(forKey: $0) }
         }
     }
 }
