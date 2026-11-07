@@ -88,9 +88,19 @@ struct QueuePanelView: View {
     }
 
     private var upcomingCountLine: String {
+        Self.upcomingCountLine(count: queueViewModel.upcomingItems.count, limit: queueViewModel.maxUpcomingItems)
+    }
+
+    /// The panel shows at most `limit` upcoming tracks, and neither service reports how many
+    /// are queued past that, so a full list says "Next 20 tracks" rather than claiming only
+    /// 20 are queued (#400).
+    static func upcomingCountLine(count: Int, limit: Int) -> String {
+        if count >= limit {
+            return SpotiglassL10n.format("queue.subtitle.upNextCapped", Int64(limit))
+        }
         // The catalog owns the plural rule now, so this passes the count and
         // stops encoding a two-form model in Swift control flow (#156).
-        SpotiglassL10n.format("queue.subtitle.upNext", Int64(queueViewModel.upcomingItems.count))
+        return SpotiglassL10n.format("queue.subtitle.upNext", Int64(count))
     }
 
     private func errorBanner(_ error: BrowsingDisplayError) -> some View {

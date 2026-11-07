@@ -112,6 +112,10 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
     static let albumTrackPages = 6
     /// Upper bound for one artist's albums, singles and compilations.
     static let maxArtistAlbums = 1_000
+    /// Bound for counting a library album's songs when MusicKit gives no album track count.
+    static let maxLibraryAlbumTracks = 500
+    /// How many library albums of an artist page are counted at once.
+    static let libraryAlbumCountParallelism = 4
 
     let source: any AppleMusicContentSource
 
@@ -165,6 +169,10 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
             // A playlist created from Spotiglass moments ago is only in the cloud library yet.
             if let pending = try await pendingPlaylistTracks(playlistID: playlistID) {
                 return AppleMusicItemMapping.playlistItems(pending)
+            }
+            // Created through the Music app moments ago: it exists, MusicKit just doesn't list it yet.
+            if editor.pending.createdPlaylist(id: playlistID) != nil {
+                return AppleMusicItemMapping.playlistItems(applyingPendingEdits(toPlaylistTracks: [], playlistID: playlistID))
             }
             throw AppleMusicBrowsingError.notFound
         }
@@ -220,6 +228,9 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
             throw AppleMusicBrowsingError.notFound
         }
         let tracks = try await source.tracks(of: album, limit: cap)
+        // A library album lists its songs under persistent IDs; edits on those rows need the
+        // song's other details (#395).
+        editor.songReferences.remember(tracks)
         return tracks.prefix(cap).map { AppleMusicItemMapping.track($0, album: album) }
     }
 
@@ -269,6 +280,70 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         return artist
     }
 
+    /// MusicKit gives a library album the track count of the whole album, while the library
+    /// has only some of its songs and the album page lists just those: "15 tracks" on the
+    /// artist page, "1 track" once opened (#400). A library album therefore carries the number
+    /// of its songs in the library, the same list its album page shows. Catalog albums keep
+    /// their count.
+    ///
+    /// The counts run a few at a time, so an artist with many library albums doesn't wait for
+    /// two requests per album in a row. An album whose songs can't be read keeps MusicKit's
+    /// count instead of failing the whole artist page; a cancelled load still throws, so it is
+    /// never cached half counted.
+    static func libraryCounted(
+        _ albums: [MusicArtistAlbum],
+        source: any AppleMusicContentSource
+    ) async throws -> [MusicArtistAlbum] {
+        var counted = albums
+        try await withThrowingTaskGroup(of: (Int, MusicArtistAlbum).self) { group in
+            var next = albums.startIndex
+            func addNext() {
+                guard next < albums.endIndex else { return }
+                let index = next
+                let album = albums[index]
+                next += 1
+                group.addTask {
+                    do {
+                        return (index, try await libraryCounted(album, source: source))
+                    } catch is CancellationError {
+                        throw CancellationError()
+                    } catch {
+                        return (index, album)
+                    }
+                }
+            }
+            for _ in 0..<libraryAlbumCountParallelism { addNext() }
+            while let (index, album) = try await group.next() {
+                counted[index] = album
+                addNext()
+            }
+        }
+        try Task.checkCancellation()
+        return counted
+    }
+
+    private static func libraryCounted(
+        _ album: MusicArtistAlbum,
+        source: any AppleMusicContentSource
+    ) async throws -> MusicArtistAlbum {
+        guard !MusicKitLibraryLookup.isCatalogID(album.id),
+              let detailed = try await source.album(id: album.id)
+        else { return album }
+        // The library never has more of an album than the album has.
+        let cap = album.totalTracks > 0 ? album.totalTracks : Self.maxLibraryAlbumTracks
+        let count = try await source.tracks(of: detailed, limit: cap).count
+        guard count > 0, count != album.totalTracks else { return album }
+        return MusicArtistAlbum(
+            id: album.id,
+            name: album.name,
+            imageURL: album.imageURL,
+            releaseYear: album.releaseYear,
+            totalTracks: count,
+            group: album.group,
+            uri: album.uri
+        )
+    }
+
     private func artistAlbums(id: String, includeGroups: [MusicArtistAlbumGroup]) async throws -> [MusicArtistAlbum] {
         let groups = Set(includeGroups)
         let all: [MusicArtistAlbum]
@@ -276,8 +351,10 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
             all = cached
         } else {
             let artist = try await loadArtist(id: id)
-            all = try await source.albums(of: artist, limit: Self.maxArtistAlbums)
-                .map(AppleMusicItemMapping.artistAlbum)
+            all = try await Self.libraryCounted(
+                source.albums(of: artist, limit: Self.maxArtistAlbums).map(AppleMusicItemMapping.artistAlbum),
+                source: source
+            )
             await artistAlbumsCache.store(all, forArtistID: id)
         }
         return all.filter { groups.isEmpty || groups.contains($0.group) }

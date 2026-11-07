@@ -73,7 +73,7 @@ implements `MusicBrowsingProvider`; the MusicKit requests themselves live in
 | Home: Your top tracks | The songs of your personal mix from `MusicPersonalRecommendationsRequest` (the Favourites mix is built from what you play most); otherwise the first recommended playlist |
 | Playlist / album / artist detail | Library first, then the catalog (`MusicCatalogResourceRequest`) |
 | Search and the ⌘K palette | Library matches first (`MusicLibrarySearchRequest`, up to 100 per type on the first page, since the library can't be paged), then the catalog (`MusicCatalogSearchRequest`, the requested page size, at most 25). Later pages are catalog only. Catalog copies of library items are hidden on every page, and each result type pages on its own. |
-| Artwork | Catalog artwork is a plain https URL and goes through the normal image cache. Library artwork comes as `musicKit://` URLs that only MusicKit can draw, so the artwork views render it with MusicKit's `ArtworkImage` ([`AppleMusicArtworkRegistry`](../Spotiglass/Services/AppleMusicArtworkRegistry.swift)). |
+| Artwork | Catalog artwork is a plain https URL and goes through the normal image cache. Library artwork comes as `musicKit://` URLs that only MusicKit can draw, so the artwork views render it with MusicKit's `ArtworkImage` ([`AppleMusicArtworkRegistry`](../Spotiglass/Services/AppleMusicArtworkRegistry.swift), bounded to 20,000 artworks, least recently drawn first out, so covers on screen and on pins keep drawing). |
 
 Apple Music items keep their MusicKit IDs, and their `uri` is `applemusic:<kind>:<id>`. Pins and
 the library row order are stored under their own user ID (`apple-music-library`), so they never
@@ -92,8 +92,8 @@ MusicKit's own library is read-only on macOS, so edits take one of two routes
 | Unlike a song | Music app: removes the song from the library; the API clears the love |
 | Add album to library | Apple Music API: `POST /v1/me/library` |
 | Remove album from library | Music app: removes the album's songs from the library |
-| New playlist | Apple Music API: `POST /v1/me/library/playlists` |
-| Add to playlist | Apple Music API: `POST /v1/me/library/playlists/{id}/tracks` |
+| New playlist | Apple Music API: `POST /v1/me/library/playlists`, with the songs in the same request; for songs only the Music app knows (below), the Music app, which deletes the new playlist again if a song can't be added. Either way a failed create leaves no empty playlist. |
+| Add to playlist | Apple Music API: `POST /v1/me/library/playlists/{id}/tracks`; for songs only the Music app knows, the Music app, which takes its own adds out again if one fails partway |
 | Remove from this playlist, move to playlist | Music app (move adds through the API first) |
 | Rename and delete playlist | Music app |
 
@@ -116,6 +116,14 @@ it out of every playlist it's in, on all your devices
 ([Apple](https://support.apple.com/en-us/HT204343)). Spotiglass asks before it does that, the way
 Music asks before Delete from Library. Spotify's unlike only leaves Liked Songs and still goes
 through at once (`MusicLibraryEdits.confirmLibraryRemoval`).
+
+Songs of library playlists and library albums come from MusicKit with only the Music persistent
+ID, no catalog or cloud library ID, so the API can't name them. Their playlist edits go through the
+Music app, which finds the song in the library or, for an Apple Music song that is in a playlist
+but not in the library, in the playlist it was listed in. One edit always takes one route.
+
+Scripts to Music run off the main thread, one at a time, and each Apple Event gives up after 60
+seconds (the Music app still loading or syncing), so the window never waits on Music.
 
 **IDs.** The API names songs by catalog or cloud library ID (`i.…`) and playlists by `p.…`; the
 Music app names both by its persistent ID, which MusicKit shows as a signed decimal (inside a
@@ -141,7 +149,7 @@ implements `MusicPlaybackProvider` on MusicKit's `ApplicationMusicPlayer`
 
 | Spotiglass | Apple Music |
 |---|---|
-| Play a row, Liked Songs, a playlist, an album, an artist | The songs are queued one by one as `ApplicationMusicPlayer.Queue` entries, starting at the row you picked. Rows are played as the exact MusicKit song they were built from ([`AppleMusicPlayableRegistry`](../Spotiglass/Services/AppleMusicPlayableRegistry.swift), bounded to 20,000 songs): a library request for a playlist track's id answers with a song under a different id, so a second lookup can't be matched back to the row. |
+| Play a row, Liked Songs, a playlist, an album, an artist | The songs are queued one by one as `ApplicationMusicPlayer.Queue` entries, starting at the row you picked. Rows are played as the exact MusicKit song they were built from ([`AppleMusicPlayableRegistry`](../Spotiglass/Services/AppleMusicPlayableRegistry.swift), bounded to 20,000 songs, least recently used first out): a library request for a playlist track's id answers with a song under a different id, so a second lookup can't be matched back to the row. |
 | Pause, resume, seek, next, previous, shuffle, repeat | The player's own commands. Repeat off / context / track maps to none / all / one. |
 | Play with nothing loaded | Off: MusicKit's player keeps no last song to resume (after a launch, or once a queue ran out), so the bar says "Choose a track to play." until a row, a list or Play in a header starts something. |
 | Add to queue | After the current song and after the songs added before it, like Spotify's queue. |
@@ -172,7 +180,8 @@ default output, so Apple Music goes through it as well.
 - **Track counts** for library playlists: MusicKit only knows them after loading the tracks, so
   the sidebar says "Track count unavailable".
 - **Artist pages** opened from the library show the albums in your library and tracks from them,
-  not the artist's whole catalog.
+  not the artist's whole catalog. A library album's track count is the number of its songs in
+  your library, the same songs its album page lists.
 - **Disconnect** is hidden for Apple Music (toolbar, palette, app menu): signing out of it lives in Settings › Account. An Apple Music-only setup never reads, refreshes or deletes a saved Spotify sign-in.
 - Cover art of songs that only live in your cloud library may not load; those rows show the
   placeholder.

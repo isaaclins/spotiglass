@@ -14,6 +14,10 @@ struct SpotifyClientIDAndActionsView: View {
     /// Lets the hosting scene clear transient browser state before auth loss
     /// replaces its content. Settings uses the same hook as the welcome screen.
     var onSignOut: (() -> Void)? = nil
+    /// Disconnect also removes Spotify from the service menu. When it would, it stays enabled
+    /// without a live session: a lapsed session keeps Spotify in the menu, and this button is the
+    /// only way to take it out (#399).
+    var disconnectRemovesService = false
 
     @FocusState private var isClientIDFocused: Bool
     @State private var lastSignInTriggerAt: Date?
@@ -53,7 +57,7 @@ struct SpotifyClientIDAndActionsView: View {
                             .symbolRenderingMode(.hierarchical)
                     }
                     .buttonStyle(.bordered)
-                    .disabled(!viewModel.state.isConnectedOrRefreshing)
+                    .disabled(!canDisconnect)
                     .accessibilityHint(SpotiglassL10n.string("auth.disconnect.hint"))
                 }
             }
@@ -89,6 +93,10 @@ struct SpotifyClientIDAndActionsView: View {
 
     private var clientIDTrimmed: String {
         viewModel.clientID.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var canDisconnect: Bool {
+        viewModel.state.isConnectedOrRefreshing || disconnectRemovesService
     }
 
     private var canSignIn: Bool {

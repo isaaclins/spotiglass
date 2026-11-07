@@ -50,6 +50,9 @@ private enum LyricsOverlayGlobalCommands {
         CommandPaletteCommandID.toggleQueue,
         CommandPaletteCommandID.openPalette,
         CommandPaletteCommandID.openSettings,
+        // Switching service is app-wide (`.always`) and clears the lyrics on its way (#399).
+        CommandPaletteCommandID.switchToAppleMusic,
+        CommandPaletteCommandID.switchToSpotify,
     ]
 }
 

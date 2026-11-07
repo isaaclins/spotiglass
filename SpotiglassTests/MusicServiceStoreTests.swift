@@ -223,6 +223,28 @@ final class MusicServiceStoreTests: XCTestCase {
         XCTAssertEqual(store.active, .spotify)
     }
 
+    /// A lapsed Spotify session keeps Spotify in the menu, so Disconnect must be able to remove it
+    /// without a live session (#399). Only the lone Spotify keeps its sign-in screen instead, and
+    /// a service that is only being added is left to Cancel.
+    func testSignOutRemovesFromMenuOnlyWhenSomethingIsLeft() {
+        let both = MusicServiceStore(
+            storage: InMemoryMusicServiceSelectionStorage(services: [.appleMusic, .spotify], active: .appleMusic)
+        )
+        XCTAssertTrue(both.signOutRemovesFromMenu(.spotify))
+        XCTAssertTrue(both.signOutRemovesFromMenu(.appleMusic))
+
+        let spotifyOnly = MusicServiceStore(
+            storage: InMemoryMusicServiceSelectionStorage(services: [.spotify], active: .spotify)
+        )
+        XCTAssertFalse(spotifyOnly.signOutRemovesFromMenu(.spotify))
+
+        let addingSpotify = MusicServiceStore(
+            storage: InMemoryMusicServiceSelectionStorage(services: [.appleMusic], active: .appleMusic)
+        )
+        addingSpotify.beginAddition(of: .spotify)
+        XCTAssertFalse(addingSpotify.signOutRemovesFromMenu(.spotify))
+    }
+
     /// Apple Music has no sign-in screen of its own: signing out of the last one shows the
     /// welcome screen.
     func testSigningOutOfTheOnlyAppleMusicShowsTheWelcomeScreen() {

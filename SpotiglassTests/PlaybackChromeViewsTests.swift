@@ -16,8 +16,15 @@ final class PlaybackChromeViewsTests: XCTestCase {
     func testScrubberViewExposesAccessibilityProgress() throws {
         try ViewTestHost.skipIfViewInspectorGeometryUnsupported()
         let view = ScrubberView(
-            displayFraction: 0.42,
-            durationMilliseconds: 180_000,
+            progress: ScrubberProgress(
+                anchor: PlaybackProgressAnchor(
+                    positionMilliseconds: 75_600,
+                    anchorDate: Date(),
+                    durationMilliseconds: 180_000,
+                    isAdvancing: false
+                ),
+                durationMilliseconds: 180_000
+            ),
             onSeek: { _ in },
             onDragUpdate: { _ in }
         )
@@ -28,24 +35,24 @@ final class PlaybackChromeViewsTests: XCTestCase {
         XCTAssertNoThrow(try inspected.find(viewWithAccessibilityLabel: "Playback progress"))
     }
 
-    func testPlaybackProgressScrubberGroupStaticLabels() throws {
-        let view = PlaybackProgressScrubberGroup(
-            progressAnchor: PlaybackProgressAnchor(
+    /// The times are drawn in a canvas, so they are checked through the same
+    /// functions the canvas draws from.
+    func testPlaybackProgressScrubberGroupStaticLabels() {
+        let progress = ScrubberProgress(
+            anchor: PlaybackProgressAnchor(
                 positionMilliseconds: 90_000,
                 anchorDate: Date(),
                 durationMilliseconds: 180_000,
                 isAdvancing: false
             ),
-            durationMilliseconds: 180_000,
-            isEnabled: true,
-            onSeek: { _ in },
-            dragFraction: .constant(nil)
+            durationMilliseconds: 180_000
         )
-        .frame(width: 360)
-
-        ViewTestHost.host(view, size: CGSize(width: 400, height: 48))
-        XCTAssertNoThrow(try view.inspect().find(text: "1:30"))
-        XCTAssertNoThrow(try view.inspect().find(text: "−1:30"))
+        let positionMs = progress.positionMilliseconds(at: Date().addingTimeInterval(30))
+        XCTAssertEqual(PlaybackProgressScrubberGroup.elapsedText(positionMs: positionMs), "1:30")
+        XCTAssertEqual(
+            PlaybackProgressScrubberGroup.remainingText(positionMs: positionMs, durationMs: progress.durationMilliseconds),
+            "−1:30"
+        )
     }
 
     func testPlaybackControlsDisconnectedState() throws {
@@ -284,13 +291,232 @@ final class PlaybackChromeViewsTests: XCTestCase {
         )
     }
 
-    func testPlaybackTransportLayoutAtWindowMinimumKeepsScrubberUsable() throws {
-        XCTAssertEqual(PlaybackTransportLayoutPolicy.scrubberWidth(in: 520), 180)
-        XCTAssertEqual(PlaybackTransportLayoutPolicy.scrubberWidth(in: 700), 180)
-        XCTAssertTrue(PlaybackTransportLayoutPolicy.usesCompactVolume(for: 520))
-        XCTAssertTrue(PlaybackTransportLayoutPolicy.usesCompactVolume(for: 700))
-        XCTAssertFalse(PlaybackTransportLayoutPolicy.usesCompactVolume(for: 900))
+    /// The bar keeps one scrubber in every arrangement (#394). It used to pick
+    /// its arrangement with a `ViewThatFits` over three complete copies of the
+    /// transport; in the app that rebuilt the scrubber on layout passes and the
+    /// new scrubber's timeline asked for the next pass, which kept a CPU core
+    /// busy (measured in Release builds; a test window does not loop). A press
+    /// survives a player update and the window passing through the stacked
+    /// arrangement and back, and the release seeks once, at the pointer.
+    func testPressOnTheBarSurvivesUpdatesAndRearrangement() throws {
+        let api = MockPlaybackAPI()
+        let sentSeeks = SentSeeks()
+        api.onSeekAttempt = { sentSeeks.append($0) }
+        let playback = PlaybackSessionViewModel(
+            provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander()))
+        playback.handle(.ready(deviceID: "device-1"))
+        playback.handle(.stateChanged(Self.midnightCity(), isPaused: false, nextTracks: []))
 
+        let controller = NSHostingController(
+            rootView: PlaybackControlsView(
+                viewModel: playback,
+                isLyricsPresented: .constant(false),
+                openArtist: { _ in }
+            )
+        )
+        controller.sizingOptions = [.minSize]
+        // A one-row width and a two-row width that fit small CI screens too.
+        let rowSize = NSSize(width: 880, height: 120)
+        let stackedSize = NSSize(width: 640, height: 120)
+        let window = KeyTestPanel(
+            contentRect: NSRect(origin: .zero, size: rowSize),
+            styleMask: [.titled, .resizable, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "AXTestTransportClick"
+        window.contentViewController = controller
+        window.isReleasedWhenClosed = false
+        window.setContentSize(rowSize)
+        window.orderFrontRegardless()
+        window.makeKey()
+        defer { AppKitTestSupport.closeWindowSafely(window) }
+        AppKitTestSupport.pumpRunLoop(for: 0.5)
+
+        // AX frames are in screen points from the top of the main screen.
+        let screenHeight = try XCTUnwrap(NSScreen.screens.first).frame.height
+        func scrubberFrameOnScreen() throws -> NSRect {
+            let scrubber = try XCTUnwrap(
+                try realizedAccessibilityTree(in: window).first { $0.axDescription == "Playback progress" }
+            )
+            let position = try XCTUnwrap(scrubber.position)
+            let size = try XCTUnwrap(scrubber.size)
+            return NSRect(x: position.x, y: screenHeight - position.y - size.height, width: size.width, height: size.height)
+        }
+        let bar = try scrubberFrameOnScreen()
+        let location = window.convertPoint(fromScreen: NSPoint(x: bar.minX + bar.width * 0.75, y: bar.midY))
+
+        func send(_ type: NSEvent.EventType) {
+            window.sendEvent(NSEvent.mouseEvent(
+                with: type,
+                location: location,
+                modifierFlags: [],
+                timestamp: ProcessInfo.processInfo.systemUptime,
+                windowNumber: window.windowNumber,
+                context: nil,
+                eventNumber: 0,
+                clickCount: 1,
+                pressure: type == .leftMouseDown ? 1 : 0
+            )!)
+        }
+        send(.leftMouseDown)
+        AppKitTestSupport.pumpRunLoop(for: 0.15)
+        playback.handle(.stateChanged(Self.midnightCity(positionMilliseconds: 32_000), isPaused: false, nextTracks: []))
+        AppKitTestSupport.pumpRunLoop(for: 0.2)
+        window.setContentSize(stackedSize)
+        AppKitTestSupport.pumpRunLoop(for: 0.2)
+        window.setContentSize(rowSize)
+        AppKitTestSupport.pumpRunLoop(for: 0.2)
+        // Where the pointer now sits on the bar, should the window not have
+        // got its size back exactly.
+        let barAtRelease = try scrubberFrameOnScreen()
+        let pointer = window.convertPoint(toScreen: location)
+        let fraction = min(max((pointer.x - barAtRelease.minX) / barAtRelease.width, 0), 1)
+        send(.leftMouseUp)
+        AppKitTestSupport.pumpRunLoop(for: 0.5)
+
+        let seeks = sentSeeks.values
+        XCTAssertEqual(seeks.count, 1, "the click must seek once; window \(window.frame), bar \(bar) then \(barAtRelease)")
+        if let seek = seeks.first {
+            XCTAssertEqual(Double(seek), Double(fraction) * 240_000, accuracy: 4_000, "the seek lands where the pointer is")
+        }
+    }
+
+    /// The arrangement must place every part where main's `ViewThatFits` over
+    /// three stacks placed it, so the bar looks the same at every width the
+    /// window allows. Both are built from the same stand-in parts here (the
+    /// real parts' sizes) and compared frame by frame. The first version gave
+    /// Spotify's slider its ideal width in tight rows, where the old row let it
+    /// shrink to its floor.
+    ///
+    /// One deliberate difference: where main ran the trailing controls into the
+    /// gap before the scrubber (Spotify, rows about 950 to 1080 pt wide, and
+    /// wherever the 170 pt Reconnect or Retry button shows), the arrangement
+    /// keeps the gap and the summary and scrubber give up the room. Every part
+    /// also has to lie inside the size the arrangement reports, or it spills
+    /// into the bar's padding.
+    func testTransportArrangementPlacesEveryPartWhereTheOldStacksDid() throws {
+        let spacing = SpotiglassDesign.spacingM
+        for (withVolume, recovery) in [(true, false), (false, false), (true, true), (false, true)] {
+            var mismatches: [String] = []
+            var overlapping = 0
+            let label = "volume: \(withVolume), recovery button: \(recovery)"
+            // From the narrowest transport the 520 pt window leaves.
+            for width in stride(from: CGFloat(456), through: 1_400, by: 8) {
+                let old = try partFrames(
+                    of: OldTransportArrangement(withVolume: withVolume, recovery: recovery), width: width
+                )
+                let new = try partFrames(
+                    of: NewTransportArrangement(withVolume: withVolume, recovery: recovery), width: width
+                )
+                XCTAssertEqual(Set(old.keys), Set(new.keys), "parts at \(width)")
+                if let whole = new[PartFrameKey.whole] {
+                    for (part, frame) in new where part != PartFrameKey.whole {
+                        XCTAssertTrue(
+                            frame.minX >= whole.minX - 0.5 && frame.maxX <= whole.maxX + 0.5,
+                            "\(part) \(frame) spills out of the bar \(whole) at \(width), \(label)"
+                        )
+                    }
+                }
+                // One row when the scrubber and the controls share a centre line.
+                func inOneRow(_ a: CGRect, _ b: CGRect) -> Bool { abs(a.midY - b.midY) < 1 }
+                if let scrubber = new["scrubber"], let controls = new["controls"], inOneRow(scrubber, controls) {
+                    XCTAssertGreaterThanOrEqual(
+                        controls.minX - scrubber.maxX, spacing - 0.5, "the controls run into the scrubber at \(width)"
+                    )
+                }
+                if let scrubber = old["scrubber"], let controls = old["controls"], inOneRow(scrubber, controls),
+                   controls.minX - scrubber.maxX < spacing - 0.5 {
+                    overlapping += 1
+                    continue
+                }
+                for (part, oldFrame) in old.sorted(by: { $0.key < $1.key }) {
+                    guard let newFrame = new[part] else { continue }
+                    let deltas = [oldFrame.minX - newFrame.minX, oldFrame.minY - newFrame.minY,
+                                  oldFrame.width - newFrame.width, oldFrame.height - newFrame.height]
+                    if deltas.contains(where: { abs($0) > 0.5 }) {
+                        mismatches.append("\(Int(width)) \(part): main \(oldFrame), now \(newFrame)")
+                    }
+                }
+            }
+            // The narrowest the bar can get, which the window's minimum size
+            // comes from: the same as main, so the parts always fit in it.
+            let oldMinimum = try XCTUnwrap(
+                partFrames(of: OldTransportArrangement(withVolume: withVolume, recovery: recovery), width: 0)[PartFrameKey.whole]
+            )
+            let newMinimum = try partFrames(
+                of: NewTransportArrangement(withVolume: withVolume, recovery: recovery), width: 0
+            )
+            XCTAssertEqual(newMinimum[PartFrameKey.whole]?.width ?? 0, oldMinimum.width, accuracy: 0.5, "minimum, \(label)")
+            if let whole = newMinimum[PartFrameKey.whole] {
+                for (part, frame) in newMinimum where part != PartFrameKey.whole {
+                    XCTAssertLessThanOrEqual(frame.maxX, whole.maxX + 0.5, "\(part) spills out at the minimum, \(label)")
+                }
+            }
+            XCTAssertEqual(mismatches, [], label)
+            if !recovery {
+                // Without the wide button the overlap is Spotify's slider row
+                // only, and only a narrow band of it.
+                XCTAssertLessThanOrEqual(overlapping, withVolume ? 20 : 0, label)
+            }
+        }
+    }
+
+    /// Each part's frame in the arrangement's own coordinates, laid out at `width`.
+    private func partFrames<V: View>(of view: V, width: CGFloat) throws -> [String: CGRect] {
+        let store = PartFrameStore()
+        let host = NSHostingView(
+            rootView: view
+                .reportsFrame(as: PartFrameKey.whole)
+                .frame(width: width)
+                .coordinateSpace(.named(PartFrameKey.space))
+                .onPreferenceChange(PartFrameKey.self) { store.frames = $0 }
+        )
+        host.frame = NSRect(x: 0, y: 0, width: width, height: 200)
+        host.layoutSubtreeIfNeeded()
+        AppKitTestSupport.pumpRunLoop(for: 0.01)
+        return store.frames
+    }
+
+    /// VoiceOver moves through the bar in the order it is laid out on screen,
+    /// not in the order the parts are declared: in one row the scrubber sits
+    /// between the summary and the transport buttons, in two rows it comes
+    /// last, under them, as it did on main.
+    func testVoiceOverReadsTheScrubberWhereItSits() throws {
+        for (width, scrubberLast) in [(CGFloat(640), true), (CGFloat(1_100), false)] {
+            let controller = NSHostingController(
+                rootView: PlaybackControlsView(
+                    viewModel: makePlayingPlayback(),
+                    isLyricsPresented: .constant(false),
+                    openArtist: { _ in }
+                )
+            )
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: width, height: 140),
+                styleMask: [.titled],
+                backing: .buffered,
+                defer: false
+            )
+            window.title = "AXTestOrder\(Int(width))"
+            window.contentViewController = controller
+            window.isReleasedWhenClosed = false
+            window.setContentSize(NSSize(width: width, height: 140))
+            window.orderFrontRegardless()
+            defer { AppKitTestSupport.closeWindowSafely(window) }
+            AppKitTestSupport.pumpRunLoop(for: 0.4)
+
+            let order = try voiceOverOrder(in: window)
+            let scrubber = try XCTUnwrap(order.firstIndex(of: "Playback progress"), "\(order)")
+            let next = try XCTUnwrap(order.firstIndex(of: "Next track"), "\(order)")
+            if scrubberLast {
+                XCTAssertGreaterThan(scrubber, next, "two rows at \(width): the scrubber comes after the buttons")
+            } else {
+                XCTAssertLessThan(scrubber, next, "one row at \(width): the scrubber comes before the buttons")
+            }
+        }
+    }
+
+    func testPlaybackTransportLayoutAtWindowMinimumKeepsScrubberUsable() throws {
         for size in [CGSize(width: 520, height: 360), CGSize(width: 700, height: 500)] {
             let controller = ViewTestHost.host(
                 PlaybackControlsView(
@@ -324,38 +550,59 @@ final class PlaybackChromeViewsTests: XCTestCase {
         }
     }
 
-    func testPlaybackTransportMinimumWidthsReserveSummaryAndFitContainer() {
-        for width in stride(from: CGFloat(700), through: CGFloat(1600), by: 10) {
-            let minimumWidths = PlaybackTransportLayoutPolicy.transportChildMinimumWidths(in: width)
+    /// The floors a row reserves: the summary, the scrubber's seeking surface
+    /// and the trailing controls, with the two gaps between them.
+    private func rowMinimumWidth(compactVolume: Bool) -> CGFloat {
+        PlaybackTransportLayoutPolicy.nowPlayingSummaryMinimumWidth
+            + PlaybackTransportLayoutPolicy.scrubberMinimumWidth
+            + PlaybackTransportLayoutPolicy.transportActionsMinimumWidth(useCompactVolume: compactVolume)
+            + 2 * SpotiglassDesign.spacingM
+    }
 
-            XCTAssertGreaterThan(
-                minimumWidths.summary,
-                0,
-                "Now-playing summary lost its floor at transport width \(width)"
-            )
+    func testPlaybackTransportRowFloorsFitEveryWidthThatPicksARow() {
+        for width in stride(from: CGFloat(320), through: CGFloat(1600), by: 10) {
+            guard case let .row(compactVolume) = PlaybackTransportArrangementLayout.arrangement(
+                forWidth: width,
+                idealRowWidth: { _ in 0 }
+            ) else { continue }
             XCTAssertLessThanOrEqual(
-                minimumWidths.summary
-                    + minimumWidths.scrubber
-                    + minimumWidths.actions
-                    + (2 * SpotiglassDesign.spacingM),
+                rowMinimumWidth(compactVolume: compactVolume),
                 width,
-                "Transport child minimums no longer fit at width \(width)"
+                "Transport row floors no longer fit at width \(width)"
             )
         }
     }
 
-    /// Mirrors the selection `ViewThatFits` performs over
-    /// `transportLayoutCandidates()`: the first candidate whose minimum width
-    /// the proposal satisfies, falling back to the stacked arrangement. Lives
-    /// in the test target because production selects structurally, by handing
-    /// each candidate's minimum to `ViewThatFits` as a frame, rather than by
-    /// computing a candidate from a measured width.
+    /// The candidate `PlaybackTransportArrangementLayout` picks for a width
+    /// when every ideal row fits, so only the candidates' minimum widths decide.
     private func transportLayoutCandidate(
         for measuredWidth: CGFloat
     ) -> PlaybackTransportLayoutPolicy.TransportLayoutCandidate {
         let candidates = PlaybackTransportLayoutPolicy.transportLayoutCandidates()
         guard measuredWidth.isFinite else { return candidates.last! }
-        return candidates.first { measuredWidth >= $0.minimumWidth } ?? candidates.last!
+        switch PlaybackTransportArrangementLayout.arrangement(forWidth: measuredWidth, idealRowWidth: { _ in 0 }) {
+        case .row(let compactVolume):
+            return candidates.first { $0.minimumWidth > 0 && $0.useCompactVolume == compactVolume }!
+        case .stacked:
+            return candidates.last!
+        }
+    }
+
+    /// A row is only chosen when its ideal width fits too, as `ViewThatFits`
+    /// chose before: a long ideal row falls back to the compact row, then to
+    /// the stacked arrangement, and an ideal-size query gets the full row.
+    func testTransportArrangementNeedsTheIdealRowToFit() {
+        let idealRow: (Bool) -> CGFloat = { compactVolume in compactVolume ? 808 : 904 }
+        func arrangement(_ width: CGFloat?) -> PlaybackTransportArrangementLayout.Arrangement {
+            PlaybackTransportArrangementLayout.arrangement(forWidth: width, idealRowWidth: idealRow)
+        }
+        XCTAssertEqual(arrangement(1_240), .row(compactVolume: false))
+        XCTAssertEqual(arrangement(904), .row(compactVolume: false))
+        XCTAssertEqual(arrangement(903), .row(compactVolume: true))
+        XCTAssertEqual(arrangement(808), .row(compactVolume: true))
+        XCTAssertEqual(arrangement(807), .stacked)
+        XCTAssertEqual(arrangement(0), .stacked)
+        XCTAssertEqual(arrangement(nil), .row(compactVolume: false))
     }
 
     func testPlaybackTransportLayoutCandidatesReachFixedPointsAcrossDenseWidthSweep() {
@@ -383,39 +630,22 @@ final class PlaybackChromeViewsTests: XCTestCase {
 
         for width in stride(from: CGFloat(320), through: CGFloat(1600), by: 1) {
             let firstCandidate = transportLayoutCandidate(for: width)
-            let firstMinimums = PlaybackTransportLayoutPolicy.transportChildMinimumWidths(
-                in: width,
-                useCompactVolume: firstCandidate.useCompactVolume
-            )
-            // Model ViewThatFits feeding the selected candidate's frame back
-            // through layout: the selected candidate must remain selected and
-            // its complete child-minimum computation must remain unchanged.
+            // Model the selected candidate's minimum feeding back through
+            // layout: the selected candidate must remain selected.
             let measuredAgain = max(width, firstCandidate.minimumWidth)
             let secondCandidate = transportLayoutCandidate(for: measuredAgain)
-            let secondMinimums = PlaybackTransportLayoutPolicy.transportChildMinimumWidths(
-                in: measuredAgain,
-                useCompactVolume: secondCandidate.useCompactVolume
-            )
 
             XCTAssertEqual(
                 secondCandidate,
                 firstCandidate,
                 "Transport arrangement oscillated at measured width \(width)"
             )
-            XCTAssertEqual(
-                secondMinimums,
-                firstMinimums,
-                "Transport child minimums did not converge at measured width \(width)"
-            )
             // The stacked arrangement is the always-fits fallback, and is the
             // only candidate declaring a zero minimum. Every other candidate is
             // horizontal and must genuinely fit the width it was selected for.
             if firstCandidate.minimumWidth > 0 {
                 XCTAssertLessThanOrEqual(
-                    firstMinimums.summary
-                        + firstMinimums.scrubber
-                        + firstMinimums.actions
-                        + (2 * SpotiglassDesign.spacingM),
+                    rowMinimumWidth(compactVolume: firstCandidate.useCompactVolume),
                     width,
                     "Horizontal candidate does not fit at measured width \(width)"
                 )
@@ -911,6 +1141,22 @@ final class PlaybackChromeViewsTests: XCTestCase {
         return [snapshot] + children.flatMap { axDescendants(of: $0, depth: depth + 1) }
     }
 
+    /// Descriptions in the order VoiceOver moves through them: each element's
+    /// children in navigation order, which sort priorities change, where the
+    /// plain child list keeps the declaration order.
+    private func voiceOverOrder(in window: NSWindow) throws -> [String] {
+        let application = AXUIElementCreateApplication(ProcessInfo.processInfo.processIdentifier)
+        let windows = try axChildren(of: application, attribute: kAXWindowsAttribute)
+        let windowElement = try XCTUnwrap(windows.first { axString($0, attribute: kAXTitleAttribute) == window.title })
+        func walk(_ element: AXUIElement) -> [String] {
+            let children = (try? axChildren(of: element, attribute: "AXChildrenInNavigationOrder"))
+                ?? (try? axChildren(of: element, attribute: kAXChildrenAttribute)) ?? []
+            let own = axString(element, attribute: kAXDescriptionAttribute)
+            return (own.isEmpty ? [] : [own]) + children.flatMap(walk)
+        }
+        return walk(windowElement)
+    }
+
     private func axChildren(of element: AXUIElement, attribute: String) throws -> [AXUIElement] {
         var value: CFTypeRef?
         let result = AXUIElementCopyAttributeValue(element, attribute as CFString, &value)
@@ -972,17 +1218,223 @@ final class PlaybackChromeViewsTests: XCTestCase {
         let playback = PlaybackSessionViewModel(
             provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
         playback.handle(.ready(deviceID: "device-1"))
-        let nowPlaying = PlaybackNowPlaying(
+        playback.handle(.stateChanged(Self.midnightCity(artists: artists), isPaused: paused, nextTracks: []))
+        return playback
+    }
+
+    private static func midnightCity(
+        artists: [String] = ["M83"],
+        positionMilliseconds: Int = 30_000
+    ) -> PlaybackNowPlaying {
+        PlaybackNowPlaying(
             name: "Midnight City",
             artists: artists,
             albumName: nil,
             albumID: nil,
             albumArtURL: nil,
             durationMilliseconds: 240_000,
-            positionMilliseconds: 30_000,
+            positionMilliseconds: positionMilliseconds,
             uri: "spotify:track:midnight"
         )
-        playback.handle(.stateChanged(nowPlaying, isPaused: paused, nextTracks: []))
-        return playback
+    }
+}
+
+/// SwiftUI hands mouse events to gestures only in the key window. A test run
+/// cannot always make its process the active app, so this window reports
+/// itself key without taking focus from whatever is in front.
+private final class KeyTestPanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+    override var isKeyWindow: Bool { true }
+}
+
+/// Seeks the mock API was asked for. Playback calls run on background tasks.
+private final class SentSeeks: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: [Int] = []
+
+    var values: [Int] { lock.withLock { stored } }
+
+    func append(_ milliseconds: Int) {
+        lock.withLock { stored.append(milliseconds) }
+    }
+}
+
+// MARK: - Main's transport arrangement, for comparison
+
+private final class PartFrameStore {
+    var frames: [String: CGRect] = [:]
+}
+
+private struct PartFrameKey: PreferenceKey {
+    static let space = "transport"
+    static let whole = "the whole bar"
+    static let defaultValue: [String: CGRect] = [:]
+    static func reduce(value: inout [String: CGRect], nextValue: () -> [String: CGRect]) {
+        value.merge(nextValue()) { $1 }
+    }
+}
+
+private extension View {
+    func reportsFrame(as part: String) -> some View {
+        background(GeometryReader { geometry in
+            Color.clear.preference(
+                key: PartFrameKey.self,
+                value: [part: geometry.frame(in: .named(PartFrameKey.space))]
+            )
+        })
+    }
+}
+
+/// Stand-ins with the real parts' sizing: a summary that truncates, the
+/// scrubber group's labels and flexible track, the fixed transport buttons, a
+/// device menu that can shrink, and the real volume control's icon and slider.
+private enum TransportStandIns {
+    static var summary: some View {
+        HStack(spacing: SpotiglassDesign.spacingS) {
+            Color.gray.frame(width: 44, height: 44)
+            Text("Midnight City, a title long enough to truncate").font(.headline).lineLimit(1)
+                .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    static var scrubber: some View {
+        HStack(spacing: SpotiglassDesign.spacingS) {
+            Text("0:00").font(.caption.monospacedDigit()).frame(minWidth: 36, alignment: .trailing)
+            Color.clear.frame(height: 18).frame(minWidth: 180, maxWidth: .infinity)
+            Text("−0:00").font(.caption.monospacedDigit()).frame(minWidth: 40, alignment: .leading)
+        }
+    }
+
+    /// The transport buttons, with the 170 pt Reconnect or Retry button in
+    /// front of them while the player needs it.
+    static func controls(recovery: Bool) -> some View {
+        Color.red.frame(width: recovery ? 142 + 170 + SpotiglassDesign.spacingS : 142, height: 28)
+    }
+    /// The device menu's bezel lets it shrink from 52 to 38 pt, measured in the app.
+    static var device: some View { Color.blue.frame(minWidth: 38, idealWidth: 52, maxWidth: 52).frame(height: 28) }
+
+    static var volume: some View {
+        HStack(spacing: SpotiglassDesign.spacingS) {
+            Image(systemName: "speaker.wave.2").font(.caption)
+            Slider(value: .constant(0.5), in: 0 ... 1)
+                .controlSize(.small)
+                .frame(
+                    minWidth: PlaybackTransportLayoutPolicy.volumeSliderWidths.minimum,
+                    idealWidth: PlaybackTransportLayoutPolicy.volumeSliderWidths.ideal,
+                    maxWidth: PlaybackTransportLayoutPolicy.volumeSliderWidths.maximum
+                )
+        }
+    }
+
+    static var compactVolume: some View { Color.green.frame(width: 28, height: 28) }
+}
+
+/// The arrangement as it was on main: `ViewThatFits` over two rows and a stack.
+private struct OldTransportArrangement: View {
+    var withVolume: Bool
+    var recovery: Bool
+
+    var body: some View {
+        let candidates = PlaybackTransportLayoutPolicy.transportLayoutCandidates()
+        ViewThatFits(in: .horizontal) {
+            row(compactVolume: candidates[0].useCompactVolume).frame(minWidth: candidates[0].minimumWidth)
+            row(compactVolume: candidates[1].useCompactVolume).frame(minWidth: candidates[1].minimumWidth)
+            VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
+                actions(compactVolume: true, includeSummary: true)
+                TransportStandIns.scrubber
+                    .frame(minWidth: PlaybackTransportLayoutPolicy.scrubberMinimumWidth, maxWidth: .infinity)
+                    .reportsFrame(as: "scrubber")
+                    .frame(maxWidth: .infinity)
+            }
+        }
+    }
+
+    private func row(compactVolume: Bool) -> some View {
+        HStack(spacing: SpotiglassDesign.spacingM) {
+            TransportStandIns.summary
+                .frame(
+                    minWidth: PlaybackTransportLayoutPolicy.nowPlayingSummaryMinimumWidth,
+                    idealWidth: 280,
+                    maxWidth: 320,
+                    alignment: .leading
+                )
+                .clipped()
+                .reportsFrame(as: "summary")
+            TransportStandIns.scrubber
+                .frame(minWidth: PlaybackTransportLayoutPolicy.scrubberMinimumWidth, maxWidth: .infinity)
+                .reportsFrame(as: "scrubber")
+            actions(compactVolume: compactVolume, includeSummary: false)
+                .frame(
+                    minWidth: PlaybackTransportLayoutPolicy.transportActionsMinimumWidth(useCompactVolume: compactVolume),
+                    alignment: .trailing
+                )
+        }
+    }
+
+    private func actions(compactVolume: Bool, includeSummary: Bool) -> some View {
+        HStack(spacing: SpotiglassDesign.spacingM) {
+            if includeSummary {
+                TransportStandIns.summary
+                    .frame(
+                        minWidth: PlaybackTransportLayoutPolicy.nowPlayingSummaryMinimumWidth,
+                        maxWidth: .infinity,
+                        alignment: .leading
+                    )
+                    .clipped()
+                    .reportsFrame(as: "summary")
+            }
+            TransportStandIns.controls(recovery: recovery).reportsFrame(as: "controls")
+            TransportStandIns.device.reportsFrame(as: "device")
+            if withVolume {
+                if compactVolume {
+                    TransportStandIns.compactVolume.reportsFrame(as: "volume")
+                } else {
+                    TransportStandIns.volume.reportsFrame(as: "volume")
+                }
+            }
+        }
+    }
+}
+
+/// The same parts in `PlaybackTransportArrangementLayout`, as `PlaybackControlsView` builds it.
+private struct NewTransportArrangement: View {
+    var withVolume: Bool
+    var recovery: Bool
+
+    private typealias Part = PlaybackTransportArrangementLayout.PartKey
+
+    var body: some View {
+        PlaybackTransportArrangementLayout(
+            spacing: SpotiglassDesign.spacingM,
+            rowSpacing: SpotiglassDesign.spacingS
+        ) {
+            TransportStandIns.summary
+                .frame(
+                    minWidth: PlaybackTransportLayoutPolicy.nowPlayingSummaryMinimumWidth,
+                    maxWidth: .infinity,
+                    alignment: .leading
+                )
+                .clipped()
+                .reportsFrame(as: "summary")
+                .layoutValue(key: Part.self, value: .summary)
+            TransportStandIns.scrubber
+                .frame(minWidth: PlaybackTransportLayoutPolicy.scrubberMinimumWidth, maxWidth: .infinity)
+                .reportsFrame(as: "scrubber")
+                .layoutValue(key: Part.self, value: .scrubber)
+            TransportStandIns.controls(recovery: recovery)
+                .reportsFrame(as: "controls")
+                .layoutValue(key: Part.self, value: .controls)
+            TransportStandIns.device
+                .reportsFrame(as: "device")
+                .layoutValue(key: Part.self, value: .device)
+            if withVolume {
+                PlaybackTransportVolumeSlot {
+                    TransportStandIns.volume.reportsFrame(as: "volume")
+                } compact: {
+                    TransportStandIns.compactVolume.reportsFrame(as: "volume")
+                }
+                .layoutValue(key: Part.self, value: .volume)
+            }
+        }
     }
 }

@@ -64,40 +64,36 @@ struct AppleMusicSongIdentity: Equatable {
 /// Inside a library playlist MusicKit lists a song under the Music app's persistent ID (as a
 /// signed decimal), which `MusicLibraryRequest<Song>` filtered by ID does not find. The provider
 /// records each such song here when it reads the playlist, so an edit on that row knows the
-/// song's other IDs. Bounded to `maxEntries`, oldest first out; memory only.
+/// song's other IDs. Bounded to `maxEntries`, least recently used first out (reading a playlist
+/// again or editing one of its rows counts as a use); memory only.
 final class AppleMusicSongReferenceRegistry: @unchecked Sendable {
     static let shared = AppleMusicSongReferenceRegistry()
     static let maxEntries = 5_000
 
     private let lock = NSLock()
-    private var references: [String: AppleMusicSongReference] = [:]
-    private var order: [String] = []
+    private var references = LRUDictionary<String, AppleMusicSongReference>(capacity: AppleMusicSongReferenceRegistry.maxEntries)
 
     func remember(_ reference: AppleMusicSongReference) {
-        lock.withLock {
-            if references.updateValue(reference, forKey: reference.itemID) == nil {
-                order.append(reference.itemID)
-            }
-            if order.count > Self.maxEntries {
-                let dropped = order.prefix(order.count - Self.maxEntries)
-                dropped.forEach { references[$0] = nil }
-                order.removeFirst(dropped.count)
-            }
-        }
+        lock.withLock { references.setValue(reference, forKey: reference.itemID) }
     }
 
     func reference(for itemID: String) -> AppleMusicSongReference? {
-        lock.withLock { references[itemID] }
+        lock.withLock { references.value(forKey: itemID) }
     }
 
-    /// Records the songs of a library playlist that MusicKit listed under a persistent ID.
-    func remember(_ tracks: [Track]) {
+    /// Records the songs of a library playlist or album that MusicKit listed under a persistent
+    /// ID. `playlistID` is the playlist they were read from: a song from Apple Music can be in a
+    /// playlist without being in the library, and the Music app then finds it only there.
+    func remember(_ tracks: [Track], playlistID: String? = nil) {
+        let playlistPersistentID = playlistID.flatMap(AppleMusicLibraryEditor.musicAppPersistentID(fromMusicKitID:))
         for case let .song(song) in tracks where MusicKitLibraryLookup.isPersistentID(song.id.rawValue) {
-            remember(MusicKitLibraryLookup.reference(
+            var reference = MusicKitLibraryLookup.reference(
                 song,
                 identity: AppleMusicSongIdentity(encoding: song),
                 itemID: song.id.rawValue
-            ))
+            )
+            reference.sourcePlaylistPersistentID = playlistPersistentID
+            remember(reference)
         }
     }
 }
@@ -224,9 +220,14 @@ struct MusicKitLibraryLookup: AppleMusicLibraryLookup {
         !isCatalogID(id) && Int64(id) != nil
     }
 
+    /// A library song's ID: a persistent ID, or a cloud library ID (`i.…`).
+    static func isLibraryID(_ id: String) -> Bool {
+        isPersistentID(id) || id.hasPrefix("i.")
+    }
+
     static func reference(_ song: Song, identity: AppleMusicSongIdentity, itemID: String) -> AppleMusicSongReference {
         let persistent = identity.musicKitPersistentID ?? (isCatalogID(song.id.rawValue) ? nil : song.id.rawValue)
-        return AppleMusicSongReference(
+        var reference = AppleMusicSongReference(
             itemID: itemID,
             catalogID: identity.catalogID,
             cloudLibraryID: identity.cloudLibraryID,
@@ -236,6 +237,9 @@ struct MusicKitLibraryLookup: AppleMusicLibraryLookup {
             artistName: song.artistName,
             albumTitle: song.albumTitle
         )
+        // Every route that finds the song keeps the row, so an add shows before the library lists it.
+        reference.shownTrack = AppleMusicItemMapping.track(song)
+        return reference
     }
 
     private static func batches(_ ids: [String]) -> [[String]] {
