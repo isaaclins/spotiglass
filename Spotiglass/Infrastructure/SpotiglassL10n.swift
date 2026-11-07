@@ -1,4 +1,5 @@
 import Foundation
+import os
 import SwiftUI
 
 private struct SpotiglassLocaleKey: EnvironmentKey {
@@ -43,8 +44,18 @@ struct L10nText: View {
 /// So routing through `.lproj` bundles directly is what makes Spotiglass's
 /// in-app language picker actually swap UI copy.
 enum SpotiglassL10n {
-    nonisolated(unsafe) static weak var settingsStore: SpotiglassSettingsStore?
+    /// Set on the main thread only (the app at launch, tests).
+    nonisolated(unsafe) static weak var settingsStore: SpotiglassSettingsStore? {
+        didSet {
+            let locale = MainActor.assumeIsolated { settingsStore?.appLocale }
+            offMainLocale.withLock { $0 = locale }
+        }
+    }
     private static let catalogKeyCache = NSCache<NSURL, NSSet>()
+    /// The app language for code that runs off the main thread: providers build "You" and
+    /// "Untitled Playlist" on background tasks, which used to fall back to English (#398).
+    /// ``settingsStore`` and ``SpotiglassSettingsStore`` keep it current.
+    private static let offMainLocale = OSAllocatedUnfairLock<Locale?>(initialState: nil)
 
     static var locale: Locale {
         if Thread.isMainThread {
@@ -52,7 +63,16 @@ enum SpotiglassL10n {
                 settingsStore?.appLocale ?? Locale(identifier: "en")
             }
         }
-        return Locale(identifier: "en")
+        return offMainLocale.withLock { $0 } ?? Locale(identifier: "en")
+    }
+
+    /// Called by the store whenever its settings change, so background lookups follow a language
+    /// switch. Only the store ``settingsStore`` points at counts.
+    @MainActor
+    static func settingsDidChange(in store: SpotiglassSettingsStore) {
+        guard settingsStore === store else { return }
+        let locale = store.appLocale
+        offMainLocale.withLock { $0 = locale }
     }
 
     /// Resolves a localization key (literal or runtime-built) against the

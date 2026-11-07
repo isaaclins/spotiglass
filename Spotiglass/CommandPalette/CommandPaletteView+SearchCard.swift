@@ -94,7 +94,7 @@ enum CommandPaletteScopePresentation {
         case .songs:
             switch category {
             case .all:
-                SpotiglassL10n.string("palette.searchPlaceholder.songs.all")
+                SpotiglassL10n.format("palette.searchPlaceholder.songs.all", MusicServiceSelection.current.displayName)
             case .tracks:
                 SpotiglassL10n.string("palette.searchPlaceholder.songs.tracks")
             case .artists:

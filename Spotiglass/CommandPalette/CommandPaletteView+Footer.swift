@@ -51,7 +51,7 @@ struct CommandPaletteCommandsHintChipView: View {
     var body: some View {
         (Text(SpotiglassL10n.string("palette.footer.searchHintPrefix"))
             + Text(SpotiglassL10n.string("palette.footer.searchPrefix")).foregroundStyle(.tertiary)
-            + Text(SpotiglassL10n.string("palette.footer.searchHintSuffix")))
+            + Text(SpotiglassL10n.format("palette.footer.searchHintSuffix", MusicServiceSelection.current.displayName)))
             .multilineTextAlignment(.trailing)
             .font(.caption)
             .foregroundStyle(.secondary)

@@ -87,7 +87,7 @@ struct CatalogSearchView: View {
                 .accessibilityHidden(true)
 
             TextField(
-                SpotiglassL10n.string("search.field.placeholder"),
+                SpotiglassL10n.format("search.field.placeholder", MusicServiceSelection.current.displayName),
                 text: $searchViewModel.query
             )
             .textFieldStyle(.plain)
@@ -96,7 +96,7 @@ struct CatalogSearchView: View {
             .onChange(of: searchViewModel.query) { _, _ in
                 searchViewModel.queryDidChange()
             }
-            .accessibilityLabel(SpotiglassL10n.string("search.field.placeholder"))
+            .accessibilityLabel(SpotiglassL10n.format("search.field.placeholder", MusicServiceSelection.current.displayName))
 
             if !searchViewModel.query.isEmpty {
                 Button {
@@ -152,7 +152,7 @@ struct CatalogSearchView: View {
                 // The initial state carries no message, which rendered the pane
                 // as the single word "Search" with nothing under it (#164).
                 message: message.isEmpty
-                    ? SpotiglassL10n.string("search.empty.guidance")
+                    ? SpotiglassL10n.format("search.empty.guidance", MusicServiceSelection.current.displayName)
                     : message
             )
         case let .error(error):

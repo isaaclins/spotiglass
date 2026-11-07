@@ -57,6 +57,9 @@ struct PlaylistBrowserView: View {
     /// `false` hides Disconnect (toolbar, palette): Apple Music access is a system permission,
     /// and signing out of it lives in Settings › Account (#373).
     let canDisconnect: Bool
+    /// The added service the window shows once Disconnect removes this one, or `nil` when this is
+    /// the only service and Disconnect goes back to its sign-in screen. The alert says which.
+    let disconnectSwitchesTo: MusicService?
     /// Drawn above the sidebar list: the service switcher (#373).
     let sidebarHeader: AnyView?
 
@@ -82,6 +85,7 @@ struct PlaylistBrowserView: View {
         signOut: @escaping () -> Void,
         playbackMode: BrowserPlaybackMode = .live,
         canDisconnect: Bool = true,
+        disconnectSwitchesTo: MusicService? = nil,
         sidebarHeader: AnyView? = nil
     ) {
         let playbackViewModel = playbackHost.playbackViewModel
@@ -98,7 +102,20 @@ struct PlaylistBrowserView: View {
         self.signOut = signOut
         self.playbackMode = playbackMode
         self.canDisconnect = canDisconnect
+        self.disconnectSwitchesTo = disconnectSwitchesTo
         self.sidebarHeader = sidebarHeader
+    }
+
+    /// Disconnect only removes Spotify when another service is added; the window then shows that
+    /// service instead of Spotify's sign-in screen (#397).
+    static func disconnectConfirmationMessage(switchingTo next: MusicService?) -> String {
+        guard let next else { return SpotiglassL10n.string("browser.disconnect.confirm.message") }
+        return SpotiglassL10n.format("browser.disconnect.confirm.message.switch", next.displayName)
+    }
+
+    static func disconnectHint(switchingTo next: MusicService?) -> String {
+        guard let next else { return SpotiglassL10n.string("browser.disconnect.hint") }
+        return SpotiglassL10n.format("browser.disconnect.hint.switch", next.displayName)
     }
 
     /// Where you are, falling back to the app name at the root.
@@ -278,7 +295,7 @@ struct PlaylistBrowserView: View {
                             Label(SpotiglassL10n.string("browser.disconnect"), systemImage: "xmark.circle")
                         }
                         .help(SpotiglassL10n.string("browser.disconnect"))
-                        .accessibilityHint(SpotiglassL10n.string("browser.disconnect.hint"))
+                        .accessibilityHint(Self.disconnectHint(switchingTo: disconnectSwitchesTo))
                     }
                 }
                 ToolbarItem(placement: .primaryAction) {
@@ -296,7 +313,7 @@ struct PlaylistBrowserView: View {
                 signOut()
             }
         } message: {
-            Text(SpotiglassL10n.string("browser.disconnect.confirm.message"))
+            Text(Self.disconnectConfirmationMessage(switchingTo: disconnectSwitchesTo))
         }
     }
 
@@ -444,7 +461,7 @@ struct PlaylistBrowserView: View {
             .disabled(newPlaylistName.trimmingCharacters(in: .whitespaces).isEmpty)
         } message: {
             Text(newPlaylistInitialRows.isEmpty
-                 ? SpotiglassL10n.string("playlist.detail.newPlaylist.empty")
+                 ? SpotiglassL10n.format("playlist.detail.newPlaylist.empty", MusicServiceSelection.current.displayName)
                  : SpotiglassL10n.format(
                     "playlist.detail.newPlaylist.withTracks",
                     Int64(newPlaylistInitialRows.count)

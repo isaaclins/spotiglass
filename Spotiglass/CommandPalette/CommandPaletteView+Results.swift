@@ -127,14 +127,14 @@ struct CommandPaletteSearchingPlaceholderView: View {
                         .font(SpotiglassDesign.Typography.commandPaletteEmptyState)
                         .foregroundStyle(.secondary)
                         .symbolRenderingMode(.hierarchical)
-                        .accessibilityLabel(SpotiglassL10n.string("palette.searching"))
+                        .accessibilityLabel(SpotiglassL10n.format("palette.searching", MusicServiceSelection.current.displayName))
                 } else {
                     Image(systemName: "sparkles")
                         .font(SpotiglassDesign.Typography.commandPaletteEmptyState)
                         .foregroundStyle(.secondary)
                         .symbolRenderingMode(.hierarchical)
                         .symbolEffect(.variableColor.iterative.reversing, options: .repeating)
-                        .accessibilityLabel(SpotiglassL10n.string("palette.searching"))
+                        .accessibilityLabel(SpotiglassL10n.format("palette.searching", MusicServiceSelection.current.displayName))
                 }
             }
             Spacer()

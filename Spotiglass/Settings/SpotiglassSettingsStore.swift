@@ -11,7 +11,9 @@ import Foundation
 /// and bootstraps a default file on first launch.
 @MainActor
 final class SpotiglassSettingsStore: ObservableObject {
-    @Published private(set) var settings: SpotiglassSettingsFile
+    @Published private(set) var settings: SpotiglassSettingsFile {
+        didSet { SpotiglassL10n.settingsDidChange(in: self) }
+    }
     @Published private(set) var fileURL: URL
     @Published var lastError: String?
 

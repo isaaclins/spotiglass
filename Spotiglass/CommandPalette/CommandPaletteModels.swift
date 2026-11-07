@@ -278,21 +278,37 @@ struct CommandPaletteItem: Identifiable {
         self.action = action
     }
 
+    /// Lower is better; 100 means no match. The title and keywords name the item, so any match
+    /// on them ranks above a match that only hits the subtitle: ">spot" lists "Switch to Spotify"
+    /// before "Open Settings", whose subtitle merely mentions Spotiglass (#397).
     func score(for query: String) -> Int {
         let needle = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !needle.isEmpty else { return 0 }
-        let haystack = ([title] + (subtitle.map { [$0] } ?? []) + keywords).map { $0.lowercased() }
         var best = Int.max
-        for text in haystack {
-            if text == needle { best = min(best, 0) }
-            if text.hasPrefix(needle) { best = min(best, 1) }
-            if text.contains(needle) { best = min(best, 2) }
-            let condensed = text.replacingOccurrences(of: " ", with: "")
-            if condensed.contains(needle.replacingOccurrences(of: " ", with: "")) {
-                best = min(best, 3)
-            }
+        for text in [title] + keywords {
+            if let rank = Self.matchRank(of: needle, in: text) { best = min(best, rank) }
+        }
+        if let subtitle, let rank = Self.matchRank(of: needle, in: subtitle) {
+            best = min(best, rank + Self.subtitleMatchPenalty)
         }
         return best == Int.max ? 100 : best
+    }
+
+    /// One more than the worst ``matchRank(of:in:)``, so subtitle matches sort after every name match.
+    private static let subtitleMatchPenalty = 5
+
+    /// 0 exact, 1 prefix, 2 a word starts with it, 3 contained, 4 contained ignoring spaces.
+    private static func matchRank(of needle: String, in text: String) -> Int? {
+        let text = text.lowercased()
+        if text == needle { return 0 }
+        if text.hasPrefix(needle) { return 1 }
+        if text.split(whereSeparator: { !$0.isLetter && !$0.isNumber }).contains(where: { $0.hasPrefix(needle) }) {
+            return 2
+        }
+        if text.contains(needle) { return 3 }
+        let condensed = text.replacingOccurrences(of: " ", with: "")
+        if condensed.contains(needle.replacingOccurrences(of: " ", with: "")) { return 4 }
+        return nil
     }
 }
 
