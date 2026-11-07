@@ -239,6 +239,28 @@ extension PlaylistBrowserViewModel {
         let awaiting = Set(missing)
         playlistTrackCountStandIns = awaiting
         applyPlaylistTrackCounts(shownCounts.filter { awaiting.contains($0.key) })
+        startPlaylistTrackCountRun(missing)
+    }
+
+    /// Counts every playlist in the sidebar again after songs or an album left the library:
+    /// Music takes them out of each playlist they were in. Rows keep their count until the new
+    /// one arrives. Only for providers with their own library edits (Apple Music).
+    func recountPlaylistTracksAfterLibraryRemoval() {
+        guard supportedLibraryEdits.contains(.removeFromPlaylist) else { return }
+        playlistTrackCountTask?.cancel()
+        let ids = (playlistState.currentValue ?? [])
+            .map(\.id)
+            .filter { $0 != SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID }
+        guard !ids.isEmpty else { return }
+        playlistTrackCountStandIns = Set(ids)
+        startPlaylistTrackCountRun(ids)
+    }
+
+    /// Asks the provider for these playlists' counts a batch at a time; each one in
+    /// `playlistTrackCountStandIns` gets the fresh count, or none when the provider has none.
+    private func startPlaylistTrackCountRun(_ ids: [String]) {
+        let awaiting = Set(ids)
+        let missing = ids
         playlistTrackCountTask = Task { [weak self, api] in
             var answered = Set<String>()
             for start in stride(from: 0, to: missing.count, by: Self.playlistTrackCountBatchSize) {

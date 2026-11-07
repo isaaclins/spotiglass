@@ -1195,9 +1195,16 @@ final class EditTestContentSource: AppleMusicContentSource, @unchecked Sendable 
     var playlists: [Playlist] = []
 
     func libraryPlaylists(limit: Int, offset: Int) async throws -> [Playlist] { offset == 0 ? playlists : [] }
+    /// Holds the batch read, with `onLibraryTracks` run once it started.
+    var libraryTracksGate: LibraryEditsGate?
+    var onLibraryTracks: (@Sendable () -> Void)?
+
     /// The same tracks as a playlist read: like the real library, they lag behind an edit.
     func libraryPlaylistTracks(playlistIDs: [String]) async throws -> [String: [Track]] {
-        tracksByPlaylistID.filter { playlistIDs.contains($0.key) && !$0.value.isEmpty }
+        let read = tracksByPlaylistID.filter { playlistIDs.contains($0.key) && !$0.value.isEmpty }
+        onLibraryTracks?()
+        await libraryTracksGate?.wait()
+        return read
     }
     func playlistTracks(playlistID: String, limit: Int) async throws -> [Track]? { tracksByPlaylistID[playlistID] }
     func librarySongs(limit: Int, offset: Int) async throws -> [Song] { offset == 0 ? songs : [] }
@@ -1567,6 +1574,42 @@ final class AppleMusicPlaylistEditFixTests: XCTestCase {
         XCTAssertNotEqual(listed.first?.trackCount, 2, "the count from before the removal is gone")
         let counted = await provider.playlistTrackCounts(playlistIDs: [playlistID])
         XCTAssertEqual(counted, [playlistID: 1])
+    }
+
+    /// A playlist left out of the batch read because it had an edit, whose edit the library
+    /// shows while that read runs, is still counted.
+    func testAPlaylistWhoseEditClearsDuringTheBatchIsStillCounted() async throws {
+        let row = try remembered18P1Row()
+        let edited = "-107247429512612591"
+        let other = "-2"
+        let source = EditTestContentSource()
+        source.playlists = [
+            try AppleMusicFixtures.playlist(id: edited, name: "Spotiglass test"),
+            try AppleMusicFixtures.playlist(id: other, name: "Other"),
+        ]
+        let one = Track.song(try AppleMusicFixtures.song(id: "i.1", title: "One", artist: "Someone"))
+        source.tracksByPlaylistID[edited] = [one]
+        source.tracksByPlaylistID[other] = [one]
+        let provider = AppleMusicBrowsingProvider(source: source, editor: editor)
+        _ = try await provider.currentUserPlaylists(limit: 50)
+        try await provider.addTracksToPlaylist(playlistID: edited, uris: ["applemusic:song:\(row.itemID)"])
+        XCTAssertTrue(pending.hasPendingTracks(playlistID: edited))
+
+        let gate = LibraryEditsGate()
+        let started = LibraryEditsGate()
+        source.libraryTracksGate = gate
+        source.onLibraryTracks = { started.open() }
+        let counting = Task { await provider.playlistTrackCounts(playlistIDs: [edited, other]) }
+        await started.wait()
+        source.libraryTracksGate = nil
+        // The library lists the added song now, and opening the playlist sees it.
+        source.tracksByPlaylistID[edited] = [one, .song(try AppleMusicFixtures.song(id: row.itemID, title: "Don't Stop The Music", artist: "Rihanna"))]
+        _ = try await provider.playlistTracks(playlistID: edited, limit: 100, maxPages: 1)
+        XCTAssertFalse(pending.hasPendingTracks(playlistID: edited))
+        gate.open()
+        let counts = await counting.value
+
+        XCTAssertEqual(counts, [edited: 2, other: 1])
     }
 
     func testALibraryRowAddedToAPlaylistShowsThereBeforeTheLibraryListsIt() async throws {

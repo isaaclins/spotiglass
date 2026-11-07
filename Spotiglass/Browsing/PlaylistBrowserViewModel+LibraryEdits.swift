@@ -179,6 +179,7 @@ extension PlaylistBrowserViewModel {
             // The album's songs changed too; their liked state loads again when a menu needs it.
             savedTrackStates = [:]
             invalidateLikedSongsCache()
+            if isSaved { recountPlaylistTracksAfterLibraryRemoval() }
             await refreshLikedSongsDetailAfterMutation()
             trackMutationToast = SpotiglassL10n.format(
                 isSaved ? "playlist.mutation.removedAlbum" : "playlist.mutation.addedAlbum",

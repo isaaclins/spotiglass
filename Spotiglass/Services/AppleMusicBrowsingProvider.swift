@@ -196,7 +196,7 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         // The library can take hours to show an add or remove made from Spotiglass, so those
         // playlists, also one edited while the library was read, are counted from their tracks
         // with the edit applied, like the open playlist.
-        for id in playlistIDs where editor.pending.hasPendingTracks(playlistID: id) {
+        for id in playlistIDs where !unedited.contains(id) || editor.pending.hasPendingTracks(playlistID: id) {
             guard !Task.isCancelled else { break }
             let tracks = try? await playlistTracks(playlistID: id, limit: 100, maxPages: 100)
             counts[id] = tracks.flatMap { $0.isEmpty ? nil : $0.count }

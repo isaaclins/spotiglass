@@ -233,6 +233,56 @@ final class PlaylistBrowserLibraryEditsTests: XCTestCase {
         XCTAssertEqual(viewModel.savedAlbumState(for: "1440"), false, "the album menu now offers Add")
     }
 
+    // MARK: - Track counts (#407)
+
+    private func uncounted(_ id: String, _ name: String) -> MusicPlaylistSummary {
+        MusicPlaylistSummary(id: id, name: name, ownerID: me, ownerName: "You", imageURL: nil, trackCount: nil, snapshotID: "applemusic")
+    }
+
+    /// Music takes a song removed from the library out of every playlist, so the sidebar counts
+    /// again instead of keeping the old numbers until the next refresh.
+    func testAnUnlikeRecountsTheSidebar() async {
+        let api = LibraryEditsMockAPI(edits: .all)
+        api.playlists = [uncounted("-1", "Road")]
+        api.trackCounts = ["-1": 10]
+        let viewModel = await makeViewModel(api)
+        await viewModel.playlistTrackCountTask?.value
+        XCTAssertEqual(viewModel.playlistState.currentValue?.last?.trackCount, 10)
+
+        api.trackCounts = ["-1": 9]
+        await viewModel.unfavoriteRows([row("699902614", position: 1)], confirmed: true)
+        XCTAssertEqual(viewModel.playlistState.currentValue?.last?.trackCount, 10, "the row keeps its count while it is counted")
+        await viewModel.playlistTrackCountTask?.value
+
+        XCTAssertEqual(viewModel.playlistState.currentValue?.last?.trackCount, 9)
+    }
+
+    /// A rename that fails puts the old name back, not the count from before the request.
+    func testAFailedRenameKeepsACountThatArrivedMeanwhile() async throws {
+        let api = LibraryEditsMockAPI(edits: .all)
+        api.playlists = [uncounted("-1", "Road")]
+        api.trackCounts = ["-1": 8]
+        let counts = LibraryEditsGate()
+        let update = LibraryEditsGate()
+        api.trackCountsGate = counts
+        api.updateGate = update
+        api.error = AppleMusicLibraryEditError.musicUnavailable
+        let viewModel = await makeViewModel(api)
+
+        let renaming = Task { await viewModel.renamePlaylist(id: "-1", name: "Road trip") }
+        for _ in 0..<1000 where viewModel.playlistState.currentValue?.last?.title != "Road trip" {
+            await Task.yield()
+        }
+        counts.open()
+        await viewModel.playlistTrackCountTask?.value
+        update.open()
+        await renaming.value
+
+        let row = try XCTUnwrap(viewModel.playlistState.currentValue?.last)
+        XCTAssertEqual(row.title, "Road")
+        XCTAssertEqual(row.trackCount, 8)
+    }
+
     /// Spotify's unlike only leaves Liked Songs, so it keeps going through at once.
     func testProvidersWithoutTheConfirmationUnlikeAtOnce() async {
         let api = LibraryEditsMockAPI(edits: [.removeFromPlaylist, .deletePlaylist, .saveAlbums])
@@ -424,9 +474,21 @@ final class LibraryEditsMockAPI: MusicBrowsingProvider {
 
     func knownSavedTrackStatus(id: String) -> Bool? { knownStatuses[id] }
 
+    var updateGate: LibraryEditsGate?
+
     func updatePlaylist(playlistID: String, name: String) async throws {
+        await updateGate?.wait()
         if let error { throw error }
         calls.append("updatePlaylist(\(playlistID),\(name))")
+    }
+
+    /// Counts the sidebar asks for after the listing (Apple Music lists playlists without one).
+    var trackCounts: [String: Int] = [:]
+    var trackCountsGate: LibraryEditsGate?
+
+    func playlistTrackCounts(playlistIDs: [String]) async -> [String: Int] {
+        await trackCountsGate?.wait()
+        return trackCounts.filter { playlistIDs.contains($0.key) }
     }
 
     func currentUserPlaylists(limit: Int) async throws -> [MusicPlaylistSummary] { playlists }
@@ -465,4 +527,33 @@ final class LibraryEditsMockAPI: MusicBrowsingProvider {
         MusicSearchResults(tracks: [], artists: [], albums: [], playlists: [])
     }
     func albumTracks(albumID: String, market: String?, limit: Int) async throws -> [MusicTrack] { [] }
+}
+
+/// Holds a call until `open()`.
+final class LibraryEditsGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var isOpen = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func wait() async {
+        await withCheckedContinuation { continuation in
+            lock.lock()
+            if isOpen {
+                lock.unlock()
+                continuation.resume()
+            } else {
+                waiters.append(continuation)
+                lock.unlock()
+            }
+        }
+    }
+
+    func open() {
+        lock.lock()
+        isOpen = true
+        let resumed = waiters
+        waiters = []
+        lock.unlock()
+        resumed.forEach { $0.resume() }
+    }
 }
