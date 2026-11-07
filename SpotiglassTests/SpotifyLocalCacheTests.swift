@@ -163,6 +163,72 @@ final class SpotifyLocalCacheTests: XCTestCase {
         XCTAssertNil(try cache.loadGETResponseRecord(digest: "ghost", allowExpired: true))
     }
 
+    // MARK: - GET response bounds (#381)
+
+    private func setModificationDate(_ date: Date, forFileAt url: URL) throws {
+        try FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: url.path)
+    }
+
+    private func getResponseFiles(in root: URL) -> [String] {
+        let directory = root.appendingPathComponent("get_responses", isDirectory: true)
+        return ((try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []).sorted()
+    }
+
+    func testPruneGETResponsesDeletesFilesPastRetentionAndKeepsRecentOnes() throws {
+        let (cache, root) = try makeCache()
+        let now = Date()
+        for digest in ["old-search", "old-artist", "recent"] {
+            try cache.saveGETResponse(digest: digest, body: Data(digest.utf8), ttl: 90, cachedAt: now)
+        }
+        let directory = root.appendingPathComponent("get_responses", isDirectory: true)
+        let pastRetention = now.addingTimeInterval(-SpotifyLocalCache.getResponseRetention - 60)
+        try setModificationDate(pastRetention, forFileAt: directory.appendingPathComponent("old-search.json"))
+        try setModificationDate(pastRetention, forFileAt: directory.appendingPathComponent("old-artist.json"))
+        try cache.savePlaylists([PlaylistBrowsingTestFixtures.playlist(id: "P", name: "Mine")])
+
+        cache.pruneGETResponses(now: now)
+
+        XCTAssertEqual(getResponseFiles(in: root), ["recent.json"])
+        XCTAssertNil(try cache.loadGETResponseRecord(digest: "old-search", now: now, allowExpired: true))
+        // A kept response still loads, also as a stale fallback once its TTL has passed.
+        let stale = try cache.loadGETResponseRecord(digest: "recent", now: now.addingTimeInterval(3_600), allowExpired: true)
+        XCTAssertEqual(stale?.data, Data("recent".utf8))
+        XCTAssertEqual(stale?.isExpired, true)
+        // Pruning only touches the GET responses.
+        XCTAssertEqual(try cache.loadPlaylistsBundle()?.playlists.map(\.id), ["P"])
+    }
+
+    func testPruneGETResponsesShrinksPastItsByteBoundOldestFirst() throws {
+        let (cache, root) = try makeCache()
+        let directory = root.appendingPathComponent("get_responses", isDirectory: true)
+        let now = Date()
+        let body = Data(repeating: 7, count: 1_000)
+        for index in 0 ..< 40 {
+            let digest = String(format: "search-%02d", index)
+            try cache.saveGETResponse(digest: digest, body: body, ttl: 90, cachedAt: now)
+            // search-00 was written first, search-39 last.
+            try setModificationDate(now.addingTimeInterval(TimeInterval(index - 40)), forFileAt: directory.appendingPathComponent("\(digest).json"))
+        }
+        let sizeBefore = try directorySize(directory)
+        let maxBytes = sizeBefore / 2
+        XCTAssertGreaterThan(sizeBefore, maxBytes)
+
+        cache.pruneGETResponses(now: now, maxBytes: maxBytes)
+
+        XCTAssertLessThanOrEqual(try directorySize(directory), maxBytes * 3 / 4)
+        let left = getResponseFiles(in: root)
+        XCTAssertFalse(left.contains("search-00.json"))
+        XCTAssertTrue(left.contains("search-39.json"))
+        XCTAssertEqual(try cache.loadGETResponseRecord(digest: "search-39", now: now, allowExpired: false)?.data, body)
+        // The newest files are the ones left.
+        XCTAssertEqual(left, (40 - left.count ..< 40).map { String(format: "search-%02d.json", $0) })
+    }
+
+    private func directorySize(_ directory: URL) throws -> Int64 {
+        try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.fileSizeKey])
+            .reduce(Int64(0)) { $0 + Int64(try $1.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0) }
+    }
+
     // MARK: - clear()
 
     func testClearRemovesPrivateAccountDataButPreservesCatalogResponsesAndPins() throws {

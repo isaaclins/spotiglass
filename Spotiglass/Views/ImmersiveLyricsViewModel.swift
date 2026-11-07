@@ -48,8 +48,11 @@ final class ImmersiveLyricsViewModel: ObservableObject {
     private let diskCache: LyricsDiskCache?
     private var loadGeneration = 0
 
+    /// Lyrics kept in memory this session; older ones load from the disk cache again (#381).
+    static let maxMemoryEntries = 200
+
     /// In-memory only; class is `@MainActor` so no lock is required.
-    private static var cache: [String: FetchedLyrics] = [:]
+    private static var cache = LRUDictionary<String, FetchedLyrics>(capacity: maxMemoryEntries)
     private static var inFlight: [String: Task<FetchedLyrics, Error>] = [:]
     private static var noLyricsCooldownUntil: [String: Date] = [:]
     private static var backoffMetadata: [String: LyricsDiskCache.TrackBackoffMetadata] = [:]
@@ -67,7 +70,7 @@ final class ImmersiveLyricsViewModel: ObservableObject {
     /// Fetches lyrics in the background without changing `phase` (for prefetch while the overlay is closed).
     func preload(track: PlaybackNowPlaying) async {
         guard let tid = track.lyricsTrackKey else { return }
-        guard Self.cache[tid] == nil else { return }
+        guard Self.cache.value(forKey: tid) == nil else { return }
         guard !isWithinBackoffCooldown(trackId: tid) else { return }
         do {
             _ = try await fetchWithDedup(trackId: tid, track: track)
@@ -85,12 +88,12 @@ final class ImmersiveLyricsViewModel: ObservableObject {
             return
         }
 
-        if let cached = Self.cache[tid] {
+        if let cached = Self.cache.value(forKey: tid) {
             phase = .ready(cached)
             return
         }
         if let disk = diskCache?.load(trackKey: tid) {
-            Self.cache[tid] = disk
+            Self.cache.setValue(disk, forKey: tid)
             phase = .ready(disk)
             return
         }
@@ -130,11 +133,11 @@ final class ImmersiveLyricsViewModel: ObservableObject {
     }
 
     private func fetchWithDedup(trackId: String, track: PlaybackNowPlaying) async throws -> FetchedLyrics {
-        if let cached = Self.cache[trackId] {
+        if let cached = Self.cache.value(forKey: trackId) {
             return cached
         }
         if let disk = diskCache?.load(trackKey: trackId) {
-            Self.cache[trackId] = disk
+            Self.cache.setValue(disk, forKey: trackId)
             return disk
         }
         if let existing = Self.inFlight[trackId] {
@@ -146,7 +149,7 @@ final class ImmersiveLyricsViewModel: ObservableObject {
         Self.inFlight[trackId] = newTask
         do {
             let value = try await newTask.value
-            Self.cache[trackId] = value
+            Self.cache.setValue(value, forKey: trackId)
             Self.noLyricsCooldownUntil[trackId] = nil
             Self.backoffMetadata[trackId] = nil
             Self.inFlight[trackId] = nil
@@ -165,7 +168,7 @@ final class ImmersiveLyricsViewModel: ObservableObject {
         for task in inFlight.values {
             task.cancel()
         }
-        cache.removeAll()
+        cache = LRUDictionary(capacity: maxMemoryEntries)
         inFlight.removeAll()
         noLyricsCooldownUntil.removeAll()
         backoffMetadata.removeAll()
@@ -192,7 +195,10 @@ final class ImmersiveLyricsViewModel: ObservableObject {
     }
 
     private func registerNoLyricsCooldown(trackId: String) {
-        let expiry = Date().addingTimeInterval(Self.noLyricsCooldownDuration)
+        let now = Date()
+        let expiry = now.addingTimeInterval(Self.noLyricsCooldownDuration)
+        // Ended cooldowns go, the same way the disk copy drops them.
+        Self.noLyricsCooldownUntil = Self.noLyricsCooldownUntil.filter { $0.value > now }
         Self.noLyricsCooldownUntil[trackId] = expiry
         try? diskCache?.saveMissCooldownExpiry(trackKey: trackId, expiresAt: expiry)
     }
@@ -264,6 +270,8 @@ final class ImmersiveLyricsViewModel: ObservableObject {
             )
         }
 
+        // Kept a day past its cooldown so repeated failures still back off further, like the disk copy.
+        Self.backoffMetadata = Self.backoffMetadata.filter { $0.value.nextEligibleFetchAt > now.addingTimeInterval(-24 * 60 * 60) }
         Self.backoffMetadata[trackId] = metadata
         try? diskCache?.saveTrackBackoffMetadata(trackKey: trackId, metadata: metadata)
     }

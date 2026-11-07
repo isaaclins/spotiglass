@@ -20,6 +20,12 @@ struct LyricsDiskCache: Sendable {
         let nextEligibleFetchAt: Date
     }
 
+    /// Lyrics files not read or written for this long are deleted (#381).
+    static let maxAge: TimeInterval = 180 * 24 * 60 * 60
+    /// Past this size the least recently used lyrics are deleted first; a song's lyrics are a
+    /// few kilobytes, so this keeps several thousand songs.
+    static let maxBytes: Int64 = 20 * 1024 * 1024
+
     private let directory: URL
     private let fileManager: FileManager
     private let missCooldownFileName = "miss-cooldowns.json"
@@ -48,14 +54,33 @@ struct LyricsDiskCache: Sendable {
     func load(trackKey: String) -> FetchedLyrics? {
         let url = fileURL(for: trackKey)
         guard fileManager.fileExists(atPath: url.path) else { return nil }
-        guard let data = try? Data(contentsOf: url) else { return nil }
-        return try? JSONDecoder().decode(FetchedLyrics.self, from: data)
+        guard let data = try? Data(contentsOf: url),
+              let lyrics = try? JSONDecoder().decode(FetchedLyrics.self, from: data) else { return nil }
+        // A read counts as a use, so lyrics that keep being played are trimmed last.
+        try? fileManager.setAttributes([.modificationDate: Date()], ofItemAtPath: url.path)
+        return lyrics
     }
 
     func save(trackKey: String, lyrics: FetchedLyrics) throws {
         let data = try JSONEncoder().encode(lyrics)
         let url = fileURL(for: trackKey)
         try data.write(to: url, options: .atomic)
+        // Saves run on the main actor; listing the directory doesn't need to.
+        let cache = self
+        Task.detached(priority: .utility) { cache.prune() }
+    }
+
+    /// Deletes lyrics older than `maxAge` and, past `maxBytes`, the least recently used ones.
+    /// The cooldown and backoff files bound themselves and are never deleted here.
+    func prune(now: Date = Date(), maxAge: TimeInterval = LyricsDiskCache.maxAge, maxBytes: Int64 = LyricsDiskCache.maxBytes) {
+        DiskCacheTrim.trim(
+            directory: directory,
+            maxBytes: maxBytes,
+            maxAge: maxAge,
+            now: now,
+            keepingFileNames: [missCooldownFileName, backoffMetadataFileName],
+            fileManager: fileManager
+        )
     }
 
     func loadMissCooldownExpiry(trackKey: String) -> Date? {

@@ -135,29 +135,7 @@ actor ArtworkImageStore {
     }
 
     private func trimDiskCacheIfNeeded() async {
-        let fm = FileManager.default
-        guard let files = try? fm.contentsOfDirectory(at: diskDirectory, includingPropertiesForKeys: [.contentModificationDateKey], options: [.skipsHiddenFiles]) else {
-            return
-        }
-        var total: Int64 = 0
-        var entries: [(url: URL, date: Date)] = []
-        for url in files {
-            guard let vals = try? url.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey]),
-                  let size = vals.fileSize.map(Int64.init) else {
-                continue
-            }
-            total += size
-            entries.append((url, vals.contentModificationDate ?? .distantPast))
-        }
-        guard total > maxDiskBytes else { return }
-        entries.sort { $0.date < $1.date }
-        for entry in entries {
-            guard total > maxDiskBytes * 3 / 4 else { break }
-            if let s = try? entry.url.resourceValues(forKeys: [.fileSizeKey]).fileSize {
-                try? fm.removeItem(at: entry.url)
-                total -= Int64(s)
-            }
-        }
+        DiskCacheTrim.trim(directory: diskDirectory, maxBytes: maxDiskBytes)
     }
 
     private nonisolated static func sha256Hex(_ string: String) -> String {

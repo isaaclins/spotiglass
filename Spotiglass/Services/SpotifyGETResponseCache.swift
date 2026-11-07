@@ -71,17 +71,33 @@ final class SpotifyGETResponseCache: @unchecked Sendable {
         return SpotifyGETResponseCache(diskCache: disk)
     }()
 
+    /// The disk directory is pruned at most this often, right after a write.
+    static let diskPruneInterval: TimeInterval = 10 * 60
+
     private let lock = NSLock()
     private var memory: [String: (expiry: Date, data: Data)] = [:]
     private var lruKeys: [String] = []
     private var nextWriteGeneration: UInt64 = 0
+    /// Requests whose response may still be stored. An entry ends when its response is stored;
+    /// requests that never store one (failures, cancellations) are dropped oldest first past
+    /// `maxPendingWrites`, which only costs that late response its cache write (#381).
     private var currentWriteGenerationByKey: [String: UInt64] = [:]
     private let diskCache: SpotifyLocalCache?
     private let maxMemoryEntries: Int
+    private let maxPendingWrites: Int
+    private let now: @Sendable () -> Date
+    private var lastDiskPrune: Date?
 
-    init(diskCache: SpotifyLocalCache?, maxMemoryEntries: Int = 160) {
+    init(
+        diskCache: SpotifyLocalCache?,
+        maxMemoryEntries: Int = 160,
+        maxPendingWrites: Int = 256,
+        now: @escaping @Sendable () -> Date = Date.init
+    ) {
         self.diskCache = diskCache
         self.maxMemoryEntries = maxMemoryEntries
+        self.maxPendingWrites = max(1, maxPendingWrites)
+        self.now = now
     }
 
     func cachedEntry(forCacheKey key: String, allowExpired: Bool) -> SpotifyGETCacheHit? {
@@ -117,6 +133,7 @@ final class SpotifyGETResponseCache: @unchecked Sendable {
 
         nextWriteGeneration &+= 1
         currentWriteGenerationByKey[key] = nextWriteGeneration
+        evictPendingWritesIfNeeded()
         return SpotifyGETResponseCacheWriteOwnership(cacheKey: key, generation: nextWriteGeneration)
     }
 
@@ -128,13 +145,19 @@ final class SpotifyGETResponseCache: @unchecked Sendable {
         ownership: SpotifyGETResponseCacheWriteOwnership
     ) -> Bool {
         lock.lock()
-        defer { lock.unlock() }
-
         guard ownership.cacheKey == key,
               currentWriteGenerationByKey[key] == ownership.generation else {
+            lock.unlock()
             return false
         }
+        currentWriteGenerationByKey[key] = nil
         storeLocked(body: body, cacheKey: key, ttl: ttl)
+        let pruneDisk = diskPruneIsDueLocked()
+        lock.unlock()
+
+        if pruneDisk {
+            diskCache?.pruneGETResponses(now: now())
+        }
         return true
     }
 
@@ -146,6 +169,34 @@ final class SpotifyGETResponseCache: @unchecked Sendable {
         if let diskCache {
             try? diskCache.saveGETResponse(digest: Self.digest(for: key), body: body, ttl: ttl)
         }
+    }
+
+    /// True for the first disk write and then once per `diskPruneInterval`.
+    private func diskPruneIsDueLocked() -> Bool {
+        guard diskCache != nil else { return false }
+        let current = now()
+        if let lastDiskPrune, current.timeIntervalSince(lastDiskPrune) < Self.diskPruneInterval {
+            return false
+        }
+        lastDiskPrune = current
+        return true
+    }
+
+    private func evictPendingWritesIfNeeded() {
+        guard currentWriteGenerationByKey.count > maxPendingWrites else { return }
+        let keep = max(1, maxPendingWrites * 3 / 4)
+        let oldest = currentWriteGenerationByKey
+            .sorted { $0.value < $1.value }
+            .prefix(currentWriteGenerationByKey.count - keep)
+        for entry in oldest {
+            currentWriteGenerationByKey.removeValue(forKey: entry.key)
+        }
+    }
+
+    /// How many requests may still store a response (`SpotiglassTests` only).
+    // periphery:ignore
+    var pendingWriteCountForTesting: Int {
+        lock.withLock { currentWriteGenerationByKey.count }
     }
 
     private func touchLRU(_ key: String) {
