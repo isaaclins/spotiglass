@@ -186,8 +186,12 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
         )
     }
 
+    /// A play still looking up its songs hasn't handed the player its queue yet, so a read
+    /// then would return the old queue (or none). The read waits for that play, so a panel
+    /// opened right after starting a long list shows the list it started (#413).
     func fetchQueue() async throws -> MusicPlaybackQueue {
-        MusicPlaybackQueue(queue: player.readUpcoming().map { .track($0) })
+        await latestPlay?.value
+        return MusicPlaybackQueue(queue: player.readUpcoming().map { .track($0) })
     }
 
     // MARK: - Mapping

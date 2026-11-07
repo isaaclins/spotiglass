@@ -52,6 +52,9 @@ final class QueueViewModel: ObservableObject {
     var isRefreshInFlight = false
     var pendingRefreshRequested = false
     var pendingRefreshAllowsHiddenPanel = false
+    /// What the follow-up round runs as: `.poll` unless an event or a manual refresh joined it,
+    /// which also runs while the app is in the background.
+    var pendingRefreshTrigger: RefreshTrigger = .poll
     /// Callers that asked for a refresh while one was in flight. They resume
     /// once the follow-up round that covers their request has finished.
     var pendingRefreshWaiters: [CheckedContinuation<Void, Never>] = []
@@ -89,6 +92,14 @@ final class QueueViewModel: ObservableObject {
         case poll
         case event
         case lyricsPrefetch
+
+        /// The timed reads pause while the app is in the background; the others don't (#413).
+        var waitsForActiveApp: Bool {
+            switch self {
+            case .poll, .lyricsPrefetch: true
+            case .manual, .event: false
+            }
+        }
     }
 
     init(

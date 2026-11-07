@@ -101,6 +101,62 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         XCTAssertEqual(Array(upcoming.prefix(3)), ["applemusic:song:a", "applemusic:song:b", Self.uris[1]])
     }
 
+    // MARK: - Queue panel (#413)
+
+    /// The case seen in the app: Liked Songs (2,543 songs) started playing, the queue panel
+    /// was opened while Spotiglass was not the active app, and it said "0 tracks up next"
+    /// until the app was activated. Opening the panel reads the queue in the background too.
+    func testOpeningThePanelInTheBackgroundShowsALongListAtOnce() async throws {
+        let likedSongs = (1...2_543).map { "applemusic:song:\($0)" }
+        let player = ScriptedAppleMusicPlayer()
+        let provider = AppleMusicPlaybackProvider(player: player)
+        let session = PlaybackSessionViewModel(provider: provider)
+        session.deviceID = AppleMusicPlaybackProvider.deviceID
+        session.setActivePlaybackDeviceID(AppleMusicPlaybackProvider.deviceID)
+        try await provider.play(.items(uris: likedSongs, startURI: nil), deviceID: "x")
+        player.advance(by: 1)
+        await session.syncTransportFromSpotify()
+        XCTAssertEqual(session.currentNowPlaying?.uri, likedSongs[0])
+
+        let queue = QueueViewModel(provider: provider, playbackSession: session)
+        queue.setAppActive(false)
+        await Self.openPanel(queue)
+
+        XCTAssertEqual(queue.upcomingItems.map(\.uri), Array(likedSongs[1...20]))
+        XCTAssertNil(queue.pollTask, "the timed poll still waits for the app to be active")
+    }
+
+    /// Opened while the play is still looking up its songs, the panel used to read the queue
+    /// the player had before (none here) and keep it until the next poll. The read now waits
+    /// for that play and shows the list it started.
+    func testOpeningThePanelWhileALongListStartsShowsThatList() async throws {
+        let likedSongs = (1...2_543).map { "applemusic:song:\($0)" }
+        let player = ScriptedAppleMusicPlayer()
+        player.holdLookups = true
+        let provider = AppleMusicPlaybackProvider(player: player)
+        let session = PlaybackSessionViewModel(provider: provider)
+        session.deviceID = AppleMusicPlaybackProvider.deviceID
+        session.setActivePlaybackDeviceID(AppleMusicPlaybackProvider.deviceID)
+        session.handle(.ready(deviceID: AppleMusicPlaybackProvider.deviceID))
+        let queue = QueueViewModel(provider: provider, playbackSession: session)
+
+        let play = Task { try await provider.play(.items(uris: likedSongs, startURI: nil), deviceID: "x") }
+        while player.waitingLookups.isEmpty { await Task.yield() }
+        let open = Task { await Self.openPanel(queue) }
+        for _ in 0..<20 { await Task.yield() }
+        player.releaseLookups()
+        try await play.value
+        await open.value
+
+        XCTAssertEqual(queue.upcomingItems.map(\.uri), Array(likedSongs[1...20]))
+    }
+
+    /// What showing the panel does (``QueueViewModel/setPanelVisible(_:)``), awaited.
+    private static func openPanel(_ queue: QueueViewModel) async {
+        queue.isPanelVisible = true
+        await queue.requestQueueRefresh(trigger: .event, allowsHiddenPanel: false)
+    }
+
     // MARK: - Queue book (the live player's queue rules)
 
     private typealias Book = AppleMusicQueueBook

@@ -465,5 +465,10 @@ struct PlaylistBrowserView: View {
         }
         .modifier(PlaylistDeletionConfirmation(viewModel: viewModel))
         .modifier(LibraryRemovalConfirmation(viewModel: viewModel))
+        // With the queue open the window keeps room for the detail column and the panel at
+        // their minimums; the window's minimum size follows its content, so it widens when the
+        // queue opens in a narrower window instead of cutting the panel off (#413). This sits
+        // outermost so no flexible frame inside can report a smaller minimum.
+        .frame(minWidth: isQueueVisible ? SpotiglassDesign.detailAndQueueMinWidth : nil)
     }
 }
