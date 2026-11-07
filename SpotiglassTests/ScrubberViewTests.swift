@@ -108,6 +108,51 @@ final class ScrubberViewTests: XCTestCase {
         XCTAssertEqual(secondStarts.count, 10, "a tick lands right after every whole second")
     }
 
+    /// Real tracks rarely last a whole number of seconds. With the labels'
+    /// ticks on the elapsed time's seconds, the remaining time of a 3:00.010
+    /// track still read -3:00 half a second in, when 2:59.51 remained. Each
+    /// label must show, at every moment, the text it would show if redrawn then.
+    func testBothLabelsAreNeverStaleOnATrackWithLeftoverMilliseconds() {
+        let anchorDate = Date(timeIntervalSinceReferenceDate: 1_000)
+        for (duration, start) in [(180_010, 0), (243_412, 61_250), (200_999, 5)] {
+            let progress = ScrubberProgress(
+                anchor: PlaybackProgressAnchor(
+                    positionMilliseconds: start,
+                    anchorDate: anchorDate,
+                    durationMilliseconds: duration,
+                    isAdvancing: true
+                ),
+                durationMilliseconds: duration
+            )
+            let labels: [(name: String, boundary: Int, text: (Int) -> String)] = [
+                ("elapsed", 0, { PlaybackProgressScrubberGroup.elapsedText(positionMs: $0) }),
+                ("remaining", progress.remainingBoundaryMilliseconds, {
+                    PlaybackProgressScrubberGroup.remainingText(positionMs: $0, durationMs: duration)
+                }),
+            ]
+            for label in labels {
+                let ticks = Array(
+                    progress.schedule(trackWidth: 0, boundaryMilliseconds: label.boundary)
+                        .entries(from: anchorDate, mode: .normal)
+                        .prefix(12)
+                )
+                // Every 10 ms over ten seconds. A tick lands 2 ms after its
+                // boundary, so the text may still be the one from 3 ms ago.
+                for step in 0 ..< 1_000 {
+                    let now = anchorDate.addingTimeInterval(Double(step) / 100 + 0.005)
+                    guard let shown = ticks.last(where: { $0 <= now }) else { continue }
+                    let shownText = label.text(progress.positionMilliseconds(at: shown))
+                    XCTAssertTrue(
+                        [now, now.addingTimeInterval(-0.003)]
+                            .map { label.text(progress.positionMilliseconds(at: $0)) }
+                            .contains(shownText),
+                        "\(label.name) label shows \(shownText), stale \(now.timeIntervalSince(anchorDate)) s into a \(duration) ms track"
+                    )
+                }
+            }
+        }
+    }
+
     func testPausedDraggingOrFinishedScheduleDoesNotWakeAgain() {
         let anchorDate = Date(timeIntervalSinceReferenceDate: 1_000)
         let playing = PlaybackProgressAnchor(

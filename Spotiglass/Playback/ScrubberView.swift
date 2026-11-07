@@ -33,10 +33,21 @@ struct ScrubberProgress: Equatable {
     }
 
     /// The timeline for anything drawn from this progress, waking at most
-    /// `ticksPerSecond` times a second (see `ScrubberTimelineSchedule`).
-    func schedule(trackWidth: CGFloat) -> ScrubberTimelineSchedule {
-        ScrubberTimelineSchedule(anchor: anchor, isPaused: !isAdvancing, trackWidth: trackWidth)
+    /// `ticksPerSecond` times a second (see `ScrubberTimelineSchedule`), with a
+    /// tick right after the position passes each `boundaryMilliseconds` mod 1000.
+    func schedule(trackWidth: CGFloat, boundaryMilliseconds: Int = 0) -> ScrubberTimelineSchedule {
+        ScrubberTimelineSchedule(
+            anchor: anchor,
+            isPaused: !isAdvancing,
+            trackWidth: trackWidth,
+            boundaryMilliseconds: boundaryMilliseconds
+        )
     }
+
+    /// Where the remaining time changes its whole second: when the position
+    /// passes the duration minus a whole number of seconds. A 4:03.4 track
+    /// shows a new remaining time 0.4 s after each new elapsed time.
+    var remainingBoundaryMilliseconds: Int { max(durationMilliseconds, 0) % 1_000 }
 }
 
 /// Scrubber plus elapsed/remaining labels driven by `PlaybackProgressAnchor` and `TimelineView`.
@@ -71,6 +82,7 @@ struct PlaybackProgressScrubberGroup: View {
             ScrubberTimeLabel(
                 progress: progress,
                 widestText: Self.widestTime(durationMs: durationMs),
+                boundaryMilliseconds: 0,
                 minWidth: 36,
                 alignment: .trailing
             ) { positionMs in
@@ -96,6 +108,7 @@ struct PlaybackProgressScrubberGroup: View {
             ScrubberTimeLabel(
                 progress: progress,
                 widestText: Self.remainingText(Self.widestTime(durationMs: durationMs)),
+                boundaryMilliseconds: progress.remainingBoundaryMilliseconds,
                 minWidth: 40,
                 alignment: .leading
             ) { positionMs in
@@ -133,6 +146,8 @@ struct PlaybackProgressScrubberGroup: View {
 private struct ScrubberTimeLabel: View {
     var progress: ScrubberProgress
     var widestText: String
+    /// The label's text changes right after the position passes this, mod 1000.
+    var boundaryMilliseconds: Int
     var minWidth: CGFloat
     var alignment: Alignment
     var text: (Int) -> String
@@ -145,8 +160,8 @@ private struct ScrubberTimeLabel: View {
             .frame(minWidth: minWidth, alignment: alignment)
             .overlay {
                 // A width of 0 asks the schedule for its slowest rate: one
-                // tick on every whole second of playback.
-                TimelineView(progress.schedule(trackWidth: 0)) { context in
+                // tick each time this label's whole second changes.
+                TimelineView(progress.schedule(trackWidth: 0, boundaryMilliseconds: boundaryMilliseconds)) { context in
                     let label = Text(text(progress.positionMilliseconds(at: context.date)))
                     Canvas { canvas, size in
                         let resolved = canvas.resolve(label)
@@ -395,13 +410,18 @@ private struct ScrubberTrackDrawing: View, Animatable {
 /// playback. This schedule ticks just often enough for the fill to move half a
 /// point (about one pixel on a Retina display) per tick, never faster than 30
 /// times a second and never slower than once a second. Ticks are aligned so one
-/// lands on every whole second of playback position, which keeps the elapsed and
-/// remaining labels on time. A paused track, a drag in progress or a finished
+/// lands right after each change of a label's whole second (the elapsed time's
+/// by default, the remaining time's with its `boundaryMilliseconds`), which keeps
+/// both labels on time. A paused track, a drag in progress or a finished
 /// track produces a single entry and no further wakeups.
 struct ScrubberTimelineSchedule: TimelineSchedule {
     var anchor: PlaybackProgressAnchor?
     var isPaused: Bool
     var trackWidth: CGFloat
+    /// Ticks land right after the position passes this many milliseconds past a
+    /// whole second: 0 for the elapsed time, the duration's leftover
+    /// milliseconds for the remaining time.
+    var boundaryMilliseconds: Int = 0
 
     static let maximumTicksPerSecond = 30
     /// The fill may move at most this far between two ticks.
@@ -429,9 +449,12 @@ struct ScrubberTimelineSchedule: TimelineSchedule {
             ? 1
             : Self.ticksPerSecond(durationMilliseconds: duration, trackWidth: trackWidth)
         let interval = 1 / Double(ticks)
-        // First wall-clock moment the position crosses a whole second, plus 1 ms so
-        // the millisecond truncation in `interpolatedPositionMs` lands past it.
-        let phase = Double((1_000 - base % 1_000) % 1_000 + 1) / 1_000
+        // First wall-clock moment the position crosses the boundary, plus 2 ms.
+        // The elapsed time changes at the boundary, the remaining time 1 ms past
+        // it (both round down), and `interpolatedPositionMs` truncates a date
+        // that floating point can put a hair early.
+        let boundary = ((boundaryMilliseconds % 1_000) + 1_000) % 1_000
+        let phase = Double((boundary - base % 1_000 + 1_000) % 1_000 + 2) / 1_000
         let origin = anchor.anchorDate.addingTimeInterval(phase)
         // Ticks sit at origin + k * interval; computing each from k (instead of
         // adding the interval repeatedly) keeps them from drifting off the second.
