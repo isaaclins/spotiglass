@@ -3,7 +3,10 @@ import Foundation
 @MainActor
 extension PlaybackSessionViewModel {
     func toggleShuffle() async {
-        guard isTransportStateKnown else { return }
+        // An in-app player that never pushes its state (Apple Music) reports nothing until it
+        // has a queue, but it takes a shuffle command before its first play: the header's
+        // Shuffle turns shuffle on and then plays. Spotify keeps waiting for its state.
+        guard isTransportStateKnown || !provider.capabilities.contains(.pushesPlayerState) else { return }
         guard let commandDeviceID else {
             setConnectionState(.error(Self.playbackDeviceReconnectRequiredError()))
             return

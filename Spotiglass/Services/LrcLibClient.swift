@@ -14,12 +14,23 @@ extension PlaybackNowPlaying {
         max(1, durationMilliseconds / 1_000)
     }
 
-    /// Spotify track id from `spotify:track:…` URI, or `nil`.
-    var spotifyTrackIDForLyrics: String? {
-        guard let uri, uri.hasPrefix("spotify:track:") else {
+    /// The key lyrics are cached and looked up under, or `nil` when the item isn't a music
+    /// track (episodes, unknown items). Spotify tracks keep their bare track id, so lyrics
+    /// cached before Apple Music existed still load. Apple Music songs get an
+    /// `applemusic-song-<id>` key so they can never collide with a Spotify id.
+    var lyricsTrackKey: String? {
+        guard let uri else { return nil }
+        let parts = uri.split(separator: ":", maxSplits: 2).map(String.init)
+        guard parts.count == 3, !parts[2].isEmpty else { return nil }
+        switch (parts[0], parts[1]) {
+        case ("spotify", "track"):
+            return parts[2]
+        case ("applemusic", "song"), ("applemusic", "track"):
+            // Library ids contain dots (`i.abc`); the disk cache only keeps letters, digits and `-`.
+            return "applemusic-song-" + parts[2].replacingOccurrences(of: ".", with: "-")
+        default:
             return nil
         }
-        return uri.split(separator: ":").last.map(String.init)
     }
 }
 

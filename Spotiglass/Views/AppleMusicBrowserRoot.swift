@@ -5,8 +5,9 @@ import SwiftUI
 enum BrowserPlaybackMode: Equatable {
     /// The Spotify player: real transport controls.
     case live
-    /// No playback for this service yet; the bar shows this message instead.
-    case comingSoon(String)
+    /// This service can't play here (Apple Music without a subscription); the bar shows
+    /// this message instead.
+    case unavailable(String)
 }
 
 /// Main-window content while Apple Music is the selected service (see `MusicServiceSelection`).
@@ -82,15 +83,17 @@ struct AppleMusicBrowserRoot: View {
             // No Disconnect: access is a system permission, turned off in System Settings,
             // and switching services belongs to the service switcher (#373).
             signOut: {},
-            playbackMode: .comingSoon(playbackMessage),
+            playbackMode: playbackMode,
             canDisconnect: false
         )
     }
 
-    private var playbackMessage: String {
+    /// MusicKit's player needs an Apple Music subscription. While that is unknown the bar is
+    /// live, and a failed play says what is missing.
+    private var playbackMode: BrowserPlaybackMode {
         session.canPlayCatalogContent == false
-            ? SpotiglassL10n.string("appleMusic.playback.comingSoon.noSubscription")
-            : SpotiglassL10n.string("appleMusic.playback.comingSoon")
+            ? .unavailable(SpotiglassL10n.string("error.playback.appleMusic.subscription.message"))
+            : .live
     }
 
     private var permissionContent: some View {
@@ -145,8 +148,8 @@ struct AppleMusicBrowserRoot: View {
     }
 }
 
-/// Stands in for the transport bar while a service has no playback yet.
-struct PlaybackComingSoonBar: View {
+/// Stands in for the transport bar while the service can't play.
+struct PlaybackUnavailableBar: View {
     let message: String
 
     var body: some View {

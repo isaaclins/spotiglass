@@ -199,11 +199,7 @@ enum PlaylistBrowserPaletteSearchBuilder {
                 pinAction = nil
                 unpinAction = nil
             }
-            // Only Spotify has a queue; an Apple Music row has no queue to add to yet.
-            var queueAction: (@MainActor () async -> Void)?
-            if uri.hasPrefix("spotify:") {
-                queueAction = { await environment.addToQueue(uri) }
-            }
+            let queueAction: (@MainActor () async -> Void)? = { await environment.addToQueue(uri) }
             let item = CommandPaletteItem(
                 id: "track-\(row.id)",
                 title: row.title,
@@ -282,9 +278,9 @@ enum PlaylistBrowserPaletteSearchBuilder {
         let pinPayload = PinnedItem.track(track)
         let pinPair = pinUnpinClosures(pinPayload)
         let trackURI = track.uri
-        // Only Spotify has a queue; an Apple Music track has no queue to add to yet.
+        // An Apple Music track the player can't queue (a music video) gets no Add to queue.
         var queueAction: (@MainActor () async -> Void)?
-        if trackURI.hasPrefix("spotify:") {
+        if track.isPlayable != false || trackURI.hasPrefix("spotify:") {
             queueAction = { await environment.addToQueue(trackURI) }
         }
         return CommandPaletteItem(

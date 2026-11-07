@@ -66,7 +66,7 @@ final class ImmersiveLyricsViewModel: ObservableObject {
 
     /// Fetches lyrics in the background without changing `phase` (for prefetch while the overlay is closed).
     func preload(track: PlaybackNowPlaying) async {
-        guard let tid = track.spotifyTrackIDForLyrics else { return }
+        guard let tid = track.lyricsTrackKey else { return }
         guard Self.cache[tid] == nil else { return }
         guard !isWithinBackoffCooldown(trackId: tid) else { return }
         do {
@@ -80,7 +80,7 @@ final class ImmersiveLyricsViewModel: ObservableObject {
         let generation = beginLoad()
         guard isCurrentLoad(generation) else { return }
 
-        guard let tid = track.spotifyTrackIDForLyrics else {
+        guard let tid = track.lyricsTrackKey else {
             phase = .failed(SpotiglassL10n.string("lyrics.error.musicOnly"))
             return
         }
@@ -89,7 +89,7 @@ final class ImmersiveLyricsViewModel: ObservableObject {
             phase = .ready(cached)
             return
         }
-        if let disk = diskCache?.load(spotifyTrackID: tid) {
+        if let disk = diskCache?.load(trackKey: tid) {
             Self.cache[tid] = disk
             phase = .ready(disk)
             return
@@ -133,7 +133,7 @@ final class ImmersiveLyricsViewModel: ObservableObject {
         if let cached = Self.cache[trackId] {
             return cached
         }
-        if let disk = diskCache?.load(spotifyTrackID: trackId) {
+        if let disk = diskCache?.load(trackKey: trackId) {
             Self.cache[trackId] = disk
             return disk
         }
@@ -150,8 +150,8 @@ final class ImmersiveLyricsViewModel: ObservableObject {
             Self.noLyricsCooldownUntil[trackId] = nil
             Self.backoffMetadata[trackId] = nil
             Self.inFlight[trackId] = nil
-            try? diskCache?.save(spotifyTrackID: trackId, lyrics: value)
-            try? diskCache?.clearTrackBackoffMetadata(spotifyTrackID: trackId)
+            try? diskCache?.save(trackKey: trackId, lyrics: value)
+            try? diskCache?.clearTrackBackoffMetadata(trackKey: trackId)
             return value
         } catch {
             Self.inFlight[trackId] = nil
@@ -176,7 +176,7 @@ final class ImmersiveLyricsViewModel: ObservableObject {
         if let metadata = Self.backoffMetadata[trackId], metadata.nextEligibleFetchAt > now {
             return true
         }
-        if let persistedMetadata = diskCache?.loadTrackBackoffMetadata(spotifyTrackID: trackId),
+        if let persistedMetadata = diskCache?.loadTrackBackoffMetadata(trackKey: trackId),
            persistedMetadata.nextEligibleFetchAt > now {
             Self.backoffMetadata[trackId] = persistedMetadata
             return true
@@ -184,7 +184,7 @@ final class ImmersiveLyricsViewModel: ObservableObject {
         if let expiry = Self.noLyricsCooldownUntil[trackId], expiry > now {
             return true
         }
-        if let persisted = diskCache?.loadMissCooldownExpiry(spotifyTrackID: trackId), persisted > now {
+        if let persisted = diskCache?.loadMissCooldownExpiry(trackKey: trackId), persisted > now {
             Self.noLyricsCooldownUntil[trackId] = persisted
             return true
         }
@@ -194,7 +194,7 @@ final class ImmersiveLyricsViewModel: ObservableObject {
     private func registerNoLyricsCooldown(trackId: String) {
         let expiry = Date().addingTimeInterval(Self.noLyricsCooldownDuration)
         Self.noLyricsCooldownUntil[trackId] = expiry
-        try? diskCache?.saveMissCooldownExpiry(spotifyTrackID: trackId, expiresAt: expiry)
+        try? diskCache?.saveMissCooldownExpiry(trackKey: trackId, expiresAt: expiry)
     }
 
     private func cooldownMessage(trackId: String) -> String {
@@ -265,6 +265,6 @@ final class ImmersiveLyricsViewModel: ObservableObject {
         }
 
         Self.backoffMetadata[trackId] = metadata
-        try? diskCache?.saveTrackBackoffMetadata(spotifyTrackID: trackId, metadata: metadata)
+        try? diskCache?.saveTrackBackoffMetadata(trackKey: trackId, metadata: metadata)
     }
 }

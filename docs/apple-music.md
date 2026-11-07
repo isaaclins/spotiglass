@@ -1,8 +1,8 @@
 # Apple Music (developer preview)
 
-Spotiglass is getting Apple Music support next to Spotify (#372). This first part is
-**browsing only**: your Apple Music library, playlists, Home and search, read through Apple's
-MusicKit. Playback comes next, and the service switcher (#373) after that. Until the switcher
+Spotiglass is getting Apple Music support next to Spotify (#372). You can browse your Apple
+Music library, playlists, Home and search, and play them, through Apple's MusicKit. The service
+switcher (#373) comes next. Until the switcher
 exists, Apple Music is reachable only through a hidden developer switch. A normal launch is
 Spotify, exactly as before.
 
@@ -37,8 +37,8 @@ you to System Settings → Privacy & Security → Media & Apple Music.
   build both work. Don't add `com.apple.developer.musickit` to the entitlements.
 - `NSAppleMusicUsageDescription` in Info.plist (set in the build settings, translated in
   `Spotiglass/InfoPlist.xcstrings`).
-- An Apple Music subscription for catalog search, recommendations and (later) playback. The
-  library itself loads without one.
+- An Apple Music subscription for catalog search, recommendations and playback. The library
+  itself loads without one; without a subscription the transport bar says playing needs one.
 
 ## What maps where
 
@@ -62,10 +62,39 @@ mix with a Spotify account's. The Apple Music browser keeps no disk cache: libra
 local, and library artwork URLs only live as long as MusicKit's session. Spotify's cache, Keychain
 item and session are never read or written in Apple Music mode.
 
+## Playback
+
+[`AppleMusicPlaybackProvider`](../Spotiglass/Playback/AppleMusicPlaybackProvider.swift)
+implements `MusicPlaybackProvider` on MusicKit's `ApplicationMusicPlayer`
+([`MusicKitApplicationPlayer`](../Spotiglass/Playback/MusicKitApplicationPlayer.swift)).
+
+| Spotiglass | Apple Music |
+|---|---|
+| Play a row, Liked Songs, a playlist, an album, an artist | The songs are queued one by one as `ApplicationMusicPlayer.Queue` entries, starting at the row you picked. Rows are played as the exact MusicKit song they were built from ([`AppleMusicPlayableRegistry`](../Spotiglass/Services/AppleMusicPlayableRegistry.swift), bounded to 20,000 songs): a library request for a playlist track's id answers with a song under a different id, so a second lookup can't be matched back to the row. |
+| Pause, resume, seek, next, previous, shuffle, repeat | The player's own commands. Repeat off / context / track maps to none / all / one. |
+| Add to queue | After the current song and after the songs added before it, like Spotify's queue. |
+| Queue panel | The entries after the current one. |
+| Player state | Read, not pushed: the session polls it (every second after a command, while the app is in the background too). |
+| Volume | MusicKit has no volume for the app's player, so the volume control is hidden and the Mac's volume applies. |
+| Now Playing, Control Center, media keys | Apple's player publishes Now Playing and answers the remote commands itself; Spotiglass writes nothing there. |
+| Lyrics | LRCLIB, by title, artist, album and duration, cached under `applemusic-song-<id>`. |
+
+MusicKit's player answers a command before its state shows it. Measured on a Mac mini M4
+(macOS 27): after `pause()` it reported "playing" for up to 333 ms, after `play()` "paused" for
+up to 297 ms, after `skipToNextEntry()` the old song (at position 0) for up to 305 ms, after
+`skipToPreviousEntry()` for up to 189 ms, and after `stop()` it reports "paused" after about
+70 ms. The session reads right after a command and then every second, so the settle window of
+two reads hides the first, stale read and applies the second. A read during that window that
+still shows the song a skip left is ignored. `AppleMusicPlaybackProviderTests` replays these
+timings.
+
+The equalizer routes the Mac's default output through its own device, and MusicKit plays to the
+default output, so Apple Music goes through it as well.
+
 ## Not there yet
 
-- **Playback.** The transport bar says playing is coming soon, and play buttons do nothing.
-  Apple's player will publish Now Playing itself once it lands.
+- **Music videos** can't be queued by MusicKit's player on macOS; they are skipped when a list
+  is played.
 - **Library edits** (rename, add to playlist, like): MusicKit's library is read-only on macOS.
   The menus report them as unsupported. #374 covers them.
 - **Track counts** for library playlists: MusicKit only knows them after loading the tracks, so
