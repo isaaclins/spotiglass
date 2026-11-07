@@ -146,11 +146,21 @@ struct TrackRowViewModel: Equatable, Identifiable {
         }
     }
 
-    /// Domain track for palette pinning and draggable pins; `nil` for episodes, locals, and unavailable rows.
+    /// The row's Spotify track, the seed for a library continuation; `nil` for Apple Music
+    /// songs, episodes, locals, and unavailable rows.
     func spotifyTrackForPinning() -> MusicTrack? {
+        guard let playableURI, playableURI.hasPrefix("spotify:track:") else { return nil }
+        return pinnableTrack()
+    }
+
+    /// The row's track as pins store it: a Spotify track or an Apple Music song. `nil` for
+    /// episodes, locals, and unavailable rows. Every row pin path (context menu, Playback
+    /// menu, drag) goes through here, so an Apple Music song pins and unpins from its row the
+    /// same way the palette pins it.
+    private func pinnableTrack() -> MusicTrack? {
         guard let spotifyTrackID,
               let playableURI,
-              playableURI.hasPrefix("spotify:track:") else { return nil }
+              Self.pinnableURIPrefixes.contains(where: playableURI.hasPrefix) else { return nil }
         let names: [String] = artistRefs.map(\.name).isEmpty
             ? subtitle.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
             : artistRefs.map(\.name)
@@ -168,8 +178,10 @@ struct TrackRowViewModel: Equatable, Identifiable {
         )
     }
 
+    private static let pinnableURIPrefixes = ["spotify:track:", "applemusic:song:"]
+
     func pinnedTrackItem() -> PinnedItem? {
-        guard let track = spotifyTrackForPinning() else { return nil }
+        guard let track = pinnableTrack() else { return nil }
         return .track(track)
     }
 }

@@ -66,6 +66,62 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         XCTAssertEqual(viewModel.playlistState.currentValue?.map(\.title), ["One"])
     }
 
+    /// A language switch rebuilds the window, and the new browser loads its playlists from the
+    /// fresh disk cache. That path skipped the profile request, so the browser no longer knew
+    /// the current user: own playlists showed their owner and lost "Edit playlist name" (#400).
+    func testFreshCachedLoadStillLearnsTheCurrentUser() async {
+        let own = MusicPlaylistSummary(
+            id: "night-drive", name: "Night Drive", ownerID: "u", ownerName: "I",
+            imageURL: nil, trackCount: 8, snapshotID: "s1"
+        )
+        let api = MockBrowsingAPI(playlistResults: [], trackResults: [:])
+        let cache = MockBrowsingCache(cachedPlaylists: [own], playlistListCacheAge: 0)
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: cache)
+
+        await viewModel.load()
+
+        XCTAssertEqual(api.currentUserPlaylistsCallCount, 0, "a fresh cache still skips the playlist refresh")
+        XCTAssertEqual(viewModel.currentUserSpotifyID, "u")
+        let row = try? XCTUnwrap(viewModel.playlistState.currentValue?.first)
+        XCTAssertEqual(row?.ownerTracksLine(currentUserID: viewModel.currentUserSpotifyID), "8 tracks")
+    }
+
+    /// The current user is only needed for the owner line and the rename item, so on a fresh
+    /// cached load the profile request runs alongside the selected playlist's load instead of
+    /// holding it back for a round trip.
+    func testFreshCachedLoadDoesNotHoldTheDetailBackForTheProfile() async throws {
+        let own = MusicPlaylistSummary(
+            id: "night-drive", name: "Night Drive", ownerID: "u", ownerName: "I",
+            imageURL: nil, trackCount: 8, snapshotID: "s1"
+        )
+        let events = LockedEvents()
+        let api = MockBrowsingAPI(playlistResults: [], trackResults: [:], profileHandler: {
+            events.append("profile asked")
+            // Held until the detail load reaches the API (or two seconds pass, which is what
+            // a profile awaited in front of the detail load runs into).
+            for _ in 0..<200 where !events.contains("detail asked") {
+                try await Task.sleep(nanoseconds: 10_000_000)
+            }
+            events.append("profile answered")
+            return MusicUserProfile(id: "u", displayName: nil, country: nil)
+        })
+        api.onPlaylistTracksInvocation = { _ in events.append("detail asked") }
+        let cache = MockBrowsingCache(cachedPlaylists: [own], playlistListCacheAge: 0)
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: cache)
+        viewModel.sidebarSelection = .playlist("night-drive")
+
+        await viewModel.load()
+
+        let order = events.all
+        XCTAssertEqual(Set(order), ["profile asked", "detail asked", "profile answered"])
+        XCTAssertLessThan(
+            try XCTUnwrap(order.firstIndex(of: "detail asked")),
+            try XCTUnwrap(order.firstIndex(of: "profile answered")),
+            "the playlist is asked for before the profile has answered: \(order)"
+        )
+        XCTAssertEqual(viewModel.currentUserSpotifyID, "u")
+    }
+
     func testCachedLoadUsesCacheWhenRefreshFails() async {
         let api = MockBrowsingAPI(
             playlistResults: [.failure(SpotifyAPIError.network("Offline"))],
@@ -895,4 +951,12 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
         XCTAssertEqual(api.lastTracksLimit, 50, "Spotify's /v1/playlists/{id}/items endpoint caps limit at 50; passing more than 50 returns HTTP 400.")
         XCTAssertLessThanOrEqual(api.lastTracksLimit ?? Int.max, 50)
     }
+}
+
+private final class LockedEvents: @unchecked Sendable {
+    private let lock = NSLock()
+    private var events: [String] = []
+    var all: [String] { lock.withLock { events } }
+    func append(_ event: String) { lock.withLock { events.append(event) } }
+    func contains(_ event: String) -> Bool { lock.withLock { events.contains(event) } }
 }
