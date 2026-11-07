@@ -45,6 +45,10 @@ struct PlaylistBrowserView: View {
     /// sides still visible. Defaults to `.playlist` so the first narrow-resize tiebreaker closes the
     /// queue panel (the explicitly opt-in overlay) and keeps the primary nav sidebar.
     @State var lastOpenedSidebar: SidebarKind = .playlist
+    /// The window widened past the sidebar's collapse width while the queue was open but not
+    /// enough for all three columns, so the sidebar stayed collapsed; it comes back once they
+    /// fit (``BrowserWidthCommitPolicy/sidebarOnWidening(_:sidebarCollapsed:heldForQueue:isQueueVisible:isNarrow:)``).
+    @State var isSidebarHeldForQueue = false
     @ObservedObject var commandPaletteManager: CommandPaletteManager
     /// Catalog search and profile lookups for the command palette, Search view
     /// and tap targets. Separate from the view model's provider so palette
@@ -470,10 +474,5 @@ struct PlaylistBrowserView: View {
         }
         .modifier(PlaylistDeletionConfirmation(viewModel: viewModel))
         .modifier(LibraryRemovalConfirmation(viewModel: viewModel))
-        // With the queue open the window keeps room for the detail column and the panel at
-        // their minimums; the window's minimum size follows its content, so it widens when the
-        // queue opens in a narrower window instead of cutting the panel off (#413). This sits
-        // outermost so no flexible frame inside can report a smaller minimum.
-        .frame(minWidth: isQueueVisible ? SpotiglassDesign.detailAndQueueMinWidth : nil)
     }
 }

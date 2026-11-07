@@ -24,6 +24,7 @@ enum BrowserWidthCommitPolicy {
         var committedWidth: CGFloat
         var lastCommitTime: CFAbsoluteTime
         var crossedIntoNarrow: Bool
+        var crossedOutOfNarrow: Bool = false
         var crossedIntoSidebarCollapse: Bool
         var crossedOutOfSidebarCollapse: Bool
     }
@@ -65,9 +66,36 @@ enum BrowserWidthCommitPolicy {
             committedWidth: input.newWidth,
             lastCommitTime: input.now,
             crossedIntoNarrow: narrowNew && !narrowCommitted,
+            crossedOutOfNarrow: !narrowNew && narrowCommitted,
             crossedIntoSidebarCollapse: crossedIntoSidebarCollapse,
             crossedOutOfSidebarCollapse: crossedOutOfSidebarCollapse
         )
+    }
+
+    enum SidebarOnWidening: Equatable {
+        /// Leave the sidebar as it is.
+        case none
+        /// The sidebar would fit next to the detail column, but not next to the open queue as
+        /// well: keep it collapsed (bringing it back would close the queue) and bring it back
+        /// once all three fit.
+        case hold
+        case restore
+    }
+
+    /// What a widening window does with a collapsed playlist sidebar. Opening the queue in a
+    /// narrow window widens it to the queue's minimum, which is the width where the sidebar used
+    /// to come back and close the queue again (#413).
+    static func sidebarOnWidening(
+        _ result: CommitResult,
+        sidebarCollapsed: Bool,
+        heldForQueue: Bool,
+        isQueueVisible: Bool,
+        isNarrow: Bool
+    ) -> SidebarOnWidening {
+        guard sidebarCollapsed,
+              result.crossedOutOfSidebarCollapse || (heldForQueue && result.crossedOutOfNarrow)
+        else { return .none }
+        return isQueueVisible && isNarrow ? .hold : .restore
     }
 
     enum SidebarToCloseOnNarrow: Equatable {

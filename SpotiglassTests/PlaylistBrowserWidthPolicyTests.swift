@@ -98,4 +98,65 @@ final class PlaylistBrowserWidthPolicyTests: XCTestCase {
             .queue
         )
     }
+
+    // MARK: - Queue opened in a narrow window (#413)
+
+    private static func widen(from committed: CGFloat, to width: CGFloat) -> BrowserWidthCommitPolicy.CommitResult {
+        BrowserWidthCommitPolicy.evaluate(
+            BrowserWidthCommitPolicy.CommitInput(
+                newWidth: width,
+                committedWidth: committed,
+                lastCommitTime: 0,
+                now: 1,
+                comfortableMinWidth: SpotiglassDesign.dualSidebarComfortableMinWidth,
+                sidebarCollapseMinWidth: SpotiglassDesign.playlistSidebarAndDetailMinWidth
+            )
+        )
+    }
+
+    /// The sequence seen in the app: a 600-point window, the queue opens, the window widens to
+    /// the queue's minimum (640) and used to bring the sidebar back, which closed the queue.
+    func testOpeningTheQueueInANarrowWindowKeepsItOpen() {
+        XCTAssertGreaterThan(SpotiglassDesign.detailAndQueueMinWidth, SpotiglassApp.windowMinWidth)
+        XCTAssertEqual(
+            SpotiglassDesign.detailAndQueueMinWidth,
+            SpotiglassDesign.detailColumnMinWidth + SpotiglassDesign.queuePanelMinWidth
+        )
+        let toQueueMinimum = Self.widen(from: 600, to: SpotiglassDesign.detailAndQueueMinWidth)
+        XCTAssertTrue(toQueueMinimum.crossedOutOfSidebarCollapse)
+        XCTAssertEqual(
+            BrowserWidthCommitPolicy.sidebarOnWidening(
+                toQueueMinimum, sidebarCollapsed: true, heldForQueue: false, isQueueVisible: true, isNarrow: true
+            ),
+            .hold
+        )
+        // Widened further until the sidebar, the detail column and the queue all fit.
+        let toFullWidth = Self.widen(from: SpotiglassDesign.detailAndQueueMinWidth, to: 1_320)
+        XCTAssertFalse(toFullWidth.crossedOutOfSidebarCollapse)
+        XCTAssertEqual(
+            BrowserWidthCommitPolicy.sidebarOnWidening(
+                toFullWidth, sidebarCollapsed: true, heldForQueue: true, isQueueVisible: true, isNarrow: false
+            ),
+            .restore
+        )
+    }
+
+    /// Without the queue the sidebar comes back at the same crossing as before.
+    func testWideningWithoutTheQueueBringsTheSidebarBack() {
+        let result = Self.widen(from: 600, to: 700)
+        XCTAssertEqual(
+            BrowserWidthCommitPolicy.sidebarOnWidening(
+                result, sidebarCollapsed: true, heldForQueue: false, isQueueVisible: false, isNarrow: true
+            ),
+            .restore
+        )
+        // A sidebar the user hid stays hidden when the window grows within the wide range.
+        XCTAssertEqual(
+            BrowserWidthCommitPolicy.sidebarOnWidening(
+                Self.widen(from: 1_100, to: 1_320), sidebarCollapsed: true, heldForQueue: false,
+                isQueueVisible: true, isNarrow: false
+            ),
+            .none
+        )
+    }
 }
