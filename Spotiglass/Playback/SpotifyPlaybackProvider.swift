@@ -15,6 +15,7 @@ final class SpotifyPlaybackProvider: MusicPlaybackProvider, MusicPlaybackDeviceT
 
     var eventHandler: ((MusicPlaybackEventEnvelope) -> Void)?
 
+    let service: MusicService = .spotify
     let capabilities: MusicPlaybackCapabilities = [.pushesPlayerState, .reloadablePlayer, .playerVolume]
 
     var deviceTransfer: (any MusicPlaybackDeviceTransfer)? { self }

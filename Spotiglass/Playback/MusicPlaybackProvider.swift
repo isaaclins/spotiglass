@@ -125,8 +125,6 @@ protocol MusicPlaybackProvider: AnyObject {
 }
 
 extension MusicPlaybackProvider {
-    var service: MusicService { .spotify }
-
     var deviceTransfer: (any MusicPlaybackDeviceTransfer)? { nil }
 
     func didStartLocalPlayback(uri: String) async throws {}

@@ -98,11 +98,13 @@ enum PlaylistBrowserPlaybackHelpers {
     /// Same title, artists and length (within two seconds: one song's duration differs by a few
     /// milliseconds between the library and the catalog).
     static func isSameSong(_ row: TrackRowViewModel, as nowPlaying: PlaybackNowPlaying) -> Bool {
+        // The length first: this runs for every row of the open list on each refresh of the bar,
+        // and most rows differ in length, so the text compares rarely run.
         guard row.playableURI != nil,
-              row.title.localizedCaseInsensitiveCompare(nowPlaying.name) == .orderedSame,
-              row.subtitle.localizedCaseInsensitiveCompare(nowPlaying.artists.joined(separator: ", ")) == .orderedSame
+              abs(row.durationMilliseconds - nowPlaying.durationMilliseconds) <= 2_000
         else { return false }
-        return abs(row.durationMilliseconds - nowPlaying.durationMilliseconds) <= 2_000
+        return row.title.localizedCaseInsensitiveCompare(nowPlaying.name) == .orderedSame
+            && row.subtitle.localizedCaseInsensitiveCompare(nowPlaying.artists.joined(separator: ", ")) == .orderedSame
     }
 
     private static func nowPlaying(connectionState: PlaybackConnectionState) -> PlaybackNowPlaying? {
