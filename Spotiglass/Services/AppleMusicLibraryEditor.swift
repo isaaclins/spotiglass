@@ -58,6 +58,11 @@ struct AppleMusicSongReference: Equatable, Sendable {
     var title: String?
     var artistName: String?
     var albumTitle: String?
+    /// The Music app's persistent ID (hex) of the playlist the song was listed in, when it was.
+    var sourcePlaylistPersistentID: String?
+    /// The row as the browser listed it, for a song only the Music app can add: it then shows in
+    /// the playlist it was added to before the library lists it there.
+    var shownTrack: MusicTrack?
     /// When Spotiglass saved the song, for a song the Music app may not list under its persistent
     /// ID yet: the Music app then only matches tracks it added since.
     var savedAt: Date?
@@ -241,6 +246,15 @@ struct AppleMusicLibraryEditor: Sendable {
         }
     }
 
+    /// What is known about a song without reading the library: a song listed under a library ID
+    /// (a persistent ID or `i.…`) is in the library, unless Spotiglass removed it moments ago.
+    /// `nil` for a catalog ID, which only a lookup can answer.
+    func knownSongStatus(id: String) -> Bool? {
+        if pending.isRemoved([id]) { return false }
+        if pending.isSaved([id]) { return true }
+        return MusicKitLibraryLookup.isLibraryID(id) ? true : nil
+    }
+
     // MARK: - Albums
 
     func saveAlbums(ids: [String]) async throws {
@@ -293,49 +307,110 @@ struct AppleMusicLibraryEditor: Sendable {
 
     // MARK: - Playlists
 
-    /// Creates an empty library playlist through the Apple Music API. Its ID is the cloud
-    /// library ID (`p.…`) until the library on this Mac has it.
+    /// Creates a library playlist with these songs. It is one step on either route, so a song
+    /// that can't be added leaves no empty playlist behind (#395):
+    /// - Songs the Apple Music API knows (catalog or cloud library ID) go into the create request
+    ///   itself. The playlist's ID is then its cloud library ID (`p.…`) until the library on this
+    ///   Mac has it.
+    /// - Library songs MusicKit shows only under a persistent ID go through the Music app, which
+    ///   creates the playlist and deletes it again if a song can't be added. The ID is then the
+    ///   new playlist's persistent ID, the way MusicKit shows it.
     /// `existingIDsWithSameName` are the playlists already called `name`; only a new one with
     /// that name ends the pending entry.
     func createPlaylist(
         name: String,
         ownerName: String,
+        songIDs: [String] = [],
         existingIDsWithSameName: Set<String> = []
     ) async throws -> MusicPlaylistSummary {
-        let id = try await cloud.createPlaylist(name: name)
+        let references = try await songReferences(ids: songIDs)
+        let id: String
+        switch try Self.route(for: references) {
+        case let .cloud(songs):
+            id = try await cloud.createPlaylist(name: name, songs: songs)
+        case let .musicApp(tracks):
+            let persistentID = try await musicApp.createPlaylist(name: name, tracks: tracks)
+            guard let value = UInt64(persistentID, radix: 16) else { throw AppleMusicLibraryEditError.requestFailed }
+            id = String(Int64(bitPattern: value))
+        }
         let summary = MusicPlaylistSummary(
             id: id,
             name: name,
             ownerID: AppleMusicBrowsingProvider.libraryUserID,
             ownerName: ownerName,
             imageURL: nil,
-            trackCount: 0,
+            trackCount: references.count,
             snapshotID: AppleMusicItemMapping.playlistSnapshotID
         )
         pending.recordCreatedPlaylist(summary, existingIDsWithSameName: existingIDsWithSameName)
+        // Like an add, a new playlist puts its songs back into the library.
+        for reference in references {
+            pending.forgetRemovedSong(reference.matchKeys)
+        }
+        await recordAdditions(references, playlistID: id, shownTracks: [])
         return summary
     }
 
-    /// Adds songs to a library playlist through the Apple Music API. `shownTracks` is the
-    /// playlist as the browser lists it before the edit, so a second copy of a song already in
-    /// it stays shown until the library lists both.
+    /// Adds songs to a library playlist: through the Apple Music API when it knows every song,
+    /// otherwise through the Music app (library songs MusicKit lists only under a persistent ID,
+    /// #395). `shownTracks` is the playlist as the browser lists it before the edit, so a second
+    /// copy of a song already in it stays shown until the library lists both.
     func addToPlaylist(playlistID: String, songIDs: [String], shownTracks: [MusicTrack] = []) async throws {
-        let references = try await lookup.songs(ids: songIDs).map(withPendingDetails)
-        let songs = references.compactMap(\.cloudSong)
-        guard !songs.isEmpty, songs.count == references.count else {
-            throw AppleMusicLibraryEditError.notEditable
+        let references = try await songReferences(ids: songIDs)
+        guard !references.isEmpty else { throw AppleMusicLibraryEditError.notEditable }
+        switch try Self.route(for: references) {
+        case let .cloud(songs):
+            let cloudID = try await cloudPlaylistID(for: playlistID)
+            try await cloud.addToPlaylist(cloudPlaylistID: cloudID, songs: songs)
+        case let .musicApp(tracks):
+            try await musicApp.addToPlaylist(try await musicAppPlaylist(for: playlistID), tracks: tracks)
         }
-        let cloudID = try await cloudPlaylistID(for: playlistID)
-        try await cloud.addToPlaylist(cloudPlaylistID: cloudID, songs: songs)
         // Adding to a playlist puts the song back into the library.
         for reference in references {
             pending.forgetRemovedSong(reference.matchKeys)
         }
-        let tracks = (try? await lookup.catalogTracks(ids: references.compactMap(\.catalogID))) ?? []
+        pending.adjustCreatedPlaylistTrackCount(playlistID, by: references.count)
+        await recordAdditions(references, playlistID: playlistID, shownTracks: shownTracks)
+    }
+
+    /// How a set of songs gets into a playlist. One route for all of them, so an edit never
+    /// stops halfway between the two.
+    enum PlaylistAddRoute: Equatable {
+        case cloud([AppleMusicCloudSong])
+        case musicApp([MusicAppTrackMatch])
+    }
+
+    static func route(for references: [AppleMusicSongReference]) throws -> PlaylistAddRoute {
+        let songs = references.compactMap(\.cloudSong)
+        if songs.count == references.count {
+            return .cloud(songs)
+        }
+        // The Music app adds what its library has, or what the playlist it was listed in has.
+        let tracks = references.compactMap { reference -> MusicAppTrackMatch? in
+            if let persistentID = reference.musicAppPersistentID, let playlistID = reference.sourcePlaylistPersistentID {
+                return .playlistEntry(persistentID: persistentID, playlistPersistentID: playlistID)
+            }
+            return reference.isInLibrary ? reference.musicAppMatch : nil
+        }
+        guard tracks.count == references.count else { throw AppleMusicLibraryEditError.notEditable }
+        return .musicApp(tracks)
+    }
+
+    private func songReferences(ids: [String]) async throws -> [AppleMusicSongReference] {
+        guard !ids.isEmpty else { return [] }
+        return try await lookup.songs(ids: ids).map(withPendingDetails)
+    }
+
+    /// Lays the added songs over later reads of the playlist until the library lists them.
+    private func recordAdditions(_ references: [AppleMusicSongReference], playlistID: String, shownTracks: [MusicTrack]) async {
+        let catalogIDs = references.compactMap(\.catalogID)
+        let tracks = catalogIDs.isEmpty ? [] : ((try? await lookup.catalogTracks(ids: catalogIDs)) ?? [])
         let tracksByCatalogID = Dictionary(tracks.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         var addedSoFar: [String: Int] = [:]
         for reference in references {
-            guard let catalogID = reference.catalogID, let track = tracksByCatalogID[catalogID] else { continue }
+            // A song MusicKit lists only under a persistent ID has no catalog track; the row it
+            // was listed as stands in for it.
+            guard let track = reference.catalogID.flatMap({ tracksByCatalogID[$0] }) ?? reference.shownTrack else { continue }
             let metadataKey = AppleMusicPendingLibraryEdits.metadataKey(track)
             let shown = shownTracks.filter {
                 reference.matchKeys.contains($0.id) || $0.id == track.id
@@ -371,6 +446,7 @@ struct AppleMusicLibraryEditor: Sendable {
         }
         guard !scripted.isEmpty else { return }
         try await musicApp.removeFromPlaylist(try await musicAppPlaylist(for: playlistID), removals: scripted)
+        pending.adjustCreatedPlaylistTrackCount(playlistID, by: -removals.reduce(0) { $0 + $1.positions.count })
         for (index, (reference, removal)) in zip(references, removals).enumerated() {
             pending.recordPlaylistRemoval(
                 reference.matchKeys,
@@ -452,20 +528,40 @@ struct AppleMusicLibraryEditor: Sendable {
     private func cloudPlaylistID(for playlistID: String) async throws -> String {
         if Self.isCloudPlaylistID(playlistID) { return playlistID }
         if let known = pending.cloudPlaylistID(for: playlistID) { return known }
-        guard let playlist = try await lookup.playlist(id: playlistID) else {
+        let listedName: String
+        let createdMomentsAgo: Bool
+        if let playlist = try await lookup.playlist(id: playlistID) {
+            listedName = playlist.name
+            createdMomentsAgo = false
+        } else if let created = pending.createdPlaylist(id: playlistID) {
+            // Created through the Music app moments ago: this Mac's library doesn't list it yet,
+            // the cloud may already. Only its name can find it there, and only without a namesake.
+            guard pending.existingIDsWithSameName(asCreated: playlistID).isEmpty else {
+                throw AppleMusicLibraryEditError.ambiguousPlaylist
+            }
+            // Renamed since: an older playlist may already have the new name, and the cloud list
+            // can't tell the two apart. Wait until this Mac lists it under its own ID.
+            guard pending.renamedName(for: playlistID) == nil else {
+                throw AppleMusicLibraryEditError.notInMusicYet
+            }
+            listedName = created.name
+            createdMomentsAgo = true
+        } else {
             throw AppleMusicLibraryEditError.notEditable
         }
         let editable = try await cloud.editablePlaylists()
         let renamed = pending.renamedName(for: playlistID)
         // Renamed moments ago and the cloud list still shows the old name: the new name may
         // belong to another playlist there, so wait instead of guessing.
-        if let renamed, !Self.isSamePlaylistName(renamed, playlist.name),
-           editable.contains(where: { Self.isSamePlaylistName($0.name, playlist.name) }) {
+        if let renamed, !Self.isSamePlaylistName(renamed, listedName),
+           editable.contains(where: { Self.isSamePlaylistName($0.name, listedName) }) {
             throw AppleMusicLibraryEditError.notInMusicYet
         }
-        let matches = editable.filter { Self.isSamePlaylistName($0.name, renamed ?? playlist.name) }
+        let matches = editable.filter { Self.isSamePlaylistName($0.name, renamed ?? listedName) }
         guard matches.count <= 1 else { throw AppleMusicLibraryEditError.ambiguousPlaylist }
-        guard let match = matches.first else { throw AppleMusicLibraryEditError.notEditable }
+        guard let match = matches.first else {
+            throw createdMomentsAgo ? AppleMusicLibraryEditError.notInMusicYet : AppleMusicLibraryEditError.notEditable
+        }
         pending.recordCloudPlaylistID(match.id, for: playlistID)
         return match.id
     }
