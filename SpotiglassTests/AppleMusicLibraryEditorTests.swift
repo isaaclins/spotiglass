@@ -1505,6 +1505,46 @@ final class AppleMusicPlaylistEditFixTests: XCTestCase {
         XCTAssertFalse(cloud.calls.contains { $0.hasPrefix("addToPlaylist") })
     }
 
+    /// Unliked moments ago, then put into a new playlist: like an add, that brings it back, so
+    /// the pending removal must not hide it in the new playlist.
+    func testANewPlaylistBringsBackASongRemovedMomentsAgo() async throws {
+        cloud.createdPlaylistID = "p.new"
+        lookup.catalogTracksByID["506650076"] = AppleMusicLibraryEditorTests.track(id: "506650076", name: "S&M")
+        pending.recordRemovedSong(["506650076"])
+
+        _ = try await editor.createPlaylist(name: "Spotiglass test", ownerName: "You", songIDs: ["506650076"])
+
+        XCTAssertFalse(pending.isRemoved(["506650076"]))
+    }
+
+    /// A destination with more distinct songs than the registry holds: reading it before the
+    /// add must not cost the 18P1 row its playlist, or Music looks for it in the library only.
+    func testReadingALongDestinationKeepsTheRowBeingAdded() async throws {
+        let registry = AppleMusicSongReferenceRegistry()
+        let registryLookup = RegistryLookup(registry: registry, playlists: lookup.playlistsByID)
+        let editor = AppleMusicLibraryEditor(
+            lookup: registryLookup, cloud: cloud, musicApp: musicApp, pending: pending, songReferences: registry
+        )
+        registry.remember(
+            [.song(try AppleMusicFixtures.song(id: "-1192152853020385209", title: "Don't Stop The Music", artist: "Rihanna"))],
+            playlistID: "-1157253837592488300"
+        )
+        // The real row encodes no catalog or cloud library ID (the fixture does).
+        var row = try XCTUnwrap(registry.reference(for: "-1192152853020385209"))
+        row.catalogID = nil
+        row.cloudLibraryID = nil
+        registry.remember(row)
+        let source = EditTestContentSource()
+        source.tracksByPlaylistID["-107247429512612591"] = try (1...AppleMusicSongReferenceRegistry.maxEntries).map {
+            .song(try AppleMusicFixtures.song(id: "-\($0)", title: "Song \($0)", artist: "Someone"))
+        }
+        let provider = AppleMusicBrowsingProvider(source: source, editor: editor)
+
+        try await provider.addTracksToPlaylist(playlistID: "-107247429512612591", uris: ["applemusic:song:-1192152853020385209"])
+
+        XCTAssertEqual(musicApp.calls.last?.contains("playlistEntry(persistentID: \"EF749F4BE5C06047\", playlistPersistentID: \"EFF09BC41F579694\")"), true)
+    }
+
     // Item 4
 
     func testALibrarySongReadsAsLikedBeforeAnyLookup() {
@@ -1535,6 +1575,32 @@ final class AppleMusicPlaylistEditFixTests: XCTestCase {
     func testAMusicThatDoesNotAnswerReadsAsUnavailable() {
         XCTAssertEqual(MusicAppScripts.editError(forScriptErrorNumber: -1712), .musicUnavailable)
     }
+}
+
+/// The live lookup's order: a remembered row first, else a bare persistent-ID reference.
+private final class RegistryLookup: AppleMusicLibraryLookup, @unchecked Sendable {
+    let registry: AppleMusicSongReferenceRegistry
+    let playlists: [String: AppleMusicPlaylistReference]
+
+    init(registry: AppleMusicSongReferenceRegistry, playlists: [String: AppleMusicPlaylistReference]) {
+        self.registry = registry
+        self.playlists = playlists
+    }
+
+    func songs(ids: [String]) async throws -> [AppleMusicSongReference] {
+        ids.map { id in
+            registry.reference(for: id) ?? AppleMusicSongReference(
+                itemID: id,
+                musicAppPersistentID: AppleMusicLibraryEditor.musicAppPersistentID(fromMusicKitID: id),
+                isInLibrary: true
+            )
+        }
+    }
+
+    func catalogTracks(ids: [String]) async throws -> [MusicTrack] { [] }
+    func catalogAlbumTracks(albumIDs: [String]) async throws -> [MusicTrack] { [] }
+    func albums(ids: [String]) async throws -> [AppleMusicAlbumReference] { [] }
+    func playlist(id: String) async throws -> AppleMusicPlaylistReference? { playlists[id] }
 }
 
 private final class StubScriptRunner: MusicAppScriptRunning, @unchecked Sendable {

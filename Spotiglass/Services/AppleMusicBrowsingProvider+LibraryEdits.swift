@@ -60,9 +60,13 @@ extension AppleMusicBrowsingProvider {
     func addTracksToPlaylist(playlistID: String, uris: [String]) async throws {
         let ids = uris.compactMap(AppleMusicItemMapping.songID(fromURI:))
         guard !ids.isEmpty else { throw AppleMusicLibraryEditError.notEditable }
+        // Reading a long destination remembers its rows too, which can push the rows being
+        // added out of the bounded registry; they come back after the read.
+        let adding = ids.compactMap(editor.songReferences.reference(for:))
         // The playlist as shown now, so a second copy of a song it has stays shown until the
         // library lists both.
         let shown = (try? await playlistTracks(playlistID: playlistID, limit: 100, maxPages: 100)) ?? []
+        adding.forEach(editor.songReferences.remember)
         let shownTracks = shown.compactMap { item -> MusicTrack? in
             if case let .track(track) = item.content { return track }
             return nil

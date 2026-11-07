@@ -343,6 +343,10 @@ struct AppleMusicLibraryEditor: Sendable {
             snapshotID: AppleMusicItemMapping.playlistSnapshotID
         )
         pending.recordCreatedPlaylist(summary, existingIDsWithSameName: existingIDsWithSameName)
+        // Like an add, a new playlist puts its songs back into the library.
+        for reference in references {
+            pending.forgetRemovedSong(reference.matchKeys)
+        }
         await recordAdditions(references, playlistID: id, shownTracks: [])
         return summary
     }
