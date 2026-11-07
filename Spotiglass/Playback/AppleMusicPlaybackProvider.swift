@@ -42,9 +42,8 @@ protocol AppleMusicPlayerControlling: AnyObject {
     func play(_ request: AppleMusicQueueRequest, isCurrent: @escaping @MainActor () -> Bool) async throws
     func pause()
     func resume() async throws
-    /// Stops playback and empties the queue: the session is over (signing out of Apple Music),
-    /// and adding Apple Music again starts with nothing loaded.
-    func endSession()
+    /// Stops playback and keeps the queue.
+    func stop()
     func seek(toMilliseconds milliseconds: Int)
     func skipToNext() async throws
     func skipToPrevious() async throws
@@ -87,6 +86,9 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
     /// The latest play while it runs. An add made after it waits for it, so the song goes into
     /// the queue that play starts instead of the one it is about to replace.
     private var latestPlay: Task<Void, Never>?
+    /// Set by a disconnect, cleared by the next play or add: the queue MusicKit still holds is
+    /// from the session that ended.
+    private var isSessionEnded = false
 
     init(player: (any AppleMusicPlayerControlling)? = nil) {
         self.player = player ?? MusicKitApplicationPlayer()
@@ -103,16 +105,20 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
         eventHandler?(MusicPlaybackEventEnvelope(event: .ready(deviceID: Self.deviceID), hostGeneration: generation))
     }
 
-    /// Disconnecting ends the session (signing out of Apple Music, #396): the music stops and
-    /// the queue goes, so nothing keeps playing that the window can't control, and adding Apple
-    /// Music again starts fresh instead of showing the old song.
+    /// Disconnecting ends the session (signing out of Apple Music, #396): the music stops, so
+    /// nothing keeps playing that the window can't control, and the stopped song is forgotten,
+    /// so adding Apple Music again starts with nothing loaded instead of the old song.
+    /// MusicKit keeps its queue after `stop()` (an empty queue assigned to it is ignored), so the
+    /// provider stops reporting it until something new plays.
     func disconnectPlayer(generation: PlaybackHostGeneration) async throws {
-        player.endSession()
+        player.stop()
+        isSessionEnded = true
     }
 
     // MARK: - Commands for a device
 
     func play(_ request: MusicPlaybackRequest, deviceID: String) async throws {
+        isSessionEnded = false
         playGeneration &+= 1
         let generation = playGeneration
         let queueRequest = try Self.queueRequest(for: request)
@@ -152,6 +158,7 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
     }
 
     func enqueue(uri: String, deviceID: String) async throws {
+        isSessionEnded = false
         let previous = enqueueTail
         let pendingPlay = latestPlay
         let add = Task { @MainActor [player] in
@@ -180,6 +187,7 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
     // MARK: - Reads
 
     func fetchPlaybackState() async throws -> MusicPlaybackSnapshot? {
+        guard !isSessionEnded else { return nil }
         let state = player.readState()
         guard let current = state.current else { return nil }
         return MusicPlaybackSnapshot(
@@ -192,7 +200,8 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
     }
 
     func fetchQueue() async throws -> MusicPlaybackQueue {
-        MusicPlaybackQueue(queue: player.readUpcoming().map { .track($0) })
+        guard !isSessionEnded else { return MusicPlaybackQueue(queue: []) }
+        return MusicPlaybackQueue(queue: player.readUpcoming().map { .track($0) })
     }
 
     // MARK: - Mapping

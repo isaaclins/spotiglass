@@ -61,25 +61,36 @@ final class CrossServicePlaybackTests: XCTestCase {
 
     /// The log of the report: after "Music services: added=[] active=none" the Apple Music
     /// player went on playing through its queue with nothing on screen to stop it, and adding
-    /// Apple Music again showed the same song still playing.
-    func testSigningOutOfAppleMusicStopsItsPlayerAndEmptiesTheQueue() async throws {
+    /// Apple Music again showed the same song still playing. MusicKit keeps its queue after a
+    /// stop (checked on a real library: re-adding showed the stopped song as paused), like the
+    /// scripted player here.
+    func testSigningOutOfAppleMusicStopsItsPlayerAndForgetsTheSong() async throws {
         let (spotify, _) = pausedSpotify()
         let player = ScriptedAppleMusicPlayer()
         let hosts = hosts(spotify: spotify, player: player)
         let services = CurrentValueSubject<[MusicService], Never>([.appleMusic, .spotify])
         hosts.follow(addedServices: services)
         let appleMusic = try await playingAppleMusic(in: hosts, player: player)
+        let provider = hosts.appleMusic.playbackProvider
 
         services.send([.spotify])
-        for _ in 0..<40 where !player.commands.contains("endSession") {
+        for _ in 0..<40 where !player.commands.contains("stop") {
             try await Task.sleep(for: .milliseconds(25))
         }
         player.advance(by: 1)
 
         XCTAssertEqual(appleMusic.connectionState, .disconnected)
-        XCTAssertEqual(player.readState().status, .stopped, "the music stops with the sign-out")
-        let afterSignOut = try await hosts.appleMusic.playbackProvider.fetchPlaybackState()
+        XCTAssertEqual(player.readState().status, .paused, "the music stops with the sign-out")
+        let afterSignOut = try await provider.fetchPlaybackState()
         XCTAssertNil(afterSignOut, "adding Apple Music again starts with nothing loaded")
+        let upcoming = try await provider.fetchQueue().queue
+        XCTAssertTrue(upcoming.isEmpty)
+
+        // Playing again after adding it back reports the new song as usual.
+        try await provider.play(.items(uris: ["applemusic:song:new"], startURI: nil), deviceID: AppleMusicPlaybackProvider.deviceID)
+        player.advance(by: 1)
+        let afterPlay = try await provider.fetchPlaybackState()
+        XCTAssertEqual(afterPlay?.isPlaying, true)
     }
 
     /// Spotify's sign-out already disconnects its own player; a switch or an addition stops
@@ -96,7 +107,7 @@ final class CrossServicePlaybackTests: XCTestCase {
         services.send([.appleMusic])
         try await Task.sleep(for: .milliseconds(100))
 
-        XCTAssertFalse(player.commands.contains("endSession"))
+        XCTAssertFalse(player.commands.contains("stop"))
         XCTAssertTrue(PlaylistBrowserPlaybackHelpers.isCurrentlyPlaying(connectionState: appleMusic.connectionState))
     }
 
@@ -238,6 +249,85 @@ final class CrossServicePlaybackTests: XCTestCase {
         let (artist, _) = connected()
         await DetailHeaderPlayback.play(target: .context(uri: "spotify:artist:a1"), using: artist)
         XCTAssertNil(artist.activePlaylistID)
+    }
+
+    // MARK: - 5. A song started elsewhere is marked in the list
+
+    private static func row(_ name: String, uri: String, artists: [String] = ["Rihanna"], durationMilliseconds: Int = 200_000) -> MusicTrack {
+        MusicTrack(
+            id: uri, name: name, artists: artists, albumArtworkURL: nil,
+            durationMilliseconds: durationMilliseconds, isExplicit: false, isPlayable: true,
+            linkedFromID: nil, uri: uri
+        )
+    }
+
+    private static func album(_ tracks: [MusicTrack]) -> BrowsingDetailContent {
+        .playlist(PlaylistDetailViewModel(
+            playlist: PlaylistRowViewModel(
+                albumDisplayName: "Good Girl Gone Bad: Reloaded", artistsDisplay: "Rihanna",
+                totalTrackCount: tracks.count, artworkURL: nil, albumID: "1440857781"
+            ),
+            tracks: TrackRowViewModel.numberedTopTracks(tracks)
+        ))
+    }
+
+    /// The report: "Breakin' Dishes" started from ⌘K played under its library id
+    /// (`applemusic:song:i.B0VN4RQfxzX7aak`, from the log), while the album lists the same song
+    /// under the id MusicKit gives it inside the album, so the row showed a plain "1".
+    func testASongStartedFromSearchIsMarkedInItsAlbum() {
+        let playing = PlaybackConnectionState.playing(PlaybackNowPlaying(
+            name: "Breakin' Dishes", artists: ["Rihanna"], albumName: nil, albumID: nil, albumArtURL: nil,
+            durationMilliseconds: 200_093, positionMilliseconds: 57_396, uri: "applemusic:song:i.B0VN4RQfxzX7aak"
+        ))
+        let album = Self.album([
+            Self.row("Breakin' Dishes", uri: "applemusic:song:-6046431734389870155", durationMilliseconds: 200_000),
+            Self.row("Shut Up and Drive", uri: "applemusic:song:-6046431734389870154"),
+        ])
+
+        XCTAssertEqual(
+            PlaylistBrowserPlaybackHelpers.currentPlaybackURI(connectionState: playing, detailContent: album),
+            "applemusic:song:-6046431734389870155"
+        )
+        // Same title by someone else, or another length (a remix, a live take): not this song.
+        XCTAssertEqual(
+            PlaylistBrowserPlaybackHelpers.currentPlaybackURI(
+                connectionState: playing,
+                detailContent: Self.album([
+                    Self.row("Breakin' Dishes", uri: "applemusic:song:1", artists: ["Ely Oaks"]),
+                    Self.row("Breakin' Dishes", uri: "applemusic:song:2", durationMilliseconds: 260_000),
+                ])
+            ),
+            "applemusic:song:i.B0VN4RQfxzX7aak"
+        )
+    }
+
+    /// A row with the playing URI wins: the same song twice in a list stays marked once.
+    func testARowWithThePlayingURIIsTheOneMarked() {
+        let playing = PlaybackConnectionState.playing(PlaybackNowPlaying(
+            name: "Breakin' Dishes", artists: ["Rihanna"], albumName: nil, albumID: nil, albumArtURL: nil,
+            durationMilliseconds: 200_000, positionMilliseconds: 0, uri: "applemusic:song:b"
+        ))
+        let list = Self.album([
+            Self.row("Breakin' Dishes", uri: "applemusic:song:a"),
+            Self.row("Breakin' Dishes", uri: "applemusic:song:b"),
+        ])
+        XCTAssertEqual(
+            PlaylistBrowserPlaybackHelpers.currentPlaybackURI(connectionState: playing, detailContent: list),
+            "applemusic:song:b"
+        )
+    }
+
+    /// Spotify names a track by one id everywhere: its rows match by URI only, as before.
+    func testSpotifyRowsMatchByURIOnly() {
+        let playing = PlaybackConnectionState.playing(PlaybackNowPlaying(
+            name: "Breakin' Dishes", artists: ["Rihanna"], albumName: nil, albumID: nil, albumArtURL: nil,
+            durationMilliseconds: 200_000, positionMilliseconds: 0, uri: "spotify:track:original"
+        ))
+        let reloaded = Self.album([Self.row("Breakin' Dishes", uri: "spotify:track:reloaded")])
+        XCTAssertEqual(
+            PlaylistBrowserPlaybackHelpers.currentPlaybackURI(connectionState: playing, detailContent: reloaded),
+            "spotify:track:original"
+        )
     }
 }
 
