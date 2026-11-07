@@ -1,3 +1,4 @@
+import MusicKit
 import XCTest
 @testable import Spotiglass
 
@@ -60,5 +61,78 @@ final class PlaylistBrowserDisplayErrorTests: XCTestCase {
         let display = PlaylistBrowserViewModel.displayError(for: Sample())
         XCTAssertEqual(display.title, "Something went wrong")
         XCTAssertTrue(display.canRetry)
+    }
+
+    // MARK: - Apple Music (#397)
+
+    /// MusicKit's own errors are English only ("User not signed in") and name no fix. Browsing
+    /// showed them under "Something went wrong"; each now reads as a sentence that says what to do.
+    func testMusicKitErrorsReadAsAppleMusicSentences() {
+        let cases: [(Error, String, String)] = [
+            (MusicTokenRequestError.userNotSignedIn, "Sign in to Apple Music", "appleMusic.error.signIn.message"),
+            (MusicTokenRequestError.userTokenRevoked, "Sign in to Apple Music", "appleMusic.error.signIn.message"),
+            (MusicTokenRequestError.privacyAcknowledgementRequired, "Open Music once", "appleMusic.error.privacyNotice.message"),
+            (MusicTokenRequestError.permissionDenied, "Apple Music access is off", "error.playback.appleMusic.permission.message"),
+            (MusicTokenRequestError.developerTokenRequestFailed, "Apple Music isn't available", "appleMusic.error.unavailable.message"),
+            (MusicLibrary.Error.permissionDenied, "Apple Music access is off", "error.playback.appleMusic.permission.message"),
+            (MusicSubscription.Error.privacyAcknowledgementRequired, "Open Music once", "appleMusic.error.privacyNotice.message"),
+        ]
+        for (error, title, messageKey) in cases {
+            let display = PlaylistBrowserViewModel.displayError(for: error)
+            XCTAssertEqual(display.title, title, "\(error)")
+            XCTAssertEqual(display.message, SpotiglassL10n.string(messageKey), "\(error)")
+            XCTAssertNotEqual(display.message, error.localizedDescription, "\(error)")
+            // MusicKit's text is still there for a bug report.
+            XCTAssertEqual(display.diagnosticDetails, String(describing: error), "\(error)")
+        }
+        XCTAssertFalse(PlaylistBrowserViewModel.displayError(for: MusicTokenRequestError.developerTokenRequestFailed).canRetry)
+    }
+
+    func testAppleMusicNotFoundNamesAppleMusic() {
+        let display = PlaylistBrowserViewModel.displayError(for: AppleMusicBrowsingError.notFound)
+        XCTAssertEqual(display.title, "Not found")
+        XCTAssertEqual(display.message, "This item isn't in your library or in Apple Music.")
+    }
+
+    /// While Apple Music is on screen, an error MusicKit doesn't type still names Apple Music.
+    /// Spotify's generic fallback is unchanged.
+    func testUnrecognisedErrorsNameTheServiceOnScreen() {
+        struct Sample: Error {}
+        let appleMusic = PlaylistBrowserViewModel.appleMusicDisplayError(for: Sample(), service: .appleMusic)
+        XCTAssertEqual(appleMusic?.title, "Apple Music couldn't load this")
+        XCTAssertEqual(appleMusic?.message, SpotiglassL10n.string("error.playback.appleMusic.failed"))
+
+        let offline = PlaylistBrowserViewModel.appleMusicDisplayError(for: URLError(.notConnectedToInternet), service: .appleMusic)
+        XCTAssertEqual(offline?.message, "Couldn't reach Apple Music. Check your connection, then try again.")
+
+        XCTAssertNil(PlaylistBrowserViewModel.appleMusicDisplayError(for: Sample(), service: .spotify))
+        XCTAssertNil(PlaylistBrowserViewModel.appleMusicDisplayError(for: CancellationError(), service: .appleMusic))
+    }
+
+    /// Home sections showed only `localizedDescription` ("User not signed in").
+    func testHomeSectionsShowTheAppleMusicSentence() {
+        let state: HomeSectionState<[TrackRowViewModel]> = PlaylistBrowserViewModel.homeSectionState(
+            for: MusicTokenRequestError.userNotSignedIn
+        )
+        XCTAssertEqual(state, .failed(SpotiglassL10n.string("appleMusic.error.signIn.message")))
+
+        // Spotify's Home mapping is untouched.
+        let spotify: HomeSectionState<[TrackRowViewModel]> = PlaylistBrowserViewModel.homeSectionState(
+            for: SpotifyAPIError.forbidden(message: nil, details: nil)
+        )
+        XCTAssertEqual(spotify, .unavailable)
+    }
+
+    func testAppleMusicErrorsAreTranslated() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("am-errors-\(UUID().uuidString).json")
+        let store = SpotiglassSettingsStore(fileURL: url)
+        try store.mutate { $0.appearance.language = .german }
+        SpotiglassL10n.settingsStore = store
+        defer { SpotiglassL10n.settingsStore = nil }
+
+        let display = PlaylistBrowserViewModel.displayError(for: MusicTokenRequestError.userNotSignedIn)
+        XCTAssertEqual(display.title, "Bei Apple Music anmelden")
+        XCTAssertEqual(display.message, "Öffne Musik, melde dich mit deinem Apple Account an und versuche es dann erneut.")
     }
 }

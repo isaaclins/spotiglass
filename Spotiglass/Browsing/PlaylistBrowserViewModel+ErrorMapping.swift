@@ -85,10 +85,91 @@ extension PlaylistBrowserViewModel {
             }
         }
 
+        if let appleMusicError = appleMusicDisplayError(for: error) {
+            return appleMusicError
+        }
+
         return BrowsingDisplayError(
             title: SpotiglassL10n.string("error.browsing.generic.title"),
             message: error.localizedDescription,
             canRetry: true
         )
+    }
+
+    /// Apple Music failures as calm sentences in the app's language, the way playback errors and
+    /// library edits already read. MusicKit's own text is English only and names no fix, so it
+    /// goes to the details disclosure (#397). While Apple Music is on screen, a failure that isn't
+    /// recognised still reads as Apple Music's; Spotify's errors never get here.
+    static func appleMusicDisplayError(
+        for error: Error,
+        service: MusicService = MusicServiceSelection.current
+    ) -> BrowsingDisplayError? {
+        if error is CancellationError { return nil }
+        if let editError = error as? AppleMusicLibraryEditError {
+            return BrowsingDisplayError(
+                title: SpotiglassL10n.string("appleMusic.error.failed.title"),
+                message: editError.localizedDescription,
+                canRetry: true
+            )
+        }
+        let failure: AppleMusicFailure
+        if let recognised = AppleMusicFailure.from(error) {
+            failure = recognised
+        } else if service == .appleMusic {
+            failure = error is URLError ? .network : .failed
+        } else {
+            return nil
+        }
+        let details = String(describing: error)
+        switch failure {
+        case .notSignedIn:
+            return BrowsingDisplayError(
+                title: SpotiglassL10n.string("appleMusic.error.signIn.title"),
+                message: SpotiglassL10n.string("appleMusic.error.signIn.message"),
+                canRetry: true,
+                diagnosticDetails: details
+            )
+        case .privacyNoticeNotAccepted:
+            return BrowsingDisplayError(
+                title: SpotiglassL10n.string("appleMusic.error.privacyNotice.title"),
+                message: SpotiglassL10n.string("appleMusic.error.privacyNotice.message"),
+                canRetry: true,
+                diagnosticDetails: details
+            )
+        case .accessOff:
+            return BrowsingDisplayError(
+                title: SpotiglassL10n.string("error.playback.appleMusic.permission.title"),
+                message: SpotiglassL10n.string("error.playback.appleMusic.permission.message"),
+                canRetry: true,
+                diagnosticDetails: details
+            )
+        case .unavailable:
+            return BrowsingDisplayError(
+                title: SpotiglassL10n.string("appleMusic.error.unavailable.title"),
+                message: SpotiglassL10n.string("appleMusic.error.unavailable.message"),
+                canRetry: false,
+                diagnosticDetails: details
+            )
+        case .notFound:
+            return BrowsingDisplayError(
+                title: SpotiglassL10n.string("error.browsing.notFound.title"),
+                message: SpotiglassL10n.string("appleMusic.error.notFound"),
+                canRetry: false
+            )
+        case .network:
+            return BrowsingDisplayError(
+                title: SpotiglassL10n.string("error.browsing.network.title"),
+                message: SpotiglassL10n.string("appleMusic.error.network.message"),
+                canRetry: true,
+                diagnosticDetails: details
+            )
+        case .failed:
+            return BrowsingDisplayError(
+                title: SpotiglassL10n.string("appleMusic.error.failed.title"),
+                message: SpotiglassL10n.string("error.playback.appleMusic.failed"),
+                canRetry: true,
+                diagnosticDetails: details
+            )
+        }
     }
 }

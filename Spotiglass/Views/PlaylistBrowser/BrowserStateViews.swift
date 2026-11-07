@@ -71,7 +71,7 @@ struct StaleCacheBanner: View {
     let error: BrowsingDisplayError?
 
     private var message: String {
-        error?.message ?? SpotiglassL10n.string("browser.cachedFallback")
+        error?.message ?? SpotiglassL10n.format("browser.cachedFallback", MusicServiceSelection.current.displayName)
     }
 
     var body: some View {

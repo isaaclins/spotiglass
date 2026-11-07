@@ -14,6 +14,61 @@ enum AppleMusicBrowsingError: LocalizedError, Equatable {
     }
 }
 
+/// What went wrong with Apple Music, in terms the listener can act on.
+///
+/// MusicKit's own errors read in English only ("User not signed in") and say nothing about what to
+/// do, so the browser shows these instead, in the app's language (#397).
+enum AppleMusicFailure: Equatable {
+    /// No Apple Account is signed in to Media & Purchases, or its session ended.
+    case notSignedIn
+    /// Apple's privacy notice for Music was never accepted on this Mac.
+    case privacyNoticeNotAccepted
+    /// Spotiglass's Media & Apple Music permission is off.
+    case accessOff
+    /// Apple Music refused this copy of the app (no developer token). Nothing the listener can fix.
+    case unavailable
+    /// The item is neither in the library nor in the catalog.
+    case notFound
+    /// The request didn't reach Apple Music.
+    case network
+    /// Anything else.
+    case failed
+
+    /// The failure an Apple Music error stands for, or `nil` for an error that isn't Apple Music's.
+    static func from(_ error: Error) -> AppleMusicFailure? {
+        switch error {
+        case is AppleMusicBrowsingError:
+            return .notFound
+        case let error as MusicTokenRequestError:
+            switch error {
+            case .userNotSignedIn, .userTokenRevoked, .userTokenRequestFailed: return .notSignedIn
+            case .privacyAcknowledgementRequired: return .privacyNoticeNotAccepted
+            case .permissionDenied: return .accessOff
+            case .developerTokenRequestFailed, .unknown: return .unavailable
+            @unknown default: return .failed
+            }
+        case let error as MusicDataRequest.Error:
+            switch error.status {
+            case 401: return .notSignedIn
+            case 403: return .unavailable
+            case 404: return .notFound
+            default: return .failed
+            }
+        case let error as MusicSubscription.Error:
+            switch error {
+            case .permissionDenied: return .accessOff
+            case .privacyAcknowledgementRequired: return .privacyNoticeNotAccepted
+            case .unknown: return .failed
+            @unknown default: return .failed
+            }
+        case let error as MusicLibrary.Error:
+            return error == .permissionDenied ? .accessOff : .failed
+        default:
+            return nil
+        }
+    }
+}
+
 /// `MusicBrowsingProvider` for Apple Music, through MusicKit.
 ///
 /// How the browser's surfaces map onto Apple Music:

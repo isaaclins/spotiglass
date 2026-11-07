@@ -19,6 +19,23 @@ enum AppleMusicItemMapping {
         static let cover = 600
     }
 
+    /// "You" for a playlist in the user's own Apple Music library, in `locale`. Rows and pins keep
+    /// the owner they were built with, which may be in another language (a pin saved before a
+    /// language switch), so it is resolved again where it is shown (#398).
+    static func localizedOwnerName(_ stored: String, ownerID: String?, locale: Locale) -> String {
+        guard ownerID == AppleMusicBrowsingProvider.libraryUserID else { return stored }
+        return SpotiglassL10n.string("appleMusic.library.owner", locale: locale)
+    }
+
+    /// The fallback name of a blank-named library playlist, in `locale`. A real name is left alone.
+    static func localizedPlaylistName(_ stored: String, ownerID: String?, locale: Locale) -> String {
+        guard ownerID == AppleMusicBrowsingProvider.libraryUserID else { return stored }
+        let isFallback = AppLanguage.allCases.contains {
+            SpotiglassL10n.string("appleMusic.playlist.untitled", locale: Locale(identifier: $0.rawValue)) == stored
+        }
+        return isFallback ? SpotiglassL10n.string("appleMusic.playlist.untitled", locale: locale) : stored
+    }
+
     static func uri(kind: String, id: MusicItemID) -> String {
         "\(uriScheme):\(kind):\(id.rawValue)"
     }

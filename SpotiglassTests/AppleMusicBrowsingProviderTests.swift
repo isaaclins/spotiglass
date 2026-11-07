@@ -95,6 +95,60 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
 
     /// A blank-named library playlist gets a real name, so the browser's playlist check (made
     /// for Spotify's error items) never fails the whole library over it.
+    /// The provider runs off the main thread, where "You" and "Untitled Playlist" used to fall
+    /// back to English whatever language the app was in (#398).
+    func testLibraryWordingFollowsTheAppLanguageOffTheMainThread() async throws {
+        let store = try await MainActor.run {
+            let url = FileManager.default.temporaryDirectory
+                .appendingPathComponent("am-wording-\(UUID().uuidString).json")
+            let store = SpotiglassSettingsStore(fileURL: url)
+            try store.mutate { $0.appearance.language = .german }
+            SpotiglassL10n.settingsStore = store
+            return store
+        }
+        addTeardownBlock { await MainActor.run { SpotiglassL10n.settingsStore = nil } }
+
+        let source = MockAppleMusicSource()
+        source.playlists = [try AppleMusicFixtures.playlist(id: "p.blank", name: " ")]
+        let playlists = try await Task.detached {
+            try await AppleMusicBrowsingProvider(source: source).currentUserPlaylists(limit: 50)
+        }.value
+
+        XCTAssertEqual(playlists.first?.ownerName, "Du")
+        XCTAssertEqual(playlists.first?.name, "Unbenannte Playlist")
+        withExtendedLifetime(store) {}
+    }
+
+    /// Rows and pins keep the owner they were built with. Pins saved before #398 store the
+    /// English "You"; library rows outlive a language switch. Both show the app's language.
+    func testLibraryOwnerAndUntitledNameAreResolvedWhereTheyAreShown() {
+        let german = Locale(identifier: "de")
+        let library = MusicPlaylistSummary(
+            id: "p.1", name: "Untitled Playlist", ownerID: AppleMusicBrowsingProvider.libraryUserID,
+            ownerName: "You", imageURL: nil, trackCount: 3, snapshotID: "applemusic"
+        )
+        let row = PlaylistRowViewModel(library)
+        XCTAssertEqual(row.localizedOwner(locale: german), "Du")
+        XCTAssertEqual(row.localizedTitle(locale: german), "Unbenannte Playlist")
+
+        let pin = PinnedItem.playlist(library)
+        XCTAssertEqual(pin.localizedSubtitle(locale: german), "Du")
+        XCTAssertEqual(pin.localizedTitle(locale: Locale(identifier: "es")), "Lista sin título")
+
+        // Spotify playlists, curated ones and real names are left alone.
+        let spotify = MusicPlaylistSummary(
+            id: "37i9", name: "Untitled Playlist", ownerID: "spotify-user",
+            ownerName: "You", imageURL: nil, trackCount: 3, snapshotID: "s1"
+        )
+        XCTAssertEqual(PlaylistRowViewModel(spotify).localizedOwner(locale: german), "You")
+        XCTAssertEqual(PinnedItem.playlist(spotify).localizedTitle(locale: german), "Untitled Playlist")
+        let named = MusicPlaylistSummary(
+            id: "p.2", name: "Road", ownerID: AppleMusicBrowsingProvider.libraryUserID,
+            ownerName: "You", imageURL: nil, trackCount: 3, snapshotID: "applemusic"
+        )
+        XCTAssertEqual(PinnedItem.playlist(named).localizedTitle(locale: german), "Road")
+    }
+
     func testABlankPlaylistNameBecomesUntitled() throws {
         let summary = AppleMusicItemMapping.playlistSummary(
             try AppleMusicFixtures.playlist(id: "p.blank", name: "  "), fallbackOwnerName: "You"

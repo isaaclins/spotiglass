@@ -41,9 +41,25 @@ system language regardless of what the user picked.)
 2. Resolve it from Swift via `SpotiglassL10n.string("your.key")`.
    - For `printf`-style argument substitution, use `SpotiglassL10n.format("your.key", arg1, arg2, …)`.
    - For keys constructed at runtime (e.g. `"prefix.\(value).suffix"`), use the same `SpotiglassL10n.string(_:)` — the API takes a `String`, so interpolation works naturally without falling into Xcode's `String.LocalizationValue` template trap.
+   - A string that names the music service ("Search Spotify") takes the service as `%@`
+     and is formatted with `MusicServiceSelection.current.displayName`, so it reads
+     "Search Apple Music" while Apple Music is on screen. Spotify-only surfaces (sign-in,
+     Spotify API errors) keep the literal word.
 3. Run `scripts/audit-localization.sh` — it scans for hardcoded English literals
    in user-visible modifiers and verifies every referenced key exists with
    non-empty en/es/de values.
+
+## Off the main thread
+
+Providers build some strings on background tasks (Apple Music's "You" owner and
+"Untitled Playlist"). `SpotiglassL10n.locale` reads the store directly on the main
+thread and a locked copy of the language everywhere else; the store refreshes that
+copy whenever its settings change. Strings that are stored (pin subtitles) or cached
+across a language switch are resolved again where they are shown
+(`PinnedItem.localizedSubtitle`, `PlaylistRowViewModel.localizedOwner`).
+
+Dates and numbers shown in the UI format with the app locale
+(`.formatted(... .locale(SpotiglassL10n.locale))`), not the system one.
 
 ## Live switching
 
