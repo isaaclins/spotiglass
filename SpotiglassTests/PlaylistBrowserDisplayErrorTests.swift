@@ -86,6 +86,11 @@ final class PlaylistBrowserDisplayErrorTests: XCTestCase {
             XCTAssertEqual(display.diagnosticDetails, String(describing: error), "\(error)")
         }
         XCTAssertFalse(PlaylistBrowserViewModel.displayError(for: MusicTokenRequestError.developerTokenRequestFailed).canRetry)
+
+        // MusicKit's catch-all isn't a missing token: it keeps Retry instead of "isn't available".
+        let unknown = PlaylistBrowserViewModel.displayError(for: MusicTokenRequestError.unknown)
+        XCTAssertEqual(unknown.title, "Apple Music couldn't load this")
+        XCTAssertTrue(unknown.canRetry)
     }
 
     func testAppleMusicNotFoundNamesAppleMusic() {

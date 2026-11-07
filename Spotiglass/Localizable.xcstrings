@@ -2477,7 +2477,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ihre Mediathek in %@ enthält noch keine Playlists."
+            "value": "Ihre %@-Mediathek enthält noch keine Playlists."
           }
         },
         "en": {
@@ -11211,7 +11211,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Eine leere Playlist in Ihrer Mediathek in %@ erstellen."
+            "value": "Eine leere Playlist in Ihrer %@-Mediathek erstellen."
           }
         },
         "en": {
@@ -14334,7 +14334,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple-Music-Abo erforderlich"
+            "value": "Apple Music-Abo erforderlich"
           }
         }
       }
@@ -14357,7 +14357,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Um Apple Music in Spotiglass abzuspielen, brauchst du ein Apple-Music-Abo."
+            "value": "Um Apple Music in Spotiglass abzuspielen, brauchst du ein Apple Music-Abo."
           }
         }
       }

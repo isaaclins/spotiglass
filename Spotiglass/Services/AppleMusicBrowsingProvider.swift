@@ -44,7 +44,9 @@ enum AppleMusicFailure: Equatable {
             case .userNotSignedIn, .userTokenRevoked, .userTokenRequestFailed: return .notSignedIn
             case .privacyAcknowledgementRequired: return .privacyNoticeNotAccepted
             case .permissionDenied: return .accessOff
-            case .developerTokenRequestFailed, .unknown: return .unavailable
+            case .developerTokenRequestFailed: return .unavailable
+            // MusicKit's catch-all, often passing: keep Retry.
+            case .unknown: return .failed
             @unknown default: return .failed
             }
         case let error as MusicDataRequest.Error:

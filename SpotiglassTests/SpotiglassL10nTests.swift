@@ -95,6 +95,28 @@ final class SpotiglassL10nTests: XCTestCase {
         XCTAssertEqual(DispatchQueue.global().sync { SpotiglassL10n.locale }.identifier, "en")
     }
 
+    /// Naming the service in these sentences kept the German Spotify text as it was
+    /// ("Spotify-Mediathek"), and Apple Music reads the way Apple writes it in German.
+    func testGermanLibrarySentencesKeepTheSpotifyWording() {
+        let german = Locale(identifier: "de")
+        XCTAssertEqual(
+            SpotiglassL10n.format("browser.empty.noPlaylists", locale: german, "Spotify"),
+            "Ihre Spotify-Mediathek enthält noch keine Playlists."
+        )
+        XCTAssertEqual(
+            SpotiglassL10n.format("playlist.detail.newPlaylist.empty", locale: german, "Spotify"),
+            "Eine leere Playlist in Ihrer Spotify-Mediathek erstellen."
+        )
+        XCTAssertEqual(
+            SpotiglassL10n.format("browser.empty.noPlaylists", locale: german, "Apple Music"),
+            "Ihre Apple Music-Mediathek enthält noch keine Playlists."
+        )
+        XCTAssertEqual(
+            SpotiglassL10n.string("error.playback.appleMusic.subscription.title", locale: german),
+            "Apple Music-Abo erforderlich"
+        )
+    }
+
     /// The Spanish "Like" menu item read "(1 cancion)" (#398).
     func testSpanishSingleTrackLabelSpellsCancion() {
         let spanish = Locale(identifier: "es")
