@@ -550,6 +550,70 @@ final class MusicServiceStoreTests: XCTestCase {
     }
 }
 
+/// One player per service (#373): what's playing keeps playing across a switch, until something
+/// starts in the other library.
+@MainActor
+final class PlaybackHandoverTests: XCTestCase {
+    private func playingSpotify() -> (SpotiglassPlaybackHost, MockWebPlaybackCommander) {
+        _ = NSApplication.shared
+        let commander = MockWebPlaybackCommander()
+        let host = SpotiglassPlaybackHost(
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: commander)
+        )
+        let playback = host.playbackViewModel
+        playback.deviceID = "device-1"
+        playback.hasTransferredPlaybackToCurrentDevice = true
+        playback.setTransportStateKnown(true)
+        playback.setConnectionState(.playing(PlaybackNowPlaying(
+            name: "Midnight City", artists: [], albumName: nil, albumID: nil, albumArtURL: nil,
+            durationMilliseconds: 240_000, positionMilliseconds: 1_000, uri: "spotify:track:1"
+        )))
+        return (host, commander)
+    }
+
+    /// Spotify's in-app player pauses through its own toggle (the Web Playback SDK).
+    private func toggles(_ commander: MockWebPlaybackCommander) -> Int {
+        commander.commands.filter { $0.command == .togglePlay }.count
+    }
+
+    func testStartingMusicInAppleMusicPausesSpotify() async throws {
+        let (spotify, commander) = playingSpotify()
+        let hosts = SpotiglassPlaybackHosts(spotify: spotify) {
+            SpotiglassPlaybackHost(provider: AppleMusicPlaybackProvider(player: ScriptedAppleMusicPlayer()))
+        }
+
+        // Switching to Apple Music alone keeps Spotify playing.
+        let appleMusic = hosts.appleMusic
+        hosts.gate(activeService: .appleMusic)
+        XCTAssertEqual(toggles(commander), 0)
+
+        appleMusic.playbackViewModel.handle(.ready(deviceID: AppleMusicPlaybackProvider.deviceID))
+        await appleMusic.playbackViewModel.play(uri: "applemusic:song:1")
+        for _ in 0..<20 where toggles(commander) == 0 {
+            try await Task.sleep(for: .milliseconds(25))
+        }
+
+        XCTAssertEqual(toggles(commander), 1, "Spotify pauses once Apple Music starts something")
+    }
+
+    /// A Spotify-only setup never creates Apple Music's player, so it never reaches MusicKit.
+    func testSpotifyOnlyNeverCreatesTheAppleMusicPlayer() {
+        let (spotify, _) = playingSpotify()
+        var created = 0
+        let hosts = SpotiglassPlaybackHosts(spotify: spotify) {
+            created += 1
+            return SpotiglassPlaybackHost(provider: AppleMusicPlaybackProvider(player: ScriptedAppleMusicPlayer()))
+        }
+
+        hosts.gate(activeService: .spotify)
+        XCTAssertTrue(hosts.spotify === spotify)
+
+        XCTAssertEqual(created, 0)
+        XCTAssertNil(hosts.appleMusicIfCreated)
+        XCTAssertFalse(spotify.playbackViewModel.refusesNewPlayback)
+    }
+}
+
 private struct ImmediateSpotifyAuthorizationFlow: SpotifyAuthorizationFlowing {
     func requestAuthorizationCode(clientID: String, timeout: TimeInterval) async throws -> SpotifyAuthorizationCode {
         SpotifyAuthorizationCode(

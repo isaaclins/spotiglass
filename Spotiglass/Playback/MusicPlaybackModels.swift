@@ -16,7 +16,7 @@ struct PlaybackNowPlaying: Equatable {
     let artists: [String]
     /// Album title from Web Playback SDK when available (used for third-party lyrics matching).
     let albumName: String?
-    /// Spotify album ID when `album.uri` / Web API album id is available.
+    /// The service's album ID when it is known.
     let albumID: String?
     let albumArtURL: URL?
     let durationMilliseconds: Int
@@ -71,7 +71,7 @@ struct PlaybackNowPlaying: Equatable {
 }
 
 extension PlaybackConnectionState {
-    /// The currently playing or paused Spotify music track, if lyrics can be loaded for it.
+    /// The currently playing or paused music track, if lyrics can be loaded for it.
     var currentLyricTrack: PlaybackNowPlaying? {
         let nowPlaying: PlaybackNowPlaying?
         switch self {
@@ -82,7 +82,7 @@ extension PlaybackConnectionState {
         case .disconnected, .connecting, .ready, .transferring, .unavailable, .error:
             nowPlaying = nil
         }
-        guard let nowPlaying, nowPlaying.spotifyTrackIDForLyrics != nil else { return nil }
+        guard let nowPlaying, nowPlaying.lyricsTrackKey != nil else { return nil }
         return nowPlaying
     }
 }
@@ -256,11 +256,11 @@ extension QueueItem {
 
     /// Builds a minimal ``PlaybackNowPlaying`` for LRCLIB prefetch (album title is unknown from queue rows).
     func playbackNowPlayingForLyricsPrefetch() -> PlaybackNowPlaying? {
-        guard let uri, uri.hasPrefix("spotify:track:") else { return nil }
+        guard let uri else { return nil }
         let trimmed = subtitle.trimmingCharacters(in: .whitespacesAndNewlines)
         let artistParts = trimmed.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
         let artists = artistParts.isEmpty ? (trimmed.isEmpty ? ["Unknown artist"] : [trimmed]) : artistParts
-        return PlaybackNowPlaying(
+        let nowPlaying = PlaybackNowPlaying(
             name: name,
             artists: artists,
             albumName: albumName,
@@ -270,6 +270,8 @@ extension QueueItem {
             positionMilliseconds: 0,
             uri: uri
         )
+        // Only music tracks have lyrics, whichever service they come from.
+        return nowPlaying.lyricsTrackKey == nil ? nil : nowPlaying
     }
 }
 

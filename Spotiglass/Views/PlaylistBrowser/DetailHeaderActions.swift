@@ -22,7 +22,10 @@ enum DetailHeaderPlaybackTarget: Equatable {
 /// needed and then starts the requested collection.
 @MainActor
 enum DetailHeaderPlayback {
-    static func target(for detail: PlaylistDetailViewModel) -> DetailHeaderPlaybackTarget {
+    static func target(
+        for detail: PlaylistDetailViewModel,
+        service: MusicService = MusicServiceSelection.current
+    ) -> DetailHeaderPlaybackTarget {
         let playlist = detail.playlist
         if playlist.id == SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID {
             return .tracks(
@@ -30,11 +33,11 @@ enum DetailHeaderPlayback {
                 playlistID: playlist.id
             )
         }
-        let uri =
-            playlist.isAlbumDetail
-            ? "spotify:album:\(playlist.id)"
-            : "spotify:playlist:\(playlist.id)"
-        return .context(uri: uri)
+        let kind = playlist.isAlbumDetail ? "album" : "playlist"
+        // The context URI names the service that owns the id: an Apple Music album id is
+        // meaningless to Spotify and the other way round.
+        let scheme = service == .appleMusic ? AppleMusicItemMapping.uriScheme : "spotify"
+        return .context(uri: "\(scheme):\(kind):\(playlist.id)")
     }
 
     static func target(for detail: ArtistDetailViewModel) -> DetailHeaderPlaybackTarget {

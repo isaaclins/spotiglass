@@ -33,6 +33,12 @@ struct MusicPlaybackCapabilities: OptionSet, Sendable {
     /// (Spotify's hidden `WKWebView`). Without it, recovery only retries
     /// ``MusicPlaybackProvider/connectPlayer(generation:)``.
     static let reloadablePlayer = MusicPlaybackCapabilities(rawValue: 1 << 1)
+
+    /// The in-app player has its own volume
+    /// (``MusicPlaybackProvider/setVolume(_:generation:)``; Spotify: `player.setVolume`).
+    /// Without it the volume control is hidden and the Mac's volume applies (MusicKit's
+    /// `ApplicationMusicPlayer` has no volume).
+    static let playerVolume = MusicPlaybackCapabilities(rawValue: 1 << 2)
 }
 
 /// Moving playback between the service's devices (Spotify Connect).

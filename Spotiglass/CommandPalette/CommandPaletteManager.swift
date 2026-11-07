@@ -478,8 +478,8 @@ final class CommandPaletteManager: ObservableObject {
             guard !spec.requiresSignInForPalette || isSignedIn else { return nil }
             guard spec.commandID != CommandPaletteCommandID.togglePlayback || canTogglePlayback else { return nil }
             guard spec.commandID != CommandPaletteCommandID.toggleLyrics || canToggleLyrics else { return nil }
-            // A service without Disconnect or without a player (Apple Music browsing) leaves
-            // these unwired; listing them would offer commands that do nothing.
+            // A service without Disconnect or that can't play (Apple Music without a
+            // subscription) leaves these unwired; listing them would offer commands that do nothing.
             guard spec.commandID != CommandPaletteCommandID.signOut || signOut != nil else { return nil }
             guard spec.commandID != CommandPaletteCommandID.connectPlayback || connectPlayback != nil else { return nil }
             guard spec.commandID != CommandPaletteCommandID.nextTrack || nextTrack != nil else { return nil }

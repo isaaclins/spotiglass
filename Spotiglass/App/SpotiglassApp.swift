@@ -14,7 +14,8 @@ struct SpotiglassApp: App {
     /// The Spotify Web Playback SDK is account-scoped, so its model, commander
     /// and hidden web view live for the lifetime of the app rather than a
     /// particular WindowGroup scene.
-    @StateObject private var playbackHost: SpotiglassPlaybackHost
+    /// One player per service (#373); Apple Music's is created the first time it's on screen.
+    @StateObject private var playbackHosts: SpotiglassPlaybackHosts
     /// Apple Music access is a system permission for the whole app, so one session serves every
     /// window, the menu bar and Settings.
     @StateObject private var appleMusicSession = AppleMusicSession()
@@ -75,10 +76,14 @@ struct SpotiglassApp: App {
             equalizer.observe(settingsStore: store)
         }
         _equalizerEngine = StateObject(wrappedValue: equalizer)
-        _playbackHost = StateObject(
-            wrappedValue: SpotiglassPlaybackHost(
-                tokenProvider: authVM,
-                equalizerEngine: equalizer
+        // Built lazily (after NSApp exists). Apple Music plays through MusicKit's own player:
+        // no Web Playback SDK page, created only once Apple Music is on screen.
+        _playbackHosts = StateObject(
+            wrappedValue: SpotiglassPlaybackHosts(
+                spotify: SpotiglassPlaybackHost(tokenProvider: authVM, equalizerEngine: equalizer),
+                makeAppleMusic: {
+                    SpotiglassPlaybackHost(provider: AppleMusicPlaybackProvider(), equalizerEngine: equalizer)
+                }
             )
         )
         SpotiglassL10n.settingsStore = store
@@ -128,6 +133,16 @@ struct SpotiglassApp: App {
         )
     }
 
+    /// Apple Music can play once the account has a subscription; Spotify always has its player.
+    private var hasPlayback: Bool {
+        switch serviceStore.active {
+        case .spotify: true
+        // Apple Music without a subscription can browse but not play.
+        case .appleMusic: appleMusicSession.canPlayCatalogContent != false
+        case nil: false
+        }
+    }
+
     /// Apple Music never signs in to Spotify: its permission is what wires the browser up, so
     /// under Apple Music the menu follows that permission instead of the Spotify session.
     static func menuIsSignedIn(
@@ -156,7 +171,7 @@ struct SpotiglassApp: App {
             RootView(
                 keymapStore: keymapStore,
                 sceneRegistry: sceneRegistry,
-                playbackHost: playbackHost,
+                playbackHosts: playbackHosts,
                 serviceStore: serviceStore,
                 appleMusicSession: appleMusicSession
             )
@@ -165,7 +180,7 @@ struct SpotiglassApp: App {
                 .environmentObject(pinnedStore)
                 .environment(\.locale, settingsStore.appLocale)
                 .environment(\.spotiglassLocale, settingsStore.appLocale)
-                .environmentObject(playbackHost)
+                .environmentObject(playbackHosts.spotify)
                 .preferredColorScheme(preferredColorScheme)
                 // List rows and other cached scene content can otherwise keep
                 // the old localized strings. The host itself is app-scoped and
@@ -202,7 +217,8 @@ struct SpotiglassApp: App {
                     settingsStore: settingsStore,
                     serviceStore: serviceStore,
                     isSignedIn: isSignedIn,
-                    isQueueVisible: isQueueVisible
+                    isQueueVisible: isQueueVisible,
+                    hasPlayback: hasPlayback
                 )
             } else if settingsStore.settings.appearance.language == .spanish {
                 SpotiglassMenuCommands(
@@ -211,7 +227,8 @@ struct SpotiglassApp: App {
                     settingsStore: settingsStore,
                     serviceStore: serviceStore,
                     isSignedIn: isSignedIn,
-                    isQueueVisible: isQueueVisible
+                    isQueueVisible: isQueueVisible,
+                    hasPlayback: hasPlayback
                 )
             } else {
                 SpotiglassMenuCommands(
@@ -220,7 +237,8 @@ struct SpotiglassApp: App {
                     settingsStore: settingsStore,
                     serviceStore: serviceStore,
                     isSignedIn: isSignedIn,
-                    isQueueVisible: isQueueVisible
+                    isQueueVisible: isQueueVisible,
+                    hasPlayback: hasPlayback
                 )
             }
         }

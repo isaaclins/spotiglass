@@ -14260,48 +14260,140 @@
         }
       }
     },
-    "appleMusic.playback.comingSoon": {
+    "error.playback.appleMusic.permission.title": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Playing Apple Music in Spotiglass is coming soon."
+            "value": "Apple Music access is off"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pronto podrás reproducir Apple Music en Spotiglass."
+            "value": "El acceso a Apple Music está desactivado"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple Music in Spotiglass abspielen kommt bald."
+            "value": "Zugriff auf Apple Music ist aus"
           }
         }
       }
     },
-    "appleMusic.playback.comingSoon.noSubscription": {
+    "error.playback.appleMusic.permission.message": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Playing Apple Music is coming soon and will need an Apple Music subscription."
+            "value": "Turn on Apple Music for Spotiglass in System Settings under Privacy & Security, Media & Apple Music."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pronto podrás reproducir Apple Music; necesitarás una suscripción a Apple Music."
+            "value": "Activa Apple Music para Spotiglass en Ajustes del Sistema, en Privacidad y seguridad, Multimedia y Apple Music."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple Music abspielen kommt bald und braucht ein Apple Music Abo."
+            "value": "Schalte Apple Music für Spotiglass in den Systemeinstellungen unter Datenschutz & Sicherheit, Medien & Apple Music ein."
+          }
+        }
+      }
+    },
+    "error.playback.appleMusic.subscription.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Music subscription required"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se necesita una suscripción a Apple Music"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Music Abo erforderlich"
+          }
+        }
+      }
+    },
+    "error.playback.appleMusic.subscription.message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Playing Apple Music in Spotiglass needs an Apple Music subscription."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Para reproducir Apple Music en Spotiglass necesitas una suscripción a Apple Music."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Um Apple Music in Spotiglass abzuspielen, brauchst du ein Apple Music Abo."
+          }
+        }
+      }
+    },
+    "error.playback.appleMusic.notPlayable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Music can't play this item."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Music no puede reproducir este elemento."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Music kann dieses Objekt nicht abspielen."
+          }
+        }
+      }
+    },
+    "error.playback.appleMusic.failed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Music couldn't do that. Try again in a moment."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Music no ha podido hacerlo. Vuelve a intentarlo en un momento."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Music konnte das nicht ausführen. Versuch es gleich nochmal."
           }
         }
       }
@@ -14969,6 +15061,236 @@
           "stringUnit": {
             "state": "translated",
             "value": "Unbenannte Playlist"
+          }
+        }
+      }
+    },
+    "playback.controls.state.connecting.title.appleMusic": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connecting Apple Music..."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conectando Apple Music…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Music wird verbunden …"
+          }
+        }
+      }
+    },
+    "playback.controls.state.connecting.subtitle.appleMusic": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass is connecting to Apple Music."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass se está conectando a Apple Music."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass verbindet sich mit Apple Music."
+          }
+        }
+      }
+    },
+    "playback.controls.reconnect.appleMusic.hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connects Spotiglass to Apple Music again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vuelve a conectar Spotiglass con Apple Music."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verbindet Spotiglass wieder mit Apple Music."
+          }
+        }
+      }
+    },
+    "playback.controls.playPause.appleMusic.hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plays or pauses Apple Music in Spotiglass."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reproduce o pausa Apple Music en Spotiglass."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spielt Apple Music in Spotiglass ab oder pausiert es."
+          }
+        }
+      }
+    },
+    "playback.controls.next.appleMusic.hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skips to the next Apple Music song."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Salta a la canción siguiente de Apple Music."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Springt zum nächsten Apple-Music-Titel."
+          }
+        }
+      }
+    },
+    "playback.controls.previous.appleMusic.hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skips to the previous Apple Music song."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Salta a la canción anterior de Apple Music."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Springt zum vorherigen Apple-Music-Titel."
+          }
+        }
+      }
+    },
+    "playback.fallbackName.appleMusic": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Music"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Music"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Music"
+          }
+        }
+      }
+    },
+    "playback.controls.device.appleMusic.hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mac audio outputs for Apple Music. Choosing one sets the system default device."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Salidas de audio del Mac para Apple Music. Al elegir una, se convierte en el dispositivo predeterminado del sistema."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Audioausgaben des Mac für Apple Music. Die gewählte wird zum Standardgerät des Systems."
+          }
+        }
+      }
+    },
+    "palette.command.playback.toggle.subtitle.appleMusic": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pause or resume Apple Music playback"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pausa o reanuda la reproducción de Apple Music"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple-Music-Wiedergabe pausieren oder fortsetzen"
+          }
+        }
+      }
+    },
+    "queue.shuffle.appleMusic.hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toggles shuffle for Apple Music playback on this Mac."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activa o desactiva el modo aleatorio de Apple Music en este Mac."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schaltet die Zufallswiedergabe für Apple Music auf diesem Mac um."
           }
         }
       }

@@ -67,6 +67,10 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         XCTAssertEqual(track.albumName, "Live Album")
         XCTAssertEqual(track.albumID, "a1")
         XCTAssertEqual(track.durationMilliseconds, 60_000)
+        // MusicKit's player can't queue music videos on macOS: the row shows as unavailable
+        // and has nothing to play or queue, instead of starting another song.
+        XCTAssertEqual(track.isPlayable, false)
+        XCTAssertNil(TrackRowViewModel(topTrack: track, listPosition: 1).playableURI)
     }
 
     func testPlaylistOwnerIsTheCuratorOrTheLibrary() throws {

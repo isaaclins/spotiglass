@@ -206,8 +206,8 @@ struct RootView: View {
     @EnvironmentObject private var pinnedStore: PinnedItemsStore
     @StateObject private var sceneHost: SpotiglassSceneHost
     private let sceneRegistry: SpotiglassSceneRegistry?
-    /// The app-scoped playback model and its single Web Playback SDK host.
-    private let playbackHost: SpotiglassPlaybackHost
+    /// The app-scoped players, one per service (#373); Spotify's owns the single Web Playback SDK host.
+    private let playbackHosts: SpotiglassPlaybackHosts
     /// The added services and the one on screen, app-wide (#373).
     @ObservedObject private var serviceStore: MusicServiceStore
     /// Apple Music permission state, shared app-wide with the menu bar and Settings.
@@ -230,7 +230,7 @@ struct RootView: View {
     ) {
         _sceneHost = StateObject(wrappedValue: SpotiglassSceneHost(commandPaletteManager: commandPaletteManager))
         sceneRegistry = nil
-        self.playbackHost = playbackHost
+        playbackHosts = Self.hosts(spotify: playbackHost)
         _serviceStore = ObservedObject(wrappedValue: MusicServiceStore(
             storage: InMemoryMusicServiceSelectionStorage(services: [.spotify], active: .spotify)
         ))
@@ -240,7 +240,7 @@ struct RootView: View {
     init(
         keymapStore: CommandPaletteKeymapStore,
         sceneRegistry: SpotiglassSceneRegistry,
-        playbackHost: SpotiglassPlaybackHost,
+        playbackHosts: SpotiglassPlaybackHosts,
         serviceStore: MusicServiceStore,
         appleMusicSession: AppleMusicSession
     ) {
@@ -250,9 +250,15 @@ struct RootView: View {
             )
         )
         self.sceneRegistry = sceneRegistry
-        self.playbackHost = playbackHost
+        self.playbackHosts = playbackHosts
         _serviceStore = ObservedObject(wrappedValue: serviceStore)
         _appleMusicSession = ObservedObject(wrappedValue: appleMusicSession)
+    }
+
+    private static func hosts(spotify: SpotiglassPlaybackHost) -> SpotiglassPlaybackHosts {
+        SpotiglassPlaybackHosts(spotify: spotify) {
+            SpotiglassPlaybackHost(provider: AppleMusicPlaybackProvider())
+        }
     }
 
     /// Clears all scene-local state before the shared auth state can replace a
@@ -391,7 +397,7 @@ struct RootView: View {
                     .frame(width: 0, height: 0)
             }
             .background {
-                SpotiglassPlaybackHostView(host: playbackHost)
+                SpotiglassPlaybackHostView(host: playbackHosts.spotify)
                     .frame(width: 1, height: 1)
                     .opacity(0.01)
                     .accessibilityHidden(true)
@@ -446,7 +452,7 @@ struct RootView: View {
                     sceneHost.discardBrowserViewModel(for: .spotify)
                     serviceStore.lastPinnedUserID[.spotify] = nil
                     if sceneRegistry == nil || sceneRegistry?.activeScene === sceneHost {
-                        Task { await playbackHost.playbackViewModel.disconnect() }
+                        Task { await playbackHosts.spotify.playbackViewModel.disconnect() }
                     }
                     // Another service on screen keeps its browser, palette and pins.
                     guard serviceStore.active == .spotify else { return }
@@ -463,8 +469,8 @@ struct RootView: View {
                 }
             }
             .onChange(of: serviceStore.active, initial: true) { _, active in
-                // Spotify's player is app-wide: it starts new music only while Spotify is on screen.
-                playbackHost.playbackViewModel.refusesNewPlayback = active != .spotify
+                // The players are app-wide: each starts new music only while its service is on screen.
+                playbackHosts.gate(activeService: active)
             }
             .onChange(of: serviceStore.services) { _, _ in
                 commandPaletteManager.switchableServices = serviceStore.switchTargets
@@ -511,7 +517,7 @@ struct RootView: View {
         case .appleMusic:
             AppleMusicBrowserRoot(
                 session: appleMusicSession,
-                playbackHost: playbackHost,
+                playbackHost: playbackHosts.appleMusic,
                 commandPaletteManager: commandPaletteManager,
                 viewModel: sceneHost.browserViewModel(for: .appleMusic) {
                     AppleMusicBrowserRoot.makeViewModel()
@@ -551,7 +557,7 @@ struct RootView: View {
                 viewModel: sceneHost.browserViewModel(for: .spotify) {
                     .live(tokenProvider: viewModel)
                 },
-                playbackHost: playbackHost,
+                playbackHost: playbackHosts.spotify,
                 catalogProvider: SpotifyAPIClient(tokenProvider: viewModel, getResponseCache: .shared),
                 commandPaletteManager: commandPaletteManager,
                 signOut: signOutAction,

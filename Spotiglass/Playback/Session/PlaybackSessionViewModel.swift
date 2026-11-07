@@ -36,6 +36,15 @@ final class PlaybackSessionViewModel: ObservableObject {
     /// still be paused or skipped, but nothing from that library may start in this player: its
     /// items aren't Spotify's, and Spotify would reject them and show an error after switching back.
     @Published var refusesNewPlayback = false
+    /// Runs when this player is about to start new music: the other service's player pauses, so
+    /// only one library plays at a time (#373).
+    var onWillStartPlayback: (() -> Void)?
+
+    /// The other service's player started something: pause what plays here, if anything.
+    func pauseForHandover() {
+        guard PlaylistBrowserPlaybackHelpers.isCurrentlyPlaying(connectionState: connectionState) else { return }
+        Task { await togglePlayPause() }
+    }
     /// The Spotify Connect device currently targeted by Web API playback commands.
     /// This can be remote while ``deviceID`` remains ready for local SDK events.
     @Published private(set) var activePlaybackDeviceID: String?
@@ -70,6 +79,12 @@ final class PlaybackSessionViewModel: ObservableObject {
     /// The device menu hides its device list when it can't.
     var supportsDeviceTransfer: Bool {
         provider.deviceTransfer != nil
+    }
+
+    /// Whether the in-app player has its own volume. The transport bar hides its volume
+    /// control when it doesn't (Apple Music: the Mac's volume applies).
+    var supportsPlayerVolume: Bool {
+        provider.capabilities.contains(.playerVolume)
     }
     /// The Spotify playlist ID that the current playback originated from, or
     /// `nil` if playback was started from a single track URI or external context.
@@ -232,6 +247,11 @@ final class PlaybackSessionViewModel: ObservableObject {
     /// to report: `true` playing, `false` paused, `nil` no such command in the
     /// current settle window. Reads during the window are checked against it.
     var localCommandExpectsPlaying: Bool?
+    /// The item a skip just left, on a player without pushed state. MusicKit's player keeps
+    /// reporting the old item (at position 0) for up to about 0.3 s after a skip returns, so
+    /// during the settle window a read of this item is stale, not a restart. Cleared by the
+    /// first read of another item, by the end of the settle window and by a new play.
+    var skipLeftItemURI: String?
     /// Serial of the running transport poll loop, and of the loop whose read is
     /// in flight (if any), so a command doesn't cancel the current loop mid-read.
     var transportPollLoopSerial: UInt64 = 0
@@ -249,7 +269,10 @@ final class PlaybackSessionViewModel: ObservableObject {
     var pendingVolumeMutation: PendingVolumeMutation?
     var playbackVolumeSendTask: Task<Void, Never>?
     var playbackVolumeSendSerial: UInt64 = 0
-    var isAppActive = NSApp.isActive
+    /// `NSApp` doesn't exist yet when the app builds its playback host before the first window
+    /// (the Apple Music host has no web view to bring AppKit up early); the app's
+    /// didBecomeActive notification sets this once it does.
+    var isAppActive = NSApp?.isActive ?? false
     var seekDispatchTask: Task<Void, Never>?
     var seekDispatchSerial: UInt64 = 0
     var lastSeekSentInstant: ContinuousClock.Instant?
@@ -744,7 +767,12 @@ final class PlaybackSessionViewModel: ObservableObject {
     }
 
     static func playbackHostConnectionFailedError(for error: Error) -> PlaybackDisplayError {
-        PlaybackDisplayError(
+        // Apple Music's player is this Mac: its errors say what to do (turn access back on)
+        // in the app's language. Spotify keeps this text.
+        if let playbackError = error as? MusicPlaybackError, playbackError.service == .appleMusic {
+            return displayError(for: playbackError)
+        }
+        return PlaybackDisplayError(
             title: SpotiglassL10n.string("error.playback.couldNotStart.title"),
             message: String(format: SpotiglassL10n.string("error.playback.commandFailed.message"), error.localizedDescription),
             recoveryAction: .reconnect
@@ -752,51 +780,91 @@ final class PlaybackSessionViewModel: ObservableObject {
     }
 
     static func displayError(for error: Error) -> PlaybackDisplayError {
-        if let apiError = error as? SpotifyAPIError {
-            switch apiError {
-            case .unauthorized:
-                return PlaybackDisplayError(
-                    title: SpotiglassL10n.string("error.playback.signInAgain.title"),
-                    message: SpotiglassL10n.string("error.playback.signInAgain.message"),
-                    recoveryAction: .reauthenticate
-                )
-            case .insufficientScope:
-                return PlaybackDisplayError(
-                    title: SpotiglassL10n.string("error.playback.commandFailed.title"),
-                    message: SpotiglassL10n.string("error.spotify.insufficientPermissions"),
-                    recoveryAction: .reauthenticate
-                )
-            case let .forbidden(message, _):
-                return PlaybackDisplayError(
-                    title: SpotiglassL10n.string("error.playback.premium.title"),
-                    message: message ?? SpotiglassL10n.string("error.playback.premium.message"),
-                    recoveryAction: nil
-                )
-            case let .rateLimited(retryAfter):
-                let clause = SpotifyRateLimitDisplay.retryAfterClause(seconds: retryAfter)
-                return PlaybackDisplayError(
-                    title: SpotiglassL10n.string("error.playback.rateLimited.title"),
-                    message: String(format: SpotiglassL10n.string("error.playback.rateLimited.message"), clause),
-                    recoveryAction: .retryTransfer
-                )
-            default:
-                return PlaybackDisplayError(
-                    title: SpotiglassL10n.string("error.playback.commandFailed.title"),
-                    message: String(format: SpotiglassL10n.string("error.playback.commandFailed.message"), String(describing: apiError)),
-                    recoveryAction: .retryTransfer
-                )
-            }
+        guard let playbackError = MusicPlaybackError.from(error) else {
+            return PlaybackDisplayError(
+                title: SpotiglassL10n.string("error.playback.commandFailed.title"),
+                message: String(format: SpotiglassL10n.string("error.playback.commandFailed.message"), error.localizedDescription),
+                recoveryAction: .retryTransfer
+            )
         }
-        return PlaybackDisplayError(
-            title: SpotiglassL10n.string("error.playback.commandFailed.title"),
-            message: String(format: SpotiglassL10n.string("error.playback.commandFailed.message"), error.localizedDescription),
-            recoveryAction: .retryTransfer
-        )
+        switch playbackError.service {
+        case .spotify:
+            return spotifyDisplayError(for: playbackError)
+        case .appleMusic:
+            return appleMusicDisplayError(for: playbackError)
+        }
+    }
+
+    private static func spotifyDisplayError(for error: MusicPlaybackError) -> PlaybackDisplayError {
+        switch error.reason {
+        case .signInExpired:
+            return PlaybackDisplayError(
+                title: SpotiglassL10n.string("error.playback.signInAgain.title"),
+                message: SpotiglassL10n.string("error.playback.signInAgain.message"),
+                recoveryAction: .reauthenticate
+            )
+        case .missingPermission:
+            return PlaybackDisplayError(
+                title: SpotiglassL10n.string("error.playback.commandFailed.title"),
+                message: SpotiglassL10n.string("error.spotify.insufficientPermissions"),
+                recoveryAction: .reauthenticate
+            )
+        case let .subscriptionRequired(message):
+            return PlaybackDisplayError(
+                title: SpotiglassL10n.string("error.playback.premium.title"),
+                message: message ?? SpotiglassL10n.string("error.playback.premium.message"),
+                recoveryAction: nil
+            )
+        case let .rateLimited(retryAfter):
+            let clause = SpotifyRateLimitDisplay.retryAfterClause(seconds: retryAfter)
+            return PlaybackDisplayError(
+                title: SpotiglassL10n.string("error.playback.rateLimited.title"),
+                message: String(format: SpotiglassL10n.string("error.playback.rateLimited.message"), clause),
+                recoveryAction: .retryTransfer
+            )
+        case .network, .server, .notFound, .failed:
+            return PlaybackDisplayError(
+                title: SpotiglassL10n.string("error.playback.commandFailed.title"),
+                message: String(format: SpotiglassL10n.string("error.playback.commandFailed.message"), error.detail),
+                recoveryAction: .retryTransfer
+            )
+        }
+    }
+
+    /// Apple Music has no sign-in this app can repeat and no transfer to retry: access is a
+    /// system permission and the player is this Mac, so its errors say what to do instead.
+    private static func appleMusicDisplayError(for error: MusicPlaybackError) -> PlaybackDisplayError {
+        switch error.reason {
+        case .signInExpired, .missingPermission:
+            return PlaybackDisplayError(
+                title: SpotiglassL10n.string("error.playback.appleMusic.permission.title"),
+                message: SpotiglassL10n.string("error.playback.appleMusic.permission.message"),
+                recoveryAction: nil
+            )
+        case .subscriptionRequired:
+            return PlaybackDisplayError(
+                title: SpotiglassL10n.string("error.playback.appleMusic.subscription.title"),
+                message: SpotiglassL10n.string("error.playback.appleMusic.subscription.message"),
+                recoveryAction: nil
+            )
+        case .notFound:
+            return PlaybackDisplayError(
+                title: SpotiglassL10n.string("error.playback.commandFailed.title"),
+                message: SpotiglassL10n.string("error.playback.appleMusic.notPlayable"),
+                recoveryAction: nil
+            )
+        case .rateLimited, .network, .server, .failed:
+            return PlaybackDisplayError(
+                title: SpotiglassL10n.string("error.playback.commandFailed.title"),
+                message: SpotiglassL10n.string("error.playback.appleMusic.failed"),
+                recoveryAction: .reconnect
+            )
+        }
     }
 
     func fallbackNowPlaying() -> PlaybackNowPlaying {
         PlaybackNowPlaying(
-            name: SpotiglassL10n.string("playback.fallbackName"),
+            name: PlaybackControlsView.serviceString("playback.fallbackName", appleMusic: "playback.fallbackName.appleMusic"),
             artists: [],
             albumName: nil,
             albumID: nil,

@@ -286,6 +286,7 @@ extension PlaybackSessionViewModel {
                 // so that fence would reject every read of the new item. Only
                 // reads can confirm the skip; let them through.
                 clearPendingPlay()
+                skipLeftItemURI = dispatch.expectedPreviousURI
             }
             noteLocalPlaybackMutation()
             return true

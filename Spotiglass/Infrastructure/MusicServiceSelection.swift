@@ -34,6 +34,14 @@ enum MusicService: String, CaseIterable, Equatable, Hashable {
     }
 }
 
+/// The service on screen, for wording and playback addresses that name the service ("Play on
+/// Apple Music", `applemusic:` vs `spotify:` URIs). It follows the app's ``MusicServiceStore``;
+/// previews and tests that don't set it get Spotify. Only the main thread writes it (the store
+/// is main-actor), and default arguments of nonisolated helpers read it.
+enum MusicServiceSelection {
+    nonisolated(unsafe) static var current: MusicService = .spotify
+}
+
 /// Where the list of added services and the active one is kept.
 protocol MusicServiceSelectionStorage: AnyObject {
     func string(forKey key: String) -> String?
@@ -66,7 +74,13 @@ final class MusicServiceStore: ObservableObject {
     static let legacySpotifyClientIDKey = "spotify.clientID"
 
     @Published private(set) var services: [MusicService]
-    @Published private(set) var active: MusicService?
+    @Published private(set) var active: MusicService? {
+        didSet {
+            if isAppStore { MusicServiceSelection.current = active ?? .spotify }
+        }
+    }
+    /// The app's own store (``live()``) publishes the service on screen to ``MusicServiceSelection``.
+    private var isAppStore = false
     @Published private(set) var pendingAddition: MusicService?
     /// The space that was on screen when an addition started; Cancel goes back to it.
     private var activeBeforeAddition: MusicService?
@@ -111,9 +125,15 @@ final class MusicServiceStore: ObservableObject {
             return MusicServiceStore(
                 storage: defaults,
                 availableServices: ScreenshotMode.allowsAppleMusic ? MusicService.switcherOrder : [.spotify]
-            )
+            ).publishingCurrentService()
         }
-        return MusicServiceStore(storage: UserDefaults.standard)
+        return MusicServiceStore(storage: UserDefaults.standard).publishingCurrentService()
+    }
+
+    private func publishingCurrentService() -> MusicServiceStore {
+        isAppStore = true
+        MusicServiceSelection.current = active ?? .spotify
+        return self
     }
 
     /// Restores the saved choice. A first launch of this version derives it instead, so an

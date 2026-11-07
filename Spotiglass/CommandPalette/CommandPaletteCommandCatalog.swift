@@ -21,7 +21,11 @@ struct CommandPaletteCommandSpec: Identifiable {
     }
 
     var subtitle: String {
-        SpotiglassL10n.string(forKey: "palette.command.\(commandID).subtitle")
+        // Play/Pause names the service that plays.
+        if commandID == CommandPaletteCommandID.togglePlayback, MusicServiceSelection.current == .appleMusic {
+            return SpotiglassL10n.string("palette.command.playback.toggle.subtitle.appleMusic")
+        }
+        return SpotiglassL10n.string(forKey: "palette.command.\(commandID).subtitle")
     }
 
     /// Commands that only make sense while signed in (still listed in Keyboard settings when signed out).

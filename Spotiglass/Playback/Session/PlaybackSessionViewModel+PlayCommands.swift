@@ -7,6 +7,7 @@ extension PlaybackSessionViewModel {
             SpotiglassLog.info(.playback, "play(uri:) refused: another service is on screen")
             return
         }
+        onWillStartPlayback?()
         guard let commandDeviceID else {
             SpotiglassLog.error(.playback, "play(uri:) aborted: no command device. uri=\(uri)")
             setConnectionState(.error(Self.playbackDeviceNotReadyError()))
@@ -59,6 +60,7 @@ extension PlaybackSessionViewModel {
             SpotiglassLog.info(.playback, "play(contextURI:) refused: another service is on screen")
             return
         }
+        onWillStartPlayback?()
         guard let commandDeviceID else {
             setConnectionState(.error(Self.playbackDeviceNotReadyError()))
             return
@@ -97,6 +99,7 @@ extension PlaybackSessionViewModel {
             SpotiglassLog.info(.playback, "playFromPlaylist refused: another service is on screen")
             return
         }
+        onWillStartPlayback?()
         guard let commandDeviceID else {
             SpotiglassLog.error(.playback, "playFromPlaylist aborted: no command device. clickedURI=\(clickedURI)")
             setConnectionState(.error(Self.playbackDeviceNotReadyError()))
@@ -187,6 +190,8 @@ extension PlaybackSessionViewModel {
         kind: PendingPlayTransition.Kind
     ) {
         clearPendingPlay()
+        // A new play replaces whatever a skip moved past.
+        skipLeftItemURI = nil
         let hostGeneration = playbackHostGeneration
         let deadline = clock.now.advanced(by: pendingPlayURITimeout)
         pendingPlayTransition = PendingPlayTransition(

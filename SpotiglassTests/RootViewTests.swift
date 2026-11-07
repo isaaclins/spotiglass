@@ -115,7 +115,7 @@ final class RootViewTests: XCTestCase {
         let root = RootView(
             keymapStore: CommandPaletteKeymapStore(settingsStore: settings),
             sceneRegistry: SpotiglassSceneRegistry(),
-            playbackHost: playbackHost,
+            playbackHosts: .forTests(spotify: playbackHost),
             serviceStore: services,
             appleMusicSession: session
         )
@@ -167,9 +167,9 @@ final class RootViewTests: XCTestCase {
         let root = RootView(
             keymapStore: CommandPaletteKeymapStore(settingsStore: settings),
             sceneRegistry: SpotiglassSceneRegistry(),
-            playbackHost: SpotiglassPlaybackHost(tokenProvider: MockPlaybackTokenProvider(
+            playbackHosts: .forTests(spotify: SpotiglassPlaybackHost(tokenProvider: MockPlaybackTokenProvider(
                 accessToken: "test", refreshedAccessToken: "test-refresh"
-            )),
+            ))),
             serviceStore: services,
             appleMusicSession: session
         )
@@ -244,9 +244,9 @@ final class RootViewPinsAfterAddingTests: XCTestCase {
         let root = RootView(
             keymapStore: CommandPaletteKeymapStore(settingsStore: settings),
             sceneRegistry: SpotiglassSceneRegistry(),
-            playbackHost: SpotiglassPlaybackHost(tokenProvider: MockPlaybackTokenProvider(
+            playbackHosts: .forTests(spotify: SpotiglassPlaybackHost(tokenProvider: MockPlaybackTokenProvider(
                 accessToken: "test", refreshedAccessToken: "test-refresh"
-            )),
+            ))),
             serviceStore: services,
             appleMusicSession: session
         )
@@ -298,3 +298,12 @@ final class RootViewPinsAfterAddingTests: XCTestCase {
     }
 }
 
+extension SpotiglassPlaybackHosts {
+    /// View tests: the given player is Spotify's; Apple Music's is made on first use.
+    @MainActor
+    static func forTests(spotify: SpotiglassPlaybackHost) -> SpotiglassPlaybackHosts {
+        SpotiglassPlaybackHosts(spotify: spotify) {
+            SpotiglassPlaybackHost(provider: AppleMusicPlaybackProvider())
+        }
+    }
+}

@@ -56,11 +56,9 @@ struct SpotiglassMenuCommands: Commands {
         sceneRegistry.activeScene?.lyricsOverlayController.isPresented ?? false
     }
 
-    /// Apple Music browsing ships before its player: transport items that only check sign-in
-    /// would be enabled and do nothing there (or reach for Spotify), so they also need this.
-    private var hasPlayback: Bool {
-        serviceStore.active == .spotify
-    }
+    /// `false` while the selected service can't play (Apple Music without a subscription):
+    /// transport items that only check sign-in would be enabled and do nothing there.
+    var hasPlayback = true
 
     var isPlaybackToggleEnabled: Bool {
         isSignedIn && (activeCommandPaletteManager?.canTogglePlayback ?? false)

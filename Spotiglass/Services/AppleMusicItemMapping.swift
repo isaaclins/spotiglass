@@ -45,7 +45,10 @@ enum AppleMusicItemMapping {
     // MARK: - Tracks
 
     static func track(_ song: Song) -> MusicTrack {
-        MusicTrack(
+        let uri = uri(kind: "song", id: song.id)
+        // Playback queues this exact song for the row (see AppleMusicPlayableRegistry).
+        AppleMusicPlayableRegistry.shared.register(song, for: uri)
+        return MusicTrack(
             id: song.id.rawValue,
             name: song.title,
             artists: artistNames(song.artistName),
@@ -57,7 +60,7 @@ enum AppleMusicItemMapping {
             isExplicit: song.contentRating == .explicit,
             isPlayable: song.playParameters != nil,
             linkedFromID: nil,
-            uri: uri(kind: "song", id: song.id)
+            uri: uri
         )
     }
 
@@ -77,7 +80,9 @@ enum AppleMusicItemMapping {
                 albumID: album?.id.rawValue,
                 durationMilliseconds: milliseconds(video.duration),
                 isExplicit: video.contentRating == .explicit,
-                isPlayable: video.playParameters != nil,
+                // MusicKit's player can't queue music videos on macOS, so their rows show as
+                // unavailable instead of starting another song when clicked.
+                isPlayable: false,
                 linkedFromID: nil,
                 uri: uri(kind: "music-video", id: video.id)
             )
