@@ -609,7 +609,8 @@ struct RootView: View {
                         onSignOut: {
                             authLossPreparationAction()
                             serviceStore.signOutRemoving(.spotify)
-                        }
+                        },
+                        disconnectRemovesService: serviceStore.signOutRemovesFromMenu(.spotify)
                     )
 
                     signInFooter

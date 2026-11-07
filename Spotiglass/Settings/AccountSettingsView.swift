@@ -56,20 +56,31 @@ struct AccountSettingsView: View {
             }
 
             Section {
-                SpotifyClientIDAndActionsView(
-                    viewModel: viewModel,
-                    layout: .settings,
-                    onSignOut: {
-                        prepareForSignOut(of: .spotify)
-                        serviceStore?.signOutRemoving(.spotify)
+                if let serviceStore {
+                    SpotifyRemovableActions(store: serviceStore) { removesService in
+                        spotifyActions(disconnectRemovesService: removesService)
                     }
-                )
+                } else {
+                    spotifyActions(disconnectRemovesService: false)
+                }
             } header: {
                 Text(SpotiglassL10n.string("settings.account.developerApp"))
             } footer: {
                 Text(SpotiglassL10n.string("settings.account.developerApp.hint"))
                     .foregroundStyle(.secondary)
             }
+    }
+
+    private func spotifyActions(disconnectRemovesService: Bool) -> SpotifyClientIDAndActionsView {
+        SpotifyClientIDAndActionsView(
+            viewModel: viewModel,
+            layout: .settings,
+            onSignOut: {
+                prepareForSignOut(of: .spotify)
+                serviceStore?.signOutRemoving(.spotify)
+            },
+            disconnectRemovesService: disconnectRemovesService
+        )
     }
 
     private var diagnosticsSection: some View {
@@ -129,6 +140,17 @@ struct AccountSettingsView: View {
         case .signedOut, .signingIn, .failed, .refreshing(.none):
             nil
         }
+    }
+}
+
+/// Observes the service menu so Spotify's Disconnect turns on and off as services are added and
+/// removed while Settings is open.
+private struct SpotifyRemovableActions<Content: View>: View {
+    @ObservedObject var store: MusicServiceStore
+    @ViewBuilder let content: (Bool) -> Content
+
+    var body: some View {
+        content(store.signOutRemovesFromMenu(.spotify))
     }
 }
 

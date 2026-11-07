@@ -142,6 +142,52 @@ final class AccountSettingsViewTests: XCTestCase {
         XCTAssertNotNil(manager.unifiedRefresh)
     }
 
+    /// A lapsed Spotify session keeps Spotify in the service menu. Disconnect used to need a live
+    /// session, so Spotify could never be removed again without signing in first (#399).
+    func testSignedOutSpotifyCanStillBeRemoved() throws {
+        let viewModel = AuthViewModel(
+            settings: SpotifyAuthSettings(defaults: makeEphemeralDefaults()),
+            refreshTokenStore: MemoryOnlyRefreshTokenStore(),
+            signOutDataCleaner: {},
+            artworkCacheClearer: {},
+            initialState: .signedOut
+        )
+        let store = MusicServiceStore(
+            storage: InMemoryMusicServiceSelectionStorage(services: [.appleMusic, .spotify], active: .spotify)
+        )
+        var prepared = 0
+        let view = AccountSettingsView(
+            viewModel: viewModel,
+            onSignOut: { prepared += 1 },
+            serviceStore: store,
+            appleMusicSession: AppleMusicSession()
+        )
+        ViewTestHost.host(view)
+
+        try view.inspect().find(button: SpotiglassL10n.string("auth.disconnect.button")).tap()
+
+        XCTAssertEqual(prepared, 1)
+        XCTAssertEqual(store.services, [.appleMusic])
+        XCTAssertEqual(store.active, .appleMusic)
+    }
+
+    /// Spotify on its own has nothing to fall back to, so a signed-out Disconnect stays off.
+    func testSignedOutLoneSpotifyKeepsDisconnectOff() throws {
+        let viewModel = AuthViewModel(
+            settings: SpotifyAuthSettings(defaults: makeEphemeralDefaults()),
+            refreshTokenStore: MemoryOnlyRefreshTokenStore(),
+            initialState: .signedOut
+        )
+        let store = MusicServiceStore(
+            storage: InMemoryMusicServiceSelectionStorage(services: [.spotify], active: .spotify)
+        )
+        let view = AccountSettingsView(viewModel: viewModel, serviceStore: store)
+        ViewTestHost.host(view)
+
+        let disconnect = try view.inspect().find(button: SpotiglassL10n.string("auth.disconnect.button"))
+        XCTAssertTrue(disconnect.isDisabled())
+    }
+
     /// A window whose palette is signed in and wired, as a browser leaves it.
     private func makeWiredScene() -> (SpotiglassSceneRegistry, CommandPaletteManager) {
         let scene = SpotiglassSceneHost(commandPaletteManager: CommandPaletteManager())
