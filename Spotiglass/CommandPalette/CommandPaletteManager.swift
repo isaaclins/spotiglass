@@ -88,6 +88,9 @@ final class CommandPaletteManager: ObservableObject {
     @Published private(set) var repeatMode: MusicRepeatMode = .off
     /// Mirrors the session's confirmed shuffle/repeat readiness for the menu bar.
     @Published var canMutatePlaybackTransport = false
+    /// Repeat follows the music you hear (#396): the menu's Repeat items are enabled by that
+    /// player, Shuffle by the on-screen one.
+    @Published var canMutateRepeat = false
     /// Bulk prefetch state is owned by the browser, but the app menu and palette
     /// both need the same scene-local projection to render its toggle state.
     @Published private(set) var prefetchProgress: PrefetchAllPlaylistsProgress?
@@ -170,18 +173,20 @@ final class CommandPaletteManager: ObservableObject {
         shuffleEnabled = playback.shuffleEnabled
         repeatMode = playback.repeatMode
         canMutatePlaybackTransport = playback.isTransportMutationReady
+        canMutateRepeat = playback.audiblePlayer.isTransportMutationReady
 
         let playerPushesState = playback.playerPushesState
-        Publishers.CombineLatest(
+        Publishers.CombineLatest3(
             Publishers.CombineLatest4(
                 playback.$connectionState,
                 playback.$deviceID,
                 playback.$activePlaybackDeviceID,
                 playback.$isTransportStateKnown
             ),
-            playback.$isOtherServicePlaying
+            playback.$isOtherServicePlaying,
+            playback.$isOtherServiceTransportMutationReady
         )
-        .sink { [weak self] state, isOtherServicePlaying in
+        .sink { [weak self] state, isOtherServicePlaying, isOtherServiceTransportMutationReady in
             let (connectionState, deviceID, activePlaybackDeviceID, isTransportStateKnown) = state
             // While the other service's music is what you hear, Play/Pause pauses it (#396).
             let pausesOtherService = isOtherServicePlaying
@@ -195,9 +200,13 @@ final class CommandPaletteManager: ObservableObject {
                 )
             )
             self?.setLyricsToggleAvailability(connectionState.currentLyricTrack != nil)
-            self?.canMutatePlaybackTransport = isTransportStateKnown
-                && PlaybackSessionViewModel.isPlaybackTransportReady(for: connectionState)
-                && (activePlaybackDeviceID ?? deviceID) != nil
+            let isTransportMutationReady = PlaybackSessionViewModel.isTransportMutationReady(
+                isTransportStateKnown: isTransportStateKnown,
+                connectionState: connectionState,
+                commandDeviceID: activePlaybackDeviceID ?? deviceID
+            )
+            self?.canMutatePlaybackTransport = isTransportMutationReady
+            self?.canMutateRepeat = pausesOtherService ? isOtherServiceTransportMutationReady : isTransportMutationReady
         }
         .store(in: &playbackReadinessCancellables)
 
@@ -458,6 +467,7 @@ final class CommandPaletteManager: ObservableObject {
         shuffleEnabled = false
         repeatMode = .off
         canMutatePlaybackTransport = false
+        canMutateRepeat = false
         prefetchProgress = nil
         playbackReadinessCancellables.removeAll()
 

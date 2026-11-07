@@ -51,8 +51,9 @@ protocol AppleMusicPlayerControlling: AnyObject {
     func setShuffle(_ enabled: Bool)
     func setRepeat(_ mode: MusicRepeatMode)
     /// Adds an item after the current one and after the items added before it, like
-    /// Spotify's "Add to queue".
-    func enqueue(uri: String) async throws
+    /// Spotify's "Add to queue". `isCurrent` is asked once the lookup is done: an add from a
+    /// session that ended meanwhile leaves the queue alone.
+    func enqueue(uri: String, isCurrent: @escaping @MainActor () -> Bool) async throws
     func readState() -> AppleMusicPlayerState
     /// The entries after the current one, in play order.
     func readUpcoming() -> [MusicTrack]
@@ -87,10 +88,14 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
     /// The latest play while it runs. An add made after it waits for it, so the song goes into
     /// the queue that play starts instead of the one it is about to replace.
     private var latestPlay: Task<Void, Never>?
-    /// Set by a disconnect, cleared by the next play: the queue MusicKit still holds is from
-    /// the session that ended. Add to Queue doesn't clear it (there's nothing loaded to add
-    /// after, ``PlaybackSessionViewModel/hasNothingLoaded``), or the old songs would return.
+    /// Set by a disconnect, cleared once the next play went through: the queue MusicKit still
+    /// holds is from the session that ended, and a play that fails leaves it there. Add to
+    /// Queue doesn't clear it (there's nothing loaded to add after,
+    /// ``PlaybackSessionViewModel/hasNothingLoaded``), or the old songs would return.
     private var isSessionEnded = false
+    /// Bumped by every disconnect: an add still looking up its song when the session ended
+    /// leaves the queue alone.
+    private var session: UInt64 = 0
 
     init(player: (any AppleMusicPlayerControlling)? = nil) {
         self.player = player ?? MusicKitApplicationPlayer()
@@ -116,6 +121,7 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
     /// starting once its lookup returns.
     func disconnectPlayer(generation: PlaybackHostGeneration) async throws {
         playGeneration &+= 1
+        session &+= 1
         player.stop()
         isSessionEnded = true
     }
@@ -123,7 +129,6 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
     // MARK: - Commands for a device
 
     func play(_ request: MusicPlaybackRequest, deviceID: String) async throws {
-        isSessionEnded = false
         playGeneration &+= 1
         let generation = playGeneration
         let queueRequest = try Self.queueRequest(for: request)
@@ -132,6 +137,8 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
         }
         latestPlay = Task { _ = await run.result }
         try await perform { try await run.value }
+        // Only now is the old queue replaced; a play that failed leaves it hidden.
+        if playGeneration == generation { isSessionEnded = false }
     }
 
     func pause(deviceID: String) async throws {
@@ -163,14 +170,20 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
     }
 
     func enqueue(uri: String, deviceID: String) async throws {
-        // The session refuses an add while nothing is loaded; this only guards a race with it.
-        guard !isSessionEnded else { throw CancellationError() }
+        // The session refuses an add while nothing is loaded. An add that still slips in after
+        // a sign-out (made before it, or racing it) leaves the queue alone: it waits for the
+        // play before it, and once its lookup is done it checks that the session is still the
+        // one it was made in and that something was played since.
         let previous = enqueueTail
         let pendingPlay = latestPlay
+        let session = session
         let add = Task { @MainActor [player] in
             await pendingPlay?.value
             await previous?.value
-            try await player.enqueue(uri: uri)
+            try await player.enqueue(uri: uri, isCurrent: { [weak self] in
+                guard let self else { return false }
+                return self.session == session && !self.isSessionEnded
+            })
         }
         enqueueTail = Task { _ = await add.result }
         try await perform { try await add.value }

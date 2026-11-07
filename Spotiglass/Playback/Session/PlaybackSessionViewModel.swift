@@ -47,6 +47,9 @@ final class PlaybackSessionViewModel: ObservableObject {
     /// The other service's repeat mode, kept by ``SpotiglassPlaybackHosts``: the Playback menu
     /// shows the repeat of the music you hear.
     @Published var otherServiceRepeatMode: MusicRepeatMode = .off
+    /// Whether the other service's player takes repeat changes
+    /// (``isTransportMutationReady``), kept by ``SpotiglassPlaybackHosts``.
+    @Published var isOtherServiceTransportMutationReady = false
 
     /// The other service's player started something: pause what plays here, if anything.
     func pauseForHandover() {
@@ -545,7 +548,19 @@ final class PlaybackSessionViewModel: ObservableObject {
     /// Whether shuffle/repeat commands have both a ready target and a confirmed
     /// Spotify transport state. The visible values are not actionable otherwise.
     var isTransportMutationReady: Bool {
-        isTransportStateKnown && isPlaybackTransportReady && commandDeviceID != nil
+        Self.isTransportMutationReady(
+            isTransportStateKnown: isTransportStateKnown,
+            connectionState: connectionState,
+            commandDeviceID: commandDeviceID
+        )
+    }
+
+    static func isTransportMutationReady(
+        isTransportStateKnown: Bool,
+        connectionState: PlaybackConnectionState,
+        commandDeviceID: String?
+    ) -> Bool {
+        isTransportStateKnown && isPlaybackTransportReady(for: connectionState) && commandDeviceID != nil
     }
 
     enum PlaybackHostRecoveryCause: String {

@@ -160,6 +160,19 @@ final class SpotiglassPlaybackHosts: ObservableObject {
         other.$repeatMode
             .sink { [weak starting] in starting?.otherServiceRepeatMode = $0 }
             .store(in: &cancellables)
+        // From the published values, not `other.isTransportMutationReady`: a sink runs before
+        // the property changes.
+        Publishers.CombineLatest4(other.$isTransportStateKnown, other.$connectionState, other.$deviceID, other.$activePlaybackDeviceID)
+            .map { known, state, deviceID, activeDeviceID in
+                PlaybackSessionViewModel.isTransportMutationReady(
+                    isTransportStateKnown: known,
+                    connectionState: state,
+                    commandDeviceID: activeDeviceID ?? deviceID
+                )
+            }
+            .removeDuplicates()
+            .sink { [weak starting] in starting?.isOtherServiceTransportMutationReady = $0 }
+            .store(in: &cancellables)
     }
 }
 

@@ -189,8 +189,10 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         player.state.repeatMode = wanted
     }
 
-    func enqueue(uri: String) async throws {
+    func enqueue(uri: String, isCurrent: @escaping @MainActor () -> Bool) async throws {
         guard let resolved = try await Self.resolveEntries([uri]).first else { throw Self.notFound(uri) }
+        // Signed out during the lookup: the queue belongs to the session that ended.
+        guard isCurrent() else { throw CancellationError() }
         remember(uri, for: resolved.entry)
         // After a shuffle the ids give the positions back; the add is then placed and
         // recorded by position.

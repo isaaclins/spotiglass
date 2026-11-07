@@ -82,6 +82,11 @@ struct SpotiglassMenuCommands: Commands {
         isSignedIn && (activeCommandPaletteManager?.canMutatePlaybackTransport ?? false)
     }
 
+    /// Repeat follows the music you hear (#396), Shuffle the on-screen queue.
+    var isRepeatMutationEnabled: Bool {
+        isSignedIn && (activeCommandPaletteManager?.canMutateRepeat ?? false)
+    }
+
     var isPrefetchInFlight: Bool {
         activeCommandPaletteManager?.prefetchProgress?.phase == .running
     }
@@ -197,7 +202,7 @@ struct SpotiglassMenuCommands: Commands {
                 run(CommandPaletteCommandID.cycleRepeat)
             }
             .keyboardShortcut("r", modifiers: [.option, .command])
-            .disabled(!isPlaybackTransportMutationEnabled)
+            .disabled(!isRepeatMutationEnabled)
 
             // Keep this native Picker unshortcutted so its live selection state
             // remains represented by AppKit's menu-item checkmark (#320).
@@ -208,7 +213,7 @@ struct SpotiglassMenuCommands: Commands {
                 }
             }
             .pickerStyle(.inline)
-            .disabled(!isPlaybackTransportMutationEnabled)
+            .disabled(!isRepeatMutationEnabled)
 
             Divider()
 

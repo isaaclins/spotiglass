@@ -181,6 +181,7 @@ final class MenuKeyEquivalentTests: XCTestCase {
         XCTAssertTrue(commands.isShuffleEnabled)
         XCTAssertEqual(commands.selectedRepeatMode, .track)
         XCTAssertTrue(commands.isPlaybackTransportMutationEnabled)
+        XCTAssertTrue(commands.isRepeatMutationEnabled, "one service: Repeat follows the same player")
     }
 
     func testPlaybackMenuCanSelectSpecificRepeatMode() async {

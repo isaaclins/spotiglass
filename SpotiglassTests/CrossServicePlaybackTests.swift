@@ -183,6 +183,70 @@ final class CrossServicePlaybackTests: XCTestCase {
         XCTAssertFalse(upcoming.contains("applemusic:song:added-before"), "the old added song isn't carried into the new queue")
     }
 
+    /// Signed out, added Apple Music again, then a play that fails (a song MusicKit can't
+    /// find): the signed-out song must not come back as paused and resumable.
+    func testAPlayThatFailsAfterSigningOutKeepsTheOldSongHidden() async throws {
+        let (spotify, _) = pausedSpotify()
+        let player = ScriptedAppleMusicPlayer()
+        let hosts = hosts(spotify: spotify, player: player)
+        let services = CurrentValueSubject<[MusicService], Never>([.appleMusic, .spotify])
+        hosts.follow(addedServices: services)
+        _ = try await playingAppleMusic(in: hosts, player: player)
+        let provider = hosts.appleMusic.playbackProvider
+
+        services.send([.spotify])
+        for _ in 0..<40 where !player.commands.contains("stop") {
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        player.advance(by: 1)
+        player.failure = NSError(domain: "MusicKit", code: 404)
+        _ = try? await provider.play(.items(uris: ["applemusic:song:missing"], startURI: nil), deviceID: AppleMusicPlaybackProvider.deviceID)
+
+        let afterFailedPlay = try await provider.fetchPlaybackState()
+        XCTAssertNil(afterFailedPlay, "the signed-out song stays hidden")
+        let upcoming = try await provider.fetchQueue().queue
+        XCTAssertTrue(upcoming.isEmpty)
+    }
+
+    /// Add to Queue while its lookup is slow, then signing out before it returns: the add
+    /// belongs to the session that ended, so it must not land in the queue the next play
+    /// carries over.
+    func testAnAddStillLookingUpWhenSigningOutIsDropped() async throws {
+        let (spotify, _) = pausedSpotify()
+        let player = ScriptedAppleMusicPlayer()
+        let hosts = hosts(spotify: spotify, player: player)
+        let services = CurrentValueSubject<[MusicService], Never>([.appleMusic, .spotify])
+        hosts.follow(addedServices: services)
+        _ = try await playingAppleMusic(in: hosts, player: player)
+        let provider = hosts.appleMusic.playbackProvider
+
+        player.holdLookups = true
+        let add = Task {
+            try await provider.enqueue(uri: "applemusic:song:slow-add", deviceID: AppleMusicPlaybackProvider.deviceID)
+        }
+        for _ in 0..<40 where player.waitingLookups.isEmpty {
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        XCTAssertEqual(player.waitingLookups, ["enqueue applemusic:song:slow-add"])
+        services.send([.spotify])
+        for _ in 0..<40 where !player.commands.contains("stop") {
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        player.holdLookups = false
+        player.releaseLookups()
+        _ = try? await add.value
+        player.advance(by: 1)
+
+        XCTAssertFalse(player.commands.contains("enqueue applemusic:song:slow-add"))
+        try await provider.play(.items(uris: ["applemusic:song:fresh"], startURI: nil), deviceID: AppleMusicPlaybackProvider.deviceID)
+        player.advance(by: 1)
+        let upcoming = try await provider.fetchQueue().queue.compactMap { item -> String? in
+            guard case let .track(track) = item else { return nil }
+            return track.uri
+        }
+        XCTAssertFalse(upcoming.contains("applemusic:song:slow-add"))
+    }
+
     // MARK: - 2. The bar and Space follow the music you hear
 
     /// The report: Spotify's bar said "Midnight City · Paused" while Apple Music played, and
@@ -236,6 +300,25 @@ final class CrossServicePlaybackTests: XCTestCase {
         XCTAssertEqual(appleMusic.repeatMode, .track)
         XCTAssertEqual(playback.repeatMode, .off, "Spotify's repeat is untouched")
         XCTAssertEqual(manager.repeatMode, .track, "the menu's checkmark is the repeat you hear")
+    }
+
+    /// Apple Music on screen with nothing loaded while Spotify plays: the bar controls
+    /// Spotify, so the menu's Repeat is enabled by Spotify's player. Shuffle, which goes
+    /// through the on-screen queue, stays off.
+    func testPlaybackMenuRepeatIsEnabledByThePlayerYouHear() {
+        let (spotify, _) = pausedSpotify()
+        let hosts = hosts(spotify: spotify, player: ScriptedAppleMusicPlayer())
+        let appleMusic = hosts.appleMusic.playbackViewModel
+        appleMusic.handle(.ready(deviceID: AppleMusicPlaybackProvider.deviceID))
+        let manager = CommandPaletteManager()
+        manager.bindPlaybackReadiness(to: appleMusic)
+        XCTAssertFalse(manager.canMutateRepeat, "nothing plays anywhere: Apple Music's own player, nothing loaded")
+
+        spotify.playbackViewModel.setConnectionState(.playing(Self.song("Midnight City", uri: "spotify:track:1")))
+
+        XCTAssertTrue(appleMusic.audiblePlayer === spotify.playbackViewModel)
+        XCTAssertTrue(manager.canMutateRepeat, "Repeat sets Spotify's repeat, like the bar")
+        XCTAssertFalse(manager.canMutatePlaybackTransport, "Shuffle stays with Apple Music's empty queue")
     }
 
     /// The mirror case: on Apple Music while Spotify plays, Apple Music's bar follows Spotify.

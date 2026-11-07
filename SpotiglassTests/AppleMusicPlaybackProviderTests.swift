@@ -798,8 +798,10 @@ final class ScriptedAppleMusicPlayer: AppleMusicPlayerControlling {
     }
     func setRepeat(_ mode: MusicRepeatMode) { repeatMode = mode }
 
-    func enqueue(uri: String) async throws {
+    func enqueue(uri: String, isCurrent: @escaping @MainActor () -> Bool) async throws {
         await lookup("enqueue \(uri)")
+        // The live player's contract: an add from a session that ended leaves the queue alone.
+        guard isCurrent() else { throw CancellationError() }
         commands.append("enqueue \(uri)")
         let current = queue.indices.contains(index) ? index : nil
         let plan = book.planAdd(AppleMusicQueueBook.Row(uri: uri, title: uri), currentIndex: current, entryCount: queue.count)
