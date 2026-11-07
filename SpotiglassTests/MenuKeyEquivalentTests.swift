@@ -101,6 +101,7 @@ final class MenuKeyEquivalentTests: XCTestCase {
         manager.toggleShuffle = { shuffled += 1 }
         manager.cycleRepeat = { repeated += 1 }
         manager.playbackTransportMutationPrerequisite = { true }
+        manager.repeatMutationPrerequisite = { true }
 
         manager.execute(commandID: CommandPaletteCommandID.toggleShuffle)
         manager.execute(commandID: CommandPaletteCommandID.cycleRepeat)
@@ -139,6 +140,7 @@ final class MenuKeyEquivalentTests: XCTestCase {
     func testRepeatCycleCommandAdvancesThroughAllModes() async {
         let manager = CommandPaletteManager(keymapStore: makeStore())
         manager.playbackTransportMutationPrerequisite = { true }
+        manager.repeatMutationPrerequisite = { true }
         var mode = MusicRepeatMode.off
 
         for expectedMode in [MusicRepeatMode.context, .track, .off] {
@@ -184,6 +186,7 @@ final class MenuKeyEquivalentTests: XCTestCase {
     func testPlaybackMenuCanSelectSpecificRepeatMode() async {
         let manager = CommandPaletteManager(keymapStore: makeStore())
         manager.playbackTransportMutationPrerequisite = { true }
+        manager.repeatMutationPrerequisite = { true }
         let selected = expectation(description: "specific repeat mode selected")
         var selectedMode: MusicRepeatMode?
         manager.setRepeatModeAction = { mode in
