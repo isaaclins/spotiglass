@@ -382,6 +382,68 @@ final class PlaybackChromeViewsTests: XCTestCase {
         }
     }
 
+    /// The arrangement must place every part where main's `ViewThatFits` over
+    /// three stacks placed it, so the bar looks the same at every width the
+    /// window allows. Both are built from the same stand-in parts here (the
+    /// real parts' sizes) and compared frame by frame. The first version gave
+    /// Spotify's slider its ideal width in tight rows, where the old row let it
+    /// shrink to its floor.
+    ///
+    /// One deliberate difference: where main ran the trailing controls into the
+    /// gap before the scrubber (Spotify, rows about 950 to 1080 pt wide), the
+    /// arrangement keeps the gap and the summary and scrubber give up the room.
+    func testTransportArrangementPlacesEveryPartWhereTheOldStacksDid() throws {
+        let spacing = SpotiglassDesign.spacingM
+        for withVolume in [true, false] {
+            var mismatches: [String] = []
+            var overlapping = 0
+            // From the narrowest transport the 520 pt window leaves.
+            for width in stride(from: CGFloat(456), through: 1_400, by: 8) {
+                let old = try partFrames(of: OldTransportArrangement(withVolume: withVolume), width: width)
+                let new = try partFrames(of: NewTransportArrangement(withVolume: withVolume), width: width)
+                XCTAssertEqual(Set(old.keys), Set(new.keys), "parts at \(width)")
+                // One row when the scrubber and the controls share a centre line.
+                func inOneRow(_ a: CGRect, _ b: CGRect) -> Bool { abs(a.midY - b.midY) < 1 }
+                if let scrubber = new["scrubber"], let controls = new["controls"], inOneRow(scrubber, controls) {
+                    XCTAssertGreaterThanOrEqual(
+                        controls.minX - scrubber.maxX, spacing - 0.5, "the controls run into the scrubber at \(width)"
+                    )
+                }
+                if let scrubber = old["scrubber"], let controls = old["controls"], inOneRow(scrubber, controls),
+                   controls.minX - scrubber.maxX < spacing - 0.5 {
+                    overlapping += 1
+                    continue
+                }
+                for (part, oldFrame) in old.sorted(by: { $0.key < $1.key }) {
+                    guard let newFrame = new[part] else { continue }
+                    let deltas = [oldFrame.minX - newFrame.minX, oldFrame.minY - newFrame.minY,
+                                  oldFrame.width - newFrame.width, oldFrame.height - newFrame.height]
+                    if deltas.contains(where: { abs($0) > 0.5 }) {
+                        mismatches.append("\(Int(width)) \(part): main \(oldFrame), now \(newFrame)")
+                    }
+                }
+            }
+            XCTAssertEqual(mismatches, [], "volume: \(withVolume)")
+            // The overlap is Spotify's slider row only, and only a narrow band of it.
+            XCTAssertLessThanOrEqual(overlapping, withVolume ? 20 : 0, "volume: \(withVolume)")
+        }
+    }
+
+    /// Each part's frame in the arrangement's own coordinates, laid out at `width`.
+    private func partFrames<V: View>(of view: V, width: CGFloat) throws -> [String: CGRect] {
+        let store = PartFrameStore()
+        let host = NSHostingView(
+            rootView: view
+                .frame(width: width)
+                .coordinateSpace(.named(PartFrameKey.space))
+                .onPreferenceChange(PartFrameKey.self) { store.frames = $0 }
+        )
+        host.frame = NSRect(x: 0, y: 0, width: width, height: 200)
+        host.layoutSubtreeIfNeeded()
+        AppKitTestSupport.pumpRunLoop(for: 0.01)
+        return store.frames
+    }
+
     func testPlaybackTransportLayoutAtWindowMinimumKeepsScrubberUsable() throws {
         for size in [CGSize(width: 520, height: 360), CGSize(width: 700, height: 500)] {
             let controller = ViewTestHost.host(
@@ -1106,5 +1168,178 @@ private final class SentSeeks: @unchecked Sendable {
 
     func append(_ milliseconds: Int) {
         lock.withLock { stored.append(milliseconds) }
+    }
+}
+
+// MARK: - Main's transport arrangement, for comparison
+
+private final class PartFrameStore {
+    var frames: [String: CGRect] = [:]
+}
+
+private struct PartFrameKey: PreferenceKey {
+    static let space = "transport"
+    static let defaultValue: [String: CGRect] = [:]
+    static func reduce(value: inout [String: CGRect], nextValue: () -> [String: CGRect]) {
+        value.merge(nextValue()) { $1 }
+    }
+}
+
+private extension View {
+    func reportsFrame(as part: String) -> some View {
+        background(GeometryReader { geometry in
+            Color.clear.preference(
+                key: PartFrameKey.self,
+                value: [part: geometry.frame(in: .named(PartFrameKey.space))]
+            )
+        })
+    }
+}
+
+/// Stand-ins with the real parts' sizing: a summary that truncates, the
+/// scrubber group's labels and flexible track, the fixed transport buttons, a
+/// device menu that can shrink, and the real volume control's icon and slider.
+private enum TransportStandIns {
+    static var summary: some View {
+        HStack(spacing: SpotiglassDesign.spacingS) {
+            Color.gray.frame(width: 44, height: 44)
+            Text("Midnight City, a title long enough to truncate").font(.headline).lineLimit(1)
+                .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    static var scrubber: some View {
+        HStack(spacing: SpotiglassDesign.spacingS) {
+            Text("0:00").font(.caption.monospacedDigit()).frame(minWidth: 36, alignment: .trailing)
+            Color.clear.frame(height: 18).frame(minWidth: 180, maxWidth: .infinity)
+            Text("−0:00").font(.caption.monospacedDigit()).frame(minWidth: 40, alignment: .leading)
+        }
+    }
+
+    static var controls: some View { Color.red.frame(width: 142, height: 28) }
+    /// The device menu's bezel lets it shrink from 52 to 38 pt, measured in the app.
+    static var device: some View { Color.blue.frame(minWidth: 38, idealWidth: 52, maxWidth: 52).frame(height: 28) }
+
+    static var volume: some View {
+        HStack(spacing: SpotiglassDesign.spacingS) {
+            Image(systemName: "speaker.wave.2").font(.caption)
+            Slider(value: .constant(0.5), in: 0 ... 1)
+                .controlSize(.small)
+                .frame(
+                    minWidth: PlaybackTransportLayoutPolicy.volumeSliderWidths.minimum,
+                    idealWidth: PlaybackTransportLayoutPolicy.volumeSliderWidths.ideal,
+                    maxWidth: PlaybackTransportLayoutPolicy.volumeSliderWidths.maximum
+                )
+        }
+    }
+
+    static var compactVolume: some View { Color.green.frame(width: 28, height: 28) }
+}
+
+/// The arrangement as it was on main: `ViewThatFits` over two rows and a stack.
+private struct OldTransportArrangement: View {
+    var withVolume: Bool
+
+    var body: some View {
+        let candidates = PlaybackTransportLayoutPolicy.transportLayoutCandidates()
+        ViewThatFits(in: .horizontal) {
+            row(compactVolume: candidates[0].useCompactVolume).frame(minWidth: candidates[0].minimumWidth)
+            row(compactVolume: candidates[1].useCompactVolume).frame(minWidth: candidates[1].minimumWidth)
+            VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
+                actions(compactVolume: true, includeSummary: true)
+                TransportStandIns.scrubber
+                    .frame(minWidth: PlaybackTransportLayoutPolicy.scrubberMinimumWidth, maxWidth: .infinity)
+                    .reportsFrame(as: "scrubber")
+                    .frame(maxWidth: .infinity)
+            }
+        }
+    }
+
+    private func row(compactVolume: Bool) -> some View {
+        HStack(spacing: SpotiglassDesign.spacingM) {
+            TransportStandIns.summary
+                .frame(
+                    minWidth: PlaybackTransportLayoutPolicy.nowPlayingSummaryMinimumWidth,
+                    idealWidth: 280,
+                    maxWidth: 320,
+                    alignment: .leading
+                )
+                .clipped()
+                .reportsFrame(as: "summary")
+            TransportStandIns.scrubber
+                .frame(minWidth: PlaybackTransportLayoutPolicy.scrubberMinimumWidth, maxWidth: .infinity)
+                .reportsFrame(as: "scrubber")
+            actions(compactVolume: compactVolume, includeSummary: false)
+                .frame(
+                    minWidth: PlaybackTransportLayoutPolicy.transportActionsMinimumWidth(useCompactVolume: compactVolume),
+                    alignment: .trailing
+                )
+        }
+    }
+
+    private func actions(compactVolume: Bool, includeSummary: Bool) -> some View {
+        HStack(spacing: SpotiglassDesign.spacingM) {
+            if includeSummary {
+                TransportStandIns.summary
+                    .frame(
+                        minWidth: PlaybackTransportLayoutPolicy.nowPlayingSummaryMinimumWidth,
+                        maxWidth: .infinity,
+                        alignment: .leading
+                    )
+                    .clipped()
+                    .reportsFrame(as: "summary")
+            }
+            TransportStandIns.controls.reportsFrame(as: "controls")
+            TransportStandIns.device.reportsFrame(as: "device")
+            if withVolume {
+                if compactVolume {
+                    TransportStandIns.compactVolume.reportsFrame(as: "volume")
+                } else {
+                    TransportStandIns.volume.reportsFrame(as: "volume")
+                }
+            }
+        }
+    }
+}
+
+/// The same parts in `PlaybackTransportArrangementLayout`, as `PlaybackControlsView` builds it.
+private struct NewTransportArrangement: View {
+    var withVolume: Bool
+
+    private typealias Part = PlaybackTransportArrangementLayout.PartKey
+
+    var body: some View {
+        PlaybackTransportArrangementLayout(
+            spacing: SpotiglassDesign.spacingM,
+            rowSpacing: SpotiglassDesign.spacingS
+        ) {
+            TransportStandIns.summary
+                .frame(
+                    minWidth: PlaybackTransportLayoutPolicy.nowPlayingSummaryMinimumWidth,
+                    maxWidth: .infinity,
+                    alignment: .leading
+                )
+                .clipped()
+                .reportsFrame(as: "summary")
+                .layoutValue(key: Part.self, value: .summary)
+            TransportStandIns.scrubber
+                .frame(minWidth: PlaybackTransportLayoutPolicy.scrubberMinimumWidth, maxWidth: .infinity)
+                .reportsFrame(as: "scrubber")
+                .layoutValue(key: Part.self, value: .scrubber)
+            TransportStandIns.controls
+                .reportsFrame(as: "controls")
+                .layoutValue(key: Part.self, value: .controls)
+            TransportStandIns.device
+                .reportsFrame(as: "device")
+                .layoutValue(key: Part.self, value: .device)
+            if withVolume {
+                PlaybackTransportVolumeSlot {
+                    TransportStandIns.volume.reportsFrame(as: "volume")
+                } compact: {
+                    TransportStandIns.compactVolume.reportsFrame(as: "volume")
+                }
+                .layoutValue(key: Part.self, value: .volume)
+            }
+        }
     }
 }

@@ -333,6 +333,12 @@ private struct ScrubberTrackDrawing: View, Animatable {
         set { trackHeight = newValue }
     }
 
+    /// How far the canvas reaches past each end of the track: the thumb hangs
+    /// half its width past the end at 100 %, and its shadow a little further.
+    /// A canvas clips to its bounds, so without this the thumb was cut in half
+    /// near the end of a track.
+    private var overhang: CGFloat { thumbDiameter / 2 + 2 }
+
     var body: some View {
         GeometryReader { geometry in
             let isPaused = dragFraction != nil || !progress.isAdvancing
@@ -345,8 +351,14 @@ private struct ScrubberTrackDrawing: View, Animatable {
             ) { context in
                 let fraction = dragFraction.map { min(max($0, 0), 1) } ?? progress.fraction(at: context.date)
                 Canvas { canvas, size in
-                    draw(in: &canvas, size: size, fraction: fraction)
+                    canvas.translateBy(x: overhang, y: 0)
+                    draw(
+                        in: &canvas,
+                        size: CGSize(width: size.width - 2 * overhang, height: size.height),
+                        fraction: fraction
+                    )
                 }
+                .padding(.horizontal, -overhang)
             }
         }
     }

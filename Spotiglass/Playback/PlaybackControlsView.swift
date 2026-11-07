@@ -69,13 +69,18 @@ enum PlaybackTransportLayoutPolicy {
         ]
     }
 
+    /// The volume slider's width range, and the full volume control's floor:
+    /// its speaker icon, the gap and the narrowest slider.
+    static let volumeSliderWidths: (minimum: CGFloat, ideal: CGFloat, maximum: CGFloat) = (100, 120, 140)
+    static let fullVolumeMinimumWidth: CGFloat = 16 + SpotiglassDesign.spacingS + volumeSliderWidths.minimum
+
     /// The fixed trailing controls' floor, including the two gaps between the
     /// controls cluster, device picker, and volume control.
     static func transportActionsMinimumWidth(useCompactVolume: Bool) -> CGFloat {
         let controlsClusterWidth =
             (4 * 28)
             + (3 * SpotiglassDesign.spacingS)
-        let volumeWidth = useCompactVolume ? 28 : 16 + SpotiglassDesign.spacingS + 100
+        let volumeWidth = useCompactVolume ? 28 : fullVolumeMinimumWidth
         return controlsClusterWidth
             + (2 * SpotiglassDesign.spacingM)
             + 28
@@ -159,7 +164,9 @@ struct PlaybackTransportArrangementLayout: Layout {
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let frames = frames(forWidth: bounds.width, subviews: subviews)
+        // The offered width decides, as it did for the stacks this replaced; the
+        // bounds are wider only when the content cannot shrink to the offer.
+        let frames = frames(forWidth: proposal.width ?? bounds.width, subviews: subviews)
         for (subview, frame) in zip(subviews, frames.subviews) {
             subview.place(
                 at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY),
@@ -186,9 +193,14 @@ struct PlaybackTransportArrangementLayout: Layout {
         func measuredWidth(_ subview: LayoutSubview, _ offer: CGFloat?) -> CGFloat {
             subview.sizeThatFits(ProposedViewSize(width: offer, height: nil)).width
         }
-        let fullVolumeIdeal = index(of: .volume).map { measuredWidth(subviews[$0], nil) } ?? 0
-        let fullVolumeMinimum = PlaybackTransportLayoutPolicy.transportActionsMinimumWidth(useCompactVolume: false)
-            - PlaybackTransportLayoutPolicy.transportActionsMinimumWidth(useCompactVolume: true) + 28
+        // Offered its switch-over width (see `PlaybackTransportVolumeSlot`), the
+        // volume shows the slider at its narrowest: that is its floor. Its
+        // ideal is the slider's own ideal on top.
+        let sliderWidths = PlaybackTransportLayoutPolicy.volumeSliderWidths
+        let fullVolumeMinimum = index(of: .volume).map {
+            measuredWidth(subviews[$0], PlaybackTransportVolumeSlot<EmptyView, EmptyView>.switchOverWidth)
+        } ?? 0
+        let fullVolumeIdeal = fullVolumeMinimum + sliderWidths.ideal - sliderWidths.minimum
         func sizing(_ index: Int, compactVolume: Bool) -> Sizing {
             let subview = subviews[index]
             if subview[PartKey.self] == .volume {
@@ -200,7 +212,7 @@ struct PlaybackTransportArrangementLayout: Layout {
                 }
                 let maximum = measuredWidth(subview, .infinity)
                 return Sizing(flexibility: maximum - fullVolumeMinimum) { offer in
-                    measuredWidth(subview, max(offer, fullVolumeIdeal))
+                    measuredWidth(subview, max(offer, fullVolumeMinimum))
                 }
             }
             let minimum = measuredWidth(subview, 0), maximum = measuredWidth(subview, .infinity)
@@ -285,9 +297,38 @@ struct PlaybackTransportArrangementLayout: Layout {
                 frames[index] = CGRect(x: x, y: (topHeight - partHeight) / 2, width: partWidth, height: partHeight)
                 x += partWidth + spacing
             }
-            let scrubberHeight = height(scrubberIndex, width)
-            frames[scrubberIndex] = CGRect(x: 0, y: topHeight + rowSpacing, width: width, height: scrubberHeight)
+            // The scrubber takes the offered width, even when the row above
+            // overflows it, as it did in the stack this replaced.
+            let scrubberWidth = max(proposedWidth ?? width, measuredWidth(scrubber, 0))
+            let scrubberHeight = height(scrubberIndex, scrubberWidth)
+            frames[scrubberIndex] = CGRect(x: 0, y: topHeight + rowSpacing, width: scrubberWidth, height: scrubberHeight)
             return Frames(size: CGSize(width: width, height: topHeight + rowSpacing + scrubberHeight), subviews: frames)
+        }
+    }
+}
+
+/// The volume as one part of `PlaybackTransportArrangementLayout`: the slider
+/// whenever it is offered at least `switchOverWidth`, the compact button
+/// otherwise.
+///
+/// `ViewThatFits` compares ideal widths, so the slider reports a width below
+/// its real floor as its ideal here. That lets the arrangement give it any
+/// width from its floor up, as the row it replaced did, without the button
+/// taking over.
+struct PlaybackTransportVolumeSlot<Full: View, Compact: View>: View {
+    /// The narrowest slider and its gap, less than the control's real floor
+    /// whatever width the speaker icon takes.
+    static var switchOverWidth: CGFloat {
+        PlaybackTransportLayoutPolicy.volumeSliderWidths.minimum + SpotiglassDesign.spacingS
+    }
+
+    @ViewBuilder var full: Full
+    @ViewBuilder var compact: Compact
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            full.frame(idealWidth: Self.switchOverWidth)
+            compact
         }
     }
 }
@@ -377,10 +418,9 @@ struct PlaybackControlsView: View {
                 .layoutValue(key: PlaybackTransportArrangementLayout.PartKey.self, value: .device)
             // A player without its own volume (Apple Music) follows the Mac's volume.
             if viewModel.supportsPlayerVolume {
-                // The arrangement offers the full width or the compact width;
-                // the volume takes the variant that fits.
-                ViewThatFits(in: .horizontal) {
+                PlaybackTransportVolumeSlot {
                     volumeGroup
+                } compact: {
                     compactVolumeGroup
                 }
                 .layoutValue(key: PlaybackTransportArrangementLayout.PartKey.self, value: .volume)
@@ -745,7 +785,11 @@ struct PlaybackControlsView: View {
 
             Slider(value: playbackVolumeBinding, in: 0 ... 1)
                 .controlSize(.small)
-                .frame(minWidth: 100, idealWidth: 120, maxWidth: 140)
+                .frame(
+                    minWidth: PlaybackTransportLayoutPolicy.volumeSliderWidths.minimum,
+                    idealWidth: PlaybackTransportLayoutPolicy.volumeSliderWidths.ideal,
+                    maxWidth: PlaybackTransportLayoutPolicy.volumeSliderWidths.maximum
+                )
                 .disabled(!isPlaybackVolumeReady)
         }
         .disabled(!isPlaybackVolumeReady)

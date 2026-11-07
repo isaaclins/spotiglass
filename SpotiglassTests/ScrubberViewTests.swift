@@ -207,6 +207,49 @@ final class ScrubberViewTests: XCTestCase {
         }
     }
 
+    // MARK: - Drawing
+
+    /// At the end of a track the thumb hangs half its width past the end of the
+    /// bar, as it always did. Drawn in a canvas exactly as wide as the bar, its
+    /// right half was clipped away.
+    func testThumbAtTheEndOfTheTrackIsDrawnWhole() throws {
+        let barWidth: CGFloat = 200, margin: CGFloat = 20
+        let view = ScrubberView(
+            progress: ScrubberProgress(
+                anchor: PlaybackProgressAnchor(
+                    positionMilliseconds: 180_000,
+                    anchorDate: Date(),
+                    durationMilliseconds: 180_000,
+                    isAdvancing: false
+                ),
+                durationMilliseconds: 180_000
+            ),
+            onSeek: { _ in },
+            onDragUpdate: { _ in }
+        )
+        .frame(width: barWidth)
+        .padding(margin)
+        .background(Color.black)
+        .environment(\.colorScheme, .dark)
+        let host = NSHostingView(rootView: view)
+        host.frame = NSRect(origin: .zero, size: host.fittingSize)
+        host.layoutSubtreeIfNeeded()
+        AppKitTestSupport.pumpRunLoop(for: 0.1)
+
+        let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+        host.cacheDisplay(in: host.bounds, to: bitmap)
+        let scale = CGFloat(bitmap.pixelsWide) / host.bounds.width
+        func brightness(atX x: CGFloat) -> CGFloat {
+            let color = bitmap.colorAt(x: Int(x * scale), y: Int(host.bounds.midY * scale))?
+                .usingColorSpace(.sRGB)
+            return color?.brightnessComponent ?? 0
+        }
+        // 3 pt past the end of the bar, inside the thumb's right half.
+        XCTAssertGreaterThan(brightness(atX: margin + barWidth + 3), 0.5, "the thumb's right half is missing")
+        // Well past the thumb, only the background.
+        XCTAssertLessThan(brightness(atX: margin + barWidth + 12), 0.2)
+    }
+
     // MARK: - Helpers
 
     private func hostGroup(isAdvancing: Bool, onSeek: @escaping (Int) -> Void) -> NSWindow {
