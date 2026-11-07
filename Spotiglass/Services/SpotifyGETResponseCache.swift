@@ -124,6 +124,8 @@ final class SpotifyGETResponseCache: @unchecked Sendable {
         }
         memory[key] = (expiry: hit.expiresAt, data: hit.data)
         touchLRU(key)
+        // Disk hits count against the memory bound too, or reads alone would grow it.
+        evictMemoryIfNeeded()
         return SpotifyGETCacheHit(data: hit.data, isExpired: hit.isExpired)
     }
 
@@ -197,6 +199,12 @@ final class SpotifyGETResponseCache: @unchecked Sendable {
     // periphery:ignore
     var pendingWriteCountForTesting: Int {
         lock.withLock { currentWriteGenerationByKey.count }
+    }
+
+    /// How many response bodies are held in memory (`SpotiglassTests` only).
+    // periphery:ignore
+    var memoryEntryCountForTesting: Int {
+        lock.withLock { memory.count }
     }
 
     private func touchLRU(_ key: String) {

@@ -97,6 +97,25 @@ final class SpotifyGETResponseCacheTests: XCTestCase {
         XCTAssertEqual(cache.cachedEntry(forCacheKey: "artist:ar1", allowExpired: false)?.data, Data("new".utf8))
     }
 
+    func testResponsesReadFromDiskStayWithinTheMemoryBound() throws {
+        let disk = try SpotifyLocalCache(rootDirectory: spotiglassTestsTemporaryDirectory())
+        // An earlier launch left 30 artist pages on disk.
+        let earlierLaunch = SpotifyGETResponseCache(diskCache: disk)
+        for index in 0 ..< 30 {
+            earlierLaunch.store(body: Data([UInt8(index)]), cacheKey: "artist:\(index)", ttl: 900)
+        }
+
+        // Browsing back through all of them only reads from disk, it never stores.
+        let cache = SpotifyGETResponseCache(diskCache: disk, maxMemoryEntries: 4)
+        for index in 0 ..< 30 {
+            XCTAssertEqual(cache.cachedEntry(forCacheKey: "artist:\(index)", allowExpired: true)?.data, Data([UInt8(index)]))
+        }
+
+        XCTAssertLessThanOrEqual(cache.memoryEntryCountForTesting, 4)
+        // An entry that left memory still loads from disk.
+        XCTAssertEqual(cache.cachedEntry(forCacheKey: "artist:0", allowExpired: true)?.data, Data([0]))
+    }
+
     func testDiskWritesPruneExpiredResponseFilesAtMostOncePerInterval() throws {
         let root = spotiglassTestsTemporaryDirectory()
         let disk = try SpotifyLocalCache(rootDirectory: root)
