@@ -11692,6 +11692,29 @@
         }
       }
     },
+    "queue.subtitle.upNextCapped": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die nächsten %lld Titel"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next %lld tracks"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las próximas %lld canciones"
+          }
+        }
+      }
+    },
     "queue.title": {
       "extractionState": "stale",
       "localizations": {

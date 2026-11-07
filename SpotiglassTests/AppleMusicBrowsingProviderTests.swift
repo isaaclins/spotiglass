@@ -582,6 +582,53 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         }
     }
 
+    /// A library artist page labelled "Good Girl Gone Bad: Reloaded" as "15 tracks" (MusicKit's
+    /// count for the whole album) while the album page listed the one song in the library (#400).
+    /// A library album now carries its library songs' count; a catalog album keeps its own.
+    func testLibraryAlbumOnAnArtistPageCountsItsSongsInTheLibrary() async throws {
+        let source = MockAppleMusicSource()
+        let libraryID = "-5234476345112937817"
+        source.artistsByID["-42"] = try AppleMusicFixtures.artist(id: "-42", name: "Rihanna")
+        source.extraAlbumsByArtistID["-42"] = [
+            try AppleMusicFixtures.album(id: libraryID, title: "Good Girl Gone Bad: Reloaded", trackCount: 15),
+            try AppleMusicFixtures.album(id: "1440833098", title: "Loud", trackCount: 11),
+        ]
+        source.albumsByID[libraryID] = try AppleMusicFixtures.album(
+            id: libraryID, title: "Good Girl Gone Bad: Reloaded", trackCount: 15,
+            tracks: [(id: "-77", title: "Breakin' Dishes")]
+        )
+        let provider = AppleMusicBrowsingProvider(source: source)
+
+        let albums = try await provider.artistAlbumsCached(id: "-42", includeGroups: [], limit: 10, cacheMode: .allowStale)
+        XCTAssertEqual(albums.value.map(\.totalTracks), [1, 11])
+        let opened = try await provider.albumTracks(albumID: libraryID, market: nil, limit: 50)
+        XCTAssertEqual(opened.count, albums.value[0].totalTracks, "the artist page and the album page agree")
+        XCTAssertFalse(source.calls.contains("album(1440833098)"), "a catalog album is not looked up again")
+    }
+
+    /// Counting a library album's songs is an extra lookup per album. One album MusicKit can't
+    /// read keeps its own count; it must not turn the whole artist page into an error.
+    func testArtistPageKeepsItsAlbumsWhenOneLibraryAlbumCantBeCounted() async throws {
+        let source = MockAppleMusicSource()
+        source.artistsByID["-42"] = try AppleMusicFixtures.artist(id: "-42", name: "Rihanna")
+        source.extraAlbumsByArtistID["-42"] = try (1...6).map {
+            try AppleMusicFixtures.album(id: "-\($0)", title: "Album \($0)", trackCount: 12)
+        }
+        for n in 1...6 {
+            source.albumsByID["-\(n)"] = try AppleMusicFixtures.album(
+                id: "-\(n)", title: "Album \(n)", trackCount: 12,
+                tracks: (1...n).map { (id: "-\(n)0\($0)", title: "Song \($0)") }
+            )
+        }
+        source.albumErrorsByID["-3"] = AppleMusicBrowsingError.notFound
+        let provider = AppleMusicBrowsingProvider(source: source)
+
+        let albums = try await provider.artistAlbumsCached(id: "-42", includeGroups: [], limit: 10, cacheMode: .allowStale)
+
+        XCTAssertEqual(albums.value.map(\.name), (1...6).map { "Album \($0)" }, "every album, in MusicKit's order")
+        XCTAssertEqual(albums.value.map(\.totalTracks), [1, 2, 12, 4, 5, 6])
+    }
+
     func testArtistDetailAlbumsArePagedAndFilteredByGroup() async throws {
         let source = MockAppleMusicSource()
         source.artistsByID["5201"] = try AppleMusicFixtures.artist(id: "5201", name: "Bonobo", albums: [
@@ -949,15 +996,56 @@ final class AppleMusicArtworkRegistryTests: XCTestCase {
         XCTAssertEqual(PinnedItem.id(forKind: .playlist, spotifyID: "p.1"), "playlist:p.1")
     }
 
-    func testRegistryStaysBounded() throws {
-        let registry = AppleMusicArtworkRegistry()
+    /// At the bound the registry used to empty completely, so every cover already on screen
+    /// and every pin cover fell back to the placeholder. Covers that are drawn (read) stay;
+    /// only the least recently used ones go (#400).
+    func testRegistryKeepsDrawnCoversPastItsBound() throws {
+        let registry = AppleMusicArtworkRegistry(capacity: 10)
         let artwork = try AppleMusicFixtures.decode(Artwork.self, #"{"url":"musicKit://artwork/transient/{w}x{h}?id=A","width":1,"height":1}"#)
-        for index in 0...AppleMusicArtworkRegistry.maxEntries {
-            registry.register(artwork, for: try XCTUnwrap(URL(string: "musicKit://artwork/\(index)")))
+        func url(_ n: Int) throws -> URL { try XCTUnwrap(URL(string: "musicKit://artwork/\(n)")) }
+        let pinURL = try XCTUnwrap(URL(string: "musicKit://artwork/pin"))
+        registry.register(artwork, for: pinURL, itemKey: "playlist:p.1")
+        for n in 0..<9 { registry.register(artwork, for: try url(n)) }
+        // Row 0 and the pin are on screen, so they are drawn again.
+        XCTAssertNotNil(registry.artwork(for: try url(0)))
+        XCTAssertNotNil(registry.artwork(for: pinURL, itemKey: "playlist:p.1"))
+        // Far past the bound: none of the new artworks is drawn.
+        for n in 9..<40 {
+            registry.register(artwork, for: try url(n))
+            XCTAssertNotNil(registry.artwork(for: try url(0)))
+            XCTAssertNotNil(registry.artwork(for: pinURL))
         }
-        // Past the bound the registry starts over: the oldest entry is gone, the newest is kept.
-        XCTAssertNil(registry.artwork(for: try XCTUnwrap(URL(string: "musicKit://artwork/0"))))
-        XCTAssertNotNil(registry.artwork(for: try XCTUnwrap(URL(string: "musicKit://artwork/\(AppleMusicArtworkRegistry.maxEntries)"))))
+        XCTAssertNil(registry.artwork(for: try url(1)), "an artwork nobody drew is evicted")
+        XCTAssertNotNil(registry.artwork(for: try url(39)), "the newest artwork is kept")
+        // Last session's URL still finds the pin cover through its item key.
+        let staleURL = try XCTUnwrap(URL(string: "musicKit://artwork/old"))
+        XCTAssertNotNil(registry.artwork(for: staleURL, itemKey: "playlist:p.1"))
+    }
+}
+
+final class LRUDictionaryTests: XCTestCase {
+    func testEvictsLeastRecentlyUsedEntriesInOneBatch() {
+        var cache = LRUDictionary<Int, String>(capacity: 10)
+        XCTAssertEqual(cache.trimmedCount, 9)
+        for n in 0..<10 { cache.setValue("\(n)", forKey: n) }
+        XCTAssertEqual(cache.value(forKey: 0), "0")
+        cache.setValue("3b", forKey: 3)
+        cache.setValue("10", forKey: 10)
+        // 11 > 10: trimmed to 9, dropping the two least recently used keys (1 and 2).
+        XCTAssertEqual((0...10).filter { cache.value(forKey: $0) != nil }.count, 9)
+        XCTAssertNil(cache.value(forKey: 1))
+        XCTAssertNil(cache.value(forKey: 2))
+        XCTAssertEqual(cache.value(forKey: 0), "0")
+        XCTAssertEqual(cache.value(forKey: 3), "3b")
+        XCTAssertEqual(cache.value(forKey: 10), "10")
+    }
+
+    func testStaysWithinItsCapacity() {
+        var cache = LRUDictionary<Int, Int>(capacity: 100)
+        for n in 0..<10_000 { cache.setValue(n, forKey: n) }
+        XCTAssertLessThanOrEqual((0..<10_000).filter { cache.value(forKey: $0) != nil }.count, 100)
+        XCTAssertEqual(cache.value(forKey: 9_999), 9_999)
+        XCTAssertNil(cache.value(forKey: 0))
     }
 }
 
@@ -1096,6 +1184,7 @@ private final class MockAppleMusicSource: AppleMusicContentSource, @unchecked Se
     var recentSongs: [Song] = []
     var recommended: [Playlist] = []
     var albumsByID: [String: Album] = [:]
+    var albumErrorsByID: [String: Error] = [:]
     var artistsByID: [String: Artist] = [:]
     var topSongsByArtistID: [String: [Song]] = [:]
     var catalogSearchItems = AppleMusicSearchItems()
@@ -1156,6 +1245,7 @@ private final class MockAppleMusicSource: AppleMusicContentSource, @unchecked Se
 
     func album(id: String) async throws -> Album? {
         record("album(\(id))")
+        if let error = albumErrorsByID[id] { throw error }
         return albumsByID[id]
     }
 
