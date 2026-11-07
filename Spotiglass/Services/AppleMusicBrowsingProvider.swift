@@ -52,6 +52,8 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
     static let albumTrackPages = 6
     /// Upper bound for one artist's albums, singles and compilations.
     static let maxArtistAlbums = 1_000
+    /// Bound for counting a library album's songs when MusicKit gives no album track count.
+    static let maxLibraryAlbumTracks = 500
 
     let source: any AppleMusicContentSource
 
@@ -209,6 +211,30 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         return artist
     }
 
+    /// MusicKit gives a library album the track count of the whole album, while the library
+    /// has only some of its songs and the album page lists just those: "15 tracks" on the
+    /// artist page, "1 track" once opened (#400). A library album therefore carries the number
+    /// of its songs in the library, the same list its album page shows. Catalog albums keep
+    /// their count.
+    private func libraryCounted(_ album: MusicArtistAlbum) async throws -> MusicArtistAlbum {
+        guard !MusicKitLibraryLookup.isCatalogID(album.id),
+              let detailed = try await source.album(id: album.id)
+        else { return album }
+        // The library never has more of an album than the album has.
+        let cap = album.totalTracks > 0 ? album.totalTracks : Self.maxLibraryAlbumTracks
+        let count = try await source.tracks(of: detailed, limit: cap).count
+        guard count > 0, count != album.totalTracks else { return album }
+        return MusicArtistAlbum(
+            id: album.id,
+            name: album.name,
+            imageURL: album.imageURL,
+            releaseYear: album.releaseYear,
+            totalTracks: count,
+            group: album.group,
+            uri: album.uri
+        )
+    }
+
     private func artistAlbums(id: String, includeGroups: [MusicArtistAlbumGroup]) async throws -> [MusicArtistAlbum] {
         let groups = Set(includeGroups)
         let all: [MusicArtistAlbum]
@@ -216,8 +242,11 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
             all = cached
         } else {
             let artist = try await loadArtist(id: id)
-            all = try await source.albums(of: artist, limit: Self.maxArtistAlbums)
-                .map(AppleMusicItemMapping.artistAlbum)
+            var albums: [MusicArtistAlbum] = []
+            for album in try await source.albums(of: artist, limit: Self.maxArtistAlbums) {
+                albums.append(try await libraryCounted(AppleMusicItemMapping.artistAlbum(album)))
+            }
+            all = albums
             await artistAlbumsCache.store(all, forArtistID: id)
         }
         return all.filter { groups.isEmpty || groups.contains($0.group) }

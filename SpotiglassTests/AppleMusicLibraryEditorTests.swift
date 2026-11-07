@@ -16,6 +16,10 @@ final class AppleMusicLibraryEditorTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
+        makeEditor()
+    }
+
+    private func makeEditor() {
         lookup = MockLibraryLookup()
         cloud = MockCloudLibrary()
         musicApp = MockMusicApp()
@@ -131,6 +135,52 @@ final class AppleMusicLibraryEditorTests: XCTestCase {
             now: sent.addingTimeInterval(120)
         )
         XCTAssertTrue(script.contains("set cutoff to (scriptNow - \(120 + MusicAppScripts.addedSinceMarginSeconds))"), script)
+    }
+
+    /// #400 saw Liked Songs drop to one below the right count after liking a catalog song and
+    /// unliking it again. This replays that sequence with every order in which the library on
+    /// this Mac can catch up (before or after the like shows, before or after the unlike), and
+    /// with the row the unlike was sent from in either shape. Every read after the unlike must
+    /// show exactly the songs that were there before the like.
+    func testLikeThenUnlikeAlwaysLeavesTheCountItStartedWith() async throws {
+        let meta = { (name: String) in AppleMusicPendingLibraryEdits.metadataKey(name: name, artist: "Rihanna") }
+        let others = [("i.one", "1001", "Umbrella"), ("i.two", "1002", "Diamonds (Remix)"), ("i.three", "1003", "Stay")]
+            .map { id, catalog, name in
+                (track: Self.track(id: id, name: name, artist: "Rihanna"), keys: Set([id, catalog, meta(name)]))
+            }
+        let diamonds = (track: Self.track(id: "i.dia", name: "Diamonds", artist: "Rihanna"),
+                        keys: Set(["i.dia", "565345164", meta("Diamonds")]))
+
+        for unlikeFromLibraryRow in [false, true] {
+            for libraryListsTheUnlikedSong in [false, true] {
+                makeEditor()
+                lookup.catalogTracksByID["565345164"] = Self.track(
+                    id: "565345164", name: "Diamonds", artist: "Rihanna", album: "Unapologetic"
+                )
+                try await editor.saveSongs(ids: ["565345164"])
+                XCTAssertEqual(pending.applied(toLibrarySongs: others, isComplete: true).count, 4, "like, stale read")
+                let rowID: String
+                if unlikeFromLibraryRow {
+                    XCTAssertEqual(pending.applied(toLibrarySongs: [diamonds] + others, isComplete: true).count, 4, "like, caught up")
+                    lookup.songsByID["i.dia"] = AppleMusicSongReference(
+                        itemID: "i.dia", catalogID: "565345164", cloudLibraryID: "i.dia",
+                        musicAppPersistentID: "367911FB05FE6876", isInLibrary: true, title: "Diamonds", artistName: "Rihanna"
+                    )
+                    rowID = "i.dia"
+                } else {
+                    rowID = "565345164"
+                }
+
+                try await editor.removeSongs(ids: [rowID])
+
+                let read = (libraryListsTheUnlikedSong ? [diamonds] : []) + others
+                let shown = pending.applied(toLibrarySongs: read, isComplete: true)
+                XCTAssertEqual(shown.map(\.id), others.map(\.track.id),
+                               "row \(rowID), library still lists it: \(libraryListsTheUnlikedSong)")
+                // A second read (the library catching up) keeps the count.
+                XCTAssertEqual(pending.applied(toLibrarySongs: others, isComplete: true).count, 3)
+            }
+        }
     }
 
     func testUnlikeOfASongNobodyCanFindSaysMusicIsNotThereYet() async {
@@ -377,13 +427,22 @@ final class AppleMusicLibraryEditorTests: XCTestCase {
         XCTAssertEqual(identity.musicKitPersistentID, "-4954366973876942249")
     }
 
-    func testSongReferenceRegistryStaysBounded() {
+    /// Past the bound the least recently used references go, not the first ones remembered: a
+    /// playlist read first and read again keeps its rows editable (#400, #381).
+    func testSongReferenceRegistryEvictsTheLeastRecentlyUsed() {
         let registry = AppleMusicSongReferenceRegistry()
-        for index in 0...AppleMusicSongReferenceRegistry.maxEntries {
+        let max = AppleMusicSongReferenceRegistry.maxEntries
+        for index in 0..<max {
             registry.remember(AppleMusicSongReference(itemID: "\(index)", isInLibrary: true))
         }
-        XCTAssertNil(registry.reference(for: "0"), "the oldest entry is dropped past the bound")
-        XCTAssertNotNil(registry.reference(for: "\(AppleMusicSongReferenceRegistry.maxEntries)"))
+        XCTAssertNotNil(registry.reference(for: "0"), "the first playlist row is used again")
+        for index in max..<(2 * max) {
+            registry.remember(AppleMusicSongReference(itemID: "\(index)", isInLibrary: true))
+            if index.isMultiple(of: 100) { XCTAssertNotNil(registry.reference(for: "0")) }
+        }
+        XCTAssertNotNil(registry.reference(for: "0"))
+        XCTAssertNil(registry.reference(for: "1"), "a reference nobody used again is dropped")
+        XCTAssertNotNil(registry.reference(for: "\(2 * max - 1)"))
     }
 
     // MARK: - Helpers
@@ -972,6 +1031,10 @@ final class AppleMusicProviderEditWiringTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
+        makeEditor()
+    }
+
+    private func makeEditor() {
         lookup = MockLibraryLookup()
         cloud = MockCloudLibrary()
         musicApp = MockMusicApp()
