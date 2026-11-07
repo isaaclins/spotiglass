@@ -15,6 +15,9 @@ extension AppleMusicBrowsingProvider {
 
     func removeSavedTracks(ids: [String]) async throws {
         try await editor.removeSongs(ids: ids)
+        // Music takes the songs out of every playlist they were in, and which ones that are is
+        // not known here.
+        await trackCountCache.forgetAll()
     }
 
     func savedTrackStatuses(ids: [String]) async throws -> [Bool] {
@@ -27,6 +30,7 @@ extension AppleMusicBrowsingProvider {
 
     func removeSavedAlbums(ids: [String]) async throws {
         try await editor.removeAlbums(ids: ids)
+        await trackCountCache.forgetAll()
     }
 
     func savedAlbumStatuses(ids: [String]) async throws -> [Bool] {

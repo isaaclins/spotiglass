@@ -1479,6 +1479,33 @@ final class AppleMusicPlaylistEditFixTests: XCTestCase {
         XCTAssertEqual(after[playlistID], shown.count, "the sidebar and the open playlist agree")
     }
 
+    /// Once the library shows a removal from Spotiglass, the count kept from before it must
+    /// not come back: the playlist's version doesn't always change.
+    func testACountFromBeforeALibraryRemovalDoesNotComeBack() async throws {
+        let playlistID = "-107247429512612591"
+        let source = EditTestContentSource()
+        source.playlists = [try AppleMusicFixtures.playlist(id: playlistID, name: "Spotiglass test")]
+        let removed = Track.song(try AppleMusicFixtures.song(id: rowID, title: "Don't Stop The Music", artist: "Rihanna"))
+        let kept = Track.song(try AppleMusicFixtures.song(id: "i.1", title: "One", artist: "Someone"))
+        source.tracksByPlaylistID[playlistID] = [removed, kept]
+        let provider = AppleMusicBrowsingProvider(source: source, editor: editor)
+        _ = try await provider.currentUserPlaylists(limit: 50)
+        _ = await provider.playlistTrackCounts(playlistIDs: [playlistID])
+
+        try await provider.removeSavedTracks(ids: [rowID])
+        let whileListed = await provider.playlistTrackCounts(playlistIDs: [playlistID])
+        XCTAssertEqual(whileListed, [playlistID: 1])
+        // The library catches up: a complete library read no longer lists the song.
+        source.tracksByPlaylistID[playlistID] = [kept]
+        _ = pending.applied(toLibrarySongs: [], isComplete: true)
+        XCTAssertFalse(pending.hasRemovedSongs)
+
+        let listed = try await provider.currentUserPlaylists(limit: 50)
+        XCTAssertNotEqual(listed.first?.trackCount, 2, "the count from before the removal is gone")
+        let counted = await provider.playlistTrackCounts(playlistIDs: [playlistID])
+        XCTAssertEqual(counted, [playlistID: 1])
+    }
+
     func testALibraryRowAddedToAPlaylistShowsThereBeforeTheLibraryListsIt() async throws {
         let row = try remembered18P1Row()
         let source = EditTestContentSource()

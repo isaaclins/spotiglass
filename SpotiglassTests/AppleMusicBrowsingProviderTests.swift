@@ -387,6 +387,45 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         XCTAssertEqual(detail.playlist.trackCount, 1)
     }
 
+    /// Opening a playlist while a refresh recounts it: the header ends with the fresh count,
+    /// not the stand-in it was opened with.
+    @MainActor
+    func testAPlaylistOpenedDuringARecountShowsTheFreshCount() async throws {
+        let clock = TrackCountTestClock()
+        let source = MockAppleMusicSource()
+        source.playlists = [try AppleMusicFixtures.playlist(id: "p.1", name: "Road")]
+        source.trackCountsByPlaylistID = ["p.1": 5]
+        source.playlistTracksByID["p.1"] = [.song(try AppleMusicFixtures.song(id: "1", title: "One"))]
+        let provider = AppleMusicBrowsingProvider(
+            source: source,
+            trackCountCache: AppleMusicPlaylistTrackCountCache(now: { clock.now })
+        )
+        let viewModel = PlaylistBrowserViewModel(api: provider, cache: MockBrowsingCache())
+        await viewModel.refreshPlaylists()
+        await viewModel.playlistTrackCountTask?.value
+
+        clock.now = clock.now.addingTimeInterval(AppleMusicPlaylistTrackCountCache.maxAge + 1)
+        source.trackCountsByPlaylistID = ["p.1": 6]
+        let countGate = TrackCountGate()
+        let tracksGate = TrackCountGate()
+        source.trackCountsGate = countGate
+        source.playlistTracksGate = tracksGate
+        await viewModel.refreshPlaylists()
+        let opening = Task { await viewModel.selectSidebar(.playlist("p.1")) }
+        for _ in 0..<1000 where !source.calls.contains(where: { $0.hasPrefix("playlistTracks(p.1") }) {
+            await Task.yield()
+        }
+        countGate.open()
+        await viewModel.playlistTrackCountTask?.value
+        tracksGate.open()
+        await opening.value
+
+        guard case let .playlist(detail)? = viewModel.detailState.currentValue else {
+            return XCTFail("the playlist is open")
+        }
+        XCTAssertEqual(detail.playlist.trackCount, 6)
+    }
+
     /// The sidebar shows right away; counts arrive in batches afterwards and an unknown count stays
     /// quiet instead of reading "Track count unavailable" on every row.
     @MainActor

@@ -179,7 +179,10 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
             let start = await trackCountCache.startLookup(unedited)
             // A failed lookup only leaves those rows without a count; the sidebar itself is loaded.
             if let library = try? await source.libraryPlaylistTracks(playlistIDs: unedited) {
-                await trackCountCache.store(library.compactMapValues { $0.isEmpty ? nil : $0.count }, from: start)
+                // While the library still lists a removed song, its raw count is the old one.
+                if !editor.pending.hasRemovedSongs {
+                    await trackCountCache.store(library.compactMapValues { $0.isEmpty ? nil : $0.count }, from: start)
+                }
                 counts = library.compactMapValues { tracks in
                     let count = countLeavingOutRemovedSongs(tracks)
                     return count > 0 ? count : nil
@@ -531,6 +534,8 @@ actor AppleMusicPlaylistTrackCountCache {
     private var versions: [String: Date?] = [:]
     /// How often each playlist was edited from Spotiglass, for `store(_:from:)`.
     private var edits: [String: Int] = [:]
+    /// How often songs were removed from the library, for `store(_:from:)`.
+    private var libraryRemovals = 0
     private let now: @Sendable () -> Date
 
     init(now: @escaping @Sendable () -> Date = Date.init) {
@@ -554,6 +559,7 @@ actor AppleMusicPlaylistTrackCountCache {
     struct LookupStart: Sendable {
         fileprivate let versions: [String: Date?]
         fileprivate let edits: [String: Int]
+        fileprivate let libraryRemovals: Int
     }
 
     /// Drops the counts of playlists that were just edited, so no listing brings back the count
@@ -565,16 +571,26 @@ actor AppleMusicPlaylistTrackCountCache {
         }
     }
 
+    /// Drops every count after songs were removed from the library: they leave each playlist
+    /// they were in.
+    func forgetAll() {
+        entries = [:]
+        libraryRemovals += 1
+    }
+
     func startLookup(_ playlistIDs: [String]) -> LookupStart {
         LookupStart(
             versions: Dictionary(playlistIDs.map { ($0, versions[$0] ?? nil) }, uniquingKeysWith: { first, _ in first }),
-            edits: Dictionary(playlistIDs.map { ($0, edits[$0] ?? 0) }, uniquingKeysWith: { first, _ in first })
+            edits: Dictionary(playlistIDs.map { ($0, edits[$0] ?? 0) }, uniquingKeysWith: { first, _ in first }),
+            libraryRemovals: libraryRemovals
         )
     }
 
     /// Keeps the counts a lookup read, except for playlists edited or listed with a newer
-    /// version since it started: those counts may be from before the change.
+    /// version since it started, or all of them after a removal from the library: those counts
+    /// may be from before the change.
     func store(_ counts: [String: Int], from start: LookupStart) {
+        guard start.libraryRemovals == libraryRemovals else { return }
         let storedAt = now()
         for (id, count) in counts {
             guard let version = start.versions[id],
