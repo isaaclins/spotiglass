@@ -3,6 +3,10 @@ import Foundation
 @MainActor
 extension PlaybackSessionViewModel {
     func togglePlayPause() async {
+        // Resuming is starting music too: the other service's player pauses first (#373).
+        if !PlaylistBrowserPlaybackHelpers.isCurrentlyPlaying(connectionState: connectionState) {
+            onWillStartPlayback?()
+        }
         if isPlayerStateRead {
             await toggleRemotePlayback()
             return

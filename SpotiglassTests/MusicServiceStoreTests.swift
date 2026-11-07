@@ -596,6 +596,29 @@ final class PlaybackHandoverTests: XCTestCase {
         XCTAssertEqual(toggles(commander), 1, "Spotify pauses once Apple Music starts something")
     }
 
+    /// Resuming is starting music too: Play on Apple Music's bar while Spotify plays pauses
+    /// Spotify, so the two never play at once.
+    func testResumingAppleMusicPausesSpotify() async throws {
+        let (spotify, commander) = playingSpotify()
+        let hosts = SpotiglassPlaybackHosts(spotify: spotify) {
+            SpotiglassPlaybackHost(provider: AppleMusicPlaybackProvider(player: ScriptedAppleMusicPlayer()))
+        }
+        let appleMusic = hosts.appleMusic.playbackViewModel
+        hosts.gate(activeService: .appleMusic)
+        appleMusic.handle(.ready(deviceID: AppleMusicPlaybackProvider.deviceID))
+        appleMusic.setConnectionState(.paused(PlaybackNowPlaying(
+            name: "Can't Hold Us", artists: [], albumName: nil, albumID: nil, albumArtURL: nil,
+            durationMilliseconds: 258_000, positionMilliseconds: 30_000, uri: "applemusic:song:1"
+        )))
+
+        await appleMusic.togglePlayPause()
+        for _ in 0..<20 where toggles(commander) == 0 {
+            try await Task.sleep(for: .milliseconds(25))
+        }
+
+        XCTAssertEqual(toggles(commander), 1, "Spotify pauses once Apple Music resumes")
+    }
+
     /// A Spotify-only setup never creates Apple Music's player, so it never reaches MusicKit.
     func testSpotifyOnlyNeverCreatesTheAppleMusicPlayer() {
         let (spotify, _) = playingSpotify()
