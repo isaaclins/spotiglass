@@ -63,8 +63,9 @@ remembers your appearance and `stop` puts it back.
 
 Both backups (the real app's preferences and your appearance) are kept in
 `~/Library/Application Support/Spotiglass Screenshot Mode`, outside `build/`, so cleaning the build
-folder or running `stop` from another checkout still restores them. If the appearance can't be put
-back, `stop` says so, keeps the backup and exits with an error; run it again.
+folder or running `stop` from another checkout still restores them. While a screenshot app from
+another checkout is still running, `stop` leaves both to that run's `stop`. If one can't be put
+back, `stop` says so, keeps that backup and exits with an error; run it again.
 
 `key` posts a real key event with its virtual key code (the app's keymap matches on key codes, so
 text typed by other tools does not trigger shortcuts). Modifiers are `cmd`, `shift`, `alt` and

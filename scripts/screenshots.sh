@@ -31,13 +31,16 @@ usage() { sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; exit 1; }
 REAL_BUNDLE_ID="com.isaaclins.spotiglass"
 # What start and appearance change outside the app's own sandbox (the real app's defaults, the macOS
 # appearance) is per Mac, not per checkout, so its backups live outside the build folder: wiping
-# build/ or running from another checkout still finds them, and stop puts them back.
+# build/ or running from another checkout still finds them. stop puts them back once no checkout's
+# screenshot app is running any more.
 STATE_DIR="$HOME/Library/Application Support/Spotiglass Screenshot Mode"
 REAL_DEFAULTS_BACKUP="$STATE_DIR/real-defaults.plist"
 REAL_DEFAULTS_MARKER="$STATE_DIR/real-defaults.saved"
 SERVICES_SUITE="com.isaaclins.spotiglass.screenshots.services"
 
 app_pid() { pgrep -f "$APP/Contents/MacOS/Spotiglass" | head -1; }
+# Screenshot apps started from other checkouts; they still use the shared backups' changes.
+other_runs() { pgrep -fl "/build/screenshot-mode/Spotiglass.app/Contents/MacOS/Spotiglass" | grep -vF "$APP/" || true; }
 
 # Prints "<windowID> <title>" for each on-screen window of the screenshot app, largest first.
 windows() {
@@ -236,23 +239,35 @@ stop() {
     [ -f "$WORK/mock.pid" ] && { kill "$(cat "$WORK/mock.pid")" 2>/dev/null || true; rm -f "$WORK/mock.pid"; }
     defaults delete "$BUNDLE_ID" >/dev/null 2>&1 || true
     defaults delete "$SERVICES_SUITE" >/dev/null 2>&1 || true
-    if [ -f "$REAL_DEFAULTS_MARKER" ]; then
-        defaults delete "$REAL_BUNDLE_ID" >/dev/null 2>&1 || true
-        [ -f "$REAL_DEFAULTS_BACKUP" ] && defaults import "$REAL_BUNDLE_ID" "$REAL_DEFAULTS_BACKUP"
-        rm -f "$REAL_DEFAULTS_BACKUP" "$REAL_DEFAULTS_MARKER"
-    fi
-    local restore_failed=0
-    if [ -f "$APPEARANCE_BACKUP" ]; then
-        # The backup goes only once the appearance is back, so a failed restore can be retried.
-        if set_system_appearance "$(cat "$APPEARANCE_BACKUP")"; then
-            rm -f "$APPEARANCE_BACKUP"
-        else
-            echo "screenshots: could not put the macOS appearance back to $(cat "$APPEARANCE_BACKUP");" \
-                "run 'stop' again, or set it in System Settings and delete $APPEARANCE_BACKUP" >&2
-            restore_failed=1
+    # Each backup goes only once its restore worked, so a failed one can be retried, and one failing
+    # never skips the other. A run from another checkout still uses both, so they wait for its stop.
+    local restore_failed=0 others; others="$(other_runs)"
+    if [ -n "$others" ] && { [ -f "$REAL_DEFAULTS_MARKER" ] || [ -f "$APPEARANCE_BACKUP" ]; }; then
+        echo "screenshots: another checkout's screenshot app is running; its 'stop' restores the" \
+            "real app's defaults and the macOS appearance:" >&2
+        echo "$others" >&2
+    else
+        if [ -f "$REAL_DEFAULTS_MARKER" ]; then
+            defaults delete "$REAL_BUNDLE_ID" >/dev/null 2>&1 || true
+            if [ ! -f "$REAL_DEFAULTS_BACKUP" ] || defaults import "$REAL_BUNDLE_ID" "$REAL_DEFAULTS_BACKUP"; then
+                rm -f "$REAL_DEFAULTS_BACKUP" "$REAL_DEFAULTS_MARKER"
+            else
+                echo "screenshots: could not put back the real app's defaults from $REAL_DEFAULTS_BACKUP;" \
+                    "run 'stop' again, or import it with 'defaults import $REAL_BUNDLE_ID <file>'" >&2
+                restore_failed=1
+            fi
         fi
+        if [ -f "$APPEARANCE_BACKUP" ]; then
+            if set_system_appearance "$(cat "$APPEARANCE_BACKUP")"; then
+                rm -f "$APPEARANCE_BACKUP"
+            else
+                echo "screenshots: could not put the macOS appearance back to $(cat "$APPEARANCE_BACKUP");" \
+                    "run 'stop' again, or set it in System Settings and delete $APPEARANCE_BACKUP" >&2
+                restore_failed=1
+            fi
+        fi
+        rmdir "$STATE_DIR" 2>/dev/null || true
     fi
-    rmdir "$STATE_DIR" 2>/dev/null || true
     rm -rf "$FAKE_HOME" "$APP" "$WORK/windows.swift" "$WORK/key.swift" "$WORK/key" \
         "$WORK/appearance.swift" "$WORK/appearance"
     [ "$restore_failed" = 0 ] || exit 1
