@@ -1900,22 +1900,23 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotify hat für diesen Künstler weder Top-Titel noch Veröffentlichungen zurückgegeben."
+            "value": "%@ hat für diesen Künstler weder Top-Titel noch Veröffentlichungen zurückgegeben."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotify returned no top tracks and no releases for this artist."
+            "value": "%@ returned no top tracks and no releases for this artist."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotify no devolvió canciones destacadas ni lanzamientos de este artista."
+            "value": "%@ no devolvió canciones destacadas ni lanzamientos de este artista."
           }
         }
-      }
+      },
+      "comment": "%@ is the music service on screen (Spotify, Apple Music)."
     },
     "browser.artist.empty.title": {
       "extractionState": "stale",
@@ -2107,22 +2108,23 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Zwischengespeicherte Daten werden angezeigt, während Spotify aktualisiert wird."
+            "value": "Zwischengespeicherte Daten werden angezeigt, während %@ aktualisiert wird."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Showing cached data while Spotify refreshes."
+            "value": "Showing cached data while %@ refreshes."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mostrando datos en caché mientras Spotify se actualiza."
+            "value": "Mostrando datos en caché mientras %@ se actualiza."
           }
         }
-      }
+      },
+      "comment": "%@ is the music service on screen (Spotify, Apple Music)."
     },
     "browser.closeLyrics": {
       "extractionState": "stale",
@@ -2475,22 +2477,23 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ihre Spotify-Mediathek enthält noch keine Playlists."
+            "value": "Ihre %@-Mediathek enthält noch keine Playlists."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Your Spotify library has no playlists yet."
+            "value": "Your %@ library has no playlists yet."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tu biblioteca de Spotify todavía no tiene listas."
+            "value": "Tu biblioteca de %@ todavía no tiene listas."
           }
         }
-      }
+      },
+      "comment": "%@ is the music service on screen (Spotify, Apple Music)."
     },
     "browser.empty.pickSomething": {
       "extractionState": "stale",
@@ -7249,22 +7252,23 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotify nach Titeln, Alben, Künstlern und Playlists durchsuchen"
+            "value": "%@ nach Titeln, Alben, Künstlern und Playlists durchsuchen"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Search Spotify for tracks, albums, artists and playlists"
+            "value": "Search %@ for tracks, albums, artists and playlists"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Buscar canciones, álbumes, artistas y listas en Spotify"
+            "value": "Buscar canciones, álbumes, artistas y listas en %@"
           }
         }
-      }
+      },
+      "comment": "%@ is the music service on screen (Spotify, Apple Music)."
     },
     "palette.command.navigation.search.open.title": {
       "extractionState": "stale",
@@ -7962,22 +7966,23 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": " Präfix, um Spotify zu durchsuchen"
+            "value": " Präfix, um %@ zu durchsuchen"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": " prefix to search Spotify"
+            "value": " prefix to search %@"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": " prefijo para buscar en Spotify"
+            "value": " prefijo para buscar en %@"
           }
         }
-      }
+      },
+      "comment": "%@ is the music service on screen (Spotify, Apple Music)."
     },
     "palette.footer.searchPrefix": {
       "extractionState": "stale",
@@ -8330,22 +8335,23 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotify durchsuchen"
+            "value": "%@ durchsuchen"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Search Spotify"
+            "value": "Search %@"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Buscar en Spotify"
+            "value": "Buscar en %@"
           }
         }
-      }
+      },
+      "comment": "%@ is the music service on screen (Spotify, Apple Music)."
     },
     "palette.searchPlaceholder.songs.artists": {
       "extractionState": "stale",
@@ -8445,22 +8451,23 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotify wird durchsucht"
+            "value": "%@ wird durchsucht"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Searching Spotify"
+            "value": "Searching %@"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Buscando en Spotify"
+            "value": "Buscando en %@"
           }
         }
-      }
+      },
+      "comment": "%@ is the music service on screen (Spotify, Apple Music)."
     },
     "palette.section.albums": {
       "extractionState": "stale",
@@ -10648,7 +10655,7 @@
               "one": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%lld cancion"
+                  "value": "%lld canción"
                 }
               },
               "other": {
@@ -10975,25 +10982,25 @@
       }
     },
     "playlist.mutation.signInToCreate": {
-      "comment": "Shown when a playlist cannot be created without a Spotify account.",
+      "comment": "Shown when a playlist cannot be created without a Spotify account. %@ is the music service on screen (Spotify, Apple Music).",
       "isCommentAutoGenerated": false,
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Melden Sie sich bei Spotify an, bevor Sie eine Playlist erstellen."
+            "value": "Melden Sie sich bei %@ an, bevor Sie eine Playlist erstellen."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sign in to Spotify before creating a playlist."
+            "value": "Sign in to %@ before creating a playlist."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Inicia sesión en Spotify antes de crear una lista."
+            "value": "Inicia sesión en %@ antes de crear una lista."
           }
         }
       }
@@ -11204,22 +11211,23 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Eine leere Playlist in Ihrer Spotify-Mediathek erstellen."
+            "value": "Eine leere Playlist in Ihrer %@-Mediathek erstellen."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Create an empty playlist in your Spotify library."
+            "value": "Create an empty playlist in your %@ library."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Crear una lista vacía en tu biblioteca de Spotify."
+            "value": "Crear una lista vacía en tu biblioteca de %@."
           }
         }
-      }
+      },
+      "comment": "%@ is the music service on screen (Spotify, Apple Music)."
     },
     "playlist.detail.newPlaylist.field": {
       "extractionState": "stale",
@@ -11943,22 +11951,23 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Durchsuchen Sie Spotify nach Titeln, Künstlern, Alben und Playlists."
+            "value": "Durchsuchen Sie %@ nach Titeln, Künstlern, Alben und Playlists."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Search Spotify for tracks, artists, albums and playlists."
+            "value": "Search %@ for tracks, artists, albums and playlists."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Busca en Spotify canciones, artistas, álbumes y listas."
+            "value": "Busca en %@ canciones, artistas, álbumes y listas."
           }
         }
-      }
+      },
+      "comment": "%@ is the music service on screen (Spotify, Apple Music)."
     },
     "search.empty.keepTyping": {
       "extractionState": "stale",
@@ -12081,22 +12090,23 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotify durchsuchen"
+            "value": "%@ durchsuchen"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Search Spotify"
+            "value": "Search %@"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Buscar en Spotify"
+            "value": "Buscar en %@"
           }
         }
-      }
+      },
+      "comment": "Search field placeholder. %@ is the music service on screen (Spotify, Apple Music)."
     },
     "search.loadMore": {
       "extractionState": "stale",
@@ -14347,7 +14357,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple Music Abo erforderlich"
+            "value": "Apple Music-Abo erforderlich"
           }
         }
       }
@@ -14370,7 +14380,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Um Apple Music in Spotiglass abzuspielen, brauchst du ein Apple Music Abo."
+            "value": "Um Apple Music in Spotiglass abzuspielen, brauchst du ein Apple Music-Abo."
           }
         }
       }
@@ -14410,13 +14420,13 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple Music no ha podido hacerlo. Vuelve a intentarlo en un momento."
+            "value": "Apple Music no pudo hacerlo. Vuelve a intentarlo en un momento."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple Music konnte das nicht ausführen. Versuch es gleich nochmal."
+            "value": "Apple Music konnte das nicht ausführen. Versuche es gleich erneut."
           }
         }
       }
@@ -14686,7 +14696,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Al cerrar sesión, Apple Music desaparece del menú de servicios; tus fijados se guardan para cuando lo vuelvas a añadir. El acceso de Spotiglass a tu biblioteca es un permiso del sistema: Ajustes del Sistema › Privacidad y seguridad › Multimedia y Apple Music."
+            "value": "Al cerrar sesión, Apple Music desaparece del menú de servicios; tus elementos fijados se guardan para cuando lo vuelvas a añadir. El acceso de Spotiglass a tu biblioteca es un permiso del sistema: Ajustes del Sistema › Privacidad y seguridad › Multimedia y Apple Music."
           }
         },
         "de": {
@@ -15554,7 +15564,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Die Playlist wird auf allen deinen Geräten aus der Mediathek entfernt. Ihre Titel bleiben in der Mediathek."
+            "value": "Die Playlist wird auf allen deinen Geräten aus der Mediathek entfernt. Die Titel darin bleiben in der Mediathek."
           }
         }
       }
@@ -15879,6 +15889,270 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ aus der Mediathek entfernt"
+          }
+        }
+      }
+    },
+    "browser.disconnect.confirm.message.switch": {
+      "comment": "Body of the Disconnect Spotify alert when another service is added. %@ is the service the window switches to.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify is removed from Spotiglass and the window switches to %@. The saved session is cleared."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify se quitará de Spotiglass y la ventana cambiará a %@. Se borrará la sesión guardada."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify wird aus Spotiglass entfernt und das Fenster wechselt zu %@. Die gespeicherte Sitzung wird gelöscht."
+          }
+        }
+      }
+    },
+    "browser.disconnect.hint.switch": {
+      "comment": "VoiceOver hint of the Disconnect button when another service is added. %@ is the service the window switches to.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disconnects Spotify and switches to %@."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desconecta Spotify y cambia a %@."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trennt Spotify und wechselt zu %@."
+          }
+        }
+      }
+    },
+    "appleMusic.error.signIn.title": {
+      "comment": "Apple Music browsing error title: the Apple Account is not signed in.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign in to Apple Music"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inicia sesión en Apple Music"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bei Apple Music anmelden"
+          }
+        }
+      }
+    },
+    "appleMusic.error.signIn.message": {
+      "comment": "Apple Music browsing error: the Apple Account is not signed in, or its session ended.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Music and sign in with your Apple Account, then try again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abre Música, inicia sesión con tu cuenta de Apple y vuelve a intentarlo."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Öffne Musik, melde dich mit deinem Apple Account an und versuche es dann erneut."
+          }
+        }
+      }
+    },
+    "appleMusic.error.privacyNotice.title": {
+      "comment": "Apple Music browsing error title: Apple's privacy notice for Music was never accepted.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Music once"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abre Música una vez"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Musik einmal öffnen"
+          }
+        }
+      }
+    },
+    "appleMusic.error.privacyNotice.message": {
+      "comment": "Apple Music browsing error: Apple's privacy notice for Music was never accepted.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Music needs you to accept its privacy notice first. Open Music, accept it, then try again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Music necesita que primero aceptes su aviso de privacidad. Abre Música, acéptalo y vuelve a intentarlo."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Music braucht zuerst deine Zustimmung zum Datenschutzhinweis. Öffne Musik, stimme zu und versuche es dann erneut."
+          }
+        }
+      }
+    },
+    "appleMusic.error.unavailable.title": {
+      "comment": "Apple Music browsing error title: Apple Music refused this copy of the app.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Music isn't available"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Music no está disponible"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Music ist nicht verfügbar"
+          }
+        }
+      }
+    },
+    "appleMusic.error.unavailable.message": {
+      "comment": "Apple Music browsing error: Apple Music refused this copy of the app, nothing the listener can fix.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass can't reach Apple Music right now. Try again later."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass no puede conectarse con Apple Music en este momento. Vuelve a intentarlo más tarde."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass erreicht Apple Music gerade nicht. Versuche es später erneut."
+          }
+        }
+      }
+    },
+    "appleMusic.error.network.message": {
+      "comment": "Apple Music browsing error: the network request failed.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't reach Apple Music. Check your connection, then try again."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo conectar con Apple Music. Revisa tu conexión y vuelve a intentarlo."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Music ist nicht erreichbar. Prüfe deine Verbindung und versuche es erneut."
+          }
+        }
+      }
+    },
+    "appleMusic.error.failed.title": {
+      "comment": "Apple Music browsing error title for any other failure.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Music couldn't load this"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Music no pudo cargar esto"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Music konnte das nicht laden"
+          }
+        }
+      }
+    },
+    "palette.key.space": {
+      "comment": "Name of the Space bar in shortcut lists (Settings › Keyboard, menus).",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Space"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Espacio"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leertaste"
           }
         }
       }

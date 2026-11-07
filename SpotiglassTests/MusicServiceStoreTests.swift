@@ -223,6 +223,28 @@ final class MusicServiceStoreTests: XCTestCase {
         XCTAssertEqual(store.active, .spotify)
     }
 
+    /// A lapsed Spotify session keeps Spotify in the menu, so Disconnect must be able to remove it
+    /// without a live session (#399). Only the lone Spotify keeps its sign-in screen instead, and
+    /// a service that is only being added is left to Cancel.
+    func testSignOutRemovesFromMenuOnlyWhenSomethingIsLeft() {
+        let both = MusicServiceStore(
+            storage: InMemoryMusicServiceSelectionStorage(services: [.appleMusic, .spotify], active: .appleMusic)
+        )
+        XCTAssertTrue(both.signOutRemovesFromMenu(.spotify))
+        XCTAssertTrue(both.signOutRemovesFromMenu(.appleMusic))
+
+        let spotifyOnly = MusicServiceStore(
+            storage: InMemoryMusicServiceSelectionStorage(services: [.spotify], active: .spotify)
+        )
+        XCTAssertFalse(spotifyOnly.signOutRemovesFromMenu(.spotify))
+
+        let addingSpotify = MusicServiceStore(
+            storage: InMemoryMusicServiceSelectionStorage(services: [.appleMusic], active: .appleMusic)
+        )
+        addingSpotify.beginAddition(of: .spotify)
+        XCTAssertFalse(addingSpotify.signOutRemovesFromMenu(.spotify))
+    }
+
     /// Apple Music has no sign-in screen of its own: signing out of the last one shows the
     /// welcome screen.
     func testSigningOutOfTheOnlyAppleMusicShowsTheWelcomeScreen() {
@@ -547,6 +569,29 @@ final class MusicServiceStoreTests: XCTestCase {
         states.send(.signedIn(session))
 
         XCTAssertEqual(store.services, [.appleMusic])
+    }
+
+    /// With Apple Music added, Disconnect Spotify promised "the sign-in screen" but the window
+    /// went to Apple Music (#397). The alert now says where it goes.
+    func testDisconnectAlertSaysWhereTheWindowGoes() {
+        let store = MusicServiceStore(
+            storage: InMemoryMusicServiceSelectionStorage(services: [.appleMusic, .spotify], active: .spotify)
+        )
+        let next = store.orderedServices.first { $0 != .spotify }
+        XCTAssertEqual(
+            PlaylistBrowserView.disconnectConfirmationMessage(switchingTo: next),
+            "Spotify is removed from Spotiglass and the window switches to Apple Music. The saved session is cleared."
+        )
+        XCTAssertEqual(PlaylistBrowserView.disconnectHint(switchingTo: next), "Disconnects Spotify and switches to Apple Music.")
+
+        store.signOutRemoving(.spotify)
+        XCTAssertEqual(store.active, next)
+
+        // Spotify alone: Disconnect shows Spotify's sign-in again, as the old text says.
+        XCTAssertEqual(
+            PlaylistBrowserView.disconnectConfirmationMessage(switchingTo: nil),
+            SpotiglassL10n.string("browser.disconnect.confirm.message")
+        )
     }
 }
 

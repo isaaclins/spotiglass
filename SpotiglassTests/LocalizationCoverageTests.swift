@@ -46,7 +46,7 @@ final class LocalizationCoverageTests: XCTestCase {
         // Catalog search
         ("browser.search", "browser.search", "Search", "Buscar", "Suchen"),
         ("search.category.tracks", "search.category.tracks", "Tracks", "Canciones", "Titel"),
-        ("search.field.placeholder", "search.field.placeholder", "Search Spotify", "Buscar en Spotify", "Spotify durchsuchen"),
+        ("search.field.placeholder", "search.field.placeholder", "Search %@", "Buscar en %@", "%@ durchsuchen"),
         ("palette.showAllResults.subtitle", "palette.showAllResults.subtitle", "Open the Search view", "Abrir la vista de búsqueda", "Suchansicht öffnen"),
 
         // Menus

@@ -39,6 +39,32 @@ final class PlaylistBrowserHomeFeedTests: XCTestCase {
         XCTAssertEqual(cards.dropFirst().map(\.destination), [.playlist(id: "one"), .playlist(id: "two")])
     }
 
+    /// Library rows outlive a language switch (the cache is fresh for 30 minutes), so the Home
+    /// card must resolve my Apple Music library's "You" where it's shown, like the sidebar (#398).
+    func testQuickAccessShowsMyLibraryOwnerInTheAppLanguage() async throws {
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([
+                MusicPlaylistSummary(
+                    id: "p.mine", name: "Road", ownerID: AppleMusicBrowsingProvider.libraryUserID,
+                    ownerName: "You", imageURL: nil, trackCount: 3, snapshotID: "applemusic"
+                ),
+                PlaylistBrowsingTestFixtures.playlist(id: "spotify", name: "Spotify"),
+            ])],
+            trackResults: [:]
+        )
+        let vm = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+        await vm.load()
+
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("home-owner-\(UUID().uuidString).json")
+        let store = SpotiglassSettingsStore(fileURL: url)
+        try store.mutate { $0.appearance.language = .german }
+        SpotiglassL10n.settingsStore = store
+        defer { SpotiglassL10n.settingsStore = nil }
+
+        XCTAssertEqual(vm.homeQuickAccessCards.dropFirst().map(\.subtitle), ["Du", "Owner"])
+    }
+
     func testHomeTopTrackOptionsUseTheRowTargetWithoutMove() throws {
         let track = TrackRowViewModel.numberedTopTracks([
             recentlyPlayedTrack(id: "home-track", albumID: "home-album", albumName: "Home Album")

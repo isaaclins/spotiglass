@@ -56,14 +56,13 @@ struct AccountSettingsView: View {
             }
 
             Section {
-                SpotifyClientIDAndActionsView(
-                    viewModel: viewModel,
-                    layout: .settings,
-                    onSignOut: {
-                        prepareForSignOut(of: .spotify)
-                        serviceStore?.signOutRemoving(.spotify)
+                if let serviceStore {
+                    SpotifyRemovableActions(store: serviceStore) { removesService in
+                        spotifyActions(disconnectRemovesService: removesService)
                     }
-                )
+                } else {
+                    spotifyActions(disconnectRemovesService: false)
+                }
             } header: {
                 Text(SpotiglassL10n.string("settings.account.developerApp"))
             } footer: {
@@ -72,18 +71,33 @@ struct AccountSettingsView: View {
             }
     }
 
+    private func spotifyActions(disconnectRemovesService: Bool) -> SpotifyClientIDAndActionsView {
+        SpotifyClientIDAndActionsView(
+            viewModel: viewModel,
+            layout: .settings,
+            onSignOut: {
+                prepareForSignOut(of: .spotify)
+                serviceStore?.signOutRemoving(.spotify)
+            },
+            disconnectRemovesService: disconnectRemovesService
+        )
+    }
+
+    /// The token's expiry in the app's language. `formatted()` alone follows the system language,
+    /// so a German app showed "7 Nov 2026 at 18:32" on an English Mac (#398).
+    static func validUntilText(_ date: Date, locale: Locale = SpotiglassL10n.locale) -> String {
+        SpotiglassL10n.format(
+            "settings.account.validUntil",
+            locale: locale,
+            date.formatted(.dateTime.year().month().day().hour().minute().timeZone().locale(locale))
+        )
+    }
+
     private var diagnosticsSection: some View {
             Section {
                 if let session = activeSession {
                     LabeledContent(SpotiglassL10n.string("settings.account.accessToken")) {
-                        Text(
-                            String(
-                                format: SpotiglassL10n.string("settings.account.validUntil"),
-                                session.expiresAt.formatted(
-                                    .dateTime.year().month().day().hour().minute().timeZone()
-                                )
-                            )
-                        )
+                        Text(Self.validUntilText(session.expiresAt))
                             .foregroundStyle(.secondary)
                             .textSelection(.enabled)
                     }
@@ -129,6 +143,17 @@ struct AccountSettingsView: View {
         case .signedOut, .signingIn, .failed, .refreshing(.none):
             nil
         }
+    }
+}
+
+/// Observes the service menu so Spotify's Disconnect turns on and off as services are added and
+/// removed while Settings is open.
+private struct SpotifyRemovableActions<Content: View>: View {
+    @ObservedObject var store: MusicServiceStore
+    @ViewBuilder let content: (Bool) -> Content
+
+    var body: some View {
+        content(store.signOutRemovesFromMenu(.spotify))
     }
 }
 

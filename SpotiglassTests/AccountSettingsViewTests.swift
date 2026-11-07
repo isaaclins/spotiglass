@@ -142,6 +142,52 @@ final class AccountSettingsViewTests: XCTestCase {
         XCTAssertNotNil(manager.unifiedRefresh)
     }
 
+    /// A lapsed Spotify session keeps Spotify in the service menu. Disconnect used to need a live
+    /// session, so Spotify could never be removed again without signing in first (#399).
+    func testSignedOutSpotifyCanStillBeRemoved() throws {
+        let viewModel = AuthViewModel(
+            settings: SpotifyAuthSettings(defaults: makeEphemeralDefaults()),
+            refreshTokenStore: MemoryOnlyRefreshTokenStore(),
+            signOutDataCleaner: {},
+            artworkCacheClearer: {},
+            initialState: .signedOut
+        )
+        let store = MusicServiceStore(
+            storage: InMemoryMusicServiceSelectionStorage(services: [.appleMusic, .spotify], active: .spotify)
+        )
+        var prepared = 0
+        let view = AccountSettingsView(
+            viewModel: viewModel,
+            onSignOut: { prepared += 1 },
+            serviceStore: store,
+            appleMusicSession: AppleMusicSession()
+        )
+        ViewTestHost.host(view)
+
+        try view.inspect().find(button: SpotiglassL10n.string("auth.disconnect.button")).tap()
+
+        XCTAssertEqual(prepared, 1)
+        XCTAssertEqual(store.services, [.appleMusic])
+        XCTAssertEqual(store.active, .appleMusic)
+    }
+
+    /// Spotify on its own has nothing to fall back to, so a signed-out Disconnect stays off.
+    func testSignedOutLoneSpotifyKeepsDisconnectOff() throws {
+        let viewModel = AuthViewModel(
+            settings: SpotifyAuthSettings(defaults: makeEphemeralDefaults()),
+            refreshTokenStore: MemoryOnlyRefreshTokenStore(),
+            initialState: .signedOut
+        )
+        let store = MusicServiceStore(
+            storage: InMemoryMusicServiceSelectionStorage(services: [.spotify], active: .spotify)
+        )
+        let view = AccountSettingsView(viewModel: viewModel, serviceStore: store)
+        ViewTestHost.host(view)
+
+        let disconnect = try view.inspect().find(button: SpotiglassL10n.string("auth.disconnect.button"))
+        XCTAssertTrue(disconnect.isDisabled())
+    }
+
     /// A window whose palette is signed in and wired, as a browser leaves it.
     private func makeWiredScene() -> (SpotiglassSceneRegistry, CommandPaletteManager) {
         let scene = SpotiglassSceneHost(commandPaletteManager: CommandPaletteManager())
@@ -280,6 +326,24 @@ final class AccountSettingsViewTests: XCTestCase {
         XCTAssertFalse(scene.commandPaletteManager.viewModel.isPresented)
         XCTAssertEqual(scene.commandPaletteManager.viewModel.query, "")
         XCTAssertFalse(scene.lyricsOverlayController.isPresented)
+    }
+
+    /// The token's expiry followed the system language: a German app on an English Mac read
+    /// "Gültig bis 7 Nov 2026 at 18:32" (#398).
+    func testValidUntilDateIsInTheAppLanguage() {
+        let date = Date(timeIntervalSince1970: 1_794_072_720)
+        let german = Locale(identifier: "de")
+        let text = AccountSettingsView.validUntilText(date, locale: german)
+
+        let expectedDate = date.formatted(
+            .dateTime.year().month().day().hour().minute().timeZone().locale(german)
+        )
+        XCTAssertEqual(text, "Gültig bis \(expectedDate)")
+        XCTAssertFalse(text.contains(" at "), text)
+
+        let spanish = AccountSettingsView.validUntilText(date, locale: Locale(identifier: "es"))
+        XCTAssertTrue(spanish.hasPrefix("Válido hasta "), spanish)
+        XCTAssertFalse(spanish.contains(" at "), spanish)
     }
 }
 

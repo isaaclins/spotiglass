@@ -139,6 +139,55 @@ final class RootViewTests: XCTestCase {
         XCTAssertTrue(playbackHost.playbackViewModel.refusesNewPlayback)
     }
 
+    /// Spotify's sign-in screen after its session lapsed, with Apple Music added too: Disconnect
+    /// takes Spotify out of the service menu and hands the window to Apple Music (#399). On its own,
+    /// Spotify keeps Disconnect off.
+    func testSignInScreenDisconnectRemovesALapsedSpotify() async throws {
+        let services = MusicServiceStore(storage: InMemoryMusicServiceSelectionStorage(
+            services: [.appleMusic, .spotify], active: .spotify
+        ))
+        let session = AppleMusicSession(authorization: DeniedMusicAuthorization())
+        await session.refresh()
+        let settings = try ViewTestHost.makeSettingsStore()
+        let root = RootView(
+            keymapStore: CommandPaletteKeymapStore(settingsStore: settings),
+            sceneRegistry: SpotiglassSceneRegistry(),
+            playbackHosts: .forTests(spotify: SpotiglassPlaybackHost(tokenProvider: MockPlaybackTokenProvider(
+                accessToken: "test", refreshedAccessToken: "test-refresh"
+            ))),
+            serviceStore: services,
+            appleMusicSession: session
+        )
+        .environmentObject(settings)
+        .environmentObject(AuthViewModel(
+            settings: SpotifyAuthSettings(defaults: makeEphemeralDefaults()),
+            refreshTokenStore: MemoryOnlyRefreshTokenStore(),
+            signOutDataCleaner: {},
+            artworkCacheClearer: {},
+            initialState: .signedOut
+        ))
+        .environmentObject(PinnedItemsStore(cache: InMemoryPinnedItemsCache()))
+        ViewTestHost.host(root, size: CGSize(width: 720, height: 520))
+        AppKitTestSupport.pumpRunLoop(for: 0.1)
+
+        try root.inspect().find(button: SpotiglassL10n.string("auth.disconnect.button")).tap()
+        AppKitTestSupport.pumpRunLoop(for: 0.1)
+
+        XCTAssertEqual(services.services, [.appleMusic])
+        XCTAssertEqual(services.active, .appleMusic)
+
+        let lone = try makeRootView(
+            auth: AuthViewModel(
+                settings: SpotifyAuthSettings(defaults: makeEphemeralDefaults()),
+                refreshTokenStore: MemoryOnlyRefreshTokenStore(),
+                initialState: .signedOut
+            ),
+            palette: CommandPaletteManager()
+        )
+        ViewTestHost.host(lone, size: CGSize(width: 720, height: 520))
+        XCTAssertTrue(try lone.inspect().find(button: SpotiglassL10n.string("auth.disconnect.button")).isDisabled())
+    }
+
     /// Disconnect Spotify in Settings while Apple Music is on screen, then add Spotify again before
     /// the sign-out has finished clearing caches. The saved sign-in is already deleted, so adding
     /// must wait for a fresh sign-in instead of taking the session that is being torn down.

@@ -382,7 +382,9 @@ final class CommandPaletteViewModel: ObservableObject {
         } catch {
             lastSuccessfulSongSearchQuery = nil
             isLoading = false
-            errorText = error.localizedDescription
+            // Apple Music's search failures read as calm sentences, like the Search view's (#397).
+            errorText = PlaylistBrowserViewModel.appleMusicDisplayError(for: error)?.message
+                ?? error.localizedDescription
         }
     }
 

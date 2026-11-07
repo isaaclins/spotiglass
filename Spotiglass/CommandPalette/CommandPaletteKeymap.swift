@@ -286,7 +286,8 @@ struct CommandShortcut: Hashable {
     private static func displayKeyLabel(for key: String) -> String {
         switch key {
         case " ":
-            return "Space"
+            // Spelled out like macOS menus do, in the app's language (#398).
+            return SpotiglassL10n.string("palette.key.space")
         case "\r", "\n":
             return "↩"
         case "\t":

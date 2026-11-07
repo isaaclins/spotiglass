@@ -300,6 +300,15 @@ final class MusicServiceStore: ObservableObject {
         remove(service)
     }
 
+    /// Whether signing out takes this added service out of the service menu. A Spotify session
+    /// that lapsed keeps Spotify in the menu by design, so its Disconnect has to stay usable
+    /// without a live session, or Spotify could never be removed again (#399). A service that is
+    /// only being added is left to Cancel.
+    func signOutRemovesFromMenu(_ service: MusicService) -> Bool {
+        guard services.contains(service) else { return false }
+        return !(service == .spotify && services == [.spotify] && pendingAddition == nil)
+    }
+
     private func persist() {
         SpotiglassLog.info(
             .settings,

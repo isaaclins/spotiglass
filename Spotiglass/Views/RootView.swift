@@ -532,6 +532,12 @@ struct RootView: View {
         }
     }
 
+    /// The service Disconnect hands the window to: ``MusicServiceStore/remove(_:)`` shows the
+    /// first other added service. `nil` while Spotify is the only one (its sign-in comes back).
+    private var spotifyDisconnectSwitchesTo: MusicService? {
+        serviceStore.orderedServices.first { $0 != .spotify }
+    }
+
     private var serviceSwitcher: some View {
         MusicServiceSwitcher(
             store: serviceStore,
@@ -561,6 +567,7 @@ struct RootView: View {
                 catalogProvider: SpotifyAPIClient(tokenProvider: viewModel, getResponseCache: .shared),
                 commandPaletteManager: commandPaletteManager,
                 signOut: signOutAction,
+                disconnectSwitchesTo: spotifyDisconnectSwitchesTo,
                 sidebarHeader: AnyView(serviceSwitcher)
             )
             .id(MusicService.spotify)
@@ -609,7 +616,8 @@ struct RootView: View {
                         onSignOut: {
                             authLossPreparationAction()
                             serviceStore.signOutRemoving(.spotify)
-                        }
+                        },
+                        disconnectRemovesService: serviceStore.signOutRemovesFromMenu(.spotify)
                     )
 
                     signInFooter

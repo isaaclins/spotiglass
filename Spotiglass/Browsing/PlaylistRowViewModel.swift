@@ -43,7 +43,7 @@ struct PlaylistRowViewModel: Equatable, Identifiable {
     func localizedOwner(locale: Locale = SpotiglassL10n.locale) -> String {
         guard id == SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID,
               owner.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        else { return owner }
+        else { return AppleMusicItemMapping.localizedOwnerName(owner, ownerID: ownerID, locale: locale) }
         return SpotiglassL10n.string("browser.likedSongs.owner.you", locale: locale)
     }
 
