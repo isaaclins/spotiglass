@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import SwiftUI
+import ViewInspector
 import XCTest
 @testable import Spotiglass
 
@@ -533,6 +534,47 @@ final class CrossServicePlaybackTests: XCTestCase {
             ),
             "applemusic:song:i.B0VN4RQfxzX7aak"
         )
+    }
+
+    /// "Breakin' Dishes" played from its album (the album's id for it), then found in search
+    /// (the library `i.` id): the search row is marked, so its button pauses instead of
+    /// starting the song again. Home's top tracks mark it the same way.
+    func testASongPlayingFromItsAlbumIsMarkedInSearchAndHome() async throws {
+        let fromAlbum = "applemusic:song:-6046431734389870155"
+        let inLibrary = "applemusic:song:i.B0VN4RQfxzX7aak"
+        let found = Self.row("Breakin' Dishes", uri: inLibrary, durationMilliseconds: 200_093)
+        let playback = PlaybackSessionViewModel(provider: AppleMusicPlaybackProvider(player: ScriptedAppleMusicPlayer()))
+        playback.setConnectionState(.playing(PlaybackNowPlaying(
+            name: "Breakin' Dishes", artists: ["Rihanna"], albumName: nil, albumID: nil, albumArtURL: nil,
+            durationMilliseconds: 200_000, positionMilliseconds: 1_000, uri: fromAlbum
+        )))
+        let queue = QueueViewModel(provider: playback.provider, playbackSession: playback)
+        let browser = PlaylistBrowserViewModel(api: MockBrowsingAPI(playlistResults: [], trackResults: [:]), cache: MockBrowsingCache())
+        let pins = PinnedItemsStore(cache: InMemoryPinnedItemsCache())
+
+        let search = CatalogSearchViewModel()
+        search.searchProvider = { _, offset, _ in
+            MusicSearchResults(tracks: offset == 0 ? [found] : [], artists: [], albums: [], playlists: [])
+        }
+        search.query = "breakin"
+        search.queryDidChange()
+        await search.waitForSearchCompletion()
+        let searchView = CatalogSearchView(
+            viewModel: browser, searchViewModel: search, playbackViewModel: playback, queueViewModel: queue,
+            currentPlaybackURI: fromAlbum, isPlaying: true, hasPlaybackDevice: true
+        )
+        .environmentObject(pins)
+        let searchRows = try searchView.inspect().findAll(TrackListRow.self)
+        XCTAssertEqual(try searchRows.map { try $0.actualView().isCurrent }, [true], "search")
+
+        browser.homeTopTracks = .loaded(TrackRowViewModel.numberedTopTracks([found]))
+        let homeView = HomeView(
+            viewModel: browser, playbackViewModel: playback, queueViewModel: queue,
+            currentPlaybackURI: fromAlbum, isPlaying: true, hasPlaybackDevice: true
+        )
+        .environmentObject(pins)
+        let homeRows = try homeView.inspect().findAll(TrackListRow.self)
+        XCTAssertEqual(try homeRows.map { try $0.actualView().isCurrent }, [true], "Home")
     }
 
     /// A row with the playing URI wins: the same song twice in a list stays marked once.

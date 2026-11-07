@@ -69,26 +69,34 @@ enum PlaylistBrowserPlaybackHelpers {
         }
     }
 
-    /// The URI the rows of `detailContent` mark as playing (#396). Apple Music names one song by
-    /// different ids depending on where it was read (a library `i.` id from search, the library's
-    /// persistent id inside an album or playlist), and its player reports the id of the row the
-    /// song was started from. So when no row of this list has that URI, a song started elsewhere
-    /// is found by what the row shows: title, artists and length. Spotify's ids are the same
-    /// everywhere, so its rows match by URI only.
+    /// The URI the rows of `detailContent` mark as playing (#396). Home and search hold their
+    /// rows elsewhere and match them with ``rowURI(markedAs:connectionState:rows:)``.
     static func currentPlaybackURI(
         connectionState: PlaybackConnectionState,
         detailContent: BrowsingDetailContent?
     ) -> String? {
         let uri = currentPlaybackURI(connectionState: connectionState)
+        switch detailContent {
+        case let .playlist(detail)?: return rowURI(markedAs: uri, connectionState: connectionState, rows: detail.tracks)
+        case let .artist(detail)?: return rowURI(markedAs: uri, connectionState: connectionState, rows: detail.tracks)
+        case .home?, .search?, nil: return uri
+        }
+    }
+
+    /// The URI `rows` mark as playing, given the playing URI (#396). Apple Music names one song
+    /// by different ids depending on where it was read (a library `i.` id from search, the
+    /// library's persistent id inside an album or playlist), and its player reports the id of
+    /// the row the song was started from. So when no row of the list has that URI, a song
+    /// started elsewhere is found by what the row shows: title, artists and length. Spotify's
+    /// ids are the same everywhere, so its rows match by URI only.
+    static func rowURI(
+        markedAs uri: String?,
+        connectionState: PlaybackConnectionState,
+        rows: [TrackRowViewModel]
+    ) -> String? {
         guard let uri, uri.hasPrefix(AppleMusicItemMapping.uriScheme + ":"),
               let nowPlaying = nowPlaying(connectionState: connectionState)
         else { return uri }
-        let rows: [TrackRowViewModel]
-        switch detailContent {
-        case let .playlist(detail)?: rows = detail.tracks
-        case let .artist(detail)?: rows = detail.tracks
-        case .home?, .search?, nil: return uri
-        }
         guard !rows.contains(where: { $0.playableURI == uri }),
               let row = rows.first(where: { isSameSong($0, as: nowPlaying) })
         else { return uri }

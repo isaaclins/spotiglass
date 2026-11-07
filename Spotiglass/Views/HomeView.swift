@@ -143,6 +143,12 @@ struct HomeView: View {
 
     private func topTracksList(_ tracks: [TrackRowViewModel]) -> some View {
         let playableURIs = tracks.compactMap(\.playableURI)
+        // An Apple Music song started from another list carries that list's id (#396).
+        let playingURI = PlaylistBrowserPlaybackHelpers.rowURI(
+            markedAs: currentPlaybackURI,
+            connectionState: playbackViewModel.connectionState,
+            rows: tracks
+        )
         return VStack(spacing: 0) {
             ForEach(tracks) { track in
                 TrackListRow(
@@ -160,7 +166,7 @@ struct HomeView: View {
                     togglePlayPause: {
                         Task { await playbackViewModel.togglePlayPause() }
                     },
-                    isCurrent: track.playableURI != nil && track.playableURI == currentPlaybackURI,
+                    isCurrent: track.playableURI != nil && track.playableURI == playingURI,
                     isPlaying: isPlaying,
                     openArtist: { artistID in
                         Task { await viewModel.selectArtist(id: artistID, origin: .extend, displayName: nil) }
