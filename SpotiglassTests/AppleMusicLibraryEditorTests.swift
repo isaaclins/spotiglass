@@ -1378,14 +1378,21 @@ final class AppleMusicPlaylistEditFixTests: XCTestCase {
         XCTAssertFalse(MusicKitContentSource.isLibraryPlaylistID("pl.f4d106fed2bd41149aaacabb233eb5eb"))
     }
 
-    func testAPlaylistMusicCreatedMomentsAgoOpensEmptyInsteadOfFailing() async throws {
+    /// The library lookup found the song itself (not through a remembered row): the page still
+    /// opens instead of failing, and shows the song the sidebar counts.
+    func testAPlaylistMusicCreatedMomentsAgoOpensWithItsSongInsteadOfFailing() async throws {
+        let song = try AppleMusicFixtures.song(id: rowID, title: "Don't Stop The Music", artist: "Rihanna")
+        var found = MusicKitLibraryLookup.reference(song, identity: AppleMusicSongIdentity(encoding: song), itemID: rowID)
+        found.catalogID = nil
+        found.cloudLibraryID = nil
+        lookup.songsByID[rowID] = found
         musicApp.createdPersistentID = "FE82FB07F4D3B511"
         let created = try await editor.createPlaylist(name: "Spotiglass test", ownerName: "You", songIDs: [rowID])
         let provider = AppleMusicBrowsingProvider(source: EditTestContentSource(), editor: editor)
 
         let items = try await provider.playlistTracks(playlistID: created.id, limit: 100, maxPages: 1)
 
-        XCTAssertEqual(items, [])
+        XCTAssertEqual(Self.names(items), ["Don't Stop The Music"])
     }
 
     private static func names(_ items: [MusicPlaylistTrackItem]) -> [String] {
@@ -1473,12 +1480,16 @@ final class AppleMusicPlaylistEditFixTests: XCTestCase {
         )
 
         let before = try XCTUnwrap(script.range(of: "set countBefore to (count of tracks of pl)"))
+        let noted = try XCTUnwrap(script.range(of: "set end of addedIDs to (persistent ID of (contents of songItem))"))
         let add = try XCTUnwrap(script.range(of: "duplicate (contents of songItem) to pl"))
-        let rollback = try XCTUnwrap(script.range(
-            of: "on error errorMessage number errorNumber\nrepeat with i from (count of tracks of pl) to (countBefore + 1) by -1\ndelete track i of pl\nend repeat\nerror errorMessage number errorNumber"
-        ))
-        XCTAssertLessThan(before.lowerBound, add.lowerBound)
+        let rollback = try XCTUnwrap(script.range(of: "on error errorMessage number errorNumber\nrepeat with i from (count of tracks of pl) to (countBefore + 1) by -1"))
+        XCTAssertLessThan(before.lowerBound, noted.lowerBound)
+        XCTAssertLessThan(noted.lowerBound, add.lowerBound)
         XCTAssertLessThan(add.lowerBound, rollback.lowerBound)
+        // A song another device appended meanwhile has another persistent ID and stays.
+        let guarded = try XCTUnwrap(script.range(of: "if addedIDs contains entryID then\ndelete track i of pl"))
+        XCTAssertLessThan(rollback.lowerBound, guarded.lowerBound)
+        XCTAssertTrue(script.contains("error errorMessage number errorNumber\nend try"), "the failure still reaches the editor")
     }
 
     func testACatalogSongIsNeverAddedToANamesakeOfAPlaylistMusicJustCreated() async throws {

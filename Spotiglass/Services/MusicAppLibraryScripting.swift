@@ -161,20 +161,36 @@ enum MusicAppScripts {
 
     /// Finds every track first, then adds them in order, so a song Music can't find stops the
     /// edit before anything is added. When an add fails partway, the songs this script already
-    /// appended are taken out of the playlist again (by position, never from the library), so
-    /// the edit is all or nothing.
+    /// appended are taken out of the playlist again, so the edit is all or nothing. Only entries
+    /// past the playlist's old end whose persistent ID this script added go, once per add: a
+    /// song another device appended meanwhile stays, and nothing leaves the library.
     static func addToPlaylist(_ playlist: MusicAppPlaylistMatch, tracks: [MusicAppTrackMatch], now: Date = Date()) -> String {
         var lines = [scriptNowLine, "tell application \"Music\""] + findPlaylist(playlist)
         lines += findTracks(tracks, now: now)
         lines += [
             "set countBefore to (count of tracks of pl)",
+            "set addedIDs to {}",
             "try",
             "repeat with songItem in pickedSongs",
+            "set end of addedIDs to (persistent ID of (contents of songItem))",
             "duplicate (contents of songItem) to pl",
             "end repeat",
             "on error errorMessage number errorNumber",
             "repeat with i from (count of tracks of pl) to (countBefore + 1) by -1",
+            "set entryID to persistent ID of track i of pl",
+            "if addedIDs contains entryID then",
             "delete track i of pl",
+            "set keptIDs to {}",
+            "set dropped to false",
+            "repeat with addedID in addedIDs",
+            "if (not dropped) and ((contents of addedID) is entryID) then",
+            "set dropped to true",
+            "else",
+            "set end of keptIDs to (contents of addedID)",
+            "end if",
+            "end repeat",
+            "set addedIDs to keptIDs",
+            "end if",
             "end repeat",
             "error errorMessage number errorNumber",
             "end try",

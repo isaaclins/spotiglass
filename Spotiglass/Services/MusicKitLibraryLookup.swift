@@ -102,7 +102,6 @@ final class AppleMusicSongReferenceRegistry: @unchecked Sendable {
                 itemID: song.id.rawValue
             )
             reference.sourcePlaylistPersistentID = playlistPersistentID
-            reference.shownTrack = AppleMusicItemMapping.track(song)
             remember(reference)
         }
     }
@@ -237,7 +236,7 @@ struct MusicKitLibraryLookup: AppleMusicLibraryLookup {
 
     static func reference(_ song: Song, identity: AppleMusicSongIdentity, itemID: String) -> AppleMusicSongReference {
         let persistent = identity.musicKitPersistentID ?? (isCatalogID(song.id.rawValue) ? nil : song.id.rawValue)
-        return AppleMusicSongReference(
+        var reference = AppleMusicSongReference(
             itemID: itemID,
             catalogID: identity.catalogID,
             cloudLibraryID: identity.cloudLibraryID,
@@ -247,6 +246,9 @@ struct MusicKitLibraryLookup: AppleMusicLibraryLookup {
             artistName: song.artistName,
             albumTitle: song.albumTitle
         )
+        // Every route that finds the song keeps the row, so an add shows before the library lists it.
+        reference.shownTrack = AppleMusicItemMapping.track(song)
+        return reference
     }
 
     private static func batches(_ ids: [String]) -> [[String]] {
