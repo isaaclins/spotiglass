@@ -16,6 +16,25 @@ struct MusicCachedResponse<Value> {
     let isStale: Bool
 }
 
+/// Library edits a provider offers beyond the ones every provider has (rename, add to and move
+/// between playlists, create, like). The browser shows the matching menu items only for these.
+struct MusicLibraryEdits: OptionSet {
+    let rawValue: Int
+
+    /// "Remove from This Playlist" in the track menu.
+    static let removeFromPlaylist = MusicLibraryEdits(rawValue: 1 << 0)
+    /// "Delete Playlist…" in the playlist menus.
+    static let deletePlaylist = MusicLibraryEdits(rawValue: 1 << 1)
+    /// "Add Album to Library" / "Remove Album from Library" on an album.
+    static let saveAlbums = MusicLibraryEdits(rawValue: 1 << 2)
+    /// Removing a song from Liked Songs or an album from the library deletes it from the library,
+    /// which also takes it out of every playlist on every device (Apple Music), so the browser
+    /// asks first. Spotify's unlike only leaves Liked Songs and goes through at once.
+    static let confirmLibraryRemoval = MusicLibraryEdits(rawValue: 1 << 3)
+
+    static let all: MusicLibraryEdits = [.removeFromPlaylist, .deletePlaylist, .saveAlbums, .confirmLibraryRemoval]
+}
+
 /// One page of an artist's albums. `next` is an opaque continuation the same
 /// provider understands; callers hand it back unchanged and never build one.
 struct MusicArtistAlbumsPage {
@@ -89,6 +108,12 @@ protocol MusicBrowsingProvider {
     func saveTracks(ids: [String]) async throws
     func removeSavedTracks(ids: [String]) async throws
     func savedTrackStatuses(ids: [String]) async throws -> [Bool]
+    /// The optional edits this provider supports; the browser hides the others.
+    var supportedLibraryEdits: MusicLibraryEdits { get }
+    func deletePlaylist(playlistID: String) async throws
+    func saveAlbums(ids: [String]) async throws
+    func removeSavedAlbums(ids: [String]) async throws
+    func savedAlbumStatuses(ids: [String]) async throws -> [Bool]
 }
 
 extension MusicBrowsingProvider {
@@ -140,5 +165,19 @@ extension MusicBrowsingProvider {
     }
     func savedTrackStatuses(ids: [String]) async throws -> [Bool] {
         throw SpotifyAPIError.invalidRequest("Saved-track status lookup is not supported by this API implementation.")
+    }
+
+    var supportedLibraryEdits: MusicLibraryEdits { [] }
+    func deletePlaylist(playlistID: String) async throws {
+        throw SpotifyAPIError.invalidRequest("Playlist deletion is not supported by this API implementation.")
+    }
+    func saveAlbums(ids: [String]) async throws {
+        throw SpotifyAPIError.invalidRequest("Album save is not supported by this API implementation.")
+    }
+    func removeSavedAlbums(ids: [String]) async throws {
+        throw SpotifyAPIError.invalidRequest("Album unsave is not supported by this API implementation.")
+    }
+    func savedAlbumStatuses(ids: [String]) async throws -> [Bool] {
+        throw SpotifyAPIError.invalidRequest("Saved-album status lookup is not supported by this API implementation.")
     }
 }

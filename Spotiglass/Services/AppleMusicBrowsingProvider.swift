@@ -5,15 +5,11 @@ import MusicKit
 enum AppleMusicBrowsingError: LocalizedError, Equatable {
     /// The playlist, album or artist is neither in the library nor in the catalog.
     case notFound
-    /// Library edits (rename, add, like). MusicKit's library is read-only on macOS; #374.
-    case libraryReadOnly
 
     var errorDescription: String? {
         switch self {
         case .notFound:
             SpotiglassL10n.string("appleMusic.error.notFound")
-        case .libraryReadOnly:
-            SpotiglassL10n.string("appleMusic.error.libraryReadOnly")
         }
     }
 }
@@ -33,9 +29,10 @@ enum AppleMusicBrowsingError: LocalizedError, Equatable {
 ///   the first recommended playlist.
 /// - **Search**: library matches first, then the catalog, so the palette finds the user's own
 ///   music before the rest of Apple Music. Later pages are catalog only.
-/// - **Edits**: not supported here (MusicKit's library is read-only on macOS). They throw
-///   `AppleMusicBrowsingError.libraryReadOnly`, never the protocol's Spotify defaults, so an
-///   Apple Music failure is never shown or handled as a Spotify error.
+/// - **Edits**: MusicKit's library is read-only on macOS, so edits go through the Apple Music API
+///   and the Music app (`AppleMusicLibraryEditor`, `AppleMusicBrowsingProvider+LibraryEdits`).
+///   Their failures are `AppleMusicLibraryEditError`, never the protocol's Spotify defaults.
+///   Reads lay the edits the library on this Mac has not caught up with over their results.
 ///
 /// Response caching is MusicKit's own, so `cacheMode` is accepted and ignored.
 struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
@@ -62,13 +59,16 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
     /// batches, so they are kept here briefly instead of being fetched again for every page.
     /// One cache per provider: the browser keeps its provider for its lifetime.
     let artistAlbumsCache: AppleMusicArtistAlbumsCache
+    let editor: AppleMusicLibraryEditor
 
     init(
         source: any AppleMusicContentSource = MusicKitContentSource(),
-        artistAlbumsCache: AppleMusicArtistAlbumsCache = AppleMusicArtistAlbumsCache()
+        artistAlbumsCache: AppleMusicArtistAlbumsCache = AppleMusicArtistAlbumsCache(),
+        editor: AppleMusicLibraryEditor = AppleMusicLibraryEditor()
     ) {
         self.source = source
         self.artistAlbumsCache = artistAlbumsCache
+        self.editor = editor
     }
 
     private var libraryOwnerName: String {
@@ -94,17 +94,21 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
             playlists.append(contentsOf: page)
             if page.count < requested { break }
         }
-        return playlists.map {
+        return editor.pending.applied(toPlaylists: playlists.map {
             AppleMusicItemMapping.playlistSummary($0, fallbackOwnerName: libraryOwnerName)
-        }
+        })
     }
 
     func playlistTracks(playlistID: String, limit: Int, maxPages: Int) async throws -> [MusicPlaylistTrackItem] {
         let total = max(1, limit) * max(1, maxPages)
         guard let tracks = try await source.playlistTracks(playlistID: playlistID, limit: total) else {
+            // A playlist created from Spotiglass moments ago is only in the cloud library yet.
+            if let pending = try await pendingPlaylistTracks(playlistID: playlistID) {
+                return AppleMusicItemMapping.playlistItems(pending)
+            }
             throw AppleMusicBrowsingError.notFound
         }
-        return AppleMusicItemMapping.playlistItems(tracks.map { AppleMusicItemMapping.track($0) })
+        return AppleMusicItemMapping.playlistItems(applyingPendingEdits(toPlaylistTracks: tracks, playlistID: playlistID))
     }
 
     func currentUserSavedTracks(limit: Int, maxPages: Int?) async throws -> MusicSavedTracksResult {
@@ -118,7 +122,7 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
             songs.append(contentsOf: page)
             if page.count < requested { break }
         }
-        let tracks = songs.map(AppleMusicItemMapping.track)
+        let tracks = applyingPendingEdits(toLibrarySongs: songs, isComplete: songs.count < cap)
         return MusicSavedTracksResult(
             tracks: AppleMusicItemMapping.playlistItems(tracks),
             totalAvailable: tracks.count
@@ -314,40 +318,6 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
             albumsPaging: paging(albums.count, more: catalogItems.moreAlbums),
             playlistsPaging: paging(playlists.count, more: catalogItems.morePlaylists)
         )
-    }
-
-    // MARK: - Library edits
-
-    func updatePlaylist(playlistID: String, name: String) async throws {
-        throw AppleMusicBrowsingError.libraryReadOnly
-    }
-
-    func addTracksToPlaylist(playlistID: String, uris: [String]) async throws {
-        throw AppleMusicBrowsingError.libraryReadOnly
-    }
-
-    func removeTracksFromPlaylist(
-        playlistID: String,
-        items: [MusicPlaylistTrackRemoval],
-        snapshotID: String?
-    ) async throws {
-        throw AppleMusicBrowsingError.libraryReadOnly
-    }
-
-    func createPlaylist(userID: String, name: String, isPublic: Bool) async throws -> MusicPlaylistSummary {
-        throw AppleMusicBrowsingError.libraryReadOnly
-    }
-
-    func saveTracks(ids: [String]) async throws {
-        throw AppleMusicBrowsingError.libraryReadOnly
-    }
-
-    func removeSavedTracks(ids: [String]) async throws {
-        throw AppleMusicBrowsingError.libraryReadOnly
-    }
-
-    func savedTrackStatuses(ids: [String]) async throws -> [Bool] {
-        throw AppleMusicBrowsingError.libraryReadOnly
     }
 
     // MARK: - Helpers

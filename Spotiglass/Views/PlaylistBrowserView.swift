@@ -446,5 +446,7 @@ struct PlaylistBrowserView: View {
                     Int64(newPlaylistInitialRows.count)
                    ))
         }
+        .modifier(PlaylistDeletionConfirmation(viewModel: viewModel))
+        .modifier(LibraryRemovalConfirmation(viewModel: viewModel))
     }
 }
