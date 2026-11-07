@@ -423,6 +423,9 @@ struct PlaylistBrowserView: View {
         }
         .onChange(of: playlistColumnVisibility) { _, newValue in
             if newValue != .detailOnly {
+                // The sidebar is back (by hand or by widening), so nothing is held for the
+                // queue any more; a later hide by hand must not be undone by a widening (#413).
+                isSidebarHeldForQueue = false
                 lastOpenedSidebar = .playlist
                 if isMutualExclusionWidth, isQueueVisible {
                     isQueueVisible = false
