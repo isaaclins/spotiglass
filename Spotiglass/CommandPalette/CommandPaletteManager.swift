@@ -93,6 +93,9 @@ final class CommandPaletteManager: ObservableObject {
     @Published private(set) var prefetchProgress: PrefetchAllPlaylistsProgress?
     /// Guards shuffle/repeat commands from the command palette and menu key equivalents.
     var playbackTransportMutationPrerequisite: (() -> Bool)?
+    /// Repeat follows the music you hear (#396), so it has its own readiness: Shuffle goes
+    /// through the on-screen queue.
+    var repeatMutationPrerequisite: (() -> Bool)?
 
     private var cancellables: Set<AnyCancellable> = []
     private var playbackReadinessCancellables: Set<AnyCancellable> = []
@@ -156,7 +159,7 @@ final class CommandPaletteManager: ObservableObject {
     /// Requests a concrete repeat mode from the native Picker. The command
     /// remains guarded by the same readiness predicate as the cycling shortcut.
     func requestRepeatMode(_ mode: MusicRepeatMode) {
-        guard playbackTransportMutationPrerequisite?() ?? false else { return }
+        guard repeatMutationPrerequisite?() ?? false else { return }
         Task { await setRepeatModeAction?(mode) }
     }
 
@@ -203,11 +206,19 @@ final class CommandPaletteManager: ObservableObject {
                 self?.shuffleEnabled = enabled
             }
             .store(in: &playbackReadinessCancellables)
-        playback.$repeatMode
-            .sink { [weak self] mode in
-                self?.repeatMode = mode
-            }
-            .store(in: &playbackReadinessCancellables)
+        // The menu's repeat checkmark is the repeat of the music you hear (#396), like the bar.
+        Publishers.CombineLatest4(
+            playback.$repeatMode,
+            playback.$otherServiceRepeatMode,
+            playback.$isOtherServicePlaying,
+            playback.$connectionState
+        )
+        .sink { [weak self] mode, otherMode, isOtherServicePlaying, connectionState in
+            let followsOtherService = isOtherServicePlaying
+                && !PlaylistBrowserPlaybackHelpers.isCurrentlyPlaying(connectionState: connectionState)
+            self?.repeatMode = followsOtherService ? otherMode : mode
+        }
+        .store(in: &playbackReadinessCancellables)
     }
 
     func handleKeyEvent(_ event: NSEvent) -> Bool {
@@ -354,7 +365,7 @@ final class CommandPaletteManager: ObservableObject {
             guard playbackTransportMutationPrerequisite?() ?? false else { return }
             Task { await toggleShuffle?() }
         case CommandPaletteCommandID.cycleRepeat:
-            guard playbackTransportMutationPrerequisite?() ?? false else { return }
+            guard repeatMutationPrerequisite?() ?? false else { return }
             Task { await cycleRepeat?() }
         case CommandPaletteCommandID.navigateBack:
             Task { await navigateBack?() }
@@ -480,6 +491,7 @@ final class CommandPaletteManager: ObservableObject {
         dismissLyricsOverlayIfPresented = nil
         playbackTogglePrerequisite = nil
         playbackTransportMutationPrerequisite = nil
+        repeatMutationPrerequisite = nil
     }
 
     private func baseItems() -> [CommandPaletteItem] {

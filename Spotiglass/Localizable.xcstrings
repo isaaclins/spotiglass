@@ -5038,6 +5038,52 @@
         }
       }
     },
+    "error.queue.nothingLoaded.message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a track to play first, then add songs to the queue."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elige primero una canción para reproducir y luego añade canciones a la cola."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wählen Sie zuerst einen Titel aus und fügen Sie dann Titel zur Warteschlange hinzu."
+          }
+        }
+      }
+    },
+    "error.queue.nothingLoaded.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing is playing"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se está reproduciendo nada"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Es wird nichts wiedergegeben"
+          }
+        }
+      }
+    },
     "error.queue.playbackUnavailable.message": {
       "extractionState": "stale",
       "localizations": {

@@ -79,11 +79,16 @@ enum PlaylistBrowserCommandPaletteConfiguration {
         manager.toggleShuffle = { [weak queue = dependencies.queueViewModel] in
             await queue?.toggleShuffle()
         }
+        // Repeat, like the bar's Repeat button, sets the repeat of the music you hear (#396).
+        // Shuffle stays with the on-screen queue.
+        manager.repeatMutationPrerequisite = { [weak playback = dependencies.playbackViewModel] in
+            playback?.audiblePlayer.isTransportMutationReady ?? false
+        }
         manager.cycleRepeat = { [weak playback = dependencies.playbackViewModel] in
-            await playback?.cycleRepeat()
+            await playback?.audiblePlayer.cycleRepeat()
         }
         manager.setRepeatModeAction = { [weak playback = dependencies.playbackViewModel] mode in
-            await playback?.setRepeatMode(mode)
+            await playback?.audiblePlayer.setRepeatMode(mode)
         }
         // The palette's enqueue and pin act on its own highlighted row. These act
         // on the track table's selection, so the same actions have a keyboard and

@@ -44,6 +44,9 @@ final class PlaybackSessionViewModel: ObservableObject {
     weak var otherServicePlayer: PlaybackSessionViewModel?
     /// Whether the other service's player is playing right now, kept by ``SpotiglassPlaybackHosts``.
     @Published var isOtherServicePlaying = false
+    /// The other service's repeat mode, kept by ``SpotiglassPlaybackHosts``: the Playback menu
+    /// shows the repeat of the music you hear.
+    @Published var otherServiceRepeatMode: MusicRepeatMode = .off
 
     /// The other service's player started something: pause what plays here, if anything.
     func pauseForHandover() {
@@ -66,6 +69,14 @@ final class PlaybackSessionViewModel: ObservableObject {
     /// The service whose player this is.
     var service: MusicService {
         provider.service
+    }
+
+    /// A read player (MusicKit) that is only ready, with no play on its way, has nothing
+    /// loaded (#396): Play is off, and Add to Queue has no queue to add to. After a sign-out
+    /// MusicKit still holds the old queue, so an add would bring the old songs back.
+    var hasNothingLoaded: Bool {
+        guard !playerPushesState, pendingPlayTransition == nil, case .ready = connectionState else { return false }
+        return true
     }
     /// The Spotify Connect device currently targeted by Web API playback commands.
     /// This can be remote while ``deviceID`` remains ready for local SDK events.

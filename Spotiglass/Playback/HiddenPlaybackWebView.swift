@@ -157,6 +157,9 @@ final class SpotiglassPlaybackHosts: ObservableObject {
             .removeDuplicates()
             .sink { [weak starting] in starting?.isOtherServicePlaying = $0 }
             .store(in: &cancellables)
+        other.$repeatMode
+            .sink { [weak starting] in starting?.otherServiceRepeatMode = $0 }
+            .store(in: &cancellables)
     }
 }
 

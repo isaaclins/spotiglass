@@ -119,6 +119,8 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
 
     func stop() {
         player.stop()
+        book = AppleMusicQueueBook()
+        uriByEntryKey = [:]
     }
 
     func seek(toMilliseconds milliseconds: Int) {

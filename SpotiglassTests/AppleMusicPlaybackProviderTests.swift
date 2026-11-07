@@ -767,7 +767,9 @@ final class ScriptedAppleMusicPlayer: AppleMusicPlayerControlling {
         later("resume") { [self] in positionAnchor = now; playing = true }
     }
 
+    /// Like the live player: the queue stays, the songs added to it are forgotten.
     func stop() {
+        book = AppleMusicQueueBook()
         later("stop") { [self] in positionBase = position(); playing = false }
     }
 
