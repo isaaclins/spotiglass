@@ -30,17 +30,27 @@ usage() { sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; exit 1; }
 # only), so the real app's defaults domain is saved at start and put back at stop.
 REAL_BUNDLE_ID="com.isaaclins.spotiglass"
 # What start and appearance change outside the app's own sandbox (the real app's defaults, the macOS
-# appearance) is per Mac, not per checkout, so its backups live outside the build folder: wiping
-# build/ or running from another checkout still finds them. stop puts them back once no checkout's
-# screenshot app is running any more.
+# appearance) is per Mac, not per checkout, so its backups live outside the build folder, where
+# wiping build/ can't lose them. The checkout that saves the first backup owns them: only its stop
+# puts them back (or any checkout's, once the owner's folder is gone), so a stop elsewhere never
+# takes them from a run that is still starting or running.
 STATE_DIR="$HOME/Library/Application Support/Spotiglass Screenshot Mode"
+STATE_OWNER="$STATE_DIR/owner"
 REAL_DEFAULTS_BACKUP="$STATE_DIR/real-defaults.plist"
 REAL_DEFAULTS_MARKER="$STATE_DIR/real-defaults.saved"
 SERVICES_SUITE="com.isaaclins.spotiglass.screenshots.services"
 
 app_pid() { pgrep -f "$APP/Contents/MacOS/Spotiglass" | head -1; }
-# Screenshot apps started from other checkouts; they still use the shared backups' changes.
-other_runs() { pgrep -fl "/build/screenshot-mode/Spotiglass.app/Contents/MacOS/Spotiglass" | grep -vF "$APP/" || true; }
+# Records this checkout as the backups' owner unless another checkout already is.
+claim_state() {
+    mkdir -p "$STATE_DIR"
+    [ -s "$STATE_OWNER" ] || echo "$ROOT" >"$STATE_OWNER"
+}
+# The checkout that owns the backups, empty when none does or its folder was deleted.
+state_owner() {
+    local owner; owner="$(cat "$STATE_OWNER" 2>/dev/null || true)"
+    if [ -n "$owner" ] && [ -d "$owner" ]; then echo "$owner"; fi
+}
 
 # Prints "<windowID> <title>" for each on-screen window of the screenshot app, largest first.
 windows() {
@@ -82,8 +92,8 @@ start() {
     local bundle_id="$BUNDLE_ID"
     if [ "$apple_music" = 1 ]; then
         bundle_id="$REAL_BUNDLE_ID"
+        claim_state
         if [ ! -f "$REAL_DEFAULTS_MARKER" ]; then
-            mkdir -p "$STATE_DIR"
             rm -f "$REAL_DEFAULTS_BACKUP"
             defaults export "$REAL_BUNDLE_ID" "$REAL_DEFAULTS_BACKUP" >/dev/null 2>&1 || true
             touch "$REAL_DEFAULTS_MARKER"
@@ -217,7 +227,7 @@ SWIFT
 appearance() {
     [ $# -eq 1 ] || usage
     case "$1" in light|dark) ;; *) usage ;; esac
-    mkdir -p "$STATE_DIR"
+    claim_state
     if [ ! -f "$APPEARANCE_BACKUP" ]; then
         if [ "$(defaults read -g AppleInterfaceStyle 2>/dev/null)" = "Dark" ]; then
             echo dark >"$APPEARANCE_BACKUP"
@@ -240,12 +250,11 @@ stop() {
     defaults delete "$BUNDLE_ID" >/dev/null 2>&1 || true
     defaults delete "$SERVICES_SUITE" >/dev/null 2>&1 || true
     # Each backup goes only once its restore worked, so a failed one can be retried, and one failing
-    # never skips the other. A run from another checkout still uses both, so they wait for its stop.
-    local restore_failed=0 others; others="$(other_runs)"
-    if [ -n "$others" ] && { [ -f "$REAL_DEFAULTS_MARKER" ] || [ -f "$APPEARANCE_BACKUP" ]; }; then
-        echo "screenshots: another checkout's screenshot app is running; its 'stop' restores the" \
-            "real app's defaults and the macOS appearance:" >&2
-        echo "$others" >&2
+    # never skips the other. Backups another checkout owns wait for that checkout's stop.
+    local restore_failed=0 owner saved; owner="$(state_owner)"
+    if [ -n "$owner" ] && [ "$owner" != "$ROOT" ]; then
+        echo "screenshots: the real app's defaults and the macOS appearance were saved by the run in" \
+            "$owner; its 'stop' puts them back" >&2
     else
         if [ -f "$REAL_DEFAULTS_MARKER" ]; then
             defaults delete "$REAL_BUNDLE_ID" >/dev/null 2>&1 || true
@@ -258,15 +267,19 @@ stop() {
             fi
         fi
         if [ -f "$APPEARANCE_BACKUP" ]; then
-            if set_system_appearance "$(cat "$APPEARANCE_BACKUP")"; then
+            saved="$(cat "$APPEARANCE_BACKUP" 2>/dev/null || true)"
+            if { [ "$saved" = light ] || [ "$saved" = dark ]; } && set_system_appearance "$saved"; then
                 rm -f "$APPEARANCE_BACKUP"
             else
-                echo "screenshots: could not put the macOS appearance back to $(cat "$APPEARANCE_BACKUP");" \
-                    "run 'stop' again, or set it in System Settings and delete $APPEARANCE_BACKUP" >&2
+                echo "screenshots: could not put the macOS appearance back to '$saved' from $APPEARANCE_BACKUP;" \
+                    "run 'stop' again, or set it in System Settings and delete that file" >&2
                 restore_failed=1
             fi
         fi
-        rmdir "$STATE_DIR" 2>/dev/null || true
+        if [ ! -f "$REAL_DEFAULTS_MARKER" ] && [ ! -f "$APPEARANCE_BACKUP" ]; then
+            rm -f "$STATE_OWNER"
+            rmdir "$STATE_DIR" 2>/dev/null || true
+        fi
     fi
     rm -rf "$FAKE_HOME" "$APP" "$WORK/windows.swift" "$WORK/key.swift" "$WORK/key" \
         "$WORK/appearance.swift" "$WORK/appearance"
