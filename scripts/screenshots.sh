@@ -6,6 +6,7 @@
 #                                                                     build, start mock, launch app
 #   scripts/screenshots.sh shot <name> [window-title]                 capture a window to $SHOTS_DIR/<name>.png
 #   scripts/screenshots.sh key <keycode> [cmd] [shift] [alt] [ctrl]    press a shortcut, e.g. `key 40 cmd` = ⌘K
+#   scripts/screenshots.sh appearance <light|dark>                    switch the macOS appearance live
 #   scripts/screenshots.sh stop                                       quit app, stop mock, remove all state
 #
 # Between `shot`s, drive the app by hand, with `key`, or with cliclick for clicks and typing.
@@ -23,7 +24,7 @@ APP="$WORK/Spotiglass.app"
 FAKE_HOME="$WORK/home"
 WINDOW_FRAME="${WINDOW_FRAME:-120, 80, 1320, 860}"   # x, y, width, height in points
 
-usage() { sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'; exit 1; }
+usage() { sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; exit 1; }
 
 # --with-apple-music runs under the real bundle id (MusicKit issues its developer token for that id
 # only), so the real app's defaults domain is saved at start and put back at stop.
@@ -182,6 +183,39 @@ SWIFT
     "$WORK/key" "$@"
 }
 
+# Switches the macOS appearance while the app runs, the way System Settings does, to check a live
+# theme change (the app follows it with Settings > Appearance > System). The first switch remembers
+# the appearance from before, and `stop` puts it back.
+APPEARANCE_BACKUP="$WORK/system-appearance.saved"
+set_system_appearance() {
+    if [ ! -x "$WORK/appearance" ]; then
+        cat > "$WORK/appearance.swift" <<'SWIFT'
+import Foundation
+// SkyLight's setter is what System Settings calls; AppleScript's "appearance preferences" does the
+// same but needs the Automation permission for System Events.
+let skyLight = dlopen("/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight", RTLD_NOW)
+guard let symbol = dlsym(skyLight, "SLSSetAppearanceThemeLegacy") else { exit(1) }
+typealias SetTheme = @convention(c) (Bool) -> Void
+unsafeBitCast(symbol, to: SetTheme.self)(CommandLine.arguments[1] == "dark")
+SWIFT
+        swiftc -O "$WORK/appearance.swift" -o "$WORK/appearance"
+    fi
+    "$WORK/appearance" "$1"
+}
+appearance() {
+    [ $# -eq 1 ] || usage
+    case "$1" in light|dark) ;; *) usage ;; esac
+    mkdir -p "$WORK"
+    if [ ! -f "$APPEARANCE_BACKUP" ]; then
+        if [ "$(defaults read -g AppleInterfaceStyle 2>/dev/null)" = "Dark" ]; then
+            echo dark >"$APPEARANCE_BACKUP"
+        else
+            echo light >"$APPEARANCE_BACKUP"
+        fi
+    fi
+    set_system_appearance "$1"
+}
+
 stop() {
     local pid; pid="$(app_pid || true)"
     if [ -n "$pid" ]; then
@@ -198,7 +232,12 @@ stop() {
         [ -f "$REAL_DEFAULTS_BACKUP" ] && defaults import "$REAL_BUNDLE_ID" "$REAL_DEFAULTS_BACKUP"
         rm -f "$REAL_DEFAULTS_BACKUP" "$REAL_DEFAULTS_MARKER"
     fi
-    rm -rf "$FAKE_HOME" "$APP" "$WORK/windows.swift" "$WORK/key.swift" "$WORK/key"
+    if [ -f "$APPEARANCE_BACKUP" ]; then
+        set_system_appearance "$(cat "$APPEARANCE_BACKUP")" || true
+        rm -f "$APPEARANCE_BACKUP"
+    fi
+    rm -rf "$FAKE_HOME" "$APP" "$WORK/windows.swift" "$WORK/key.swift" "$WORK/key" \
+        "$WORK/appearance.swift" "$WORK/appearance"
     echo "stopped; screenshots stay in $SHOTS_DIR"
 }
 
@@ -207,6 +246,7 @@ case "${1:-}" in
     shot) shift; shot "$@" ;;
     windows) windows ;;
     key) shift; key "$@" ;;
+    appearance) shift; appearance "$@" ;;
     stop) stop ;;
     *) usage ;;
 esac

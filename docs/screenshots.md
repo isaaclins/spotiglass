@@ -56,6 +56,11 @@ app's preferences are saved at `start` and put back at `stop`. Without the optio
 never reaches MusicKit.
 `SHOTS_DIR` changes the output folder, `WINDOW_FRAME="x, y, width, height"` the window size.
 
+`appearance light` or `appearance dark` switches the macOS appearance while the app runs, the way
+System Settings does, to check how the window takes a live theme change (set Settings → Appearance
+→ Color scheme to System first; Light and Dark there switch only the app). The first switch
+remembers your appearance and `stop` puts it back.
+
 `key` posts a real key event with its virtual key code (the app's keymap matches on key codes, so
 text typed by other tools does not trigger shortcuts). Modifiers are `cmd`, `shift`, `alt` and
 `ctrl`. Common codes: K 40, F 3, comma 43, L 37, W 13, 1 18, 2 19, escape 53, return 36, delete 51.
