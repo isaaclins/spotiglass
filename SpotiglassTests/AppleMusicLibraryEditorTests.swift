@@ -1339,15 +1339,17 @@ final class AppleMusicPlaylistEditFixTests: XCTestCase {
             MusicAppScripts.removeFromPlaylist(playlist, removals: [MusicAppPlaylistRemoval(track: saved, positions: [0, 2])]),
             MusicAppScripts.renamePlaylist(.name("Spotiglass test"), to: "Renamed"),
             MusicAppScripts.deletePlaylist(playlist),
-            // What an edit runs after one of its changes answered late (#411).
-            MusicAppScripts.settling(MusicAppScripts.finishRemovingFromLibrary([track, saved]), seconds: 600),
+        ] + [
+            // What an edit runs after one of its changes answered late (#411), as the runner sends it.
+            MusicAppScripts.finishRemovingFromLibrary([track, saved]),
             MusicAppScripts.finishRemovingFromPlaylist(playlist, entryIDs: ["4021", "4022"]),
             MusicAppScripts.finishRenaming(.name("Spotiglass test"), to: "Renamed"),
+            MusicAppScripts.finishRenaming(playlist, to: "Renamed"),
             MusicAppScripts.finishDeleting(playlist),
             MusicAppScripts.takeBackAdd(playlist, progress: "5|\(rowPersistentID),EF749F4BE5C06047|"),
             MusicAppScripts.takeBackCreate(name: "Spotiglass test", progress: "FE82FB07F4D3B512|"),
             MusicAppScripts.takeBackCreate(name: "Spotiglass test", progress: "|FE82FB07F4D3B512"),
-        ]
+        ].map { MusicAppScripts.settling($0, seconds: 600) }
         for source in scripts {
             let timed = MusicAppScripts.withTimeout(source, seconds: 60)
             let script = try XCTUnwrap(NSAppleScript(source: timed))
