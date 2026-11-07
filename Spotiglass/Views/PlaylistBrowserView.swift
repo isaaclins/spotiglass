@@ -206,6 +206,11 @@ struct PlaylistBrowserView: View {
         browserSplitLayout
         .animation(.easeOut(duration: 0.22), value: lyricsOverlay.isPresented)
         .animation(.easeOut(duration: 0.2), value: viewModel.canNavigateBack)
+        // Measure the width the window offers, not the split view's own width. Below the
+        // sidebar + detail minimums the split view keeps its minimum and overflows the window,
+        // so its own width never dropped under the collapse breakpoint: the sidebar was cut off
+        // instead of collapsing (#400). A flexible frame takes exactly the offered width.
+        .frame(minWidth: 0, maxWidth: .infinity)
         .onGeometryChange(for: CGFloat.self, of: \.size.width) { _, newWidth in
             commitBrowserContentWidthIfNeeded(newWidth)
         }

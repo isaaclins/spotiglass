@@ -604,22 +604,26 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         XCTAssertEqual(AppleMusicPlayableRegistry.shared.song(for: track.uri)?.id, song.id)
     }
 
-    func testRegistryIsBounded() throws {
+    /// The songs of the list viewed first (Liked Songs) must not be evicted first just because
+    /// they were registered first: viewing the list again makes them recent, and only songs
+    /// nobody touched in a long time go (#400).
+    func testRegistryEvictsTheLeastRecentlyUsedSongs() throws {
         let registry = AppleMusicPlayableRegistry(capacity: 4)
-        let songs = try (1...5).map { try AppleMusicFixtures.song(id: "\($0)", title: "Song \($0)") }
+        let songs = try (1...6).map { try AppleMusicFixtures.song(id: "\($0)", title: "Song \($0)") }
         func uri(_ n: Int) -> String { "applemusic:song:\(n)" }
-        for (index, song) in songs.enumerated() { registry.register(song, for: uri(index + 1)) }
-        // Past the capacity the oldest half is dropped: 5 > 4 keeps the newest 2.
-        for dropped in 1...3 { XCTAssertNil(registry.song(for: uri(dropped)), "song \(dropped)") }
-        XCTAssertEqual(registry.song(for: uri(4))?.id, songs[3].id)
-        XCTAssertEqual(registry.song(for: uri(5))?.id, songs[4].id)
-        // Registering a URI again doesn't count as a new entry: two more re-registrations
-        // and one new song (3 entries) stay under the capacity, so nothing is dropped.
+        for n in 1...4 { registry.register(songs[n - 1], for: uri(n)) }
+        // Song 1 is mapped again (its list was reopened) and song 2 is looked up for playback.
+        registry.register(songs[0], for: uri(1))
+        XCTAssertEqual(registry.song(for: uri(2))?.id, songs[1].id)
+        // A fifth song goes past the capacity and one batch is evicted down to 90 % (3 songs):
+        // the least recently used ones (3, 4) go, not the first ones registered.
         registry.register(songs[4], for: uri(5))
+        for dropped in [3, 4] { XCTAssertNil(registry.song(for: uri(dropped)), "song \(dropped)") }
+        for kept in [1, 2, 5] { XCTAssertEqual(registry.song(for: uri(kept))?.id, songs[kept - 1].id, "song \(kept)") }
+        // Registering a URI again doesn't count as a new entry.
         registry.register(songs[4], for: uri(5))
         registry.register(songs[0], for: uri(1))
-        XCTAssertEqual(registry.song(for: uri(4))?.id, songs[3].id)
-        XCTAssertEqual(registry.song(for: uri(1))?.id, songs[0].id)
+        for kept in [1, 2, 5] { XCTAssertNotNil(registry.song(for: uri(kept)), "song \(kept)") }
     }
 
     // MARK: - Header play
