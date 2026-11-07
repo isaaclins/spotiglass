@@ -16,12 +16,15 @@ extension PlaylistBrowserViewModel {
             if bundle.age >= playlistListAutoRefreshMinInterval {
                 await refreshPlaylists(trigger: .automatic)
             } else {
-                await loadCurrentUserIfUnknown()
+                // Learned alongside the detail load, not in front of it: the ID only decides
+                // the owner line and the rename item.
+                async let currentUser: Void = loadCurrentUserIfUnknown()
                 if let sidebarSelection {
                     detailSession += 1
                     let session = detailSession
                     await scheduleDetailLoad(for: sidebarSelection, refreshCachedData: true, session: session)
                 }
+                await currentUser
             }
             return
         }

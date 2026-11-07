@@ -359,6 +359,29 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         XCTAssertFalse(source.calls.contains("album(1440833098)"), "a catalog album is not looked up again")
     }
 
+    /// Counting a library album's songs is an extra lookup per album. One album MusicKit can't
+    /// read keeps its own count; it must not turn the whole artist page into an error.
+    func testArtistPageKeepsItsAlbumsWhenOneLibraryAlbumCantBeCounted() async throws {
+        let source = MockAppleMusicSource()
+        source.artistsByID["-42"] = try AppleMusicFixtures.artist(id: "-42", name: "Rihanna")
+        source.extraAlbumsByArtistID["-42"] = try (1...6).map {
+            try AppleMusicFixtures.album(id: "-\($0)", title: "Album \($0)", trackCount: 12)
+        }
+        for n in 1...6 {
+            source.albumsByID["-\(n)"] = try AppleMusicFixtures.album(
+                id: "-\(n)", title: "Album \(n)", trackCount: 12,
+                tracks: (1...n).map { (id: "-\(n)0\($0)", title: "Song \($0)") }
+            )
+        }
+        source.albumErrorsByID["-3"] = AppleMusicBrowsingError.notFound
+        let provider = AppleMusicBrowsingProvider(source: source)
+
+        let albums = try await provider.artistAlbumsCached(id: "-42", includeGroups: [], limit: 10, cacheMode: .allowStale)
+
+        XCTAssertEqual(albums.value.map(\.name), (1...6).map { "Album \($0)" }, "every album, in MusicKit's order")
+        XCTAssertEqual(albums.value.map(\.totalTracks), [1, 2, 12, 4, 5, 6])
+    }
+
     func testArtistDetailAlbumsArePagedAndFilteredByGroup() async throws {
         let source = MockAppleMusicSource()
         source.artistsByID["5201"] = try AppleMusicFixtures.artist(id: "5201", name: "Bonobo", albums: [
@@ -881,6 +904,7 @@ private final class MockAppleMusicSource: AppleMusicContentSource, @unchecked Se
     var recentSongs: [Song] = []
     var recommended: [Playlist] = []
     var albumsByID: [String: Album] = [:]
+    var albumErrorsByID: [String: Error] = [:]
     var artistsByID: [String: Artist] = [:]
     var topSongsByArtistID: [String: [Song]] = [:]
     var catalogSearchItems = AppleMusicSearchItems()
@@ -925,6 +949,7 @@ private final class MockAppleMusicSource: AppleMusicContentSource, @unchecked Se
 
     func album(id: String) async throws -> Album? {
         record("album(\(id))")
+        if let error = albumErrorsByID[id] { throw error }
         return albumsByID[id]
     }
 
