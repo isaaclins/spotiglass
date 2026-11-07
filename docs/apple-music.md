@@ -117,8 +117,27 @@ ID, no catalog or cloud library ID, so the API can't name them. Their playlist e
 Music app, which finds the song in the library or, for an Apple Music song that is in a playlist
 but not in the library, in the playlist it was listed in. One edit always takes one route.
 
+**Liked or not, for a playlist row.** A playlist can hold Apple Music songs that aren't in your
+library, and MusicKit lists them like library songs. Only a song in the library has the date it was
+added (`libraryAddedDate`), which is what the track menu goes by: no date offers Add to Liked
+Songs (checked against the Music app on 22 rows of two playlists, #401). Liking such a song saves
+it through the API by its catalog ID, which MusicKit keeps only on the song's library entry
+(found by title, matched by persistent ID). Removing an album from the library leaves out its songs
+that are only in a playlist, since Music couldn't find them there.
+
 Scripts to Music run off the main thread, one at a time, and each Apple Event gives up after 60
-seconds (the Music app still loading or syncing), so the window never waits on Music.
+seconds (the Music app still loading or syncing), so the window never waits on Music. A lookup
+that times out changed nothing and says "Music didn't respond". A change that times out is
+different: AppleScript only stops waiting, and Music still carries the change out (#411). So the
+edit then waits for Music to answer again (Music answers one event at a time, so its next answer
+comes after the slow change), up to 10 minutes, and ends in a state it can report truthfully:
+
+| Edit | After a change that answered late |
+|---|---|
+| Unlike, remove album, remove from playlist, rename, delete playlist | Finished: whatever is still to do is done, and the edit succeeds. |
+| Add to playlist, New playlist… | Taken back: the songs it added (the late one too) come out again, or the new playlist is deleted, and the edit says "Music didn't respond". |
+
+If Music still doesn't answer after that wait, the edit says the change may still go through.
 
 **IDs.** The API names songs by catalog or cloud library ID (`i.…`) and playlists by `p.…`; the
 Music app names both by its persistent ID, which MusicKit shows as a signed decimal (inside a
