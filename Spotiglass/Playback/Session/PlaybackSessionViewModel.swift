@@ -548,13 +548,11 @@ final class PlaybackSessionViewModel: ObservableObject {
     /// Whether shuffle/repeat commands have both a ready target and a confirmed
     /// Spotify transport state. The visible values are not actionable otherwise.
     var isTransportMutationReady: Bool {
-        Self.isTransportMutationReady(
-            isTransportStateKnown: isTransportStateKnown,
-            connectionState: connectionState,
-            commandDeviceID: commandDeviceID
-        )
+        isTransportStateKnown && isPlaybackTransportReady && commandDeviceID != nil
     }
 
+    /// ``isTransportMutationReady`` from published values, for sinks that run before the
+    /// properties change.
     static func isTransportMutationReady(
         isTransportStateKnown: Bool,
         connectionState: PlaybackConnectionState,
