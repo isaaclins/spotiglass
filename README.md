@@ -83,7 +83,7 @@ For raw `xcodebuild` commands, test-host Keychain behavior, and icon pipeline no
 
 ## Release artifact
 
-The GitHub Actions workflow **Release artifact** runs unit tests, builds an unsigned Release `Spotiglass.app`, and uploads it for 14 days. Download and first-launch steps: [CI and releases](docs/ci-and-releases.md).
+The GitHub Actions workflow **Release artifact** runs unit tests, builds an unsigned Release `Spotiglass.app`, and uploads it for 14 days. It is a preview for testing a branch, not a release: [CI and releases](docs/ci-and-releases.md).
 
 ## Documentation
 

@@ -9,7 +9,7 @@ through Apple's MusicKit, and switch between Apple Music and Spotify at any time
 
 - **Fresh install:** the welcome screen asks which service you listen on. Pick Apple Music.
 - **Already on Spotify:** click **Spotify** at the top left of the sidebar and choose
-  **Add a service…**.
+  **Add a service…**, or use **Add Apple Music** in Settings › Account.
 
 Either way macOS asks once for access to Apple Music. There is no client ID and nothing else to
 set up. Playing needs an Apple Music subscription (see [Requirements](#requirements)).
