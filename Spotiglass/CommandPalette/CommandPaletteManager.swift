@@ -597,7 +597,7 @@ final class CommandPaletteManager: ObservableObject {
         case CommandPaletteCommandID.previousTrack:
             ["previous", "back"]
         case CommandPaletteCommandID.toggleQueue:
-            ["queue", "up next", "sidebar"]
+            ["queue", "up next", "panel"]
         case CommandPaletteCommandID.toggleLyrics:
             ["lyrics", "immersive", "karaoke", "overlay"]
         case CommandPaletteCommandID.toggleSidebar:

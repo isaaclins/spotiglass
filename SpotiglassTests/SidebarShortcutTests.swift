@@ -265,6 +265,12 @@ final class SidebarShortcutTests: XCTestCase {
         // The palette lists it, and running it from there shows the sidebar again.
         let item = manager.viewModel.staticItemsProvider().first { $0.id == CommandPaletteCommandID.toggleSidebar }
         XCTAssertEqual(item?.title, SpotiglassL10n.string("palette.command.view.sidebar.toggle.title"))
+        // Searching "sidebar" puts it first; Toggle Queue used to carry a "sidebar" keyword.
+        let commandItems = manager.viewModel.staticItemsProvider()
+        let best = commandItems.min { $0.score(for: "sidebar") < $1.score(for: "sidebar") }
+        XCTAssertEqual(best?.id, CommandPaletteCommandID.toggleSidebar)
+        let queue = commandItems.first { $0.id == CommandPaletteCommandID.toggleQueue }
+        XCTAssertEqual(queue?.score(for: "sidebar"), 100, "the queue panel is not the sidebar")
         manager.execute(commandID: CommandPaletteCommandID.toggleSidebar)
         XCTAssertTrue(sidebarVisible)
         XCTAssertEqual(commands.sidebarItemTitle, SpotiglassL10n.string("menu.view.hideSidebar"))
