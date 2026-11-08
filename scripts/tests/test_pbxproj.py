@@ -190,6 +190,35 @@ class AuditTests(RepoCopy):
         result = self.run_script('scripts/audit-orphaned-sources.sh')
         self.assertEqual(result.returncode, 0, result.stdout)
 
+    def test_sources_entry_for_a_missing_file_fails(self):
+        (self.tmp / 'SpotiglassTests/PlaylistOwnerDisplayTests.swift').unlink()
+        result = self.run_script('scripts/audit-orphaned-sources.sh')
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('SpotiglassTests/PlaylistOwnerDisplayTests.swift: is in the SpotiglassTests Sources phase but the file does not exist', result.stdout)
+
+    def test_exclusion_precedence_follows_xcode(self):
+        name = 'QueueViewModelCoreTests.swift'
+        original = self.pbx.read_text()
+        project = pbxproj.Project(original)
+        target = project.targets()['SpotiglassTests']
+        cases = [
+            # A matching [sdk=macosx*] variant replaces the plain value.
+            ([(target, f'EXCLUDED_SOURCE_FILE_NAMES = {name};'),
+              (target, '"EXCLUDED_SOURCE_FILE_NAMES[sdk=macosx*]" = "";')], 0),
+            # The target's value replaces the project's.
+            ([(project.root_id, f'"EXCLUDED_SOURCE_FILE_NAMES[sdk=macosx*]" = {name};'),
+              (target, 'EXCLUDED_SOURCE_FILE_NAMES = "";')], 0),
+            # $(SRCROOT) is the repo root.
+            ([(target, f'EXCLUDED_SOURCE_FILE_NAMES = "$(SRCROOT)/SpotiglassTests/{name}";')], 1),
+        ]
+        for lines, expected in cases:
+            text = original
+            for owner, line in lines:
+                text = self._add_setting(text, owner, line)
+            self.pbx.write_text(text)
+            result = self.run_script('scripts/audit-orphaned-sources.sh')
+            self.assertEqual(result.returncode, expected, (lines, result.stdout))
+
     def test_file_with_a_non_macos_platform_filter_fails(self):
         name = 'PlaylistOwnerDisplayTests.swift'
         text, n = re.subn(rf'(/\* {re.escape(name)} in Sources \*/ = \{{isa = PBXBuildFile;)',
@@ -306,6 +335,7 @@ class RegisterTests(RepoCopy):
     def test_missing_group_is_an_error_and_writes_nothing(self):
         # The second file is in no group at all; the first must not be written either.
         self.add_swift('SpotiglassTests/FineTests.swift')
+        self.add_swift('Nowhere/LostTests.swift')
         before = self.pbx.read_text()
         with self.assertRaises(pbxproj.PBXError) as err:
             pbxproj.register_files(['SpotiglassTests/FineTests.swift', 'Nowhere/LostTests.swift'],
@@ -342,6 +372,16 @@ class RegisterTests(RepoCopy):
         before = self.pbx.read_bytes()
         self.run_script(sys.executable, 'scripts/register-test-files.py', 'FooTests.swift')
         self.assertEqual(before, self.pbx.read_bytes())
+
+    def test_path_that_does_not_exist_is_an_error_and_writes_nothing(self):
+        # Giving the folder twice is an easy mistake; it must not register
+        # SpotiglassTests/SpotiglassTests/... through the parent-group fallback.
+        before = self.pbx.read_text()
+        result = self.run_script(sys.executable, 'scripts/register-test-files.py',
+                                 'SpotiglassTests/QueueViewModelCoreTests.swift')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('SpotiglassTests/SpotiglassTests/QueueViewModelCoreTests.swift does not exist', result.stderr)
+        self.assertEqual(self.pbx.read_text(), before)
 
     def test_source_file_lands_in_the_anchor_group_and_app_target(self):
         self.add_swift('Spotiglass/Browsing/NewThing.swift')

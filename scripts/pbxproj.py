@@ -188,9 +188,8 @@ class Project:
         return out
 
     def _configurations(self, target_name):
-        """{configuration name: build settings} for `target_name`, with the
-        project's settings of the same configuration underneath the target's,
-        the way Xcode layers them."""
+        """{configuration name: (project settings, target settings)} for
+        `target_name`, the two levels Xcode layers for one configuration."""
         def by_name(list_id):
             out = {}
             for conf in self.objects.get(list_id, {}).get('buildConfigurations', []):
@@ -199,37 +198,40 @@ class Project:
             return out
         project = by_name(self.objects[self.root_id].get('buildConfigurationList'))
         target = by_name(self.objects[self.targets()[target_name]].get('buildConfigurationList'))
-
-        def layered(below, above):
-            out = dict(below)
-            for key, value in above.items():
-                # `$(inherited)` stands for the project's value of the same key.
-                inherited = below.get(key, '')
-                inherited = inherited if isinstance(inherited, str) else ' '.join(inherited)
-                items = [value] if isinstance(value, str) else value
-                out[key] = [i.replace('$(inherited)', inherited) for i in items]
-            return out
-        return {name: layered(project.get(name, {}), settings) for name, settings in target.items()}
+        return {name: (project.get(name, {}), settings) for name, settings in target.items()}
 
     @staticmethod
-    def _patterns(settings, key):
-        """Patterns `key` lists for a macOS build on Apple silicon (where the
-        tests run), including conditional variants such as
-        `KEY[sdk=macosx*]`; variants for other SDKs or architectures are
-        ignored."""
-        out = []
-        for name, value in settings.items():
-            if name != key and not name.startswith(key + '['):
-                continue
-            sdks = re.findall(r'sdk=([^\],]+)', name)
-            if sdks and not any(fnmatch.fnmatchcase('macosx', s) or s.startswith('macosx') for s in sdks):
-                continue
-            archs = re.findall(r'arch=([^\],]+)', name)
-            if archs and not any(fnmatch.fnmatchcase('arm64', a) for a in archs):
-                continue
-            for item in [value] if isinstance(value, str) else value:
-                out.extend(item.split())
-        return out
+    def _level_value(settings, key):
+        """The value of `key` at one level for a macOS build on Apple silicon
+        (where the tests run), or None when that level doesn't set it. As in
+        Xcode, a matching conditional variant such as `KEY[sdk=macosx*]`
+        replaces the plain `KEY` of the same level; variants for other SDKs
+        or architectures don't apply."""
+        plain, variant = None, None
+        for name, value in sorted(settings.items()):
+            if name == key:
+                plain = value
+            elif name.startswith(key + '['):
+                sdks = re.findall(r'sdk=([^\],]+)', name)
+                if sdks and not any(fnmatch.fnmatchcase('macosx', s) or s.startswith('macosx') for s in sdks):
+                    continue
+                archs = re.findall(r'arch=([^\],]+)', name)
+                if archs and not any(fnmatch.fnmatchcase('arm64', a) for a in archs):
+                    continue
+                variant = value
+        value = variant if variant is not None else plain
+        if value is None:
+            return None
+        return ' '.join([value] if isinstance(value, str) else value)
+
+    def _patterns(self, levels, key):
+        """Patterns `key` resolves to for one configuration: the target's
+        value replaces the project's, and `$(inherited)` in it stands for the
+        project's value. `$(SRCROOT)/` and `$(PROJECT_DIR)/` are the repo root."""
+        project, target = (self._level_value(s, key) for s in levels)
+        value = project if target is None else target.replace('$(inherited)', project or '')
+        value = (value or '').replace('$(SRCROOT)/', '').replace('$(PROJECT_DIR)/', '')
+        return value.split()
 
     def exclusion_reason(self, build_id, target_name):
         """Why the build file `build_id` in the Sources phase is still not
@@ -247,9 +249,9 @@ class Project:
         # every configuration counts.
         configurations = self._configurations(target_name)
         skipped = set()
-        for name, settings in configurations.items():
+        for name, levels in configurations.items():
             def hits(key):
-                return any(fnmatch.fnmatchcase(c, pat) for pat in self._patterns(settings, key) for c in candidates)
+                return any(fnmatch.fnmatchcase(c, pat) for pat in self._patterns(levels, key) for c in candidates)
             if hits('EXCLUDED_SOURCE_FILE_NAMES') and not hits('INCLUDED_SOURCE_FILE_NAMES'):
                 skipped.add(name)
         if 'Debug' in skipped:
@@ -323,6 +325,11 @@ def audit(repo_root='.'):
                 problems.append((rel, f'in the project but not in the {target} target\'s Sources phase'))
             else:
                 problems.append((rel, 'not in the Xcode project at all'))
+        # The other way round: an entry for a file that isn't there (a typo,
+        # or a path given with the folder twice) fails the build.
+        for rel in sorted(set(listed)):
+            if rel.startswith(directory + '/') and not (root / rel).is_file():
+                problems.append((rel, f'is in the {target} Sources phase but the file does not exist'))
     return problems
 
 
@@ -473,7 +480,10 @@ def register_files(paths, target_name, pbx=PBX_PATH):
     """Register every path or none of them."""
     text = Path(pbx).read_text()
     original = text
+    repo = Path(pbx).resolve().parent.parent
     for path in paths:
+        if not (repo / path).is_file():
+            raise PBXError(f'{path} does not exist; create the file first (paths are relative to the target folder)')
         text, message = register(text, path, target_name)
         print(message)
     if text != original:
