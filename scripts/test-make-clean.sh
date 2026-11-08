@@ -19,6 +19,9 @@ cat >"$work/bin/security" <<'FAKE'
 #!/usr/bin/env bash
 echo "$*" >>"$FAKE_SECURITY_LOG"
 if [[ "${1:-}" == "delete-generic-password" ]]; then
+  if [[ -n "${FAKE_SECURITY_FAIL:-}" ]]; then
+    exit "$FAKE_SECURITY_FAIL" # e.g. 36: the Keychain refused (locked, access denied)
+  fi
   left="$(cat "$FAKE_SECURITY_ITEMS")"
   if (( left > 0 )); then
     echo $((left - 1)) >"$FAKE_SECURITY_ITEMS"
@@ -42,12 +45,15 @@ reset() {
   touch "$work/DerivedData/Build/stale.o"
 }
 run_make() {
-  # When this runs under `make test`, the parent's flags and command-line
-  # variables arrive through MAKEFLAGS. A `make test PATH=...` would then put
-  # the real `security` back in front of the fake and sign you out for real,
-  # so drop everything inherited and pass PATH explicitly.
-  env -u MAKEFLAGS -u MFLAGS -u MAKEOVERRIDES -u MAKELEVEL \
-    make -s -C "$repo" "$1" PATH="$PATH" DERIVED_DATA="$work/DerivedData" >/dev/null
+  # Run the nested make in an empty environment. Under `make test` the parent's
+  # flags and command-line variables arrive through MAKEFLAGS (`make test
+  # PATH=...` put the real `security` back in front of the fake), and an
+  # exported shell function named `security` would win over any file on PATH.
+  # Either way the test itself would sign you out for real.
+  env -i PATH="$PATH" HOME="$HOME" \
+    FAKE_SECURITY_LOG="$FAKE_SECURITY_LOG" FAKE_SECURITY_ITEMS="$FAKE_SECURITY_ITEMS" \
+    FAKE_SECURITY_FAIL="${FAKE_SECURITY_FAIL:-}" \
+    make -s -C "$repo" "$1" DERIVED_DATA="$work/DerivedData" >/dev/null
 }
 
 # make clean: build output gone, login untouched.
@@ -85,7 +91,21 @@ if [[ ! -e "$work/DerivedData/Build/stale.o" ]]; then
   fail=1
 fi
 
+# make sign-out when the Keychain refuses: must fail, not report success with
+# the login still stored (the auth-reset recipe chains it with &&).
+reset
+export FAKE_SECURITY_FAIL=36
+if run_make sign-out 2>/dev/null; then
+  echo "FAIL: make sign-out succeeded although the Keychain refused to delete the login" >&2
+  fail=1
+fi
+if [[ "$(cat "$FAKE_SECURITY_ITEMS")" != 2 ]]; then
+  echo "FAIL: make sign-out changed the login although every delete was refused" >&2
+  fail=1
+fi
+unset FAKE_SECURITY_FAIL
+
 if (( fail )); then
   exit 1
 fi
-echo "OK: make clean keeps the Spotify login; make sign-out removes it"
+echo "OK: make clean keeps the Spotify login; make sign-out removes it and fails loudly when it cannot"

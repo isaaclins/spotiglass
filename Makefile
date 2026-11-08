@@ -235,10 +235,19 @@ clean:
 	rm -rf "$(DERIVED_DATA)"
 
 # Deletes every stored Spotify refresh token, so the next launch starts signed out.
+# Stops at errSecItemNotFound (44); any other error fails loudly instead of
+# leaving the login in place while reporting success.
 sign-out:
 	@echo "Removing Keychain generic-password items with service $(KEYCHAIN_SERVICE)…"
 	@svc="$(KEYCHAIN_SERVICE)"; \
-	while security delete-generic-password -s "$$svc" >/dev/null 2>&1; do :; done
+	while :; do \
+		security delete-generic-password -s "$$svc" >/dev/null 2>&1; status=$$?; \
+		[ $$status -eq 0 ] || break; \
+	done; \
+	if [ $$status -ne 44 ]; then \
+		echo "make sign-out: the Keychain refused to delete the login (security exit $$status), so you may still be signed in." >&2; \
+		exit $$status; \
+	fi
 
 # Checks that `make clean` leaves the Keychain alone and `make sign-out` clears it.
 test-make-targets:
