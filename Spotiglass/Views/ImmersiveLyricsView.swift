@@ -11,6 +11,8 @@ struct ImmersiveLyricsView: View {
     let navigateToArtist: (ArtistTapTarget) -> Void
     let navigateToAlbum: (AlbumTapTarget, String, URL?) -> Void
     let onDismiss: () -> Void
+    /// Moves the lyrics into the small window that can stay above other apps (#439).
+    var onPopOut: (() -> Void)? = nil
 
     @EnvironmentObject private var settingsStore: SpotiglassSettingsStore
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -51,20 +53,32 @@ struct ImmersiveLyricsView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .overlay(alignment: .topTrailing) {
-            Button(action: onDismiss) {
-                Label(
-                    SpotiglassL10n.string("browser.closeLyrics"),
-                    systemImage: "xmark.circle"
-                )
+            HStack(spacing: SpotiglassDesign.spacingM) {
+                if let onPopOut {
+                    Button(action: onPopOut) {
+                        Label(
+                            SpotiglassL10n.string("lyrics.popOut.button"),
+                            systemImage: "pip.enter"
+                        )
+                    }
+                    .buttonStyle(.borderless)
+                    .help(SpotiglassL10n.string("lyrics.popOut.button.help"))
+                }
+                Button(action: onDismiss) {
+                    Label(
+                        SpotiglassL10n.string("browser.closeLyrics"),
+                        systemImage: "xmark.circle"
+                    )
+                }
+                .buttonStyle(.borderless)
+                .focused($focusedControl, equals: .close)
+                .accessibilityFocused($accessibilityFocusedControl, equals: .close)
+                .accessibilityDefaultFocus($accessibilityFocusedControl, .close)
+                .accessibilityHint(SpotiglassL10n.string("browser.closeLyrics.hint"))
+                .accessibilitySortPriority(100)
             }
-            .buttonStyle(.borderless)
             .padding(.top, ImmersiveLyricsLayout.minimumTopClearance - SpotiglassDesign.spacingXS)
             .padding(.trailing, SpotiglassDesign.spacingL)
-            .focused($focusedControl, equals: .close)
-            .accessibilityFocused($accessibilityFocusedControl, equals: .close)
-            .accessibilityDefaultFocus($accessibilityFocusedControl, .close)
-            .accessibilityHint(SpotiglassL10n.string("browser.closeLyrics.hint"))
-            .accessibilitySortPriority(100)
         }
         .focusScope(focusNamespace)
         .defaultFocus($focusedControl, .close)
@@ -110,29 +124,8 @@ struct ImmersiveLyricsView: View {
     /// Follows each new position from the player; the session publishes only track and state
     /// changes (#409).
     private var lyricsMainLayout: some View {
-        PlaybackProgressReader(progress: playbackViewModel.progress) { anchor in
-            lyricsMainLayout(anchor: anchor)
-        }
-    }
-
-    @ViewBuilder
-    private func lyricsMainLayout(anchor: PlaybackProgressAnchor?) -> some View {
-        if let anchor, anchor.isAdvancing {
-            TimelineView(.animation) { context in
-                immersiveMainLayout(
-                    positionMs: LrcLineParser.effectivePositionMs(
-                        positionMs: anchor.interpolatedPositionMs(at: context.date),
-                        offsetMs: lyricsOffsetMs
-                    )
-                )
-            }
-        } else {
-            immersiveMainLayout(
-                positionMs: LrcLineParser.effectivePositionMs(
-                    positionMs: staticPositionMs(anchor: anchor),
-                    offsetMs: lyricsOffsetMs
-                )
-            )
+        LyricsPositionReader(playbackViewModel: playbackViewModel, offsetMs: lyricsOffsetMs) { positionMs in
+            immersiveMainLayout(positionMs: positionMs)
         }
     }
 
@@ -149,20 +142,5 @@ struct ImmersiveLyricsView: View {
             usesLyricsScrollEdgeFade: usesLyricsScrollEdgeFade,
             lyricsTextSize: lyricsTextSize
         )
-    }
-
-    /// Frozen position when paused or between anchors; playback uses `progressAnchor` + `TimelineView` instead.
-    private func staticPositionMs(anchor: PlaybackProgressAnchor?) -> Int {
-        if let anchor {
-            return anchor.positionMilliseconds
-        }
-        switch playbackViewModel.connectionState {
-        case let .playing(np):
-            return np.positionMilliseconds
-        case let .paused(opt):
-            return opt?.positionMilliseconds ?? 0
-        default:
-            return 0
-        }
     }
 }

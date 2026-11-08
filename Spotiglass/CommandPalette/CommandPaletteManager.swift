@@ -69,6 +69,9 @@ final class CommandPaletteManager: ObservableObject {
     var filterByArtist: ((String) -> Void)?
     var toggleQueue: (() -> Void)?
     var toggleLyrics: (() -> Void)?
+    /// Opens the pop-out lyrics window (#439). App-wide like ``switchService``: the window
+    /// follows whatever plays, so ``detach()`` keeps it.
+    var popOutLyrics: (() -> Void)?
     /// Bulk-warms the on-disk track cache for every library playlist + Liked
     /// Songs. Invoking the command while a run is in flight cancels it.
     var prefetchAllPlaylists: (() -> Void)?
@@ -243,8 +246,20 @@ final class CommandPaletteManager: ObservableObject {
         .store(in: &playbackReadinessCancellables)
     }
 
+    /// The only commands a key press in the pop-out lyrics window runs (#439): its transport
+    /// controls. Everything else here (Escape, the palette, the browser's commands) belongs to
+    /// the main window and must not act on it from a window that shows none of it.
+    static let popOutWindowCommandIDs: Set<String> = [
+        CommandPaletteCommandID.togglePlayback,
+        CommandPaletteCommandID.nextTrack,
+        CommandPaletteCommandID.previousTrack,
+    ]
+
     func handleKeyEvent(_ event: NSEvent) -> Bool {
         guard isCurrentScene() else { return false }
+        if LyricsPopOutWindow.isPopOut(event.window) {
+            return handlePopOutWindowKeyEvent(event)
+        }
 
         // Escape keeps the existing dismissal priority: close the command
         // palette first, then the lyrics modal. It is intentionally handled
@@ -334,6 +349,9 @@ final class CommandPaletteManager: ObservableObject {
             if binding.command == CommandPaletteCommandID.toggleLyrics {
                 return canToggleLyrics
             }
+            if binding.command == CommandPaletteCommandID.popOutLyrics {
+                return popOutLyrics != nil
+            }
             if let service = MusicService(switchCommandID: binding.command) {
                 return switchService != nil && switchableServices.contains(service)
             }
@@ -345,6 +363,20 @@ final class CommandPaletteManager: ObservableObject {
             guard executed.insert(binding.command).inserted else { continue }
             execute(commandID: binding.command, args: binding.args)
         }
+        return true
+    }
+
+    private func handlePopOutWindowKeyEvent(_ event: NSEvent) -> Bool {
+        guard !isRecordingHotkey, !event.isARepeat else { return false }
+        let context: CommandPaletteContext = isSignedIn ? .signedIn : .signedOut
+        let matched = keymapStore.commandBindings(for: event, context: context)
+            .filter { Self.popOutWindowCommandIDs.contains($0.command) }
+            .filter { binding in
+                binding.command != CommandPaletteCommandID.togglePlayback
+                    || (playbackTogglePrerequisite?() ?? true)
+            }
+        guard let binding = matched.first else { return false }
+        execute(commandID: binding.command, args: binding.args)
         return true
     }
 
@@ -430,6 +462,9 @@ final class CommandPaletteManager: ObservableObject {
         case CommandPaletteCommandID.toggleLyrics:
             guard canToggleLyrics else { return }
             toggleLyrics?()
+        case CommandPaletteCommandID.popOutLyrics:
+            viewModel.hide()
+            popOutLyrics?()
         case CommandPaletteCommandID.enqueueTrackSelection:
             Task { await enqueueTrackSelection?() }
         case CommandPaletteCommandID.pinTrackSelection:
@@ -522,6 +557,7 @@ final class CommandPaletteManager: ObservableObject {
             guard !spec.requiresSignInForPalette || isSignedIn else { return nil }
             guard spec.commandID != CommandPaletteCommandID.togglePlayback || canTogglePlayback else { return nil }
             guard spec.commandID != CommandPaletteCommandID.toggleLyrics || canToggleLyrics else { return nil }
+            guard spec.commandID != CommandPaletteCommandID.popOutLyrics || popOutLyrics != nil else { return nil }
             // A service without Disconnect or that can't play (Apple Music without a
             // subscription) leaves these unwired; listing them would offer commands that do nothing.
             guard spec.commandID != CommandPaletteCommandID.signOut || signOut != nil else { return nil }
@@ -576,6 +612,8 @@ final class CommandPaletteManager: ObservableObject {
             ["queue", "up next", "sidebar"]
         case CommandPaletteCommandID.toggleLyrics:
             ["lyrics", "immersive", "karaoke", "overlay"]
+        case CommandPaletteCommandID.popOutLyrics:
+            ["lyrics", "pop out", "window", "mini player", "miniplayer", "float", "on top", "pin"]
         case CommandPaletteCommandID.signOut:
             ["disconnect", "logout", "sign out"]
         case CommandPaletteCommandID.switchToSpotify, CommandPaletteCommandID.switchToAppleMusic:

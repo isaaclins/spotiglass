@@ -213,6 +213,7 @@ struct RootView: View {
     /// Apple Music permission state, shared app-wide with the menu bar and Settings.
     @ObservedObject private var appleMusicSession: AppleMusicSession
     @Environment(\.openSettings) private var openSettingsAction
+    @Environment(\.openWindow) private var openWindowAction
 
     private var commandPaletteManager: CommandPaletteManager {
         sceneHost.commandPaletteManager
@@ -309,6 +310,17 @@ struct RootView: View {
         }
     }
 
+    /// Opens the pop-out lyrics window, or brings the one that is open forward (#439). The lyrics
+    /// move there: this window's lyrics view closes.
+    private var popOutLyricsAction: () -> Void {
+        let openWindow = openWindowAction
+        let lyricsOverlay = lyricsOverlayController
+        return {
+            lyricsOverlay.dismiss()
+            openWindow(id: LyricsPopOutWindow.sceneID)
+        }
+    }
+
     /// "Add a service…" and the welcome screen: show that service's sign-in.
     private var addServiceAction: (MusicService) -> Void {
         let serviceStore = self.serviceStore
@@ -328,6 +340,7 @@ struct RootView: View {
             openSettingsAction()
         }
         commandPaletteManager.switchService = switchServiceAction
+        commandPaletteManager.popOutLyrics = popOutLyricsAction
         commandPaletteManager.switchableServices = serviceStore.switchTargets
     }
 
@@ -371,7 +384,8 @@ struct RootView: View {
             .overlay {
                 LyricsOverlayLayer(
                     lyricsOverlay: lyricsOverlayController,
-                    keymapStore: commandPaletteManager.keymapStore
+                    keymapStore: commandPaletteManager.keymapStore,
+                    onPopOut: popOutLyricsAction
                 )
             }
             .overlay {
@@ -666,6 +680,7 @@ struct RootView: View {
 private struct LyricsOverlayLayer: View {
     @ObservedObject var lyricsOverlay: LyricsOverlayController
     let keymapStore: CommandPaletteKeymapStore
+    let onPopOut: () -> Void
     @EnvironmentObject private var settingsStore: SpotiglassSettingsStore
 
     /// Avoid blocking the window when `isPresented` is true before browse VC has called `attach` (nil models).
@@ -694,7 +709,8 @@ private struct LyricsOverlayLayer: View {
                         lyricsModel: lyrics,
                         navigateToArtist: navigateArtist,
                         navigateToAlbum: navigateAlbum,
-                        onDismiss: { lyricsOverlay.dismiss() }
+                        onDismiss: { lyricsOverlay.dismiss() },
+                        onPopOut: onPopOut
                     )
                     .environmentObject(settingsStore)
                     .environment(\.locale, settingsStore.appLocale)

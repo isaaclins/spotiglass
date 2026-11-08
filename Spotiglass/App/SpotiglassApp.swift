@@ -259,6 +259,26 @@ struct SpotiglassApp: App {
             }
         }
 
+        // One window, not a group: opening it again brings it forward (#439). It shows the
+        // app-scoped players, so closing it never stops the music.
+        Window(
+            SpotiglassL10n.string("lyrics.popOut.windowTitle", locale: settingsStore.appLocale),
+            id: LyricsPopOutWindow.sceneID
+        ) {
+            LyricsPopOutRoot(playbackHosts: playbackHosts, serviceStore: serviceStore)
+                .environmentObject(settingsStore)
+                .environment(\.locale, settingsStore.appLocale)
+                .environment(\.spotiglassLocale, settingsStore.appLocale)
+                .id(settingsStore.settings.appearance.language.rawValue)
+        }
+        .windowStyle(.hiddenTitleBar)
+        .windowResizability(.contentMinSize)
+        .defaultSize(LyricsPopOutWindow.defaultSize)
+        // Its size and place are remembered by the window itself; it opens when asked, never
+        // by itself at launch.
+        .restorationBehavior(.disabled)
+        .defaultLaunchBehavior(.suppressed)
+
         Settings {
             SpotiglassSettingsView(
                 keymapStore: keymapStore,

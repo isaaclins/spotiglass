@@ -146,6 +146,8 @@
 		E50000000000000000000080 /* ImmersiveLyricsBackgroundLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000078 /* ImmersiveLyricsBackgroundLayer.swift */; };
 		E50000000000000000000081 /* ImmersiveLyricsMainLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000079 /* ImmersiveLyricsMainLayout.swift */; };
 		E50000000000000000000082 /* ImmersiveLyricsLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5000000000000000000007A /* ImmersiveLyricsLayout.swift */; };
+		LPO439000000000000000012 /* LyricsPopOutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = LPO439000000000000000002 /* LyricsPopOutView.swift */; };
+		LPO439000000000000000011 /* LyricsPopOutWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = LPO439000000000000000001 /* LyricsPopOutWindow.swift */; };
 		E50000000000000000000083 /* ImmersiveLyricsLeftColumn.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5000000000000000000007B /* ImmersiveLyricsLeftColumn.swift */; };
 		E50000000000000000000084 /* ImmersiveLyricsNextInQueueSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5000000000000000000007C /* ImmersiveLyricsNextInQueueSection.swift */; };
 		E50000000000000000000085 /* ImmersiveLyricsPhaseColumn.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5000000000000000000007D /* ImmersiveLyricsPhaseColumn.swift */; };
@@ -315,6 +317,7 @@
 		TST0000000000000000000101 /* LibrarySidebarOrderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010101 /* LibrarySidebarOrderTests.swift */; };
 		TST0000000000000000000102 /* LyricsOverlayControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010102 /* LyricsOverlayControllerTests.swift */; };
 		TST0000000000000000000103 /* CommandPaletteManagerKeyEventTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010103 /* CommandPaletteManagerKeyEventTests.swift */; };
+		LPO439000000000000000013 /* LyricsPopOutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = LPO439000000000000000003 /* LyricsPopOutTests.swift */; };
 		TST0000000000000000000104 /* CommandPaletteShortcutCoverageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010104 /* CommandPaletteShortcutCoverageTests.swift */; };
 		TST0000000000000000000105 /* CommandPaletteEventMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010105 /* CommandPaletteEventMonitorTests.swift */; };
 		TST0000000000000000000106 /* RootViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010106 /* RootViewTests.swift */; };
@@ -592,6 +595,8 @@
 		E50000000000000000000078 /* ImmersiveLyricsBackgroundLayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImmersiveLyricsBackgroundLayer.swift; sourceTree = "<group>"; };
 		E50000000000000000000079 /* ImmersiveLyricsMainLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImmersiveLyricsMainLayout.swift; sourceTree = "<group>"; };
 		E5000000000000000000007A /* ImmersiveLyricsLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImmersiveLyricsLayout.swift; sourceTree = "<group>"; };
+		LPO439000000000000000002 /* LyricsPopOutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LyricsPopOutView.swift; sourceTree = "<group>"; };
+		LPO439000000000000000001 /* LyricsPopOutWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LyricsPopOutWindow.swift; sourceTree = "<group>"; };
 		E5000000000000000000007B /* ImmersiveLyricsLeftColumn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImmersiveLyricsLeftColumn.swift; sourceTree = "<group>"; };
 		E5000000000000000000007C /* ImmersiveLyricsNextInQueueSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImmersiveLyricsNextInQueueSection.swift; sourceTree = "<group>"; };
 		E5000000000000000000007D /* ImmersiveLyricsPhaseColumn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImmersiveLyricsPhaseColumn.swift; sourceTree = "<group>"; };
@@ -810,6 +815,7 @@
 		TST0000000000000000010101 /* LibrarySidebarOrderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibrarySidebarOrderTests.swift; sourceTree = "<group>"; };
 		TST0000000000000000010102 /* LyricsOverlayControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LyricsOverlayControllerTests.swift; sourceTree = "<group>"; };
 		TST0000000000000000010103 /* CommandPaletteManagerKeyEventTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteManagerKeyEventTests.swift; sourceTree = "<group>"; };
+		LPO439000000000000000003 /* LyricsPopOutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LyricsPopOutTests.swift; sourceTree = "<group>"; };
 		TST0000000000000000010104 /* CommandPaletteShortcutCoverageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteShortcutCoverageTests.swift; sourceTree = "<group>"; };
 		TST0000000000000000010105 /* CommandPaletteEventMonitorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteEventMonitorTests.swift; sourceTree = "<group>"; };
 		TST0000000000000000010106 /* RootViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootViewTests.swift; sourceTree = "<group>"; };
@@ -1136,6 +1142,7 @@
 				TST0000000000000000010105 /* CommandPaletteEventMonitorTests.swift */,
 				TST0000000000000000010104 /* CommandPaletteShortcutCoverageTests.swift */,
 				TST0000000000000000010103 /* CommandPaletteManagerKeyEventTests.swift */,
+				LPO439000000000000000003 /* LyricsPopOutTests.swift */,
 				TST0000000000000000010102 /* LyricsOverlayControllerTests.swift */,
 				TST0000000000000000010101 /* LibrarySidebarOrderTests.swift */,
 				TST00000000000000000100FF /* PlaylistBrowserDisplayErrorTests.swift */,
@@ -1359,6 +1366,8 @@
 				E50000000000000000000078 /* ImmersiveLyricsBackgroundLayer.swift */,
 				E50000000000000000000079 /* ImmersiveLyricsMainLayout.swift */,
 				E5000000000000000000007A /* ImmersiveLyricsLayout.swift */,
+				LPO439000000000000000002 /* LyricsPopOutView.swift */,
+				LPO439000000000000000001 /* LyricsPopOutWindow.swift */,
 				E5000000000000000000007B /* ImmersiveLyricsLeftColumn.swift */,
 				E5000000000000000000007C /* ImmersiveLyricsNextInQueueSection.swift */,
 				E5000000000000000000007D /* ImmersiveLyricsPhaseColumn.swift */,
@@ -1768,6 +1777,8 @@
 				E50000000000000000000080 /* ImmersiveLyricsBackgroundLayer.swift in Sources */,
 				E50000000000000000000081 /* ImmersiveLyricsMainLayout.swift in Sources */,
 				E50000000000000000000082 /* ImmersiveLyricsLayout.swift in Sources */,
+				LPO439000000000000000012 /* LyricsPopOutView.swift in Sources */,
+				LPO439000000000000000011 /* LyricsPopOutWindow.swift in Sources */,
 				E50000000000000000000083 /* ImmersiveLyricsLeftColumn.swift in Sources */,
 				E50000000000000000000084 /* ImmersiveLyricsNextInQueueSection.swift in Sources */,
 				E50000000000000000000085 /* ImmersiveLyricsPhaseColumn.swift in Sources */,
@@ -1938,6 +1949,7 @@
 				TST0000000000000000000105 /* CommandPaletteEventMonitorTests.swift in Sources */,
 				TST0000000000000000000104 /* CommandPaletteShortcutCoverageTests.swift in Sources */,
 				TST0000000000000000000103 /* CommandPaletteManagerKeyEventTests.swift in Sources */,
+				LPO439000000000000000013 /* LyricsPopOutTests.swift in Sources */,
 				TST0000000000000000000102 /* LyricsOverlayControllerTests.swift in Sources */,
 				TST0000000000000000000101 /* LibrarySidebarOrderTests.swift in Sources */,
 				TST00000000000000000000FF /* PlaylistBrowserDisplayErrorTests.swift in Sources */,

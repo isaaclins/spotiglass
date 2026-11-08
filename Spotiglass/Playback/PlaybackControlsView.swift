@@ -1042,12 +1042,7 @@ struct PlaybackControlsView: View {
     }
 
     private var hasReadyDevice: Bool {
-        switch viewModel.connectionState {
-        case .ready, .transferring, .playing, .paused:
-            true
-        case .disconnected, .connecting, .unavailable, .error:
-            false
-        }
+        viewModel.connectionState.hasReadyDevice
     }
 
     private var stateIcon: String {
@@ -1098,7 +1093,8 @@ struct PlaybackControlsView: View {
 /// SwiftUI's macOS 26 button bridge does not publish its accessibility label
 /// for ordinary hosted buttons. Keep the visual SwiftUI content and put a
 /// transparent native button beside it so AppKit gets a real AXButton (#334).
-private struct PlaybackTransportButton<Content: View>: View {
+/// The pop-out lyrics window uses it too (#439).
+struct PlaybackTransportButton<Content: View>: View {
     let accessibilityLabel: String
     let accessibilityHint: String
     let size: CGSize

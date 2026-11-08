@@ -152,6 +152,12 @@ struct SpotiglassMenuCommands: Commands {
             .keyboardShortcut(keymapShortcut(for: CommandPaletteCommandID.toggleLyrics))
             .disabled(!isLyricsToggleEnabled)
 
+            Button(SpotiglassL10n.string("menu.view.popOutLyrics", locale: currentLocale)) {
+                run(CommandPaletteCommandID.popOutLyrics)
+            }
+            .keyboardShortcut(keymapShortcut(for: CommandPaletteCommandID.popOutLyrics))
+            .disabled(!isSignedIn)
+
             Divider()
 
             Button(SpotiglassL10n.string("menu.view.refresh", locale: currentLocale)) {

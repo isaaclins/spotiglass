@@ -182,6 +182,16 @@ enum SpotiglassDesign {
         static let lyricsSideColumnMaxWidth: CGFloat = 320
         /// Smallest height the lyrics column keeps in a short window.
         static let lyricsColumnMinHeight: CGFloat = 200
+        /// The pop-out lyrics window (#439): its first size, and the one-line strip it shrinks to.
+        static let lyricsPopOutDefaultWidth: CGFloat = 340
+        static let lyricsPopOutDefaultHeight: CGFloat = 460
+        static let lyricsPopOutMinWidth: CGFloat = 240
+        static let lyricsPopOutMinHeight: CGFloat = 84
+        /// Below this height the pop-out is a strip; below this width it drops Previous and Next.
+        static let lyricsPopOutStripMaxHeight: CGFloat = 200
+        static let lyricsPopOutSkipButtonsMinWidth: CGFloat = 300
+        /// Room for the window buttons in the pop-out's hidden title bar.
+        static let lyricsPopOutTitleBarClearance: CGFloat = 32
         /// Artwork on the service choice buttons of the welcome screen.
         static let serviceChoiceLogoSize: CGFloat = 44
         static let serviceChoiceWidth: CGFloat = 192
