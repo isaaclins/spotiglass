@@ -62,11 +62,8 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         // The row that was clicked must play; if it couldn't be found, say so instead of
         // quietly starting another song.
         if let startURI, !resolved.contains(where: { $0.uri == startURI }) { throw Self.notFound(startURI) }
-        let queueable = try Self.leavingOutBlocked(
-            resolved,
-            startURI: startURI,
-            explicitBlocked: AppleMusicContentRestrictions.isExplicitMusicBlocked()
-        )
+        let explicitBlocked = AppleMusicContentRestrictions.isExplicitMusicBlocked()
+        let queueable = try Self.leavingOutBlocked(resolved, startURI: startURI, explicitBlocked: explicitBlocked)
         // No row was picked (an album, playlist or artist from its header): with shuffle on it
         // starts at a random song, like Spotify. Shuffle only reorders what comes after the
         // song that plays first, so that song moves to the front and every other one stays
@@ -79,7 +76,8 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         // new first song, like Spotify's queue. With shuffle off they go into the new queue
         // as it is set; with shuffle on MusicKit reshuffles a new queue, so they are inserted
         // after that instead, or they'd end up anywhere in it.
-        let carried = carriedAddedSongs()
+        // Songs added before the Mac started blocking explicit music are left out too.
+        let carried = Self.droppingBlocked(carriedAddedSongs(), explicitBlocked: explicitBlocked)
         let carriedInQueue = shuffleWanted ? [] : carried
         var queued = ordered
         queued.insert(contentsOf: carriedInQueue, at: startIndex + 1)
@@ -486,13 +484,22 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         startURI: String?,
         explicitBlocked: Bool
     ) throws -> [(uri: String, entry: MusicPlayer.Queue.Entry)] {
-        guard explicitBlocked else { return items }
-        let kept = items.filter { !isExplicit($0.entry) }
+        let kept = droppingBlocked(items, explicitBlocked: explicitBlocked)
         if let startURI, items.contains(where: { $0.uri == startURI }), !kept.contains(where: { $0.uri == startURI }) {
             throw explicitRestricted(startURI)
         }
         if kept.isEmpty, let first = items.first { throw explicitRestricted(first.uri) }
         return kept
+    }
+
+    /// `items` without the songs this Mac won't play, never failing: for songs that only come
+    /// along (added with Add to queue before the restriction was turned on).
+    static func droppingBlocked(
+        _ items: [(uri: String, entry: MusicPlayer.Queue.Entry)],
+        explicitBlocked: Bool
+    ) -> [(uri: String, entry: MusicPlayer.Queue.Entry)] {
+        guard explicitBlocked else { return items }
+        return items.filter { !isExplicit($0.entry) }
     }
 
     private static func isExplicit(_ entry: MusicPlayer.Queue.Entry) -> Bool {
@@ -565,14 +572,24 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
 /// Whether this Mac only allows clean music. Screen Time's Content & Privacy ("Music, Podcasts,
 /// Fitness: Clean") writes `restrictExplicit` into the managed `com.apple.iTunes` preferences;
 /// a restrictions profile from whoever manages the Mac sets `allowExplicitContent` to false.
+/// Only enforced (managed) values count: the same keys saved as ordinary preferences, say left
+/// over from an old iTunes, don't stop MusicKit from playing anything.
 enum AppleMusicContentRestrictions {
-    static func isExplicitMusicBlocked() -> Bool {
-        let iTunes = "com.apple.iTunes" as CFString
-        let access = "com.apple.applicationaccess" as CFString
-        // Read fresh: the restriction can change while the app runs.
-        CFPreferencesAppSynchronize(iTunes)
-        CFPreferencesAppSynchronize(access)
-        if CFPreferencesCopyAppValue("restrictExplicit" as CFString, iTunes) as? Bool == true { return true }
-        return CFPreferencesCopyAppValue("allowExplicitContent" as CFString, access) as? Bool == false
+    /// A preference's value and whether Screen Time or a profile enforces it.
+    typealias Lookup = @Sendable (_ key: String, _ domain: String) -> (value: Any?, isForced: Bool)
+
+    static func isExplicitMusicBlocked(lookup: Lookup = live) -> Bool {
+        let restrict = lookup("restrictExplicit", "com.apple.iTunes")
+        if restrict.isForced, restrict.value as? Bool == true { return true }
+        let allow = lookup("allowExplicitContent", "com.apple.applicationaccess")
+        return allow.isForced && allow.value as? Bool == false
+    }
+
+    /// Read fresh on every call: the restriction can change while the app runs.
+    static let live: Lookup = { key, domain in
+        let domain = domain as CFString
+        let key = key as CFString
+        CFPreferencesAppSynchronize(domain)
+        return (CFPreferencesCopyAppValue(key, domain), CFPreferencesAppValueIsForced(key, domain))
     }
 }

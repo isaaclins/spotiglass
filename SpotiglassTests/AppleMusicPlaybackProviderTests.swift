@@ -591,6 +591,42 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         XCTAssertNil(display.recoveryAction, "Reconnecting doesn't change what this Mac allows")
     }
 
+    /// Songs added with Add to queue before the Mac started blocking explicit music come along
+    /// into the next queue; the explicit ones would stop it there, so they are dropped quietly.
+    func testSongsAddedBeforeTheRestrictionLeaveOutTheExplicitOnes() throws {
+        let added = try Self.topTracks()
+        XCTAssertEqual(
+            MusicKitApplicationPlayer.droppingBlocked(added, explicitBlocked: true).map(\.uri),
+            ["applemusic:song:1712562731", "applemusic:song:1689834069"]
+        )
+        // Only explicit ones added: nothing comes along, and the new queue still plays.
+        XCTAssertTrue(MusicKitApplicationPlayer.droppingBlocked(
+            added.filter { $0.uri.hasSuffix("0995") || $0.uri.hasSuffix("0626") }, explicitBlocked: true
+        ).isEmpty)
+        XCTAssertEqual(MusicKitApplicationPlayer.droppingBlocked(added, explicitBlocked: false).count, added.count)
+    }
+
+    /// What Screen Time ("Music: Clean") and a restrictions profile set, and the same keys saved
+    /// as ordinary preferences, which don't stop MusicKit from playing anything.
+    func testOnlyAnEnforcedRestrictionBlocksExplicitSongs() {
+        func lookup(_ values: [String: (Any, Bool)]) -> AppleMusicContentRestrictions.Lookup {
+            { key, _ in values[key].map { ($0.0, $0.1) } ?? (nil, false) }
+        }
+        XCTAssertTrue(AppleMusicContentRestrictions.isExplicitMusicBlocked(
+            lookup: lookup(["restrictExplicit": (true, true)])
+        ), "Screen Time's Clean")
+        XCTAssertTrue(AppleMusicContentRestrictions.isExplicitMusicBlocked(
+            lookup: lookup(["allowExplicitContent": (false, true)])
+        ), "A restrictions profile")
+        XCTAssertFalse(AppleMusicContentRestrictions.isExplicitMusicBlocked(
+            lookup: lookup(["restrictExplicit": (true, false), "allowExplicitContent": (false, false)])
+        ), "Saved but not enforced")
+        XCTAssertFalse(AppleMusicContentRestrictions.isExplicitMusicBlocked(
+            lookup: lookup(["restrictExplicit": (false, true), "allowExplicitContent": (true, true)])
+        ), "Enforced, but explicit allowed")
+        XCTAssertFalse(AppleMusicContentRestrictions.isExplicitMusicBlocked(lookup: lookup([:])))
+    }
+
     /// The error MusicKit gave for the explicit top track. Trying again gives the same answer,
     /// so the message says the song can't play instead of "try again in a moment".
     func testMusicKitRefusingASongSaysItCantPlay() async {
