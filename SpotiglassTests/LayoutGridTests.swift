@@ -57,6 +57,8 @@ final class LayoutGridTests: XCTestCase {
         ("lyricsArtworkSize", SpotiglassDesign.Layout.lyricsArtworkSize),
         ("lyricsStatusMinHeight", SpotiglassDesign.Layout.lyricsStatusMinHeight),
         ("lyricsInstrumentalMinHeight", SpotiglassDesign.Layout.lyricsInstrumentalMinHeight),
+        ("lyricsSideColumnMaxWidth", SpotiglassDesign.Layout.lyricsSideColumnMaxWidth),
+        ("lyricsColumnMinHeight", SpotiglassDesign.Layout.lyricsColumnMinHeight),
         ("serviceChoiceLogoSize", SpotiglassDesign.Layout.serviceChoiceLogoSize),
         ("serviceChoiceWidth", SpotiglassDesign.Layout.serviceChoiceWidth),
         ("iconButtonSize", SpotiglassDesign.Layout.iconButtonSize),
@@ -151,6 +153,11 @@ final class LayoutGridTests: XCTestCase {
             ".spotiglassPillBackground(variant: .plain, horizontalPadding: 10, verticalPadding: 6)",
             "ArtworkView(url: card.artworkURL, size: 150)",
             "GridItem(.adaptive(minimum: 220), spacing: 10)",
+            ".frame(maxWidth: layout == .welcome ? 420 : .infinity)",
+            ".padding(.top, ImmersiveLyricsLayout.minimumTopClearance - 8)",
+            ".frame(width: min(320, geo.size.width * 0.36), alignment: .leading)",
+            "maxHeight: max(200, usableHeight * 0.5)",
+            ".padding(.horizontal, isCompact ? SpotiglassDesign.spacingS : 6)",
         ]
         for line in flagged {
             XCTAssertFalse(Self.looseNumbers(in: line).isEmpty, "not flagged: \(line)")
@@ -166,6 +173,10 @@ final class LayoutGridTests: XCTestCase {
             ".font(.system(size: 13))",
             ".shadow(color: .black.opacity(0.12), radius: 18, y: 10)",
             "// .padding(6) in a comment",
+            ".frame(width: geo.size.width * 0.36)",
+            ".frame(width: SpotiglassDesign.Layout.cardWidth * 2)",
+            ".frame(maxWidth: isWide ? SpotiglassDesign.Layout.paragraphMaxWidth : .infinity)",
+            "static let maxHeight: CGFloat = 14",
         ]
         for line in allowed {
             XCTAssertTrue(Self.looseNumbers(in: line).isEmpty, "wrongly flagged: \(line)")
@@ -212,17 +223,79 @@ final class LayoutGridTests: XCTestCase {
     static func looseNumbers(in line: String) -> [String] {
         let code = line.components(separatedBy: "//").first ?? line
         let range = NSRange(code.startIndex..., in: code)
-        var hits: [String] = []
+        // Keyed by where the digits start, so a number two patterns find counts once.
+        var hits: [Int: String] = [:]
         for pattern in patterns {
             for match in pattern.matches(in: code, range: range) {
                 guard let valueRange = Range(match.range(at: 1), in: code),
                       let value = Double(code[valueRange]),
                       !allowedValues.contains(abs(value))
                 else { continue }
-                hits.append(String(code[valueRange]))
+                let digits = code[valueRange].drop { $0 == "-" }
+                hits[code.distance(from: code.startIndex, to: digits.startIndex)] = String(code[valueRange])
             }
         }
-        return hits
+        for argument in layoutArguments(in: code) {
+            for match in literal.matches(in: code, range: NSRange(argument, in: code)) {
+                guard let valueRange = Range(match.range, in: code),
+                      let value = Double(code[valueRange]),
+                      !allowedValues.contains(value),
+                      !isScaleFactor(valueRange, in: code)
+                else { continue }
+                let offset = code.distance(from: code.startIndex, to: valueRange.lowerBound)
+                if hits[offset] == nil { hits[offset] = String(code[valueRange]) }
+            }
+        }
+        return hits.sorted { $0.key < $1.key }.map(\.value)
+    }
+
+    /// A bare number that isn't part of a name or a member access.
+    private static let literal = try! NSRegularExpression(pattern: #"(?<![\w.])\d+(?:\.\d+)?(?![\w.])"#)
+
+    /// Labels whose whole argument is a layout size, so a number anywhere in it
+    /// (`min(320, width * 0.36)`, `isWide ? 420 : .infinity`, `top - 8`) is loose.
+    private static let layoutLabel = try! NSRegularExpression(
+        pattern: #"(?<!let )(?<!var )\b(?:spacing|width|height|minWidth|maxWidth|minHeight|maxHeight|idealWidth|idealHeight|minLength)\s*:"#
+    )
+
+    /// The argument expressions of `.padding(...)` and of every `layoutLabel`,
+    /// each running to the next comma or closing bracket at its own depth.
+    private static func layoutArguments(in code: String) -> [Range<String.Index>] {
+        var starts: [String.Index] = []
+        for match in layoutLabel.matches(in: code, range: NSRange(code.startIndex..., in: code)) {
+            if let range = Range(match.range, in: code) { starts.append(range.upperBound) }
+        }
+        var searchFrom = code.startIndex
+        while let padding = code.range(of: ".padding(", range: searchFrom..<code.endIndex) {
+            starts.append(padding.upperBound)
+            searchFrom = padding.upperBound
+        }
+        return starts.map { start in
+            var depth = 0
+            var index = start
+            // `.padding(` owns everything up to its own closing bracket, commas included.
+            let isPadding = code[..<start].hasSuffix(".padding(")
+            while index < code.endIndex {
+                let character = code[index]
+                if "([".contains(character) {
+                    depth += 1
+                } else if ")]".contains(character) {
+                    if depth == 0 { break }
+                    depth -= 1
+                } else if character == ",", depth == 0, !isPadding {
+                    break
+                }
+                index = code.index(after: index)
+            }
+            return start..<index
+        }
+    }
+
+    /// `width * 0.36` or `cardWidth * 2` scales a shared value instead of being one.
+    private static func isScaleFactor(_ range: Range<String.Index>, in code: String) -> Bool {
+        let before = code[..<range.lowerBound].last { !$0.isWhitespace }
+        let after = code[range.upperBound...].first { !$0.isWhitespace }
+        return before == "*" || before == "/" || after == "*" || after == "/"
     }
 
     /// `file:line: code` for every loose layout number in the app's sources,

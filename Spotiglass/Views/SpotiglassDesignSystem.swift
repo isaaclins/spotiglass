@@ -178,6 +178,10 @@ enum SpotiglassDesign {
         static let lyricsStatusMinHeight: CGFloat = 160
         /// Smallest height of the "instrumental" note in place of lyrics.
         static let lyricsInstrumentalMinHeight: CGFloat = 120
+        /// Widest the now-playing column beside the lyrics gets.
+        static let lyricsSideColumnMaxWidth: CGFloat = 320
+        /// Smallest height the lyrics column keeps in a short window.
+        static let lyricsColumnMinHeight: CGFloat = 200
         /// Artwork on the service choice buttons of the welcome screen.
         static let serviceChoiceLogoSize: CGFloat = 44
         static let serviceChoiceWidth: CGFloat = 192
