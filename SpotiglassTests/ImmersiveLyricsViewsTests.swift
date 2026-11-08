@@ -1,3 +1,4 @@
+import MusicKit
 import SwiftUI
 import ViewInspector
 import XCTest
@@ -304,6 +305,47 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
         let downscaled = ImmersiveBlurredArtwork.downscaledForBlur(large, maxEdge: 576)
         XCTAssertEqual(downscaled.size.width, 576, accuracy: 0.001)
         XCTAssertEqual(downscaled.size.height, 288, accuracy: 0.001)
+    }
+
+    /// Apple Music library songs map their cover to a `musicKit://` URL, which no download can
+    /// fetch. The backdrop downloaded it anyway and stayed black behind the lyrics (#448).
+    func testLibraryCoverGivesTheBackdropAnImage() throws {
+        let registry = AppleMusicArtworkRegistry()
+        let library = try AppleMusicFixtures.decode(
+            Artwork.self,
+            #"{"url":"musicKit://artwork/transient/{w}x{h}?id=LYRICS","width":600,"height":600}"#
+        )
+        let url = try XCTUnwrap(AppleMusicItemMapping.artworkURL(library, size: 120, registry: registry))
+        XCTAssertTrue(AppleMusicArtworkRegistry.needsMusicKit(url))
+
+        let view = ImmersiveBlurredArtwork(url: url, registry: registry)
+        XCTAssertEqual(
+            view.musicKitArtwork,
+            library,
+            "a library cover should be drawn by MusicKit behind the lyrics, not downloaded and left black"
+        )
+        // Hosting renders the MusicKit branch (ViewInspector can't walk into GeometryReader here).
+        _ = ViewTestHost.host(view, size: CGSize(width: 360, height: 280))
+    }
+
+    /// Catalog covers stay plain https and keep going through the downloader.
+    func testCatalogCoverIsStillDownloaded() throws {
+        let registry = AppleMusicArtworkRegistry()
+        let catalog = try AppleMusicFixtures.decode(
+            Artwork.self,
+            #"{"url":"https://example.com/{w}x{h}bb.jpg","width":600,"height":600}"#
+        )
+        let url = try XCTUnwrap(AppleMusicItemMapping.artworkURL(catalog, size: 120, registry: registry))
+
+        let view = ImmersiveBlurredArtwork(
+            url: url,
+            initialImage: NSImage(size: NSSize(width: 64, height: 64)),
+            registry: registry
+        )
+        XCTAssertNil(view.musicKitArtwork)
+        // Same small source as before: the 576 px edge rounds up to Apple's 600 px size.
+        XCTAssertEqual(view.url.absoluteString, "https://example.com/600x600bb.jpg")
+        _ = ViewTestHost.host(view, size: CGSize(width: 360, height: 280))
     }
 
     /// Writes into a directory of its own rather than the user's real artwork

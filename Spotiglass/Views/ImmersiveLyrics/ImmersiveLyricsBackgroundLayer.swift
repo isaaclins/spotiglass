@@ -1,4 +1,5 @@
 import AppKit
+import MusicKit
 import SwiftUI
 
 struct ImmersiveLyricsBackgroundLayer: View {
@@ -38,6 +39,9 @@ struct ImmersiveLyricsBackgroundLayer: View {
 /// Cheaper than blurring a 1600pt tile at r≈36 (previous approach).
 struct ImmersiveBlurredArtwork: View {
     let url: URL
+    /// Apple Music library covers (`musicKit://`) can't be downloaded; only MusicKit can draw
+    /// them, so the backdrop draws those with `ArtworkImage` instead of the loader (#448).
+    let musicKitArtwork: Artwork?
 
     /// After optional downscale, this is the raster size SwiftUI blurs (not window size).
     private let blurredTileSize: CGFloat = 1_024
@@ -47,8 +51,9 @@ struct ImmersiveBlurredArtwork: View {
     /// The edge the cover is downscaled to before blurring; it is fetched at about this size.
     private static let blurSourceMaxEdge: CGFloat = 576
 
-    init(url: URL, initialImage: NSImage? = nil) {
-        let url = ArtworkRequest.url(url, points: Self.blurSourceMaxEdge, scale: 1)
+    init(url: URL, initialImage: NSImage? = nil, registry: AppleMusicArtworkRegistry = .shared) {
+        musicKitArtwork = Self.musicKitArtwork(for: url, registry: registry)
+        let url = ArtworkRequest.url(url, points: Self.blurSourceMaxEdge, scale: 1, registry: registry)
         self.url = url
         _artworkLoader = StateObject(
             wrappedValue: ArtworkImageLoader(
@@ -65,7 +70,28 @@ struct ImmersiveBlurredArtwork: View {
         GeometryReader { geo in
             let size = geo.size
             ZStack {
-                if let image = artworkLoader.image {
+                if let musicKitArtwork {
+                    // Drawn at the same small size a downloaded cover is downscaled to, then
+                    // scaled to the tile, so the blur costs what it does for any other cover.
+                    // MusicKit draws nothing for a cover it can't load; black shows through.
+                    ZStack {
+                        Color.black
+                        ArtworkImage(
+                            musicKitArtwork,
+                            width: Self.blurSourceMaxEdge,
+                            height: Self.blurSourceMaxEdge
+                        )
+                        .scaleEffect(blurredTileSize / Self.blurSourceMaxEdge)
+                        .frame(width: blurredTileSize, height: blurredTileSize)
+                        .compositingGroup()
+                        .blur(radius: blurRadius)
+                        .scaleEffect(Self.coverScaleForBlurredBackdrop(
+                            tile: blurredTileSize,
+                            blurRadius: blurRadius,
+                            target: size
+                        ))
+                    }
+                } else if let image = artworkLoader.image {
                     // Blur is computed on a fixed tile, then scaled up to **aspect-fill** the window.
                     // Without this, a ~1024pt tile centered in an ultrawide/tall window leaves black gutters;
                     // scaling mirrors “stretching” the artwork into the sides instead of empty black.
@@ -89,8 +115,16 @@ struct ImmersiveBlurredArtwork: View {
             .clipped()
         }
         .task(id: url.absoluteString) {
+            guard musicKitArtwork == nil else { return }
             await artworkLoader.load(for: url)
         }
+    }
+
+    /// The MusicKit artwork to draw for `url`, or nil when `url` is a plain cover to download.
+    // Internal so tests can check which way a library cover is drawn.
+    static func musicKitArtwork(for url: URL, registry: AppleMusicArtworkRegistry) -> Artwork? {
+        guard AppleMusicArtworkRegistry.needsMusicKit(url) else { return nil }
+        return registry.artwork(for: url)
     }
 
     /// Minimum uniform scale so the blurred tile (plus fringe from `blurRadius`) covers `target` without letterboxing.
