@@ -101,6 +101,160 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         XCTAssertEqual(Array(upcoming.prefix(3)), ["applemusic:song:a", "applemusic:song:b", Self.uris[1]])
     }
 
+    // MARK: - Queue panel (#413)
+
+    /// The case seen in the app: Liked Songs (2,543 songs) started playing, the queue panel
+    /// was opened while Spotiglass was not the active app, and it said "0 tracks up next"
+    /// until the app was activated. Opening the panel reads the queue in the background too.
+    func testOpeningThePanelInTheBackgroundShowsALongListAtOnce() async throws {
+        let likedSongs = (1...2_543).map { "applemusic:song:\($0)" }
+        let player = ScriptedAppleMusicPlayer()
+        let provider = AppleMusicPlaybackProvider(player: player)
+        let session = PlaybackSessionViewModel(provider: provider)
+        session.deviceID = AppleMusicPlaybackProvider.deviceID
+        session.setActivePlaybackDeviceID(AppleMusicPlaybackProvider.deviceID)
+        try await provider.play(.items(uris: likedSongs, startURI: nil), deviceID: "x")
+        player.advance(by: 1)
+        await session.syncTransportFromSpotify()
+        XCTAssertEqual(session.currentNowPlaying?.uri, likedSongs[0])
+
+        let queue = QueueViewModel(provider: provider, playbackSession: session)
+        queue.setAppActive(false)
+        await Self.openPanel(queue)
+
+        XCTAssertEqual(queue.upcomingItems.map(\.uri), Array(likedSongs[1...20]))
+        XCTAssertNil(queue.pollTask, "the timed poll still waits for the app to be active")
+    }
+
+    /// Opened while the play is still looking up its songs, the panel used to read the queue
+    /// the player had before (none here) and keep it until the next poll. The read now waits
+    /// for that play and shows the list it started.
+    func testOpeningThePanelWhileALongListStartsShowsThatList() async throws {
+        let likedSongs = (1...2_543).map { "applemusic:song:\($0)" }
+        let player = ScriptedAppleMusicPlayer()
+        player.holdLookups = true
+        let provider = AppleMusicPlaybackProvider(player: player)
+        let session = PlaybackSessionViewModel(provider: provider)
+        session.deviceID = AppleMusicPlaybackProvider.deviceID
+        session.setActivePlaybackDeviceID(AppleMusicPlaybackProvider.deviceID)
+        session.handle(.ready(deviceID: AppleMusicPlaybackProvider.deviceID))
+        let queue = QueueViewModel(provider: provider, playbackSession: session)
+
+        let play = Task { try await provider.play(.items(uris: likedSongs, startURI: nil), deviceID: "x") }
+        while player.waitingLookups.isEmpty { await Task.yield() }
+        let open = Task { await Self.openPanel(queue) }
+        for _ in 0..<20 { await Task.yield() }
+        player.releaseLookups()
+        try await play.value
+        await open.value
+
+        XCTAssertEqual(queue.upcomingItems.map(\.uri), Array(likedSongs[1...20]))
+    }
+
+    /// A slow play is replaced by a quick one while the panel is reading the queue. The read
+    /// shows the newer play's list as soon as that play is in, without waiting for the
+    /// replaced play's lookup to end.
+    func testAReadDuringAReplacedPlayShowsTheNewerPlay() async throws {
+        let player = ScriptedAppleMusicPlayer()
+        let provider = AppleMusicPlaybackProvider(player: player)
+        player.holdLookups = true
+        let slow = Task { try await provider.play(.items(uris: Self.uris, startURI: nil), deviceID: "x") }
+        await Self.settle()
+        XCTAssertEqual(player.waitingLookups.count, 1)
+
+        var upcoming: [String]?
+        let read = Task { upcoming = try await provider.fetchQueue().queue.compactMap(Self.uri) }
+        await Self.settle()
+        XCTAssertNil(upcoming, "the read waits for the play that is still looking up its songs")
+
+        player.holdLookups = false
+        let newer = ["applemusic:song:n1", "applemusic:song:n2", "applemusic:song:n3"]
+        try await provider.play(.items(uris: newer, startURI: nil), deviceID: "x")
+        try await read.value
+        XCTAssertEqual(upcoming, Array(newer.dropFirst()))
+        XCTAssertEqual(player.waitingLookups.count, 1, "the replaced play is still looking up")
+
+        player.releaseLookups()
+        _ = try? await slow.value
+        let after = try await provider.fetchQueue().queue.compactMap(Self.uri)
+        XCTAssertEqual(after, Array(newer.dropFirst()), "the replaced play finishing late changes nothing")
+    }
+
+    /// A play whose lookup never finishes doesn't hold the read for good: disconnecting lets it
+    /// go, and so does the wait limit.
+    func testAReadDoesNotWaitForAStalledPlayForever() async throws {
+        let player = ScriptedAppleMusicPlayer()
+        let provider = AppleMusicPlaybackProvider(player: player, queueReadWaitLimit: .milliseconds(50))
+        player.holdLookups = true
+        let stalled = Task { try await provider.play(.items(uris: Self.uris, startURI: nil), deviceID: "x") }
+        await Self.settle()
+        XCTAssertEqual(player.waitingLookups.count, 1)
+
+        // The wait limit passes while the lookup still hangs.
+        _ = try await provider.fetchQueue()
+        XCTAssertEqual(player.waitingLookups.count, 1, "the read came back while the play still looks up")
+
+        // Disconnecting releases a waiting read at once.
+        let patient = AppleMusicPlaybackProvider(player: player, queueReadWaitLimit: .seconds(600))
+        let slow = Task { try await patient.play(.items(uris: Self.uris, startURI: nil), deviceID: "x") }
+        await Self.settle()
+        var returned = false
+        let read = Task { _ = try await patient.fetchQueue(); returned = true }
+        await Self.settle()
+        XCTAssertFalse(returned)
+        try await patient.disconnectPlayer(generation: .initial)
+        try await read.value
+        XCTAssertTrue(returned)
+
+        // A cancelled read lets go too.
+        let again = Task { try await patient.play(.items(uris: Self.uris, startURI: nil), deviceID: "x") }
+        await Self.settle()
+        let cancelled = Task { _ = try await patient.fetchQueue() }
+        await Self.settle()
+        cancelled.cancel()
+        _ = try? await cancelled.value
+
+        player.releaseLookups()
+        _ = try? await stalled.value
+        _ = try? await slow.value
+        _ = try? await again.value
+    }
+
+    /// The play outlasts the read's wait: the panel shows the queue from before, and the list
+    /// the play started as soon as the play is in, without another trigger (the app is in the
+    /// background, so there's no poll).
+    func testAPlayThatOutlastsTheWaitShowsItsListOnceItIsIn() async throws {
+        let likedSongs = (1...2_543).map { "applemusic:song:\($0)" }
+        let player = ScriptedAppleMusicPlayer()
+        let provider = AppleMusicPlaybackProvider(player: player, queueReadWaitLimit: .milliseconds(50))
+        let session = PlaybackSessionViewModel(provider: provider)
+        session.deviceID = AppleMusicPlaybackProvider.deviceID
+        session.setActivePlaybackDeviceID(AppleMusicPlaybackProvider.deviceID)
+        session.handle(.ready(deviceID: AppleMusicPlaybackProvider.deviceID))
+        let queue = QueueViewModel(provider: provider, playbackSession: session)
+        queue.setAppActive(false)
+
+        player.holdLookups = true
+        let play = Task { try await provider.play(.items(uris: likedSongs, startURI: nil), deviceID: "x") }
+        while player.waitingLookups.isEmpty { await Task.yield() }
+        await Self.openPanel(queue)
+        XCTAssertTrue(queue.upcomingItems.isEmpty, "the wait ran out while the play still looks up")
+
+        player.releaseLookups()
+        try await play.value
+        let deadline = Date().addingTimeInterval(2)
+        while queue.upcomingItems.isEmpty, Date() < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertEqual(queue.upcomingItems.map(\.uri), Array(likedSongs[1...20]))
+    }
+
+    /// What showing the panel does (``QueueViewModel/setPanelVisible(_:)``), awaited.
+    private static func openPanel(_ queue: QueueViewModel) async {
+        queue.isPanelVisible = true
+        await queue.requestQueueRefresh(trigger: .event, allowsHiddenPanel: false)
+    }
+
     // MARK: - Queue book (the live player's queue rules)
 
     private typealias Book = AppleMusicQueueBook

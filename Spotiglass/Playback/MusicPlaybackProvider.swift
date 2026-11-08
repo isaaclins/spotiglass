@@ -78,6 +78,10 @@ protocol MusicPlaybackProvider: AnyObject {
     var service: MusicService { get }
     var capabilities: MusicPlaybackCapabilities { get }
 
+    /// True while a play is still handing the player its queue, so a queue read now returns
+    /// the queue from before it. The queue panel reads again until it isn't (#413).
+    var isQueueSettling: Bool { get }
+
     /// Spotify Connect style device transfer, or `nil` when the service has none.
     var deviceTransfer: (any MusicPlaybackDeviceTransfer)? { get }
 
@@ -126,6 +130,8 @@ protocol MusicPlaybackProvider: AnyObject {
 
 extension MusicPlaybackProvider {
     var deviceTransfer: (any MusicPlaybackDeviceTransfer)? { nil }
+
+    var isQueueSettling: Bool { false }
 
     func didStartLocalPlayback(uri: String) async throws {}
 }

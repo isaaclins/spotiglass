@@ -175,6 +175,11 @@ enum SpotiglassDesign {
 
     static let queuePanelMaxWidth: CGFloat = 420
 
+    /// The narrowest the browser gets while the queue panel is open: the detail column and the
+    /// queue side by side at their minimums. The window can't be made narrower than this with
+    /// the queue showing, so the panel is never cut off at the window's edge (#413).
+    static let detailAndQueueMinWidth: CGFloat = detailColumnMinWidth + queuePanelMinWidth
+
     /// Below this width the playlist sidebar and queue panel are mutually exclusive (opening one closes the other),
     /// so neither side ever clips off-screen. Computed from the natural mins above plus ~80pt of slack for dividers
     /// and rounding, so future tuning of the column mins propagates automatically.
