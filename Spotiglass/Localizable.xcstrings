@@ -14506,19 +14506,19 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Allow them in System Settings > Screen Time > Content & Privacy, or ask whoever manages this Mac."
+            "value": "Change it in Screen Time > Content & Privacy."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Permítelas en Ajustes del Sistema > Tiempo de uso > Contenido y privacidad, o pregunta a quien gestiona este Mac."
+            "value": "Cámbialo en Tiempo de uso > Contenido y privacidad."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Erlaube sie in den Systemeinstellungen unter Bildschirmzeit > Inhalt & Datenschutz oder frag die Person, die diesen Mac verwaltet."
+            "value": "Ändern unter Bildschirmzeit > Inhalt & Datenschutz."
           }
         }
       }
