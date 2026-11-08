@@ -183,6 +183,8 @@
 		SRC0000000000000000080300 /* LRUDictionary.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC0000000000000000080301 /* LRUDictionary.swift */; };
 		SRC0000000000000000080900 /* DiskCacheTrim.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC0000000000000000080901 /* DiskCacheTrim.swift */; };
 		RSV000000000000000000001 /* CommandPaletteReservedShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = RSV000000000000000000002 /* CommandPaletteReservedShortcuts.swift */; };
+		SBR436000000000000000001 /* CommandPaletteSidebarShortcut.swift in Sources */ = {isa = PBXBuildFile; fileRef = SBR436000000000000000002 /* CommandPaletteSidebarShortcut.swift */; };
+		SBR436000000000000000003 /* SidebarShortcutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = SBR436000000000000000004 /* SidebarShortcutTests.swift */; };
 		G70000000000000000000004 /* CommandPaletteViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = G70000000000000000000014 /* CommandPaletteViewModel.swift */; };
 		G70000000000000000000005 /* CommandPaletteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = G70000000000000000000015 /* CommandPaletteView.swift */; };
 		G70000000000000000000006 /* CommandPaletteManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = G70000000000000000000016 /* CommandPaletteManager.swift */; };
@@ -628,6 +630,8 @@
 		SRC0000000000000000080301 /* LRUDictionary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LRUDictionary.swift; sourceTree = "<group>"; };
 		SRC0000000000000000080901 /* DiskCacheTrim.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiskCacheTrim.swift; sourceTree = "<group>"; };
 		RSV000000000000000000002 /* CommandPaletteReservedShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteReservedShortcuts.swift; sourceTree = "<group>"; };
+		SBR436000000000000000002 /* CommandPaletteSidebarShortcut.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteSidebarShortcut.swift; sourceTree = "<group>"; };
+		SBR436000000000000000004 /* SidebarShortcutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarShortcutTests.swift; sourceTree = "<group>"; };
 		G70000000000000000000014 /* CommandPaletteViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteViewModel.swift; sourceTree = "<group>"; };
 		G70000000000000000000015 /* CommandPaletteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteView.swift; sourceTree = "<group>"; };
 		G70000000000000000000016 /* CommandPaletteManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteManager.swift; sourceTree = "<group>"; };
@@ -1097,6 +1101,7 @@
 				TST0000000000000000010128 /* SpotiglassComponentsViewTests.swift */,
 				TST0000000000000000010125 /* InactiveWindowAppearanceTests.swift */,
 				TST0000000000000000010124 /* MenuKeyEquivalentTests.swift */,
+				SBR436000000000000000004 /* SidebarShortcutTests.swift */,
 				TST0000000000000000010123 /* RealUserDefaultsIsolationTests.swift */,
 				TST000000000000000001010D /* SettingsWindowChromeTests.swift */,
 				TST0000000000000000010122 /* EqualizerABRMSTests.swift */,
@@ -1398,6 +1403,7 @@
 				G70000000000000000000012 /* CommandPaletteKeymap.swift */,
 				G70000000000000000000013 /* CommandPaletteKeymapStore.swift */,
 				RSV000000000000000000002 /* CommandPaletteReservedShortcuts.swift */,
+				SBR436000000000000000002 /* CommandPaletteSidebarShortcut.swift */,
 				G70000000000000000000011 /* CommandPaletteModels.swift */,
 				G70000000000000000000017 /* CommandPaletteEventMonitor.swift */,
 				G70000000000000000000022 /* FocusedKeyEventOwner.swift */,
@@ -1821,6 +1827,7 @@
 				728E7A0A2FEAA69C00FB3C01 /* SpotifyAPIClient+Home.swift in Sources */,
 				G70000000000000000000003 /* CommandPaletteKeymapStore.swift in Sources */,
 				RSV000000000000000000001 /* CommandPaletteReservedShortcuts.swift in Sources */,
+				SBR436000000000000000001 /* CommandPaletteSidebarShortcut.swift in Sources */,
 				G70000000000000000000004 /* CommandPaletteViewModel.swift in Sources */,
 				G70000000000000000000005 /* CommandPaletteView.swift in Sources */,
 				G70000000000000000000009 /* CommandPaletteView+Backdrop.swift in Sources */,
@@ -1898,6 +1905,7 @@
 				TST0000000000000000000128 /* SpotiglassComponentsViewTests.swift in Sources */,
 				TST0000000000000000000125 /* InactiveWindowAppearanceTests.swift in Sources */,
 				TST0000000000000000000124 /* MenuKeyEquivalentTests.swift in Sources */,
+				SBR436000000000000000003 /* SidebarShortcutTests.swift in Sources */,
 				TST0000000000000000000123 /* RealUserDefaultsIsolationTests.swift in Sources */,
 				TST000000000000000000010D /* SettingsWindowChromeTests.swift in Sources */,
 				TST0000000000000000000122 /* EqualizerABRMSTests.swift in Sources */,

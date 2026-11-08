@@ -122,7 +122,21 @@ struct SpotiglassMenuCommands: Commands {
             .disabled(!isSignedIn)
         }
 
-        CommandGroup(after: .sidebar) {
+        CommandGroup(replacing: .sidebar) {
+            // Replaces the system Show/Hide Sidebar item, which only had ⌃⌘S and only reached
+            // the sidebar while focus sat inside it (#436). This one follows the keymap (⌘S by
+            // default) and toggles the browser's own sidebar state, so it works with lyrics or
+            // the queue focused too. ⌃⌘S keeps working through the key monitor.
+            Button(sidebarItemTitle) {
+                // A text field has no use for ⌘S, and the sidebar must not move while typing.
+                guard !CommandPaletteSidebarShortcut.isTypingKeyPress(NSApp.currentEvent) else { return }
+                run(CommandPaletteCommandID.toggleSidebar)
+            }
+            .keyboardShortcut(keymapShortcut(for: CommandPaletteCommandID.toggleSidebar))
+            .disabled(!isSignedIn)
+
+            Divider()
+
             // ⌘[ is the Mac key equivalent for Back. It is hardcoded rather than
             // read from the keymap because `navigateBack` is menu-bar only and
             // therefore cannot be rebound to shadow it.
@@ -287,6 +301,12 @@ struct SpotiglassMenuCommands: Commands {
 
     private static func open(_ url: URL) {
         NSWorkspace.shared.open(url)
+    }
+
+    var sidebarItemTitle: String {
+        (activeCommandPaletteManager?.isSidebarVisible ?? true)
+            ? SpotiglassL10n.string("menu.view.hideSidebar", locale: locale)
+            : SpotiglassL10n.string("menu.view.showSidebar", locale: locale)
     }
 
     private var queueItemTitle: String {

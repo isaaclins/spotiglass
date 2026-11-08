@@ -48,6 +48,7 @@ private enum LyricsOverlayGlobalCommands {
         CommandPaletteCommandID.nextTrack,
         CommandPaletteCommandID.previousTrack,
         CommandPaletteCommandID.toggleQueue,
+        CommandPaletteCommandID.toggleSidebar,
         CommandPaletteCommandID.openPalette,
         CommandPaletteCommandID.openSettings,
         // Switching service is app-wide (`.always`) and clears the lyrics on its way (#399).
@@ -153,7 +154,8 @@ final class LyricsOverlayFocusContainerView<Content: View>: NSView, FocusedKeyEv
     }
 
     private func matchesGlobalCommandBinding(_ event: NSEvent) -> Bool {
-        keymapStore
+        if CommandPaletteSidebarShortcut.isSystemChord(event) { return true }
+        return keymapStore
             .commandBindings(for: event, context: .signedIn)
             .contains { LyricsOverlayGlobalCommands.commandIDs.contains($0.command) }
     }

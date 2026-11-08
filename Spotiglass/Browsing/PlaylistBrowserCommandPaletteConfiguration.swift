@@ -23,7 +23,8 @@ enum PlaylistBrowserCommandPaletteConfiguration {
         to manager: CommandPaletteManager,
         dependencies: Dependencies,
         queueVisible: Binding<Bool>,
-        lyricsPresented: Binding<Bool>
+        lyricsPresented: Binding<Bool>,
+        sidebarVisible: Binding<Bool>? = nil
     ) {
         dependencies.syncUnifiedRefreshRouting()
         let includeThisPlaylist = dependencies.viewModel.isCommandPaletteContextSearchEligible
@@ -190,6 +191,17 @@ enum PlaylistBrowserCommandPaletteConfiguration {
         }
         manager.toggleQueue = {
             queueVisible.wrappedValue.toggle()
+        }
+        // The browser's own sidebar state, not AppKit's toggleSidebar: that action only reaches
+        // the split view while focus is inside it, so it did nothing from lyrics or the queue (#436).
+        if let sidebarVisible {
+            manager.setSidebarVisible(sidebarVisible.wrappedValue)
+            manager.toggleSidebar = { [weak manager] in
+                sidebarVisible.wrappedValue.toggle()
+                manager?.setSidebarVisible(sidebarVisible.wrappedValue)
+            }
+        } else {
+            manager.toggleSidebar = nil
         }
         // `CommandPaletteManager` disables this command whenever there is no
         // current music track, so the callback itself can stay a pure toggle.
