@@ -522,6 +522,19 @@ final class PlaylistBrowserLibraryEditsTests: XCTestCase {
         XCTAssertEqual(viewModel.savedTrackStates["-30"], true, "an answer the provider agrees with stays")
     }
 
+    /// The menu cached "not liked" before an album save reached this Mac; the row, read again,
+    /// now knows better, and opening the menu again must not keep the old answer.
+    func testOpeningAMenuAgainDropsAnAnswerTheProviderNowKnowsBetter() async {
+        let api = LibraryEditsMockAPI(edits: .all)
+        let viewModel = await makeViewModel(api)
+        viewModel.savedTrackStates = ["-30": false]
+
+        api.knownStatuses = ["-30": true]
+        await viewModel.loadSavedTrackStates(for: [row("-30", position: 1)])
+
+        XCTAssertEqual(viewModel.savedTrackState(for: "-30"), true)
+    }
+
     func testTheMenuShowsWhatTheProviderAlreadyKnowsBeforeTheLookup() async {
         let api = LibraryEditsMockAPI(edits: .all)
         api.knownStatuses = ["-30": true]

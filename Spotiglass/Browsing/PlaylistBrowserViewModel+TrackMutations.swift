@@ -110,6 +110,13 @@ extension PlaylistBrowserViewModel {
     /// Songs surface skips this entirely because membership is known locally.
     func loadSavedTrackStates(for rows: [TrackRowViewModel]) async {
         let ids = catalogTrackIDs(for: rows)
+        // A cached answer the provider now answers differently is out of date (an album saved
+        // meanwhile, a row read again): this menu asks again.
+        for id in ids {
+            if let cached = savedTrackStates[id], let known = api.knownSavedTrackStatus(id: id), known != cached {
+                savedTrackStates[id] = nil
+            }
+        }
         let missing = ids.filter { savedTrackStates[$0] == nil }
         guard !missing.isEmpty else { return }
         do {

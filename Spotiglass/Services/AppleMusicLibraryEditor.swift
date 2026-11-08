@@ -313,10 +313,12 @@ struct AppleMusicLibraryEditor: Sendable {
     }
 
     /// Removes the album's songs from the library through the Music app. A song of the album that
-    /// is only in a playlist isn't in the library, so Music couldn't find it there.
+    /// is only in a playlist isn't in the library, so Music couldn't find it there, unless it was
+    /// liked moments ago.
     func removeAlbums(ids: [String]) async throws {
         let references = try await lookup.albums(ids: ids)
-        let songs = references.flatMap(\.librarySongs).filter(\.isInLibrary)
+        // A song liked moments ago counts too: the library on this Mac just doesn't show it yet.
+        let songs = references.flatMap(\.librarySongs).filter { $0.isInLibrary || pending.isSaved($0.matchKeys) }
         let matches = songs.compactMap(\.musicAppMatch)
         guard !matches.isEmpty else {
             throw AppleMusicLibraryEditError.notInMusicYet

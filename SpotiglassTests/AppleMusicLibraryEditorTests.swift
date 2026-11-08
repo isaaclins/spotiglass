@@ -2302,6 +2302,25 @@ final class AppleMusicPlaylistOnlySongTests: XCTestCase {
 
         XCTAssertEqual(musicApp.calls, ["removeFromLibrary([persistentID(\"0000000000000001\")])"])
     }
+
+    /// Liked moments ago, the playlist-only song has no added date yet; removing its album must
+    /// take it out too, not leave it liked.
+    func testRemovingAnAlbumTakesOutASongLikedMomentsAgo() async throws {
+        registry.remember([.song(try row())], playlistID: playlistID)
+        try await editor.saveSongs(ids: [rowID])
+        lookup.albumsByID["l.album"] = AppleMusicAlbumReference(
+            itemID: "l.album", catalogID: nil, isInLibrary: true,
+            librarySongs: [
+                AppleMusicSongReference(itemID: "1", musicAppPersistentID: "0000000000000001", isInLibrary: true),
+                AppleMusicSongReference(itemID: rowID, musicAppPersistentID: rowPersistentID, isInLibrary: false),
+            ]
+        )
+
+        try await editor.removeAlbums(ids: ["l.album"])
+
+        XCTAssertEqual(musicApp.calls, ["removeFromLibrary([persistentID(\"0000000000000001\"), persistentID(\"\(rowPersistentID)\")])"])
+        XCTAssertEqual(editor.knownSongStatus(id: rowID), false)
+    }
 }
 
 /// The live lookup's order for a row it can't find by ID: what the playlist read remembered.
