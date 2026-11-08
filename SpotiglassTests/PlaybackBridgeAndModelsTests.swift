@@ -104,18 +104,15 @@ final class PlaybackBridgeAndModelsTests: XCTestCase {
         )
     }
 
-    func testTogglePlayPauseSerializesUntilBridgeAck() async {
+    /// A second press while Spotify's page hasn't answered the first one is sent too (#437):
+    /// before, it was dropped for up to 3 s, so a quick pause then play stayed paused.
+    func testASecondPressBeforeTheBridgeAnswersIsSent() async {
         let commander = MockWebPlaybackCommander()
         let playbackAPI = MockPlaybackAPI()
         let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: commander))
 
         await viewModel.togglePlayPause()
         XCTAssertEqual(commander.commands.filter { $0.command == .togglePlay }.count, 1)
-
-        await viewModel.togglePlayPause()
-        XCTAssertEqual(commander.commands.filter { $0.command == .togglePlay }.count, 1)
-
-        viewModel.handle(.playerCommandFinished(command: "togglePlay"))
 
         await viewModel.togglePlayPause()
         XCTAssertEqual(commander.commands.filter { $0.command == .togglePlay }.count, 2)

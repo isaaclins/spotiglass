@@ -246,7 +246,7 @@ struct CatalogSearchView: View {
                         }
                     },
                     togglePlayPause: {
-                        Task { await playbackViewModel.togglePlayPause() }
+                        playbackViewModel.requestTogglePlayPause()
                     },
                     isCurrent: track.playableURI != nil && track.playableURI == playingURI,
                     isPlaying: isPlaying,

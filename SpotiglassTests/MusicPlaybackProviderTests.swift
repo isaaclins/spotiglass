@@ -98,6 +98,8 @@ final class MusicPlaybackProviderTests: XCTestCase {
         session.deviceID = "local"
         session.setActivePlaybackDeviceID("local")
         session.setConnectionState(.playing(Self.song(position: 10_000)))
+        // The player still reports the song playing when it is read right after the pause.
+        provider.state = Self.snapshot(isPlaying: true, progress: 10_000)
 
         XCTAssertFalse(session.isRemotePlaybackActive)
         XCTAssertTrue(session.isPlayerStateRead)
@@ -329,6 +331,8 @@ final class MusicPlaybackProviderTests: XCTestCase {
         session.deviceID = "local"
         session.setActivePlaybackDeviceID("local")
         session.setConnectionState(.playing(Self.song(position: 10_000)))
+        // Read right after the pause, the player still reports A playing.
+        provider.state = Self.snapshot(isPlaying: true, progress: 10_000)
 
         await session.togglePlayPause()
         await session.next()
@@ -473,6 +477,8 @@ final class MusicPlaybackProviderTests: XCTestCase {
         session.deviceID = "local"
         session.setActivePlaybackDeviceID("local")
         session.setConnectionState(.paused(Self.song(position: 10_000)))
+        // Read right after the resume, the player still reports A paused.
+        provider.state = Self.snapshot(isPlaying: false, progress: 10_000)
 
         await session.togglePlayPause()
         await session.next()
@@ -658,8 +664,36 @@ final class ReadOnlyStatePlaybackProvider: MusicPlaybackProvider {
         }
     }
 
-    func pause(deviceID: String) async throws { commands.append("pause \(deviceID)") }
-    func resume(deviceID: String) async throws { commands.append("resume \(deviceID)") }
+    /// While true, pause and resume wait until ``releaseCommands()``, like a player that takes
+    /// its time to answer.
+    var holdsCommands = false
+    /// What pause and resume throw once they go through (the player refusing them).
+    var refusal: Error?
+    private var commandWaiters: [CheckedContinuation<Void, Never>] = []
+    var waitingCommandCount: Int { commandWaiters.count }
+
+    func releaseCommands() {
+        let waiting = commandWaiters
+        commandWaiters.removeAll()
+        waiting.forEach { $0.resume() }
+    }
+
+    private func answer() async throws {
+        if holdsCommands {
+            await withCheckedContinuation { commandWaiters.append($0) }
+        }
+        if let refusal { throw refusal }
+    }
+
+    func pause(deviceID: String) async throws {
+        commands.append("pause \(deviceID)")
+        try await answer()
+    }
+
+    func resume(deviceID: String) async throws {
+        commands.append("resume \(deviceID)")
+        try await answer()
+    }
     func seek(to milliseconds: Int, deviceID: String) async throws { commands.append("seek \(milliseconds) on \(deviceID)") }
     func skipToNext(deviceID: String) async throws { commands.append("next \(deviceID)") }
     func skipToPrevious(deviceID: String) async throws { commands.append("previous \(deviceID)") }
@@ -675,4 +709,244 @@ final class ReadOnlyStatePlaybackProvider: MusicPlaybackProvider {
     }
 
     func fetchQueue() async throws -> MusicPlaybackQueue { queue }
+}
+
+/// Play / pause shows the moment it is pressed, with every player (#437). The report: the music
+/// stopped or started at once, but the button, the playing row and the sidebar only caught up
+/// about 5 seconds later, and a second press in that time flipped it back. These replay a player
+/// that answers slowly and reports its own state late.
+@MainActor
+final class PlayPauseFollowsThePressTests: XCTestCase {
+    private static let song = PlaybackNowPlaying(
+        name: "Piranguera",
+        artists: ["Artist"],
+        albumName: nil,
+        albumID: nil,
+        albumArtURL: nil,
+        durationMilliseconds: 200_000,
+        positionMilliseconds: 10_000,
+        uri: "music:song:1"
+    )
+
+    private static func snapshot(isPlaying: Bool, device: MusicPlaybackDevice? = nil) -> MusicPlaybackSnapshot {
+        MusicPlaybackSnapshot(
+            transport: MusicPlaybackTransport(shuffle: false, repeatMode: .off),
+            activeDevice: device,
+            isPlaying: isPlaying,
+            item: .track(PlaylistBrowsingTestFixtures.fallbackTrack(id: "1", name: "Piranguera", artistId: "a")),
+            progressMilliseconds: 10_000
+        )
+    }
+
+    private static func isPlaying(_ session: PlaybackSessionViewModel) -> Bool {
+        if case .playing = session.connectionState { return true }
+        return false
+    }
+
+    private static func isPaused(_ session: PlaybackSessionViewModel) -> Bool {
+        if case .paused = session.connectionState { return true }
+        return false
+    }
+
+    /// Lets the tasks that are ready run, until `condition` holds.
+    private static func settle(until condition: () -> Bool = { false }) async {
+        for _ in 0..<50 where !condition() { await Task.yield() }
+    }
+
+    /// Apple Music: a player whose state is read, and which reports "playing" a while after it
+    /// was paused.
+    private func playingReadPlayer() -> (ReadOnlyStatePlaybackProvider, PlaybackSessionViewModel) {
+        let provider = ReadOnlyStatePlaybackProvider()
+        provider.state = Self.snapshot(isPlaying: true)
+        let session = PlaybackSessionViewModel(provider: provider)
+        session.deviceID = "local"
+        session.setActivePlaybackDeviceID("local")
+        session.setConnectionState(.playing(Self.song))
+        return (provider, session)
+    }
+
+    func testPauseShowsWhileThePlayerIsStillAnswering() async {
+        let (provider, session) = playingReadPlayer()
+        provider.holdsCommands = true
+
+        let press = Task { await session.togglePlayPause() }
+        await Self.settle { provider.waitingCommandCount == 1 }
+        XCTAssertEqual(provider.commands, ["pause local"])
+        XCTAssertTrue(Self.isPaused(session), "the controls waited for the player to answer the pause")
+
+        provider.releaseCommands()
+        await press.value
+        // The player's own status arrives late: it still says playing.
+        await session.syncTransportFromSpotify()
+        XCTAssertTrue(Self.isPaused(session), "a late status flipped the pause back")
+        provider.state = Self.snapshot(isPlaying: false)
+        await session.syncTransportFromSpotify()
+        XCTAssertTrue(Self.isPaused(session))
+    }
+
+    /// The bar, Space, the menu and the rows call this from the click itself: the new state is
+    /// set before any task runs, so nothing queued on the main thread can hold it back.
+    func testTheControlsFlipBeforeAnyTaskRuns() async {
+        let (provider, session) = playingReadPlayer()
+        provider.holdsCommands = true
+
+        let send = session.requestTogglePlayPause()
+        XCTAssertTrue(Self.isPaused(session))
+        XCTAssertTrue(provider.commands.isEmpty, "the command follows the screen, not the other way round")
+
+        await Self.settle { provider.waitingCommandCount == 1 }
+        provider.releaseCommands()
+        await send?.value
+        XCTAssertEqual(provider.commands, ["pause local"])
+    }
+
+    func testTwoQuickPressesEndInTheLastOneWithoutFlickering() async {
+        let (provider, session) = playingReadPlayer()
+        provider.holdsCommands = true
+        var shown: [Bool] = []
+        let watch = session.connectionStatePublisher.dropFirst().sink { state in
+            shown.append(PlaylistBrowserPlaybackHelpers.isCurrentlyPlaying(connectionState: state))
+        }
+        defer { watch.cancel() }
+
+        let pause = Task { await session.togglePlayPause() }
+        await Self.settle { provider.waitingCommandCount == 1 }
+        let play = Task { await session.togglePlayPause() }
+        await Self.settle()
+        XCTAssertTrue(Self.isPlaying(session), "the second press shows at once too")
+
+        provider.releaseCommands()
+        await pause.value
+        await Self.settle { provider.waitingCommandCount == 1 }
+        provider.releaseCommands()
+        await play.value
+        XCTAssertEqual(provider.commands, ["pause local", "resume local"], "in the order pressed")
+
+        // The player reports the pause late, then the resume.
+        provider.state = Self.snapshot(isPlaying: false)
+        await session.syncTransportFromSpotify()
+        provider.state = Self.snapshot(isPlaying: true)
+        await session.syncTransportFromSpotify()
+        await session.syncTransportFromSpotify()
+
+        XCTAssertTrue(Self.isPlaying(session))
+        // A read may replace the item's details; what counts is each change between playing and paused.
+        let flips = shown.reduce(into: [Bool]()) { flips, playing in
+            if flips.last != playing { flips.append(playing) }
+        }
+        XCTAssertEqual(flips, [false, true], "the state went back and forth while the player caught up")
+    }
+
+    func testARefusedPauseGoesBackAndSaysWhy() async {
+        let (provider, session) = playingReadPlayer()
+        provider.holdsCommands = true
+        provider.refusal = MusicPlaybackError(service: .appleMusic, reason: .failed, detail: "refused")
+
+        let press = Task { await session.togglePlayPause() }
+        await Self.settle { provider.waitingCommandCount == 1 }
+        XCTAssertTrue(Self.isPaused(session))
+        provider.releaseCommands()
+        await press.value
+
+        XCTAssertEqual(session.connectionState, .playing(Self.song), "the controls kept showing a pause that didn't happen")
+        XCTAssertEqual(session.refusedPlayPause?.title, SpotiglassL10n.string("error.playback.commandFailed.title"))
+        XCTAssertNil(session.localCommandExpectsPlaying, "the next read must be believed again")
+
+        provider.refusal = nil
+        provider.holdsCommands = false
+        await session.togglePlayPause()
+        XCTAssertNil(session.refusedPlayPause, "a new press clears the old refusal")
+        XCTAssertTrue(Self.isPaused(session))
+    }
+
+    func testARefusalOnlyYouCanFixStillShowsTheError() async {
+        let (provider, session) = playingReadPlayer()
+        provider.refusal = MusicPlaybackError(service: .appleMusic, reason: .missingPermission, detail: "off")
+
+        await session.togglePlayPause()
+
+        guard case let .error(error) = session.connectionState else {
+            return XCTFail("Expected the permission error, got \(session.connectionState)")
+        }
+        XCTAssertEqual(error.title, SpotiglassL10n.string("error.playback.appleMusic.permission.title"))
+        XCTAssertNil(session.refusedPlayPause)
+    }
+
+    // MARK: - Spotify
+
+    /// Spotify in the app: its page reports the new state only after the toggle, sometimes with
+    /// a report from before it first.
+    private func playingSpotify() -> (MockWebPlaybackCommander, PlaybackSessionViewModel) {
+        let commander = MockWebPlaybackCommander()
+        let session = PlaybackSessionViewModel(
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: commander)
+        )
+        session.handle(.ready(deviceID: "sdk-device"))
+        session.handle(.stateChanged(Self.song, isPaused: false, nextTracks: []))
+        return (commander, session)
+    }
+
+    func testSpotifyShowsThePressBeforeItsPageReportsIt() async {
+        let (commander, session) = playingSpotify()
+
+        await session.togglePlayPause()
+        XCTAssertEqual(commander.commands.filter { $0.command == .togglePlay }.count, 1)
+        XCTAssertTrue(Self.isPaused(session), "the controls waited for Spotify's page")
+
+        session.handle(.stateChanged(Self.song, isPaused: false, nextTracks: []))
+        XCTAssertTrue(Self.isPaused(session), "a report from before the press flipped it back")
+        session.handle(.stateChanged(Self.song, isPaused: true, nextTracks: []))
+        XCTAssertTrue(Self.isPaused(session))
+
+        // Once the page agreed, its reports count again (paused from the phone, played again).
+        session.handle(.stateChanged(Self.song, isPaused: false, nextTracks: []))
+        XCTAssertTrue(Self.isPlaying(session))
+    }
+
+    func testSpotifyTwoQuickPressesEndInTheLastOne() async {
+        let (commander, session) = playingSpotify()
+
+        await session.togglePlayPause()
+        await session.togglePlayPause()
+        XCTAssertEqual(commander.commands.filter { $0.command == .togglePlay }.count, 2, "the second press was dropped")
+        XCTAssertTrue(Self.isPlaying(session))
+
+        // The page reports the pause late, then the play.
+        session.handle(.stateChanged(Self.song, isPaused: true, nextTracks: []))
+        XCTAssertTrue(Self.isPlaying(session), "the late pause flickered on screen")
+        session.handle(.stateChanged(Self.song, isPaused: false, nextTracks: []))
+        XCTAssertTrue(Self.isPlaying(session))
+    }
+
+    /// Spotify on another device (a phone): its state comes from Web API reads, which can still
+    /// show the old state right after the pause.
+    func testSpotifyOnAnotherDeviceIgnoresAReadFromBeforeThePause() async {
+        let phone = MusicPlaybackDevice(
+            deviceID: "phone-device",
+            isActive: true,
+            isRestricted: false,
+            name: "Phone",
+            type: "smartphone"
+        )
+        let api = MockPlaybackAPI()
+        let session = PlaybackSessionViewModel(
+            provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander())
+        )
+        session.deviceID = "local-device"
+        session.setConnectionState(.ready(deviceID: "local-device"))
+        api.snapshotResponses = [Self.snapshot(isPlaying: true, device: phone)]
+        await session.syncTransportFromSpotify()
+        XCTAssertTrue(Self.isPlaying(session))
+
+        api.snapshotResponses = [Self.snapshot(isPlaying: true, device: phone)]
+        await session.togglePlayPause()
+        await Self.settle()
+        XCTAssertTrue(api.actions.contains("pause:phone-device"))
+        await session.syncTransportFromSpotify()
+        XCTAssertTrue(Self.isPaused(session), "a read from before the pause flipped it back")
+
+        api.snapshotResponses = [Self.snapshot(isPlaying: false, device: phone)]
+        await session.syncTransportFromSpotify()
+        XCTAssertTrue(Self.isPaused(session))
+    }
 }

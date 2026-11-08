@@ -218,7 +218,8 @@ extension PlaybackSessionViewModel {
         playbackHostHardReloadInstants.removeAll()
         inflightTransferTask = nil
         activeInflightTransferSerial = nil
-        clearTogglePlayPauseAckWait()
+        clearPushedPlayStateExpectation()
+        clearRefusedPlayPause()
         guard ownsPlaybackHostGeneration(generation) else { return }
         do {
             try await provider.disconnectPlayer(generation: hostGeneration)

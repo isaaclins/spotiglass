@@ -322,7 +322,8 @@ final class CrossServicePlaybackTests: XCTestCase {
         let manager = wirePalette(to: playback)
         XCTAssertTrue(manager.canTogglePlayback, "Playback › Play/Pause can pause what you hear")
         XCTAssertTrue(manager.playbackTogglePrerequisite?() ?? false)
-        await manager.togglePlayback?()
+        manager.togglePlayback?()
+        await appleMusic.playPauseCommandTail?.value
         player.advance(by: 1)
 
         XCTAssertEqual(toggles(commander), 0, "Midnight City stays paused")

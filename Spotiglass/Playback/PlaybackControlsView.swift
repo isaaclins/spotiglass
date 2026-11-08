@@ -600,7 +600,7 @@ struct PlaybackControlsView: View {
                 accessibilityHint: Self.serviceString("playback.controls.playPause.hint", appleMusic: "playback.controls.playPause.appleMusic.hint", service: shownService),
                 size: CGSize(width: 28, height: 28),
                 isEnabled: viewModel.isPlaybackToggleReady,
-                action: { Task { await viewModel.togglePlayPause() } }
+                action: { viewModel.requestTogglePlayPause() }
             ) {
                 Image(systemName: playPauseIcon)
                     .contentTransition(.symbolEffect(.replace))
@@ -951,7 +951,11 @@ struct PlaybackControlsView: View {
     }
 
     private var subtitle: String {
-        switch viewModel.connectionState {
+        // A refused play / pause went back to the state before it; the line says why (#437).
+        if let refused = viewModel.refusedPlayPause {
+            return refused.message
+        }
+        return switch viewModel.connectionState {
         case .disconnected:
             SpotiglassL10n.string("playback.controls.state.disconnected.subtitle")
         case .connecting:
@@ -975,7 +979,7 @@ struct PlaybackControlsView: View {
     }
 
     private var artistTapTargets: [ArtistTapTarget] {
-        guard otherService == nil, let nowPlaying else { return [] }
+        guard otherService == nil, viewModel.refusedPlayPause == nil, let nowPlaying else { return [] }
         return nowPlaying.artistTapTargets
     }
 

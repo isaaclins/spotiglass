@@ -133,10 +133,12 @@ extension PlaybackSessionViewModel {
             guard let activeDevice = snapshot.activeDevice,
                   activeDevice.deviceID != localDeviceID else { return }
             // A just-issued local command can be followed by one stale player
-            // snapshot. Preserve the selected target during that settle window,
-            // but accept the snapshot once it agrees with that target.
+            // snapshot. Preserve the selected target and the last pause or resume
+            // during that settle window, but accept the snapshot once it agrees
+            // with both (a late read must not flip a press back, #437).
             guard localMutationSettleTicksRemaining == 0
-                || activePlaybackDeviceID == activeDevice.deviceID else { return }
+                || (activePlaybackDeviceID == activeDevice.deviceID
+                    && readAgreesWithLocalCommand(snapshot)) else { return }
             snapshotDeviceID = activeDevice.deviceID
         } else {
             // The in-app player's own reads lag its commands (a player can

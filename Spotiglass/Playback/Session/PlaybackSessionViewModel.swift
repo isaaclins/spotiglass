@@ -84,7 +84,7 @@ final class PlaybackSessionViewModel: ObservableObject {
     /// The other service's player started something: pause what plays here, if anything.
     func pauseForHandover() {
         guard PlaylistBrowserPlaybackHelpers.isCurrentlyPlaying(connectionState: connectionState) else { return }
-        Task { await togglePlayPause() }
+        requestTogglePlayPause()
     }
 
     /// The player the transport bar, Space, the Playback menu and the palette control (#396):
@@ -599,10 +599,21 @@ final class PlaybackSessionViewModel: ObservableObject {
         case missingDeviceRetryTransfer = "missing_device_retry_transfer"
     }
 
-    /// True while a toggle command is in flight until the bridge ACK or timeout (avoids overlapping SDK toggles).
-    var togglePlayPauseAwaitingBridgeAck = false
-    var togglePlayPauseAckTimeoutTask: Task<Void, Never>?
-    static let togglePlayPauseAckTimeout: Duration = .seconds(3)
+    /// Play / pause presses in order: each command waits for the one before it (#437).
+    var playPauseCommandTail: Task<Void, Never>?
+    /// Bumped by every play / pause press; only the latest press's refusal changes the screen.
+    var playPauseRequestSerial: UInt64 = 0
+    /// What the last press asked Spotify's page to report (`true` playing), until a report
+    /// agrees or ``pushedPlayStateExpectationTimeout`` passes. Reports that disagree are older
+    /// than the press and are not shown.
+    var pushedPlayStateExpectation: Bool?
+    var pushedPlayStateExpectationTask: Task<Void, Never>?
+    static let pushedPlayStateExpectationTimeout: Duration = .seconds(3)
+    /// A play / pause the player refused, shown in the bar for a moment while the controls show
+    /// the state from before the press again (#437).
+    @PublishedWhenChanged var refusedPlayPause: PlaybackDisplayError?
+    var refusedPlayPauseClearTask: Task<Void, Never>?
+    static let refusedPlayPauseDisplayDuration: Duration = .seconds(5)
 
     private static let playbackVolumeUserDefaultsKey = "spotiglass.playbackVolume"
     /// Matches the default passed to `Spotify.Player({ volume: … })` in the embedded host HTML.
@@ -821,7 +832,9 @@ final class PlaybackSessionViewModel: ObservableObject {
         playbackHostAutoResumeTask?.cancel()
         connectDevicesRefreshTask?.cancel()
         inflightTransferTask?.cancel()
-        togglePlayPauseAckTimeoutTask?.cancel()
+        pushedPlayStateExpectationTask?.cancel()
+        refusedPlayPauseClearTask?.cancel()
+        playPauseCommandTail?.cancel()
         transportPollTask?.cancel()
         shuffleSyncTask?.cancel()
         repeatSyncTask?.cancel()

@@ -65,7 +65,7 @@ enum PlaylistBrowserCommandPaletteConfiguration {
             playback?.isTransportMutationReady ?? false
         }
         manager.togglePlayback = { [weak playback = dependencies.playbackViewModel] in
-            await playback?.audiblePlayer.togglePlayPause()
+            playback?.audiblePlayer.requestTogglePlayPause()
         }
         manager.nextTrack = { [weak playback = dependencies.playbackViewModel] in
             await playback?.audiblePlayer.next()

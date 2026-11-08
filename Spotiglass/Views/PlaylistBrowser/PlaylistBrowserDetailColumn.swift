@@ -237,7 +237,7 @@ struct PlaylistBrowserMainDetailColumn: View {
             currentPlaybackURI: currentPlaybackURI,
             isPlaying: isCurrentlyPlaying,
             togglePlayPause: {
-                Task { await playbackViewModel.togglePlayPause() }
+                playbackViewModel.requestTogglePlayPause()
             },
             hasPlaybackDevice: hasPlaybackDevice,
             addToQueue: { uri in
@@ -296,7 +296,7 @@ struct PlaylistBrowserMainDetailColumn: View {
             currentPlaybackURI: currentPlaybackURI,
             isPlaying: isCurrentlyPlaying,
             togglePlayPause: {
-                Task { await playbackViewModel.togglePlayPause() }
+                playbackViewModel.requestTogglePlayPause()
             },
             hasPlaybackDevice: hasPlaybackDevice,
             addToQueue: { uri in
