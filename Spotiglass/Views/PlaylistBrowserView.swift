@@ -163,6 +163,9 @@ struct PlaylistBrowserView: View {
                 // like ⌘S, ⌃⌘S and the View menu, so all of them behave the same (#436).
                 .toolbar(removing: .sidebarToggle)
                 .toolbar {
+                    // At the sidebar's trailing edge, where the system toggle sat. SwiftUI keeps
+                    // it in the toolbar while the sidebar is collapsed, like the system toggle.
+                    ToolbarSpacer(.flexible)
                     ToolbarItem(placement: .automatic) { sidebarToggleButton }
                 }
                 .navigationSplitViewColumnWidth(
@@ -268,10 +271,6 @@ struct PlaylistBrowserView: View {
                         Task { await viewModel.toggleBulkPlaylistTrackPrefetch() }
                     }
                 }
-            }
-            // With the sidebar hidden its toggle moves here, where the system one sat (#436).
-            if playlistColumnVisibility == .detailOnly {
-                ToolbarItem(placement: .navigation) { sidebarToggleButton }
             }
             // At the root there is no trail and nothing to go back to, so the
             // item would render as an empty capsule beside the window title.
