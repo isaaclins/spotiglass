@@ -141,11 +141,18 @@ actor SingleFlightRefreshingTokenProvider: SpotifyAccessTokenProviding {
     private var inFlightRefresh: Task<String, Error>?
     private var currentToken = "stale-token"
     private let refreshStarted: AsyncSignal?
+    private let refreshJoined: AsyncSignal?
     private let releaseRefresh: AsyncSignal?
     private(set) var refreshCount = 0
+    private(set) var joinedRefreshCount = 0
 
-    init(refreshStarted: AsyncSignal? = nil, releaseRefresh: AsyncSignal? = nil) {
+    init(
+        refreshStarted: AsyncSignal? = nil,
+        refreshJoined: AsyncSignal? = nil,
+        releaseRefresh: AsyncSignal? = nil
+    ) {
         self.refreshStarted = refreshStarted
+        self.refreshJoined = refreshJoined
         self.releaseRefresh = releaseRefresh
     }
 
@@ -155,6 +162,8 @@ actor SingleFlightRefreshingTokenProvider: SpotifyAccessTokenProviding {
 
     func refreshAccessTokenAfterUnauthorized(rejectedToken: String) async throws -> String {
         if let inFlightRefresh {
+            joinedRefreshCount += 1
+            refreshJoined?.signal()
             return try await inFlightRefresh.value
         }
         if rejectedToken != currentToken {
@@ -265,44 +274,27 @@ final class LateSecondUnauthorizedHTTPClient: HTTPClient {
 
 final class TokenAwareUnauthorizedHTTPClient: HTTPClient {
     private let lock = NSLock()
-    private let unauthorizedRequestsReady: AsyncSignal?
-    private(set) var unauthorizedRequestCount = 0
-    private(set) var refreshedRequestCount = 0
-
-    init(unauthorizedRequestsReady: AsyncSignal? = nil) {
-        self.unauthorizedRequestsReady = unauthorizedRequestsReady
-    }
+    private var recordedUnauthorizedCount = 0
+    private var recordedRefreshedCount = 0
+    var unauthorizedRequestCount: Int { lock.withLock { recordedUnauthorizedCount } }
+    var refreshedRequestCount: Int { lock.withLock { recordedRefreshedCount } }
 
     func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
-        let auth = request.value(forHTTPHeaderField: "Authorization") ?? ""
-        let response = recordResponse(for: auth)
-        if response.signalWhenReady {
-            unauthorizedRequestsReady?.signal()
+        let isStale = request.bearerToken == "stale-token"
+        lock.withLock {
+            if isStale {
+                recordedUnauthorizedCount += 1
+            } else {
+                recordedRefreshedCount += 1
+            }
         }
-
+        let statusCode = isStale ? 401 : 200
+        let payload = isStale
+            ? #"{"error":{"status":401,"message":"Expired"}}"#
+            : #"{"id":"user-1","display_name":"AfterRefresh","images":[],"country":null,"product":"premium"}"#
         return (
-            Data(response.payload.utf8),
-            HTTPURLResponse(url: request.url!, statusCode: response.statusCode, httpVersion: nil, headerFields: nil)!
-        )
-    }
-
-    private func recordResponse(for auth: String) -> (statusCode: Int, payload: String, signalWhenReady: Bool) {
-        lock.lock()
-        defer { lock.unlock() }
-        if auth == "Bearer stale-token" {
-            unauthorizedRequestCount += 1
-            return (
-                statusCode: 401,
-                payload: #"{"error":{"status":401,"message":"Expired"}}"#,
-                signalWhenReady: unauthorizedRequestCount >= 2
-            )
-        }
-
-        refreshedRequestCount += 1
-        return (
-            statusCode: 200,
-            payload: #"{"id":"user-1","display_name":"AfterRefresh","images":[],"country":null,"product":"premium"}"#,
-            signalWhenReady: false
+            Data(payload.utf8),
+            HTTPURLResponse(url: request.url!, statusCode: statusCode, httpVersion: nil, headerFields: nil)!
         )
     }
 }
