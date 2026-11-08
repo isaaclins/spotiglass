@@ -45,6 +45,10 @@ struct PlaylistBrowserView: View {
     /// sides still visible. Defaults to `.playlist` so the first narrow-resize tiebreaker closes the
     /// queue panel (the explicitly opt-in overlay) and keeps the primary nav sidebar.
     @State var lastOpenedSidebar: SidebarKind = .playlist
+    /// The window widened past the sidebar's collapse width while the queue was open but not
+    /// enough for all three columns, so the sidebar stayed collapsed; it comes back once they
+    /// fit, or at the next widening after the queue closed (``BrowserWidthCommitPolicy/sidebarOnWidening(_:sidebarCollapsed:heldForQueue:isQueueVisible:isNarrow:)``).
+    @State var isSidebarHeldForQueue = false
     @ObservedObject var commandPaletteManager: CommandPaletteManager
     /// Catalog search and profile lookups for the command palette, Search view
     /// and tap targets. Separate from the view model's provider so palette
@@ -419,6 +423,9 @@ struct PlaylistBrowserView: View {
         }
         .onChange(of: playlistColumnVisibility) { _, newValue in
             if newValue != .detailOnly {
+                // The sidebar is back (by hand or by widening), so nothing is held for the
+                // queue any more; a later hide by hand must not be undone by a widening (#413).
+                isSidebarHeldForQueue = false
                 lastOpenedSidebar = .playlist
                 if isMutualExclusionWidth, isQueueVisible {
                     isQueueVisible = false

@@ -27,6 +27,8 @@ struct SpotiglassApp: App {
     /// Same storage key ``PlaylistBrowserView`` writes, read here so the View menu
     /// can say "Show Queue" or "Hide Queue" instead of a stateless "Toggle".
     @AppStorage("queue.panel.visible") private var isQueueVisible = false
+    /// The narrowest a window gets with the queue closed.
+    static let windowMinWidth: CGFloat = 520
 
     init() {
         SpotiglassLog.boot()
@@ -188,7 +190,14 @@ struct SpotiglassApp: App {
                 // the old localized strings. The host itself is app-scoped and
                 // remains the same object across this scene replacement.
                 .id(settingsStore.settings.appearance.language.rawValue)
-                .frame(minWidth: 520, minHeight: 360)
+                // With the queue open the window keeps room for the detail column and the
+                // panel at their minimums, so the panel is never cut off at its edge (#413).
+                .frame(
+                    minWidth: isQueueVisible
+                        ? max(Self.windowMinWidth, SpotiglassDesign.detailAndQueueMinWidth)
+                        : Self.windowMinWidth,
+                    minHeight: 360
+                )
         }
         .windowResizability(.contentMinSize)
         // The unit-test host opens no main window (#418): tests that need a window make their own.

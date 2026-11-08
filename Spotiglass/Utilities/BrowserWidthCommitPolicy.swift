@@ -24,6 +24,10 @@ enum BrowserWidthCommitPolicy {
         var committedWidth: CGFloat
         var lastCommitTime: CFAbsoluteTime
         var crossedIntoNarrow: Bool
+        var crossedOutOfNarrow: Bool = false
+        /// The committed width grew by more than a point (layout jitter isn't a widening) to a
+        /// width where the sidebar fits next to the detail column.
+        var widenedWithRoomForSidebar: Bool = false
         var crossedIntoSidebarCollapse: Bool
         var crossedOutOfSidebarCollapse: Bool
     }
@@ -65,9 +69,42 @@ enum BrowserWidthCommitPolicy {
             committedWidth: input.newWidth,
             lastCommitTime: input.now,
             crossedIntoNarrow: narrowNew && !narrowCommitted,
+            crossedOutOfNarrow: !narrowNew && narrowCommitted,
+            widenedWithRoomForSidebar: input.newWidth > input.committedWidth + 1 && !sidebarCollapseNew,
             crossedIntoSidebarCollapse: crossedIntoSidebarCollapse,
             crossedOutOfSidebarCollapse: crossedOutOfSidebarCollapse
         )
+    }
+
+    enum SidebarOnWidening: Equatable {
+        /// Leave the sidebar as it is.
+        case none
+        /// The sidebar would fit next to the detail column, but not next to the open queue as
+        /// well: keep it collapsed (bringing it back would close the queue) and bring it back
+        /// once all three fit.
+        case hold
+        case restore
+    }
+
+    /// What a widening window does with a collapsed playlist sidebar. Opening the queue in a
+    /// narrow window widens it to the queue's minimum, which is the width where the sidebar used
+    /// to come back and close the queue again (#413).
+    static func sidebarOnWidening(
+        _ result: CommitResult,
+        sidebarCollapsed: Bool,
+        heldForQueue: Bool,
+        isQueueVisible: Bool,
+        isNarrow: Bool
+    ) -> SidebarOnWidening {
+        guard sidebarCollapsed,
+              result.crossedOutOfSidebarCollapse
+              || (heldForQueue && result.crossedOutOfNarrow)
+              // Held and the queue closed since: the next widening brings the sidebar back,
+              // as crossing the collapse width would have without the queue. Restoring it the
+              // moment the queue closes would make macOS grow the window for it.
+              || (heldForQueue && !isQueueVisible && result.widenedWithRoomForSidebar)
+        else { return .none }
+        return isQueueVisible && isNarrow ? .hold : .restore
     }
 
     enum SidebarToCloseOnNarrow: Equatable {
