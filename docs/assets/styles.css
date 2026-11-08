@@ -177,6 +177,8 @@ kbd {
 .section__head p, .split__text p { margin-top: 14px; max-width: 34em; text-wrap: pretty; }
 
 .split { display: grid; gap: 32px; }
+/* Stacked below 900 px: the captures are 1520 px wide, so they stop at 760 CSS px to stay sharp on Retina. */
+.split__media { width: 100%; max-width: 760px; }
 .frame { border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); background: var(--surface); }
 .frame img { width: 100%; }
 
@@ -266,7 +268,9 @@ kbd {
 
 @media (max-width: 359px) {
   .hero__works { flex-wrap: wrap; justify-content: center; text-align: center; }
-  .hero__works span { flex-basis: 100%; }
+  .hero__works span { flex-basis: 100%; text-wrap: balance; }
+  .hero__meta { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .hero__meta .sep { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
