@@ -147,11 +147,12 @@ struct PlaylistDetailContent: View {
             if detail.tracks.isEmpty {
                 EmptyStateView(title: SpotiglassL10n.string("browser.noTracks.title"), message: SpotiglassL10n.string("browser.noTracks.emptyPlaylist"))
             } else {
+                let marks = playback.marks(in: detail.tracks)
                 TrackListView(
                     tracks: detail.tracks,
                     selection: $browserViewModel.selectedDetailTrackIDs,
                     rowBuilder: { track in
-                        playback.row(for: track, in: detail.tracks) { mark in
+                        marks.row(for: track) { mark in
                             TrackListRow(
                                 trackNumber: track.listPosition,
                                 track: track,

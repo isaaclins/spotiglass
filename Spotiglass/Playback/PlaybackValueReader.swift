@@ -47,22 +47,15 @@ struct TrackRowPlaybackMark: Equatable {
 
     static let notPlaying = TrackRowPlaybackMark(isCurrent: false, isPlaying: false)
 
-    /// The mark of `track` in a list of `rows`, given the player's state. Only the playing row
-    /// carries the play state: a row that isn't playing looks the same whether the player plays
-    /// or not, so play/pause leaves it alone.
+    /// The mark of `track`, given the URI its list marks as playing. Only the playing row carries
+    /// the play state: a row that isn't playing looks the same whether the player plays or not,
+    /// so play/pause leaves it alone.
     static func resolve(
         track: TrackRowViewModel,
-        rows: [TrackRowViewModel],
+        markedURI: String?,
         connectionState: PlaybackConnectionState
     ) -> TrackRowPlaybackMark {
-        guard let uri = track.playableURI else { return .notPlaying }
-        // An Apple Music song started from another list carries that list's id (#396).
-        let markedURI = PlaylistBrowserPlaybackHelpers.rowURI(
-            markedAs: PlaylistBrowserPlaybackHelpers.currentPlaybackURI(connectionState: connectionState),
-            connectionState: connectionState,
-            rows: rows
-        )
-        guard uri == markedURI else { return .notPlaying }
+        guard let uri = track.playableURI, uri == markedURI else { return .notPlaying }
         return TrackRowPlaybackMark(
             isCurrent: true,
             isPlaying: PlaylistBrowserPlaybackHelpers.isCurrentlyPlaying(connectionState: connectionState)
@@ -81,23 +74,75 @@ struct TrackRowPlaybackSource {
         connectionStateChanges = session.connectionStatePublisher
     }
 
-    func mark(of track: TrackRowViewModel, in rows: [TrackRowViewModel]) -> TrackRowPlaybackMark {
-        TrackRowPlaybackMark.resolve(track: track, rows: rows, connectionState: connectionState())
+    /// The marks of the rows of one list. Build it once per list and hand it to each of its rows.
+    func marks(in rows: [TrackRowViewModel]) -> TrackListPlaybackMarks {
+        TrackListPlaybackMarks(rows: rows, connectionState: connectionState, connectionStateChanges: connectionStateChanges)
+    }
+}
+
+/// Which row of one list is playing, worked out once per change of the player and shared by all
+/// of the list's rows. An Apple Music song started from another list is found by title, artists
+/// and length among all the rows (#396); done by each row, one pause on a list of 1000 songs
+/// cost about 0.3 to 0.5 s on the main thread.
+@MainActor
+final class TrackListPlaybackMarks {
+    private let rows: [TrackRowViewModel]
+    private let connectionState: @MainActor () -> PlaybackConnectionState
+    private let connectionStateChanges: AnyPublisher<PlaybackConnectionState, Never>
+    /// The URI the rows mark as playing, and the state it was worked out for.
+    private var resolved: (state: PlaybackConnectionState, markedURI: String?)?
+
+    fileprivate init(
+        rows: [TrackRowViewModel],
+        connectionState: @escaping @MainActor () -> PlaybackConnectionState,
+        connectionStateChanges: AnyPublisher<PlaybackConnectionState, Never>
+    ) {
+        self.rows = rows
+        self.connectionState = connectionState
+        self.connectionStateChanges = connectionStateChanges
+    }
+
+    private func mark(of track: TrackRowViewModel) -> TrackRowPlaybackMark {
+        mark(of: track, connectionState: connectionState())
     }
 
     /// The row for `track`, built with its mark and built again only when the mark changes.
     func row<Row: View>(
         for track: TrackRowViewModel,
-        in rows: [TrackRowViewModel],
         @ViewBuilder content: @escaping (TrackRowPlaybackMark) -> Row
     ) -> PlaybackValueReader<TrackRowPlaybackMark, Row> {
         PlaybackValueReader(
-            value: { mark(of: track, in: rows) },
+            value: { [self] in mark(of: track) },
             changes: connectionStateChanges
-                .map { TrackRowPlaybackMark.resolve(track: track, rows: rows, connectionState: $0) }
+                .map { [self] in mark(of: track, connectionState: $0) }
                 .eraseToAnyPublisher(),
             content: content
         )
+    }
+
+    private func mark(of track: TrackRowViewModel, connectionState: PlaybackConnectionState) -> TrackRowPlaybackMark {
+        TrackRowPlaybackMark.resolve(
+            track: track,
+            markedURI: markedURI(connectionState: connectionState),
+            connectionState: connectionState
+        )
+    }
+
+    private func markedURI(connectionState: PlaybackConnectionState) -> String? {
+        // The position doesn't change which row plays.
+        let state = connectionState.ignoringPosition
+        if let resolved, resolved.state == state { return resolved.markedURI }
+        #if DEBUG
+        ViewBodyTally.record("TrackListPlaybackMarks.markedURI")
+        #endif
+        // An Apple Music song started from another list carries that list's id (#396).
+        let markedURI = PlaylistBrowserPlaybackHelpers.rowURI(
+            markedAs: PlaylistBrowserPlaybackHelpers.currentPlaybackURI(connectionState: state),
+            connectionState: state,
+            rows: rows
+        )
+        resolved = (state, markedURI)
+        return markedURI
     }
 }
 

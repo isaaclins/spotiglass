@@ -32,18 +32,29 @@ final class PlayPauseRenderScopeTests: XCTestCase {
 
     /// The real browser window with a 20-track playlist open and its third track playing.
     private func hostBrowserPlaying() async throws -> PlaybackSessionViewModel {
+        try await hostBrowser(
+            tracks: Self.trackIDs.map(PlaylistBrowsingTestFixtures.track(id:)),
+            playing: .playing(Self.nowPlaying("t3"))
+        )
+    }
+
+    /// The real browser window with playlist "p1" of `tracks` open and active, playing `state`.
+    private func hostBrowser(
+        tracks: [MusicPlaylistTrackItem],
+        playing state: PlaybackConnectionState
+    ) async throws -> PlaybackSessionViewModel {
         let api = MockBrowsingAPI(
             playlistResults: [.success([
                 PlaylistBrowsingTestFixtures.playlist(id: "p1", name: "Focus"),
                 PlaylistBrowsingTestFixtures.playlist(id: "p2", name: "Daily"),
                 PlaylistBrowsingTestFixtures.playlist(id: "p3", name: "Gym"),
             ])],
-            trackResults: ["p1": [.success(Self.trackIDs.map(PlaylistBrowsingTestFixtures.track(id:)))]]
+            trackResults: ["p1": [.success(tracks)]]
         )
         let browserVM = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
         await browserVM.load()
         await browserVM.selectPlaylist(id: "p1")
-        XCTAssertEqual(PlaylistBrowsingTestFixtures.playlistTracks(browserVM.detailState).count, 20)
+        XCTAssertEqual(PlaylistBrowsingTestFixtures.playlistTracks(browserVM.detailState).count, tracks.count)
 
         let store = PinnedItemsStore(cache: InMemoryPinnedItemsCache())
         store.bind(userID: "u1")
@@ -67,7 +78,7 @@ final class PlayPauseRenderScopeTests: XCTestCase {
         AppKitTestSupport.pumpRunLoop(for: 0.5)
 
         playback.activePlaylistID = "p1"
-        playback.setConnectionState(.playing(Self.nowPlaying("t3")))
+        playback.setConnectionState(state)
         AppKitTestSupport.pumpRunLoop(for: 0.5)
         return playback
     }
@@ -130,6 +141,49 @@ final class PlayPauseRenderScopeTests: XCTestCase {
             playback.setConnectionState(.playing(Self.nowPlaying("t5")))
         }
         assertOnlyTheRowsChanged(otherPlaylist, tracks: ["t4", "t5"], playlists: ["p1", "p2"])
+    }
+
+    /// An Apple Music song started from another list is found among the rows by title, artists
+    /// and length (#396). One change of the player looks for it once for the whole list: done by
+    /// each row, one pause on a list of 1000 songs held the main thread for 0.3 to 0.5 s.
+    func testAPauseLooksForTheAppleMusicPlayingRowOncePerList() async throws {
+        let rowCount = 300
+        let matched = rowCount - 1
+        func song(_ index: Int) -> MusicPlaylistTrackItem {
+            MusicPlaylistTrackItem(id: "r\(index)", content: .track(MusicTrack(
+                id: "r\(index)",
+                name: "Song \(index)",
+                artists: ["Artist"],
+                albumArtworkURL: nil,
+                albumName: nil,
+                durationMilliseconds: 180_000,
+                isExplicit: false,
+                isPlayable: true,
+                linkedFromID: nil,
+                uri: "applemusic:song:\(index)"
+            )))
+        }
+        // Played from Search: the player reports the catalog id, which no row of the list has.
+        func state(playing: Bool) -> PlaybackConnectionState {
+            let nowPlaying = PlaybackNowPlaying(
+                name: "Song \(matched)",
+                artists: ["Artist"],
+                albumName: "Album",
+                albumID: nil,
+                albumArtURL: nil,
+                durationMilliseconds: 180_000,
+                positionMilliseconds: 10_000,
+                uri: "applemusic:song:i.fromSearch"
+            )
+            return playing ? .playing(nowPlaying) : .paused(nowPlaying)
+        }
+        let playback = try await hostBrowser(tracks: (0..<rowCount).map(song), playing: state(playing: true))
+
+        for playing in [false, true] {
+            let counts = bodies { playback.setConnectionState(state(playing: playing)) }
+            XCTAssertEqual(counts["TrackListPlaybackMarks.markedURI"], 1, "searches for the playing row")
+            XCTAssertEqual(trackRows(in: counts), ["r\(matched)"], "the row found by title shows the change")
+        }
     }
 }
 

@@ -140,10 +140,10 @@ struct HomeView: View {
 
     private func topTracksList(_ tracks: [TrackRowViewModel]) -> some View {
         let playableURIs = tracks.compactMap(\.playableURI)
-        let playback = TrackRowPlaybackSource(session: playbackViewModel)
+        let marks = TrackRowPlaybackSource(session: playbackViewModel).marks(in: tracks)
         return VStack(spacing: 0) {
             ForEach(tracks) { track in
-                playback.row(for: track, in: tracks) { mark in
+                marks.row(for: track) { mark in
                     TrackListRow(
                         trackNumber: track.listPosition,
                         track: track,

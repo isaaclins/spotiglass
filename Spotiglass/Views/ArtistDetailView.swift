@@ -117,10 +117,11 @@ struct ArtistDetailContent: View {
     }
 
     var body: some View {
+        let marks = playback.marks(in: detail.tracks)
         TrackListView(
             tracks: detail.tracks,
             selection: $browserViewModel.selectedDetailTrackIDs,
-            rowBuilder: trackRow(for:),
+            rowBuilder: { track in trackRow(for: track, marks: marks) },
             pendingScrollRestoreTrackID: .constant(nil),
             onFirstVisibleTrackChanged: { _ in },
             playSelection: { selectedIDs in
@@ -233,8 +234,11 @@ struct ArtistDetailContent: View {
         }
     }
 
-    private func trackRow(for track: TrackRowViewModel) -> PlaybackValueReader<TrackRowPlaybackMark, TrackListRow> {
-        playback.row(for: track, in: detail.tracks) { mark in
+    private func trackRow(
+        for track: TrackRowViewModel,
+        marks: TrackListPlaybackMarks
+    ) -> PlaybackValueReader<TrackRowPlaybackMark, TrackListRow> {
+        marks.row(for: track) { mark in
             trackRow(for: track, mark: mark)
         }
     }
