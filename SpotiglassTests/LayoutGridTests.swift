@@ -172,6 +172,21 @@ final class LayoutGridTests: XCTestCase {
         }
     }
 
+    /// A preview is left out, but a view written below one is still checked.
+    func testScannerChecksCodeAfterAPreview() {
+        let source = """
+        struct A: View { var body: some View { Text("a").padding(SpotiglassDesign.spacingM) } }
+        #Preview {
+            A()
+                .frame(width: 400)
+                .padding(20)
+        }
+        struct B: View { var body: some View { Text("b").padding(6) } }
+        """
+        let kept = Self.linesOutsidePreviews(source).map(\.1)
+        XCTAssertEqual(kept.flatMap { Self.looseNumbers(in: $0) }, ["6"])
+    }
+
     // MARK: - Scanner
 
     private static let number = #"-?\d+(?:\.\d+)?"#
@@ -224,13 +239,32 @@ final class LayoutGridTests: XCTestCase {
             let text = try String(contentsOf: url, encoding: .utf8)
             guard text.contains("import SwiftUI") else { continue }
             let relative = url.path.replacingOccurrences(of: repositoryURL.path + "/", with: "")
-            for (index, line) in text.components(separatedBy: "\n").enumerated() {
-                if line.hasPrefix("#Preview") { break }
+            for (index, line) in linesOutsidePreviews(text) {
                 if !looseNumbers(in: line).isEmpty {
                     findings.append("\(relative):\(index + 1): \(line.trimmingCharacters(in: .whitespaces))")
                 }
             }
         }
         return findings.sorted()
+    }
+
+    /// The source's lines with their index, leaving out each `#Preview { ... }`
+    /// block. Code after a preview (ScrubberView has a type below its preview)
+    /// is still scanned.
+    static func linesOutsidePreviews(_ text: String) -> [(Int, String)] {
+        var kept: [(Int, String)] = []
+        var previewDepth: Int?
+        for (index, line) in text.components(separatedBy: "\n").enumerated() {
+            if previewDepth == nil, line.hasPrefix("#Preview") { previewDepth = 0 }
+            guard let depth = previewDepth else {
+                kept.append((index, line))
+                continue
+            }
+            let opened = line.filter { $0 == "{" }.count
+            let closed = line.filter { $0 == "}" }.count
+            let newDepth = depth + opened - closed
+            previewDepth = (opened > 0 || depth > 0) && newDepth <= 0 ? nil : newDepth
+        }
+        return kept
     }
 }
