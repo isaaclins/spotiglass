@@ -6,12 +6,12 @@ import XCTest
 /// Shared AppKit helpers for deterministic focus and layout in unit tests.
 @MainActor
 enum AppKitTestSupport {
+    /// Makes sure `NSApp` exists. It deliberately never activates the app: the test host stays
+    /// in the background so a test run never takes focus from whoever is using the Mac (#418).
     static func activateAppIfNeeded() {
         if NSApp == nil {
             _ = NSApplication.shared
         }
-        NSApp.setActivationPolicy(.regular)
-        NSApp.activate(ignoringOtherApps: true)
     }
 
     static func pumpRunLoop(for duration: TimeInterval = 0.12) {
@@ -35,6 +35,45 @@ enum AppKitTestSupport {
         window.isReleasedWhenClosed = false
         window.makeFirstResponder(nil)
         window.close()
+    }
+}
+
+/// Where test windows live: far outside every display, so a window a test orders on screen is
+/// never seen and never covers what someone is working on (#418).
+private let offscreenTestWindowOrigin = NSPoint(x: -30_000, y: -30_000)
+
+/// A window for tests that need one on screen. It behaves like `NSWindow` but is placed
+/// outside every display, and AppKit is not allowed to pull it back onto one.
+class OffscreenTestWindow: NSWindow {
+    override init(
+        contentRect: NSRect,
+        styleMask style: NSWindow.StyleMask,
+        backing backingStoreType: NSWindow.BackingStoreType,
+        defer flag: Bool
+    ) {
+        super.init(contentRect: contentRect, styleMask: style, backing: backingStoreType, defer: flag)
+        setFrameOrigin(offscreenTestWindowOrigin)
+    }
+
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
+        frameRect
+    }
+}
+
+/// Panel counterpart of ``OffscreenTestWindow``.
+class OffscreenTestPanel: NSPanel {
+    override init(
+        contentRect: NSRect,
+        styleMask style: NSWindow.StyleMask,
+        backing backingStoreType: NSWindow.BackingStoreType,
+        defer flag: Bool
+    ) {
+        super.init(contentRect: contentRect, styleMask: style, backing: backingStoreType, defer: flag)
+        setFrameOrigin(offscreenTestWindowOrigin)
+    }
+
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
+        frameRect
     }
 }
 
@@ -82,7 +121,7 @@ enum ViewTestHost {
         let controller = NSHostingController(
             rootView: AnyView(view.defaultAppStorage(appStorageDefaults))
         )
-        let window = NSWindow(
+        let window = OffscreenTestWindow(
             contentRect: NSRect(origin: .zero, size: size),
             styleMask: [.titled, .closable],
             backing: .buffered,
