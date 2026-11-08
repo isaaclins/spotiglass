@@ -187,17 +187,34 @@ class Project:
                 out.append(self.path_of[ref])
         return out
 
-    def _setting_patterns(self, target_name, key):
-        """Every pattern `key` lists in any configuration of the project or
-        the target (if one configuration skips a file, a build skips it)."""
-        lists = [self.objects[self.root_id].get('buildConfigurationList'),
-                 self.objects[self.targets()[target_name]].get('buildConfigurationList')]
+    def _configurations(self, target_name):
+        """{configuration name: build settings} for `target_name`, with the
+        project's settings of the same configuration underneath the target's,
+        the way Xcode layers them."""
+        def by_name(list_id):
+            out = {}
+            for conf in self.objects.get(list_id, {}).get('buildConfigurations', []):
+                obj = self.objects[conf]
+                out[obj.get('name', conf)] = obj.get('buildSettings', {})
+            return out
+        project = by_name(self.objects[self.root_id].get('buildConfigurationList'))
+        target = by_name(self.objects[self.targets()[target_name]].get('buildConfigurationList'))
+        return {name: {**project.get(name, {}), **settings} for name, settings in target.items()}
+
+    @staticmethod
+    def _patterns(settings, key):
+        """Patterns `key` lists for a macOS build, including conditional
+        variants such as `KEY[sdk=macosx*]` (variants for other SDKs are
+        ignored)."""
         out = []
-        for lst in filter(None, lists):
-            for conf in self.objects[lst].get('buildConfigurations', []):
-                value = self.objects[conf].get('buildSettings', {}).get(key, [])
-                for item in [value] if isinstance(value, str) else value:
-                    out.extend(item.split())
+        for name, value in settings.items():
+            if name != key and not name.startswith(key + '['):
+                continue
+            sdks = re.findall(r'sdk=([^\],]+)', name)
+            if sdks and not any(fnmatch.fnmatchcase('macosx', s) or s.startswith('macosx') for s in sdks):
+                continue
+            for item in [value] if isinstance(value, str) else value:
+                out.extend(item.split())
         return out
 
     def exclusion_reason(self, build_id, target_name):
@@ -208,12 +225,14 @@ class Project:
         if filters and 'macos' not in filters:
             return f'has platform filter {", ".join(filters)} (not macos)'
         path = self.path_of.get(build.get('fileRef'), '')
-        def hits(key):
-            return any(fnmatch.fnmatchcase(c, pat)
-                       for pat in self._setting_patterns(target_name, key)
-                       for c in (path, PurePosixPath(path).name))
-        if hits('EXCLUDED_SOURCE_FILE_NAMES') and not hits('INCLUDED_SOURCE_FILE_NAMES'):
-            return 'is excluded by EXCLUDED_SOURCE_FILE_NAMES'
+        candidates = (path, PurePosixPath(path).name)
+        # Each configuration on its own: an inclusion in Release does not
+        # bring a file back into Debug.
+        for name, settings in sorted(self._configurations(target_name).items()):
+            def hits(key):
+                return any(fnmatch.fnmatchcase(c, pat) for pat in self._patterns(settings, key) for c in candidates)
+            if hits('EXCLUDED_SOURCE_FILE_NAMES') and not hits('INCLUDED_SOURCE_FILE_NAMES'):
+                return f'is excluded by EXCLUDED_SOURCE_FILE_NAMES in {name}'
         return None
 
     def excluded_paths(self, target_name):
@@ -253,17 +272,20 @@ def audit(repo_root='.'):
     root = Path(repo_root)
     project = Project.load(root / PBX_PATH)
     problems = []
-    compiled_by = {t: project.compiled_paths(t) for t in TARGET_FOR_DIR.values()}
+    compiled_by = {t: project.compiled_paths(t) for t in project.targets()}
     for directory, target in TARGET_FOR_DIR.items():
         listed = project.source_path_list(target)
         compiled = project.compiled_paths(target)
         excluded = project.excluded_paths(target)
         for file in sorted((root / directory).rglob('*.swift')):
             rel = file.relative_to(root).as_posix()
-            # A test helper also compiled into the app ships test code, and an
-            # app file also in the test target is compiled twice.
+            # A test helper also compiled into the app or the privileged helper
+            # ships test code, and an app file also in the test target is
+            # compiled twice. App files shared with the privileged helper are
+            # fine (EqualizerPrivilegedHelperIdentity.swift is on purpose).
             for other, paths in compiled_by.items():
-                if other != target and rel in paths:
+                shared_app_file = target == 'Spotiglass' and other not in TARGET_FOR_DIR.values()
+                if other != target and rel in paths and not shared_app_file:
                     problems.append((rel, f'is also compiled by the {other} target'))
             refs = len(project.file_refs_for(rel))
             if refs > 1:

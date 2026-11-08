@@ -114,10 +114,39 @@ class AuditTests(RepoCopy):
             'buildSettings = {', f'buildSettings = {{\n\t\t\t\tEXCLUDED_SOURCE_FILE_NAMES = {name};'))
         result = self.run_script('scripts/audit-orphaned-sources.sh')
         self.assertEqual(result.returncode, 1)
-        self.assertIn(f'SpotiglassTests/{name}: is in the SpotiglassTests Sources phase but is excluded by EXCLUDED_SOURCE_FILE_NAMES', result.stdout)
+        self.assertIn(f'SpotiglassTests/{name}: is in the SpotiglassTests Sources phase but is excluded by EXCLUDED_SOURCE_FILE_NAMES in Debug', result.stdout)
         # Registering it again would only add a second, equally skipped entry.
         with self.assertRaises(pbxproj.PBXError):
             pbxproj.register(self.pbx.read_text(), f'SpotiglassTests/{name}', 'SpotiglassTests')
+
+    def test_sdk_conditional_exclusion_fails_and_other_sdks_do_not(self):
+        name = 'PlaylistOwnerDisplayTests.swift'
+        original = self.pbx.read_text()
+        self.pbx.write_text(original.replace(
+            'buildSettings = {', f'buildSettings = {{\n\t\t\t\t"EXCLUDED_SOURCE_FILE_NAMES[sdk=macosx*]" = {name};'))
+        result = self.run_script('scripts/audit-orphaned-sources.sh')
+        self.assertEqual(result.returncode, 1)
+        self.assertIn(f'SpotiglassTests/{name}: is in the SpotiglassTests Sources phase but is excluded', result.stdout)
+        # The same exclusion for iOS does not touch a macOS build.
+        self.pbx.write_text(original.replace(
+            'buildSettings = {', f'buildSettings = {{\n\t\t\t\t"EXCLUDED_SOURCE_FILE_NAMES[sdk=iphoneos*]" = {name};'))
+        result = self.run_script('scripts/audit-orphaned-sources.sh')
+        self.assertEqual(result.returncode, 0, result.stdout)
+
+    def test_inclusion_in_release_does_not_hide_exclusion_in_debug(self):
+        name = 'PlaylistOwnerDisplayTests.swift'
+        text = self.pbx.read_text()
+        project = pbxproj.Project(text)
+        target = project.objects[project.targets()['SpotiglassTests']]
+        for conf in project.objects[target['buildConfigurationList']]['buildConfigurations']:
+            key = 'EXCLUDED' if project.objects[conf]['name'] == 'Debug' else 'INCLUDED'
+            start, end = pbxproj._object_span(text, conf)
+            pos = text.index('buildSettings = {', start, end) + len('buildSettings = {')
+            text = text[:pos] + f'\n\t\t\t\t{key}_SOURCE_FILE_NAMES = {name};' + text[pos:]
+        self.pbx.write_text(text)
+        result = self.run_script('scripts/audit-orphaned-sources.sh')
+        self.assertEqual(result.returncode, 1)
+        self.assertIn(f'SpotiglassTests/{name}: is in the SpotiglassTests Sources phase but is excluded by EXCLUDED_SOURCE_FILE_NAMES in Debug', result.stdout)
 
     def test_file_with_a_non_macos_platform_filter_fails(self):
         name = 'PlaylistOwnerDisplayTests.swift'
@@ -150,6 +179,14 @@ class AuditTests(RepoCopy):
         result = self.run_script(sys.executable, 'scripts/register-test-files.py', name)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(before, self.pbx.read_bytes())
+
+    def test_test_file_in_the_privileged_helper_fails(self):
+        name = 'SpotiglassTests/PlaylistOwnerDisplayTests.swift'
+        text, _ = pbxproj.register(self.pbx.read_text(), name, 'SpotiglassEQPrivilegedHelper')
+        self.pbx.write_text(text)
+        result = self.run_script('scripts/audit-orphaned-sources.sh')
+        self.assertEqual(result.returncode, 1)
+        self.assertIn(f'{name}: is also compiled by the SpotiglassEQPrivilegedHelper target', result.stdout)
 
     def test_file_registered_twice_fails(self):
         # Rebuild the duplicate that main carried for
