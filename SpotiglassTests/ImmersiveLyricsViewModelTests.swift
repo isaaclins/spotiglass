@@ -368,6 +368,123 @@ final class ImmersiveLyricsViewModelTests: XCTestCase {
         XCTAssertNil(disk.loadTrackBackoffMetadata(trackKey: "track-backoff"))
         try? FileManager.default.removeItem(at: dir)
     }
+
+    // MARK: - Bounds (#381)
+
+    private func lyricsFiles(in directory: URL) -> [String] {
+        ((try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []).sorted()
+    }
+
+    func testLyricsDiskCacheShrinksPastItsByteBoundLeastRecentlyUsedFirst() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("SpotiglassLyricsBound-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let disk = try LyricsDiskCache(directory: dir)
+        let now = Date()
+        let lines = (0 ..< 40).map { "A line of lyrics number \($0)" }
+        for index in 0 ..< 30 {
+            let key = String(format: "track-%02d", index)
+            try disk.save(trackKey: key, lyrics: .unsyncedPlain(lines))
+            try FileManager.default.setAttributes(
+                [.modificationDate: now.addingTimeInterval(TimeInterval(index - 30) * 60)],
+                ofItemAtPath: dir.appendingPathComponent("\(key).json").path
+            )
+        }
+        try disk.saveMissCooldownExpiry(trackKey: "no-lyrics-track", expiresAt: now.addingTimeInterval(600))
+        try disk.saveTrackBackoffMetadata(
+            trackKey: "failing-track",
+            metadata: .init(failureClass: .transient, failureCount: 1, nextEligibleFetchAt: now.addingTimeInterval(600))
+        )
+        // The oldest song was just played again, so it counts as recently used.
+        XCTAssertEqual(disk.load(trackKey: "track-00"), .unsyncedPlain(lines))
+        let oneFile = try XCTUnwrap(try dir.appendingPathComponent("track-01.json").resourceValues(forKeys: [.fileSizeKey]).fileSize)
+        let maxBytes = Int64(oneFile * 10)
+
+        disk.prune(now: now, maxBytes: maxBytes)
+
+        let left = lyricsFiles(in: dir).filter { $0.hasPrefix("track-") }
+        XCTAssertLessThanOrEqual(Int64(left.count * oneFile), maxBytes * 3 / 4)
+        XCTAssertTrue(left.contains("track-00.json"))
+        XCTAssertTrue(left.contains("track-29.json"))
+        XCTAssertFalse(left.contains("track-01.json"))
+        XCTAssertEqual(disk.load(trackKey: "track-29"), .unsyncedPlain(lines))
+        XCTAssertNil(disk.load(trackKey: "track-01"))
+        // The cooldown and backoff files bound themselves and are kept.
+        XCTAssertNotNil(disk.loadMissCooldownExpiry(trackKey: "no-lyrics-track"))
+        XCTAssertNotNil(disk.loadTrackBackoffMetadata(trackKey: "failing-track"))
+    }
+
+    func testLyricsDiskCacheDeletesLyricsUnusedPastMaxAge() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("SpotiglassLyricsAge-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let disk = try LyricsDiskCache(directory: dir)
+        let now = Date()
+        try disk.save(trackKey: "played-last-year", lyrics: .instrumental)
+        try disk.save(trackKey: "played-today", lyrics: .instrumental)
+        try FileManager.default.setAttributes(
+            [.modificationDate: now.addingTimeInterval(-LyricsDiskCache.maxAge - 60)],
+            ofItemAtPath: dir.appendingPathComponent("played-last-year.json").path
+        )
+
+        disk.prune(now: now)
+
+        XCTAssertNil(disk.load(trackKey: "played-last-year"))
+        XCTAssertEqual(disk.load(trackKey: "played-today"), .instrumental)
+    }
+
+    func testLyricsShownFromMemoryCountAsUsedOnDisk() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("SpotiglassLyricsUse-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let disk = try LyricsDiskCache(directory: dir)
+        let lines = (0 ..< 40).map { "A line of lyrics number \($0)" }
+        let vm = ImmersiveLyricsViewModel(fetchLyrics: { _ in .unsyncedPlain(lines) }, diskCache: disk)
+        let tracks = (0 ..< 10).map { sampleTrack(spotifyID: String(format: "usedSong%02d", $0)) }
+        func fileURL(_ track: PlaybackNowPlaying) throws -> URL {
+            let key = try XCTUnwrap(track.lyricsTrackKey)
+            return dir.appendingPathComponent("\(key.filter { $0.isLetter || $0.isNumber || $0 == "-" }).json")
+        }
+
+        // Ten songs played in order, the first one an hour ago.
+        let now = Date()
+        for (index, track) in tracks.enumerated() {
+            await vm.load(track: track)
+            try FileManager.default.setAttributes(
+                [.modificationDate: now.addingTimeInterval(TimeInterval(index - 60) * 60)],
+                ofItemAtPath: try fileURL(track).path
+            )
+        }
+        // The first song is played again; its lyrics come from memory.
+        await vm.load(track: tracks[0])
+        guard case .ready = vm.phase else { return XCTFail("expected lyrics, got \(vm.phase)") }
+
+        let oneFile = try XCTUnwrap(try fileURL(tracks[1]).resourceValues(forKeys: [.fileSizeKey]).fileSize)
+        disk.prune(now: Date(), maxBytes: Int64(oneFile * 5))
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: try fileURL(tracks[0]).path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: try fileURL(tracks[1]).path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: try fileURL(tracks[9]).path))
+    }
+
+    func testInMemoryLyricsAreBoundedAndOlderOnesFetchAgain() async {
+        var fetched: [String] = []
+        let vm = ImmersiveLyricsViewModel { track in
+            fetched.append(track.uri ?? "")
+            return .instrumental
+        }
+        let count = ImmersiveLyricsViewModel.maxMemoryEntries + 20
+        for index in 0 ..< count {
+            await vm.load(track: sampleTrack(spotifyID: "memoryBound\(index)"))
+        }
+        XCTAssertEqual(fetched.count, count)
+
+        // The most recent song is still in memory; the first one was evicted and fetches again.
+        await vm.load(track: sampleTrack(spotifyID: "memoryBound\(count - 1)"))
+        XCTAssertEqual(fetched.count, count)
+        await vm.load(track: sampleTrack(spotifyID: "memoryBound0"))
+        XCTAssertEqual(fetched.count, count + 1)
+        guard case .ready(.instrumental) = vm.phase else {
+            return XCTFail("expected lyrics, got \(vm.phase)")
+        }
+    }
 }
 
 /// Synchronizes lyrics fetch tests so assertions can run while a fetch is in flight.

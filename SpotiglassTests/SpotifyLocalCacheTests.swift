@@ -163,6 +163,170 @@ final class SpotifyLocalCacheTests: XCTestCase {
         XCTAssertNil(try cache.loadGETResponseRecord(digest: "ghost", allowExpired: true))
     }
 
+    // MARK: - GET response bounds (#381)
+
+    private func setModificationDate(_ date: Date, forFileAt url: URL) throws {
+        try FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: url.path)
+    }
+
+    private func getResponseFiles(in root: URL) -> [String] {
+        let directory = root.appendingPathComponent("get_responses", isDirectory: true)
+        return ((try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []).sorted()
+    }
+
+    func testPruneGETResponsesDeletesFilesPastRetentionAndKeepsRecentOnes() throws {
+        let (cache, root) = try makeCache()
+        let now = Date()
+        for digest in ["old-search", "old-artist", "recent"] {
+            try cache.saveGETResponse(digest: digest, body: Data(digest.utf8), ttl: 90, cachedAt: now)
+        }
+        let directory = root.appendingPathComponent("get_responses", isDirectory: true)
+        let pastRetention = now.addingTimeInterval(-SpotifyLocalCache.getResponseRetention - 60)
+        try setModificationDate(pastRetention, forFileAt: directory.appendingPathComponent("old-search.json"))
+        try setModificationDate(pastRetention, forFileAt: directory.appendingPathComponent("old-artist.json"))
+        try cache.savePlaylists([PlaylistBrowsingTestFixtures.playlist(id: "P", name: "Mine")])
+
+        cache.pruneGETResponses(now: now)
+
+        XCTAssertEqual(getResponseFiles(in: root), ["recent.json"])
+        XCTAssertNil(try cache.loadGETResponseRecord(digest: "old-search", now: now, allowExpired: true))
+        // A kept response still loads, also as a stale fallback once its TTL has passed.
+        let stale = try cache.loadGETResponseRecord(digest: "recent", now: now.addingTimeInterval(3_600), allowExpired: true)
+        XCTAssertEqual(stale?.data, Data("recent".utf8))
+        XCTAssertEqual(stale?.isExpired, true)
+        // Pruning only touches the GET responses.
+        XCTAssertEqual(try cache.loadPlaylistsBundle()?.playlists.map(\.id), ["P"])
+    }
+
+    func testPruneGETResponsesShrinksPastItsByteBoundOldestFirst() throws {
+        let (cache, root) = try makeCache()
+        let directory = root.appendingPathComponent("get_responses", isDirectory: true)
+        let now = Date()
+        let body = Data(repeating: 7, count: 1_000)
+        for index in 0 ..< 40 {
+            let digest = String(format: "search-%02d", index)
+            try cache.saveGETResponse(digest: digest, body: body, ttl: 90, cachedAt: now)
+            // search-00 was written first, search-39 last.
+            try setModificationDate(now.addingTimeInterval(TimeInterval(index - 40)), forFileAt: directory.appendingPathComponent("\(digest).json"))
+        }
+        let sizeBefore = try directorySize(directory)
+        let maxBytes = sizeBefore / 2
+        XCTAssertGreaterThan(sizeBefore, maxBytes)
+
+        cache.pruneGETResponses(now: now, maxBytes: maxBytes)
+
+        XCTAssertLessThanOrEqual(try directorySize(directory), maxBytes * 3 / 4)
+        let left = getResponseFiles(in: root)
+        XCTAssertFalse(left.contains("search-00.json"))
+        XCTAssertTrue(left.contains("search-39.json"))
+        XCTAssertEqual(try cache.loadGETResponseRecord(digest: "search-39", now: now, allowExpired: false)?.data, body)
+        // The newest files are the ones left.
+        XCTAssertEqual(left, (40 - left.count ..< 40).map { String(format: "search-%02d.json", $0) })
+    }
+
+    func testTrimKeepsFilesWrittenOrReadWhileItRuns() throws {
+        let (cache, root) = try makeCache()
+        let directory = root.appendingPathComponent("get_responses", isDirectory: true)
+        let now = Date()
+        let pastRetention = now.addingTimeInterval(-SpotifyLocalCache.getResponseRetention - 60)
+        try cache.saveGETResponse(digest: "artist", body: Data("old".utf8), ttl: 900, cachedAt: now)
+        try setModificationDate(pastRetention, forFileAt: directory.appendingPathComponent("artist.json"))
+
+        // A request stores a fresh response for the same key just as the trim deletes the old one.
+        let writer = DispatchGroup()
+        DiskCacheTrim.trim(directory: directory, maxBytes: .max, maxAge: SpotifyLocalCache.getResponseRetention, now: now) { url in
+            guard url.lastPathComponent == "artist.json" else { return }
+            writer.enter()
+            DispatchQueue.global().async {
+                try? cache.saveGETResponse(digest: "artist", body: Data("new".utf8), ttl: 900)
+                writer.leave()
+            }
+            _ = writer.wait(timeout: .now() + 0.3)
+        }
+        XCTAssertEqual(writer.wait(timeout: .now() + 10), .success)
+        XCTAssertEqual(try cache.loadGETResponseRecord(digest: "artist", allowExpired: false)?.data, Data("new".utf8))
+
+        // A song played after the lyrics trim listed the folder counts as used and stays.
+        let lyricsDirectory = root.appendingPathComponent("lyrics", isDirectory: true)
+        let lyrics = try LyricsDiskCache(directory: lyricsDirectory)
+        for index in 0 ..< 4 {
+            let key = "track-\(index)"
+            try lyrics.save(trackKey: key, lyrics: .instrumental)
+            try setModificationDate(now.addingTimeInterval(TimeInterval(index - 10) * 60), forFileAt: lyricsDirectory.appendingPathComponent("\(key).json"))
+        }
+        DiskCacheTrim.trim(directory: lyricsDirectory, maxBytes: 1, now: now) { url in
+            if url.lastPathComponent == "track-0.json" {
+                try? self.setModificationDate(Date(), forFileAt: lyricsDirectory.appendingPathComponent("track-1.json"))
+            }
+        }
+        XCTAssertEqual(lyrics.load(trackKey: "track-1"), .instrumental)
+        XCTAssertNil(lyrics.load(trackKey: "track-0"))
+        XCTAssertNil(lyrics.load(trackKey: "track-2"))
+    }
+
+    func testLyricsReadJustAsTheTrimDeletesThemAreNotShownWithoutADiskCopy() throws {
+        let (_, root) = try makeCache()
+        let lyricsDirectory = root.appendingPathComponent("lyrics", isDirectory: true)
+        let lyrics = try LyricsDiskCache(directory: lyricsDirectory)
+        let now = Date()
+        try lyrics.save(trackKey: "track-0", lyrics: .instrumental)
+        try setModificationDate(now.addingTimeInterval(-3_600), forFileAt: lyricsDirectory.appendingPathComponent("track-0.json"))
+
+        // The song is opened just as the trim, having checked it, deletes it.
+        let reader = DispatchGroup()
+        var loaded: FetchedLyrics?
+        DiskCacheTrim.trim(directory: lyricsDirectory, maxBytes: 1, now: now) { url in
+            guard url.lastPathComponent == "track-0.json" else { return }
+            reader.enter()
+            DispatchQueue.global().async {
+                loaded = lyrics.load(trackKey: "track-0")
+                reader.leave()
+            }
+            _ = reader.wait(timeout: .now() + 0.3)
+        }
+        XCTAssertEqual(reader.wait(timeout: .now() + 10), .success)
+
+        // Either the read came first and the song stays, or the trim came first and the read
+        // finds nothing and fetches again; never lyrics on screen with no copy on disk.
+        let onDisk = FileManager.default.fileExists(atPath: lyricsDirectory.appendingPathComponent("track-0.json").path)
+        XCTAssertEqual(loaded != nil, onDisk)
+    }
+
+    func testOverlappingTrimsOfOneDirectoryDeleteOnlyDownToTheBound() throws {
+        let (cache, root) = try makeCache()
+        let directory = root.appendingPathComponent("get_responses", isDirectory: true)
+        let now = Date()
+        for index in 0 ..< 40 {
+            let digest = String(format: "search-%02d", index)
+            try cache.saveGETResponse(digest: digest, body: Data(repeating: 7, count: 1_000), ttl: 90, cachedAt: now)
+            try setModificationDate(now.addingTimeInterval(TimeInterval(index - 40)), forFileAt: directory.appendingPathComponent("\(digest).json"))
+        }
+        let maxBytes = try directorySize(directory) / 2
+
+        // Two saves in a row start two trims; the second starts while the first is deleting.
+        let second = DispatchGroup()
+        var startedSecond = false
+        DiskCacheTrim.trim(directory: directory, maxBytes: maxBytes, now: now) { _ in
+            guard !startedSecond else { return }
+            startedSecond = true
+            second.enter()
+            DispatchQueue.global().async {
+                DiskCacheTrim.trim(directory: directory, maxBytes: maxBytes, now: now)
+                second.leave()
+            }
+            _ = second.wait(timeout: .now() + 0.3)
+        }
+        XCTAssertEqual(second.wait(timeout: .now() + 10), .success)
+
+        let left = getResponseFiles(in: root)
+        XCTAssertEqual(left, (25 ..< 40).map { String(format: "search-%02d.json", $0) })
+    }
+
+    private func directorySize(_ directory: URL) throws -> Int64 {
+        try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.fileSizeKey])
+            .reduce(Int64(0)) { $0 + Int64(try $1.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0) }
+    }
+
     // MARK: - clear()
 
     func testClearRemovesPrivateAccountDataButPreservesCatalogResponsesAndPins() throws {
