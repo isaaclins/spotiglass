@@ -64,6 +64,11 @@ struct SpotiglassMenuCommands: Commands {
         isSignedIn && (activeCommandPaletteManager?.canTogglePlayback ?? false)
     }
 
+    /// Refresh reloads the page you're on; while the lyrics cover it there's nothing to reload (#438).
+    var isRefreshEnabled: Bool {
+        isSignedIn && !isLyricsPresented
+    }
+
     var isLyricsToggleEnabled: Bool {
         isSignedIn && (activeCommandPaletteManager?.canToggleLyrics ?? false)
     }
@@ -158,7 +163,7 @@ struct SpotiglassMenuCommands: Commands {
                 run(CommandPaletteCommandID.refreshPlaylists)
             }
             .keyboardShortcut(keymapShortcut(for: CommandPaletteCommandID.refreshPlaylists))
-            .disabled(!isSignedIn)
+            .disabled(!isRefreshEnabled)
         }
 
         CommandMenu(SpotiglassL10n.string("menu.playback.title", locale: currentLocale)) {

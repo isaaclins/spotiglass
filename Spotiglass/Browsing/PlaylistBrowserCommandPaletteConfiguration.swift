@@ -38,6 +38,7 @@ enum PlaylistBrowserCommandPaletteConfiguration {
         manager.signOut = dependencies.canDisconnect ? dependencies.signOut : nil
         let browserVM = dependencies.viewModel
         let queueVM = dependencies.queueViewModel
+        manager.isLyricsPresented = { lyricsPresented.wrappedValue }
         manager.unifiedRefresh = {
             Task { @MainActor in
                 dependencies.syncUnifiedRefreshRouting()

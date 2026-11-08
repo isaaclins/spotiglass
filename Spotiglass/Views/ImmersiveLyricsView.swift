@@ -11,6 +11,10 @@ struct ImmersiveLyricsView: View {
     @EnvironmentObject private var settingsStore: SpotiglassSettingsStore
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @FocusState private var isLyricsListFocused: Bool
+    /// Focus goes to the lyrics once per opening; a later song must not take it back from
+    /// wherever the user moved it.
+    @State private var hasPlacedInitialFocus = false
 
     /// Soft fade at scroll top/bottom; off when legibility or calm motion is preferred.
     private var usesLyricsScrollEdgeFade: Bool {
@@ -46,6 +50,9 @@ struct ImmersiveLyricsView: View {
         // The lyrics fill the main column only: the sidebar, the toolbar (with Close lyrics) and
         // the player bar stay usable next to them, so this is not a modal surface (#438).
         .accessibilityElement(children: .contain)
+        .environment(\.lyricsListFocus, $isLyricsListFocused)
+        .onAppear { placeInitialFocusIfReady() }
+        .onChange(of: lyricsModel.phase) { _, _ in placeInitialFocusIfReady() }
         .task(id: currentTrack?.uri) {
             guard let track = currentTrack else {
                 onDismiss()
@@ -57,6 +64,26 @@ struct ImmersiveLyricsView: View {
             await queuePrefetch
         }
         .onExitCommand(perform: onDismiss)
+    }
+
+    /// The lyrics list exists only once lyrics are ready (not while loading or for an
+    /// instrumental), so focus is placed when it first appears. macOS can ignore a focus request
+    /// made during the appearance pass; the second main-queue pass makes it stick.
+    private func placeInitialFocusIfReady() {
+        guard !hasPlacedInitialFocus, Self.showsLyricsList(lyricsModel.phase) else { return }
+        hasPlacedInitialFocus = true
+        DispatchQueue.main.async {
+            isLyricsListFocused = true
+            DispatchQueue.main.async {
+                isLyricsListFocused = true
+            }
+        }
+    }
+
+    static func showsLyricsList(_ phase: ImmersiveLyricsViewModel.Phase) -> Bool {
+        guard case let .ready(lyrics) = phase else { return false }
+        if case .instrumental = lyrics { return false }
+        return true
     }
 
     private var currentTrack: PlaybackNowPlaying? {

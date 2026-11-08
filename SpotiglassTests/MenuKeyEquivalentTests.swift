@@ -277,6 +277,30 @@ final class MenuKeyEquivalentTests: XCTestCase {
         XCTAssertFalse(commands.isLyricsToggleEnabled)
     }
 
+    /// #438: View › Refresh (⌘R) reloaded the page hidden under the lyrics. It dims while they're open.
+    func testRefreshMenuItemDimsWhileLyricsAreOpen() {
+        let manager = CommandPaletteManager(keymapStore: makeStore())
+        let scene = SpotiglassSceneHost(commandPaletteManager: manager)
+        let registry = SpotiglassSceneRegistry()
+        registry.activate(scene)
+        let commands = SpotiglassMenuCommands(
+            sceneRegistry: registry,
+            keymapStore: manager.keymapStore,
+            settingsStore: makeSettingsStore(),
+            serviceStore: MusicServiceStore(
+                storage: InMemoryMusicServiceSelectionStorage(services: [.spotify], active: .spotify)
+            ),
+            isSignedIn: true,
+            isQueueVisible: false
+        )
+
+        XCTAssertTrue(commands.isRefreshEnabled)
+        scene.lyricsOverlayController.isPresented = true
+        XCTAssertFalse(commands.isRefreshEnabled, "View › Refresh still reloads the page under the lyrics")
+        scene.lyricsOverlayController.isPresented = false
+        XCTAssertTrue(commands.isRefreshEnabled)
+    }
+
     func testLyricsMenuTitleReflectsPresentedState() {
         let manager = CommandPaletteManager(keymapStore: makeStore())
         let scene = SpotiglassSceneHost(commandPaletteManager: manager)
