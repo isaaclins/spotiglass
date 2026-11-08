@@ -152,7 +152,7 @@ final class SpotiglassPlaybackHosts: ObservableObject {
             other?.pauseForHandover()
         }
         starting.otherServicePlayer = other
-        other.$connectionState
+        other.connectionStatePublisher
             .map { PlaylistBrowserPlaybackHelpers.isCurrentlyPlaying(connectionState: $0) }
             .removeDuplicates()
             .sink { [weak starting] in starting?.isOtherServicePlaying = $0 }
@@ -162,7 +162,7 @@ final class SpotiglassPlaybackHosts: ObservableObject {
             .store(in: &cancellables)
         // From the published values, not `other.isTransportMutationReady`: a sink runs before
         // the property changes.
-        Publishers.CombineLatest4(other.$isTransportStateKnown, other.$connectionState, other.$deviceID, other.$activePlaybackDeviceID)
+        Publishers.CombineLatest4(other.$isTransportStateKnown, other.connectionStatePublisher, other.$deviceID, other.$activePlaybackDeviceID)
             .map { known, state, deviceID, activeDeviceID in
                 PlaybackSessionViewModel.isTransportMutationReady(
                     isTransportStateKnown: known,

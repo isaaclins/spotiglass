@@ -71,6 +71,20 @@ struct PlaybackNowPlaying: Equatable {
 }
 
 extension PlaybackConnectionState {
+    /// The same state with the track's position left out: everything a view other than the
+    /// progress bar and the lyrics shows. Updates that only move the position compare equal here,
+    /// so they don't re-render the window (#409).
+    var ignoringPosition: PlaybackConnectionState {
+        switch self {
+        case let .playing(track):
+            .playing(track.with(positionMilliseconds: 0))
+        case let .paused(track):
+            .paused(track?.with(positionMilliseconds: 0))
+        case .disconnected, .connecting, .ready, .transferring, .unavailable, .error:
+            self
+        }
+    }
+
     /// The currently playing or paused music track, if lyrics can be loaded for it.
     var currentLyricTrack: PlaybackNowPlaying? {
         let nowPlaying: PlaybackNowPlaying?

@@ -136,6 +136,13 @@ final class CommandPaletteManager: ObservableObject {
             .store(in: &cancellables)
     }
 
+    /// Sets ``canMutatePlaybackTransport`` only when it changes: every published change re-renders
+    /// the menus and the browser, and the session reports its state many times a minute (#409).
+    func setPlaybackTransportMutability(_ ready: Bool) {
+        guard canMutatePlaybackTransport != ready else { return }
+        canMutatePlaybackTransport = ready
+    }
+
     func setPlaybackToggleAvailability(_ available: Bool) {
         guard canTogglePlayback != available else { return }
         canTogglePlayback = available
@@ -178,7 +185,7 @@ final class CommandPaletteManager: ObservableObject {
         let playerPushesState = playback.playerPushesState
         Publishers.CombineLatest3(
             Publishers.CombineLatest4(
-                playback.$connectionState,
+                playback.connectionStatePublisher,
                 playback.$deviceID,
                 playback.$activePlaybackDeviceID,
                 playback.$isTransportStateKnown
@@ -205,12 +212,14 @@ final class CommandPaletteManager: ObservableObject {
                 connectionState: connectionState,
                 commandDeviceID: activePlaybackDeviceID ?? deviceID
             )
-            self?.canMutatePlaybackTransport = isTransportMutationReady
-            self?.canMutateRepeat = pausesOtherService ? isOtherServiceTransportMutationReady : isTransportMutationReady
+            self?.setPlaybackTransportMutability(isTransportMutationReady)
+            let canMutateRepeat = pausesOtherService ? isOtherServiceTransportMutationReady : isTransportMutationReady
+            if self?.canMutateRepeat != canMutateRepeat { self?.canMutateRepeat = canMutateRepeat }
         }
         .store(in: &playbackReadinessCancellables)
 
         playback.$shuffleEnabled
+            .removeDuplicates()
             .sink { [weak self] enabled in
                 self?.shuffleEnabled = enabled
             }
@@ -220,12 +229,16 @@ final class CommandPaletteManager: ObservableObject {
             playback.$repeatMode,
             playback.$otherServiceRepeatMode,
             playback.$isOtherServicePlaying,
-            playback.$connectionState
+            playback.connectionStatePublisher
         )
-        .sink { [weak self] mode, otherMode, isOtherServicePlaying, connectionState in
+        .map { mode, otherMode, isOtherServicePlaying, connectionState in
             let followsOtherService = isOtherServicePlaying
                 && !PlaylistBrowserPlaybackHelpers.isCurrentlyPlaying(connectionState: connectionState)
-            self?.repeatMode = followsOtherService ? otherMode : mode
+            return followsOtherService ? otherMode : mode
+        }
+        .removeDuplicates()
+        .sink { [weak self] mode in
+            self?.repeatMode = mode
         }
         .store(in: &playbackReadinessCancellables)
     }
