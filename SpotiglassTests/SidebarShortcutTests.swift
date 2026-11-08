@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import ViewInspector
 import XCTest
 @testable import Spotiglass
 
@@ -274,5 +275,20 @@ final class SidebarShortcutTests: XCTestCase {
         manager.execute(commandID: CommandPaletteCommandID.toggleSidebar)
         XCTAssertTrue(sidebarVisible)
         XCTAssertEqual(commands.sidebarItemTitle, SpotiglassL10n.string("menu.view.hideSidebar"))
+    }
+
+    /// The title-bar button runs the same command as ⌘S. It used to be the system toggle,
+    /// which squeezed the sidebar in and cut it off in a narrow window.
+    func testTitleBarButtonRunsTheSidebarCommand() throws {
+        let (manager, toggles) = makeManager()
+        let shown = PlaylistBrowserSidebarToggleButton(isSidebarVisible: true, commandPaletteManager: manager)
+        XCTAssertNoThrow(try shown.inspect().find(text: SpotiglassL10n.string("menu.view.hideSidebar")))
+        try shown.inspect().find(ViewType.Button.self).tap()
+        XCTAssertEqual(toggles(), 1)
+
+        let hidden = PlaylistBrowserSidebarToggleButton(isSidebarVisible: false, commandPaletteManager: manager)
+        XCTAssertNoThrow(try hidden.inspect().find(text: SpotiglassL10n.string("menu.view.showSidebar")))
+        try hidden.inspect().find(ViewType.Button.self).tap()
+        XCTAssertEqual(toggles(), 2)
     }
 }

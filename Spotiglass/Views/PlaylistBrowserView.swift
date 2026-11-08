@@ -158,7 +158,15 @@ struct PlaylistBrowserView: View {
                     pinDroppedTransfers: pinDroppedTransfers,
                     header: sidebarHeader
                 )
-                .toolbar(removing: lyricsOverlay.isPresented ? .sidebarToggle : nil)
+                // The system toggle collapses the split view on its own: in a narrow window it
+                // squeezed the sidebar in and cut it off. This button runs Show/Hide Sidebar,
+                // like ⌘S, ⌃⌘S and the View menu, so all of them behave the same (#436).
+                .toolbar(removing: .sidebarToggle)
+                .toolbar {
+                    if !lyricsOverlay.isPresented {
+                        ToolbarItem(placement: .automatic) { sidebarToggleButton }
+                    }
+                }
                 .navigationSplitViewColumnWidth(
                     min: SpotiglassDesign.playlistSidebarMinWidth,
                     ideal: SpotiglassDesign.sidebarWidth
@@ -263,6 +271,10 @@ struct PlaylistBrowserView: View {
                     }
                 }
             }
+            // With the sidebar hidden its toggle moves here, where the system one sat (#436).
+            if !lyricsOverlay.isPresented, playlistColumnVisibility == .detailOnly {
+                ToolbarItem(placement: .navigation) { sidebarToggleButton }
+            }
             // At the root there is no trail and nothing to go back to, so the
             // item would render as an empty capsule beside the window title.
             if viewModel.canNavigateBack || !viewModel.breadcrumbPath.isEmpty {
@@ -324,6 +336,13 @@ struct PlaylistBrowserView: View {
         } message: {
             Text(Self.disconnectConfirmationMessage(switchingTo: disconnectSwitchesTo))
         }
+    }
+
+    private var sidebarToggleButton: some View {
+        PlaylistBrowserSidebarToggleButton(
+            isSidebarVisible: playlistColumnVisibility != .detailOnly,
+            commandPaletteManager: commandPaletteManager
+        )
     }
 
     private var browserLifecycle: some View {

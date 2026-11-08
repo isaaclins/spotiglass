@@ -32,3 +32,23 @@ extension PlaylistBrowserView {
         )
     }
 }
+
+/// The title-bar sidebar button. It runs Show/Hide Sidebar like ⌘S, ⌃⌘S and the View menu,
+/// instead of the system toggle that collapsed the split view by itself and cut the sidebar
+/// off in a narrow window (#436).
+struct PlaylistBrowserSidebarToggleButton: View {
+    let isSidebarVisible: Bool
+    let commandPaletteManager: CommandPaletteManager
+
+    var body: some View {
+        let title = isSidebarVisible
+            ? SpotiglassL10n.string("menu.view.hideSidebar")
+            : SpotiglassL10n.string("menu.view.showSidebar")
+        Button {
+            commandPaletteManager.execute(commandID: CommandPaletteCommandID.toggleSidebar)
+        } label: {
+            Label(title, systemImage: "sidebar.left")
+        }
+        .help(title)
+    }
+}
