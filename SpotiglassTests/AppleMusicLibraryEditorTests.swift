@@ -1192,8 +1192,20 @@ private extension MusicPlaylistTrackItem {
 final class EditTestContentSource: AppleMusicContentSource, @unchecked Sendable {
     var songs: [Song] = []
     var tracksByPlaylistID: [String: [Track]] = [:]
+    var playlists: [Playlist] = []
 
-    func libraryPlaylists(limit: Int, offset: Int) async throws -> [Playlist] { [] }
+    func libraryPlaylists(limit: Int, offset: Int) async throws -> [Playlist] { offset == 0 ? playlists : [] }
+    /// Holds the batch read, with `onLibraryTracks` run once it started.
+    var libraryTracksGate: LibraryEditsGate?
+    var onLibraryTracks: (@Sendable () -> Void)?
+
+    /// The same tracks as a playlist read: like the real library, they lag behind an edit.
+    func libraryPlaylistTracks(playlistIDs: [String]) async throws -> [String: [Track]] {
+        let read = tracksByPlaylistID.filter { playlistIDs.contains($0.key) && !$0.value.isEmpty }
+        onLibraryTracks?()
+        await libraryTracksGate?.wait()
+        return read
+    }
     func playlistTracks(playlistID: String, limit: Int) async throws -> [Track]? { tracksByPlaylistID[playlistID] }
     func librarySongs(limit: Int, offset: Int) async throws -> [Song] { offset == 0 ? songs : [] }
     func recentlyPlayedSongs(limit: Int) async throws -> [Song] { [] }
@@ -1489,6 +1501,136 @@ final class AppleMusicPlaylistEditFixTests: XCTestCase {
         let items = try await provider.playlistTracks(playlistID: created.id, limit: 100, maxPages: 1)
 
         XCTAssertEqual(Self.names(items), ["Don't Stop The Music"], "the sidebar says 1 track, so the page shows it")
+    }
+
+    /// #407 after #395: the library can take hours to show an add made from Spotiglass, so
+    /// neither a refresh nor the count lookup may bring back the count from before the add.
+    func testAPlaylistEditedFromSpotiglassIsCountedWithTheEdit() async throws {
+        let row = try remembered18P1Row()
+        let playlistID = "-107247429512612591"
+        let source = EditTestContentSource()
+        source.playlists = [try AppleMusicFixtures.playlist(id: playlistID, name: "Spotiglass test")]
+        source.tracksByPlaylistID[playlistID] = [.song(try AppleMusicFixtures.song(id: "i.1", title: "One", artist: "Someone"))]
+        let provider = AppleMusicBrowsingProvider(source: source, editor: editor)
+        _ = try await provider.currentUserPlaylists(limit: 50)
+        let before = await provider.playlistTrackCounts(playlistIDs: [playlistID])
+        XCTAssertEqual(before, [playlistID: 1])
+
+        try await provider.addTracksToPlaylist(playlistID: playlistID, uris: ["applemusic:song:\(row.itemID)"])
+
+        let listed = try await provider.currentUserPlaylists(limit: 50)
+        XCTAssertNil(listed.first?.trackCount, "the count from before the add stays out of the listing")
+        let after = await provider.playlistTrackCounts(playlistIDs: [playlistID])
+        XCTAssertEqual(after, [playlistID: 2], "counted like the open playlist, with the added song")
+    }
+
+    /// A song removed from the library leaves every playlist (Music takes it out); while the
+    /// library still lists it there, the count leaves it out like the open playlist does.
+    func testASongRemovedFromTheLibraryIsNotCountedInItsPlaylists() async throws {
+        let playlistID = "-107247429512612591"
+        let source = EditTestContentSource()
+        source.playlists = [try AppleMusicFixtures.playlist(id: playlistID, name: "Spotiglass test")]
+        source.tracksByPlaylistID[playlistID] = [
+            .song(try AppleMusicFixtures.song(id: rowID, title: "Don't Stop The Music", artist: "Rihanna")),
+            .song(try AppleMusicFixtures.song(id: "i.1", title: "One", artist: "Someone")),
+        ]
+        let provider = AppleMusicBrowsingProvider(source: source, editor: editor)
+        _ = try await provider.currentUserPlaylists(limit: 50)
+        let before = await provider.playlistTrackCounts(playlistIDs: [playlistID])
+        XCTAssertEqual(before, [playlistID: 2])
+
+        try await provider.removeSavedTracks(ids: [rowID])
+
+        let listed = try await provider.currentUserPlaylists(limit: 50)
+        XCTAssertNil(listed.first?.trackCount, "the count with the removed song stays out of the listing")
+        let after = await provider.playlistTrackCounts(playlistIDs: [playlistID])
+        let shown = try await provider.playlistTracks(playlistID: playlistID, limit: 100, maxPages: 1)
+        XCTAssertEqual(after, [playlistID: 1])
+        XCTAssertEqual(after[playlistID], shown.count, "the sidebar and the open playlist agree")
+    }
+
+    /// Once the library shows a removal from Spotiglass, the count kept from before it must
+    /// not come back: the playlist's version doesn't always change.
+    func testACountFromBeforeALibraryRemovalDoesNotComeBack() async throws {
+        let playlistID = "-107247429512612591"
+        let source = EditTestContentSource()
+        source.playlists = [try AppleMusicFixtures.playlist(id: playlistID, name: "Spotiglass test")]
+        let removed = Track.song(try AppleMusicFixtures.song(id: rowID, title: "Don't Stop The Music", artist: "Rihanna"))
+        let kept = Track.song(try AppleMusicFixtures.song(id: "i.1", title: "One", artist: "Someone"))
+        source.tracksByPlaylistID[playlistID] = [removed, kept]
+        let provider = AppleMusicBrowsingProvider(source: source, editor: editor)
+        _ = try await provider.currentUserPlaylists(limit: 50)
+        _ = await provider.playlistTrackCounts(playlistIDs: [playlistID])
+
+        try await provider.removeSavedTracks(ids: [rowID])
+        let whileListed = await provider.playlistTrackCounts(playlistIDs: [playlistID])
+        XCTAssertEqual(whileListed, [playlistID: 1])
+        // The library catches up: a complete library read no longer lists the song.
+        source.tracksByPlaylistID[playlistID] = [kept]
+        _ = pending.applied(toLibrarySongs: [], isComplete: true)
+        XCTAssertFalse(pending.hasRemovedSongs)
+
+        let listed = try await provider.currentUserPlaylists(limit: 50)
+        XCTAssertNotEqual(listed.first?.trackCount, 2, "the count from before the removal is gone")
+        let counted = await provider.playlistTrackCounts(playlistIDs: [playlistID])
+        XCTAssertEqual(counted, [playlistID: 1])
+    }
+
+    /// A playlist left out of the batch read because it had an edit, whose edit the library
+    /// shows while that read runs, is still counted.
+    func testAPlaylistWhoseEditClearsDuringTheBatchIsStillCounted() async throws {
+        let row = try remembered18P1Row()
+        let edited = "-107247429512612591"
+        let other = "-2"
+        let source = EditTestContentSource()
+        source.playlists = [
+            try AppleMusicFixtures.playlist(id: edited, name: "Spotiglass test"),
+            try AppleMusicFixtures.playlist(id: other, name: "Other"),
+        ]
+        let one = Track.song(try AppleMusicFixtures.song(id: "i.1", title: "One", artist: "Someone"))
+        source.tracksByPlaylistID[edited] = [one]
+        source.tracksByPlaylistID[other] = [one]
+        let provider = AppleMusicBrowsingProvider(source: source, editor: editor)
+        _ = try await provider.currentUserPlaylists(limit: 50)
+        try await provider.addTracksToPlaylist(playlistID: edited, uris: ["applemusic:song:\(row.itemID)"])
+        XCTAssertTrue(pending.hasPendingTracks(playlistID: edited))
+
+        let gate = LibraryEditsGate()
+        let started = LibraryEditsGate()
+        source.libraryTracksGate = gate
+        source.onLibraryTracks = { started.open() }
+        let counting = Task { await provider.playlistTrackCounts(playlistIDs: [edited, other]) }
+        await started.wait()
+        source.libraryTracksGate = nil
+        // The library lists the added song now, and opening the playlist sees it.
+        source.tracksByPlaylistID[edited] = [one, .song(try AppleMusicFixtures.song(id: row.itemID, title: "Don't Stop The Music", artist: "Rihanna"))]
+        _ = try await provider.playlistTracks(playlistID: edited, limit: 100, maxPages: 1)
+        XCTAssertFalse(pending.hasPendingTracks(playlistID: edited))
+        gate.open()
+        let counts = await counting.value
+
+        XCTAssertEqual(counts, [edited: 2, other: 1])
+    }
+
+    /// While a removal from the library is pending, counts are still kept (without the removed
+    /// song), so a refresh doesn't read every playlist again for hours.
+    func testCountsAreKeptWhileALibraryRemovalIsPending() async throws {
+        let playlistID = "-107247429512612591"
+        let source = EditTestContentSource()
+        source.playlists = [try AppleMusicFixtures.playlist(id: playlistID, name: "Spotiglass test")]
+        source.tracksByPlaylistID[playlistID] = [
+            .song(try AppleMusicFixtures.song(id: rowID, title: "Don't Stop The Music", artist: "Rihanna")),
+            .song(try AppleMusicFixtures.song(id: "i.1", title: "One", artist: "Someone")),
+        ]
+        let provider = AppleMusicBrowsingProvider(source: source, editor: editor)
+        try await provider.removeSavedTracks(ids: [rowID])
+        XCTAssertTrue(pending.hasRemovedSongs)
+        _ = try await provider.currentUserPlaylists(limit: 50)
+        let counted = await provider.playlistTrackCounts(playlistIDs: [playlistID])
+        XCTAssertEqual(counted, [playlistID: 1])
+
+        let listed = try await provider.currentUserPlaylists(limit: 50)
+        XCTAssertEqual(listed.first?.trackCount, 1, "kept, without the removed song")
     }
 
     func testALibraryRowAddedToAPlaylistShowsThereBeforeTheLibraryListsIt() async throws {

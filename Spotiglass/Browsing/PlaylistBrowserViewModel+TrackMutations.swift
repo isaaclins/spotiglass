@@ -288,6 +288,7 @@ extension PlaylistBrowserViewModel {
             // Albums whose songs these are may have changed too; they load again when shown.
             savedAlbumStates = [:]
             invalidateLikedSongsCache()
+            recountPlaylistTracksAfterLibraryRemoval()
             await refreshLikedSongsDetailAfterMutation()
             trackMutationToast = SpotiglassL10n.format(
                 "playlist.mutation.removedFromLikedSongs",
@@ -353,14 +354,15 @@ extension PlaylistBrowserViewModel {
             SpotifyScopeRequirement(anyOf: SpotifyAuthConfiguration.requiredPlaylistModifyScopes),
             operation: .renamePlaylist
         ) else {
-            applyPlaylistName(previous)
+            applyPlaylistName((playlistsByID[id] ?? previous).renamed(previous.name))
             return
         }
 
         do {
             try await api.updatePlaylist(playlistID: id, name: trimmedName)
         } catch {
-            applyPlaylistName(previous)
+            // Only the name goes back: a track count that arrived meanwhile stays.
+            applyPlaylistName((playlistsByID[id] ?? previous).renamed(previous.name))
             trackMutationToast = Self.describeFailure(error, operation: .renamePlaylist)
         }
     }
@@ -476,7 +478,7 @@ extension PlaylistBrowserViewModel {
             }
         }
 
-        try? cache.savePlaylists(Array(playlistsByID.values), cachedAt: now())
+        try? cache.savePlaylists(playlistsInSidebarOrder(), cachedAt: now())
     }
 
     func invalidateTracksCache(playlistID: String) {
@@ -536,7 +538,7 @@ extension PlaylistBrowserViewModel {
                 playlistState = .staleCache(rows, displayError)
             }
         }
-        try? cache.savePlaylists(Array(playlistsByID.values), cachedAt: now())
+        try? cache.savePlaylists(playlistsInSidebarOrder(), cachedAt: now())
         invalidateLibraryContinuationCache()
     }
 }

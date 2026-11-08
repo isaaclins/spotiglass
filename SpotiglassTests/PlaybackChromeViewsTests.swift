@@ -491,7 +491,7 @@ final class PlaybackChromeViewsTests: XCTestCase {
                     openArtist: { _ in }
                 )
             )
-            let window = NSWindow(
+            let window = OffscreenTestWindow(
                 contentRect: NSRect(x: 0, y: 0, width: width, height: 140),
                 styleMask: [.titled],
                 backing: .buffered,
@@ -1242,7 +1242,7 @@ final class PlaybackChromeViewsTests: XCTestCase {
 /// SwiftUI hands mouse events to gestures only in the key window. A test run
 /// cannot always make its process the active app, so this window reports
 /// itself key without taking focus from whatever is in front.
-private final class KeyTestPanel: NSPanel {
+private final class KeyTestPanel: OffscreenTestPanel {
     override var canBecomeKey: Bool { true }
     override var isKeyWindow: Bool { true }
 }
