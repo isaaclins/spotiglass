@@ -199,7 +199,8 @@ final class MusicServiceMenuAnchor: NSObject {
         guard let view else { return }
         let menu = makeMenu(items: items)
         // Just under the label, aligned with its leading edge.
-        let origin = NSPoint(x: 0, y: view.isFlipped ? view.bounds.height + 4 : -4)
+        let gap = SpotiglassDesign.spacingXXS
+        let origin = NSPoint(x: 0, y: view.isFlipped ? view.bounds.height + gap : -gap)
         menu.popUp(positioning: nil, at: origin, in: view)
     }
 

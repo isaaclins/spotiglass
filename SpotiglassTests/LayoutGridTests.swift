@@ -165,6 +165,8 @@ final class LayoutGridTests: XCTestCase {
             "back.widthAnchor.constraint(equalToConstant: 32),",
             "heightAnchor.constraint(greaterThanOrEqualToConstant: 28),",
             "label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),",
+            "let origin = NSPoint(x: 0, y: view.isFlipped ? view.bounds.height + 4 : -4)",
+            "webView.frame = CGRect(x: 0, y: 0, width: 300, height: 1)",
             "stack.edgeInsets = NSEdgeInsets(top: 0, left: 10, bottom: 0, right: 10)",
         ]
         for line in flagged {
@@ -188,6 +190,7 @@ final class LayoutGridTests: XCTestCase {
             "Text(\"a\") /* .padding(6) */",
             "/// Matches Spotiglass/*.swift .padding(SpotiglassDesign.spacingS)",
             "button.leadingAnchor.constraint(equalTo: leadingAnchor),",
+            "bar.position = CGPoint(x: CGFloat(index) * step + width / 2, y: bounds.midY)",
             "Text(\"Width: 400\").padding(SpotiglassDesign.spacingS)",
         ]
         for line in allowed {
@@ -328,8 +331,12 @@ final class LayoutGridTests: XCTestCase {
     )
 
     /// Calls whose every argument is a layout number: `.padding(.top, 6)`,
-    /// `.offset(x: 0, y: 6)`, `EdgeInsets(...)` and AppKit's `NSEdgeInsets(...)`.
-    private static let layoutCalls = [".padding(", ".offset(", "EdgeInsets("]
+    /// `.offset(x: 0, y: 6)`, `EdgeInsets(...)` and AppKit's `NSEdgeInsets(...)`,
+    /// and the points, sizes and rects AppKit code places things with.
+    private static let layoutCalls = [
+        ".padding(", ".offset(", "EdgeInsets(",
+        "NSPoint(", "CGPoint(", "NSSize(", "CGSize(", "NSRect(", "CGRect(",
+    ]
 
     /// The argument expressions of every `layoutCalls` call (all of its
     /// arguments) and of every `layoutLabel` (up to the next comma or closing
