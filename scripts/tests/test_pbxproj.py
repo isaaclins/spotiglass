@@ -219,6 +219,23 @@ class AuditTests(RepoCopy):
             result = self.run_script('scripts/audit-orphaned-sources.sh')
             self.assertEqual(result.returncode, expected, (lines, result.stdout))
 
+    def test_absolute_path_reference_fails_and_is_not_registered_again(self):
+        # Xcode's File Inspector can switch a file to "Absolute Path".
+        name = 'PlaylistOwnerDisplayTests.swift'
+        text = self.pbx.read_text()
+        old = next(l for l in text.splitlines() if f'/* {name} */ = {{isa = PBXFileReference;' in l)
+        absolute = (self.tmp / 'SpotiglassTests' / name).resolve().as_posix()
+        new = old.replace(f'path = {name};', f'path = "{absolute}";').replace('sourceTree = "<group>";', 'sourceTree = "<absolute>";')
+        self.pbx.write_text(text.replace(old, new))
+        result = self.run_script('scripts/audit-orphaned-sources.sh')
+        self.assertEqual(result.returncode, 1)
+        self.assertIn(f'{absolute}: is referenced by an absolute path', result.stdout)
+        before = self.pbx.read_bytes()
+        result = self.run_script(sys.executable, 'scripts/register-test-files.py', name)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('absolute path', result.stderr)
+        self.assertEqual(before, self.pbx.read_bytes())
+
     def test_file_with_a_non_macos_platform_filter_fails(self):
         name = 'PlaylistOwnerDisplayTests.swift'
         text, n = re.subn(rf'(/\* {re.escape(name)} in Sources \*/ = \{{isa = PBXBuildFile;)',

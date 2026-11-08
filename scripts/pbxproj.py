@@ -161,6 +161,17 @@ class Project:
 
         walk(main, PurePosixPath('.'))
 
+    def absolute_swift_refs(self):
+        """{file reference: path} for Swift files referenced by an absolute
+        path. Those only build on the machine that wrote them, so they are
+        never a valid way to put a repo file into a target."""
+        return {
+            oid: obj.get('path', '')
+            for oid, obj in self.objects.items()
+            if obj.get('isa') == 'PBXFileReference' and obj.get('sourceTree') == '<absolute>'
+            and obj.get('path', '').endswith('.swift')
+        }
+
     def targets(self):
         return {
             obj['name']: oid
@@ -297,6 +308,9 @@ def audit(repo_root='.'):
     root = Path(repo_root)
     project = Project.load(root / PBX_PATH)
     problems = []
+    for path in sorted(project.absolute_swift_refs().values()):
+        problems.append((path, 'is referenced by an absolute path, which only builds on one machine; '
+                               'set its Location to "Relative to Group" in Xcode'))
     compiled_by = {t: project.compiled_paths(t) for t in project.targets()}
     for directory, target in TARGET_FOR_DIR.items():
         listed = project.source_path_list(target)
@@ -428,6 +442,10 @@ def register(text, path, target_name):
     name = PurePosixPath(path).name
     sources = project.sources_phase(target_name)
 
+    absolute = [p for p in project.absolute_swift_refs().values() if p.endswith('/' + name)]
+    if absolute:
+        raise PBXError(f'{name} is already referenced by the absolute path {absolute[0]}; '
+                       'set its Location to "Relative to Group" in Xcode instead of registering it again')
     refs = project.file_refs_for(path)
     if len(refs) > 1:
         raise PBXError(f'{path} has {len(refs)} file references; remove the duplicates first')
