@@ -202,7 +202,7 @@ final class ScrubberTickCostTests: XCTestCase {
     private func host<V: View>(_ view: V, size: CGSize) -> LayoutCountingHostingView {
         AppKitTestSupport.activateAppIfNeeded()
         let hosting = LayoutCountingHostingView(rootView: AnyView(view))
-        let window = OffscreenTestWindow(
+        let window = VisibilityControlledWindow(
             contentRect: NSRect(origin: .zero, size: size),
             styleMask: [.titled],
             backing: .buffered,
@@ -253,7 +253,7 @@ final class ScrubberTickCostTests: XCTestCase {
         view.drawing = drawing(playingAnchor())
         XCTAssertNil(view.tickTimer, "nothing to wake outside a window")
 
-        let window = OffscreenTestWindow(
+        let window = VisibilityControlledWindow(
             contentRect: NSRect(x: 0, y: 0, width: 416, height: 18),
             styleMask: [.titled],
             backing: .buffered,
@@ -278,14 +278,84 @@ final class ScrubberTickCostTests: XCTestCase {
         XCTAssertNil(view.tickTimer, "dragging: the pointer moves the thumb, not the clock")
 
         view.drawing = drawing(playingAnchor())
+        // Minimized, hidden or covered: nobody sees the track move.
+        window.reportsVisible = false
+        XCTAssertNil(view.tickTimer, "a window nobody sees: no wakeups")
+        window.reportsVisible = true
+        XCTAssertNotNil(view.tickTimer, "visible again: the track moves on")
+
         view.removeFromSuperview()
         XCTAssertNil(view.tickTimer, "out of the window: no wakeups")
+    }
+
+    /// After the main thread stalls (or the Mac sleeps) while a track plays, the next tick is
+    /// scheduled from now. Scheduling from the tick that fired late would fire every missed tick
+    /// at once, one right after the other.
+    func testAStallDoesNotFireTheMissedTicksAtOnce() throws {
+        let window = VisibilityControlledWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 416, height: 18),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        window.isReleasedWhenClosed = false
+        windows.append(window)
+        let view = TickCountingTrackView(frame: CGRect(x: 0, y: 0, width: 416, height: 18))
+        view.drawing = .init(
+            trackHeight: 4,
+            progress: ScrubberProgress(anchor: playingAnchor(), durationMilliseconds: 240_000, dragFraction: nil),
+            dragFraction: nil,
+            thumbDiameter: 12,
+            overhang: 8,
+            colors: ScrubberTrackDrawing.Colors(track: .gray, played: .blue, thumbFill: .white, thumbBorder: .black)
+        )
+        window.contentView?.addSubview(view)
+        // AppKit marks the view for display while it sets up its layer; count only the ticks.
+        AppKitTestSupport.pumpRunLoop(for: 0.3)
+        view.ticks = 0
+        AppKitTestSupport.pumpRunLoop(for: 0.6)
+        XCTAssertGreaterThanOrEqual(view.ticks, 2, "the track ticks while playing")
+        view.ticks = 0
+
+        // 4 ticks a second here: a 2 s stall misses about 8 of them.
+        Thread.sleep(forTimeInterval: 2)
+        AppKitTestSupport.pumpRunLoop(for: 0.1)
+
+        XCTAssertGreaterThanOrEqual(view.ticks, 1, "the late tick fired")
+        XCTAssertLessThanOrEqual(view.ticks, 2, "the missed ticks must not fire one after the other")
+        let next = try XCTUnwrap(view.tickTimer)
+        XCTAssertGreaterThan(next.fireDate, Date(), "the next tick is ahead")
     }
 
     func testTheTrackIsNeverHitOrReadByVoiceOver() {
         let view = ScrubberTrackCanvasView(frame: CGRect(x: 0, y: 0, width: 100, height: 18))
         XCTAssertNil(view.hitTest(NSPoint(x: 50, y: 9)), "clicks and hover belong to the surface above it")
         XCTAssertFalse(view.isAccessibilityElement())
+    }
+}
+
+/// An off-screen test window that tells the track whether it can be seen, the way a minimized,
+/// hidden or covered window does through its occlusion state.
+private final class VisibilityControlledWindow: OffscreenTestWindow {
+    var reportsVisible = true {
+        didSet { NotificationCenter.default.post(name: NSWindow.didChangeOcclusionStateNotification, object: self) }
+    }
+
+    override var occlusionState: NSWindow.OcclusionState {
+        reportsVisible ? .visible : []
+    }
+}
+
+/// Counts the redraws its ticks ask for.
+private final class TickCountingTrackView: ScrubberTrackCanvasView {
+    var ticks = 0
+
+    override var needsDisplay: Bool {
+        get { super.needsDisplay }
+        set {
+            if newValue { ticks += 1 }
+            super.needsDisplay = newValue
+        }
     }
 }
 

@@ -374,7 +374,8 @@ private struct ScrubberTrackCanvas: NSViewRepresentable {
 /// Draws the track, its played part and the thumb, and redraws them on the
 /// ticks of a `ScrubberTimelineSchedule`. Marking a view for display costs a
 /// repaint of its own pixels; nothing around it is laid out again.
-final class ScrubberTrackCanvasView: NSView {
+/// Not `final`: a test counts the redraws its ticks ask for.
+class ScrubberTrackCanvasView: NSView {
     struct Drawing: Equatable {
         var trackHeight: CGFloat
         var progress: ScrubberProgress
@@ -412,8 +413,33 @@ final class ScrubberTrackCanvasView: NSView {
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
     override func isAccessibilityElement() -> Bool { false }
 
+    private var occlusionObserver: NSObjectProtocol?
+
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        super.viewWillMove(toWindow: newWindow)
+        if let occlusionObserver {
+            NotificationCenter.default.removeObserver(occlusionObserver)
+            self.occlusionObserver = nil
+        }
+    }
+
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        if let window {
+            // A minimized, hidden or fully covered window still drew every tick.
+            occlusionObserver = NotificationCenter.default.addObserver(
+                forName: NSWindow.didChangeOcclusionStateNotification,
+                object: window,
+                queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    // The position moved on while nobody saw it.
+                    self.needsDisplay = true
+                    self.restartTicks()
+                }
+            }
+        }
         restartTicks()
     }
 
@@ -434,7 +460,7 @@ final class ScrubberTrackCanvasView: NSView {
         tickTimer = nil
         ticks = nil
         scheduledTrackWidth = trackWidth
-        guard window != nil, let drawing, !drawing.isPaused else { return }
+        guard let window, window.occlusionState.contains(.visible), let drawing, !drawing.isPaused else { return }
         let schedule = ScrubberTimelineSchedule(
             anchor: drawing.progress.anchor,
             isPaused: false,
@@ -457,7 +483,9 @@ final class ScrubberTrackCanvasView: NSView {
             MainActor.assumeIsolated {
                 guard let self else { return }
                 self.needsDisplay = true
-                self.scheduleNextTick(after: next)
+                // From now, not from this tick: after a stall or sleep, the
+                // ticks missed meanwhile must not all fire at once.
+                self.restartTicks()
             }
         }
         // Up to a tenth of a tick late is invisible and lets macOS group wakeups.
