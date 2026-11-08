@@ -68,6 +68,10 @@ jobs:
         # and two test files already shipped that way (#107).
         run: ./scripts/audit-orphaned-sources.sh
 
+      - name: make clean keeps the login
+        # `make clean` once deleted the Spotify refresh token too (#383).
+        run: ./scripts/test-make-clean.sh
+
   test:
     name: Unit tests and coverage gate
     # Pinned to macos-26 (Tahoe) because Spotiglass and SpotiglassTests both

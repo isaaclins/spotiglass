@@ -4,7 +4,7 @@
 #        make release         — unsigned Release bundle (matches CI layout)
 #        make test            — unit tests on macOS
 
-.PHONY: all build run release test coverage coverage-check format lint scan clean list help audit-eq-permission build-driver embed-driver sign-driver install-driver
+.PHONY: all build run release test test-make-targets coverage coverage-check format lint scan clean sign-out list help audit-eq-permission build-driver embed-driver sign-driver install-driver
 
 # Prefer a standalone install, then fall back to the copy inside the active
 # Xcode toolchain so `make lint` works without `brew install swift-format`.
@@ -182,7 +182,7 @@ install-driver: build-driver sign-driver
 		echo "WARNING: coreaudiod did not pick up the driver. Check system logs for the failure reason."; \
 	fi
 
-test: audit-eq-permission
+test: audit-eq-permission test-make-targets
 	# Per-test timeouts match CI. A wedged test once burned 40 minutes here
 	# and reported nothing about which test it was; with timeouts on, the run
 	# fails fast and names it. The slowest legitimate test takes about a
@@ -229,11 +229,20 @@ scan:
 		tokei_exit=$$?; \
 		if [ $$periphery_exit -ne 0 ]; then exit $$periphery_exit; fi; \
 		exit $$tokei_exit
+# Build output only. The stored Spotify login is not build output, so
+# cleaning must never sign anyone out (#383); that is `make sign-out`.
 clean:
 	rm -rf "$(DERIVED_DATA)"
+
+# Deletes every stored Spotify refresh token, so the next launch starts signed out.
+sign-out:
 	@echo "Removing Keychain generic-password items with service $(KEYCHAIN_SERVICE)…"
 	@svc="$(KEYCHAIN_SERVICE)"; \
 	while security delete-generic-password -s "$$svc" >/dev/null 2>&1; do :; done
+
+# Checks that `make clean` leaves the Keychain alone and `make sign-out` clears it.
+test-make-targets:
+	./scripts/test-make-clean.sh
 
 help:
 	@echo "Targets:"
@@ -247,7 +256,8 @@ help:
 	@echo "  make lint          — swift-format lint --strict"
 	@echo "  make scan          — periphery (dead code) + tokei (LOC); both run even if one fails"
 	@echo "  make list          — list schemes"
-	@echo "  make clean         — remove $(DERIVED_DATA) + Keychain items (service $(KEYCHAIN_SERVICE))"
+	@echo "  make clean         — remove $(DERIVED_DATA) (keeps the stored Spotify login)"
+	@echo "  make sign-out      — delete the stored Spotify login (Keychain service $(KEYCHAIN_SERVICE))"
 	@echo "  make build-driver  — build SpotiglassEQDriver.driver (universal Mach-O)"
 	@echo "  make embed-driver  — build + embed .driver inside the Debug app"
 	@echo "  make sign-driver   — re-sign build/SpotiglassEQDriver.driver with Apple Dev cert"
