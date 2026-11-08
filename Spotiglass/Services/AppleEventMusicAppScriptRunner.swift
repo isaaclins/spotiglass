@@ -13,6 +13,10 @@ struct AppleEventMusicAppScriptRunner: MusicAppScriptRunning {
     /// that is still loading or syncing can take much longer.
     static let eventTimeoutSeconds = 60
 
+    /// How long an edit waits for Music after one of its changes answered late, before it says
+    /// the change may still go through (#411).
+    static let settleTimeoutSeconds = 600
+
     /// Scripts run one at a time on their own queue: `NSAppleScript` waits for Music's answer,
     /// and on the main thread that froze every window until Music replied (#395).
     private static let scriptQueue = DispatchQueue(label: "com.isaaclins.spotiglass.music-scripts", qos: .userInitiated)
@@ -33,11 +37,20 @@ struct AppleEventMusicAppScriptRunner: MusicAppScriptRunning {
     @discardableResult
     func run(_ source: String) async throws -> String? {
         try await prepare()
-        let timed = MusicAppScripts.withTimeout(source, seconds: Self.eventTimeoutSeconds)
+        return try await perform(MusicAppScripts.withTimeout(source, seconds: Self.eventTimeoutSeconds))
+    }
+
+    @discardableResult
+    func settle(_ source: String) async throws -> String? {
+        try await perform(MusicAppScripts.settling(source, seconds: Self.settleTimeoutSeconds))
+    }
+
+    /// Runs a finished script on `scriptQueue`, never on the caller's thread.
+    private func perform(_ script: String) async throws -> String? {
         let execute = execute
         return try await withCheckedThrowingContinuation { continuation in
             Self.scriptQueue.async {
-                continuation.resume(with: Result { try execute(timed) })
+                continuation.resume(with: Result { try execute(script) })
             }
         }
     }
@@ -55,7 +68,11 @@ struct AppleEventMusicAppScriptRunner: MusicAppScriptRunning {
         let result = script.executeAndReturnError(&errorInfo)
         if let errorInfo {
             let number = (errorInfo[NSAppleScript.errorNumber] as? Int) ?? 0
-            SpotiglassLog.error(.api, "Music script failed (\(number)): \(errorInfo[NSAppleScript.errorMessage] ?? "")")
+            let message = errorInfo[NSAppleScript.errorMessage] as? String ?? ""
+            SpotiglassLog.error(.api, "Music script failed (\(number)): \(message)")
+            if number == MusicAppScripts.lateChangeError {
+                throw MusicAppLateChange(progress: message)
+            }
             throw MusicAppScripts.editError(forScriptErrorNumber: number)
         }
         return result.stringValue

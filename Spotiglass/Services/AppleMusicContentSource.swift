@@ -52,8 +52,12 @@ protocol AppleMusicContentSource: Sendable {
     func libraryPlaylistTracks(playlistIDs: [String]) async throws -> [String: [Track]]
     /// The tracks of one playlist, or `nil` when no playlist has that ID.
     func playlistTracks(playlistID: String, limit: Int) async throws -> [Track]?
-    /// The user's library songs, most recently added first.
+    /// The songs MusicKit lists as the user's library, most recently added first. Songs that are
+    /// only in a playlist come with them (#401); `isInLibrary` tells them apart.
     func librarySongs(limit: Int, offset: Int) async throws -> [Song]
+    /// Whether a song from `librarySongs` is really in the library: only a library song has the
+    /// date it was added. Separate because MusicKit can't decode that date from JSON.
+    func isInLibrary(_ song: Song) -> Bool
     func recentlyPlayedSongs(limit: Int) async throws -> [Song]
     /// Playlists from the user's personal recommendations, in Apple's order.
     func recommendedPlaylists() async throws -> [Playlist]
@@ -133,6 +137,10 @@ struct MusicKitContentSource: AppleMusicContentSource {
         request.offset = offset
         request.sort(by: \.libraryAddedDate, ascending: false)
         return Array(try await request.response().items)
+    }
+
+    func isInLibrary(_ song: Song) -> Bool {
+        song.libraryAddedDate != nil
     }
 
     func recentlyPlayedSongs(limit: Int) async throws -> [Song] {

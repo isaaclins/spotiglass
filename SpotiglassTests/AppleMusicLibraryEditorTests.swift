@@ -941,6 +941,12 @@ final class MockLibraryLookup: AppleMusicLibraryLookup, @unchecked Sendable {
     func playlist(id: String) async throws -> AppleMusicPlaylistReference? {
         playlistsByID[id]
     }
+
+    /// Library entries by the persistent ID (MusicKit's signed form) they carry.
+    var libraryIdentitiesByPersistentID: [String: AppleMusicSongIdentity] = [:]
+    func libraryIdentity(of reference: AppleMusicSongReference) async throws -> AppleMusicSongIdentity? {
+        reference.musicKitPersistentID.flatMap { libraryIdentitiesByPersistentID[$0] }
+    }
 }
 
 final class MockCloudLibrary: AppleMusicCloudLibrary, @unchecked Sendable {
@@ -1037,6 +1043,11 @@ private final class RecordingScriptRunner: MusicAppScriptRunning, @unchecked Sen
     func run(_ source: String) async throws -> String? {
         lock.withLock { recorded.append(source) }
         return result
+    }
+
+    func settle(_ source: String) async throws -> String? {
+        lock.withLock { recorded.append(source) }
+        return nil
     }
 }
 
@@ -1208,6 +1219,7 @@ final class EditTestContentSource: AppleMusicContentSource, @unchecked Sendable 
     }
     func playlistTracks(playlistID: String, limit: Int) async throws -> [Track]? { tracksByPlaylistID[playlistID] }
     func librarySongs(limit: Int, offset: Int) async throws -> [Song] { offset == 0 ? songs : [] }
+    func isInLibrary(_ song: Song) -> Bool { true }
     func recentlyPlayedSongs(limit: Int) async throws -> [Song] { [] }
     func recommendedPlaylists() async throws -> [Playlist] { [] }
     func album(id: String) async throws -> Album? { nil }
@@ -1373,9 +1385,10 @@ final class AppleMusicPlaylistEditFixTests: XCTestCase {
         let lookupLine = try XCTUnwrap(script.range(of: "whose persistent ID is \"\(rowPersistentID)\""))
         let makeLine = try XCTUnwrap(script.range(of: "make new user playlist with properties {name:\"Spotiglass \\\"test\\\"\"}"))
         XCTAssertLessThan(lookupLine.lowerBound, makeLine.lowerBound, "a song Music can't find stops it before the playlist exists")
-        let rollback = try XCTUnwrap(script.range(of: "on error errorMessage number errorNumber\ndelete pl\nerror errorMessage number errorNumber"))
+        let rollback = try XCTUnwrap(script.range(of: "end if\ntry\nif newID is not \"\" then delete pl\non error cleanupMessage number cleanupNumber"))
         XCTAssertLessThan(makeLine.lowerBound, rollback.lowerBound)
-        XCTAssertTrue(script.hasSuffix("return persistent ID of pl\nend tell"))
+        XCTAssertTrue(script.contains("set newID to (persistent ID of pl)"))
+        XCTAssertTrue(script.hasSuffix("return newID\nend tell"))
     }
 
     func testMusicAddFindsThePlaylistAndEverySongBeforeAddingAny() throws {
@@ -1402,7 +1415,17 @@ final class AppleMusicPlaylistEditFixTests: XCTestCase {
             MusicAppScripts.removeFromPlaylist(playlist, removals: [MusicAppPlaylistRemoval(track: saved, positions: [0, 2])]),
             MusicAppScripts.renamePlaylist(.name("Spotiglass test"), to: "Renamed"),
             MusicAppScripts.deletePlaylist(playlist),
-        ]
+        ] + [
+            // What an edit runs after one of its changes answered late (#411), as the runner sends it.
+            MusicAppScripts.finishRemovingFromLibrary([track, saved]),
+            MusicAppScripts.finishRemovingFromPlaylist(playlist, entryIDs: ["4021", "4022"]),
+            MusicAppScripts.finishRenaming(.name("Spotiglass test"), to: "Renamed"),
+            MusicAppScripts.finishRenaming(playlist, to: "Renamed"),
+            MusicAppScripts.finishDeleting(playlist),
+            MusicAppScripts.takeBackAdd(playlist, progress: "5|\(rowPersistentID),EF749F4BE5C06047|"),
+            MusicAppScripts.takeBackCreate(name: "Spotiglass test", progress: "FE82FB07F4D3B512|"),
+            MusicAppScripts.takeBackCreate(name: "Spotiglass test", progress: "|FE82FB07F4D3B512"),
+        ].map { MusicAppScripts.settling($0, seconds: 600) }
         for source in scripts {
             let timed = MusicAppScripts.withTimeout(source, seconds: 60)
             let script = try XCTUnwrap(NSAppleScript(source: timed))
@@ -1457,7 +1480,10 @@ final class AppleMusicPlaylistEditFixTests: XCTestCase {
     /// opens instead of failing, and shows the song the sidebar counts.
     func testAPlaylistMusicCreatedMomentsAgoOpensWithItsSongInsteadOfFailing() async throws {
         let song = try AppleMusicFixtures.song(id: rowID, title: "Don't Stop The Music", artist: "Rihanna")
-        var found = MusicKitLibraryLookup.reference(song, identity: AppleMusicSongIdentity(encoding: song), itemID: rowID)
+        // A library song: MusicKit gives it the date it was added.
+        var found = MusicKitLibraryLookup.reference(
+            song, identity: AppleMusicSongIdentity(encoding: song), itemID: rowID, isInLibrary: true
+        )
         found.catalogID = nil
         found.cloudLibraryID = nil
         lookup.songsByID[rowID] = found
@@ -1685,9 +1711,9 @@ final class AppleMusicPlaylistEditFixTests: XCTestCase {
         )
 
         let before = try XCTUnwrap(script.range(of: "set countBefore to (count of tracks of pl)"))
-        let noted = try XCTUnwrap(script.range(of: "set end of addedIDs to (persistent ID of (contents of songItem))"))
+        let noted = try XCTUnwrap(script.range(of: "set end of addedIDs to songID"))
         let add = try XCTUnwrap(script.range(of: "duplicate (contents of songItem) to pl"))
-        let rollback = try XCTUnwrap(script.range(of: "on error errorMessage number errorNumber\nrepeat with i from (count of tracks of pl) to (countBefore + 1) by -1"))
+        let rollback = try XCTUnwrap(script.range(of: "end if\ntry\nrepeat with i from (count of tracks of pl) to (countBefore + 1) by -1"))
         XCTAssertLessThan(before.lowerBound, add.lowerBound)
         // Noted only once its add went through: a failed add must not claim a copy another
         // device appended meanwhile.
@@ -1755,9 +1781,10 @@ final class AppleMusicPlaylistEditFixTests: XCTestCase {
     // Item 4
 
     func testALibrarySongReadsAsLikedBeforeAnyLookup() {
-        XCTAssertEqual(editor.knownSongStatus(id: rowID), true)
         XCTAssertEqual(editor.knownSongStatus(id: "i.aJGomv4H36dmrrA"), true)
         XCTAssertNil(editor.knownSongStatus(id: "699902614"), "a catalog song needs the lookup")
+        // A persistent ID no read remembers can be a song that is only in a playlist (#401).
+        XCTAssertNil(editor.knownSongStatus(id: rowID), "a forgotten playlist row needs the lookup")
         pending.recordRemovedSong([rowID])
         XCTAssertEqual(editor.knownSongStatus(id: rowID), false, "removed moments ago")
     }
@@ -1808,12 +1835,14 @@ private final class RegistryLookup: AppleMusicLibraryLookup, @unchecked Sendable
     func catalogAlbumTracks(albumIDs: [String]) async throws -> [MusicTrack] { [] }
     func albums(ids: [String]) async throws -> [AppleMusicAlbumReference] { [] }
     func playlist(id: String) async throws -> AppleMusicPlaylistReference? { playlists[id] }
+    func libraryIdentity(of reference: AppleMusicSongReference) async throws -> AppleMusicSongIdentity? { nil }
 }
 
 private final class StubScriptRunner: MusicAppScriptRunning, @unchecked Sendable {
     let result: String?
     init(result: String?) { self.result = result }
     func run(_ source: String) async throws -> String? { result }
+    func settle(_ source: String) async throws -> String? { nil }
 }
 
 private final class ScriptCapture: @unchecked Sendable {
@@ -1822,4 +1851,498 @@ private final class ScriptCapture: @unchecked Sendable {
     var source: String? { lock.withLock { values.source } }
     var onMain: Bool? { lock.withLock { values.onMain } }
     func record(source: String, onMain: Bool) { lock.withLock { values = (source, onMain) } }
+}
+
+// MARK: - A change Music answers after the timeout (#411)
+
+/// Music runs a slow change to the end even after AppleScript stopped waiting for it. Each test
+/// replays that: the edit script's change times out (`MusicAppLateChange`, as the real script
+/// reports it), Music finishes it meanwhile, and the edit has to end in a state it reports truthfully.
+final class AppleMusicLateMusicChangeTests: XCTestCase {
+    private var lookup: MockLibraryLookup!
+    private var cloud: MockCloudLibrary!
+    private var runner: LateChangeRunner!
+    private var pending: AppleMusicPendingLibraryEdits!
+    private var editor: AppleMusicLibraryEditor!
+
+    /// "Don't Stop The Music" and "S&M" from 18P1, and the throwaway playlist.
+    private let rowID = "-1192152853020385209"
+    private let rowPersistentID = "EF749F4BE5C06047"
+    private let secondRowID = "3098427437907169779"
+    private let secondPersistentID = "2AFFD356AEC7D1F3"
+    private let playlistID = "-107247429512612591"
+
+    override func setUp() {
+        super.setUp()
+        lookup = MockLibraryLookup()
+        cloud = MockCloudLibrary()
+        runner = LateChangeRunner()
+        pending = AppleMusicPendingLibraryEdits()
+        editor = AppleMusicLibraryEditor(
+            lookup: lookup, cloud: cloud, musicApp: MusicAppLibraryScripting(runner: runner), pending: pending,
+            songReferences: AppleMusicSongReferenceRegistry()
+        )
+        lookup.songsByID[rowID] = AppleMusicSongReference(
+            itemID: rowID, musicAppPersistentID: rowPersistentID, isInLibrary: true,
+            title: "Don't Stop The Music", artistName: "Rihanna"
+        )
+        lookup.songsByID[secondRowID] = AppleMusicSongReference(
+            itemID: secondRowID, musicAppPersistentID: secondPersistentID, isInLibrary: true,
+            title: "S&M", artistName: "Rihanna"
+        )
+        lookup.playlistsByID[playlistID] = AppleMusicPlaylistReference(
+            name: "Spotiglass test", musicAppPersistentID: "FE82FB07F4D3B511"
+        )
+    }
+
+    func testAnUnlikeWhoseDeleteAnswersLateIsFinishedAndShown() async throws {
+        runner.lateProgress = ""
+
+        try await editor.removeSongs(ids: [rowID, secondRowID])
+
+        let settle = try XCTUnwrap(runner.settled.first)
+        XCTAssertTrue(settle.contains("persistent ID is \"\(rowPersistentID)\""))
+        XCTAssertTrue(settle.contains("persistent ID is \"\(secondPersistentID)\""))
+        // Gone already means the late delete took it; nothing errors on it.
+        XCTAssertTrue(settle.contains("if (count of found) is 1 then delete (item 1 of found)"))
+        XCTAssertFalse(settle.contains("number \(MusicAppScripts.notFoundError)"))
+        XCTAssertTrue(pending.isRemoved([rowID]), "Liked Songs shows the removal")
+    }
+
+    func testAnAddThatAnswersLateIsTakenBackOnceMusicIsDone() async throws {
+        // Music had 5 songs in the playlist, added the first song and was still adding the second.
+        runner.lateProgress = "5|\(rowPersistentID)|\(secondPersistentID)"
+
+        await XCTAssertThrowsEditError(.musicUnavailable) {
+            try await self.editor.addToPlaylist(playlistID: self.playlistID, songIDs: [self.rowID, self.secondRowID])
+        }
+
+        let settle = try XCTUnwrap(runner.settled.first)
+        XCTAssertTrue(settle.contains("persistent ID is \"FE82FB07F4D3B511\""))
+        XCTAssertTrue(settle.contains("set countBefore to 5"))
+        XCTAssertTrue(settle.contains("set addedIDs to {\"\(rowPersistentID)\", \"\(secondPersistentID)\"}"))
+        XCTAssertTrue(settle.contains("if addedIDs contains entryID then\ndelete track i of pl"))
+        XCTAssertFalse(pending.hasPendingTracks(playlistID: playlistID), "the playlist shows no add that didn't stay")
+    }
+
+    func testANewPlaylistThatAnswersLateIsDeletedAgain() async throws {
+        lookup.songsByID[rowID]?.sourcePlaylistPersistentID = "EFF09BC41F579694"
+        runner.lateProgress = "FE82FB07F4D3B512|"
+
+        await XCTAssertThrowsEditError(.musicUnavailable) {
+            _ = try await self.editor.createPlaylist(name: "Spotiglass test", ownerName: "You", songIDs: [self.rowID])
+        }
+
+        XCTAssertEqual(runner.settled, [
+            "tell application \"Music\"\ndelete (every user playlist whose persistent ID is \"FE82FB07F4D3B512\")\nend tell",
+        ])
+    }
+
+    func testAPlaylistMusicMadeLateIsFoundAmongTheNamesakes() {
+        // The make itself answered late, so the script never learned the new playlist's ID.
+        let settle = MusicAppScripts.takeBackCreate(name: "Spotiglass test", progress: "|AAAAAAAAAAAAAAAA")
+
+        XCTAssertTrue(settle.contains("set namesakesBefore to {\"AAAAAAAAAAAAAAAA\"}"))
+        XCTAssertTrue(settle.contains("repeat with candidate in (every user playlist whose name is \"Spotiglass test\")"))
+        XCTAssertTrue(settle.contains("if (count of made) is 1 then delete (item 1 of made)"))
+    }
+
+    /// The namesake search, run for real on stand-in playlists: one new namesake is the one this
+    /// edit made; two (one made on another device during the wait) can't be told apart.
+    func testOnlyAPlaylistThatIsClearlyTheNewOneIsDeleted() throws {
+        let settle = MusicAppScripts.takeBackCreate(name: "Spotiglass test", progress: "|AAAA")
+        let start = try XCTUnwrap(settle.range(of: "set made to {}")?.lowerBound)
+        let end = try XCTUnwrap(settle.range(of: "end tell", options: .backwards)?.lowerBound)
+        let search = String(settle[start..<end])
+            .replacingOccurrences(of: "(every user playlist whose name is \"Spotiglass test\")", with: "namesakes")
+            .replacingOccurrences(of: "(persistent ID of candidate)", with: "(contents of candidate)")
+            .replacingOccurrences(of: "delete (item 1 of made)", with: "return \"deleted \" & (item 1 of made)")
+        func run(_ namesakes: [String]) throws -> String? {
+            let list = namesakes.map { "\"\($0)\"" }.joined(separator: ", ")
+            let source = "set namesakesBefore to {\"AAAA\"}\nset namesakes to {\(list)}\n\(search)\nreturn \"kept\""
+            return try AppleEventMusicAppScriptRunner.executeAppleScript(source)
+        }
+
+        XCTAssertEqual(try run(["AAAA", "BBBB"]), "deleted BBBB")
+        XCTAssertEqual(try run(["AAAA"]), "kept", "the make never happened")
+        XCTAssertThrowsError(try run(["AAAA", "BBBB", "CCCC"])) { error in
+            XCTAssertEqual(error as? AppleMusicLibraryEditError, .ambiguousPlaylist)
+        }
+    }
+
+    func testAPlaylistRemovalThatAnswersLateDeletesTheEntriesItPicked() async throws {
+        runner.lateProgress = "4021,4022"
+
+        try await editor.removeFromPlaylist(
+            playlistID: playlistID, removals: [(songID: rowID, positions: [0, 3])], shownCounts: [2]
+        )
+
+        XCTAssertEqual(runner.settled.first?.contains("delete (every track of pl whose id is 4021)\ndelete (every track of pl whose id is 4022)"), true)
+        XCTAssertTrue(pending.hasPendingTracks(playlistID: playlistID), "the page shows the removal")
+    }
+
+    func testARenameOrDeleteThatAnswersLateIsFinished() async throws {
+        runner.lateProgress = ""
+        try await editor.renamePlaylist(playlistID: playlistID, name: "Renamed")
+        try await editor.deletePlaylist(playlistID: playlistID)
+
+        XCTAssertEqual(runner.settled.count, 2)
+        XCTAssertTrue(runner.settled[0].contains("set name of pl to \"Renamed\""))
+        XCTAssertTrue(runner.settled[1].hasPrefix(
+            "tell application \"Music\"\nif (count of (every user playlist whose persistent ID is \"FE82FB07F4D3B511\")) is 0 then return"
+        ), "a playlist the late delete took is done")
+    }
+
+    func testARenameByNameIsDoneOnceTheNewNameIsThere() {
+        let settle = MusicAppScripts.finishRenaming(.name("Spotiglass test"), to: "Renamed")
+
+        XCTAssertTrue(settle.contains(
+            "if (count of (every user playlist whose name is \"Spotiglass test\")) is 0 and (count of (every user playlist whose name is \"Renamed\")) is greater than 0 then return"
+        ))
+    }
+
+    /// An unlike timed out, Music carried the delete out, then quit before the settle got an
+    /// answer: the song may be gone, so "Music didn't respond, try again" would be untrue.
+    func testASettleThatFailsAnyOtherWaySaysTheChangeMayStillHappen() async {
+        runner.lateProgress = ""
+        runner.settleError = AppleMusicLibraryEditError.musicUnavailable
+
+        await XCTAssertThrowsEditError(.musicStillBusy) {
+            try await self.editor.removeSongs(ids: [self.rowID])
+        }
+        runner.settleError = AppleMusicLibraryEditError.notInMusicYet
+        await XCTAssertThrowsEditError(.musicStillBusy) {
+            try await self.editor.removeSongs(ids: [self.rowID])
+        }
+        runner.settleError = AppleMusicLibraryEditError.ambiguousSong
+        // Two songs that match alike is a state worth naming as it is.
+        await XCTAssertThrowsEditError(.ambiguousSong) {
+            try await self.editor.removeSongs(ids: [self.rowID])
+        }
+    }
+
+    func testAMusicThatStaysBusySaysTheChangeMayStillHappen() async {
+        runner.lateProgress = ""
+        runner.settleError = AppleMusicLibraryEditError.musicStillBusy
+
+        await XCTAssertThrowsEditError(.musicStillBusy) {
+            try await self.editor.removeSongs(ids: [self.rowID])
+        }
+        XCTAssertFalse(pending.isRemoved([rowID]), "nothing is shown as done while it is unknown")
+        XCTAssertEqual(AppleMusicLibraryEditError.musicStillBusy.errorDescription?.isEmpty, false)
+    }
+
+    // The AppleScript parts, run for real (no Music needed: `error … number -1712` is exactly
+    // what a change that timed out raises).
+
+    func testAChangeThatTimesOutReportsItsProgress() throws {
+        let source = (
+            ["set targetIDs to {4021, 4022}"]
+                + MusicAppScripts.changes(["error \"Music got a time out.\" number -1712"], progress: "(targetIDs as text)")
+        ).joined(separator: "\n")
+
+        XCTAssertThrowsError(try AppleEventMusicAppScriptRunner.executeAppleScript(source)) { error in
+            XCTAssertEqual(error as? MusicAppLateChange, MusicAppLateChange(progress: "4021,4022"))
+        }
+    }
+
+    func testAnAddThatTimesOutReportsWhatItAdded() throws {
+        // The add script's change part up to its timeout branch (the rollback after it needs
+        // Music's dictionary), with Music's add replaced by the timeout it answered with.
+        let script = MusicAppScripts.addToPlaylist(.persistentID("FE82FB07F4D3B511"), tracks: [.persistentID(rowPersistentID)])
+        let start = try XCTUnwrap(script.range(of: "set countBefore to (count of tracks of pl)"))
+        let branch = try XCTUnwrap(script.range(of: "number \(MusicAppScripts.lateChangeError)\nend if", range: start.upperBound..<script.endIndex))
+        var part = (String(script[start.lowerBound..<branch.upperBound]) + "\nerror errorMessage number errorNumber\nend try")
+            .replacingOccurrences(of: "set countBefore to (count of tracks of pl)", with: "set countBefore to 5")
+            .replacingOccurrences(of: "repeat with songItem in pickedSongs", with: "repeat with songItem in {\"A1\", \"B2\"}")
+            .replacingOccurrences(of: "set songID to (persistent ID of (contents of songItem))", with: "set songID to (contents of songItem)")
+        part = part.replacingOccurrences(
+            of: "duplicate (contents of songItem) to pl",
+            with: "if songID is \"B2\" then error \"Music got a time out.\" number -1712"
+        )
+
+        XCTAssertThrowsError(try AppleEventMusicAppScriptRunner.executeAppleScript(part)) { error in
+            XCTAssertEqual(error as? MusicAppLateChange, MusicAppLateChange(progress: "5|A1|B2"))
+        }
+    }
+
+    /// Adding C failed, and taking back B then timed out: Music still deletes B, but the
+    /// rollback stopped before A. The edit must take back what is left once Music answers.
+    func testARollbackThatTimesOutHalfwayIsFinishedAfterwards() throws {
+        let rollback = ["if \"B2\" is not \"\" then error \"Music got a time out.\" number -1712"]
+        let part = (["set countBefore to 5", "set addedIDs to {\"A1\", \"B2\"}"]
+            + MusicAppScripts.cleanup(rollback, progress: "(countBefore as text) & \"|\" & (addedIDs as text) & \"|\""))
+            .joined(separator: "\n")
+
+        XCTAssertThrowsError(try AppleEventMusicAppScriptRunner.executeAppleScript(part)) { error in
+            XCTAssertEqual(error as? MusicAppLateChange, MusicAppLateChange(progress: "5|A1,B2|"))
+        }
+        let add = MusicAppScripts.addToPlaylist(.persistentID("FE82FB07F4D3B511"), tracks: [.persistentID(rowPersistentID)])
+        XCTAssertTrue(add.contains("on error cleanupMessage number cleanupNumber"), "the add's rollback can end late")
+        let create = MusicAppScripts.createPlaylist(name: "Spotiglass test", tracks: [.persistentID(rowPersistentID)])
+        XCTAssertTrue(create.contains("try\nif newID is not \"\" then delete pl\non error cleanupMessage"), "so can the new playlist's delete")
+    }
+
+    func testALookupThatTimesOutChangedNothing() throws {
+        XCTAssertThrowsError(try AppleEventMusicAppScriptRunner.executeAppleScript("error \"Music got a time out.\" number -1712")) { error in
+            XCTAssertEqual(error as? AppleMusicLibraryEditError, .musicUnavailable)
+        }
+    }
+
+    func testWaitingForMusicThatNeverAnswersEndsAsStillBusy() throws {
+        let source = MusicAppScripts.settling("error \"Music got a time out.\" number -1712", seconds: 600)
+
+        XCTAssertTrue(source.hasPrefix("with timeout of 600 seconds\n"))
+        XCTAssertThrowsError(try AppleEventMusicAppScriptRunner.executeAppleScript(source)) { error in
+            XCTAssertEqual(error as? AppleMusicLibraryEditError, .musicStillBusy)
+        }
+    }
+
+    func testTheRunnerWaitsLongerOnlyWhenSettling() async throws {
+        let seen = PathRecorder()
+        let queues = PathRecorder()
+        let runner = AppleEventMusicAppScriptRunner(prepare: {}, execute: { source in
+            seen.append(source)
+            queues.append(String(cString: __dispatch_queue_get_label(nil)))
+            return nil
+        })
+
+        try await runner.run("get name")
+        try await runner.settle("get name")
+
+        // One at a time on Music's own queue, waiting or not.
+        XCTAssertEqual(queues.values, Array(repeating: "com.isaaclins.spotiglass.music-scripts", count: 2))
+        XCTAssertTrue(seen.values[0].hasPrefix("with timeout of \(AppleEventMusicAppScriptRunner.eventTimeoutSeconds) seconds"))
+        XCTAssertTrue(seen.values[1].hasPrefix("with timeout of \(AppleEventMusicAppScriptRunner.settleTimeoutSeconds) seconds"))
+        XCTAssertGreaterThan(AppleEventMusicAppScriptRunner.settleTimeoutSeconds, AppleEventMusicAppScriptRunner.eventTimeoutSeconds)
+    }
+}
+
+/// A Music whose change answers after the timeout: the edit script throws `MusicAppLateChange`
+/// with `lateProgress`, and every settle script is recorded.
+private final class LateChangeRunner: MusicAppScriptRunning, @unchecked Sendable {
+    private let lock = NSLock()
+    private var settledScripts: [String] = []
+    var lateProgress: String?
+    var settleError: Error?
+    var settled: [String] { lock.withLock { settledScripts } }
+
+    func run(_ source: String) async throws -> String? {
+        if let lateProgress { throw MusicAppLateChange(progress: lateProgress) }
+        return "FE82FB07F4D3B512"
+    }
+
+    func settle(_ source: String) async throws -> String? {
+        lock.withLock { settledScripts.append(source) }
+        if let settleError { throw settleError }
+        return nil
+    }
+}
+
+// MARK: - Songs that are only in a playlist (#401)
+
+/// 18P1's "Don't Stop The Music" and "S&M" are Apple Music songs in the playlist but not in the
+/// library: the Music app finds 0 tracks with their persistent IDs in `library playlist 1`.
+/// MusicKit lists them like library songs, without the date they were added.
+final class AppleMusicPlaylistOnlySongTests: XCTestCase {
+    private var lookup: MockLibraryLookup!
+    private var cloud: MockCloudLibrary!
+    private var musicApp: MockMusicApp!
+    private var pending: AppleMusicPendingLibraryEdits!
+    private var registry: AppleMusicSongReferenceRegistry!
+    private var editor: AppleMusicLibraryEditor!
+
+    private let rowID = "-1192152853020385209"
+    private let rowPersistentID = "EF749F4BE5C06047"
+    private let playlistID = "-7585332124925747685"
+
+    override func setUp() {
+        super.setUp()
+        lookup = MockLibraryLookup()
+        cloud = MockCloudLibrary()
+        musicApp = MockMusicApp()
+        pending = AppleMusicPendingLibraryEdits()
+        registry = AppleMusicSongReferenceRegistry(addedDate: { _ in nil })
+        editor = AppleMusicLibraryEditor(
+            lookup: RegistryBackedLookup(registry: registry, base: lookup),
+            cloud: cloud, musicApp: musicApp, pending: pending, songReferences: registry
+        )
+        // Its library entry, as MusicKit encodes it under the cloud library ID.
+        lookup.libraryIdentitiesByPersistentID[rowID] = AppleMusicSongIdentity(
+            encoded: Data(#"{"id":"i.aJGod6dt36dmrrA","type":"library-songs","attributes":{"name":"Don't Stop The Music","playParams":{"catalogId":"1441154439","musicKit_persistentID":"-1192152853020385209","kind":"song","isLibrary":true,"id":"i.aJGod6dt36dmrrA","musicKit_libraryID":"i.aJGod6dt36dmrrA"}}}"#.utf8)
+        )
+    }
+
+    /// The row exactly as MusicKit listed it in 18P1 (its `libraryAddedDate` was nil).
+    private func row() throws -> Song {
+        let attributes = #""artistName":"Rihanna","albumName":"Good Girl Gone Bad: Reloaded","name":"Don't Stop The Music","durationInMillis":267080,"playParams":{"musicKit_persistentID":"-1192152853020385209","id":"-1192152853020385209","kind":"song","musicKit_databaseID":"785BA2D7E82AE547","isLibrary":true}"#
+        let json = #"{"id":"-1192152853020385209","type":"songs","attributes":{\#(attributes)},"meta":{"musicKit_identifierSet":{"isLibrary":true,"dataSources":["localLibrary","legacyModel"],"deviceLocalID":{"databaseID":"785BA2D7E82AE547","value":"-1192152853020385209"},"type":"Song","id":"-1192152853020385209"}}}"#
+        return try AppleMusicFixtures.decode(Song.self, json)
+    }
+
+    func testAPlaylistRowWithoutAnAddedDateIsNotLiked() async throws {
+        registry.remember([.song(try row())], playlistID: playlistID)
+
+        XCTAssertEqual(editor.knownSongStatus(id: rowID), false, "the menu offers Add to Liked Songs at once")
+        let statuses = try await editor.songStatuses(ids: [rowID])
+        XCTAssertEqual(statuses, [false])
+    }
+
+    func testAPlaylistRowThatIsInTheLibraryIsLiked() async throws {
+        // "Poker Face" in 18P1 is in the library: MusicKit gives it the date it was added.
+        let added = AppleMusicSongReferenceRegistry(addedDate: { _ in Date(timeIntervalSince1970: 1_742_253_902) })
+        editor = AppleMusicLibraryEditor(
+            lookup: RegistryBackedLookup(registry: added, base: lookup),
+            cloud: cloud, musicApp: musicApp, pending: pending, songReferences: added
+        )
+        added.remember([.song(try row())], playlistID: playlistID)
+
+        XCTAssertEqual(editor.knownSongStatus(id: rowID), true)
+        let statuses = try await editor.songStatuses(ids: [rowID])
+        XCTAssertEqual(statuses, [true])
+    }
+
+    func testLikingAPlaylistOnlySongSavesItByItsCatalogID() async throws {
+        registry.remember([.song(try row())], playlistID: playlistID)
+
+        try await editor.saveSongs(ids: [rowID])
+
+        XCTAssertEqual(cloud.calls, [
+            "addToLibrary(songs:1441154439 albums:)",
+            "rate(love,1441154439,catalog)",
+        ])
+        XCTAssertEqual(editor.knownSongStatus(id: rowID), true, "the menu now offers Remove")
+        let statuses = try await editor.songStatuses(ids: [rowID])
+        XCTAssertEqual(statuses, [true])
+    }
+
+    func testUnlikingItAgainRemovesItFromTheLibraryThroughMusic() async throws {
+        registry.remember([.song(try row())], playlistID: playlistID)
+        try await editor.saveSongs(ids: [rowID])
+
+        try await editor.removeSongs(ids: [rowID])
+
+        XCTAssertEqual(musicApp.calls, ["removeFromLibrary([persistentID(\"\(rowPersistentID)\")])"])
+        XCTAssertEqual(cloud.calls.last, "rate(clear,1441154439,catalog)", "the like's love comes off again")
+        XCTAssertTrue(pending.isRemoved(["1441154439"]), "Liked Songs and search know it under its catalog ID")
+        XCTAssertEqual(editor.knownSongStatus(id: rowID), false)
+        let statuses = try await editor.songStatuses(ids: [rowID])
+        XCTAssertEqual(statuses, [false])
+    }
+
+    /// The pending like ends as soon as Liked Songs shows the song, long before 18P1 is read
+    /// again: the row must not fall back to what its first read said.
+    func testALikedRowStaysLikedOnceThePendingLikeEnds() async throws {
+        registry.remember([.song(try row())], playlistID: playlistID)
+        try await editor.saveSongs(ids: [rowID])
+
+        _ = pending.applied(
+            toLibrarySongs: [(track: AppleMusicLibraryEditorTests.track(id: "i.aJGod6dt36dmrrA", name: "Don't Stop The Music"), keys: Set(["i.aJGod6dt36dmrrA", "1441154439", rowID]))],
+            isComplete: true
+        )
+
+        XCTAssertFalse(pending.isSaved([rowID]), "the library shows the like")
+        XCTAssertEqual(editor.knownSongStatus(id: rowID), true)
+    }
+
+    /// Liked from search, the song comes by its catalog ID; its 18P1 row, remembered under the
+    /// persistent ID, must follow once the pending like ends.
+    func testALikeFromSearchReachesThePlaylistRow() async throws {
+        registry.remember([.song(try row())], playlistID: playlistID)
+        lookup.songsByID["1441154439"] = AppleMusicSongReference(
+            itemID: "1441154439", catalogID: "1441154439", cloudLibraryID: "i.aJGod6dt36dmrrA",
+            musicAppPersistentID: rowPersistentID, isInLibrary: false,
+            title: "Don't Stop The Music", artistName: "Rihanna", albumTitle: nil
+        )
+
+        try await editor.saveSongs(ids: ["1441154439"])
+        _ = pending.applied(
+            toLibrarySongs: [(track: AppleMusicLibraryEditorTests.track(id: "i.aJGod6dt36dmrrA", name: "Don't Stop The Music"), keys: Set(["i.aJGod6dt36dmrrA", "1441154439", rowID]))],
+            isComplete: true
+        )
+
+        XCTAssertEqual(editor.knownSongStatus(id: rowID), true)
+    }
+
+    /// Removing the album takes the song out of the library; its remembered row follows, so
+    /// it doesn't read as liked once the pending removal ends.
+    func testRemovingAnAlbumReachesItsRememberedRows() async throws {
+        let librarySong = AppleMusicSongReference(
+            itemID: "-5", catalogID: "51", musicAppPersistentID: "FFFFFFFFFFFFFFFB", isInLibrary: true,
+            title: "Kept", artistName: "Rihanna", albumTitle: "Good Girl Gone Bad: Reloaded"
+        )
+        registry.remember(librarySong)
+        lookup.albumsByID["-7"] = AppleMusicAlbumReference(itemID: "-7", catalogID: "70", isInLibrary: true, librarySongs: [librarySong])
+
+        try await editor.removeAlbums(ids: ["-7"])
+
+        XCTAssertEqual(registry.reference(for: "-5")?.isInLibrary, false)
+    }
+
+    func testAPlaylistOnlySongWithoutALibraryEntryIsNotLikedBlindly() async throws {
+        lookup.libraryIdentitiesByPersistentID = [:]
+        registry.remember([.song(try row())], playlistID: playlistID)
+
+        await XCTAssertThrowsEditError(.notEditable) {
+            try await self.editor.saveSongs(ids: [self.rowID])
+        }
+        XCTAssertEqual(cloud.calls, [])
+    }
+
+    func testRemovingAnAlbumLeavesOutItsSongsThatAreOnlyInAPlaylist() async throws {
+        lookup.albumsByID["l.album"] = AppleMusicAlbumReference(
+            itemID: "l.album", catalogID: nil, isInLibrary: true,
+            librarySongs: [
+                AppleMusicSongReference(itemID: "1", musicAppPersistentID: "0000000000000001", isInLibrary: true),
+                AppleMusicSongReference(itemID: rowID, musicAppPersistentID: rowPersistentID, isInLibrary: false),
+            ]
+        )
+
+        try await editor.removeAlbums(ids: ["l.album"])
+
+        XCTAssertEqual(musicApp.calls, ["removeFromLibrary([persistentID(\"0000000000000001\")])"])
+    }
+
+    /// Liked moments ago, the playlist-only song has no added date yet; removing its album must
+    /// take it out too, not leave it liked.
+    func testRemovingAnAlbumTakesOutASongLikedMomentsAgo() async throws {
+        registry.remember([.song(try row())], playlistID: playlistID)
+        try await editor.saveSongs(ids: [rowID])
+        lookup.albumsByID["l.album"] = AppleMusicAlbumReference(
+            itemID: "l.album", catalogID: nil, isInLibrary: true,
+            librarySongs: [
+                AppleMusicSongReference(itemID: "1", musicAppPersistentID: "0000000000000001", isInLibrary: true),
+                AppleMusicSongReference(itemID: rowID, musicAppPersistentID: rowPersistentID, isInLibrary: false),
+            ]
+        )
+
+        try await editor.removeAlbums(ids: ["l.album"])
+
+        XCTAssertEqual(musicApp.calls, ["removeFromLibrary([persistentID(\"0000000000000001\"), persistentID(\"\(rowPersistentID)\")])"])
+        XCTAssertEqual(editor.knownSongStatus(id: rowID), false)
+    }
+}
+
+/// The live lookup's order for a row it can't find by ID: what the playlist read remembered.
+private final class RegistryBackedLookup: AppleMusicLibraryLookup, @unchecked Sendable {
+    let registry: AppleMusicSongReferenceRegistry
+    let base: MockLibraryLookup
+
+    init(registry: AppleMusicSongReferenceRegistry, base: MockLibraryLookup) {
+        self.registry = registry
+        self.base = base
+    }
+
+    func songs(ids: [String]) async throws -> [AppleMusicSongReference] {
+        let fallback = try await base.songs(ids: ids)
+        return zip(ids, fallback).map { registry.reference(for: $0) ?? $1 }
+    }
+
+    func catalogTracks(ids: [String]) async throws -> [MusicTrack] { try await base.catalogTracks(ids: ids) }
+    func catalogAlbumTracks(albumIDs: [String]) async throws -> [MusicTrack] { try await base.catalogAlbumTracks(albumIDs: albumIDs) }
+    func albums(ids: [String]) async throws -> [AppleMusicAlbumReference] { try await base.albums(ids: ids) }
+    func playlist(id: String) async throws -> AppleMusicPlaylistReference? { try await base.playlist(id: id) }
+    func libraryIdentity(of reference: AppleMusicSongReference) async throws -> AppleMusicSongIdentity? {
+        try await base.libraryIdentity(of: reference)
+    }
 }

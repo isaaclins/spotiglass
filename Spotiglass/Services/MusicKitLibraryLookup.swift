@@ -70,6 +70,14 @@ final class AppleMusicSongReferenceRegistry: @unchecked Sendable {
     static let shared = AppleMusicSongReferenceRegistry()
     static let maxEntries = 5_000
 
+    /// The date MusicKit says a song was added to the library; separate because MusicKit can't
+    /// decode it from JSON, so tests give it.
+    let addedDate: @Sendable (Song) -> Date?
+
+    init(addedDate: @escaping @Sendable (Song) -> Date? = { $0.libraryAddedDate }) {
+        self.addedDate = addedDate
+    }
+
     private let lock = NSLock()
     private var references = LRUDictionary<String, AppleMusicSongReference>(capacity: AppleMusicSongReferenceRegistry.maxEntries)
 
@@ -81,6 +89,16 @@ final class AppleMusicSongReferenceRegistry: @unchecked Sendable {
         lock.withLock { references.value(forKey: itemID) }
     }
 
+    /// Changes every remembered row of the song with these keys: a playlist row is remembered
+    /// under its persistent ID, while a like from search names the song by its catalog ID.
+    func update(matching keys: Set<String>, _ change: (inout AppleMusicSongReference) -> Void) {
+        lock.withLock {
+            references.updateValues { reference in
+                if !reference.matchKeys.isDisjoint(with: keys) { change(&reference) }
+            }
+        }
+    }
+
     /// Records the songs of a library playlist or album that MusicKit listed under a persistent
     /// ID. `playlistID` is the playlist they were read from: a song from Apple Music can be in a
     /// playlist without being in the library, and the Music app then finds it only there.
@@ -90,7 +108,8 @@ final class AppleMusicSongReferenceRegistry: @unchecked Sendable {
             var reference = MusicKitLibraryLookup.reference(
                 song,
                 identity: AppleMusicSongIdentity(encoding: song),
-                itemID: song.id.rawValue
+                itemID: song.id.rawValue,
+                isInLibrary: addedDate(song) != nil
             )
             reference.sourcePlaylistPersistentID = playlistPersistentID
             remember(reference)
@@ -220,19 +239,35 @@ struct MusicKitLibraryLookup: AppleMusicLibraryLookup {
         !isCatalogID(id) && Int64(id) != nil
     }
 
-    /// A library song's ID: a persistent ID, or a cloud library ID (`i.…`).
-    static func isLibraryID(_ id: String) -> Bool {
-        isPersistentID(id) || id.hasPrefix("i.")
+    /// The library song with this persistent ID, as MusicKit keeps it under its cloud library ID.
+    /// A song that is only in a playlist has such an entry too, and only that entry carries its
+    /// catalog ID (#401); its title finds it, its persistent ID tells it from namesakes.
+    func libraryIdentity(of reference: AppleMusicSongReference) async throws -> AppleMusicSongIdentity? {
+        guard let title = reference.title, !title.isEmpty, let persistentID = reference.musicKitPersistentID else { return nil }
+        var request = MusicLibraryRequest<Song>()
+        request.filter(matching: \.title, equalTo: title)
+        return try await request.response().items
+            .lazy
+            .map { AppleMusicSongIdentity(encoding: $0) }
+            .first { $0.musicKitPersistentID == persistentID }
     }
 
-    static func reference(_ song: Song, identity: AppleMusicSongIdentity, itemID: String) -> AppleMusicSongReference {
+    /// `isInLibrary`: MusicKit lists a playlist's songs like library songs, and finds a
+    /// playlist-only song by its ID too; only a song in the library has the date it was added
+    /// (checked against the Music app on 22 playlist rows, #401).
+    static func reference(
+        _ song: Song,
+        identity: AppleMusicSongIdentity,
+        itemID: String,
+        isInLibrary: Bool? = nil
+    ) -> AppleMusicSongReference {
         let persistent = identity.musicKitPersistentID ?? (isCatalogID(song.id.rawValue) ? nil : song.id.rawValue)
         var reference = AppleMusicSongReference(
             itemID: itemID,
             catalogID: identity.catalogID,
             cloudLibraryID: identity.cloudLibraryID,
             musicAppPersistentID: persistent.flatMap(AppleMusicLibraryEditor.musicAppPersistentID(fromMusicKitID:)),
-            isInLibrary: true,
+            isInLibrary: isInLibrary ?? (song.libraryAddedDate != nil),
             title: song.title,
             artistName: song.artistName,
             albumTitle: song.albumTitle
