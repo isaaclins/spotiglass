@@ -272,7 +272,8 @@ struct SpotiglassApp: App {
                     sceneRegistry.setHotkeyRecording(isRecording)
                 },
                 serviceStore: serviceStore,
-                appleMusicSession: appleMusicSession
+                appleMusicSession: appleMusicSession,
+                updater: sparkleUpdater.updater
             )
             .environmentObject(authViewModel)
             .environment(\.locale, settingsStore.appLocale)

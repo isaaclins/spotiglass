@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import Sparkle
 
 struct AccountSettingsView: View {
     @ObservedObject var viewModel: AuthViewModel
@@ -8,6 +9,8 @@ struct AccountSettingsView: View {
     /// older tests) shows Spotify only, as before services existed.
     var serviceStore: MusicServiceStore? = nil
     var appleMusicSession: AppleMusicSession? = nil
+    /// Sparkle's updater for the Updates group; `nil` in previews and tests that build the pane alone.
+    var updater: SPUUpdater? = nil
 
     /// Clears every window's palette and lyrics state before a sign-out, but only when the service
     /// being signed out is the one on screen. Signing out of the other one changes nothing on
@@ -27,6 +30,9 @@ struct AccountSettingsView: View {
                     session: appleMusicSession,
                     onSignOut: { prepareForSignOut(of: .appleMusic) }
                 )
+            }
+            if let updater {
+                UpdatesSettingsSection(updater: updater)
             }
             diagnosticsSection
         }

@@ -16272,6 +16272,94 @@
           }
         }
       }
+    },
+    "settings.updates.header": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updates"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updates"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualizaciones"
+          }
+        }
+      }
+    },
+    "settings.updates.installAutomatically": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updates automatisch installieren"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Install updates automatically"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Instalar actualizaciones automáticamente"
+          }
+        }
+      }
+    },
+    "settings.updates.footer.automatic": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass sucht alle paar Stunden nach einer neuen Version, lädt sie im Hintergrund und installiert sie beim nächsten Beenden der App."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass checks for a new version every few hours, downloads it in the background and installs it the next time you quit the app."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass busca una versión nueva cada pocas horas, la descarga en segundo plano y la instala la próxima vez que cierres la app."
+          }
+        }
+      }
+    },
+    "settings.updates.footer.prompt": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass sucht alle paar Stunden nach einer neuen Version und fragt Sie, bevor sie installiert wird."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass checks for a new version every few hours and asks you before it installs one."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass busca una versión nueva cada pocas horas y te pregunta antes de instalarla."
+          }
+        }
+      }
     }
   },
   "version": "1.1"

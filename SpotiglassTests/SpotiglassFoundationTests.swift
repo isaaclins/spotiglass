@@ -1,3 +1,4 @@
+import Sparkle
 import XCTest
 @testable import Spotiglass
 
@@ -70,6 +71,66 @@ final class SpotiglassFoundationTests: XCTestCase {
 
         XCTAssertEqual(plist["SUFeedURL"] as? String, SparkleConfiguration.feedURL)
         XCTAssertEqual(plist["SUPublicEDKey"] as? String, SparkleConfiguration.publicEDKey)
+    }
+
+    /// Updates must download and install by themselves (#435). With `SUAllowsAutomaticUpdates`
+    /// false Sparkle could only ever prompt, and its once-a-day default check meant a release
+    /// took a day or more to arrive.
+    func testSparkleInfoPlistInstallsUpdatesAutomatically() throws {
+        let testsDirectory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        let plistURL = testsDirectory
+            .deletingLastPathComponent()
+            .appendingPathComponent("Spotiglass/App/SparkleInfo.plist")
+        let data = try Data(contentsOf: plistURL)
+        let source = try XCTUnwrap(
+            PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
+        )
+        // The source plist and the Info.plist the built app ships with.
+        let shipped = try XCTUnwrap(Bundle.main.infoDictionary)
+
+        for (name, plist) in [("SparkleInfo.plist", source), ("built Info.plist", shipped)] {
+            XCTAssertEqual(plist["SUEnableAutomaticChecks"] as? Bool, true, name)
+            XCTAssertEqual(plist["SUAllowsAutomaticUpdates"] as? Bool, true, name)
+            XCTAssertEqual(plist["SUAutomaticallyUpdate"] as? Bool, true, name)
+            let interval = try XCTUnwrap((plist["SUScheduledCheckInterval"] as? NSNumber)?.doubleValue, name)
+            // Sparkle ignores anything under an hour; over six hours a release can miss the day.
+            XCTAssertGreaterThanOrEqual(interval, 3600, name)
+            XCTAssertLessThanOrEqual(interval, 6 * 3600, name)
+        }
+    }
+
+    /// The Settings switch reads Sparkle's own setting, so its default is what Sparkle reports
+    /// before anyone has touched it: on. Sparkle is pointed at a copy of the shipped Info.plist
+    /// under a throwaway bundle id, so the answer comes from the plist and never from this Mac's
+    /// saved choice.
+    func testInstallUpdatesAutomaticallyDefaultsToOn() throws {
+        var info = try XCTUnwrap(Bundle.main.infoDictionary)
+        info["CFBundleIdentifier"] = "com.isaaclins.spotiglass.tests.updates-\(UUID().uuidString)"
+        let bundleURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SpotiglassUpdateDefaults-\(UUID().uuidString).app", isDirectory: true)
+        let contents = bundleURL.appendingPathComponent("Contents", isDirectory: true)
+        try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: bundleURL) }
+        let data = try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
+        try data.write(to: contents.appendingPathComponent("Info.plist"))
+        let bundle = try XCTUnwrap(Bundle(url: bundleURL))
+
+        let updater = SPUUpdater(
+            hostBundle: bundle,
+            applicationBundle: bundle,
+            userDriver: SPUStandardUserDriver(hostBundle: bundle, delegate: nil),
+            delegate: nil
+        )
+
+        XCTAssertTrue(updater.automaticallyDownloadsUpdates)
+        XCTAssertTrue(updater.automaticallyChecksForUpdates)
+        XCTAssertLessThanOrEqual(updater.updateCheckInterval, 6 * 3600)
+    }
+
+    /// Searching Settings for "update" finds the pane that holds the switch.
+    func testSettingsSearchForUpdatesFindsAccountPane() {
+        XCTAssertTrue(SpotiglassSettingsSection.account.matches(searchQuery: "update"))
+        XCTAssertTrue(SpotiglassSettingsSection.account.matches(searchQuery: "install automatically"))
     }
 
 }
