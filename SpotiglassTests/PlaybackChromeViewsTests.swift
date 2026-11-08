@@ -563,6 +563,7 @@ final class PlaybackChromeViewsTests: XCTestCase {
             }),
         ]
         let lyricsLabel = SpotiglassL10n.string("playback.controls.lyrics")
+        let progressLabel = SpotiglassL10n.string("playback.scrubber.progress")
         var sawLyrics = false
         for (state, makePlayback) in states {
             for width in [CGFloat(1_400), 1_100, 640] {
@@ -592,11 +593,14 @@ final class PlaybackChromeViewsTests: XCTestCase {
                 // artwork and Lyrics buttons, Reconnect or Retry, the transport
                 // buttons, the device menu, the volume slider or its button,
                 // and the scrubber. The artist names are links in the artist
-                // line under the title, so they sit on that line instead.
+                // line under the title, so they sit on that line instead, and
+                // the title and artist block is centred as a whole below. The
+                // times either side of the scrubber are hidden from VoiceOver;
+                // testTimesSitOnTheScrubbersCentreLine checks them.
                 let elements = try realizedAccessibilityTree(in: window)
                 let controls = elements.filter { element in
                     guard element.position != nil, element.size.height > 0 else { return false }
-                    if element.axDescription == "Playback progress" { return true }
+                    if element.axDescription == progressLabel { return true }
                     return ["AXButton", "AXMenuButton", "AXPopUpButton", "AXSlider"].contains(element.role)
                         && !element.axDescription.contains("M83") && !element.title.contains("M83")
                 }
@@ -610,9 +614,9 @@ final class PlaybackChromeViewsTests: XCTestCase {
                 let previous = try XCTUnwrap(
                     controls.first { $0.axDescription == SpotiglassL10n.string("playback.controls.previous") }, label
                 )
-                let scrubber = try XCTUnwrap(controls.first { $0.axDescription == "Playback progress" }, label)
+                let scrubber = try XCTUnwrap(controls.first { $0.axDescription == progressLabel }, label)
                 let stacked = width < 1_100
-                for control in controls where !(stacked && control.axDescription == "Playback progress") {
+                for control in controls where !(stacked && control.axDescription == progressLabel) {
                     XCTAssertEqual(midY(control), midY(previous), accuracy: 0.5, "\(name(control)) is off the centre line, \(label)")
                 }
                 if stacked {
@@ -622,6 +626,18 @@ final class PlaybackChromeViewsTests: XCTestCase {
                     controls.contains { $0.role == "AXMenuButton" || $0.role == "AXPopUpButton" } || state != "playing",
                     "the device menu is missing, \(label)"
                 )
+                // The title and the artist line under it, as one block: its
+                // top and bottom sit the same distance from the centre line.
+                if state != "disconnected", state != "reconnect", state != "retry" {
+                    let text = elements.filter { element in
+                        guard element.position != nil, element.size.height > 0 else { return false }
+                        return [element.value, element.title, element.axDescription].contains { $0 == "Midnight City" || $0.contains("M83") }
+                    }
+                    let top = try XCTUnwrap(text.compactMap { $0.position?.y }.min(), "no title or artist, \(label)")
+                    let bottom = try XCTUnwrap(text.compactMap { element in element.position.map { $0.y + element.size.height } }.max())
+                    XCTAssertGreaterThan(text.count, 1, "the title and artist were not both found, \(text)")
+                    XCTAssertEqual((top + bottom) / 2, midY(previous), accuracy: 1, "the title and artist are off the centre line, \(text), \(label)")
+                }
                 if state == "apple music" {
                     XCTAssertTrue(controls.contains { $0.axDescription == lyricsLabel }, "Apple Music shows its Lyrics button, \(label)")
                     XCTAssertFalse(controls.contains { $0.axDescription == SpotiglassL10n.string("playback.controls.volume") }, "Apple Music has no volume control, \(label)")

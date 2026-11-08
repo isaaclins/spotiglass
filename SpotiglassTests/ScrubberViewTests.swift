@@ -250,6 +250,57 @@ final class ScrubberViewTests: XCTestCase {
         XCTAssertLessThan(brightness(atX: margin + barWidth + 12), 0.2)
     }
 
+    /// The times either side of the bar sit on the bar's centre line, like
+    /// every other part of the player bar (#427). They are hidden from
+    /// VoiceOver (the bar's value reads them), so this reads their pixels.
+    func testTimesSitOnTheScrubbersCentreLine() throws {
+        let width: CGFloat = 400, height: CGFloat = 60
+        let view = PlaybackProgressScrubberGroup(
+            progressAnchor: PlaybackProgressAnchor(
+                positionMilliseconds: 60_000,
+                anchorDate: Date(),
+                durationMilliseconds: 180_000,
+                isAdvancing: false
+            ),
+            durationMilliseconds: 180_000,
+            isEnabled: true,
+            onSeek: { _ in }
+        )
+        .frame(width: width, height: height)
+        .background(Color.black)
+        .environment(\.colorScheme, .dark)
+        let host = NSHostingView(rootView: view)
+        host.frame = NSRect(x: 0, y: 0, width: width, height: height)
+        host.layoutSubtreeIfNeeded()
+        AppKitTestSupport.pumpRunLoop(for: 0.1)
+
+        let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+        host.cacheDisplay(in: host.bounds, to: bitmap)
+        let scale = CGFloat(bitmap.pixelsWide) / width
+        // The vertical middle (in points, from the top) of everything brighter
+        // than the black background between two x positions.
+        func inkCentre(fromX minX: CGFloat, toX maxX: CGFloat) -> CGFloat? {
+            var rows: [Int] = []
+            for row in 0..<bitmap.pixelsHigh {
+                let lit = stride(from: Int(minX * scale), to: Int(maxX * scale), by: 1).contains { column in
+                    (bitmap.colorAt(x: column, y: row)?.usingColorSpace(.sRGB)?.brightnessComponent ?? 0) > 0.25
+                }
+                if lit { rows.append(row) }
+            }
+            guard let first = rows.first, let last = rows.last else { return nil }
+            return CGFloat(first + last + 1) / 2 / scale
+        }
+        // The elapsed time is the first 36 pt, the remaining time the last 40;
+        // the played part of the bar starts 8 pt after the elapsed time.
+        let bar = try XCTUnwrap(inkCentre(fromX: 60, toX: 80), "the played part of the bar is not drawn")
+        let elapsed = try XCTUnwrap(inkCentre(fromX: 0, toX: 36), "the elapsed time is not drawn")
+        let remaining = try XCTUnwrap(inkCentre(fromX: width - 40, toX: width), "the remaining time is not drawn")
+        // Digits sit a little above their line's middle, so 1.5 pt of slack;
+        // the Lyrics button was 8 pt off.
+        XCTAssertEqual(elapsed, bar, accuracy: 1.5, "the elapsed time is off the bar's centre line")
+        XCTAssertEqual(remaining, bar, accuracy: 1.5, "the remaining time is off the bar's centre line")
+    }
+
     // MARK: - Helpers
 
     private func hostGroup(isAdvancing: Bool, onSeek: @escaping (Int) -> Void) -> NSWindow {
