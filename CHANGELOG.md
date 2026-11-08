@@ -25,7 +25,7 @@
 - After a language switch your own playlists keep **Edit playlist name**, and the sidebar collapses in a narrow window instead of getting cut off.
 - In Apple Music, adding songs from your playlists and library albums to a playlist works, **New playlist…** never leaves an empty playlist behind, and a failed add takes back what it added.
 - An Apple Music edit that takes Music longer than 60 seconds no longer goes through after Spotiglass said it failed. Spotiglass waits for Music and reports what really happened.
-- Songs that are only in a playlist, not in your library, no longer show as liked.
+- In Apple Music, songs that are only in a playlist, not in your library, no longer show as liked.
 - The Spotify response and lyrics caches on disk now have size limits and drop what they no longer need.
 - Clicking a track with shuffle on played a different one, the transport could stay stuck on "Transferring playback...", and picking an album in the command palette did nothing.
 - The device menu showed no checkmark, the scrubber could shrink to nothing in a narrow window, the transport buttons had no VoiceOver labels, Toggle Lyrics did nothing without saying why, Shuffle and Repeat showed no state in the Playback menu, and File › Load All Your Songs showed no progress.
