@@ -74,6 +74,12 @@ final class AutomaticUpdatesViewModel: ObservableObject {
         updater.checkForUpdates()
     }
 
+    /// What the footer under the switch says: installs by itself, asks first, or doesn't check.
+    var footerKey: String {
+        if installsAutomatically { return "settings.updates.footer.automatic" }
+        return checksAutomatically ? "settings.updates.footer.prompt" : "settings.updates.footer.manual"
+    }
+
     private func refresh() {
         let checks = updater.automaticallyChecksForUpdates
         let installs = checks && updater.automaticallyDownloadsUpdates
@@ -90,10 +96,6 @@ struct UpdatesSettingsSection: View {
         _viewModel = StateObject(wrappedValue: AutomaticUpdatesViewModel(updater: updater))
     }
 
-    private var footerKey: String {
-        if viewModel.installsAutomatically { return "settings.updates.footer.automatic" }
-        return viewModel.checksAutomatically ? "settings.updates.footer.prompt" : "settings.updates.footer.manual"
-    }
 
     var body: some View {
         Section {
@@ -115,7 +117,7 @@ struct UpdatesSettingsSection: View {
         } header: {
             Text(SpotiglassL10n.string("settings.updates.header"))
         } footer: {
-            Text(SpotiglassL10n.string(footerKey))
+            Text(SpotiglassL10n.string(viewModel.footerKey))
             .foregroundStyle(.secondary)
         }
     }

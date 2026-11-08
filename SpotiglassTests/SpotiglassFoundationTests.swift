@@ -1,3 +1,5 @@
+import AppKit
+import SwiftUI
 import Sparkle
 import XCTest
 @testable import Spotiglass
@@ -115,6 +117,7 @@ final class SpotiglassFoundationTests: XCTestCase {
         let viewModel = AutomaticUpdatesViewModel(updater: updater)
         XCTAssertTrue(viewModel.installsAutomatically)
         XCTAssertTrue(viewModel.checksAutomatically)
+        XCTAssertEqual(viewModel.footerKey, "settings.updates.footer.automatic")
     }
 
     /// Sparkle's update alert has its own "Automatically download and install updates in the
@@ -147,6 +150,7 @@ final class SpotiglassFoundationTests: XCTestCase {
 
         XCTAssertFalse(viewModel.checksAutomatically)
         XCTAssertFalse(viewModel.installsAutomatically)
+        XCTAssertEqual(viewModel.footerKey, "settings.updates.footer.manual")
 
         viewModel.setInstallsAutomatically(true)
         XCTAssertTrue(updater.automaticallyChecksForUpdates)
@@ -158,6 +162,41 @@ final class SpotiglassFoundationTests: XCTestCase {
         XCTAssertTrue(updater.automaticallyChecksForUpdates)
         XCTAssertFalse(viewModel.installsAutomatically)
         XCTAssertTrue(viewModel.checksAutomatically)
+        XCTAssertEqual(viewModel.footerKey, "settings.updates.footer.prompt")
+    }
+
+    /// The Updates group draws in each of its three states, in light and dark, and every footer
+    /// it can show has a translation in each language the app ships.
+    @MainActor
+    func testUpdatesSectionRendersEveryState() throws {
+        for (checks, downloads) in [(true, true), (true, false), (false, false)] {
+            let throwaway = try ThrowawayUpdaterBundle()
+            defer { throwaway.remove() }
+            throwaway.defaults.set(checks, forKey: "SUEnableAutomaticChecks")
+            throwaway.defaults.set(downloads, forKey: "SUAutomaticallyUpdate")
+            let updater = throwaway.makeUpdater()
+            let footerKey = AutomaticUpdatesViewModel(updater: updater).footerKey
+            for language in ["en", "de", "es"] {
+                let text = SpotiglassL10n.string(footerKey, locale: Locale(identifier: language))
+                XCTAssertNotEqual(text, footerKey, "\(footerKey) has no \(language) text")
+            }
+
+            for scheme in [ColorScheme.light, .dark] {
+                let host = NSHostingView(rootView: Form {
+                    UpdatesSettingsSection(updater: updater)
+                    CheckForUpdatesView(updater: updater)
+                }
+                .formStyle(.grouped)
+                .environment(\.colorScheme, scheme)
+                .frame(width: 560))
+                host.frame = NSRect(origin: .zero, size: host.fittingSize)
+                host.layoutSubtreeIfNeeded()
+                AppKitTestSupport.pumpRunLoop(for: 0.05)
+                let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+                host.cacheDisplay(in: host.bounds, to: bitmap)
+                XCTAssertGreaterThan(host.bounds.height, 100)
+            }
+        }
     }
 
     /// Spins the main run loop (where the view model receives changes) until `condition` holds.
