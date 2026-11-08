@@ -79,7 +79,7 @@ final class LyricsOverlayControllerTests: XCTestCase {
         focusContainer.autoresizingMask = [.width, .height]
         root.addSubview(focusContainer)
 
-        let window = NSWindow(
+        let window = OffscreenTestWindow(
             contentRect: NSRect(x: 0, y: 0, width: 320, height: 240),
             styleMask: [.titled],
             backing: .buffered,

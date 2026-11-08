@@ -11,7 +11,7 @@ final class SettingsWindowChromeTests: XCTestCase {
     }
 
     private func makeWindow() -> NSWindow {
-        let window = NSWindow(
+        let window = OffscreenTestWindow(
             contentRect: NSRect(x: 0, y: 0, width: 320, height: 240),
             styleMask: [.titled, .closable],
             backing: .buffered,

@@ -312,7 +312,7 @@ final class ScrubberViewTests: XCTestCase {
 /// SwiftUI hands mouse events to gestures only in the key window. A test run
 /// cannot always make its process the active app, so this window reports
 /// itself key without taking focus from whatever is in front.
-private final class ClickableTestWindow: NSPanel {
+private final class ClickableTestWindow: OffscreenTestPanel {
     override var canBecomeKey: Bool { true }
     override var isKeyWindow: Bool { true }
 }
