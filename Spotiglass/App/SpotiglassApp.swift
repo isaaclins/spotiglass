@@ -3,6 +3,8 @@ import SwiftUI
 @main
 struct SpotiglassApp: App {
     private let sparkleUpdater = SparkleUpdaterController()
+    /// Keeps the unit-test host in the background (#418); a normal launch is untouched.
+    @NSApplicationDelegateAdaptor(SpotiglassApplicationDelegate.self) private var applicationDelegate
     @StateObject private var authViewModel: AuthViewModel
     @StateObject private var settingsStore: SpotiglassSettingsStore
     /// Main-window palette state lives in each ``SpotiglassSceneHost``; the
@@ -190,6 +192,8 @@ struct SpotiglassApp: App {
                 .frame(minWidth: 520, minHeight: 360)
         }
         .windowResizability(.contentMinSize)
+        // The unit-test host opens no main window (#418): tests that need a window make their own.
+        .defaultLaunchBehavior(AppMetadata.isRunningUnitTests ? .suppressed : .automatic)
         .commands {
             CommandGroup(after: .appInfo) {
                 CheckForUpdatesView(updater: sparkleUpdater.updater)
@@ -266,5 +270,16 @@ struct SpotiglassApp: App {
             .environment(\.spotiglassLocale, settingsStore.appLocale)
             .preferredColorScheme(preferredColorScheme)
         }
+    }
+}
+
+/// App-level AppKit hooks that SwiftUI has no scene modifier for.
+final class SpotiglassApplicationDelegate: NSObject, NSApplicationDelegate {
+    /// Under `make test` the app is only the XCTest host. Several test runs share the Mac with
+    /// people using it, so the host must never come to the front or take keyboard focus (#418).
+    /// Setting the policy before launch finishes is what stops the launch-time activation.
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        guard AppMetadata.isRunningUnitTests else { return }
+        NSApp.setActivationPolicy(.prohibited)
     }
 }

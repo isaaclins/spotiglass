@@ -118,7 +118,7 @@ final class CommandPaletteEventMonitorTests: XCTestCase {
         )
         recorder.coordinator = recorderCoordinator
 
-        let window = NSWindow(
+        let window = OffscreenTestWindow(
             contentRect: NSRect(x: 0, y: 0, width: 240, height: 40),
             styleMask: [.titled],
             backing: .buffered,

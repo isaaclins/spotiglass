@@ -82,7 +82,7 @@ final class ZHotkeyRecorderFieldTests: XCTestCase {
         view.coordinator = coordinator
         var window: NSWindow?
         if attachWindow {
-            let w = NSWindow(
+            let w = OffscreenTestWindow(
                 contentRect: NSRect(x: 0, y: 0, width: 240, height: 40),
                 styleMask: [.titled],
                 backing: .buffered,

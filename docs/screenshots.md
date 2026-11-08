@@ -56,6 +56,18 @@ app's preferences are saved at `start` and put back at `stop`. Without the optio
 never reaches MusicKit.
 `SHOTS_DIR` changes the output folder, `WINDOW_FRAME="x, y, width, height"` the window size.
 
+`appearance light` or `appearance dark` switches the macOS appearance while the app runs, the way
+System Settings does, to check how the window takes a live theme change (set Settings → Appearance
+→ Color scheme to System first; Light and Dark there switch only the app). The first switch
+remembers your appearance and `stop` puts it back.
+
+Both backups (the real app's preferences and your appearance) are kept in
+`~/Library/Application Support/Spotiglass Screenshot Mode`, outside `build/`, so cleaning the build
+folder can't lose them. The checkout that saved them owns them until its `stop` puts them back:
+meanwhile `start --with-apple-music` and `appearance` in another checkout refuse to run, and `stop`
+there leaves the backups alone. If the owner's folder was deleted, any checkout takes them over. If one can't be put back, `stop` says so, keeps that backup and exits with
+an error; run it again.
+
 `key` posts a real key event with its virtual key code (the app's keymap matches on key codes, so
 text typed by other tools does not trigger shortcuts). Modifiers are `cmd`, `shift`, `alt` and
 `ctrl`. Common codes: K 40, F 3, comma 43, L 37, W 13, 1 18, 2 19, escape 53, return 36, delete 51.

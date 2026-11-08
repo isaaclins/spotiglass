@@ -93,7 +93,7 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
 
     func testFocusedKeyOwnerOnlyDefersEventsItOwns() {
         let owner = TestFocusedKeyEventOwnerView(ownedKeyCode: 49)
-        let window = NSWindow(
+        let window = OffscreenTestWindow(
             contentRect: NSRect(x: 0, y: 0, width: 80, height: 40),
             styleMask: [.titled],
             backing: .buffered,
@@ -143,7 +143,7 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
             isActive: true,
             keymapStore: keymap
         )
-        let window = NSWindow(
+        let window = OffscreenTestWindow(
             contentRect: NSRect(x: 0, y: 0, width: 80, height: 40),
             styleMask: [.titled],
             backing: .buffered,
@@ -194,7 +194,7 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
             isActive: true,
             keymapStore: keymap
         )
-        let window = NSWindow(
+        let window = OffscreenTestWindow(
             contentRect: NSRect(x: 0, y: 0, width: 80, height: 40),
             styleMask: [.titled],
             backing: .buffered,

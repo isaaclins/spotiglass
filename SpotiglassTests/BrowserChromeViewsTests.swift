@@ -159,7 +159,7 @@ final class BrowserChromeViewsTests: XCTestCase {
     func testPausingEasesTheBarsToTheirPausedHeights() throws {
         let bars = WaveformBarsView()
         bars.frame = CGRect(x: 0, y: 0, width: 13, height: 14)
-        let window = NSWindow(
+        let window = OffscreenTestWindow(
             contentRect: NSRect(x: 0, y: 0, width: 40, height: 40),
             styleMask: [.borderless],
             backing: .buffered,
