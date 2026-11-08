@@ -38,7 +38,7 @@
     --muted: #aaa298;
     --line: #36302c;
     --accent: #d23a4f;
-    --accent-hover: #e04a5f;
+    --accent-hover: #c0334a;
     --on-accent: #ffffff;
     --band: #0c0b0a;
     --band-ink: #f2ede6;
@@ -224,6 +224,10 @@ kbd {
 .closing__links { display: flex; flex-wrap: wrap; gap: 4px 22px; }
 .closing__links a { display: inline-flex; align-items: center; min-height: 44px; text-decoration: none; color: var(--closing-ink); }
 .closing__links a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.closing :focus-visible { outline-color: var(--closing-ink); }
+.section--ink :focus-visible { outline-color: var(--band-ink); }
+.hero__meta a { color: inherit; text-underline-offset: 3px; text-decoration-color: color-mix(in srgb, currentColor 45%, transparent); }
+.hero__meta a:hover { color: var(--ink); text-decoration-color: currentColor; }
 .closing__legal { font-size: 14px; color: var(--closing-muted); max-width: 52em; }
 
 /* Tablet and up */
