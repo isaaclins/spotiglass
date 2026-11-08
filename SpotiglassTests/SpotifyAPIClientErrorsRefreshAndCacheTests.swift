@@ -247,30 +247,40 @@ final class SpotifyAPIClientErrorsRefreshAndCacheTests: XCTestCase {
         }
     }
 
+    /// The second 401 reaches the provider while the first refresh is still
+    /// running and must join it. Each step waits for the previous one to be
+    /// observed (the refresh started, the second request joined it) before the
+    /// refresh is released, so a slow runner can't reorder them. The late-401
+    /// order is covered by the next test.
     func testConcurrentUnauthorizedRequestsShareSingleRefresh() async throws {
-        let unauthorizedRequestsReady = AsyncSignal()
-        let httpClient = TokenAwareUnauthorizedHTTPClient(unauthorizedRequestsReady: unauthorizedRequestsReady)
+        let httpClient = TokenAwareUnauthorizedHTTPClient()
         let refreshStarted = AsyncSignal()
+        let refreshJoined = AsyncSignal()
         let releaseRefresh = AsyncSignal()
         let tokenProvider = SingleFlightRefreshingTokenProvider(
             refreshStarted: refreshStarted,
+            refreshJoined: refreshJoined,
             releaseRefresh: releaseRefresh
         )
         let client = SpotifyAPIClient(tokenProvider: tokenProvider, httpClient: httpClient)
 
+        // The timeouts only keep a broken client from hanging the suite; on the
+        // happy path both signals arrive long before them.
         async let first = client.currentUserProfile()
-        let didStartRefresh = await refreshStarted.wait(timeout: .seconds(1))
-        XCTAssertTrue(didStartRefresh)
+        let didStartRefresh = await refreshStarted.wait(timeout: .seconds(30))
+        XCTAssertTrue(didStartRefresh, "The first 401 should start a refresh.")
         async let second = client.currentUserProfile()
-        let didStartBothRequests = await unauthorizedRequestsReady.wait(timeout: .seconds(1))
-        XCTAssertTrue(didStartBothRequests)
+        let didJoinRefresh = await refreshJoined.wait(timeout: .seconds(30))
+        XCTAssertTrue(didJoinRefresh, "The second 401 should join the refresh that is still running.")
         releaseRefresh.signal()
         let (a, b) = try await (first, second)
         let refreshCount = await tokenProvider.refreshCount
+        let joinedRefreshCount = await tokenProvider.joinedRefreshCount
 
         XCTAssertEqual(a.displayName, "AfterRefresh")
         XCTAssertEqual(b.displayName, "AfterRefresh")
         XCTAssertEqual(refreshCount, 1, "Concurrent unauthorized requests should reuse one refresh flight.")
+        XCTAssertEqual(joinedRefreshCount, 1)
         XCTAssertEqual(httpClient.unauthorizedRequestCount, 2)
         XCTAssertEqual(httpClient.refreshedRequestCount, 2)
     }
