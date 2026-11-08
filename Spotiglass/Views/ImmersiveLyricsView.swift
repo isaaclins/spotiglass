@@ -107,9 +107,17 @@ struct ImmersiveLyricsView: View {
         playbackViewModel.currentLyricTrack
     }
 
-    @ViewBuilder
+    /// Follows each new position from the player; the session publishes only track and state
+    /// changes (#409).
     private var lyricsMainLayout: some View {
-        if let anchor = playbackViewModel.progressAnchor, anchor.isAdvancing {
+        PlaybackProgressReader(progress: playbackViewModel.progress) { anchor in
+            lyricsMainLayout(anchor: anchor)
+        }
+    }
+
+    @ViewBuilder
+    private func lyricsMainLayout(anchor: PlaybackProgressAnchor?) -> some View {
+        if let anchor, anchor.isAdvancing {
             TimelineView(.animation) { context in
                 immersiveMainLayout(
                     positionMs: LrcLineParser.effectivePositionMs(
@@ -120,7 +128,10 @@ struct ImmersiveLyricsView: View {
             }
         } else {
             immersiveMainLayout(
-                positionMs: LrcLineParser.effectivePositionMs(positionMs: staticPositionMs, offsetMs: lyricsOffsetMs)
+                positionMs: LrcLineParser.effectivePositionMs(
+                    positionMs: staticPositionMs(anchor: anchor),
+                    offsetMs: lyricsOffsetMs
+                )
             )
         }
     }
@@ -141,8 +152,8 @@ struct ImmersiveLyricsView: View {
     }
 
     /// Frozen position when paused or between anchors; playback uses `progressAnchor` + `TimelineView` instead.
-    private var staticPositionMs: Int {
-        if let anchor = playbackViewModel.progressAnchor {
+    private func staticPositionMs(anchor: PlaybackProgressAnchor?) -> Int {
+        if let anchor {
             return anchor.positionMilliseconds
         }
         switch playbackViewModel.connectionState {

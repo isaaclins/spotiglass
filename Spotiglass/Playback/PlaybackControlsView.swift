@@ -553,14 +553,18 @@ struct PlaybackControlsView: View {
     }
 
     private var centerScrubberGroup: some View {
-        PlaybackProgressScrubberGroup(
-            progressAnchor: viewModel.progressAnchor,
-            durationMilliseconds: nowPlaying?.durationMilliseconds ?? 0,
-            isEnabled: nowPlaying != nil,
-            onSeek: { milliseconds in
-                Task { await viewModel.seek(to: milliseconds) }
-            }
-        )
+        // Only the scrubber follows each new position; the rest of the bar re-renders when the
+        // track or the play state changes (#409).
+        PlaybackProgressReader(progress: viewModel.progress) { [viewModel] anchor in
+            PlaybackProgressScrubberGroup(
+                progressAnchor: anchor,
+                durationMilliseconds: nowPlaying?.durationMilliseconds ?? 0,
+                isEnabled: nowPlaying != nil,
+                onSeek: { milliseconds in
+                    Task { await viewModel.seek(to: milliseconds) }
+                }
+            )
+        }
     }
 
     private var controlsCluster: some View {

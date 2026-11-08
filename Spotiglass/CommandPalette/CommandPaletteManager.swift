@@ -130,6 +130,13 @@ final class CommandPaletteManager: ObservableObject {
             .store(in: &cancellables)
     }
 
+    /// Sets ``canMutatePlaybackTransport`` only when it changes: every published change re-renders
+    /// the menus and the browser, and the session reports its state many times a minute (#409).
+    func setPlaybackTransportMutability(_ ready: Bool) {
+        guard canMutatePlaybackTransport != ready else { return }
+        canMutatePlaybackTransport = ready
+    }
+
     func setPlaybackToggleAvailability(_ available: Bool) {
         guard canTogglePlayback != available else { return }
         canTogglePlayback = available
@@ -169,7 +176,7 @@ final class CommandPaletteManager: ObservableObject {
         canMutatePlaybackTransport = playback.isTransportMutationReady
 
         Publishers.CombineLatest4(
-            playback.$connectionState,
+            playback.connectionStatePublisher,
             playback.$deviceID,
             playback.$activePlaybackDeviceID,
             playback.$isTransportStateKnown
@@ -183,18 +190,22 @@ final class CommandPaletteManager: ObservableObject {
                 )
             )
             self?.setLyricsToggleAvailability(connectionState.currentLyricTrack != nil)
-            self?.canMutatePlaybackTransport = isTransportStateKnown
-                && PlaybackSessionViewModel.isPlaybackTransportReady(for: connectionState)
-                && (activePlaybackDeviceID ?? deviceID) != nil
+            self?.setPlaybackTransportMutability(
+                isTransportStateKnown
+                    && PlaybackSessionViewModel.isPlaybackTransportReady(for: connectionState)
+                    && (activePlaybackDeviceID ?? deviceID) != nil
+            )
         }
         .store(in: &playbackReadinessCancellables)
 
         playback.$shuffleEnabled
+            .removeDuplicates()
             .sink { [weak self] enabled in
                 self?.shuffleEnabled = enabled
             }
             .store(in: &playbackReadinessCancellables)
         playback.$repeatMode
+            .removeDuplicates()
             .sink { [weak self] mode in
                 self?.repeatMode = mode
             }

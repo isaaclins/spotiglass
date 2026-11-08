@@ -387,10 +387,10 @@ struct PlaylistBrowserView: View {
             syncTrackSelectionMenuState()
         }
         .onChange(of: playbackViewModel.connectionState) { _, _ in
-            commandPaletteManager.canMutatePlaybackTransport = playbackViewModel.isTransportMutationReady
+            commandPaletteManager.setPlaybackTransportMutability(playbackViewModel.isTransportMutationReady)
         }
         .onChange(of: playbackViewModel.isTransportStateKnown) { _, _ in
-            commandPaletteManager.canMutatePlaybackTransport = playbackViewModel.isTransportMutationReady
+            commandPaletteManager.setPlaybackTransportMutability(playbackViewModel.isTransportMutationReady)
         }
         .onChange(of: pinnedStore.items) { _, _ in
             // Auth teardown detaches this scene before clearing account-bound
