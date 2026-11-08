@@ -1,7 +1,7 @@
 # Contributing to Spotiglass
 
 Thank you for your interest in improving Spotiglass. This project is a personal
-macOS Spotify client; contributions are welcome within the scope below.
+macOS client for Spotify and Apple Music; contributions are welcome within the scope below.
 
 ## License
 

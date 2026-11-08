@@ -1,6 +1,6 @@
 ## Sidebar pins
 
-Spotiglass can pin playlists, artists, albums, and individual tracks to the **Library** section of the sidebar. Pins are per Spotify user (see [Data storage](data-storage.md) for the on-disk path).
+Spotiglass can pin playlists, artists, albums, and individual tracks to the **Library** section of the sidebar. Pins are per account: one set per Spotify user and one for the Apple Music library (see [Data storage](data-storage.md) for the on-disk path).
 
 ## Gestures
 

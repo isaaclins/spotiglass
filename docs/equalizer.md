@@ -1,7 +1,8 @@
 # Equalizer
 
-Spotiglass ships a realtime 10-band graphic equalizer that filters Spotify
-Web Playback SDK audio. **Spotiglass EQ requires NO microphone or
+Spotiglass ships a realtime 10-band graphic equalizer that filters what
+Spotiglass plays, from Spotify's Web Playback SDK and from Apple Music's player,
+since both play to the system default output. **Spotiglass EQ requires NO microphone or
 audio-recording permission.** The EQ does not tap, record, or capture audio
 input from anywhere — it is a virtual *output* device installed as a CoreAudio
 `AudioServerPlugIn`. Music routed through it is filtered in the IO callback

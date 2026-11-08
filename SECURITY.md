@@ -33,7 +33,7 @@ In scope:
 
 Out of scope:
 
-- Vulnerabilities in Spotify's services or SDKs (report those to Spotify)
+- Vulnerabilities in Spotify's or Apple's services or SDKs, such as the Web Playback SDK, MusicKit or the Apple Music API (report those to Spotify or Apple)
 - Social engineering or physical access to an unlocked Mac with an active session
 - Issues that require a user to install a malicious modified build from an untrusted source
 

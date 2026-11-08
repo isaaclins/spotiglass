@@ -1,6 +1,6 @@
 # Support Spotiglass
 
-Spotiglass is a native macOS Spotify client built in the open (SwiftUI, OAuth PKCE, Web Playback SDK).
+Spotiglass is a native macOS client for Spotify and Apple Music, built in the open (SwiftUI, MusicKit, OAuth PKCE, Web Playback SDK).
 
 ## Ways to help
 

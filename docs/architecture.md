@@ -1,7 +1,9 @@
 # Architecture
 
-Spotiglass is a native macOS SwiftUI app: OAuth PKCE sign-in, Spotify Web API for
-library data, and Web Playback SDK audio through a hidden `WKWebView`.
+Spotiglass is a native macOS SwiftUI app for Spotify and Apple Music. Spotify uses
+OAuth PKCE sign-in, the Spotify Web API for library data, and Web Playback SDK audio
+through a hidden `WKWebView`. Apple Music uses MusicKit for the library, the catalog and
+playback ([Apple Music](apple-music.md)).
 
 ## Module map
 
@@ -9,7 +11,7 @@ library data, and Web Playback SDK audio through a hidden `WKWebView`.
 |--------|----------------|
 | [`Spotiglass/App/`](../Spotiglass/App/) | `@main`, environment objects, Settings scene, test vs production Keychain |
 | [`Spotiglass/Auth/`](../Spotiglass/Auth/) | PKCE, loopback OAuth, token refresh, `AuthViewModel` |
-| [`Spotiglass/Services/`](../Spotiglass/Services/) | `SpotifyAPIClient`, DTO decoding, GET cache, LRC lyrics client |
+| [`Spotiglass/Services/`](../Spotiglass/Services/) | `SpotifyAPIClient`, the Apple Music providers (`AppleMusic*.swift`), DTO decoding, GET cache, LRC lyrics client |
 | [`Spotiglass/Domain/`](../Spotiglass/Domain/) | Service-neutral models (`MusicTrack`, `MusicPlaylistSummary`, ...) decoupled from wire DTOs |
 | [`Spotiglass/Browsing/`](../Spotiglass/Browsing/) | `MusicBrowsingProvider`, row view models, load state, sidebar library types |
 | [`Spotiglass/Views/`](../Spotiglass/Views/) | SwiftUI shell: playlist browser UI, immersive lyrics, queue, chrome |
@@ -19,7 +21,7 @@ library data, and Web Playback SDK audio through a hidden `WKWebView`.
 | [`Spotiglass/Persistence/`](../Spotiglass/Persistence/) | Keychain refresh tokens, playlist disk cache, lyrics cache |
 | [`Spotiglass/Settings/`](../Spotiglass/Settings/) | `settings.json`, appearance, playback prefs, account UI |
 | [`Spotiglass/Utilities/`](../Spotiglass/Utilities/) | Cross-cutting helpers (artwork cache, rate-limit display, width policy) |
-| [`Spotiglass/Infrastructure/`](../Spotiglass/Infrastructure/) | Shared logging (`SpotiglassLog`) |
+| [`Spotiglass/Infrastructure/`](../Spotiglass/Infrastructure/) | Shared logging (`SpotiglassLog`), the music service list (`MusicServiceSelection.swift`) |
 
 ## Dependency direction
 
@@ -50,7 +52,7 @@ flowchart TB
 
 ## Music providers
 
-Apple Music support (#372) lands as a series of small changes; the first one puts
+Apple Music support (#372) came as a series of small changes; the first one put
 a service-neutral layer between the browser and Spotify without changing what
 anyone sees.
 
@@ -66,7 +68,7 @@ anyone sees.
 | Lyrics key | `PlaybackNowPlaying.lyricsTrackKey` in `Services/LrcLibClient.swift` | Neutral: a Spotify track keeps its bare track id (existing cached lyrics still load), an Apple Music song uses `applemusic-song-<id>`. |
 | Auth and session (connect, disconnect, current account) | `Auth/` | Still Spotify-specific. Next slice. |
 | Browsing errors | `SpotifyAPIError` | The view models still map Spotify errors. Apple Music failures surface through `localizedDescription` (`AppleMusicBrowsingError` and MusicKit's own errors). |
-| Track URIs (`spotify:track:` checks) | `Browsing/TrackRowViewModel.swift`, `Browsing/LibraryContinuation.swift`, `Browsing/BrowsingLoadState.swift`, `Pinning/PinnedItem.swift` | Playlist edits and Liked Songs accept Spotify tracks and Apple Music songs (`LibraryEditableTrackURI` in `Browsing/PlaylistBrowserViewModel+TrackMutations.swift`). Pinning a track row, the queue's track ID and the library continuation still only accept `spotify:track:` URIs, so Apple Music songs are skipped there. Pins are saved on disk, so moving that behind the provider has to keep existing pins loading. |
+| Track URIs (`spotify:track:` checks) | `Browsing/TrackRowViewModel.swift`, `Browsing/LibraryContinuation.swift`, `Browsing/BrowsingLoadState.swift`, `Pinning/PinnedItem.swift` | Playlist edits and Liked Songs accept Spotify tracks and Apple Music songs (`LibraryEditableTrackURI` in `Browsing/PlaylistBrowserViewModel+TrackMutations.swift`). Track rows pin Apple Music songs too (#410). The queue's track ID and the library continuation still only accept `spotify:track:` URIs, so Apple Music songs are skipped there. Pins are saved on disk, so moving that behind the provider has to keep existing pins loading. |
 | Search paging (`MusicSearchPaging.next`) | `Browsing/CatalogSearchViewModel.swift` | Still Spotify-shaped: the Search view reads the `offset` query item out of Spotify's `next` URL, falling back to `offset + pageSize`. The Apple Music provider hands back an opaque `applemusic://page?offset=` continuation in the same shape, so its pages line up (the Search view asks for 10 per type, ⌘K for 30; MusicKit caps a catalog page at 25). |
 
 Rules for the neutral layer:
@@ -97,15 +99,15 @@ Rules for the neutral layer:
 
 Apple Music browsing uses `MusicLibraryRequest`, `MusicCatalogSearchRequest`,
 `MusicLibrarySearchRequest`, `MusicRecentlyPlayedRequest` and
-`MusicPersonalRecommendationsRequest`; playback through `ApplicationMusicPlayer` is the
-next slice.
+`MusicPersonalRecommendationsRequest`, and plays through `ApplicationMusicPlayer` (see the
+Apple Music playback row above).
 
 ## Data and secrets
 
 | Data | Location | Doc |
 |------|----------|-----|
 | Refresh token | Keychain (`com.isaaclins.spotiglass.spotify-auth`) | [data-storage.md](data-storage.md) |
-| Settings | Application Support `settings.json` | [data-storage.md](data-storage.md) |
+| Settings | `~/.config/spotiglass/settings.json` | [data-storage.md](data-storage.md) |
 | Playlist cache | On-disk under app cache | [data-storage.md](data-storage.md) |
 | OAuth callback | `127.0.0.1:43824` during sign-in | [getting-started.md](getting-started.md) |
 

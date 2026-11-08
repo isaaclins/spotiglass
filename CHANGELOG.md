@@ -1,17 +1,34 @@
 # Changelog
 
-## [0.8.0] - 2026-09-07
+## [0.8.0] - 2026-11-08
 
 ### Added
 
+- **Apple Music.** Add it on the welcome screen or with **Add a service…** in the service switcher and allow access when macOS asks. Spotiglass then shows your library, playlists, Home and search, plays songs, and lets you like songs, add them to playlists, create, rename and delete playlists, remove songs from a playlist, and add or remove albums. Playing needs an Apple Music subscription. Some library edits go through the Music app, so the first of those asks once whether Spotiglass may control Music. In Apple Music, Liked Songs is your library, so unliking a song takes it out of your playlists on all your devices too; Spotiglass asks before it does that.
+- A **service switcher** at the top left of the sidebar, like profiles in Arc. Spotify and Apple Music sit side by side, each with its own sign-in, pins and place, and switching never signs anything out. ⌃1 switches to Apple Music and ⌃2 to Spotify; both can be rebound in Settings › Keyboard, and the command palette has **Switch to Spotify** and **Switch to Apple Music**.
+- Apple Music playlists show their track counts in the sidebar.
 - The equalizer installs its audio driver itself, through a privileged helper registered with the Service Management framework. macOS asks for your approval in its own words; the previous build asked you to run `sudo` commands in Terminal.
-- A **library continuation queue**, so the library keeps loading as you scroll instead of stopping at the first page.
+- **More from your library** in the track menu queues more music from your own Spotify library after the current song.
 - A universal track options menu, so the same actions are available wherever a track appears rather than a different subset per surface.
 - Artist pages have selectable rows and play and shuffle actions in the header.
 - The ten equalizer band faders are reachable and adjustable from the keyboard.
 
 ### Fixed
 
+- The progress bar seeks on the first click while a song plays. The first click used to be lost.
+- Playback no longer keeps a CPU core busy. With a playlist open and a song playing, Spotiglass now redraws only the progress bar instead of the whole window.
+- The play bar and Space control the music you actually hear, even when it comes from the other service, and signing out of Apple Music stops its music.
+- The queue panel fits at every window width, shows the queue while Spotiglass is in the background, and says "Next 20 tracks" instead of a wrong exact count when more are queued.
+- German and Spanish no longer show English or misspelled text in several places, and Apple Music mode names Apple Music on screen and shows calm errors instead of raw MusicKit messages.
+- ⌃1 and ⌃2 work while lyrics are open, and while another service is added, a Spotify session that lapsed can be removed without signing in again first.
+- Apple Music songs can be pinned from track lists, covers no longer disappear in large libraries, and a library album on an artist page counts the songs it really has in your library.
+- After a language switch your own playlists keep **Edit playlist name**, and the sidebar collapses in a narrow window instead of getting cut off.
+- In Apple Music, adding songs from your playlists and library albums to a playlist works, **New playlist…** never leaves an empty playlist behind, and a failed add takes back what it added.
+- An Apple Music edit that takes Music longer than 60 seconds no longer goes through after Spotiglass said it failed. Spotiglass waits for Music and reports what really happened.
+- In Apple Music, songs that are only in a playlist, not in your library, no longer show as liked.
+- The Spotify response and lyrics caches on disk now have size limits and drop what they no longer need.
+- Clicking a track with shuffle on played a different one, the transport could stay stuck on "Transferring playback...", and picking an album in the command palette did nothing.
+- The device menu showed no checkmark, the scrubber could shrink to nothing in a narrow window, the transport buttons had no VoiceOver labels, Toggle Lyrics did nothing without saying why, Shuffle and Repeat showed no state in the Playback menu, and File › Load All Your Songs showed no progress.
 - The equalizer could never install its driver on a real Mac. A daemon that has never been registered reports "not found", which the app treated as fatal; it connected to the helper before launchd had the job running; its retry path discarded an approval you had already granted and asked again, forever; and the helper carried a debug-only entitlement that launchd refuses to run a daemon with, so registration reported success while the job silently never loaded.
 - Enabling the equalizer without permission to run in the background flipped the switch back with nothing on screen. Install failures are deliberately kept out of the settings pane, which is right for every case except the one only you can resolve. It now says what happened and offers the trip to Login Items.
 - The equalizer reported itself live as soon as it selected the virtual output device, long before the driver had opened a route to real speakers, so a missing or disconnected target left the pane green with audio going nowhere.
@@ -23,7 +40,6 @@
 - Rapid play and skip presses interleaved into an inconsistent state, and disconnecting left work in flight that could resurrect a signed-out session.
 - The now-playing summary had disappeared, the lyrics button in the transport did nothing when clicked, and Repeat had two competing shortcuts and no single cycling one.
 - The lyrics overlay swallowed transport and global shortcuts, and did not trap focus.
-- The sidebar was clipped at narrow window widths instead of collapsing.
 - Two track context menus disagreed about whether a track was liked, Search and Home did not refresh, and browsing used non-canonical entity identity.
 - Removing several tracks from a playlist removed the wrong ones, because batched removals were applied from the front. Liked Songs stopped paginating partway.
 - Missing Spotify permission scopes were discovered only by failing, and a raw 403 was printed into the sidebar. Token retry-after windows were ignored, and account lifecycle state leaked across sign-ins.
@@ -35,9 +51,12 @@
 
 ### Changed
 
+- 0.7.0 offers this update by itself. The update key stays the same, so there is nothing to download by hand.
 - Local builds are signed with a stable identity, so the keychain stops asking for the login password after every rebuild.
 - The equalizer requires a signed and notarized build. Its helper is a LaunchDaemon, and macOS enforces a launch constraint that only a notarized Developer ID build satisfies, so there is no local-development path for it.
 - The test suite no longer sleeps for a fixed duration anywhere; it waits for the condition it cares about. Local runs use CI's per-test timeout, view tests are hosted off screen so no remote view service attaches, the artwork tests no longer touch the real cache, and the audio driver's router is unit-tested in CI.
+- Release packaging checks the Sparkle tools against a pinned checksum before running them, and stops when a given release notes file is missing.
+- The unit test host stays in the background and opens no windows.
 
 
 ## [0.7.0] - 2026-08-16
