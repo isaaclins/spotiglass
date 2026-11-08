@@ -4,9 +4,10 @@ Register SpotiglassTests files in Spotiglass.xcodeproj/project.pbxproj.
 
 Usage: python3 scripts/register-test-files.py FooTests.swift Views/BarTests.swift ...
 
-Each path is relative to SpotiglassTests/, and the Xcode group for its folder
-must already exist. For each file the script adds a file reference to that
-group and a build-file entry to the SpotiglassTests target's Sources phase.
+Each path is relative to SpotiglassTests/. For each file the script adds a
+file reference to the Xcode group of its folder (or, when that folder has no
+group, to the nearest parent group, with the relative path on the reference)
+and a build-file entry to the SpotiglassTests target's Sources phase.
 
 - A file the target already compiles is skipped, so running it twice changes
   nothing.

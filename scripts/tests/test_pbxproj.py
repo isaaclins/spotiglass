@@ -148,6 +148,20 @@ class AuditTests(RepoCopy):
         self.assertEqual(result.returncode, 1)
         self.assertIn(f'SpotiglassTests/{name}: is in the SpotiglassTests Sources phase but is excluded by EXCLUDED_SOURCE_FILE_NAMES in Debug', result.stdout)
 
+    def test_exclusion_from_release_only_passes(self):
+        # Leaving preview helpers out of Release is a normal setup.
+        text = self.pbx.read_text()
+        project = pbxproj.Project(text)
+        target = project.objects[project.targets()['Spotiglass']]
+        for conf in project.objects[target['buildConfigurationList']]['buildConfigurations']:
+            if project.objects[conf]['name'] == 'Release':
+                start, end = pbxproj._object_span(text, conf)
+                pos = text.index('buildSettings = {', start, end) + len('buildSettings = {')
+                text = text[:pos] + '\n\t\t\t\tEXCLUDED_SOURCE_FILE_NAMES = "*Preview*.swift";' + text[pos:]
+        self.pbx.write_text(text)
+        result = self.run_script('scripts/audit-orphaned-sources.sh')
+        self.assertEqual(result.returncode, 0, result.stdout)
+
     def test_file_with_a_non_macos_platform_filter_fails(self):
         name = 'PlaylistOwnerDisplayTests.swift'
         text, n = re.subn(rf'(/\* {re.escape(name)} in Sources \*/ = \{{isa = PBXBuildFile;)',
@@ -262,15 +276,44 @@ class RegisterTests(RepoCopy):
         self.assertEqual(self.pbx.read_text(), before)
 
     def test_missing_group_is_an_error_and_writes_nothing(self):
-        # The second file has no group; the first must not be written either.
+        # The second file is in no group at all; the first must not be written either.
         self.add_swift('SpotiglassTests/FineTests.swift')
-        self.add_swift('SpotiglassTests/NoGroupHere/LostTests.swift')
         before = self.pbx.read_text()
-        result = self.run_script(sys.executable, 'scripts/register-test-files.py',
-                                 'FineTests.swift', 'NoGroupHere/LostTests.swift')
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn('no Xcode group for SpotiglassTests/NoGroupHere/', result.stderr)
+        with self.assertRaises(pbxproj.PBXError) as err:
+            pbxproj.register_files(['SpotiglassTests/FineTests.swift', 'Nowhere/LostTests.swift'],
+                                   'SpotiglassTests', pbx=self.pbx)
+        self.assertIn('no Xcode group for Nowhere/', str(err.exception))
         self.assertEqual(self.pbx.read_text(), before)
+
+    def test_new_subfolder_without_a_group_uses_the_parent_group(self):
+        # The usage example: a test in a folder that has no Xcode group yet
+        # goes into the SpotiglassTests group with a relative path, as on main.
+        self.add_swift('SpotiglassTests/Views/BarTests.swift')
+        result = self.run_script(sys.executable, 'scripts/register-test-files.py', 'Views/BarTests.swift')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('name = BarTests.swift; path = Views/BarTests.swift;', self.pbx.read_text())
+        self.assertIn('SpotiglassTests/Views/BarTests.swift', pbxproj.Project.load(self.pbx).compiled_paths('SpotiglassTests'))
+        if shutil.which('plutil'):  # macOS only
+            self.assertEqual(self.run_script('plutil', '-lint', self.pbx).returncode, 0)
+        self.assertEqual(self.run_script('scripts/audit-orphaned-sources.sh').returncode, 0)
+
+    def test_new_file_at_a_renamed_files_old_path_still_registers(self):
+        # Xcode keeps a file's object IDs when it is renamed, so a new file at
+        # the old path finds its path-derived IDs taken.
+        self.add_swift('SpotiglassTests/FooTests.swift')
+        self.assertEqual(self.run_script(sys.executable, 'scripts/register-test-files.py', 'FooTests.swift').returncode, 0)
+        (self.tmp / 'SpotiglassTests/FooTests.swift').rename(self.tmp / 'SpotiglassTests/BarTests.swift')
+        self.pbx.write_text(self.pbx.read_text().replace('FooTests.swift', 'BarTests.swift'))
+        self.assertEqual(self.run_script('scripts/audit-orphaned-sources.sh').returncode, 0)
+        self.add_swift('SpotiglassTests/FooTests.swift')
+        result = self.run_script(sys.executable, 'scripts/register-test-files.py', 'FooTests.swift')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        audit = self.run_script('scripts/audit-orphaned-sources.sh')
+        self.assertEqual(audit.returncode, 0, audit.stdout)
+        # And it is still a no-op the second time.
+        before = self.pbx.read_bytes()
+        self.run_script(sys.executable, 'scripts/register-test-files.py', 'FooTests.swift')
+        self.assertEqual(before, self.pbx.read_bytes())
 
     def test_source_file_lands_in_the_anchor_group_and_app_target(self):
         self.add_swift('Spotiglass/Browsing/NewThing.swift')

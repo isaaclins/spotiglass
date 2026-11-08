@@ -227,12 +227,21 @@ class Project:
         path = self.path_of.get(build.get('fileRef'), '')
         candidates = (path, PurePosixPath(path).name)
         # Each configuration on its own: an inclusion in Release does not
-        # bring a file back into Debug.
-        for name, settings in sorted(self._configurations(target_name).items()):
+        # bring a file back into Debug. Leaving a file out of Release only
+        # (preview or debug helpers) is a normal setup; what #384 is about is
+        # a file that never runs, so only Debug (what the tests build) or
+        # every configuration counts.
+        configurations = self._configurations(target_name)
+        skipped = set()
+        for name, settings in configurations.items():
             def hits(key):
                 return any(fnmatch.fnmatchcase(c, pat) for pat in self._patterns(settings, key) for c in candidates)
             if hits('EXCLUDED_SOURCE_FILE_NAMES') and not hits('INCLUDED_SOURCE_FILE_NAMES'):
-                return f'is excluded by EXCLUDED_SOURCE_FILE_NAMES in {name}'
+                skipped.add(name)
+        if 'Debug' in skipped:
+            return 'is excluded by EXCLUDED_SOURCE_FILE_NAMES in Debug'
+        if skipped and skipped == set(configurations):
+            return 'is excluded by EXCLUDED_SOURCE_FILE_NAMES in every configuration'
         return None
 
     def excluded_paths(self, target_name):
@@ -313,6 +322,18 @@ def stable_id(role, path):
     gets the same ID."""
     digest = hashlib.sha1(f'spotiglass:{role}:{path}'.encode()).hexdigest()
     return digest[:24].upper()
+
+
+def _free_id(role, path, objects):
+    """stable_id, or, when another object already holds it (Xcode keeps a
+    file's IDs when it is renamed, so a new file at the old path finds its
+    IDs taken), the next stable ID in the sequence for the same path."""
+    n = 0
+    while True:
+        candidate = stable_id(role, path if n == 0 else f'{path}#{n}')
+        if candidate not in objects:
+            return candidate
+        n += 1
 
 
 def _quote(value):
@@ -398,23 +419,29 @@ def register(text, path, target_name):
     if refs:
         ref_id = refs[0]
     else:
-        directory = str(PurePosixPath(path).parent)
-        group = project.group_for_dir(directory)
+        # The group for the file's folder, or the nearest parent group inside
+        # the same top-level folder, with the rest of the path on the file
+        # reference (how Support/ViewTestHost.swift was registered).
+        directory = PurePosixPath(path).parent
+        top = PurePosixPath(*directory.parts[:1])
+        group = None
+        while group is None and directory.parts and len(directory.parts) >= len(top.parts):
+            group = project.group_for_dir(str(directory))
+            if group is None:
+                directory = directory.parent
         if group is None:
-            raise PBXError(f'no Xcode group for {directory}/; add the group in Xcode first')
-        ref_id = stable_id('ref', path)
-        if ref_id in project.objects:
-            raise PBXError(f'ID {ref_id} for {path} is already used')
+            raise PBXError(f'no Xcode group for {PurePosixPath(path).parent}/ or any folder above it inside {top}/')
+        rel = PurePosixPath(path).relative_to(directory).as_posix()
+        name_field = f'name = {_quote(name)}; ' if rel != name else ''
+        ref_id = _free_id('ref', path, project.objects)
         text = _insert_in_section(
             text, 'PBXFileReference',
             f'\t\t{ref_id} /* {name} */ = {{isa = PBXFileReference; '
-            f'lastKnownFileType = sourcecode.swift; path = {_quote(name)}; sourceTree = "<group>"; }};',
+            f'lastKnownFileType = sourcecode.swift; {name_field}path = {_quote(rel)}; sourceTree = "<group>"; }};',
         )
         text = _insert_list_item(text, group, 'children', f'\t\t\t\t{ref_id} /* {name} */,')
 
-    build_id = stable_id(f'build:{target_name}', path)
-    if build_id in project.objects:
-        raise PBXError(f'ID {build_id} for {path} is already used')
+    build_id = _free_id(f'build:{target_name}', path, project.objects)
     text = _insert_in_section(
         text, 'PBXBuildFile',
         f'\t\t{build_id} /* {name} in Sources */ = {{isa = PBXBuildFile; '
