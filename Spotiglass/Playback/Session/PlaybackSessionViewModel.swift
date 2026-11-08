@@ -311,6 +311,11 @@ final class PlaybackSessionViewModel: ObservableObject {
     let repeatWriteMinInterval: Duration
     let postShuffleSyncDelay: Duration
     let postRepeatSyncDelay: Duration
+    /// How long a failed command's message stays in the bar of a player with no connection to
+    /// restore before the session reads that player again (#430).
+    let passingErrorRecoveryDelay: Duration
+    var passingErrorRecoveryTask: Task<Void, Never>?
+    private var isRecoveringFromPassingError = false
     let seekRateLimitInterval: Duration
     let seekDeduplicationWindowMilliseconds: Int
     let seekMatchToleranceMilliseconds: Int
@@ -673,6 +678,7 @@ final class PlaybackSessionViewModel: ObservableObject {
         repeatWriteMinInterval: Duration = .milliseconds(300),
         postShuffleSyncDelay: Duration = .milliseconds(350),
         postRepeatSyncDelay: Duration = .milliseconds(350),
+        passingErrorRecoveryDelay: Duration = .seconds(5),
         seekRateLimitInterval: Duration = .milliseconds(500),
         seekDeduplicationWindowMilliseconds: Int = 250,
         seekMatchToleranceMilliseconds: Int = 1_250,
@@ -703,6 +709,7 @@ final class PlaybackSessionViewModel: ObservableObject {
         self.repeatWriteMinInterval = repeatWriteMinInterval
         self.postShuffleSyncDelay = postShuffleSyncDelay
         self.postRepeatSyncDelay = postRepeatSyncDelay
+        self.passingErrorRecoveryDelay = passingErrorRecoveryDelay
         self.seekRateLimitInterval = seekRateLimitInterval
         self.seekDeduplicationWindowMilliseconds = seekDeduplicationWindowMilliseconds
         self.seekMatchToleranceMilliseconds = seekMatchToleranceMilliseconds
@@ -1035,11 +1042,52 @@ final class PlaybackSessionViewModel: ObservableObject {
         let state = offeringOnlyRecoveryThatHelps(newState)
         updateSeekOwnership(from: state)
         updateStableTransportTrackURI(from: state)
-        let wasPolling = shouldRunTransportPolling(for: connectionState)
+        let previousState = connectionState
+        let wasPolling = shouldRunTransportPolling(for: previousState)
         connectionState = state
         syncProgressAnchorWithConnectionState()
         if shouldRunTransportPolling(for: nil) != wasPolling {
             restartTransportPollingIfNeeded()
+        }
+        if state != previousState {
+            passingErrorRecoveryTask?.cancel()
+            passingErrorRecoveryTask = nil
+            schedulePassingErrorRecoveryIfNeeded(for: state, after: previousState)
+        }
+    }
+
+    /// A command that failed on a player with no connection to restore (Apple Music plays on
+    /// this Mac) leaves that player as it was: the bar shows what went wrong, then reads the
+    /// player again and gives its song and controls back, the way Reconnect once did with a
+    /// button that named a connection Apple Music doesn't have (#430). Only an error that
+    /// interrupted a working player recovers this way, once: one the reading itself raises
+    /// (access turned off) stays.
+    private func schedulePassingErrorRecoveryIfNeeded(
+        for state: PlaybackConnectionState,
+        after previousState: PlaybackConnectionState
+    ) {
+        guard case let .error(error) = state, error.recoveryAction == nil,
+              !canReconnectPlayer, !isRecoveringFromPassingError, deviceID != nil else { return }
+        switch previousState {
+        case .ready, .transferring, .playing, .paused:
+            break
+        case .disconnected, .connecting, .unavailable, .error:
+            return
+        }
+        let generation = playbackHostGeneration
+        let delay = passingErrorRecoveryDelay
+        passingErrorRecoveryTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: delay)
+            guard let self, !Task.isCancelled, self.ownsPlaybackHostGeneration(generation),
+                  self.connectionState == state, let deviceID = self.deviceID else { return }
+            self.passingErrorRecoveryTask = nil
+            self.isRecoveringFromPassingError = true
+            defer { self.isRecoveringFromPassingError = false }
+            await self.syncTransportFromSpotify(generation: generation)
+            // Nothing loaded (or a read that predates the failed command): the player is
+            // still there and ready, and polling from `.ready` picks up what it plays.
+            guard self.ownsPlaybackHostGeneration(generation), self.connectionState == state else { return }
+            self.setConnectionState(.ready(deviceID: deviceID))
         }
     }
 

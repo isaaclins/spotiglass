@@ -711,6 +711,33 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         XCTAssertEqual(retry.recoveryAction, .retryTransfer)
     }
 
+    /// #430, the other half: on main the failed command's Reconnect was the only way out of
+    /// the error, because it restarted the player. Without the button, a Next that MusicKit
+    /// refused while a song kept playing left the bar on the error with Play, Previous and
+    /// Next off and polling stopped, until another song was started from the library. The
+    /// bar shows the message, then reads the player again and gives the song and its
+    /// controls back by itself.
+    func testAppleMusicBarComesBackToThePlayingSongAfterACommandFails() async throws {
+        let (player, session) = try await Self.playingSession(passingErrorRecoveryDelay: .milliseconds(20))
+        try await Self.read(session, player, at: 30)
+        XCTAssertTrue(Self.isPlaying(session))
+
+        player.skipFailure = NSError(domain: "MPMusicPlayerControllerErrorDomain", code: 6)
+        await session.next()
+        guard case let .error(failed) = session.connectionState else {
+            return XCTFail("Expected the failed Next to show, got \(session.connectionState)")
+        }
+        XCTAssertNil(failed.recoveryAction)
+        XCTAssertEqual(failed.message, SpotiglassL10n.string("error.playback.appleMusic.failed"))
+        XCTAssertFalse(session.isTransportMutationReady, "the error is on screen for a moment")
+
+        player.advance(by: 1)
+        await session.passingErrorRecoveryTask?.value
+        XCTAssertTrue(Self.isPlaying(session), "the bar stayed on the error: \(session.connectionState)")
+        XCTAssertEqual(session.currentNowPlaying?.uri, Self.uris[0])
+        XCTAssertTrue(session.isTransportMutationReady, "Play, Previous and Next work again")
+    }
+
     // MARK: - Measured MusicKit lag
 
     /// Replays the lag measured on a Mac mini M4 (macOS 27, 2026-11-06): how long
@@ -974,10 +1001,13 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         )
     }
 
-    private static func playingSession(startIndex: Int = 0) async throws -> (ScriptedAppleMusicPlayer, PlaybackSessionViewModel) {
+    private static func playingSession(
+        startIndex: Int = 0,
+        passingErrorRecoveryDelay: Duration = .seconds(5)
+    ) async throws -> (ScriptedAppleMusicPlayer, PlaybackSessionViewModel) {
         let player = ScriptedAppleMusicPlayer()
         let provider = AppleMusicPlaybackProvider(player: player)
-        let session = PlaybackSessionViewModel(provider: provider)
+        let session = PlaybackSessionViewModel(provider: provider, passingErrorRecoveryDelay: passingErrorRecoveryDelay)
         session.deviceID = AppleMusicPlaybackProvider.deviceID
         session.setActivePlaybackDeviceID(AppleMusicPlaybackProvider.deviceID)
         try await provider.play(.items(uris: uris, startURI: uris[startIndex]), deviceID: "x")
@@ -1013,6 +1043,8 @@ final class ScriptedAppleMusicPlayer: AppleMusicPlayerControlling {
 
     var authorized = true
     var failure: Error?
+    /// A skip MusicKit refuses; the song that was playing keeps playing.
+    var skipFailure: Error?
     private(set) var commands: [String] = []
     /// While true, play and enqueue wait in their lookup (like a slow MusicKit request) until
     /// ``releaseLookups()``. ``waitingLookups`` names who waits.
@@ -1115,6 +1147,7 @@ final class ScriptedAppleMusicPlayer: AppleMusicPlayerControlling {
     }
 
     func skipToNext() async throws {
+        if let skipFailure { throw MusicPlaybackError(service: .appleMusic, reason: .failed, detail: "\(skipFailure)") }
         positionBase = 0
         positionAnchor = now
         later("next") { [self] in index = min(index + 1, queue.count - 1); positionBase = 0; positionAnchor = now }
