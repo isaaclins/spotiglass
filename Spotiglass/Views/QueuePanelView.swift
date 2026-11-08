@@ -73,7 +73,7 @@ struct QueuePanelView: View {
             .accessibilityHint(PlaybackControlsView.serviceString("queue.shuffle.hint", appleMusic: "queue.shuffle.appleMusic.hint"))
             .help(PlaybackTransportTooltips.shuffleTooltip(isEnabled: playbackViewModel.shuffleEnabled))
         }
-        .padding(SpotiglassDesign.spacingM)
+        .padding(SpotiglassDesign.Layout.panelMargin)
     }
 
     private var subtitleText: String {
@@ -119,7 +119,7 @@ struct QueuePanelView: View {
         .padding(SpotiglassDesign.spacingM)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous))
-        .padding(.horizontal, SpotiglassDesign.spacingM)
+        .padding(.horizontal, SpotiglassDesign.Layout.panelMargin)
     }
 
     /// One list owns the whole queue, so it also owns the scrolling. The panel
@@ -232,15 +232,17 @@ private struct QueueRowView: View {
 
     var body: some View {
         HStack(spacing: SpotiglassDesign.spacingS) {
-            if isCurrent {
-                PlayingWaveformIcon(isPlaying: isPlaying)
-                    .frame(width: 28, alignment: .center)
-            }
-
             // Shared with the playlist row so the two cannot drift apart again (#140).
+            // The playing row marks its cover instead of adding a column, so every
+            // cover in the panel starts on the same edge (#428).
             ArtworkView(url: item.albumArtURL, size: TrackRowMetrics.artworkSize)
+                .overlay(alignment: .bottomTrailing) {
+                    if isCurrent {
+                        PlayingArtworkBadge(isPlaying: isPlaying)
+                    }
+                }
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXXS) {
                 Text(item.name)
                     .font(.headline)
                     .foregroundStyle(.primary)
@@ -248,7 +250,7 @@ private struct QueueRowView: View {
                 subtitleLine
             }
 
-            Spacer(minLength: 8)
+            Spacer(minLength: SpotiglassDesign.spacingXS)
 
             Text(item.durationLabel)
                 .font(.caption.monospacedDigit())

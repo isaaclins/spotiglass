@@ -22,7 +22,7 @@ struct CatalogSearchView: View {
     @FocusState private var isQueryFieldFocused: Bool
 
     private let cardColumns = [
-        GridItem(.adaptive(minimum: 150), spacing: SpotiglassDesign.spacingM, alignment: .leading)
+        GridItem(.adaptive(minimum: SpotiglassDesign.Layout.cardWidth), spacing: SpotiglassDesign.spacingM, alignment: .leading)
     ]
 
     init(
@@ -57,7 +57,7 @@ struct CatalogSearchView: View {
             }
             resultsBody
         }
-        .padding(SpotiglassDesign.spacingL)
+        .padding(SpotiglassDesign.Layout.contentMargin)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(.background)
         .onAppear {
@@ -176,7 +176,7 @@ struct CatalogSearchView: View {
         let showsLoadMore = searchViewModel.category != .all
             && (searchViewModel.canLoadMore || searchViewModel.isLoadingMore)
         return ScrollView {
-            VStack(alignment: .leading, spacing: SpotiglassDesign.spacingL) {
+            VStack(alignment: .leading, spacing: SpotiglassDesign.Layout.sectionSpacing) {
                 if results.isEmpty {
                     // Selecting a category with no matches used to render an
                     // empty ScrollView, because the .empty state is derived from
@@ -223,7 +223,7 @@ struct CatalogSearchView: View {
     }
 
     private func trackSection(_ tracks: [TrackRowViewModel]) -> some View {
-        VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
+        VStack(alignment: .leading, spacing: SpotiglassDesign.Layout.sectionTitleSpacing) {
             HomeSectionHeader(title: CatalogSearchCategory.tracks.pillLabel)
             let playableURIs = tracks.compactMap(\.playableURI)
             // An Apple Music song started from another list carries that list's id (#396).
@@ -278,7 +278,7 @@ struct CatalogSearchView: View {
     }
 
     private func artistSection(_ artists: [MusicArtist]) -> some View {
-        VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
+        VStack(alignment: .leading, spacing: SpotiglassDesign.Layout.sectionTitleSpacing) {
             HomeSectionHeader(title: CatalogSearchCategory.artists.pillLabel)
             cardLayout(isFocused: searchViewModel.category == .artists) {
                 ForEach(artists) { artist in
@@ -291,7 +291,7 @@ struct CatalogSearchView: View {
     }
 
     private func albumSection(_ albums: [MusicAlbum]) -> some View {
-        VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
+        VStack(alignment: .leading, spacing: SpotiglassDesign.Layout.sectionTitleSpacing) {
             HomeSectionHeader(title: CatalogSearchCategory.albums.pillLabel)
             cardLayout(isFocused: searchViewModel.category == .albums) {
                 ForEach(albums) { album in
@@ -326,7 +326,7 @@ struct CatalogSearchView: View {
     }
 
     private func playlistSection(_ playlists: [MusicPlaylistSummary]) -> some View {
-        VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
+        VStack(alignment: .leading, spacing: SpotiglassDesign.Layout.sectionTitleSpacing) {
             HomeSectionHeader(title: CatalogSearchCategory.playlists.pillLabel)
             cardLayout(isFocused: searchViewModel.category == .playlists) {
                 ForEach(playlists) { playlist in
@@ -374,7 +374,7 @@ struct CatalogSearchArtistCard: View {
     var body: some View {
         Button(action: action) {
             VStack(spacing: SpotiglassDesign.spacingXS) {
-                ArtworkView(url: artist.imageURL, size: 120)
+                ArtworkView(url: artist.imageURL, size: SpotiglassDesign.Layout.cardWidth)
                     .clipShape(Circle())
                 Text(artist.name)
                     .font(.subheadline.weight(.semibold))
@@ -384,7 +384,7 @@ struct CatalogSearchArtistCard: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
-            .frame(width: 120)
+            .frame(width: SpotiglassDesign.Layout.cardWidth)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

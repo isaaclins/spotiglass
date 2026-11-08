@@ -13,7 +13,7 @@ struct PinnedRowView: View {
     @State private var isHovering: Bool = false
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.spotiglassLocale) private var spotiglassLocale
-    private let artworkSize: CGFloat = 46
+    private let artworkSize = SpotiglassDesign.Layout.sidebarRowArtworkSize
 
     var body: some View {
         HStack(spacing: SpotiglassDesign.spacingS) {
@@ -30,13 +30,13 @@ struct PinnedRowView: View {
                                 )
                         }
                         .buttonStyle(.plain)
-                        .offset(x: -6, y: -6)
+                        .offset(x: -SpotiglassDesign.spacingXXS, y: -SpotiglassDesign.spacingXXS)
                         .help(SpotiglassL10n.string("tooltip.pin.unpin", locale: spotiglassLocale))
                         .accessibilityLabel(String(format: SpotiglassL10n.string("pin.unpin"), item.localizedTitle(locale: spotiglassLocale)))
                     }
                 }
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXXS) {
                 HStack(spacing: SpotiglassDesign.spacingXS) {
                     Text(item.localizedTitle(locale: spotiglassLocale))
                         .font(.headline)
@@ -48,8 +48,7 @@ struct PinnedRowView: View {
                         Text(SpotiglassL10n.string("pin.unavailable", locale: spotiglassLocale))
                             .font(.caption2.weight(.medium))
                             .foregroundStyle(Color.primary)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
+                            .padding(SpotiglassDesign.Layout.badgeInsets)
                             .background(.quaternary, in: Capsule())
                     }
                 }
@@ -60,7 +59,7 @@ struct PinnedRowView: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(.vertical, SpotiglassDesign.spacingXS)
+        .padding(.vertical, SpotiglassDesign.spacingXXS)
         // Staleness is carried by the badge and the demoted title. Fading the
         // whole row multiplied 55% onto text that is already secondary, which
         // put the subtitle near 30% effective opacity and made the badge that
@@ -145,18 +144,18 @@ private extension PinnedItemKind {
 /// or dragging a pinned row out to unpin. SF Symbol per kind + truncated title.
 struct PinnedItemDragPill: View {
     let item: PinnedItem
-    private let artworkSize: CGFloat = 24
+    private let artworkSize = SpotiglassDesign.Layout.thumbnailSize
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.spotiglassLocale) private var spotiglassLocale
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: SpotiglassDesign.spacingXS) {
             previewArtwork
 
             Image(systemName: kindSymbolName)
                 .font(SpotiglassDesign.Typography.pinKind)
                 .foregroundStyle(.spotiglassAccent)
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: SpotiglassDesign.spacingHalf) {
                 Text(item.localizedTitle(locale: spotiglassLocale))
                     .font(.caption.weight(.semibold))
                     .lineLimit(1)
@@ -170,12 +169,8 @@ struct PinnedItemDragPill: View {
                 }
             }
         }
-        .frame(maxWidth: 260, alignment: .leading)
-        .spotiglassPillBackground(
-            variant: .material(.regularMaterial),
-            horizontalPadding: 10,
-            verticalPadding: 6
-        )
+        .frame(maxWidth: SpotiglassDesign.Layout.dragPreviewMaxWidth, alignment: .leading)
+        .spotiglassPillBackground(variant: .material(.regularMaterial))
     }
 
     @ViewBuilder

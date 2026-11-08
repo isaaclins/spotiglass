@@ -136,7 +136,7 @@ struct AppleMusicBrowserRoot: View {
                     )
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
-                    .frame(maxWidth: 420)
+                    .frame(maxWidth: SpotiglassDesign.Layout.paragraphMaxWidth)
 
                     if session.state == .denied {
                         Button(SpotiglassL10n.string("appleMusic.permission.openSettings")) {
@@ -158,7 +158,7 @@ struct AppleMusicBrowserRoot: View {
                 }
                 .padding(SpotiglassDesign.spacingL)
             }
-            .frame(maxWidth: 560)
+            .frame(maxWidth: SpotiglassDesign.Layout.panelMaxWidth)
             .padding(SpotiglassDesign.spacingL)
         }
     }
@@ -180,7 +180,7 @@ struct PlaybackUnavailableBar: View {
             Label(message, systemImage: "play.slash")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, minHeight: 44)
+                .frame(maxWidth: .infinity, minHeight: SpotiglassDesign.Layout.nowPlayingArtworkSize)
                 .padding(.horizontal, SpotiglassDesign.spacingM)
                 .padding(.vertical, SpotiglassDesign.spacingS)
         }

@@ -61,7 +61,7 @@ struct HomeQuickAccessTile: View {
                     .padding(.horizontal, SpotiglassDesign.spacingS)
                 Spacer(minLength: 0)
             }
-            .frame(height: 56)
+            .frame(height: SpotiglassDesign.Layout.quickAccessTileHeight)
             .frame(maxWidth: .infinity, alignment: .leading)
             .spotiglassSurface(corner: .s, fill: .background.secondary)
             .contentShape(RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous))
@@ -78,9 +78,9 @@ struct HomeQuickAccessTile: View {
             // Was the only Liked Songs tile in the app painted from fixed sRGB
             // values, so it ignored light mode, the accent color and increased
             // contrast while the sidebar and header versions honored all three.
-            LikedSongsArtwork(size: 56, isEmphasized: true)
+            LikedSongsArtwork(size: SpotiglassDesign.Layout.quickAccessTileHeight, isEmphasized: true)
         default:
-            ArtworkView(url: card.artworkURL, size: 56)
+            ArtworkView(url: card.artworkURL, size: SpotiglassDesign.Layout.quickAccessTileHeight)
         }
     }
 }
@@ -95,7 +95,7 @@ struct HomeMediaCardView: View {
     var body: some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
-                ArtworkView(url: card.artworkURL, size: 150)
+                ArtworkView(url: card.artworkURL, size: SpotiglassDesign.Layout.cardWidth)
                 Text(card.title)
                     .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
@@ -104,7 +104,7 @@ struct HomeMediaCardView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
-            .frame(width: 150, alignment: .leading)
+            .frame(width: SpotiglassDesign.Layout.cardWidth, alignment: .leading)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -143,6 +143,6 @@ struct HomeSectionNotice: View {
         }
         .font(.callout)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(minHeight: 60)
+        .frame(minHeight: SpotiglassDesign.Layout.sectionNoticeMinHeight)
     }
 }

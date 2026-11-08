@@ -31,7 +31,7 @@ struct CommandPaletteSettingsView: View {
                     content
                 }
                 .padding(SpotiglassDesign.spacingL)
-                .frame(minWidth: 720, minHeight: 520, alignment: .topLeading)
+                .frame(minWidth: SpotiglassDesign.Layout.standaloneSettingsMinWidth, minHeight: SpotiglassDesign.Layout.standaloneSettingsMinHeight, alignment: .topLeading)
             case .settingsTabs:
                 // Grouped Form to match the other settings panes. It also supplies
                 // this pane's scrolling: the settings shell deliberately has no
@@ -102,15 +102,15 @@ struct CommandPaletteSettingsView: View {
     }
 
     private func keybindingRow(spec: CommandPaletteCommandSpec) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXXS) {
             HStack(alignment: .center, spacing: SpotiglassDesign.spacingM) {
                 Image(systemName: spec.iconSystemName)
                     .font(SpotiglassDesign.Typography.commandPaletteIcon)
                     .symbolRenderingMode(.hierarchical)
                     .foregroundStyle(.secondary)
-                    .frame(width: 28, alignment: .center)
+                    .frame(width: SpotiglassDesign.Layout.iconButtonSize, alignment: .center)
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: SpotiglassDesign.spacingHalf) {
                     Text(spec.title)
                         .font(.subheadline.weight(.semibold))
                     Text(spec.subtitle)
@@ -160,7 +160,7 @@ struct CommandPaletteSettingsView: View {
                         )
                         // Consistent field width so assigned (chip) and unassigned
                         // ("Click to record") states read as one control, not two.
-                        .frame(minWidth: 132, alignment: .trailing)
+                        .frame(minWidth: SpotiglassDesign.Layout.shortcutFieldMinWidth, alignment: .trailing)
                         .fixedSize(horizontal: true, vertical: false)
 
                         if keymapStore.primaryShortcut(for: spec.commandID) != nil {
@@ -181,7 +181,7 @@ struct CommandPaletteSettingsView: View {
                                     .symbolRenderingMode(.hierarchical)
                                     .font(SpotiglassDesign.Typography.commandPaletteClearShortcut)
                                     .foregroundStyle(.secondary)
-                                    .frame(width: 28, height: 28)
+                                    .frame(width: SpotiglassDesign.Layout.iconButtonSize, height: SpotiglassDesign.Layout.iconButtonSize)
                                     .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
@@ -201,7 +201,7 @@ struct CommandPaletteSettingsView: View {
                 Text(SpotiglassL10n.string("palette.settings.recordingHint"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .padding(.leading, 28 + SpotiglassDesign.spacingM)
+                    .padding(.leading, SpotiglassDesign.Layout.iconButtonSize + SpotiglassDesign.spacingM)
                     .transition(.opacity)
             }
 
@@ -210,7 +210,7 @@ struct CommandPaletteSettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.orange)
                     .fixedSize(horizontal: false, vertical: true)
-                    .padding(.leading, 28 + SpotiglassDesign.spacingM)
+                    .padding(.leading, SpotiglassDesign.Layout.iconButtonSize + SpotiglassDesign.spacingM)
                     .transition(.opacity)
             }
 
@@ -243,7 +243,7 @@ struct CommandPaletteSettingsView: View {
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
                 }
-                .padding(.leading, 28 + SpotiglassDesign.spacingM)
+                .padding(.leading, SpotiglassDesign.Layout.iconButtonSize + SpotiglassDesign.spacingM)
                 .transition(
                     .asymmetric(
                         insertion: .move(edge: .top).combined(with: .opacity),
@@ -260,11 +260,11 @@ struct CommandPaletteSettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                    .padding(.leading, 28 + SpotiglassDesign.spacingM)
+                    .padding(.leading, SpotiglassDesign.Layout.iconButtonSize + SpotiglassDesign.spacingM)
                     .transition(.opacity)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, SpotiglassDesign.spacingXXS)
         .animation(
             .spring(response: 0.34, dampingFraction: 0.86),
             value: pendingConflictByCommand[spec.commandID] != nil
@@ -314,8 +314,8 @@ struct CommandPaletteSettingsView: View {
 
             TextEditor(text: $keymapStore.editorText)
                 .font(.system(.body, design: .monospaced))
-                .frame(minHeight: 200)
-                .padding(6)
+                .frame(minHeight: SpotiglassDesign.Layout.textEditorMinHeight)
+                .padding(SpotiglassDesign.spacingXS)
                 .background(.background, in: RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)

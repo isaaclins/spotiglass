@@ -32,7 +32,7 @@ extension PlaylistBrowserView {
                         .font(.body.weight(.medium))
                 }
             }
-            .frame(width: 16, height: 16)
+            .frame(width: SpotiglassDesign.Layout.iconSize, height: SpotiglassDesign.Layout.iconSize)
             Text(SpotiglassL10n.string("browser.refresh"))
         }
     }
@@ -82,7 +82,7 @@ struct PlaylistBrowserPrefetchProgressToolbarItem: View {
                     total: Double(progress.total)
                 )
                 .progressViewStyle(.linear)
-                .frame(width: 72)
+                .frame(width: SpotiglassDesign.Layout.toolbarProgressWidth)
             }
             Text(progress.localizedStatusLabel)
                 .font(.caption)

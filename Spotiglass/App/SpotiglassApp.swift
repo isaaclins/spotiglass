@@ -29,6 +29,8 @@ struct SpotiglassApp: App {
     @AppStorage("queue.panel.visible") private var isQueueVisible = false
     /// The narrowest a window gets with the queue closed.
     static let windowMinWidth: CGFloat = 520
+    /// The shortest a window gets.
+    static let windowMinHeight: CGFloat = 360
 
     init() {
         SpotiglassLog.boot()
@@ -197,7 +199,7 @@ struct SpotiglassApp: App {
                     minWidth: isQueueVisible
                         ? max(Self.windowMinWidth, SpotiglassDesign.detailAndQueueMinWidth)
                         : Self.windowMinWidth,
-                    minHeight: 360
+                    minHeight: Self.windowMinHeight
                 )
         }
         .windowResizability(.contentMinSize)

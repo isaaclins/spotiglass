@@ -13,7 +13,7 @@ struct EmptyStateView: View {
             Text(message)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: 320)
+                .frame(maxWidth: SpotiglassDesign.Layout.messageMaxWidth)
         }
         .padding(SpotiglassDesign.spacingL)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -38,7 +38,7 @@ struct ErrorStateView: View {
             Text(error.message)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: 360)
+                .frame(maxWidth: SpotiglassDesign.Layout.messageMaxWidth)
 
             // The details are a request line, a status, a header dump and a raw
             // JSON body. That is for a bug report, not for someone who wanted a

@@ -261,7 +261,7 @@ struct AppearanceSettingsView: View {
             )
             .font(.callout.monospacedDigit())
             .foregroundStyle(.secondary)
-            .frame(width: 48, alignment: .trailing)
+            .frame(width: SpotiglassDesign.Layout.valueLabelMinWidth, alignment: .trailing)
         }
     }
 

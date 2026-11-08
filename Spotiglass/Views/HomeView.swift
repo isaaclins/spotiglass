@@ -18,7 +18,7 @@ struct HomeView: View {
     let onRequestLibraryContinuation: ((TrackRowViewModel) -> Void)?
 
     private let quickAccessColumns = [
-        GridItem(.adaptive(minimum: 220), spacing: SpotiglassDesign.spacingS)
+        GridItem(.adaptive(minimum: SpotiglassDesign.Layout.quickAccessTileMinWidth), spacing: SpotiglassDesign.spacingS)
     ]
 
     init(
@@ -43,14 +43,14 @@ struct HomeView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: SpotiglassDesign.spacingL) {
+            VStack(alignment: .leading, spacing: SpotiglassDesign.Layout.sectionSpacing) {
                 HomeSectionHeader(title: viewModel.homeGreeting(), style: .pageTitle)
 
                 quickAccessGrid
                 recentlyPlayedSection
                 topTracksSection
             }
-            .padding(SpotiglassDesign.spacingL)
+            .padding(SpotiglassDesign.Layout.contentMargin)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .background(.background)
@@ -72,7 +72,7 @@ struct HomeView: View {
 
     @ViewBuilder
     private var recentlyPlayedSection: some View {
-        VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
+        VStack(alignment: .leading, spacing: SpotiglassDesign.Layout.sectionTitleSpacing) {
             HomeSectionHeader(title: SpotiglassL10n.string("home.section.recentlyPlayed"))
             switch viewModel.homeRecentlyPlayed {
             case .loading:
@@ -116,7 +116,7 @@ struct HomeView: View {
 
     @ViewBuilder
     private var topTracksSection: some View {
-        VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
+        VStack(alignment: .leading, spacing: SpotiglassDesign.Layout.sectionTitleSpacing) {
             HomeSectionHeader(title: SpotiglassL10n.string("home.section.topTracks"))
             switch viewModel.homeTopTracks {
             case .loading:

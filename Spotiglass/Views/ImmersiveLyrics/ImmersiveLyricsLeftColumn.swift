@@ -10,7 +10,7 @@ struct ImmersiveLyricsLeftColumnView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
             if let track = currentTrack {
-                ArtworkView(url: track.albumArtURL, size: 220)
+                ArtworkView(url: track.albumArtURL, size: SpotiglassDesign.Layout.lyricsArtworkSize)
                     .shadow(color: .black.opacity(0.45), radius: 28, y: 14)
 
                 HStack(alignment: .firstTextBaseline, spacing: SpotiglassDesign.spacingS) {

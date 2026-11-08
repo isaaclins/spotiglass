@@ -8,7 +8,7 @@ import SwiftUI
 /// rendering bug rather than a state. The playlist row is the reference,
 /// because it is the one backed by a real Mac table (#140).
 enum TrackRowMetrics {
-    static let artworkSize: CGFloat = 40
+    static let artworkSize: CGFloat = SpotiglassDesign.Layout.trackRowArtworkSize
     static let verticalPadding: CGFloat = SpotiglassDesign.spacingXS
     static let horizontalPadding: CGFloat = SpotiglassDesign.spacingXS
     static let titleLineLimit: Int = 1
@@ -92,10 +92,11 @@ enum TrackRowPlaybackInvocation: Equatable {
 
 struct TrackListRow: View {
     /// Width for `m:ss` / `mm:ss` monospaced durations so resize does not reflow every row’s trailing edge.
-    private static let durationColumnWidth: CGFloat = 48
-    /// Source-of-truth row height for the virtualized playlist track list.
-    /// 40pt artwork + 2 * spacingXS (6pt) padding + 4pt headroom = 56pt.
-    static let listRowHeight: CGFloat = 56
+    private static let durationColumnWidth: CGFloat = SpotiglassDesign.Layout.durationColumnWidth
+    /// Source-of-truth row height for the virtualized playlist track list:
+    /// 40 pt artwork + 2 * spacingXS (8 pt) padding, so the artwork sits on the
+    /// row's centre line with no slack left over.
+    static let listRowHeight: CGFloat = SpotiglassDesign.Layout.trackRowHeight
 
     let trackNumber: Int
     let track: TrackRowViewModel
@@ -194,7 +195,7 @@ struct TrackListRow: View {
     var body: some View {
         HStack(spacing: SpotiglassDesign.spacingS) {
             leadingColumn
-                .frame(width: 40, alignment: .trailing)
+                .frame(width: SpotiglassDesign.Layout.trackNumberColumnWidth, alignment: .trailing)
 
             ArtworkView(url: track.artworkURL, size: TrackRowMetrics.artworkSize)
                 .overlay(alignment: .topTrailing) {
@@ -204,7 +205,7 @@ struct TrackListRow: View {
                     }
                 }
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXXS) {
                 HStack {
                     Text(track.title)
                         .font(.headline)
@@ -214,8 +215,7 @@ struct TrackListRow: View {
                     if let badgeText = track.badgeText {
                         Text(badgeText)
                             .font(.caption2.weight(.medium))
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
+                            .padding(SpotiglassDesign.Layout.badgeInsets)
                             .background(.secondary.opacity(0.15), in: Capsule())
                     }
                 }
