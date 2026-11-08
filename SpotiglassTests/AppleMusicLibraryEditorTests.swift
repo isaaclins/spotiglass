@@ -1385,7 +1385,7 @@ final class AppleMusicPlaylistEditFixTests: XCTestCase {
         let lookupLine = try XCTUnwrap(script.range(of: "whose persistent ID is \"\(rowPersistentID)\""))
         let makeLine = try XCTUnwrap(script.range(of: "make new user playlist with properties {name:\"Spotiglass \\\"test\\\"\"}"))
         XCTAssertLessThan(lookupLine.lowerBound, makeLine.lowerBound, "a song Music can't find stops it before the playlist exists")
-        let rollback = try XCTUnwrap(script.range(of: "end if\nif newID is not \"\" then delete pl\nerror errorMessage number errorNumber"))
+        let rollback = try XCTUnwrap(script.range(of: "end if\ntry\nif newID is not \"\" then delete pl\non error cleanupMessage number cleanupNumber"))
         XCTAssertLessThan(makeLine.lowerBound, rollback.lowerBound)
         XCTAssertTrue(script.contains("set newID to (persistent ID of pl)"))
         XCTAssertTrue(script.hasSuffix("return newID\nend tell"))
@@ -1713,7 +1713,7 @@ final class AppleMusicPlaylistEditFixTests: XCTestCase {
         let before = try XCTUnwrap(script.range(of: "set countBefore to (count of tracks of pl)"))
         let noted = try XCTUnwrap(script.range(of: "set end of addedIDs to songID"))
         let add = try XCTUnwrap(script.range(of: "duplicate (contents of songItem) to pl"))
-        let rollback = try XCTUnwrap(script.range(of: "end if\nrepeat with i from (count of tracks of pl) to (countBefore + 1) by -1"))
+        let rollback = try XCTUnwrap(script.range(of: "end if\ntry\nrepeat with i from (count of tracks of pl) to (countBefore + 1) by -1"))
         XCTAssertLessThan(before.lowerBound, add.lowerBound)
         // Noted only once its add went through: a failed add must not claim a copy another
         // device appended meanwhile.
