@@ -1,9 +1,12 @@
 # Changelog
 
-## [0.8.0] - 2026-09-07
+## [0.8.0] - 2026-11-08
 
 ### Added
 
+- **Apple Music.** Sign in with your Apple Music account and Spotiglass shows your library, playlists, Home and search, plays songs, and lets you like songs, add them to playlists, create, rename and delete playlists, remove songs from a playlist, and add or remove albums.
+- A **service switcher** at the top left of the sidebar, like profiles in Arc. Spotify and Apple Music sit side by side, each with its own sign-in, pins and place, and switching never signs anything out. ⌃1 switches to Apple Music and ⌃2 to Spotify; both can be rebound in Settings › Keyboard, and the command palette has **Switch to Spotify** and **Switch to Apple Music**.
+- Apple Music playlists show their track counts in the sidebar.
 - The equalizer installs its audio driver itself, through a privileged helper registered with the Service Management framework. macOS asks for your approval in its own words; the previous build asked you to run `sudo` commands in Terminal.
 - A **library continuation queue**, so the library keeps loading as you scroll instead of stopping at the first page.
 - A universal track options menu, so the same actions are available wherever a track appears rather than a different subset per surface.
@@ -12,6 +15,16 @@
 
 ### Fixed
 
+- The progress bar seeks on the first click while a song plays. The first click used to be lost.
+- Playback no longer keeps a CPU core busy. With a playlist open and a song playing, Spotiglass now redraws only the progress bar instead of the whole window.
+- The play bar and Space control the music you actually hear, even when it comes from the other service, and signing out of Apple Music stops its music.
+- The queue panel fits at every window width, shows the queue while Spotiglass is in the background, and says "Next 20 tracks" instead of a wrong exact count when more are queued.
+- German and Spanish no longer show English or misspelled text in several places, and Apple Music mode names Apple Music on screen and shows calm errors instead of raw MusicKit messages.
+- ⌃1 and ⌃2 work while lyrics are open, and a Spotify session that lapsed can be removed without signing in again first.
+- Apple Music songs can be pinned from track lists, covers no longer disappear in large libraries, and the language switch and the narrow sidebar behave in Apple Music mode too.
+- Playlist edits in Apple Music work for every song in a playlist and never leave half-done changes, such as an empty new playlist.
+- Songs that are only in a playlist, not in your library, no longer show as liked.
+- Every cache Spotiglass keeps on disk now has a size limit and drops what it no longer needs.
 - The equalizer could never install its driver on a real Mac. A daemon that has never been registered reports "not found", which the app treated as fatal; it connected to the helper before launchd had the job running; its retry path discarded an approval you had already granted and asked again, forever; and the helper carried a debug-only entitlement that launchd refuses to run a daemon with, so registration reported success while the job silently never loaded.
 - Enabling the equalizer without permission to run in the background flipped the switch back with nothing on screen. Install failures are deliberately kept out of the settings pane, which is right for every case except the one only you can resolve. It now says what happened and offers the trip to Login Items.
 - The equalizer reported itself live as soon as it selected the virtual output device, long before the driver had opened a route to real speakers, so a missing or disconnected target left the pane green with audio going nowhere.
@@ -35,9 +48,12 @@
 
 ### Changed
 
+- 0.7.0 offers this update by itself. The update key stays the same, so there is nothing to download by hand.
 - Local builds are signed with a stable identity, so the keychain stops asking for the login password after every rebuild.
 - The equalizer requires a signed and notarized build. Its helper is a LaunchDaemon, and macOS enforces a launch constraint that only a notarized Developer ID build satisfies, so there is no local-development path for it.
 - The test suite no longer sleeps for a fixed duration anywhere; it waits for the condition it cares about. Local runs use CI's per-test timeout, view tests are hosted off screen so no remote view service attaches, the artwork tests no longer touch the real cache, and the audio driver's router is unit-tested in CI.
+- Release packaging checks the Sparkle tools against a pinned checksum before running them, and stops when a given release notes file is missing.
+- The unit test host stays in the background and opens no windows.
 
 
 ## [0.7.0] - 2026-08-16
