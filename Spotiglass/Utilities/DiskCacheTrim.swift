@@ -6,14 +6,24 @@ import Foundation
 /// recently modified files go next until the directory is back at three quarters of `maxBytes`,
 /// so the next trim isn't due after a single write. Every disk cache in the app trims this way.
 enum DiskCacheTrim {
+    /// Trims run one at a time. Two trims of one directory listed together would each delete
+    /// down from the same total, and the second would carry on into the newest files.
+    private static let lock = NSLock()
+
+    /// `willDelete` runs right before each file is checked one last time and deleted
+    /// (`SpotiglassTests` only, to write or trim in that window).
     static func trim(
         directory: URL,
         maxBytes: Int64,
         maxAge: TimeInterval? = nil,
         now: Date = Date(),
         keepingFileNames kept: Set<String> = [],
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        willDelete: (URL) -> Void = { _ in }
     ) {
+        lock.lock()
+        defer { lock.unlock() }
+
         let keys: [URLResourceKey] = [.fileSizeKey, .contentModificationDateKey, .isRegularFileKey]
         guard let files = try? fileManager.contentsOfDirectory(
             at: directory,
@@ -21,6 +31,16 @@ enum DiskCacheTrim {
             options: [.skipsHiddenFiles]
         ) else {
             return
+        }
+
+        /// Deletes the file unless it was written or used since it was listed.
+        func deleteIfUnchanged(_ url: URL, listedDate: Date) -> Bool {
+            willDelete(url)
+            guard let current = (try? fileManager.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date,
+                  current <= listedDate else {
+                return false
+            }
+            return (try? fileManager.removeItem(at: url)) != nil
         }
 
         var total: Int64 = 0
@@ -32,8 +52,7 @@ enum DiskCacheTrim {
                 continue
             }
             let date = values.contentModificationDate ?? .distantPast
-            if let maxAge, now.timeIntervalSince(date) > maxAge {
-                try? fileManager.removeItem(at: url)
+            if let maxAge, now.timeIntervalSince(date) > maxAge, deleteIfUnchanged(url, listedDate: date) {
                 continue
             }
             total += size
@@ -44,7 +63,7 @@ enum DiskCacheTrim {
         entries.sort { $0.date < $1.date }
         for entry in entries {
             guard total > maxBytes * 3 / 4 else { break }
-            if (try? fileManager.removeItem(at: entry.url)) != nil {
+            if deleteIfUnchanged(entry.url, listedDate: entry.date) {
                 total -= entry.size
             }
         }
