@@ -4,11 +4,11 @@
 
 ### Added
 
-- **Apple Music.** Add it on the welcome screen or with **Add a service…** in the service switcher and allow access when macOS asks. Spotiglass then shows your library, playlists, Home and search, plays songs, and lets you like songs, add them to playlists, create, rename and delete playlists, remove songs from a playlist, and add or remove albums. Playback, catalog search and Home's recommendations need an Apple Music subscription; the library loads without one. Library edits go partly through the Music app, so the first one asks once whether Spotiglass may control Music. In Apple Music, Liked Songs is your library, so unliking a song takes it out of your playlists on all your devices too; Spotiglass asks before it does that.
+- **Apple Music.** Add it on the welcome screen or with **Add a service…** in the service switcher and allow access when macOS asks. Spotiglass then shows your library, playlists, Home and search, plays songs, and lets you like songs, add them to playlists, create, rename and delete playlists, remove songs from a playlist, and add or remove albums. Playing needs an Apple Music subscription. Some library edits go through the Music app, so the first of those asks once whether Spotiglass may control Music. In Apple Music, Liked Songs is your library, so unliking a song takes it out of your playlists on all your devices too; Spotiglass asks before it does that.
 - A **service switcher** at the top left of the sidebar, like profiles in Arc. Spotify and Apple Music sit side by side, each with its own sign-in, pins and place, and switching never signs anything out. ⌃1 switches to Apple Music and ⌃2 to Spotify; both can be rebound in Settings › Keyboard, and the command palette has **Switch to Spotify** and **Switch to Apple Music**.
 - Apple Music playlists show their track counts in the sidebar.
 - The equalizer installs its audio driver itself, through a privileged helper registered with the Service Management framework. macOS asks for your approval in its own words; the previous build asked you to run `sudo` commands in Terminal.
-- A **library continuation queue**, so the library keeps loading as you scroll instead of stopping at the first page.
+- **More from your library** in the track menu queues more music from your own Spotify library after the current song.
 - A universal track options menu, so the same actions are available wherever a track appears rather than a different subset per surface.
 - Artist pages have selectable rows and play and shuffle actions in the header.
 - The ten equalizer band faders are reachable and adjustable from the keyboard.
@@ -23,10 +23,10 @@
 - ⌃1 and ⌃2 work while lyrics are open, and while another service is added, a Spotify session that lapsed can be removed without signing in again first.
 - Apple Music songs can be pinned from track lists, covers no longer disappear in large libraries, and a library album on an artist page counts the songs it really has in your library.
 - After a language switch your own playlists keep **Edit playlist name**, and the sidebar collapses in a narrow window instead of getting cut off.
-- Playlist edits in Apple Music work for library songs and never leave half-done changes, such as an empty new playlist.
+- In Apple Music, adding songs from your playlists and library albums to a playlist works, **New playlist…** never leaves an empty playlist behind, and a failed add takes back what it added.
 - An Apple Music edit that takes Music longer than 60 seconds no longer goes through after Spotiglass said it failed. Spotiglass waits for Music and reports what really happened.
 - Songs that are only in a playlist, not in your library, no longer show as liked.
-- The Spotify response, lyrics and artwork caches on disk now have size limits and drop what they no longer need.
+- The Spotify response and lyrics caches on disk now have size limits and drop what they no longer need.
 - Clicking a track with shuffle on played a different one, the transport could stay stuck on "Transferring playback...", and picking an album in the command palette did nothing.
 - The device menu showed no checkmark, the scrubber could shrink to nothing in a narrow window, the transport buttons had no VoiceOver labels, Toggle Lyrics did nothing without saying why, Shuffle and Repeat showed no state in the Playback menu, and File › Load All Your Songs showed no progress.
 - The equalizer could never install its driver on a real Mac. A daemon that has never been registered reports "not found", which the app treated as fatal; it connected to the helper before launchd had the job running; its retry path discarded an approval you had already granted and asked again, forever; and the helper carried a debug-only entitlement that launchd refuses to run a daemon with, so registration reported success while the job silently never loaded.
