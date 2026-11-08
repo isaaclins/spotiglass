@@ -516,6 +516,100 @@ final class PlaybackChromeViewsTests: XCTestCase {
         }
     }
 
+    /// Every control of the bar sits on one centre line (#427). The Lyrics
+    /// button sat in the title's text row, so it followed the title's baseline
+    /// and stood above the times, the scrubber and the transport buttons. The
+    /// bar is laid out for real in each state that changes its parts (playing,
+    /// paused, the Reconnect and Retry buttons, no track) and at a wide row
+    /// with the volume slider, a compact-volume row and the stacked layout.
+    /// In one row the scrubber shares the line; stacked, it sits on its own
+    /// row under the others.
+    func testEveryPlayerBarControlSharesTheBarsCentreLine() throws {
+        let states: [(String, () -> PlaybackSessionViewModel)] = [
+            ("playing", { self.makePlayingPlayback() }),
+            ("paused", { self.makePlayingPlayback(paused: true) }),
+            ("disconnected", {
+                PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(
+                    playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
+            }),
+            ("reconnect", {
+                let playback = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(
+                    playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
+                playback.handle(.initializationError("Web Playback failed to load"))
+                return playback
+            }),
+            ("retry", {
+                let playback = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(
+                    playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
+                playback.handle(.playbackError("No active device"))
+                return playback
+            }),
+        ]
+        let lyricsLabel = SpotiglassL10n.string("playback.controls.lyrics")
+        var sawLyrics = false
+        for (state, makePlayback) in states {
+            for width in [CGFloat(1_400), 1_100, 640] {
+                let controller = NSHostingController(
+                    rootView: PlaybackControlsView(
+                        viewModel: makePlayback(),
+                        isLyricsPresented: .constant(false),
+                        openArtist: { _ in }
+                    )
+                )
+                let window = OffscreenTestWindow(
+                    contentRect: NSRect(x: 0, y: 0, width: width, height: 160),
+                    styleMask: [.titled],
+                    backing: .buffered,
+                    defer: false
+                )
+                window.contentViewController = controller
+                window.isReleasedWhenClosed = false
+                window.setContentSize(NSSize(width: width, height: 160))
+                defer { AppKitTestSupport.closeWindowSafely(window) }
+                window.title = "AXTestCentreLine-\(state)-\(Int(width))"
+                window.orderFrontRegardless()
+                AppKitTestSupport.pumpRunLoop(for: 0.2)
+
+                // Every control the bar shows, by its accessibility frame: the
+                // artwork and Lyrics buttons, Reconnect or Retry, the transport
+                // buttons, the device menu, the volume slider or its button,
+                // and the scrubber. The artist names are links in the artist
+                // line under the title, so they sit on that line instead.
+                let elements = try realizedAccessibilityTree(in: window)
+                let controls = elements.filter { element in
+                    guard element.position != nil, element.size.height > 0 else { return false }
+                    if element.axDescription == "Playback progress" { return true }
+                    return ["AXButton", "AXMenuButton", "AXPopUpButton", "AXSlider"].contains(element.role)
+                        && !element.axDescription.contains("M83") && !element.title.contains("M83")
+                }
+                func midY(_ element: RealizedAccessibilityElement) -> CGFloat {
+                    (element.position?.y ?? 0) + element.size.height / 2
+                }
+                func name(_ element: RealizedAccessibilityElement) -> String {
+                    "\(element.role) \(element.axDescription.isEmpty ? element.title : element.axDescription)"
+                }
+                let label = "\(state) at \(Int(width)): \(controls.map { "\(name($0)) \(midY($0))" })"
+                let previous = try XCTUnwrap(
+                    controls.first { $0.axDescription == SpotiglassL10n.string("playback.controls.previous") }, label
+                )
+                let scrubber = try XCTUnwrap(controls.first { $0.axDescription == "Playback progress" }, label)
+                let stacked = width < 1_100
+                for control in controls where !(stacked && control.axDescription == "Playback progress") {
+                    XCTAssertEqual(midY(control), midY(previous), accuracy: 0.5, "\(name(control)) is off the centre line, \(label)")
+                }
+                if stacked {
+                    XCTAssertGreaterThan(midY(scrubber), midY(previous) + 10, "stacked, the scrubber sits under the controls, \(label)")
+                }
+                XCTAssertTrue(
+                    controls.contains { $0.role == "AXMenuButton" || $0.role == "AXPopUpButton" } || state != "playing",
+                    "the device menu is missing, \(label)"
+                )
+                sawLyrics = sawLyrics || controls.contains { $0.axDescription == lyricsLabel }
+            }
+        }
+        XCTAssertTrue(sawLyrics, "the bar never showed its Lyrics button")
+    }
+
     func testPlaybackTransportLayoutAtWindowMinimumKeepsScrubberUsable() throws {
         for size in [CGSize(width: 520, height: 360), CGSize(width: 700, height: 500)] {
             let controller = ViewTestHost.host(
