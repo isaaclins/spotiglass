@@ -11,5 +11,5 @@
 | [Pinning](pinning.md) | Sidebar pins, wiggle mode, palette ⌘↩, storage |
 | [Apple Music](apple-music.md) | Apple Music browsing and playback (MusicKit), switching between Spotify and Apple Music, what maps where, known gaps |
 | [Screenshots](screenshots.md) | Screenshot mode: run the real UI against a local Spotify stand-in and capture it |
-| [Limitations](limitations.md) | Premium requirement, unsigned builds, operational constraints |
+| [Limitations](limitations.md) | Spotify Premium and Apple Music subscription, signed releases versus preview builds, operational constraints |
 | [Development roadmap](development/roadmap.md) | Where roadmap and shipped-milestone tracking live |

@@ -1,7 +1,9 @@
 # Architecture
 
-Spotiglass is a native macOS SwiftUI app: OAuth PKCE sign-in, Spotify Web API for
-library data, and Web Playback SDK audio through a hidden `WKWebView`.
+Spotiglass is a native macOS SwiftUI app for Spotify and Apple Music. Spotify uses
+OAuth PKCE sign-in, the Spotify Web API for library data, and Web Playback SDK audio
+through a hidden `WKWebView`. Apple Music uses MusicKit for the library, the catalog and
+playback ([Apple Music](apple-music.md)).
 
 ## Module map
 
@@ -50,7 +52,7 @@ flowchart TB
 
 ## Music providers
 
-Apple Music support (#372) lands as a series of small changes; the first one puts
+Apple Music support (#372) came as a series of small changes; the first one put
 a service-neutral layer between the browser and Spotify without changing what
 anyone sees.
 

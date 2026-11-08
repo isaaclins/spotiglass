@@ -1,15 +1,18 @@
-# Apple Music (developer preview)
+# Apple Music
 
-Spotiglass is getting Apple Music support next to Spotify (#372). You can browse your Apple
+Since 0.8.0 Spotiglass plays Apple Music next to Spotify (#372). You can browse your Apple
 Music library, playlists, Home and search, play them, and edit your library (like, save albums,
 create, rename and delete playlists, add and remove songs; see [Library edits](#library-edits)),
 through Apple's MusicKit, and switch between Apple Music and Spotify at any time.
 
-## Turning it on
+## Adding Apple Music
 
-Pick Apple Music on the welcome screen of a fresh install, or click the service name at the top
-left of the sidebar and choose **Add a service…**. The system asks for access to Apple Music;
-there is no client ID and nothing else to set up.
+- **Fresh install:** the welcome screen asks which service you listen on. Pick Apple Music.
+- **Already on Spotify:** click **Spotify** at the top left of the sidebar and choose
+  **Add a service…**.
+
+Either way macOS asks once for access to Apple Music. There is no client ID and nothing else to
+set up. Playing needs an Apple Music subscription (see [Requirements](#requirements)).
 
 ## Switching between Spotify and Apple Music
 
@@ -32,8 +35,9 @@ The list of added services and the one on screen are kept in `UserDefaults`
 ([`MusicServiceStore`](../Spotiglass/Infrastructure/MusicServiceSelection.swift)). The first
 launch of this version sets them up from what is already there: a saved Spotify client ID adds
 Spotify, so an existing Spotify setup opens straight into Spotify with its pins and caches
-untouched (both are keyed by the Spotify account, not by the service). The old developer switch
-`SpotiglassMusicService=appleMusic` carries over as an added Apple Music.
+untouched (both are keyed by the Spotify account, not by the service). Before 0.8.0 Apple
+Music sat behind a developer switch (`SpotiglassMusicService=appleMusic`); a Mac that still has it
+set starts with Apple Music added.
 
 Screenshot mode only offers Apple Music when started with `--with-apple-music`, and the unit-test
 host never reaches MusicKit.
@@ -192,8 +196,6 @@ default output, so Apple Music goes through it as well.
   is played.
 - **Reordering a playlist.** Spotiglass has no drag-to-reorder for playlist tracks yet, on either
   service.
-- **Track counts** for library playlists: MusicKit only knows them after loading the tracks, so
-  the sidebar says "Track count unavailable".
 - **Artist pages** opened from the library show the albums in your library and tracks from them,
   not the artist's whole catalog. A library album's track count is the number of its songs in
   your library, the same songs its album page lists.

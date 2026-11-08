@@ -5,7 +5,7 @@
 <h1 align="center">Spotiglass</h1>
 
 <p align="center">
-  Native macOS Spotify client with OAuth PKCE, the Spotify Web API, and Web Playback SDK playback in a glass-style SwiftUI shell.
+  Native macOS client for Spotify and Apple Music in a glass-style SwiftUI shell: Spotify through its Web API and Web Playback SDK, Apple Music through MusicKit.
 </p>
 
 <p align="center">
@@ -24,8 +24,9 @@
 
 ## What you get
 
-- Signed-in playlist and track browsing with sidebar pins, queue, artist pages, and command palette search.
-- In-app playback through the Spotify Web Playback SDK in a hidden `WKWebView`.
+- Spotify and Apple Music side by side. Switch with the service at the top left of the sidebar (⌃1 Apple Music, ⌃2 Spotify); each keeps its own sign-in, pins and place.
+- Playlist and track browsing with sidebar pins, queue, artist pages, and command palette search.
+- In-app playback: Spotify through the Web Playback SDK in a hidden `WKWebView`, Apple Music through MusicKit's player.
 - Appearance controls for System, Light, or Dark, plus command palette backdrop blur.
 - Keychain-backed refresh tokens, local playlist cache, and keyboard shortcuts you can remap in Settings.
 
@@ -43,20 +44,22 @@ All screenshots are the real app, captured in [screenshot mode](docs/screenshots
 
 ## Requirements
 
-- macOS **26** or newer with Xcode that matches the project deployment target.
-- A [Spotify Developer](https://developer.spotify.com/dashboard) app client ID (PKCE public client; no client secret).
-- **Spotify Premium** for Web Playback SDK streaming.
+- macOS **26** or newer.
+- **Apple Music:** an Apple Music subscription for playback. Nothing to set up.
+- **Spotify:** a [Spotify Developer](https://developer.spotify.com/dashboard) app client ID (PKCE public client; no client secret) and **Spotify Premium** for Web Playback SDK streaming.
+- To build from source: Xcode that matches the project deployment target.
 
-See [Limitations](docs/limitations.md) for unsigned local builds, Gatekeeper, and operational constraints.
+See [Limitations](docs/limitations.md) for signed releases versus preview builds, Gatekeeper, and operational constraints.
 
 ## Quick start
 
-1. Create a Spotify app in the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard).
-2. Enable Web Playback SDK and set redirect URI to `http://127.0.0.1:43824/callback`.
-3. Open `Spotiglass.xcodeproj` and run the **Spotiglass** scheme.
-4. Paste the client ID, connect Spotify, then browse playlists and play tracks.
+1. Download the signed `.dmg` from the [latest release](https://github.com/isaaclins/spotiglass/releases/latest), or open `Spotiglass.xcodeproj` and run the **Spotiglass** scheme.
+2. On the welcome screen, pick the service you listen on.
+   - **Apple Music:** allow access when macOS asks.
+   - **Spotify:** create a Spotify app in the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard), enable Web Playback SDK, set the redirect URI to `http://127.0.0.1:43824/callback`, then paste the client ID and connect.
+3. Add the other service any time with **Add a service…** at the top left of the sidebar.
 
-Setup details, OAuth scopes, and manual playback checks: [Getting started](docs/getting-started.md).
+Setup details, OAuth scopes, and manual playback checks: [Getting started](docs/getting-started.md) and [Apple Music](docs/apple-music.md).
 
 ## Build, test, and run
 
@@ -87,6 +90,7 @@ The GitHub Actions workflow **Release artifact** runs unit tests, builds an unsi
 | Guide | Description |
 |-------|-------------|
 | [Getting started](docs/getting-started.md) | Spotify dashboard setup, OAuth scopes, first run |
+| [Apple Music](docs/apple-music.md) | Adding Apple Music, switching services, what maps where, known gaps |
 | [Building and testing](docs/building-and-testing.md) | `make`, `xcodebuild`, local Release bundle |
 | [CI and releases](docs/ci-and-releases.md) | Workflow dispatch artifact, Gatekeeper |
 | [Data storage](docs/data-storage.md) | Keychain, cache paths, `settings.json` |
