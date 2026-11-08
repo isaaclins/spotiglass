@@ -655,6 +655,62 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         XCTAssertNil(displayError.recoveryAction)
     }
 
+    /// #430: a play that MusicKit refused put "Reconnect playback / Connects Spotiglass to
+    /// Apple Music again" in the bar. Apple Music's player is this Mac, so there is nothing to
+    /// reconnect, and no Spotify device to retry: every error it shows offers no button.
+    /// Spotify keeps Reconnect for a web player that really dropped, and a failed command
+    /// there offers Retry, never Reconnect.
+    func testPlayerBarOffersReconnectOnlyForASpotifyPlayerThatLostItsConnection() async {
+        let player = ScriptedAppleMusicPlayer()
+        player.failure = NSError(domain: "MPMusicPlayerControllerErrorDomain", code: 6)
+        let appleMusic = PlaybackSessionViewModel(provider: AppleMusicPlaybackProvider(player: player))
+        appleMusic.deviceID = AppleMusicPlaybackProvider.deviceID
+        appleMusic.setActivePlaybackDeviceID(AppleMusicPlaybackProvider.deviceID)
+        appleMusic.setConnectionState(.ready(deviceID: AppleMusicPlaybackProvider.deviceID))
+        XCTAssertFalse(appleMusic.canReconnectPlayer)
+
+        await appleMusic.play(uri: Self.uris[0])
+        guard case let .error(failedPlay) = appleMusic.connectionState else {
+            return XCTFail("Expected an error, got \(appleMusic.connectionState)")
+        }
+        XCTAssertEqual(failedPlay.message, SpotiglassL10n.string("error.playback.appleMusic.failed"))
+        XCTAssertNil(failedPlay.recoveryAction, "Apple Music has no connection to reconnect")
+
+        // The errors the session raises for any player (no device yet, a connect that timed
+        // out, a raw error from a command) offer nothing either.
+        for error in [
+            PlaybackSessionViewModel.playbackDeviceNotReadyError(),
+            PlaybackSessionViewModel.playbackDeviceReconnectRequiredError(),
+            PlaybackSessionViewModel.playbackHostConnectionTimedOutError(),
+            PlaybackSessionViewModel.displayError(for: CocoaError(.fileReadUnknown)),
+        ] {
+            appleMusic.setConnectionState(.error(error))
+            guard case let .error(shown) = appleMusic.connectionState else { return XCTFail("Expected an error") }
+            XCTAssertNil(shown.recoveryAction, error.message)
+            XCTAssertFalse(shown.message.contains("Reconnect"), shown.message)
+            XCTAssertFalse(shown.message.contains("Spotify"), shown.message)
+        }
+
+        let spotify = PlaybackSessionViewModel(
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander())
+        )
+        XCTAssertTrue(spotify.canReconnectPlayer)
+        // Play before the web player reported its device: the player isn't connected.
+        await spotify.play(uri: "spotify:track:1")
+        guard case let .error(notConnected) = spotify.connectionState else {
+            return XCTFail("Expected an error, got \(spotify.connectionState)")
+        }
+        XCTAssertEqual(notConnected.recoveryAction, .reconnect)
+        spotify.setConnectionState(.error(PlaybackSessionViewModel.playbackHostConnectionTimedOutError()))
+        guard case let .error(timedOut) = spotify.connectionState else { return XCTFail("Expected an error") }
+        XCTAssertEqual(timedOut.recoveryAction, .reconnect)
+        // A command Spotify refused leaves the player connected: Retry, not Reconnect.
+        let failedCommand = PlaybackSessionViewModel.displayError(for: SpotifyAPIError.network("offline"))
+        spotify.setConnectionState(.error(failedCommand))
+        guard case let .error(retry) = spotify.connectionState else { return XCTFail("Expected an error") }
+        XCTAssertEqual(retry.recoveryAction, .retryTransfer)
+    }
+
     // MARK: - Measured MusicKit lag
 
     /// Replays the lag measured on a Mac mini M4 (macOS 27, 2026-11-06): how long
@@ -791,8 +847,6 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
             ("playback.controls.previous.hint", "playback.controls.previous.appleMusic.hint"),
             ("playback.controls.playPause.hint", "playback.controls.playPause.appleMusic.hint"),
             ("playback.controls.next.hint", "playback.controls.next.appleMusic.hint"),
-            ("playback.controls.reconnect.hint", "playback.controls.reconnect.appleMusic.hint"),
-            ("playback.controls.reconnect.sdk.hint", "playback.controls.reconnect.appleMusic.hint"),
             ("playback.controls.state.connecting.title", "playback.controls.state.connecting.title.appleMusic"),
             ("playback.controls.state.connecting.subtitle", "playback.controls.state.connecting.subtitle.appleMusic"),
             ("playback.fallbackName", "playback.fallbackName.appleMusic"),

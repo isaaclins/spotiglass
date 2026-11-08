@@ -15259,29 +15259,6 @@
         }
       }
     },
-    "playback.controls.reconnect.appleMusic.hint": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Connects Spotiglass to Apple Music again."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vuelve a conectar Spotiglass con Apple Music."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Verbindet Spotiglass wieder mit Apple Music."
-          }
-        }
-      }
-    },
     "playback.controls.playPause.appleMusic.hint": {
       "extractionState": "manual",
       "localizations": {

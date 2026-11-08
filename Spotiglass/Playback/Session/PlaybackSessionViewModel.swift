@@ -147,6 +147,32 @@ final class PlaybackSessionViewModel: ObservableObject {
         provider.deviceTransfer != nil
     }
 
+    /// Whether Reconnect can help: only a player that is its own connection, one that can drop
+    /// and be loaded again (Spotify's web player), has something to reconnect. MusicKit's
+    /// player is this Mac (#430).
+    var canReconnectPlayer: Bool {
+        provider.capabilities.contains(.reloadablePlayer)
+    }
+
+    /// An error offers only a button this player can carry out: Reconnect needs a player
+    /// connection, Retry moves playback to this device again. Apple Music has neither, so its
+    /// errors say what happened and offer nothing (#430).
+    private func offeringOnlyRecoveryThatHelps(_ state: PlaybackConnectionState) -> PlaybackConnectionState {
+        guard case let .error(error) = state, let action = error.recoveryAction else { return state }
+        let helps = switch action {
+        case .reconnect: canReconnectPlayer
+        case .retryTransfer: supportsDeviceTransfer
+        case .reauthenticate: true
+        }
+        guard !helps else { return state }
+        // Without a connection to restore, an error whose only fix was Reconnect means the
+        // player isn't ready yet; its own text would point at a Reconnect that isn't there.
+        let message = action == .reconnect
+            ? SpotiglassL10n.string("error.playback.deviceUnavailable.notReady")
+            : error.message
+        return .error(PlaybackDisplayError(title: error.title, message: message, recoveryAction: nil))
+    }
+
     /// Whether the in-app player has its own volume. The transport bar hides its volume
     /// control when it doesn't (Apple Music: the Mac's volume applies).
     var supportsPlayerVolume: Bool {
@@ -961,7 +987,7 @@ final class PlaybackSessionViewModel: ObservableObject {
             return PlaybackDisplayError(
                 title: SpotiglassL10n.string("error.playback.commandFailed.title"),
                 message: SpotiglassL10n.string("error.playback.appleMusic.failed"),
-                recoveryAction: .reconnect
+                recoveryAction: nil
             )
         }
     }
@@ -1005,7 +1031,8 @@ final class PlaybackSessionViewModel: ObservableObject {
         connectionState.currentLyricTrack
     }
 
-    func setConnectionState(_ state: PlaybackConnectionState) {
+    func setConnectionState(_ newState: PlaybackConnectionState) {
+        let state = offeringOnlyRecoveryThatHelps(newState)
         updateSeekOwnership(from: state)
         updateStableTransportTrackURI(from: state)
         let wasPolling = shouldRunTransportPolling(for: connectionState)
