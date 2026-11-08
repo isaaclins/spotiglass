@@ -162,6 +162,34 @@ class AuditTests(RepoCopy):
         result = self.run_script('scripts/audit-orphaned-sources.sh')
         self.assertEqual(result.returncode, 0, result.stdout)
 
+    def _add_setting(self, text, owner_id, line):
+        project = pbxproj.Project(text)
+        configs = project.objects[project.objects[owner_id]['buildConfigurationList']]['buildConfigurations']
+        for conf in configs:
+            start, end = pbxproj._object_span(text, conf)
+            pos = text.index('buildSettings = {', start, end) + len('buildSettings = {')
+            text = text[:pos] + f'\n\t\t\t\t{line}' + text[pos:]
+        return text
+
+    def test_exclusion_inherited_from_the_project_fails(self):
+        name = 'PlaylistOwnerDisplayTests.swift'
+        text = self.pbx.read_text()
+        project = pbxproj.Project(text)
+        text = self._add_setting(text, project.root_id, f'EXCLUDED_SOURCE_FILE_NAMES = {name};')
+        text = self._add_setting(text, project.targets()['SpotiglassTests'], 'EXCLUDED_SOURCE_FILE_NAMES = "$(inherited)";')
+        self.pbx.write_text(text)
+        result = self.run_script('scripts/audit-orphaned-sources.sh')
+        self.assertEqual(result.returncode, 1)
+        self.assertIn(f'SpotiglassTests/{name}: is in the SpotiglassTests Sources phase but is excluded by EXCLUDED_SOURCE_FILE_NAMES in Debug', result.stdout)
+
+    def test_exclusion_for_another_architecture_passes(self):
+        text = self.pbx.read_text()
+        target = pbxproj.Project(text).targets()['SpotiglassTests']
+        text = self._add_setting(text, target, '"EXCLUDED_SOURCE_FILE_NAMES[arch=x86_64]" = PlaylistOwnerDisplayTests.swift;')
+        self.pbx.write_text(text)
+        result = self.run_script('scripts/audit-orphaned-sources.sh')
+        self.assertEqual(result.returncode, 0, result.stdout)
+
     def test_file_with_a_non_macos_platform_filter_fails(self):
         name = 'PlaylistOwnerDisplayTests.swift'
         text, n = re.subn(rf'(/\* {re.escape(name)} in Sources \*/ = \{{isa = PBXBuildFile;)',

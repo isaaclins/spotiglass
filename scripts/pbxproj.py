@@ -199,19 +199,33 @@ class Project:
             return out
         project = by_name(self.objects[self.root_id].get('buildConfigurationList'))
         target = by_name(self.objects[self.targets()[target_name]].get('buildConfigurationList'))
-        return {name: {**project.get(name, {}), **settings} for name, settings in target.items()}
+
+        def layered(below, above):
+            out = dict(below)
+            for key, value in above.items():
+                # `$(inherited)` stands for the project's value of the same key.
+                inherited = below.get(key, '')
+                inherited = inherited if isinstance(inherited, str) else ' '.join(inherited)
+                items = [value] if isinstance(value, str) else value
+                out[key] = [i.replace('$(inherited)', inherited) for i in items]
+            return out
+        return {name: layered(project.get(name, {}), settings) for name, settings in target.items()}
 
     @staticmethod
     def _patterns(settings, key):
-        """Patterns `key` lists for a macOS build, including conditional
-        variants such as `KEY[sdk=macosx*]` (variants for other SDKs are
-        ignored)."""
+        """Patterns `key` lists for a macOS build on Apple silicon (where the
+        tests run), including conditional variants such as
+        `KEY[sdk=macosx*]`; variants for other SDKs or architectures are
+        ignored."""
         out = []
         for name, value in settings.items():
             if name != key and not name.startswith(key + '['):
                 continue
             sdks = re.findall(r'sdk=([^\],]+)', name)
             if sdks and not any(fnmatch.fnmatchcase('macosx', s) or s.startswith('macosx') for s in sdks):
+                continue
+            archs = re.findall(r'arch=([^\],]+)', name)
+            if archs and not any(fnmatch.fnmatchcase('arm64', a) for a in archs):
                 continue
             for item in [value] if isinstance(value, str) else value:
                 out.extend(item.split())
