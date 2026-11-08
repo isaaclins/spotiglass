@@ -987,7 +987,7 @@ final class AppleMusicArtworkRegistryTests: XCTestCase {
         XCTAssertTrue(AppleMusicArtworkRegistry.needsMusicKit(try XCTUnwrap(URL(string: "musicKit://artwork/transient/600x600?id=A"))))
     }
 
-    func testLibraryArtworkIsRegisteredUnderItsURLAndCatalogArtworkIsNot() throws {
+    func testLibraryAndCatalogArtworkAreRegisteredUnderTheirURLs() throws {
         let registry = AppleMusicArtworkRegistry()
         let library = try AppleMusicFixtures.decode(Artwork.self, #"{"url":"musicKit://artwork/transient/{w}x{h}?id=A","width":600,"height":600}"#)
         let catalog = try AppleMusicFixtures.decode(Artwork.self, #"{"url":"https://example.com/{w}x{h}bb.jpg","width":600,"height":600}"#)
@@ -996,7 +996,9 @@ final class AppleMusicArtworkRegistryTests: XCTestCase {
         let catalogURL = try XCTUnwrap(AppleMusicItemMapping.artworkURL(catalog, size: 120, registry: registry))
 
         XCTAssertEqual(registry.artwork(for: libraryURL), library)
-        XCTAssertNil(registry.artwork(for: catalogURL))
+        // Catalog covers are downloaded, not drawn by MusicKit, but stay resizable (#426).
+        XCTAssertFalse(AppleMusicArtworkRegistry.needsMusicKit(catalogURL))
+        XCTAssertEqual(registry.artwork(for: catalogURL), catalog)
         XCTAssertNil(AppleMusicItemMapping.artworkURL(nil, size: 120, registry: registry))
     }
 
@@ -1317,6 +1319,87 @@ private final class MockAppleMusicSource: AppleMusicContentSource, @unchecked Se
     func storefrontCountryCode() async throws -> String {
         guard let countryCode else { throw URLError(.userAuthenticationRequired) }
         return countryCode
+    }
+}
+
+// MARK: - Artwork size on screen
+
+/// Recently played is built from songs, which are mapped with a row-sized (120 px) artwork URL,
+/// while a Home card draws the cover 150 pt wide: 300 px on a Retina screen. The card stretched
+/// the 120 px image 2.5x and looked soft (#426).
+final class AppleMusicArtworkSizeTests: XCTestCase {
+    private func recentlyPlayedSong() throws -> Song {
+        try AppleMusicFixtures.decode(Song.self, #"""
+        {"id":"1440818839","type":"songs","attributes":{"name":"Kerala","artistName":"Bonobo",
+        "albumName":"Migration","durationInMillis":200000,
+        "artwork":{"url":"https://is1-ssl.mzstatic.com/image/thumb/Music/v4/1a/2b/3c/source/{w}x{h}bb.jpg",
+        "width":3000,"height":3000},"playParams":{"id":"1440818839","kind":"song"}},
+        "relationships":{"albums":{"data":[{"id":"1440818588","type":"albums",
+        "attributes":{"name":"Migration","artistName":"Bonobo"}}]}}}
+        """#)
+    }
+
+    private func requestedPixels(_ url: URL) throws -> Int {
+        let name = url.lastPathComponent
+        let width = try XCTUnwrap(name.split(separator: "x").first.flatMap { Int($0) }, "no size in \(name)")
+        return width
+    }
+
+    func testARecentlyPlayedCardGetsArtworkOfAtLeastItsDrawnSizeAt2x() throws {
+        let track = AppleMusicItemMapping.track(try recentlyPlayedSong())
+        let card = try XCTUnwrap(HomeMediaCard(recentlyPlayed: track))
+        let mapped = try XCTUnwrap(card.artworkURL)
+
+        let requested = ArtworkRequest.url(mapped, points: HomeMediaCardView.artworkSize, scale: 2)
+
+        XCTAssertGreaterThanOrEqual(
+            try requestedPixels(requested), Int(HomeMediaCardView.artworkSize * 2),
+            "a \(Int(HomeMediaCardView.artworkSize)) pt card fetched \(requested.lastPathComponent)"
+        )
+    }
+
+    func testEverySurfaceGetsArtworkOfAtLeastItsDrawnSizeAndRowsStaySmall() throws {
+        let mapped = try XCTUnwrap(AppleMusicItemMapping.track(try recentlyPlayedSong()).albumArtworkURL)
+        let surfaces: [(String, CGFloat)] = [
+            ("track row", TrackRowMetrics.artworkSize),
+            ("player bar", PlaybackTransportLayoutPolicy.nowPlayingArtworkSize),
+            ("Home shortcut", 56),
+            ("Home card", HomeMediaCardView.artworkSize),
+            ("detail header", SpotiglassDesign.detailHeaderArtworkSize),
+            ("Lyrics cover", 220)
+        ]
+        for (surface, points) in surfaces {
+            let pixels = try requestedPixels(ArtworkRequest.url(mapped, points: points, scale: 2))
+            XCTAssertGreaterThanOrEqual(pixels, Int(points * 2), surface)
+            XCTAssertLessThan(pixels, Int(points * 2) * 3, "\(surface) downloads far more than it draws")
+        }
+        XCTAssertEqual(try requestedPixels(ArtworkRequest.url(mapped, points: TrackRowMetrics.artworkSize, scale: 2)), 120)
+    }
+
+    func testURLsThatCantBeResizedComeBackUnchanged() throws {
+        let registry = AppleMusicArtworkRegistry()
+        let spotify = try XCTUnwrap(URL(string: "https://i.scdn.co/image/ab67616d0000b273abc"))
+        XCTAssertEqual(ArtworkRequest.url(spotify, points: 150, scale: 2, registry: registry), spotify)
+
+        let library = try AppleMusicFixtures.decode(Artwork.self, #"{"url":"musicKit://artwork/transient/{w}x{h}?id=A","width":600,"height":600}"#)
+        let libraryURL = try XCTUnwrap(AppleMusicItemMapping.artworkURL(library, size: 120, registry: registry))
+        XCTAssertEqual(ArtworkRequest.url(libraryURL, points: 150, scale: 2, registry: registry), libraryURL)
+    }
+
+    func testAPinsCatalogURLIsNotSwappedForLibraryArtworkUnderTheSameKey() throws {
+        let registry = AppleMusicArtworkRegistry()
+        let library = try AppleMusicFixtures.decode(Artwork.self, #"{"url":"musicKit://artwork/transient/{w}x{h}?id=A","width":600,"height":600}"#)
+        registry.register(library, for: try XCTUnwrap(library.url(width: 600, height: 600)), itemKey: "album:1")
+        let saved = try XCTUnwrap(URL(string: "https://example.com/old/600x600bb.jpg"))
+
+        XCTAssertEqual(ArtworkRequest.url(saved, points: 150, scale: 2, itemKey: "album:1", registry: registry), saved)
+    }
+
+    func testRequestsNeverAskForMoreThanTheOriginal() throws {
+        let registry = AppleMusicArtworkRegistry()
+        let small = try AppleMusicFixtures.decode(Artwork.self, #"{"url":"https://example.com/{w}x{h}bb.jpg","width":400,"height":400}"#)
+        let url = try XCTUnwrap(AppleMusicItemMapping.artworkURL(small, size: 120, registry: registry))
+        XCTAssertEqual(try requestedPixels(ArtworkRequest.url(url, points: 220, scale: 2, registry: registry)), 400)
     }
 }
 

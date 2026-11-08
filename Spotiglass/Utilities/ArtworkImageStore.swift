@@ -172,6 +172,12 @@ final class ArtworkImageLoader: ObservableObject {
     private let imageProvider: ImageProvider
     private let imageTransformer: ImageTransformer
     private var requestedURL: URL?
+    /// The cover `requestedURL` shows, whatever size it asks for. A new size of the same cover
+    /// (the window moved to a Retina screen) keeps the current image until the new one is in.
+    private var requestedArtwork: URL?
+    /// The URL `image` came from. It lags `requestedURL` while a new size loads or after it
+    /// failed, so asking for that size again retries instead of keeping the smaller cover.
+    private var shownURL: URL?
     private var generation: UInt64 = 0
 
     init(
@@ -186,17 +192,27 @@ final class ArtworkImageLoader: ObservableObject {
         self.imageTransformer = imageTransformer
         self.image = initialImage.map(imageTransformer)
         self.requestedURL = initialURL
+        self.requestedArtwork = initialURL
+        self.shownURL = initialImage == nil ? nil : initialURL
     }
 
-    func load(for url: URL?) async {
-        if requestedURL == url, image != nil {
+    /// Loads `url`. `artwork` names the cover it is a size of (default: `url` itself); while a
+    /// new size of the shown cover loads, and if it fails, the current image stays (#426).
+    func load(for url: URL?, artwork: URL? = nil) async {
+        if shownURL == url, image != nil {
             return
         }
 
+        let artwork = artwork ?? url
+        let resizesShownCover = image != nil && artwork != nil && artwork == requestedArtwork
         generation &+= 1
         let requestGeneration = generation
         requestedURL = url
-        image = nil
+        requestedArtwork = artwork
+        if !resizesShownCover {
+            image = nil
+            shownURL = nil
+        }
         didFail = false
 
         guard let url else { return }
@@ -207,7 +223,13 @@ final class ArtworkImageLoader: ObservableObject {
         else {
             return
         }
-        image = loaded.map(imageTransformer)
-        didFail = loaded == nil
+        if let loaded {
+            image = imageTransformer(loaded)
+            shownURL = url
+        } else if !resizesShownCover {
+            image = nil
+            shownURL = nil
+        }
+        didFail = image == nil
     }
 }

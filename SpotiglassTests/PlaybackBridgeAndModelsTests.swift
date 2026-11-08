@@ -1,3 +1,4 @@
+import JavaScriptCore
 import XCTest
 @testable import Spotiglass
 
@@ -226,6 +227,29 @@ final class PlaybackBridgeAndModelsTests: XCTestCase {
     func testSpotifyPlaybackHostHTMLFallbackIsNonEmpty() {
         XCTAssertFalse(SpotifyPlaybackHost.html.isEmpty)
         XCTAssertEqual(SpotifyPlaybackHost.deviceName, "Spotiglass")
+    }
+
+    /// The Web Playback SDK lists a track's album images in no fixed order. Taking the first one
+    /// gave the player, Lyrics and album header whatever size happened to come first (#426).
+    func testPlaybackHostPicksTheLargestAlbumImage() throws {
+        let html = SpotifyPlaybackHost.html
+        let start = try XCTUnwrap(html.range(of: "function largestImageURL"))
+        let end = try XCTUnwrap(html.range(of: "\n      }\n", range: start.upperBound..<html.endIndex))
+        let context = try XCTUnwrap(JSContext())
+        context.evaluateScript(String(html[start.lowerBound..<end.upperBound]))
+        let pick = try XCTUnwrap(context.objectForKeyedSubscript("largestImageURL"))
+
+        let album: [String: Any] = ["images": [
+            ["url": "https://i.scdn.co/image/300", "width": 300, "height": 300],
+            ["url": "https://i.scdn.co/image/64", "width": 64, "height": 64],
+            ["url": "https://i.scdn.co/image/640", "width": 640, "height": 640]
+        ]]
+        XCTAssertEqual(pick.call(withArguments: [album])?.toString(), "https://i.scdn.co/image/640")
+        XCTAssertEqual(
+            pick.call(withArguments: [["images": [["url": "https://i.scdn.co/image/only"]]]])?.toString(),
+            "https://i.scdn.co/image/only"
+        )
+        XCTAssertTrue(pick.call(withArguments: [["images": []]])?.isNull ?? false)
     }
 
     func testParseNowPlayingTrimsEmptyAlbumName() throws {
