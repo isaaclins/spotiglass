@@ -431,6 +431,39 @@ final class ImmersiveLyricsViewModelTests: XCTestCase {
         XCTAssertEqual(disk.load(trackKey: "played-today"), .instrumental)
     }
 
+    func testLyricsShownFromMemoryCountAsUsedOnDisk() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("SpotiglassLyricsUse-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let disk = try LyricsDiskCache(directory: dir)
+        let lines = (0 ..< 40).map { "A line of lyrics number \($0)" }
+        let vm = ImmersiveLyricsViewModel(fetchLyrics: { _ in .unsyncedPlain(lines) }, diskCache: disk)
+        let tracks = (0 ..< 10).map { sampleTrack(spotifyID: String(format: "usedSong%02d", $0)) }
+        func fileURL(_ track: PlaybackNowPlaying) throws -> URL {
+            let key = try XCTUnwrap(track.lyricsTrackKey)
+            return dir.appendingPathComponent("\(key.filter { $0.isLetter || $0.isNumber || $0 == "-" }).json")
+        }
+
+        // Ten songs played in order, the first one an hour ago.
+        let now = Date()
+        for (index, track) in tracks.enumerated() {
+            await vm.load(track: track)
+            try FileManager.default.setAttributes(
+                [.modificationDate: now.addingTimeInterval(TimeInterval(index - 60) * 60)],
+                ofItemAtPath: try fileURL(track).path
+            )
+        }
+        // The first song is played again; its lyrics come from memory.
+        await vm.load(track: tracks[0])
+        guard case .ready = vm.phase else { return XCTFail("expected lyrics, got \(vm.phase)") }
+
+        let oneFile = try XCTUnwrap(try fileURL(tracks[1]).resourceValues(forKeys: [.fileSizeKey]).fileSize)
+        disk.prune(now: Date(), maxBytes: Int64(oneFile * 5))
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: try fileURL(tracks[0]).path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: try fileURL(tracks[1]).path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: try fileURL(tracks[9]).path))
+    }
+
     func testInMemoryLyricsAreBoundedAndOlderOnesFetchAgain() async {
         var fetched: [String] = []
         let vm = ImmersiveLyricsViewModel { track in

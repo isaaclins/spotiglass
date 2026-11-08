@@ -56,9 +56,15 @@ struct LyricsDiskCache: Sendable {
         guard fileManager.fileExists(atPath: url.path) else { return nil }
         guard let data = try? Data(contentsOf: url),
               let lyrics = try? JSONDecoder().decode(FetchedLyrics.self, from: data) else { return nil }
-        // A read counts as a use, so lyrics that keep being played are trimmed last.
-        DiskCacheTrim.write { try? fileManager.setAttributes([.modificationDate: Date()], ofItemAtPath: url.path) }
+        markUsed(trackKey: trackKey)
         return lyrics
+    }
+
+    /// Marks a song's lyrics as just used, so lyrics that keep being played are trimmed last.
+    /// Showing lyrics counts, also when they came from memory.
+    func markUsed(trackKey: String) {
+        let path = fileURL(for: trackKey).path
+        DiskCacheTrim.write { _ = try? fileManager.setAttributes([.modificationDate: Date()], ofItemAtPath: path) }
     }
 
     func save(trackKey: String, lyrics: FetchedLyrics) throws {

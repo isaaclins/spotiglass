@@ -89,6 +89,7 @@ final class ImmersiveLyricsViewModel: ObservableObject {
         }
 
         if let cached = Self.cache.value(forKey: tid) {
+            diskCache?.markUsed(trackKey: tid)
             phase = .ready(cached)
             return
         }

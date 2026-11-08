@@ -24,6 +24,9 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
     /// are matched on what they show: title, subtitle and length, then title and subtitle
     /// alone (``entryKeys(title:subtitle:durationSeconds:)``).
     private var uriByEntryKey: [String: String] = [:]
+    /// Counts the queues ``uriByEntryKey`` was filled for, so a failed add only takes back keys
+    /// from the queue it was added to.
+    private var uriMapGeneration = 0
     /// The row at each queue position and where the added songs are (positions, because
     /// MusicKit's entry ids don't last); see ``AppleMusicQueueBook``.
     private var book = AppleMusicQueueBook()
@@ -76,6 +79,7 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         var queued = ordered
         queued.insert(contentsOf: carriedInQueue, at: startIndex + 1)
         uriByEntryKey = [:]
+        uriMapGeneration += 1
         for item in queued + (shuffleWanted ? carried : []) {
             remember(item.uri, for: item.entry)
         }
@@ -190,6 +194,7 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
     func enqueue(uri: String) async throws {
         guard let resolved = try await Self.resolveEntries([uri]).first else { throw Self.notFound(uri) }
         let rememberedKeys = remember(uri, for: resolved.entry)
+        let rememberedIn = uriMapGeneration
         // After a shuffle the ids give the positions back; the add is then placed and
         // recorded by position.
         noteEntries()
@@ -211,8 +216,10 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
                 }
             } catch {
                 // The song never joined the queue, so a later song with the same keys must
-                // not show this row.
-                for key in rememberedKeys { uriByEntryKey[key] = nil }
+                // not show this row. A queue that replaced this one meanwhile keeps its own.
+                if uriMapGeneration == rememberedIn {
+                    for key in rememberedKeys { uriByEntryKey[key] = nil }
+                }
                 throw error
             }
         }
