@@ -74,6 +74,8 @@ protocol MusicPlaybackDeviceTransfer: AnyObject {
 /// events carry the generation they belong to.
 @MainActor
 protocol MusicPlaybackProvider: AnyObject {
+    /// The service whose player this is.
+    var service: MusicService { get }
     var capabilities: MusicPlaybackCapabilities { get }
 
     /// True while a play is still handing the player its queue, so a queue read now returns

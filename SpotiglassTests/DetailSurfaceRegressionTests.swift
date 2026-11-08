@@ -120,7 +120,7 @@ final class DetailSurfaceRegressionTests: XCTestCase {
             tracks: []
         )
         let playlistTarget = DetailHeaderPlayback.target(for: playlist)
-        XCTAssertEqual(playlistTarget, .context(uri: "spotify:playlist:playlist-1"))
+        XCTAssertEqual(playlistTarget, .context(uri: "spotify:playlist:playlist-1", playlistID: "playlist-1"))
         XCTAssertTrue(playlistTarget.isPlayable)
 
         let album = PlaylistDetailViewModel(
@@ -135,7 +135,7 @@ final class DetailSurfaceRegressionTests: XCTestCase {
         )
         XCTAssertEqual(
             DetailHeaderPlayback.target(for: album),
-            .context(uri: "spotify:album:album-1")
+            .context(uri: "spotify:album:album-1", playlistID: "album-1")
         )
 
         let likedTrack = TrackRowViewModel.numberedTopTracks([

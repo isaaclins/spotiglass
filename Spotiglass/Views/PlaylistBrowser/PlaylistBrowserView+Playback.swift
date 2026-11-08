@@ -42,7 +42,10 @@ extension PlaylistBrowserView {
     }
 
     var currentPlaybackURI: String? {
-        PlaylistBrowserPlaybackHelpers.currentPlaybackURI(connectionState: playbackViewModel.connectionState)
+        PlaylistBrowserPlaybackHelpers.currentPlaybackURI(
+            connectionState: playbackViewModel.connectionState,
+            detailContent: viewModel.detailState.currentValue
+        )
     }
 
     var isCurrentlyPlaying: Bool {

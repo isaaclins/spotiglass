@@ -226,6 +226,12 @@ struct CatalogSearchView: View {
         VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
             HomeSectionHeader(title: CatalogSearchCategory.tracks.pillLabel)
             let playableURIs = tracks.compactMap(\.playableURI)
+            // An Apple Music song started from another list carries that list's id (#396).
+            let playingURI = PlaylistBrowserPlaybackHelpers.rowURI(
+                markedAs: currentPlaybackURI,
+                connectionState: playbackViewModel.connectionState,
+                rows: tracks
+            )
             ForEach(tracks) { track in
                 TrackListRow(
                     trackNumber: track.listPosition,
@@ -242,7 +248,7 @@ struct CatalogSearchView: View {
                     togglePlayPause: {
                         Task { await playbackViewModel.togglePlayPause() }
                     },
-                    isCurrent: track.playableURI != nil && track.playableURI == currentPlaybackURI,
+                    isCurrent: track.playableURI != nil && track.playableURI == playingURI,
                     isPlaying: isPlaying,
                     openArtist: { artistID in
                         Task { await viewModel.selectArtist(id: artistID, origin: .extend, displayName: nil) }

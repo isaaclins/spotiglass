@@ -383,6 +383,10 @@ struct PlaybackControlsView: View {
     @ObservedObject var viewModel: PlaybackSessionViewModel
     @Binding var isLyricsPresented: Bool
     let openArtist: (ArtistTapTarget) -> Void
+    /// Set while the bar shows the other service's player because that is what you hear (#396):
+    /// the bar says which service plays, and its artists and lyrics, which belong to the other
+    /// library, aren't offered here.
+    var otherService: MusicService? = nil
     @Environment(\.openSettings) private var openSettingsAction
     @State private var isVolumePopoverPresented = false
 
@@ -462,7 +466,14 @@ struct PlaybackControlsView: View {
                         .frame(width: 22, height: 22)
                         .help(SpotiglassL10n.string("tooltip.playback.lyrics"))
                     }
-                    if shouldShowPausedIndicator {
+                    if let otherService {
+                        Text(SpotiglassL10n.format("playback.controls.otherService.label", otherService.displayName))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .layoutPriority(1)
+                            .transition(.opacity)
+                    } else if shouldShowPausedIndicator {
                         Text(SpotiglassL10n.string("playback.paused.label"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -574,7 +585,7 @@ struct PlaybackControlsView: View {
 
             PlaybackTransportButton(
                 accessibilityLabel: SpotiglassL10n.string("playback.controls.previous"),
-                accessibilityHint: Self.serviceString("playback.controls.previous.hint", appleMusic: "playback.controls.previous.appleMusic.hint"),
+                accessibilityHint: Self.serviceString("playback.controls.previous.hint", appleMusic: "playback.controls.previous.appleMusic.hint", service: shownService),
                 size: CGSize(width: 28, height: 28),
                 isEnabled: hasReadyDevice && !viewModel.isSkipCommandPending,
                 action: { Task { await viewModel.previous() } }
@@ -586,7 +597,7 @@ struct PlaybackControlsView: View {
 
             PlaybackTransportButton(
                 accessibilityLabel: playPauseAccessibilityLabel,
-                accessibilityHint: Self.serviceString("playback.controls.playPause.hint", appleMusic: "playback.controls.playPause.appleMusic.hint"),
+                accessibilityHint: Self.serviceString("playback.controls.playPause.hint", appleMusic: "playback.controls.playPause.appleMusic.hint", service: shownService),
                 size: CGSize(width: 28, height: 28),
                 isEnabled: viewModel.isPlaybackToggleReady,
                 action: { Task { await viewModel.togglePlayPause() } }
@@ -594,6 +605,8 @@ struct PlaybackControlsView: View {
                 Image(systemName: playPauseIcon)
                     .contentTransition(.symbolEffect(.replace))
                     .animation(.smooth(duration: 0.18), value: playPauseIcon)
+                    // Apple Music's Play is off while nothing is loaded (#396): it must look off.
+                    .opacity(viewModel.isPlaybackToggleReady ? 1 : 0.45)
             }
             .frame(width: 28, height: 28)
             // Label and tooltip agree here: the state and the next action are
@@ -602,7 +615,7 @@ struct PlaybackControlsView: View {
 
             PlaybackTransportButton(
                 accessibilityLabel: SpotiglassL10n.string("playback.controls.next"),
-                accessibilityHint: Self.serviceString("playback.controls.next.hint", appleMusic: "playback.controls.next.appleMusic.hint"),
+                accessibilityHint: Self.serviceString("playback.controls.next.hint", appleMusic: "playback.controls.next.appleMusic.hint", service: shownService),
                 size: CGSize(width: 28, height: 28),
                 isEnabled: hasReadyDevice
                     && !viewModel.isSkipCommandPending
@@ -724,7 +737,7 @@ struct PlaybackControlsView: View {
             .opacity(hasReadyDevice ? 1 : 0.45)
             .help(SpotiglassL10n.string("tooltip.playback.device"))
             .accessibilityLabel(SpotiglassL10n.string("playback.controls.device"))
-            .accessibilityHint(Self.serviceString("playback.controls.device.hint", appleMusic: "playback.controls.device.appleMusic.hint"))
+            .accessibilityHint(Self.serviceString("playback.controls.device.hint", appleMusic: "playback.controls.device.appleMusic.hint", service: shownService))
         }
     }
 
@@ -840,7 +853,7 @@ struct PlaybackControlsView: View {
         case .disconnected, .unavailable:
             PlaybackTransportButton(
                 accessibilityLabel: SpotiglassL10n.string("playback.controls.reconnect.label"),
-                accessibilityHint: Self.serviceString("playback.controls.reconnect.hint", appleMusic: "playback.controls.reconnect.appleMusic.hint"),
+                accessibilityHint: Self.serviceString("playback.controls.reconnect.hint", appleMusic: "playback.controls.reconnect.appleMusic.hint", service: shownService),
                 size: CGSize(width: 170, height: 28),
                 action: { viewModel.start() }
             ) {
@@ -856,7 +869,7 @@ struct PlaybackControlsView: View {
             case .reconnect:
                 PlaybackTransportButton(
                     accessibilityLabel: SpotiglassL10n.string("playback.controls.reconnect.label"),
-                    accessibilityHint: Self.serviceString("playback.controls.reconnect.sdk.hint", appleMusic: "playback.controls.reconnect.appleMusic.hint"),
+                    accessibilityHint: Self.serviceString("playback.controls.reconnect.sdk.hint", appleMusic: "playback.controls.reconnect.appleMusic.hint", service: shownService),
                     size: CGSize(width: 170, height: 28),
                     action: { viewModel.start() }
                 ) {
@@ -905,7 +918,7 @@ struct PlaybackControlsView: View {
         case .disconnected:
             SpotiglassL10n.string("playback.controls.state.disconnected.title")
         case .connecting:
-            Self.serviceString("playback.controls.state.connecting.title", appleMusic: "playback.controls.state.connecting.title.appleMusic")
+            Self.serviceString("playback.controls.state.connecting.title", appleMusic: "playback.controls.state.connecting.title.appleMusic", service: shownService)
         case .ready:
             SpotiglassL10n.string("playback.controls.state.ready.title")
         case .transferring:
@@ -929,7 +942,12 @@ struct PlaybackControlsView: View {
     }
 
     private var showsLyricsButton: Bool {
-        viewModel.currentLyricTrack != nil
+        otherService == nil && viewModel.currentLyricTrack != nil
+    }
+
+    /// The service whose player the bar shows.
+    private var shownService: MusicService {
+        otherService ?? MusicServiceSelection.current
     }
 
     private var subtitle: String {
@@ -937,9 +955,12 @@ struct PlaybackControlsView: View {
         case .disconnected:
             SpotiglassL10n.string("playback.controls.state.disconnected.subtitle")
         case .connecting:
-            Self.serviceString("playback.controls.state.connecting.subtitle", appleMusic: "playback.controls.state.connecting.subtitle.appleMusic")
+            Self.serviceString("playback.controls.state.connecting.subtitle", appleMusic: "playback.controls.state.connecting.subtitle.appleMusic", service: shownService)
         case .ready:
-            SpotiglassL10n.string("playback.controls.state.ready.subtitle")
+            // MusicKit's player has nothing to resume, so its Play is off until a track is chosen (#396).
+            viewModel.playerPushesState
+                ? SpotiglassL10n.string("playback.controls.state.ready.subtitle")
+                : SpotiglassL10n.string("playback.controls.state.ready.subtitle.appleMusic")
         case .transferring:
             SpotiglassL10n.string("playback.controls.state.transferring.subtitle")
         case let .playing(nowPlaying):
@@ -954,7 +975,7 @@ struct PlaybackControlsView: View {
     }
 
     private var artistTapTargets: [ArtistTapTarget] {
-        guard let nowPlaying else { return [] }
+        guard otherService == nil, let nowPlaying else { return [] }
         return nowPlaying.artistTapTargets
     }
 

@@ -123,6 +123,9 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
 
     func stop() {
         player.stop()
+        book = AppleMusicQueueBook()
+        uriByEntryKey = [:]
+        uriMapGeneration += 1
     }
 
     func seek(toMilliseconds milliseconds: Int) {
@@ -191,8 +194,10 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         player.state.repeatMode = wanted
     }
 
-    func enqueue(uri: String) async throws {
+    func enqueue(uri: String, isCurrent: @escaping @MainActor () -> Bool) async throws {
         guard let resolved = try await Self.resolveEntries([uri]).first else { throw Self.notFound(uri) }
+        // Signed out during the lookup: the queue belongs to the session that ended.
+        guard isCurrent() else { throw CancellationError() }
         let rememberedKeys = remember(uri, for: resolved.entry)
         let rememberedIn = uriMapGeneration
         // After a shuffle the ids give the positions back; the add is then placed and

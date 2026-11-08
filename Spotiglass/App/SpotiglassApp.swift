@@ -82,14 +82,15 @@ struct SpotiglassApp: App {
         _equalizerEngine = StateObject(wrappedValue: equalizer)
         // Built lazily (after NSApp exists). Apple Music plays through MusicKit's own player:
         // no Web Playback SDK page, created only once Apple Music is on screen.
-        _playbackHosts = StateObject(
-            wrappedValue: SpotiglassPlaybackHosts(
-                spotify: SpotiglassPlaybackHost(tokenProvider: authVM, equalizerEngine: equalizer),
-                makeAppleMusic: {
-                    SpotiglassPlaybackHost(provider: AppleMusicPlaybackProvider(), equalizerEngine: equalizer)
-                }
-            )
+        let playbackHosts = SpotiglassPlaybackHosts(
+            spotify: SpotiglassPlaybackHost(tokenProvider: authVM, equalizerEngine: equalizer),
+            makeAppleMusic: {
+                SpotiglassPlaybackHost(provider: AppleMusicPlaybackProvider(), equalizerEngine: equalizer)
+            }
         )
+        // Signing out of a service stops its player, even with no window open (#396).
+        playbackHosts.follow(addedServices: services.$services)
+        _playbackHosts = StateObject(wrappedValue: playbackHosts)
         SpotiglassL10n.settingsStore = store
     }
 

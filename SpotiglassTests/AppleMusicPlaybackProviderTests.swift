@@ -778,8 +778,8 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
             playlist: PlaylistRowViewModel(albumDisplayName: "Album", artistsDisplay: "A", totalTrackCount: 1, artworkURL: nil, albumID: "1440857781"),
             tracks: []
         )
-        XCTAssertEqual(DetailHeaderPlayback.target(for: album, service: .appleMusic), .context(uri: "applemusic:album:1440857781"))
-        XCTAssertEqual(DetailHeaderPlayback.target(for: album, service: .spotify), .context(uri: "spotify:album:1440857781"))
+        XCTAssertEqual(DetailHeaderPlayback.target(for: album, service: .appleMusic), .context(uri: "applemusic:album:1440857781", playlistID: "1440857781"))
+        XCTAssertEqual(DetailHeaderPlayback.target(for: album, service: .spotify), .context(uri: "spotify:album:1440857781", playlistID: "1440857781"))
     }
 
     // MARK: - Fixtures
@@ -847,6 +847,9 @@ final class ScriptedAppleMusicPlayer: AppleMusicPlayerControlling {
     /// While true, play and enqueue wait in their lookup (like a slow MusicKit request) until
     /// ``releaseLookups()``. ``waitingLookups`` names who waits.
     var holdLookups = false
+    /// While true, play waits after it set its queue (like MusicKit's own `play()` finishing)
+    /// until ``releaseLookups()``; it waits as "started <uri>".
+    var holdAfterQueueSet = false
     private var lookupWaiters: [(name: String, resume: CheckedContinuation<Void, Never>)] = []
     var waitingLookups: [String] { lookupWaiters.map(\.name) }
 
@@ -915,6 +918,9 @@ final class ScriptedAppleMusicPlayer: AppleMusicPlayerControlling {
             carryingAdded: carried.count,
             after: startIndex
         )
+        if holdAfterQueueSet {
+            await withCheckedContinuation { lookupWaiters.append(("started \(newQueue[startIndex])", $0)) }
+        }
     }
 
     func pause() {
@@ -925,7 +931,9 @@ final class ScriptedAppleMusicPlayer: AppleMusicPlayerControlling {
         later("resume") { [self] in positionAnchor = now; playing = true }
     }
 
+    /// Like the live player: the queue stays, the songs added to it are forgotten.
     func stop() {
+        book = AppleMusicQueueBook()
         later("stop") { [self] in positionBase = position(); playing = false }
     }
 
@@ -954,8 +962,10 @@ final class ScriptedAppleMusicPlayer: AppleMusicPlayerControlling {
     }
     func setRepeat(_ mode: MusicRepeatMode) { repeatMode = mode }
 
-    func enqueue(uri: String) async throws {
+    func enqueue(uri: String, isCurrent: @escaping @MainActor () -> Bool) async throws {
         await lookup("enqueue \(uri)")
+        // The live player's contract: an add from a session that ended leaves the queue alone.
+        guard isCurrent() else { throw CancellationError() }
         commands.append("enqueue \(uri)")
         let current = queue.indices.contains(index) ? index : nil
         let plan = book.planAdd(AppleMusicQueueBook.Row(uri: uri, title: uri), currentIndex: current, entryCount: queue.count)

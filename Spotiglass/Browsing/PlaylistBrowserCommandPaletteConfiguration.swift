@@ -55,22 +55,23 @@ enum PlaylistBrowserCommandPaletteConfiguration {
                 playback?.start(recoveryCause: .manualReconnect)
             }
             : nil
+        // Space, the Playback menu and the palette control the music you hear (#396).
         manager.playbackTogglePrerequisite = { [weak playback = dependencies.playbackViewModel] in
             guard let playback else { return false }
-            return playback.isPlaybackToggleReady
+            return playback.audiblePlayer.isPlaybackToggleReady
         }
         manager.canMutatePlaybackTransport = dependencies.playbackViewModel.isTransportMutationReady
         manager.playbackTransportMutationPrerequisite = { [weak playback = dependencies.playbackViewModel] in
             playback?.isTransportMutationReady ?? false
         }
         manager.togglePlayback = { [weak playback = dependencies.playbackViewModel] in
-            await playback?.togglePlayPause()
+            await playback?.audiblePlayer.togglePlayPause()
         }
         manager.nextTrack = { [weak playback = dependencies.playbackViewModel] in
-            await playback?.next()
+            await playback?.audiblePlayer.next()
         }
         manager.previousTrack = { [weak playback = dependencies.playbackViewModel] in
-            await playback?.previous()
+            await playback?.audiblePlayer.previous()
         }
         manager.disconnectPlayback = { [weak playback = dependencies.playbackViewModel] in
             await playback?.disconnect()
@@ -78,11 +79,16 @@ enum PlaylistBrowserCommandPaletteConfiguration {
         manager.toggleShuffle = { [weak queue = dependencies.queueViewModel] in
             await queue?.toggleShuffle()
         }
+        // Repeat, like the bar's Repeat button, sets the repeat of the music you hear (#396).
+        // Shuffle stays with the on-screen queue.
+        manager.repeatMutationPrerequisite = { [weak playback = dependencies.playbackViewModel] in
+            playback?.audiblePlayer.isTransportMutationReady ?? false
+        }
         manager.cycleRepeat = { [weak playback = dependencies.playbackViewModel] in
-            await playback?.cycleRepeat()
+            await playback?.audiblePlayer.cycleRepeat()
         }
         manager.setRepeatModeAction = { [weak playback = dependencies.playbackViewModel] mode in
-            await playback?.setRepeatMode(mode)
+            await playback?.audiblePlayer.setRepeatMode(mode)
         }
         // The palette's enqueue and pin act on its own highlighted row. These act
         // on the track table's selection, so the same actions have a keyboard and
@@ -117,8 +123,8 @@ enum PlaylistBrowserCommandPaletteConfiguration {
         manager.navigateBack = { [weak browser = dependencies.viewModel] in
             await browser?.navigateBack()
         }
-        manager.seekBy = { [weak playback = dependencies.playbackViewModel] delta in
-            guard let playback, let anchor = playback.progressAnchor else { return }
+        manager.seekBy = { [weak session = dependencies.playbackViewModel] delta in
+            guard let playback = session?.audiblePlayer, let anchor = playback.progressAnchor else { return }
             let current = anchor.interpolatedPositionMs(at: Date())
             let target = min(max(current + delta, 0), anchor.durationMilliseconds)
             await playback.seek(to: target)

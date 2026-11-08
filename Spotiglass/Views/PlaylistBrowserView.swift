@@ -193,12 +193,16 @@ struct PlaylistBrowserView: View {
             }
             switch playbackMode {
             case .live:
+                // The bar shows and controls the music you hear (#396): the other service's
+                // player while it plays and nothing plays here.
+                let transport = playbackViewModel.audiblePlayer
                 PlaybackControlsView(
-                    viewModel: playbackViewModel,
+                    viewModel: transport,
                     isLyricsPresented: isLyricsPresentedBinding,
                     openArtist: { target in
                         openArtistFromTapTarget(target)
-                    }
+                    },
+                    otherService: transport === playbackViewModel ? nil : transport.service
                 )
             case let .unavailable(message):
                 PlaybackUnavailableBar(message: message)

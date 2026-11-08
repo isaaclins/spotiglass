@@ -638,6 +638,7 @@ final class MusicPlaybackProviderTests: XCTestCase {
 /// read rather than pushed, no device transfer, nothing to reload.
 @MainActor
 final class ReadOnlyStatePlaybackProvider: MusicPlaybackProvider {
+    let service: MusicService = .appleMusic
     let capabilities: MusicPlaybackCapabilities = []
     var eventHandler: ((MusicPlaybackEventEnvelope) -> Void)?
     var state: MusicPlaybackSnapshot?

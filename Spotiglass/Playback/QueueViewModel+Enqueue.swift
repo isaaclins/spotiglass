@@ -14,6 +14,10 @@ extension QueueViewModel {
             publishPlaybackUnavailableError()
             return
         }
+        guard !playbackSession.hasNothingLoaded else {
+            publishNothingLoadedError()
+            return
+        }
         _ = await performAddToQueue(uri: uri, deviceID: deviceID, source: .user)
     }
 
@@ -33,6 +37,10 @@ extension QueueViewModel {
         }
         guard let deviceID = playbackSession.commandDeviceID else {
             publishPlaybackUnavailableError()
+            return QueueEnqueueResult(requested: uniqueURIs.count, enqueued: 0)
+        }
+        guard !playbackSession.hasNothingLoaded else {
+            publishNothingLoadedError()
             return QueueEnqueueResult(requested: uniqueURIs.count, enqueued: 0)
         }
 
@@ -133,6 +141,15 @@ extension QueueViewModel {
             }
             return false
         }
+    }
+
+    /// Apple Music with nothing loaded (#396): start something first, like Play.
+    private func publishNothingLoadedError() {
+        lastError = BrowsingDisplayError(
+            title: SpotiglassL10n.string("error.queue.nothingLoaded.title"),
+            message: SpotiglassL10n.string("error.queue.nothingLoaded.message"),
+            canRetry: false
+        )
     }
 
     private func publishPlaybackUnavailableError() {
