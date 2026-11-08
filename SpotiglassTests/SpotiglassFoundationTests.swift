@@ -103,34 +103,116 @@ final class SpotiglassFoundationTests: XCTestCase {
     /// before anyone has touched it: on. Sparkle is pointed at a copy of the shipped Info.plist
     /// under a throwaway bundle id, so the answer comes from the plist and never from this Mac's
     /// saved choice.
+    @MainActor
     func testInstallUpdatesAutomaticallyDefaultsToOn() throws {
+        let throwaway = try ThrowawayUpdaterBundle()
+        defer { throwaway.remove() }
+        let updater = throwaway.makeUpdater()
+
+        XCTAssertTrue(updater.automaticallyDownloadsUpdates)
+        XCTAssertTrue(updater.automaticallyChecksForUpdates)
+        XCTAssertLessThanOrEqual(updater.updateCheckInterval, 6 * 3600)
+        let viewModel = AutomaticUpdatesViewModel(updater: updater)
+        XCTAssertTrue(viewModel.installsAutomatically)
+        XCTAssertTrue(viewModel.checksAutomatically)
+    }
+
+    /// Sparkle's update alert has its own "Automatically download and install updates in the
+    /// future" checkbox, which writes `SUAutomaticallyUpdate` straight to user defaults instead of
+    /// through the updater. Settings must follow it while it is open.
+    @MainActor
+    func testUpdatesSwitchFollowsSparklesOwnCheckbox() throws {
+        let throwaway = try ThrowawayUpdaterBundle()
+        defer { throwaway.remove() }
+        let viewModel = AutomaticUpdatesViewModel(updater: throwaway.makeUpdater())
+        XCTAssertTrue(viewModel.installsAutomatically)
+
+        throwaway.defaults.set(false, forKey: "SUAutomaticallyUpdate")
+        waitUntil { !viewModel.installsAutomatically }
+        XCTAssertTrue(viewModel.checksAutomatically)
+
+        throwaway.defaults.set(true, forKey: "SUAutomaticallyUpdate")
+        waitUntil { viewModel.installsAutomatically }
+    }
+
+    /// Sparkle never downloads without checking, so with automatic checks off the switch is off,
+    /// and turning it on turns checks back on.
+    @MainActor
+    func testUpdatesSwitchIsOffWhileAutomaticChecksAreOff() throws {
+        let throwaway = try ThrowawayUpdaterBundle()
+        defer { throwaway.remove() }
+        throwaway.defaults.set(false, forKey: "SUEnableAutomaticChecks")
+        let updater = throwaway.makeUpdater()
+        let viewModel = AutomaticUpdatesViewModel(updater: updater)
+
+        XCTAssertFalse(viewModel.checksAutomatically)
+        XCTAssertFalse(viewModel.installsAutomatically)
+
+        viewModel.setInstallsAutomatically(true)
+        XCTAssertTrue(updater.automaticallyChecksForUpdates)
+        XCTAssertTrue(updater.automaticallyDownloadsUpdates)
+        XCTAssertTrue(viewModel.installsAutomatically)
+
+        viewModel.setInstallsAutomatically(false)
+        XCTAssertFalse(updater.automaticallyDownloadsUpdates)
+        XCTAssertTrue(updater.automaticallyChecksForUpdates)
+        XCTAssertFalse(viewModel.installsAutomatically)
+        XCTAssertTrue(viewModel.checksAutomatically)
+    }
+
+    /// Spins the main run loop (where the view model receives changes) until `condition` holds.
+    @MainActor
+    private func waitUntil(_ condition: () -> Bool, file: StaticString = #filePath, line: UInt = #line) {
+        let deadline = Date().addingTimeInterval(5)
+        while !condition(), Date() < deadline {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+        }
+        XCTAssertTrue(condition(), "timed out", file: file, line: line)
+    }
+
+    /// Searching Settings for "update" or the group's own title, "updates", finds the pane that
+    /// holds the switch.
+    func testSettingsSearchForUpdatesFindsAccountPane() {
+        XCTAssertTrue(SpotiglassSettingsSection.account.matches(searchQuery: "update"))
+        XCTAssertTrue(SpotiglassSettingsSection.account.matches(searchQuery: "updates"))
+        XCTAssertTrue(SpotiglassSettingsSection.account.matches(searchQuery: "install automatically"))
+    }
+
+}
+
+/// A copy of the shipped Info.plist under a throwaway bundle id, so Sparkle reads the plist's
+/// defaults and its own saved choices land in a defaults domain that is deleted afterwards.
+private struct ThrowawayUpdaterBundle {
+    let bundle: Bundle
+    let defaults: UserDefaults
+    private let bundleURL: URL
+    private let identifier: String
+
+    init() throws {
+        identifier = "com.isaaclins.spotiglass.tests.updates-\(UUID().uuidString)"
         var info = try XCTUnwrap(Bundle.main.infoDictionary)
-        info["CFBundleIdentifier"] = "com.isaaclins.spotiglass.tests.updates-\(UUID().uuidString)"
-        let bundleURL = FileManager.default.temporaryDirectory
+        info["CFBundleIdentifier"] = identifier
+        bundleURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("SpotiglassUpdateDefaults-\(UUID().uuidString).app", isDirectory: true)
         let contents = bundleURL.appendingPathComponent("Contents", isDirectory: true)
         try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: bundleURL) }
         let data = try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
         try data.write(to: contents.appendingPathComponent("Info.plist"))
-        let bundle = try XCTUnwrap(Bundle(url: bundleURL))
+        bundle = try XCTUnwrap(Bundle(url: bundleURL))
+        defaults = try XCTUnwrap(UserDefaults(suiteName: identifier))
+    }
 
-        let updater = SPUUpdater(
+    func makeUpdater() -> SPUUpdater {
+        SPUUpdater(
             hostBundle: bundle,
             applicationBundle: bundle,
             userDriver: SPUStandardUserDriver(hostBundle: bundle, delegate: nil),
             delegate: nil
         )
-
-        XCTAssertTrue(updater.automaticallyDownloadsUpdates)
-        XCTAssertTrue(updater.automaticallyChecksForUpdates)
-        XCTAssertLessThanOrEqual(updater.updateCheckInterval, 6 * 3600)
     }
 
-    /// Searching Settings for "update" finds the pane that holds the switch.
-    func testSettingsSearchForUpdatesFindsAccountPane() {
-        XCTAssertTrue(SpotiglassSettingsSection.account.matches(searchQuery: "update"))
-        XCTAssertTrue(SpotiglassSettingsSection.account.matches(searchQuery: "install automatically"))
+    func remove() {
+        defaults.removePersistentDomain(forName: identifier)
+        try? FileManager.default.removeItem(at: bundleURL)
     }
-
 }

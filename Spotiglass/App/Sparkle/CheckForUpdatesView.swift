@@ -36,31 +36,49 @@ struct CheckForUpdatesView: View {
 /// `SUAutomaticallyUpdate` in `SparkleInfo.plist` (on).
 @MainActor
 final class AutomaticUpdatesViewModel: ObservableObject {
+    /// On only while Sparkle both checks and downloads by itself: it never downloads without checking.
     @Published private(set) var installsAutomatically: Bool
+    @Published private(set) var checksAutomatically: Bool
     @Published private(set) var canCheckForUpdates = false
 
     private let updater: SPUUpdater
+    private var cancellables = Set<AnyCancellable>()
 
-    init(updater: SPUUpdater) {
+    init(updater: SPUUpdater, notificationCenter: NotificationCenter = .default) {
         self.updater = updater
-        installsAutomatically = updater.automaticallyDownloadsUpdates
-        updater.publisher(for: \.automaticallyDownloadsUpdates)
-            .receive(on: RunLoop.main)
-            .assign(to: &$installsAutomatically)
+        checksAutomatically = updater.automaticallyChecksForUpdates
+        installsAutomatically = updater.automaticallyChecksForUpdates && updater.automaticallyDownloadsUpdates
         updater.publisher(for: \.canCheckForUpdates)
             .receive(on: RunLoop.main)
             .assign(to: &$canCheckForUpdates)
+        // Sparkle's update alert writes its "automatically download" checkbox straight to user
+        // defaults, past the updater's KVO, so any defaults change also re-reads both settings.
+        Publishers.Merge3(
+            updater.publisher(for: \.automaticallyDownloadsUpdates).map { _ in () },
+            updater.publisher(for: \.automaticallyChecksForUpdates).map { _ in () },
+            notificationCenter.publisher(for: UserDefaults.didChangeNotification).map { _ in () }
+        )
+        .receive(on: RunLoop.main)
+        .sink { [weak self] in self?.refresh() }
+        .store(in: &cancellables)
     }
 
     func setInstallsAutomatically(_ isOn: Bool) {
         // Sparkle only downloads by itself while it also checks by itself.
         if isOn { updater.automaticallyChecksForUpdates = true }
         updater.automaticallyDownloadsUpdates = isOn
-        installsAutomatically = updater.automaticallyDownloadsUpdates
+        refresh()
     }
 
     func checkForUpdates() {
         updater.checkForUpdates()
+    }
+
+    private func refresh() {
+        let checks = updater.automaticallyChecksForUpdates
+        let installs = checks && updater.automaticallyDownloadsUpdates
+        if checksAutomatically != checks { checksAutomatically = checks }
+        if installsAutomatically != installs { installsAutomatically = installs }
     }
 }
 
@@ -70,6 +88,11 @@ struct UpdatesSettingsSection: View {
 
     init(updater: SPUUpdater) {
         _viewModel = StateObject(wrappedValue: AutomaticUpdatesViewModel(updater: updater))
+    }
+
+    private var footerKey: String {
+        if viewModel.installsAutomatically { return "settings.updates.footer.automatic" }
+        return viewModel.checksAutomatically ? "settings.updates.footer.prompt" : "settings.updates.footer.manual"
     }
 
     var body: some View {
@@ -92,11 +115,7 @@ struct UpdatesSettingsSection: View {
         } header: {
             Text(SpotiglassL10n.string("settings.updates.header"))
         } footer: {
-            Text(SpotiglassL10n.string(
-                viewModel.installsAutomatically
-                    ? "settings.updates.footer.automatic"
-                    : "settings.updates.footer.prompt"
-            ))
+            Text(SpotiglassL10n.string(footerKey))
             .foregroundStyle(.secondary)
         }
     }

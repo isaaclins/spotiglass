@@ -43,7 +43,7 @@ enum SpotiglassSettingsSection: String, CaseIterable, Identifiable {
         case .equalizer: ["equalizer", "eq", "bands", "preamp", "gain", "preset", "output", "device"]
         case .appearance:
             ["appearance", "language", "theme", "color", "scheme", "dark", "light", "lyrics", "text size", "command palette", "blur", "offset"]
-        case .account: ["account", "spotify", "apple music", "service", "client id", "token", "sign in", "sign out", "disconnect", "log", "diagnostics", "update", "install automatically"]
+        case .account: ["account", "spotify", "apple music", "service", "client id", "token", "sign in", "sign out", "disconnect", "log", "diagnostics", "updates", "install automatically"]
         case .keyboard: ["keyboard", "shortcuts", "hotkey", "keymap", "bindings", "command palette"]
         }
     }

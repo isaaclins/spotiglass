@@ -16339,6 +16339,28 @@
         }
       }
     },
+    "settings.updates.footer.manual": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass sucht nicht von selbst nach neuen Versionen. Mit „Nach Updates suchen…“ suchst du sofort."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass doesn't look for new versions by itself. Use Check for Updates… to look now."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass no busca versiones nuevas por sí sola. Usa «Buscar actualizaciones…» para buscar ahora."
+          }
+        }
+      }
+    },
     "settings.updates.footer.prompt": {
       "localizations": {
         "de": {
