@@ -27,6 +27,8 @@
   --radius: 14px;
   --font: "Outfit", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
   --mono: "DM Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  /* Key labels: the system font draws ⌘ ⇧ ⌥ ⌃ ↩ at full size, DM Mono and Outfit have no such glyphs. */
+  --keys: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Segoe UI Symbol", sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -40,7 +42,7 @@
     --accent: #d23a4f;
     --accent-hover: #c0334a;
     --on-accent: #ffffff;
-    --band: #0c0b0a;
+    --band: #000000;
     --band-ink: #f2ede6;
     --band-muted: #a39b90;
     --closing: #6d0f1d;
@@ -79,7 +81,7 @@ kbd {
   border-radius: 6px;
   background: var(--raised);
   color: var(--ink);
-  font: 500 0.8em/1.2 var(--mono);
+  font: 500 0.8em/1.2 var(--keys);
   text-align: center;
   white-space: nowrap;
   vertical-align: 0.08em;
@@ -188,7 +190,7 @@ kbd {
   border-radius: 12px;
   background: var(--raised);
   box-shadow: inset 0 -4px 0 var(--surface);
-  font: 500 22px/1 var(--mono);
+  font: 500 22px/1 var(--keys);
 }
 
 .points { margin-top: 22px; display: grid; gap: 16px; color: var(--muted); }
@@ -198,7 +200,7 @@ kbd {
 .section--ink { background: var(--band); color: var(--band-ink); }
 .section--ink p, .section--ink .eq-facts { color: var(--band-muted); }
 .section--ink b { color: var(--band-ink); font-weight: 600; }
-.frame--eq { margin-top: 36px; max-width: 900px; background: #1e1e1e; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 30px 70px -20px rgba(0, 0, 0, 0.7); }
+.frame--eq { margin-top: 36px; max-width: 725px; background: #1e1e1e; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 30px 70px -20px rgba(0, 0, 0, 0.7); }
 .eq-facts { margin-top: 28px; display: grid; gap: 12px; max-width: 900px; }
 
 /* Made for the Mac: a plain two-column list. */
@@ -226,7 +228,7 @@ kbd {
 .closing__links a:hover { text-decoration: underline; text-underline-offset: 3px; }
 .closing :focus-visible { outline-color: var(--closing-ink); }
 .section--ink :focus-visible { outline-color: var(--band-ink); }
-.hero__meta a { color: inherit; text-underline-offset: 3px; text-decoration-color: color-mix(in srgb, currentColor 45%, transparent); }
+.hero__meta a { white-space: nowrap; color: inherit; text-underline-offset: 3px; text-decoration-color: color-mix(in srgb, currentColor 45%, transparent); }
 .hero__meta a:hover { color: var(--ink); text-decoration-color: currentColor; }
 .closing__legal { font-size: 14px; color: var(--closing-muted); max-width: 52em; }
 
@@ -260,6 +262,11 @@ kbd {
   .closing { padding: 120px 0 48px; }
   .closing__foot { grid-template-columns: auto 1fr; align-items: center; gap: 32px; }
   .closing__legal { justify-self: end; text-align: right; max-width: 36em; }
+}
+
+@media (max-width: 359px) {
+  .hero__works { flex-wrap: wrap; justify-content: center; text-align: center; }
+  .hero__works span { flex-basis: 100%; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -20,8 +20,8 @@ using vDSP biquads at the device's native sample rate, with no resampling.
    picks up the new device without restarting playback. Later installs,
    upgrades, and repairs happen without another prompt.
 3. Pick a built-in preset (Flat, Bass Boost, Vocal, Treble Boost, Acoustic,
-   Electronic, Loudness) or drag the 10 sliders to taste. The 80 Hz, 170 Hz,
-   310 Hz, 600 Hz, 1 kHz, 3 kHz, 6 kHz, 12 kHz, 14 kHz, 16 kHz bands and the
+   Electronic, Loudness) or drag the 10 sliders to taste. The 32 Hz, 64 Hz,
+   125 Hz, 250 Hz, 500 Hz, 1 kHz, 2 kHz, 4 kHz, 8 kHz, 16 kHz bands and the
    preamp update live on every slider change — no audio restart.
 4. Save custom curves as user presets. Everything persists to
    `~/.config/spotiglass/settings.json`.
