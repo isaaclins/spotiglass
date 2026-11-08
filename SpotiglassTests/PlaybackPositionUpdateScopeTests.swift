@@ -1,3 +1,4 @@
+import AppKit
 import Combine
 import SwiftUI
 import XCTest
@@ -90,6 +91,13 @@ final class PlaybackPositionUpdateScopeTests: XCTestCase {
         ]
         defer { cancellables.forEach { $0.cancel() } }
 
+        // Any write to the defaults re-renders every view using `@AppStorage`, the window included.
+        var defaultsWrites = 0
+        let defaultsObserver = NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification, object: nil, queue: nil
+        ) { _ in defaultsWrites += 1 }
+        defer { NotificationCenter.default.removeObserver(defaultsObserver) }
+
         for _ in 0..<3 {
             playback.setTransportStateKnown(true)
             playback.setActivePlaybackDeviceID("device")
@@ -101,6 +109,7 @@ final class PlaybackPositionUpdateScopeTests: XCTestCase {
         }
         XCTAssertEqual(sessionChanges, 0)
         XCTAssertTrue(shuffleValues.isEmpty)
+        XCTAssertEqual(defaultsWrites, 0, "an unchanged volume must not be written again")
 
         playback.applyTransportShuffleEnabled(false, minimumMutationVersion: nil)
         XCTAssertEqual(sessionChanges, 1)
@@ -162,6 +171,130 @@ final class PlaybackPositionUpdateScopeTests: XCTestCase {
         AppKitTestSupport.pumpRunLoop(for: 0.05)
         XCTAssertEqual(counter.outer, outerBefore + 1, "pausing re-renders what shows the play state")
         XCTAssertEqual(counter.lastPosition, 5_100)
+    }
+}
+
+/// The scrubber's track moves 4 to 7 times a second while a track plays. As a `Canvas` in a
+/// `TimelineView` inside the window's hosting view, each of those ticks laid out the whole window,
+/// constraints and minimum size included: about 8 % of a core (#409). The track is now drawn by an
+/// AppKit view that only redraws.
+@MainActor
+final class ScrubberTickCostTests: XCTestCase {
+    private var windows: [NSWindow] = []
+
+    override func tearDown() {
+        windows.forEach { AppKitTestSupport.closeWindowSafely($0) }
+        windows = []
+        super.tearDown()
+    }
+
+    private func playingAnchor(isAdvancing: Bool = true) -> PlaybackProgressAnchor {
+        PlaybackProgressAnchor(
+            positionMilliseconds: 60_000,
+            anchorDate: Date(),
+            durationMilliseconds: 240_000,
+            isAdvancing: isAdvancing
+        )
+    }
+
+    /// A window that is on screen as far as AppKit knows (timelines tick only there), placed
+    /// where nobody sees it, whose hosting view counts its layout passes.
+    private func host<V: View>(_ view: V, size: CGSize) -> LayoutCountingHostingView {
+        AppKitTestSupport.activateAppIfNeeded()
+        let hosting = LayoutCountingHostingView(rootView: AnyView(view))
+        let window = OffscreenTestWindow(
+            contentRect: NSRect(origin: .zero, size: size),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        window.isReleasedWhenClosed = false
+        window.contentView = hosting
+        window.orderFrontRegardless()
+        windows.append(window)
+        hosting.layoutSubtreeIfNeeded()
+        AppKitTestSupport.pumpRunLoop(for: 0.3)
+        return hosting
+    }
+
+    func testAPlayingBarDoesNotLayOutTheWindowOnEveryTick() {
+        let hosting = host(
+            PlaybackProgressScrubberGroup(
+                progressAnchor: playingAnchor(),
+                durationMilliseconds: 240_000,
+                isEnabled: true,
+                onSeek: { _ in }
+            )
+            .frame(width: 600, height: 30),
+            size: CGSize(width: 600, height: 30)
+        )
+        hosting.layoutCount = 0
+        AppKitTestSupport.pumpRunLoop(for: 3)
+
+        // The two time labels change once a second each, which still lays out the window: about 6
+        // passes in 3 s. The track alone ticked 5 times a second here (600 pt, 4:00), 15 more.
+        XCTAssertLessThanOrEqual(hosting.layoutCount, 9, "the moving track must not lay out the window")
+        XCTAssertGreaterThanOrEqual(hosting.layoutCount, 3, "the labels still tick, so the window is live")
+    }
+
+    func testTheTrackWakesOnlyWhilePlaying() throws {
+        let view = ScrubberTrackCanvasView(frame: CGRect(x: 0, y: 0, width: 416, height: 18))
+        let colors = ScrubberTrackDrawing.Colors(track: .gray, played: .blue, thumbFill: .white, thumbBorder: .black)
+        func drawing(_ anchor: PlaybackProgressAnchor, dragFraction: Double? = nil) -> ScrubberTrackCanvasView.Drawing {
+            .init(
+                trackHeight: 4,
+                progress: ScrubberProgress(anchor: anchor, durationMilliseconds: 240_000, dragFraction: dragFraction),
+                dragFraction: dragFraction,
+                thumbDiameter: 12,
+                overhang: 8,
+                colors: colors
+            )
+        }
+        view.drawing = drawing(playingAnchor())
+        XCTAssertNil(view.tickTimer, "nothing to wake outside a window")
+
+        let window = OffscreenTestWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 416, height: 18),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        window.isReleasedWhenClosed = false
+        windows.append(window)
+        window.contentView?.addSubview(view)
+
+        // 400 pt for 4:00 moves 1.67 pt a second: 4 ticks a second keep each step under half a point.
+        let timer = try XCTUnwrap(view.tickTimer)
+        let wait = timer.fireDate.timeIntervalSinceNow
+        XCTAssertGreaterThan(wait, 0)
+        XCTAssertLessThanOrEqual(wait, 0.25 + 0.01)
+
+        view.drawing = drawing(playingAnchor(isAdvancing: false))
+        XCTAssertNil(view.tickTimer, "paused: no wakeups")
+
+        view.drawing = drawing(playingAnchor())
+        XCTAssertNotNil(view.tickTimer)
+        view.drawing = drawing(playingAnchor(), dragFraction: 0.5)
+        XCTAssertNil(view.tickTimer, "dragging: the pointer moves the thumb, not the clock")
+
+        view.drawing = drawing(playingAnchor())
+        view.removeFromSuperview()
+        XCTAssertNil(view.tickTimer, "out of the window: no wakeups")
+    }
+
+    func testTheTrackIsNeverHitOrReadByVoiceOver() {
+        let view = ScrubberTrackCanvasView(frame: CGRect(x: 0, y: 0, width: 100, height: 18))
+        XCTAssertNil(view.hitTest(NSPoint(x: 50, y: 9)), "clicks and hover belong to the surface above it")
+        XCTAssertFalse(view.isAccessibilityElement())
+    }
+}
+
+private final class LayoutCountingHostingView: NSHostingView<AnyView> {
+    var layoutCount = 0
+
+    override func layout() {
+        layoutCount += 1
+        super.layout()
     }
 }
 

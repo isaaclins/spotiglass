@@ -676,6 +676,14 @@ final class PlaybackSessionViewModel: ObservableObject {
         restartTransportPollingIfNeeded()
     }
 
+    /// Writes only a changed volume. Every write to the defaults, even of the same value, re-renders
+    /// each view that uses `@AppStorage`, the whole window included, and the player reports its
+    /// volume with every reading (#409).
+    private func storePlaybackVolume(_ volume: Double) {
+        guard (defaults.object(forKey: Self.playbackVolumeUserDefaultsKey) as? NSNumber)?.doubleValue != volume else { return }
+        defaults.set(volume, forKey: Self.playbackVolumeUserDefaultsKey)
+    }
+
     private static func loadStoredPlaybackVolume(from defaults: UserDefaults) -> Double {
         guard let object = defaults.object(forKey: playbackVolumeUserDefaultsKey) else {
             return defaultPlaybackVolume
@@ -693,7 +701,7 @@ final class PlaybackSessionViewModel: ObservableObject {
         let clamped = min(max(value, 0), 1)
         let version = beginPendingPlaybackVolumeMutation(target: clamped)
         playbackVolume = clamped
-        defaults.set(clamped, forKey: Self.playbackVolumeUserDefaultsKey)
+        storePlaybackVolume(clamped)
         schedulePlaybackVolumeSend(
             value: clamped,
             version: version,
@@ -743,7 +751,7 @@ final class PlaybackSessionViewModel: ObservableObject {
     func applyRemotePlaybackVolume(_ value: Double) {
         let clamped = min(max(value, 0), 1)
         playbackVolume = clamped
-        defaults.set(clamped, forKey: Self.playbackVolumeUserDefaultsKey)
+        storePlaybackVolume(clamped)
     }
 
     deinit {

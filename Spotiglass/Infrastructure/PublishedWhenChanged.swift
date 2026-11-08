@@ -30,6 +30,7 @@ struct PublishedWhenChanged<Value: Equatable> {
         subject.eraseToAnyPublisher()
     }
 
+    // periphery:ignore - the compiler calls this for every access to a wrapped property.
     static subscript<EnclosingSelf: ObservableObject>(
         _enclosingInstance object: EnclosingSelf,
         wrapped wrappedKeyPath: ReferenceWritableKeyPath<EnclosingSelf, Value>,

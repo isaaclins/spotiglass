@@ -314,7 +314,7 @@ struct ScrubberView: View {
 ///
 /// A tick repaints these pixels and nothing else. `trackHeight` is animatable,
 /// so the hover growth still eases in the 0.12 s the track always used.
-private struct ScrubberTrackDrawing: View, Animatable {
+struct ScrubberTrackDrawing: View, Animatable {
     struct Colors: Equatable {
         var track: Color
         var played: Color
@@ -340,62 +340,187 @@ private struct ScrubberTrackDrawing: View, Animatable {
     private var overhang: CGFloat { thumbDiameter / 2 + 2 }
 
     var body: some View {
-        GeometryReader { geometry in
-            let isPaused = dragFraction != nil || !progress.isAdvancing
-            TimelineView(
-                ScrubberTimelineSchedule(
-                    anchor: progress.anchor,
-                    isPaused: isPaused,
-                    trackWidth: geometry.size.width
-                )
-            ) { context in
-                let fraction = dragFraction.map { min(max($0, 0), 1) } ?? progress.fraction(at: context.date)
-                Canvas { canvas, size in
-                    canvas.translateBy(x: overhang, y: 0)
-                    draw(
-                        in: &canvas,
-                        size: CGSize(width: size.width - 2 * overhang, height: size.height),
-                        fraction: fraction
-                    )
-                }
-                .padding(.horizontal, -overhang)
+        // Drawn by an AppKit view that only redraws on a tick. As a `Canvas` in a
+        // `TimelineView`, each tick (5 to 7 a second) still ran a layout pass of
+        // the whole window, constraints and minimum size included: about 8 % of
+        // a core while a track played (#409). A redraw of this view lays out
+        // nothing.
+        ScrubberTrackCanvas(
+            drawing: ScrubberTrackCanvasView.Drawing(
+                trackHeight: trackHeight,
+                progress: progress,
+                dragFraction: dragFraction,
+                thumbDiameter: thumbDiameter,
+                overhang: overhang,
+                colors: colors
+            )
+        )
+        .padding(.horizontal, -overhang)
+    }
+}
+
+private struct ScrubberTrackCanvas: NSViewRepresentable {
+    var drawing: ScrubberTrackCanvasView.Drawing
+
+    func makeNSView(context: Context) -> ScrubberTrackCanvasView {
+        ScrubberTrackCanvasView()
+    }
+
+    func updateNSView(_ view: ScrubberTrackCanvasView, context: Context) {
+        view.drawing = drawing
+    }
+}
+
+/// Draws the track, its played part and the thumb, and redraws them on the
+/// ticks of a `ScrubberTimelineSchedule`. Marking a view for display costs a
+/// repaint of its own pixels; nothing around it is laid out again.
+final class ScrubberTrackCanvasView: NSView {
+    struct Drawing: Equatable {
+        var trackHeight: CGFloat
+        var progress: ScrubberProgress
+        var dragFraction: Double?
+        var thumbDiameter: CGFloat
+        /// How far the view reaches past each end of the track.
+        var overhang: CGFloat
+        var colors: ScrubberTrackDrawing.Colors
+
+        var isPaused: Bool { dragFraction != nil || !progress.isAdvancing }
+
+        func fraction(at date: Date) -> Double {
+            dragFraction.map { min(max($0, 0), 1) } ?? progress.fraction(at: date)
+        }
+    }
+
+    var drawing: Drawing? {
+        didSet {
+            guard drawing != oldValue else { return }
+            needsDisplay = true
+            if drawing?.progress != oldValue?.progress || drawing?.isPaused != oldValue?.isPaused {
+                restartTicks()
             }
         }
     }
 
-    private func draw(in canvas: inout GraphicsContext, size: CGSize, fraction: Double) {
-        let midY = size.height / 2
-        let radius = trackHeight / 2
-        let track = CGRect(x: 0, y: midY - radius, width: size.width, height: trackHeight)
-        canvas.fill(
-            Path(roundedRect: track, cornerRadius: radius, style: .continuous),
-            with: .color(colors.track)
+    /// Fires at the schedule's next tick. Internal so tests can see whether
+    /// the view still wakes.
+    private(set) var tickTimer: Timer?
+    private var ticks: AnyIterator<Date>?
+    private var scheduledTrackWidth: CGFloat = -1
+
+    override var isFlipped: Bool { true }
+    override var isOpaque: Bool { false }
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    override func isAccessibilityElement() -> Bool { false }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        restartTicks()
+    }
+
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        // The tick rate follows the track's width.
+        if trackWidth != scheduledTrackWidth {
+            restartTicks()
+        }
+    }
+
+    private var trackWidth: CGFloat {
+        max(bounds.width - 2 * (drawing?.overhang ?? 0), 0)
+    }
+
+    private func restartTicks() {
+        tickTimer?.invalidate()
+        tickTimer = nil
+        ticks = nil
+        scheduledTrackWidth = trackWidth
+        guard window != nil, let drawing, !drawing.isPaused else { return }
+        let schedule = ScrubberTimelineSchedule(
+            anchor: drawing.progress.anchor,
+            isPaused: false,
+            trackWidth: trackWidth
         )
+        let now = Date()
+        let entries = schedule.entries(from: now, mode: .normal)
+        ticks = entries
+        scheduleNextTick(after: now)
+    }
+
+    private func scheduleNextTick(after date: Date) {
+        guard let ticks else { return }
+        var next = ticks.next()
+        while let candidate = next, candidate <= date {
+            next = ticks.next()
+        }
+        guard let next else { return }
+        let timer = Timer(fire: next, interval: 0, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.needsDisplay = true
+                self.scheduleNextTick(after: next)
+            }
+        }
+        // Up to a tenth of a tick late is invisible and lets macOS group wakeups.
+        let interval = 1 / Double(ScrubberTimelineSchedule.ticksPerSecond(
+            durationMilliseconds: drawing?.progress.durationMilliseconds ?? 0,
+            trackWidth: trackWidth
+        ))
+        timer.tolerance = interval / 10
+        RunLoop.main.add(timer, forMode: .common)
+        tickTimer = timer
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        guard let drawing, let context = NSGraphicsContext.current?.cgContext else { return }
+        let fraction = drawing.fraction(at: Date())
+        let size = CGSize(width: trackWidth, height: bounds.height)
+        context.translateBy(x: drawing.overhang, y: 0)
+
+        let midY = size.height / 2
+        let radius = drawing.trackHeight / 2
+        let track = CGRect(x: 0, y: midY - radius, width: size.width, height: drawing.trackHeight)
+        context.addPath(Path(roundedRect: track, cornerRadius: radius, style: .continuous).cgPath)
+        context.setFillColor(NSColor(drawing.colors.track).cgColor)
+        context.fillPath()
 
         let filledWidth = size.width * CGFloat(fraction)
         var played = track
         played.size.width = max(filledWidth, 0)
-        canvas.fill(
-            Path(roundedRect: played, cornerRadius: radius, style: .continuous),
-            with: .color(colors.played)
-        )
+        context.addPath(Path(roundedRect: played, cornerRadius: radius, style: .continuous).cgPath)
+        context.setFillColor(NSColor(drawing.colors.played).cgColor)
+        context.fillPath()
 
+        let thumbDiameter = drawing.thumbDiameter
         let thumb = CGRect(
             x: max(0, filledWidth - thumbDiameter / 2),
             y: midY - thumbDiameter / 2,
             width: thumbDiameter,
             height: thumbDiameter
         )
-        canvas.drawLayer { layer in
-            layer.addFilter(.shadow(color: .black.opacity(0.25), radius: 1.5, x: 0, y: 0.5))
-            layer.fill(Path(ellipseIn: thumb), with: .color(colors.thumbFill))
-            layer.stroke(
-                Path(ellipseIn: thumb.insetBy(dx: 0.25, dy: 0.25)),
-                with: .color(colors.thumbBorder),
-                lineWidth: 0.5
-            )
-        }
+        context.saveGState()
+        // The shadow falls on the thumb as a whole, fill and border together.
+        // Shadow offsets are in device space, where y points up.
+        context.setShadow(
+            offset: CGSize(width: 0, height: -Self.thumbShadowOffset),
+            blur: Self.thumbShadowBlur,
+            color: NSColor.black.withAlphaComponent(0.25).cgColor
+        )
+        context.beginTransparencyLayer(auxiliaryInfo: nil)
+        context.addPath(Path(ellipseIn: thumb).cgPath)
+        context.setFillColor(NSColor(drawing.colors.thumbFill).cgColor)
+        context.fillPath()
+        context.addPath(Path(ellipseIn: thumb.insetBy(dx: 0.25, dy: 0.25)).cgPath)
+        context.setStrokeColor(NSColor(drawing.colors.thumbBorder).cgColor)
+        context.setLineWidth(0.5)
+        context.strokePath()
+        context.endTransparencyLayer()
+        context.restoreGState()
     }
+
+    static let thumbShadowOffset: CGFloat = 0.5
+    /// Matches SwiftUI's `.shadow(radius: 1.5)`: Core Graphics' blur is twice
+    /// the radius SwiftUI takes.
+    static let thumbShadowBlur: CGFloat = 3
 }
 
 #Preview {
