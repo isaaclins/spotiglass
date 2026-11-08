@@ -452,20 +452,6 @@ struct PlaybackControlsView: View {
                         .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
                         .contentTransition(.opacity)
                         .animation(.smooth(duration: 0.28), value: title)
-                    if showsLyricsButton {
-                        PlaybackTransportButton(
-                            accessibilityLabel: SpotiglassL10n.string("playback.controls.lyrics"),
-                            accessibilityHint: SpotiglassL10n.string("playback.controls.lyrics.hint"),
-                            size: SpotiglassDesign.Layout.inlineButtonFrame,
-                            action: { isLyricsPresented = true }
-                        ) {
-                            Image(systemName: "music.note.list")
-                                .font(.body.weight(.medium))
-                                .foregroundStyle(.secondary)
-                        }
-                        .frame(width: SpotiglassDesign.Layout.inlineButtonSize, height: SpotiglassDesign.Layout.inlineButtonSize)
-                        .help(SpotiglassL10n.string("tooltip.playback.lyrics"))
-                    }
                     if let otherService {
                         Text(SpotiglassL10n.format("playback.controls.otherService.label", otherService.displayName))
                             .font(.caption)
@@ -494,6 +480,24 @@ struct PlaybackControlsView: View {
                 } else {
                     artistLine
                 }
+            }
+
+            // A sibling of the title and artist block, not part of the title's
+            // row: there it sat on the title's baseline, above the centre line
+            // every other part of the bar shares (#427).
+            if showsLyricsButton {
+                PlaybackTransportButton(
+                    accessibilityLabel: SpotiglassL10n.string("playback.controls.lyrics"),
+                    accessibilityHint: SpotiglassL10n.string("playback.controls.lyrics.hint"),
+                    size: SpotiglassDesign.Layout.inlineButtonFrame,
+                    action: { isLyricsPresented = true }
+                ) {
+                    Image(systemName: "music.note.list")
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(.secondary)
+                }
+                .frame(width: SpotiglassDesign.Layout.inlineButtonSize, height: SpotiglassDesign.Layout.inlineButtonSize)
+                .help(SpotiglassL10n.string("tooltip.playback.lyrics"))
             }
         }
         // Keep the summary as an accessibility container, not a replacement
