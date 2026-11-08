@@ -119,6 +119,7 @@
 		E50000000000000000000005 /* HiddenPlaybackWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000015 /* HiddenPlaybackWebView.swift */; };
 		E50000000000000000000006 /* PlaybackControlsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000016 /* PlaybackControlsView.swift */; };
 		E50000000000000000000008 /* QueueViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000018 /* QueueViewModel.swift */; };
+		F42200000000000000000005 /* PlaybackValueReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = F42200000000000000000006 /* PlaybackValueReader.swift */; };
 		E50000000000000000000009 /* QueuePanelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50000000000000000000019 /* QueuePanelTests.swift */; };
 		E5000000000000000000000C /* LrcLineParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5000000000000000000001A /* LrcLineParser.swift */; };
 		E5000000000000000000000D /* LrcLibClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5000000000000000000001B /* LrcLibClient.swift */; };
@@ -230,6 +231,7 @@
 		PRO00000000000000000000E1 /* SpotiglassLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = PRO00000000000000000000F1 /* SpotiglassLog.swift */; };
 		SRC0000000000000000000023 /* ScreenshotMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC0000000000000000080023 /* ScreenshotMode.swift */; };
 		SRC0000000000000000080B02 /* PublishedWhenChanged.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC0000000000000000080B03 /* PublishedWhenChanged.swift */; };
+		F42200000000000000000001 /* ViewBodyTally.swift in Sources */ = {isa = PBXBuildFile; fileRef = F42200000000000000000002 /* ViewBodyTally.swift */; };
 		SRC0000000000000000000030 /* MusicServiceSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC0000000000000000080030 /* MusicServiceSelection.swift */; };
 		PRO00000000000000000000E2 /* SpotifyPlaybackHost.html in Resources */ = {isa = PBXBuildFile; fileRef = PRO00000000000000000000F2 /* SpotifyPlaybackHost.html */; };
 		PRO00000000000000000000E3 /* SpotifyDTOs+UserPlaylist.swift in Sources */ = {isa = PBXBuildFile; fileRef = PRO00000000000000000000F4 /* SpotifyDTOs+UserPlaylist.swift */; };
@@ -387,6 +389,7 @@
 		TST0000000000000000000130 /* LayoutGridTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010130 /* LayoutGridTests.swift */; };
 		TST00000000000000000800F0 /* CrossServicePlaybackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000800F1 /* CrossServicePlaybackTests.swift */; };
 		SRC0000000000000000080B00 /* PlaybackPositionUpdateScopeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC0000000000000000080B01 /* PlaybackPositionUpdateScopeTests.swift */; };
+		F42200000000000000000003 /* PlayPauseRenderScopeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F42200000000000000000004 /* PlayPauseRenderScopeTests.swift */; };
 		TST00000000000000000800D0 /* ScrubberViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000800D1 /* ScrubberViewTests.swift */; };
 		TST00000000000000000800C0 /* MusicServiceStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000800C1 /* MusicServiceStoreTests.swift */; };
 		TST00000000000000000001B1 /* PlaylistBrowserLibraryEditsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000101B1 /* PlaylistBrowserLibraryEditsTests.swift */; };
@@ -565,6 +568,7 @@
 		E50000000000000000000015 /* HiddenPlaybackWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HiddenPlaybackWebView.swift; sourceTree = "<group>"; };
 		E50000000000000000000016 /* PlaybackControlsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackControlsView.swift; sourceTree = "<group>"; };
 		E50000000000000000000018 /* QueueViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueViewModel.swift; sourceTree = "<group>"; };
+		F42200000000000000000006 /* PlaybackValueReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackValueReader.swift; sourceTree = "<group>"; };
 		E50000000000000000000019 /* QueuePanelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueuePanelTests.swift; sourceTree = "<group>"; };
 		E5000000000000000000001A /* LrcLineParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LrcLineParser.swift; sourceTree = "<group>"; };
 		E5000000000000000000001B /* LrcLibClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LrcLibClient.swift; sourceTree = "<group>"; };
@@ -672,6 +676,7 @@
 		PRO00000000000000000000F1 /* SpotiglassLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotiglassLog.swift; sourceTree = "<group>"; };
 		SRC0000000000000000080023 /* ScreenshotMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotMode.swift; sourceTree = "<group>"; };
 		SRC0000000000000000080B03 /* PublishedWhenChanged.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublishedWhenChanged.swift; sourceTree = "<group>"; };
+		F42200000000000000000002 /* ViewBodyTally.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewBodyTally.swift; sourceTree = "<group>"; };
 		SRC0000000000000000080030 /* MusicServiceSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicServiceSelection.swift; sourceTree = "<group>"; };
 		PRO00000000000000000000F2 /* SpotifyPlaybackHost.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = SpotifyPlaybackHost.html; sourceTree = "<group>"; };
 		PRO00000000000000000000F3 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
@@ -740,6 +745,7 @@
 		TST0000000000000000010130 /* LayoutGridTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutGridTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000800F1 /* CrossServicePlaybackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrossServicePlaybackTests.swift; sourceTree = "<group>"; };
 		SRC0000000000000000080B01 /* PlaybackPositionUpdateScopeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackPositionUpdateScopeTests.swift; sourceTree = "<group>"; };
+		F42200000000000000000004 /* PlayPauseRenderScopeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayPauseRenderScopeTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000800D1 /* ScrubberViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrubberViewTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000800C1 /* MusicServiceStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicServiceStoreTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000101B1 /* PlaylistBrowserLibraryEditsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserLibraryEditsTests.swift; sourceTree = "<group>"; };
@@ -1028,6 +1034,7 @@
 				SRC0000000000000000080013 /* EQCoefficients.swift */,
 				SRC0000000000000000080012 /* AudioEqualizerEngine.swift */,
 				E50000000000000000000018 /* QueueViewModel.swift */,
+				F42200000000000000000006 /* PlaybackValueReader.swift */,
 				PRO00000000000000000000FA /* QueueViewModel+Fetch.swift */,
 				PRO00000000000000000000FB /* QueueViewModel+Enqueue.swift */,
 				PRO00000000000000000000FC /* QueueViewModel+Shuffle.swift */,
@@ -1084,6 +1091,7 @@
 				TST0000000000000000010130 /* LayoutGridTests.swift */,
 				TST00000000000000000800F1 /* CrossServicePlaybackTests.swift */,
 				SRC0000000000000000080B01 /* PlaybackPositionUpdateScopeTests.swift */,
+				F42200000000000000000004 /* PlayPauseRenderScopeTests.swift */,
 				TST00000000000000000800D1 /* ScrubberViewTests.swift */,
 				TST00000000000000000800C1 /* MusicServiceStoreTests.swift */,
 				TST00000000000000000101B1 /* PlaylistBrowserLibraryEditsTests.swift */,
@@ -1453,6 +1461,7 @@
 				PRO00000000000000000000F1 /* SpotiglassLog.swift */,
 				SRC0000000000000000080023 /* ScreenshotMode.swift */,
 				SRC0000000000000000080B03 /* PublishedWhenChanged.swift */,
+				F42200000000000000000002 /* ViewBodyTally.swift */,
 				SRC0000000000000000080030 /* MusicServiceSelection.swift */,
 				L10N0000000000000000000002 /* SpotiglassL10n.swift */,
 				SPKL00000000000000000011 /* SparkleConfiguration.swift */,
@@ -1627,6 +1636,7 @@
 				PRO00000000000000000000E1 /* SpotiglassLog.swift in Sources */,
 				SRC0000000000000000000023 /* ScreenshotMode.swift in Sources */,
 				SRC0000000000000000080B02 /* PublishedWhenChanged.swift in Sources */,
+				F42200000000000000000001 /* ViewBodyTally.swift in Sources */,
 				SRC0000000000000000000030 /* MusicServiceSelection.swift in Sources */,
 				L10N0000000000000000000001 /* SpotiglassL10n.swift in Sources */,
 				SPKL00000000000000000001 /* SparkleConfiguration.swift in Sources */,
@@ -1802,6 +1812,7 @@
 				E50000000000000000000077 /* PlaybackSessionViewModel+DeviceTransfer.swift in Sources */,
 				E50000000000000000000005 /* HiddenPlaybackWebView.swift in Sources */,
 				E50000000000000000000008 /* QueueViewModel.swift in Sources */,
+				F42200000000000000000005 /* PlaybackValueReader.swift in Sources */,
 				E50000000000000000000006 /* PlaybackControlsView.swift in Sources */,
 				SRC0000000000000000000015 /* EqualizerHALPluginController.swift in Sources */,
 				EQCLIENT000000000000001 /* EqualizerPrivilegedHelperClient.swift in Sources */,
@@ -1886,6 +1897,7 @@
 				TST0000000000000000000130 /* LayoutGridTests.swift in Sources */,
 				TST00000000000000000800F0 /* CrossServicePlaybackTests.swift in Sources */,
 				SRC0000000000000000080B00 /* PlaybackPositionUpdateScopeTests.swift in Sources */,
+				F42200000000000000000003 /* PlayPauseRenderScopeTests.swift in Sources */,
 				TST00000000000000000800D0 /* ScrubberViewTests.swift in Sources */,
 				TST00000000000000000800C0 /* MusicServiceStoreTests.swift in Sources */,
 				TST00000000000000000001B1 /* PlaylistBrowserLibraryEditsTests.swift in Sources */,

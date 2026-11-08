@@ -41,8 +41,8 @@ struct ArtistDetailContent: View {
     let playTrack: (String) -> Void
     let openAlbum: (ArtistAlbumRowViewModel) -> Void
     let playAlbumContext: (String) -> Void
-    let currentPlaybackURI: String?
-    let isPlaying: Bool
+    /// Each row reads from here whether it is the playing one (#422).
+    let playback: TrackRowPlaybackSource
     let togglePlayPause: () -> Void
     let hasPlaybackDevice: Bool
     let addToQueue: (String) async -> Void
@@ -86,8 +86,7 @@ struct ArtistDetailContent: View {
         playTrack: @escaping (String) -> Void,
         openAlbum: @escaping (ArtistAlbumRowViewModel) -> Void,
         playAlbumContext: @escaping (String) -> Void,
-        currentPlaybackURI: String?,
-        isPlaying: Bool,
+        playback: TrackRowPlaybackSource,
         togglePlayPause: @escaping () -> Void,
         hasPlaybackDevice: Bool,
         addToQueue: @escaping (String) async -> Void,
@@ -104,8 +103,7 @@ struct ArtistDetailContent: View {
         self.playTrack = playTrack
         self.openAlbum = openAlbum
         self.playAlbumContext = playAlbumContext
-        self.currentPlaybackURI = currentPlaybackURI
-        self.isPlaying = isPlaying
+        self.playback = playback
         self.togglePlayPause = togglePlayPause
         self.hasPlaybackDevice = hasPlaybackDevice
         self.addToQueue = addToQueue
@@ -235,14 +233,20 @@ struct ArtistDetailContent: View {
         }
     }
 
-    private func trackRow(for track: TrackRowViewModel) -> TrackListRow {
+    private func trackRow(for track: TrackRowViewModel) -> PlaybackValueReader<TrackRowPlaybackMark, TrackListRow> {
+        playback.row(for: track, in: detail.tracks) { mark in
+            trackRow(for: track, mark: mark)
+        }
+    }
+
+    private func trackRow(for track: TrackRowViewModel, mark: TrackRowPlaybackMark) -> TrackListRow {
         TrackListRow(
             trackNumber: track.listPosition,
             track: track,
             playURI: playTrack,
             togglePlayPause: togglePlayPause,
-            isCurrent: track.playableURI != nil && track.playableURI == currentPlaybackURI,
-            isPlaying: isPlaying,
+            isCurrent: mark.isCurrent,
+            isPlaying: mark.isPlaying,
             openArtist: openArtist,
             tracksSurfaceID: tracksSurfaceID,
             isSelected: browserViewModel.selectedDetailTrackIDs.contains(track.id),

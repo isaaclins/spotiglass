@@ -89,8 +89,11 @@ struct QueuePanelColumn: View {
 
 struct PlaylistBrowserMainDetailColumn: View {
     @ObservedObject var viewModel: PlaylistBrowserViewModel
-    @ObservedObject var playbackViewModel: PlaybackSessionViewModel
-    @ObservedObject var queueViewModel: QueueViewModel
+    /// Not observed: the actions use them, and each track row reads by itself whether it is the
+    /// playing one. Observing them re-rendered the whole detail column, every visible row
+    /// included, on each play/pause and each new track (#422).
+    let playbackViewModel: PlaybackSessionViewModel
+    let queueViewModel: QueueViewModel
     /// Shared creation prompt owned by the browser shell for non-playlist
     /// surfaces. Playlist detail retains its inline prompt for now.
     let onRequestCreatePlaylist: (([TrackRowViewModel]) -> Void)?
@@ -102,8 +105,6 @@ struct PlaylistBrowserMainDetailColumn: View {
     @Binding var pendingPlaylistListScrollRestoreID: String?
     @Binding var detailLastVisibleTrackID: String?
 
-    let currentPlaybackURI: String?
-    let isCurrentlyPlaying: Bool
     let hasPlaybackDevice: Bool
 
     init(
@@ -112,25 +113,24 @@ struct PlaylistBrowserMainDetailColumn: View {
         queueViewModel: QueueViewModel,
         pendingPlaylistListScrollRestoreID: Binding<String?>,
         detailLastVisibleTrackID: Binding<String?>,
-        currentPlaybackURI: String?,
-        isCurrentlyPlaying: Bool,
         hasPlaybackDevice: Bool,
         onRequestCreatePlaylist: (([TrackRowViewModel]) -> Void)? = nil,
         onRequestLibraryContinuation: ((TrackRowViewModel) -> Void)? = nil
     ) {
         _viewModel = ObservedObject(wrappedValue: viewModel)
-        _playbackViewModel = ObservedObject(wrappedValue: playbackViewModel)
-        _queueViewModel = ObservedObject(wrappedValue: queueViewModel)
+        self.playbackViewModel = playbackViewModel
+        self.queueViewModel = queueViewModel
         self.onRequestCreatePlaylist = onRequestCreatePlaylist
         self.onRequestLibraryContinuation = onRequestLibraryContinuation
         _pendingPlaylistListScrollRestoreID = pendingPlaylistListScrollRestoreID
         _detailLastVisibleTrackID = detailLastVisibleTrackID
-        self.currentPlaybackURI = currentPlaybackURI
-        self.isCurrentlyPlaying = isCurrentlyPlaying
         self.hasPlaybackDevice = hasPlaybackDevice
     }
 
     var body: some View {
+        #if DEBUG
+        let _ = ViewBodyTally.record("PlaylistBrowserMainDetailColumn")
+        #endif
         VStack(spacing: 0) {
             switch viewModel.detailState {
             case .loading:
@@ -149,8 +149,6 @@ struct PlaylistBrowserMainDetailColumn: View {
                                 viewModel: viewModel,
                                 playbackViewModel: playbackViewModel,
                                 queueViewModel: queueViewModel,
-                                currentPlaybackURI: currentPlaybackURI,
-                                isPlaying: isCurrentlyPlaying,
                                 hasPlaybackDevice: hasPlaybackDevice,
                                 onRequestCreatePlaylist: onRequestCreatePlaylist,
                                 onRequestLibraryContinuation: onRequestLibraryContinuation
@@ -161,8 +159,6 @@ struct PlaylistBrowserMainDetailColumn: View {
                                 searchViewModel: viewModel.catalogSearch,
                                 playbackViewModel: playbackViewModel,
                                 queueViewModel: queueViewModel,
-                                currentPlaybackURI: currentPlaybackURI,
-                                isPlaying: isCurrentlyPlaying,
                                 hasPlaybackDevice: hasPlaybackDevice,
                                 onRequestCreatePlaylist: onRequestCreatePlaylist,
                                 onRequestLibraryContinuation: onRequestLibraryContinuation
@@ -234,8 +230,7 @@ struct PlaylistBrowserMainDetailColumn: View {
                     )
                 }
             },
-            currentPlaybackURI: currentPlaybackURI,
-            isPlaying: isCurrentlyPlaying,
+            playback: TrackRowPlaybackSource(session: playbackViewModel),
             togglePlayPause: {
                 Task { await playbackViewModel.togglePlayPause() }
             },
@@ -293,8 +288,7 @@ struct PlaylistBrowserMainDetailColumn: View {
             playAlbumContext: { albumURI in
                 Task { await playbackViewModel.play(contextURI: albumURI) }
             },
-            currentPlaybackURI: currentPlaybackURI,
-            isPlaying: isCurrentlyPlaying,
+            playback: TrackRowPlaybackSource(session: playbackViewModel),
             togglePlayPause: {
                 Task { await playbackViewModel.togglePlayPause() }
             },
