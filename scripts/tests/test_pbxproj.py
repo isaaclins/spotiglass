@@ -106,6 +106,51 @@ class AuditTests(RepoCopy):
         self.assertEqual(result.returncode, 1)
         self.assertIn('SpotiglassTests/BothTargetsHelper.swift: is also compiled by the Spotiglass target', result.stdout)
 
+    def test_file_excluded_by_build_setting_fails(self):
+        # Still in the Sources phase, but EXCLUDED_SOURCE_FILE_NAMES makes the
+        # build skip it, so it is not compiled.
+        name = 'PlaylistOwnerDisplayTests.swift'
+        self.pbx.write_text(self.pbx.read_text().replace(
+            'buildSettings = {', f'buildSettings = {{\n\t\t\t\tEXCLUDED_SOURCE_FILE_NAMES = {name};'))
+        result = self.run_script('scripts/audit-orphaned-sources.sh')
+        self.assertEqual(result.returncode, 1)
+        self.assertIn(f'SpotiglassTests/{name}: is in the SpotiglassTests Sources phase but is excluded by EXCLUDED_SOURCE_FILE_NAMES', result.stdout)
+        # Registering it again would only add a second, equally skipped entry.
+        with self.assertRaises(pbxproj.PBXError):
+            pbxproj.register(self.pbx.read_text(), f'SpotiglassTests/{name}', 'SpotiglassTests')
+
+    def test_file_with_a_non_macos_platform_filter_fails(self):
+        name = 'PlaylistOwnerDisplayTests.swift'
+        text, n = re.subn(rf'(/\* {re.escape(name)} in Sources \*/ = \{{isa = PBXBuildFile;)',
+                          r'\1 platformFilter = ios;', self.pbx.read_text())
+        self.assertEqual(n, 1)
+        self.pbx.write_text(text)
+        result = self.run_script('scripts/audit-orphaned-sources.sh')
+        self.assertEqual(result.returncode, 1)
+        self.assertIn(f'SpotiglassTests/{name}: is in the SpotiglassTests Sources phase but has platform filter ios (not macos)', result.stdout)
+
+    def test_duplicate_behind_a_dotdot_path_fails(self):
+        # A second reference to the same file, spelled ../SpotiglassTests/X.
+        name = 'PlaylistOwnerDisplayTests.swift'
+        self.add_swift('SpotiglassTests/DuplicateAlias.swift')
+        text, _ = pbxproj.register(self.pbx.read_text(), 'SpotiglassTests/DuplicateAlias.swift', 'SpotiglassTests')
+        self.pbx.write_text(text.replace('path = DuplicateAlias.swift;', f'path = "../SpotiglassTests/{name}";'))
+        (self.tmp / 'SpotiglassTests/DuplicateAlias.swift').unlink()
+        result = self.run_script('scripts/audit-orphaned-sources.sh')
+        self.assertEqual(result.returncode, 1)
+        self.assertIn(f'SpotiglassTests/{name}: has 2 file references (registered twice)', result.stdout)
+
+    def test_unicode_escaped_path_is_still_recognised(self):
+        # Apple's parser reads \U0050 as P, so this is the same file and
+        # registering it must change nothing.
+        name = 'PlaylistOwnerDisplayTests.swift'
+        self.pbx.write_text(self.pbx.read_text().replace(
+            f'path = {name};', r'path = "\U0050laylistOwnerDisplayTests.swift";'))
+        before = self.pbx.read_bytes()
+        result = self.run_script(sys.executable, 'scripts/register-test-files.py', name)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(before, self.pbx.read_bytes())
+
     def test_file_registered_twice_fails(self):
         # Rebuild the duplicate that main carried for
         # PlaylistBrowserPlaybackHelpersTests.swift: a second file reference,

@@ -11,7 +11,9 @@ comments stay untouched and every other line of the diff is unchanged.
 
 Standard library only, so it runs on the Linux CI runner.
 """
+import fnmatch
 import hashlib
+import posixpath
 import re
 from pathlib import Path, PurePosixPath
 
@@ -96,7 +98,18 @@ class _Parser:
             while self.text[j] != '"':
                 if self.text[j] == '\\':
                     j += 1
-                    buf.append({'n': '\n', 't': '\t'}.get(self.text[j], self.text[j]))
+                    c = self.text[j]
+                    hex4 = re.match(r'[0-9A-Fa-f]{1,4}', self.text[j + 1:j + 5]) if c == 'U' else None
+                    octal = re.match(r'[0-7]{1,3}', self.text[j:j + 3])
+                    if hex4:
+                        # \Uxxxx, as Apple's parser reads it.
+                        buf.append(chr(int(hex4.group(0), 16)))
+                        j += len(hex4.group(0))
+                    elif octal:
+                        buf.append(chr(int(octal.group(0), 8)))
+                        j += len(octal.group(0)) - 1
+                    else:
+                        buf.append({'n': '\n', 't': '\t', 'r': '\r'}.get(c, c))
                 else:
                     buf.append(self.text[j])
                 j += 1
@@ -138,6 +151,9 @@ class Project:
                 base = parent_dir / own if own else parent_dir
             else:
                 return  # built products, SDK paths: not files in the repo
+            # Normalise `a/../b` so two references to the same file compare
+            # equal and a duplicate cannot hide behind a different spelling.
+            base = PurePosixPath(posixpath.normpath(str(base)))
             self.path_of[obj_id] = str(base)
             for child in obj.get('children', []):
                 self.parent_of[child] = obj_id
@@ -161,9 +177,9 @@ class Project:
                 return phase
         raise PBXError(f'target {target_name} has no Sources phase')
 
-    def compiled_path_list(self, target_name):
-        """Repo-relative paths compiled by `target_name`, one per build-file
-        entry, so a file listed twice appears twice."""
+    def source_path_list(self, target_name):
+        """Repo-relative paths in `target_name`'s Sources phase, one per
+        build-file entry, so a file listed twice appears twice."""
         out = []
         for build_id in self.objects[self.sources_phase(target_name)].get('files', []):
             ref = self.objects.get(build_id, {}).get('fileRef')
@@ -171,8 +187,48 @@ class Project:
                 out.append(self.path_of[ref])
         return out
 
+    def _setting_patterns(self, target_name, key):
+        """Every pattern `key` lists in any configuration of the project or
+        the target (if one configuration skips a file, a build skips it)."""
+        lists = [self.objects[self.root_id].get('buildConfigurationList'),
+                 self.objects[self.targets()[target_name]].get('buildConfigurationList')]
+        out = []
+        for lst in filter(None, lists):
+            for conf in self.objects[lst].get('buildConfigurations', []):
+                value = self.objects[conf].get('buildSettings', {}).get(key, [])
+                for item in [value] if isinstance(value, str) else value:
+                    out.extend(item.split())
+        return out
+
+    def exclusion_reason(self, build_id, target_name):
+        """Why the build file `build_id` in the Sources phase is still not
+        compiled on macOS, or None when it is."""
+        build = self.objects.get(build_id, {})
+        filters = build.get('platformFilters') or ([build['platformFilter']] if 'platformFilter' in build else [])
+        if filters and 'macos' not in filters:
+            return f'has platform filter {", ".join(filters)} (not macos)'
+        path = self.path_of.get(build.get('fileRef'), '')
+        def hits(key):
+            return any(fnmatch.fnmatchcase(c, pat)
+                       for pat in self._setting_patterns(target_name, key)
+                       for c in (path, PurePosixPath(path).name))
+        if hits('EXCLUDED_SOURCE_FILE_NAMES') and not hits('INCLUDED_SOURCE_FILE_NAMES'):
+            return 'is excluded by EXCLUDED_SOURCE_FILE_NAMES'
+        return None
+
+    def excluded_paths(self, target_name):
+        """{path: reason} for Sources entries the build skips anyway."""
+        out = {}
+        for build_id in self.objects[self.sources_phase(target_name)].get('files', []):
+            reason = self.exclusion_reason(build_id, target_name)
+            if reason:
+                out[self.path_of.get(self.objects[build_id].get('fileRef'), '')] = reason
+        return out
+
     def compiled_paths(self, target_name):
-        return set(self.compiled_path_list(target_name))
+        """Paths `target_name` really compiles on macOS."""
+        excluded = self.excluded_paths(target_name)
+        return {p for p in self.source_path_list(target_name) if p not in excluded}
 
     def file_refs_for(self, path):
         return [
@@ -199,8 +255,9 @@ def audit(repo_root='.'):
     problems = []
     compiled_by = {t: project.compiled_paths(t) for t in TARGET_FOR_DIR.values()}
     for directory, target in TARGET_FOR_DIR.items():
-        listed = project.compiled_path_list(target)
-        compiled = set(listed)
+        listed = project.source_path_list(target)
+        compiled = project.compiled_paths(target)
+        excluded = project.excluded_paths(target)
         for file in sorted((root / directory).rglob('*.swift')):
             rel = file.relative_to(root).as_posix()
             # A test helper also compiled into the app ships test code, and an
@@ -215,7 +272,9 @@ def audit(repo_root='.'):
                 problems.append((rel, f'is in the {target} Sources phase {listed.count(rel)} times'))
             if rel in compiled:
                 continue
-            if refs:
+            if rel in excluded:
+                problems.append((rel, f'is in the {target} Sources phase but {excluded[rel]}'))
+            elif refs:
                 problems.append((rel, f'in the project but not in the {target} target\'s Sources phase'))
             else:
                 problems.append((rel, 'not in the Xcode project at all'))
@@ -301,7 +360,7 @@ def register(text, path, target_name):
     writing a partial edit.
     """
     project = Project(text)
-    path = PurePosixPath(path).as_posix()
+    path = posixpath.normpath(PurePosixPath(path).as_posix())
     name = PurePosixPath(path).name
     sources = project.sources_phase(target_name)
 
@@ -310,6 +369,9 @@ def register(text, path, target_name):
         raise PBXError(f'{path} has {len(refs)} file references; remove the duplicates first')
     if path in project.compiled_paths(target_name):
         return text, f'skip (already in {target_name}): {path}'
+    excluded = project.excluded_paths(target_name).get(path)
+    if excluded:
+        raise PBXError(f'{path} is in {target_name} but {excluded}; fix that in Xcode instead of registering it again')
 
     if refs:
         ref_id = refs[0]
