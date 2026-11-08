@@ -3,6 +3,13 @@
 # CI mirrors these steps in .github/workflows/release-artifact.yml.
 set -euo pipefail
 
+# The script uses the macOS (BSD) forms of sed, mktemp, grep and friends
+# (`sed -i ''`, `mktemp -t prefix`). GNU versions earlier in PATH, as Homebrew's
+# coreutils/gnu-sed "gnubin" directories put them, reject those forms, so the
+# appcast rewrite and the version bump fail after the build has been notarized.
+# Use the system tools first.
+export PATH="/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 MARKETING_VERSION="${1:-}"
