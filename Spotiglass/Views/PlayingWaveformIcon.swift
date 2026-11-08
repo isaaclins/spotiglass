@@ -1,9 +1,10 @@
 import SwiftUI
 
-/// The waveform on a dark chip in the bottom trailing corner of a cover, for a
-/// row whose leading edge is its artwork (sidebar playlists, the queue). Putting
-/// it on the cover rather than in a column of its own keeps the playing row's
-/// artwork on the same edge as the rows around it.
+/// The waveform on a dark chip in the bottom trailing corner of a cover, for the
+/// queue, whose rows have no trailing room for it. Putting it on the cover rather
+/// than in a column of its own keeps the playing row's artwork on the same edge as
+/// the rows around it. Sidebar rows show the bare waveform at their trailing end
+/// instead (`SidebarRowStatus`, #444).
 struct PlayingArtworkBadge: View {
     var isPlaying: Bool
     @Environment(\.colorScheme) private var colorScheme

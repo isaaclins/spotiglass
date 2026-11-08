@@ -216,3 +216,77 @@ enum AppleMusicCloudRequests {
         return request
     }
 }
+
+// MARK: - Playlist covers (#444)
+
+/// A library playlist's cover as the Apple Music API describes it.
+///
+/// A playlist without a cover of its own gets one Apple generates: a colour gradient with the
+/// playlist's name printed in its corner. MusicKit's local library hands that out like any other
+/// cover (a `musicKit://` URL with nothing to tell them apart), so a sidebar full of them looks
+/// like a wall of tiny text. The Apple Music API does tell: generated covers are served from
+/// `/image/thumb/gen/`.
+struct AppleMusicPlaylistCover: Equatable, Sendable {
+    let name: String
+    /// The playlist's catalog ID (`pl.u-…`), which only shared playlists have.
+    let globalID: String?
+    let isGenerated: Bool
+
+    static func isGenerated(artworkURL: String?) -> Bool {
+        guard let artworkURL else { return true }
+        return artworkURL.contains("/image/thumb/gen/")
+    }
+
+    /// One page of `/v1/me/library/playlists`, and the path of the next one.
+    static func page(from data: Data) throws -> (covers: [AppleMusicPlaylistCover], next: String?) {
+        let page = try JSONDecoder().decode(Page.self, from: data)
+        let covers = page.data.compactMap { resource -> AppleMusicPlaylistCover? in
+            guard let name = resource.attributes?.name else { return nil }
+            return AppleMusicPlaylistCover(
+                name: name,
+                globalID: resource.attributes?.playParams?.globalId,
+                isGenerated: isGenerated(artworkURL: resource.attributes?.artwork?.url)
+            )
+        }
+        return (covers, page.next)
+    }
+
+    /// The IDs of the library playlists whose cover is a generated one.
+    ///
+    /// The API names library playlists by their cloud ID (`p.…`), MusicKit on the Mac by the
+    /// Music app's persistent ID, and nothing links the two. So a playlist is matched by its
+    /// catalog ID where it has one, otherwise by name, and only counts as generated when every
+    /// cloud playlist of that name is: two playlists with one name, one with a real cover, keep
+    /// the cover rather than risk hiding a real one.
+    static func generatedPlaylistIDs(
+        _ playlists: [(id: String, name: String, globalID: String?)],
+        covers: [AppleMusicPlaylistCover]
+    ) -> Set<String> {
+        let byGlobalID = Dictionary(
+            covers.compactMap { cover in cover.globalID.map { ($0, cover.isGenerated) } },
+            uniquingKeysWith: { $0 && $1 }
+        )
+        let byName = Dictionary(covers.map { ($0.name, $0.isGenerated) }, uniquingKeysWith: { $0 && $1 })
+        return Set(playlists.compactMap { playlist in
+            let generated = playlist.globalID.flatMap { byGlobalID[$0] } ?? byName[playlist.name] ?? false
+            return generated ? playlist.id : nil
+        })
+    }
+
+    private struct Page: Decodable {
+        struct Resource: Decodable {
+            struct Attributes: Decodable {
+                struct Artwork: Decodable { let url: String? }
+                struct PlayParams: Decodable { let globalId: String? }
+                let name: String?
+                let artwork: Artwork?
+                let playParams: PlayParams?
+            }
+
+            let attributes: Attributes?
+        }
+
+        let data: [Resource]
+        let next: String?
+    }
+}

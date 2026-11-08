@@ -127,17 +127,24 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
     /// sidebar refresh shows them straight away.
     let trackCountCache: AppleMusicPlaylistTrackCountCache
     let editor: AppleMusicLibraryEditor
+    /// Library playlists whose cover Apple generated, from the last listing, so search results
+    /// show them with the same placeholder as the sidebar (#444).
+    let generatedCovers = AppleMusicGeneratedCoverCache()
+    /// How long a listing waits for the covers before it shows the playlists without that check.
+    let coverLookupTimeout: Duration
 
     init(
         source: any AppleMusicContentSource = MusicKitContentSource(),
         artistAlbumsCache: AppleMusicArtistAlbumsCache = AppleMusicArtistAlbumsCache(),
         trackCountCache: AppleMusicPlaylistTrackCountCache = AppleMusicPlaylistTrackCountCache(),
-        editor: AppleMusicLibraryEditor = AppleMusicLibraryEditor()
+        editor: AppleMusicLibraryEditor = AppleMusicLibraryEditor(),
+        coverLookupTimeout: Duration = .seconds(3)
     ) {
         self.source = source
         self.artistAlbumsCache = artistAlbumsCache
         self.trackCountCache = trackCountCache
         self.editor = editor
+        self.coverLookupTimeout = coverLookupTimeout
     }
 
     private var libraryOwnerName: String {
@@ -154,6 +161,8 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
     /// `limit` is the page size, like Spotify's: every library playlist is returned, not only the
     /// first page.
     func currentUserPlaylists(limit: Int) async throws -> [MusicPlaylistSummary] {
+        // Read alongside the library, so it adds no wait unless the API is slower than MusicKit.
+        async let covers = playlistCovers()
         let pageSize = max(1, limit)
         var playlists: [Playlist] = []
         while playlists.count < Self.maxLibraryPlaylists {
@@ -166,13 +175,46 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         let counts = await trackCountCache.counts(
             forVersions: Dictionary(playlists.map { ($0.id.rawValue, $0.lastModifiedDate) }, uniquingKeysWith: { first, _ in first })
         )
+        let generated: Set<String>
+        if let covers = await covers {
+            generated = AppleMusicPlaylistCover.generatedPlaylistIDs(
+                playlists.map { ($0.id.rawValue, $0.name, AppleMusicItemMapping.globalID(of: $0)) },
+                covers: covers
+            )
+            await generatedCovers.store(generated)
+        } else {
+            // The API didn't answer in time or failed: keep what the last listing found.
+            generated = await generatedCovers.playlistIDs
+        }
         return editor.pending.applied(toPlaylists: playlists.map {
             // A playlist edited from Spotiglass is counted again (`playlistTrackCounts`) with
             // the edits the library doesn't show yet.
             let id = $0.id.rawValue
             let cached = editor.pending.hasPendingTracks(playlistID: id) ? nil : counts[id]
-            return AppleMusicItemMapping.playlistSummary($0, fallbackOwnerName: libraryOwnerName, cachedTrackCount: cached)
+            return AppleMusicItemMapping.playlistSummary(
+                $0,
+                fallbackOwnerName: libraryOwnerName,
+                cachedTrackCount: cached,
+                hasGeneratedCover: generated.contains(id)
+            )
         })
+    }
+
+    /// The API's covers for the library playlists, or `nil` when it fails or takes longer than
+    /// `coverLookupTimeout`: the sidebar never waits on it.
+    private func playlistCovers() async -> [AppleMusicPlaylistCover]? {
+        let source = source
+        let timeout = coverLookupTimeout
+        // A race rather than a task group: a group waits for the slow request to end even after
+        // the timeout won, which is the wait this exists to avoid.
+        return await withCheckedContinuation { continuation in
+            let answer = FirstAnswer(continuation)
+            Task { answer.give(try? await source.libraryPlaylistCovers()) }
+            Task {
+                try? await Task.sleep(for: timeout)
+                answer.give(nil)
+            }
+        }
     }
 
     var listsPlaylistsWithoutTrackCounts: Bool { true }
@@ -427,8 +469,10 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
             try await source.catalogSearch(term: term, limit: pageLimit, offset: offset)
         }
         let library = await libraryResult
+        let generatedCoverIDs = await generatedCovers.playlistIDs
         var page = try searchPage(
-            catalog: firstCatalog, library: library, limit: limit, pageLimit: pageLimit, offset: offset
+            catalog: firstCatalog, library: library, limit: limit, pageLimit: pageLimit, offset: offset,
+            generatedCoverIDs: generatedCoverIDs
         )
         // A later page can come out empty only because every catalog item on it is a copy of a
         // library item. The Search view stops at an empty page, which would make everything
@@ -442,7 +486,10 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
             let catalog = await Self.capture {
                 try await source.catalogSearch(term: term, limit: pageLimit, offset: pageOffset)
             }
-            page = try searchPage(catalog: catalog, library: library, limit: limit, pageLimit: pageLimit, offset: pageOffset)
+            page = try searchPage(
+                catalog: catalog, library: library, limit: limit, pageLimit: pageLimit, offset: pageOffset,
+                generatedCoverIDs: generatedCoverIDs
+            )
         }
         return page
     }
@@ -453,7 +500,8 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         library: Result<AppleMusicSearchItems, Error>,
         limit: Int,
         pageLimit: Int,
-        offset: Int
+        offset: Int,
+        generatedCoverIDs: Set<String>
     ) throws -> MusicSearchResults {
         // Past the first page only the catalog answers, so its failure is the page's failure:
         // reporting an empty page would end the results instead of letting the user retry.
@@ -492,7 +540,13 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
             tracks: tracks.map(AppleMusicItemMapping.track),
             artists: artists.map(AppleMusicItemMapping.artist),
             albums: albums.map(AppleMusicItemMapping.album),
-            playlists: playlists.map { AppleMusicItemMapping.playlistSummary($0, fallbackOwnerName: libraryOwnerName) },
+            playlists: playlists.map {
+                AppleMusicItemMapping.playlistSummary(
+                    $0,
+                    fallbackOwnerName: libraryOwnerName,
+                    hasGeneratedCover: generatedCoverIDs.contains($0.id.rawValue)
+                )
+            },
             tracksPaging: paging(tracks.count, more: catalogItems.moreSongs),
             artistsPaging: paging(artists.count, more: catalogItems.moreArtists),
             albumsPaging: paging(albums.count, more: catalogItems.moreAlbums),
@@ -581,6 +635,33 @@ actor AppleMusicArtistAlbumsCache {
               let oldest = entries.min(by: { $0.value.storedAt < $1.value.storedAt })?.key {
             entries[oldest] = nil
         }
+    }
+}
+
+/// Resumes a continuation with the first value given and ignores the rest.
+private final class FirstAnswer<Value: Sendable>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<Value, Never>?
+
+    init(_ continuation: CheckedContinuation<Value, Never>) {
+        self.continuation = continuation
+    }
+
+    func give(_ value: Value) {
+        let waiting = lock.withLock {
+            defer { continuation = nil }
+            return continuation
+        }
+        waiting?.resume(returning: value)
+    }
+}
+
+/// The library playlists the last listing found with a generated cover (#444).
+actor AppleMusicGeneratedCoverCache {
+    private(set) var playlistIDs: Set<String> = []
+
+    func store(_ ids: Set<String>) {
+        playlistIDs = ids
     }
 }
 
