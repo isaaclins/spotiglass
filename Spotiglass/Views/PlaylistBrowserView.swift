@@ -163,9 +163,7 @@ struct PlaylistBrowserView: View {
                 // like ⌘S, ⌃⌘S and the View menu, so all of them behave the same (#436).
                 .toolbar(removing: .sidebarToggle)
                 .toolbar {
-                    if !lyricsOverlay.isPresented {
-                        ToolbarItem(placement: .automatic) { sidebarToggleButton }
-                    }
+                    ToolbarItem(placement: .automatic) { sidebarToggleButton }
                 }
                 .navigationSplitViewColumnWidth(
                     min: SpotiglassDesign.playlistSidebarMinWidth,
@@ -272,7 +270,7 @@ struct PlaylistBrowserView: View {
                 }
             }
             // With the sidebar hidden its toggle moves here, where the system one sat (#436).
-            if !lyricsOverlay.isPresented, playlistColumnVisibility == .detailOnly {
+            if playlistColumnVisibility == .detailOnly {
                 ToolbarItem(placement: .navigation) { sidebarToggleButton }
             }
             // At the root there is no trail and nothing to go back to, so the
