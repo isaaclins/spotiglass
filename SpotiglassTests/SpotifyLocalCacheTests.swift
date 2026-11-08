@@ -264,6 +264,34 @@ final class SpotifyLocalCacheTests: XCTestCase {
         XCTAssertNil(lyrics.load(trackKey: "track-2"))
     }
 
+    func testLyricsReadJustAsTheTrimDeletesThemAreNotShownWithoutADiskCopy() throws {
+        let (_, root) = try makeCache()
+        let lyricsDirectory = root.appendingPathComponent("lyrics", isDirectory: true)
+        let lyrics = try LyricsDiskCache(directory: lyricsDirectory)
+        let now = Date()
+        try lyrics.save(trackKey: "track-0", lyrics: .instrumental)
+        try setModificationDate(now.addingTimeInterval(-3_600), forFileAt: lyricsDirectory.appendingPathComponent("track-0.json"))
+
+        // The song is opened just as the trim, having checked it, deletes it.
+        let reader = DispatchGroup()
+        var loaded: FetchedLyrics?
+        DiskCacheTrim.trim(directory: lyricsDirectory, maxBytes: 1, now: now) { url in
+            guard url.lastPathComponent == "track-0.json" else { return }
+            reader.enter()
+            DispatchQueue.global().async {
+                loaded = lyrics.load(trackKey: "track-0")
+                reader.leave()
+            }
+            _ = reader.wait(timeout: .now() + 0.3)
+        }
+        XCTAssertEqual(reader.wait(timeout: .now() + 10), .success)
+
+        // Either the read came first and the song stays, or the trim came first and the read
+        // finds nothing and fetches again; never lyrics on screen with no copy on disk.
+        let onDisk = FileManager.default.fileExists(atPath: lyricsDirectory.appendingPathComponent("track-0.json").path)
+        XCTAssertEqual(loaded != nil, onDisk)
+    }
+
     func testOverlappingTrimsOfOneDirectoryDeleteOnlyDownToTheBound() throws {
         let (cache, root) = try makeCache()
         let directory = root.appendingPathComponent("get_responses", isDirectory: true)
