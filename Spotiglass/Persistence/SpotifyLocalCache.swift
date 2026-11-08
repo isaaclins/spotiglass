@@ -27,6 +27,12 @@ enum SpotifyLocalCacheError: Error, Equatable {
 }
 
 struct SpotifyLocalCache {
+    /// GET response files outlive their TTL so an offline or failing request can still show the
+    /// last answer, but only this long after they were written (#381).
+    static let getResponseRetention: TimeInterval = 7 * 24 * 60 * 60
+    /// Past this size the least recently written GET responses are deleted first.
+    static let maxGETResponseBytes: Int64 = 25 * 1024 * 1024
+
     struct CachedGETResponseRecord: Equatable {
         let data: Data
         let expiresAt: Date
@@ -152,7 +158,8 @@ struct SpotifyLocalCache {
             ttlSeconds: ttl,
             bodyBase64: body.base64EncodedString()
         )
-        try write(payload, to: getResponseURL(digest: digest))
+        // A trim never deletes this file between checking it and deleting it.
+        try DiskCacheTrim.write { try write(payload, to: getResponseURL(digest: digest)) }
     }
 
     func loadGETResponseRecord(
@@ -172,6 +179,22 @@ struct SpotifyLocalCache {
             return nil
         }
         return CachedGETResponseRecord(data: data, expiresAt: expiresAt, isExpired: isExpired)
+    }
+
+    /// Deletes GET response files older than `retention` and, past `maxBytes`, the least recently
+    /// written ones.
+    func pruneGETResponses(
+        now: Date = Date(),
+        retention: TimeInterval = SpotifyLocalCache.getResponseRetention,
+        maxBytes: Int64 = SpotifyLocalCache.maxGETResponseBytes
+    ) {
+        DiskCacheTrim.trim(
+            directory: getResponsesDirectory,
+            maxBytes: maxBytes,
+            maxAge: retention,
+            now: now,
+            fileManager: fileManager
+        )
     }
 
     /// Persist the per-account pinned-items list. The file lives under
