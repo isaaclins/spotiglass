@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.2] - 2026-11-09
+
+### Fixed
+
+- The Spotiglass website now shows the real app.
+
 ## [0.8.1] - 2026-11-08
 
 ### Fixed
