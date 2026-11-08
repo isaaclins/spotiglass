@@ -57,14 +57,14 @@ struct LyricsDiskCache: Sendable {
         guard let data = try? Data(contentsOf: url),
               let lyrics = try? JSONDecoder().decode(FetchedLyrics.self, from: data) else { return nil }
         // A read counts as a use, so lyrics that keep being played are trimmed last.
-        try? fileManager.setAttributes([.modificationDate: Date()], ofItemAtPath: url.path)
+        DiskCacheTrim.write { try? fileManager.setAttributes([.modificationDate: Date()], ofItemAtPath: url.path) }
         return lyrics
     }
 
     func save(trackKey: String, lyrics: FetchedLyrics) throws {
         let data = try JSONEncoder().encode(lyrics)
         let url = fileURL(for: trackKey)
-        try data.write(to: url, options: .atomic)
+        try DiskCacheTrim.write { try data.write(to: url, options: .atomic) }
         // Saves run on the main actor; listing the directory doesn't need to.
         let cache = self
         Task.detached(priority: .utility) { cache.prune() }

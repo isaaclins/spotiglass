@@ -189,7 +189,7 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
 
     func enqueue(uri: String) async throws {
         guard let resolved = try await Self.resolveEntries([uri]).first else { throw Self.notFound(uri) }
-        remember(uri, for: resolved.entry)
+        let rememberedKeys = remember(uri, for: resolved.entry)
         // After a shuffle the ids give the positions back; the add is then placed and
         // recorded by position.
         noteEntries()
@@ -205,8 +205,15 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         if let index = plan.index, !plan.isAfterCurrent {
             player.queue.entries.insert(resolved.entry, at: index)
         } else {
-            try await Self.mapped {
-                try await self.player.queue.insert(resolved.entry, position: .afterCurrentEntry)
+            do {
+                try await Self.mapped {
+                    try await self.player.queue.insert(resolved.entry, position: .afterCurrentEntry)
+                }
+            } catch {
+                // The song never joined the queue, so a later song with the same keys must
+                // not show this row.
+                for key in rememberedKeys { uriByEntryKey[key] = nil }
+                throw error
             }
         }
         book.finishAdd(plan)
@@ -296,11 +303,14 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         return reordered
     }
 
-    /// The first row URI queued under each of the entry's keys wins.
-    private func remember(_ uri: String, for entry: MusicPlayer.Queue.Entry) {
-        for key in Self.keys(entry) where uriByEntryKey[key] == nil {
+    /// The first row URI queued under each of the entry's keys wins. Returns the keys it set.
+    @discardableResult
+    private func remember(_ uri: String, for entry: MusicPlayer.Queue.Entry) -> [String] {
+        let added = Self.keys(entry).filter { uriByEntryKey[$0] == nil }
+        for key in added {
             uriByEntryKey[key] = uri
         }
+        return added
     }
 
     private static func keys(_ entry: MusicPlayer.Queue.Entry) -> [String] {

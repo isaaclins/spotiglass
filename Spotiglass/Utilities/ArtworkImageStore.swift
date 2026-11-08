@@ -126,7 +126,7 @@ actor ArtworkImageStore {
                 return nil
             }
             memoryKeys.setObject(image, forKey: key as NSString)
-            try? data.write(to: fileURL, options: [.atomic])
+            DiskCacheTrim.write { try? data.write(to: fileURL, options: [.atomic]) }
             await trimDiskCacheIfNeeded()
             return image
         } catch {

@@ -158,7 +158,8 @@ struct SpotifyLocalCache {
             ttlSeconds: ttl,
             bodyBase64: body.base64EncodedString()
         )
-        try write(payload, to: getResponseURL(digest: digest))
+        // A trim never deletes this file between checking it and deleting it.
+        try DiskCacheTrim.write { try write(payload, to: getResponseURL(digest: digest)) }
     }
 
     func loadGETResponseRecord(

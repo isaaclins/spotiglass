@@ -232,15 +232,21 @@ final class SpotifyLocalCacheTests: XCTestCase {
         try cache.saveGETResponse(digest: "artist", body: Data("old".utf8), ttl: 900, cachedAt: now)
         try setModificationDate(pastRetention, forFileAt: directory.appendingPathComponent("artist.json"))
 
-        // A request stores a fresh response for the same key after the trim listed the old one.
+        // A request stores a fresh response for the same key just as the trim deletes the old one.
+        let writer = DispatchGroup()
         DiskCacheTrim.trim(directory: directory, maxBytes: .max, maxAge: SpotifyLocalCache.getResponseRetention, now: now) { url in
-            if url.lastPathComponent == "artist.json" {
+            guard url.lastPathComponent == "artist.json" else { return }
+            writer.enter()
+            DispatchQueue.global().async {
                 try? cache.saveGETResponse(digest: "artist", body: Data("new".utf8), ttl: 900)
+                writer.leave()
             }
+            _ = writer.wait(timeout: .now() + 0.3)
         }
+        XCTAssertEqual(writer.wait(timeout: .now() + 10), .success)
         XCTAssertEqual(try cache.loadGETResponseRecord(digest: "artist", allowExpired: false)?.data, Data("new".utf8))
 
-        // A song played while the lyrics trim runs counts as used and stays.
+        // A song played after the lyrics trim listed the folder counts as used and stays.
         let lyricsDirectory = root.appendingPathComponent("lyrics", isDirectory: true)
         let lyrics = try LyricsDiskCache(directory: lyricsDirectory)
         for index in 0 ..< 4 {
@@ -250,11 +256,12 @@ final class SpotifyLocalCacheTests: XCTestCase {
         }
         DiskCacheTrim.trim(directory: lyricsDirectory, maxBytes: 1, now: now) { url in
             if url.lastPathComponent == "track-0.json" {
-                _ = lyrics.load(trackKey: "track-0")
+                try? self.setModificationDate(Date(), forFileAt: lyricsDirectory.appendingPathComponent("track-1.json"))
             }
         }
-        XCTAssertEqual(lyrics.load(trackKey: "track-0"), .instrumental)
-        XCTAssertNil(lyrics.load(trackKey: "track-1"))
+        XCTAssertEqual(lyrics.load(trackKey: "track-1"), .instrumental)
+        XCTAssertNil(lyrics.load(trackKey: "track-0"))
+        XCTAssertNil(lyrics.load(trackKey: "track-2"))
     }
 
     func testOverlappingTrimsOfOneDirectoryDeleteOnlyDownToTheBound() throws {

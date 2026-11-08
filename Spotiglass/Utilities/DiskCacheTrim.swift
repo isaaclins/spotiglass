@@ -9,9 +9,20 @@ enum DiskCacheTrim {
     /// Trims run one at a time. Two trims of one directory listed together would each delete
     /// down from the same total, and the second would carry on into the newest files.
     private static let lock = NSLock()
+    /// Held by a cache write (see ``write(_:)``) and by a trim between its last look at a file
+    /// and deleting it, so a file written or used in that moment is never deleted.
+    private static let fileLock = NSLock()
 
-    /// `willDelete` runs right before each file is checked one last time and deleted
-    /// (`SpotiglassTests` only, to write or trim in that window).
+    /// Runs a cache file write, or a read that marks a file as used, so it never lands between
+    /// a trim's last check of that file and its delete. Keep `body` to the file operation.
+    static func write<T>(_ body: () throws -> T) rethrows -> T {
+        fileLock.lock()
+        defer { fileLock.unlock() }
+        return try body()
+    }
+
+    /// `willDelete` runs after a file's last check, right before it is deleted
+    /// (`SpotiglassTests` only, to write or trim in that moment).
     static func trim(
         directory: URL,
         maxBytes: Int64,
@@ -35,11 +46,13 @@ enum DiskCacheTrim {
 
         /// Deletes the file unless it was written or used since it was listed.
         func deleteIfUnchanged(_ url: URL, listedDate: Date) -> Bool {
-            willDelete(url)
+            fileLock.lock()
+            defer { fileLock.unlock() }
             guard let current = (try? fileManager.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date,
                   current <= listedDate else {
                 return false
             }
+            willDelete(url)
             return (try? fileManager.removeItem(at: url)) != nil
         }
 
