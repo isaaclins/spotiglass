@@ -95,6 +95,17 @@ class AuditTests(RepoCopy):
         self.assertEqual(result.returncode, 1)
         self.assertIn("WrongTargetTests.swift: in the project but not in the SpotiglassTests target's Sources phase", result.stdout)
 
+    def test_file_in_both_targets_fails(self):
+        # A test helper that is compiled by the test target and also ticked
+        # for the app target: its own target compiles it, but it ships in the app.
+        self.add_swift('SpotiglassTests/BothTargetsHelper.swift')
+        text, _ = pbxproj.register(self.pbx.read_text(), 'SpotiglassTests/BothTargetsHelper.swift', 'SpotiglassTests')
+        text, _ = pbxproj.register(text, 'SpotiglassTests/BothTargetsHelper.swift', 'Spotiglass')
+        self.pbx.write_text(text)
+        result = self.run_script('scripts/audit-orphaned-sources.sh')
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('SpotiglassTests/BothTargetsHelper.swift: is also compiled by the Spotiglass target', result.stdout)
+
     def test_file_registered_twice_fails(self):
         # Rebuild the duplicate that main carried for
         # PlaylistBrowserPlaybackHelpersTests.swift: a second file reference,

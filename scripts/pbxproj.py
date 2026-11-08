@@ -197,11 +197,17 @@ def audit(repo_root='.'):
     root = Path(repo_root)
     project = Project.load(root / PBX_PATH)
     problems = []
+    compiled_by = {t: project.compiled_paths(t) for t in TARGET_FOR_DIR.values()}
     for directory, target in TARGET_FOR_DIR.items():
         listed = project.compiled_path_list(target)
         compiled = set(listed)
         for file in sorted((root / directory).rglob('*.swift')):
             rel = file.relative_to(root).as_posix()
+            # A test helper also compiled into the app ships test code, and an
+            # app file also in the test target is compiled twice.
+            for other, paths in compiled_by.items():
+                if other != target and rel in paths:
+                    problems.append((rel, f'is also compiled by the {other} target'))
             refs = len(project.file_refs_for(rel))
             if refs > 1:
                 problems.append((rel, f'has {refs} file references (registered twice)'))
