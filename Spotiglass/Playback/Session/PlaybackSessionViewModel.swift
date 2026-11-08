@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import CoreAudio
 import Foundation
 
@@ -22,20 +23,49 @@ struct PlaybackSeekIntent: Equatable, Sendable {
 
 @MainActor
 final class PlaybackSessionViewModel: ObservableObject {
+    /// Declared here because the session's properties use ``PublishedWhenChanged``, which announces
+    /// only real changes (#409).
+    let objectWillChange = ObservableObjectPublisher()
+
     struct PendingVolumeMutation: Equatable, Sendable {
         let target: Double
         let deadline: ContinuousClock.Instant
     }
 
-    @Published var connectionState: PlaybackConnectionState = .disconnected
-    /// Display-only playback position anchor for smooth scrubber interpolation.
-    @Published var progressAnchor: PlaybackProgressAnchor?
+    /// What the player is doing. An update that only moves the position (every new reading from
+    /// the player while a track plays) doesn't publish a change of the session: views that show
+    /// the position observe ``progress`` instead, so the rest of the window stays as it is (#409).
+    var connectionState: PlaybackConnectionState = .disconnected {
+        willSet {
+            if newValue.ignoringPosition != connectionState.ignoringPosition {
+                objectWillChange.send()
+            }
+        }
+        didSet {
+            if connectionState.ignoringPosition != oldValue.ignoringPosition {
+                connectionStateSubject.send(connectionState)
+            }
+        }
+    }
+    private let connectionStateSubject = CurrentValueSubject<PlaybackConnectionState, Never>(.disconnected)
+    /// ``connectionState`` now and after each change, leaving out changes that only move the position.
+    var connectionStatePublisher: AnyPublisher<PlaybackConnectionState, Never> {
+        connectionStateSubject.eraseToAnyPublisher()
+    }
+    /// The moving position, for the progress bar and the lyrics.
+    let progress = PlaybackProgressModel()
+    /// Display-only playback position anchor for smooth scrubber interpolation. Lives in
+    /// ``progress``, so setting it re-renders only the views that observe the position.
+    var progressAnchor: PlaybackProgressAnchor? {
+        get { progress.anchor }
+        set { progress.anchor = newValue }
+    }
     /// The device ID owned by the embedded Web Playback SDK.
-    @Published var deviceID: String?
+    @PublishedWhenChanged var deviceID: String?
     /// Another service's library is on screen (#373). What is already playing keeps playing and can
     /// still be paused or skipped, but nothing from that library may start in this player: its
     /// items aren't Spotify's, and Spotify would reject them and show an error after switching back.
-    @Published var refusesNewPlayback = false
+    @PublishedWhenChanged var refusesNewPlayback = false
     /// Runs when this player is about to start new music: the other service's player pauses, so
     /// only one library plays at a time (#373).
     var onWillStartPlayback: (() -> Void)?
@@ -47,7 +77,7 @@ final class PlaybackSessionViewModel: ObservableObject {
     }
     /// The Spotify Connect device currently targeted by Web API playback commands.
     /// This can be remote while ``deviceID`` remains ready for local SDK events.
-    @Published private(set) var activePlaybackDeviceID: String?
+    @PublishedWhenChanged private(set) var activePlaybackDeviceID: String?
     /// The device ID to use for a Spotify Web API playback command.
     var commandDeviceID: String? {
         activePlaybackDeviceID ?? deviceID
@@ -89,26 +119,26 @@ final class PlaybackSessionViewModel: ObservableObject {
     /// The Spotify playlist ID that the current playback originated from, or
     /// `nil` if playback was started from a single track URI or external context.
     /// Used by the sidebar to highlight which playlist row is "now playing".
-    @Published var activePlaylistID: String?
+    @PublishedWhenChanged var activePlaylistID: String?
     /// Upcoming tracks from Web Playback SDK `track_window.next_tracks` (immediate UI).
-    @Published var sdkNextTracks: [PlaybackNowPlaying] = []
+    @PublishedWhenChanged var sdkNextTracks: [PlaybackNowPlaying] = []
     /// Web Playback SDK output gain (`player.setVolume`), 0...1. Persisted between launches.
-    @Published private(set) var playbackVolume: Double
+    @PublishedWhenChanged private(set) var playbackVolume: Double
     /// From `GET /v1/me/player` for the active Spotify player (may be this device or another).
-    @Published var shuffleEnabled = false
-    @Published var repeatMode: MusicRepeatMode = .off
+    @PublishedWhenChanged var shuffleEnabled = false
+    @PublishedWhenChanged var repeatMode: MusicRepeatMode = .off
     /// True only after a player snapshot has supplied the current shuffle/repeat state.
     /// The values above remain harmless display defaults until this becomes true.
-    @Published private(set) var isTransportStateKnown = false
+    @PublishedWhenChanged private(set) var isTransportStateKnown = false
     /// Spotify Connect devices from `GET /v1/me/player/devices`.
-    @Published var connectDevices: [MusicPlaybackDevice] = []
+    @PublishedWhenChanged var connectDevices: [MusicPlaybackDevice] = []
     /// Core Audio output-capable devices (system default output picker).
-    @Published var macAudioOutputDevices: [MacAudioOutputDevice] = []
+    @PublishedWhenChanged var macAudioOutputDevices: [MacAudioOutputDevice] = []
     /// Current HAL default output device id (for menu checkmarks).
-    @Published var systemDefaultOutputDeviceID: AudioDeviceID?
+    @PublishedWhenChanged var systemDefaultOutputDeviceID: AudioDeviceID?
     /// Resolved SF Symbol for the playback-bar device button (hybrid: macOS output when this Web Playback device is active).
-    @Published var trayOutputSymbolName = "headphones"
-    @Published var isRefreshingConnectDevices = false
+    @PublishedWhenChanged var trayOutputSymbolName = "headphones"
+    @PublishedWhenChanged var isRefreshingConnectDevices = false
 
     var diagnostics = PlaybackSessionDiagnostics()
 
@@ -404,8 +434,8 @@ final class PlaybackSessionViewModel: ObservableObject {
     /// disable on the skip buttons and short-circuits subsequent skip presses
     /// so a held hotkey or rage click cannot stack `POST /v1/me/player/previous`
     /// (or `/next`) requests.
-    @Published var isSkipCommandPending = false
-    @Published var isNextCommandLockedOut = false
+    @PublishedWhenChanged var isSkipCommandPending = false
+    @PublishedWhenChanged var isNextCommandLockedOut = false
     /// Last time a skip command was dispatched. Combined with
     /// ``skipCommandMinimumSpacing``, this enforces a minimum interval between
     /// successive `previous`/`next` POSTs even when a request returns quickly.
@@ -646,6 +676,14 @@ final class PlaybackSessionViewModel: ObservableObject {
         restartTransportPollingIfNeeded()
     }
 
+    /// Writes only a changed volume. Every write to the defaults, even of the same value, re-renders
+    /// each view that uses `@AppStorage`, the whole window included, and the player reports its
+    /// volume with every reading (#409).
+    private func storePlaybackVolume(_ volume: Double) {
+        guard (defaults.object(forKey: Self.playbackVolumeUserDefaultsKey) as? NSNumber)?.doubleValue != volume else { return }
+        defaults.set(volume, forKey: Self.playbackVolumeUserDefaultsKey)
+    }
+
     private static func loadStoredPlaybackVolume(from defaults: UserDefaults) -> Double {
         guard let object = defaults.object(forKey: playbackVolumeUserDefaultsKey) else {
             return defaultPlaybackVolume
@@ -663,7 +701,7 @@ final class PlaybackSessionViewModel: ObservableObject {
         let clamped = min(max(value, 0), 1)
         let version = beginPendingPlaybackVolumeMutation(target: clamped)
         playbackVolume = clamped
-        defaults.set(clamped, forKey: Self.playbackVolumeUserDefaultsKey)
+        storePlaybackVolume(clamped)
         schedulePlaybackVolumeSend(
             value: clamped,
             version: version,
@@ -713,7 +751,7 @@ final class PlaybackSessionViewModel: ObservableObject {
     func applyRemotePlaybackVolume(_ value: Double) {
         let clamped = min(max(value, 0), 1)
         playbackVolume = clamped
-        defaults.set(clamped, forKey: Self.playbackVolumeUserDefaultsKey)
+        storePlaybackVolume(clamped)
     }
 
     deinit {

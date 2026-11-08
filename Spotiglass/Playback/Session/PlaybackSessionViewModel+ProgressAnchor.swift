@@ -1,4 +1,26 @@
+import Combine
 import Foundation
+import SwiftUI
+
+/// Where the playing track is. Kept apart from ``PlaybackSessionViewModel`` because it changes
+/// with every update from the player: only the views that show the position (the progress bar,
+/// the lyrics) observe it, so a new position doesn't re-render the track list, the sidebar and
+/// the menus (#409).
+@MainActor
+final class PlaybackProgressModel: ObservableObject {
+    @Published var anchor: PlaybackProgressAnchor?
+}
+
+/// Hands its content the current position anchor and re-renders only that content when the
+/// player reports a new position, not the view around it (#409).
+struct PlaybackProgressReader<Content: View>: View {
+    @ObservedObject var progress: PlaybackProgressModel
+    @ViewBuilder let content: (PlaybackProgressAnchor?) -> Content
+
+    var body: some View {
+        content(progress.anchor)
+    }
+}
 
 @MainActor
 extension PlaybackSessionViewModel {
