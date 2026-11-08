@@ -1386,6 +1386,15 @@ final class AppleMusicArtworkSizeTests: XCTestCase {
         XCTAssertEqual(ArtworkRequest.url(libraryURL, points: 150, scale: 2, registry: registry), libraryURL)
     }
 
+    func testAPinsCatalogURLIsNotSwappedForLibraryArtworkUnderTheSameKey() throws {
+        let registry = AppleMusicArtworkRegistry()
+        let library = try AppleMusicFixtures.decode(Artwork.self, #"{"url":"musicKit://artwork/transient/{w}x{h}?id=A","width":600,"height":600}"#)
+        registry.register(library, for: try XCTUnwrap(library.url(width: 600, height: 600)), itemKey: "album:1")
+        let saved = try XCTUnwrap(URL(string: "https://example.com/old/600x600bb.jpg"))
+
+        XCTAssertEqual(ArtworkRequest.url(saved, points: 150, scale: 2, itemKey: "album:1", registry: registry), saved)
+    }
+
     func testRequestsNeverAskForMoreThanTheOriginal() throws {
         let registry = AppleMusicArtworkRegistry()
         let small = try AppleMusicFixtures.decode(Artwork.self, #"{"url":"https://example.com/{w}x{h}bb.jpg","width":400,"height":400}"#)

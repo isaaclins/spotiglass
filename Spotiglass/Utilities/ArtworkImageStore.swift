@@ -172,6 +172,9 @@ final class ArtworkImageLoader: ObservableObject {
     private let imageProvider: ImageProvider
     private let imageTransformer: ImageTransformer
     private var requestedURL: URL?
+    /// The cover `requestedURL` shows, whatever size it asks for. A new size of the same cover
+    /// (the window moved to a Retina screen) keeps the current image until the new one is in.
+    private var requestedArtwork: URL?
     private var generation: UInt64 = 0
 
     init(
@@ -186,17 +189,25 @@ final class ArtworkImageLoader: ObservableObject {
         self.imageTransformer = imageTransformer
         self.image = initialImage.map(imageTransformer)
         self.requestedURL = initialURL
+        self.requestedArtwork = initialURL
     }
 
-    func load(for url: URL?) async {
+    /// Loads `url`. `artwork` names the cover it is a size of (default: `url` itself); while a
+    /// new size of the shown cover loads, and if it fails, the current image stays (#426).
+    func load(for url: URL?, artwork: URL? = nil) async {
         if requestedURL == url, image != nil {
             return
         }
 
+        let artwork = artwork ?? url
+        let resizesShownCover = image != nil && artwork != nil && artwork == requestedArtwork
         generation &+= 1
         let requestGeneration = generation
         requestedURL = url
-        image = nil
+        requestedArtwork = artwork
+        if !resizesShownCover {
+            image = nil
+        }
         didFail = false
 
         guard let url else { return }
@@ -207,7 +218,11 @@ final class ArtworkImageLoader: ObservableObject {
         else {
             return
         }
-        image = loaded.map(imageTransformer)
-        didFail = loaded == nil
+        if let loaded {
+            image = imageTransformer(loaded)
+        } else if !resizesShownCover {
+            image = nil
+        }
+        didFail = image == nil
     }
 }

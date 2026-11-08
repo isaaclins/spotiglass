@@ -125,7 +125,7 @@ private struct CachedCircularArtwork: View {
         }
         .frame(width: diameter, height: diameter)
         .task(id: requestURL.absoluteString) {
-            await artworkLoader.load(for: requestURL)
+            await artworkLoader.load(for: requestURL, artwork: url)
         }
     }
 }

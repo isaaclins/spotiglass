@@ -261,6 +261,51 @@ final class ArtworkImageStoreTests: XCTestCase {
     }
 }
 
+extension ArtworkImageStoreTests {
+    /// A Home card moved from a 1x to a 2x screen asks for its cover at 600 instead of 300 px.
+    /// The 300 px cover stays on screen while the bigger one loads, and if that fails (#426).
+    @MainActor
+    func testANewSizeOfTheShownCoverKeepsTheCurrentImageWhileItLoads() async {
+        let cover = URL(string: "https://example.com/120x120bb.jpg")!
+        let small = URL(string: "https://example.com/300x300bb.jpg")!
+        let large = URL(string: "https://example.com/600x600bb.jpg")!
+        let smallImage = NSImage(size: NSSize(width: 300, height: 300))
+        let largeImage = NSImage(size: NSSize(width: 600, height: 600))
+        let largeGate = ArtworkImageTestGate()
+        let loader = ArtworkImageLoader { url in
+            url == small ? smallImage : await largeGate.waitForImage()
+        }
+
+        await loader.load(for: small, artwork: cover)
+        XCTAssertTrue(loader.image === smallImage)
+
+        let largeTask = Task { @MainActor in await loader.load(for: large, artwork: cover) }
+        await largeGate.waitUntilRequested()
+        XCTAssertTrue(loader.image === smallImage, "the card went blank while the 600 px cover loaded")
+
+        await largeGate.release(largeImage)
+        await largeTask.value
+        XCTAssertTrue(loader.image === largeImage)
+    }
+
+    @MainActor
+    func testAFailedNewSizeKeepsTheShownCoverButAnotherCoverStillClears() async {
+        let cover = URL(string: "https://example.com/120x120bb.jpg")!
+        let small = URL(string: "https://example.com/300x300bb.jpg")!
+        let smallImage = NSImage(size: NSSize(width: 300, height: 300))
+        let loader = ArtworkImageLoader { url in url == small ? smallImage : nil }
+
+        await loader.load(for: small, artwork: cover)
+        await loader.load(for: URL(string: "https://example.com/600x600bb.jpg")!, artwork: cover)
+        XCTAssertTrue(loader.image === smallImage)
+        XCTAssertFalse(loader.didFail)
+
+        await loader.load(for: URL(string: "https://example.com/other/300x300bb.jpg")!)
+        XCTAssertNil(loader.image)
+        XCTAssertTrue(loader.didFail)
+    }
+}
+
 private actor ArtworkImageTestGate {
     private var requested = false
     private var requestWaiter: CheckedContinuation<Void, Never>?

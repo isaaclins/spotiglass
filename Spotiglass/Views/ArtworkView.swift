@@ -185,7 +185,7 @@ private struct CachedArtworkImage: View {
         .task(id: requestURL.absoluteString) {
             // Re-entering this state resets the failure, so scrolling a row back
             // into view retries rather than leaving a permanent hole.
-            await artworkLoader.load(for: requestURL)
+            await artworkLoader.load(for: requestURL, artwork: url)
         }
     }
 

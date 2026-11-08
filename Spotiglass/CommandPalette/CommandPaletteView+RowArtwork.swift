@@ -33,7 +33,7 @@ struct CommandPaletteArtistAvatar: View {
                 .strokeBorder(SpotiglassDesign.artworkBorderColor(colorScheme: colorScheme), lineWidth: 1)
         }
         .task(id: requestURL?.absoluteString ?? "") {
-            await artworkLoader.load(for: requestURL)
+            await artworkLoader.load(for: requestURL, artwork: imageURL)
         }
     }
 }
@@ -73,7 +73,7 @@ struct CommandPaletteTrackArtwork: View {
                 .strokeBorder(SpotiglassDesign.artworkBorderColor(colorScheme: colorScheme), lineWidth: 1)
         }
         .task(id: requestURL.absoluteString) {
-            await artworkLoader.load(for: requestURL)
+            await artworkLoader.load(for: requestURL, artwork: imageURL)
         }
     }
 }

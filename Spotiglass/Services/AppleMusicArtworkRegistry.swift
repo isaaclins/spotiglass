@@ -58,7 +58,10 @@ final class AppleMusicArtworkRegistry: @unchecked Sendable {
         guard !Self.needsMusicKit(url), let artwork = artwork(for: url, itemKey: itemKey) else { return url }
         // Asking past the original only returns the original under another cache key.
         let side = min(pixelSize, max(artwork.maximumWidth, artwork.maximumHeight, 1))
-        return artwork.url(width: side, height: side) ?? url
+        // The item key can hold library artwork now (a pin saved with a catalog URL), and the
+        // caller downloads what comes back, so a `musicKit://` URL would only fail to load.
+        guard let sized = artwork.url(width: side, height: side), !Self.needsMusicKit(sized) else { return url }
+        return sized
     }
 
     /// The artwork for `url`, or else the artwork last registered for `itemKey`. A hit counts
