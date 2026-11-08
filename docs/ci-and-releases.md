@@ -87,9 +87,11 @@ The app checks the feed automatically about once per day, or via **Spotiglass â†
    security find-identity -v -p codesigning | grep 'Developer ID Application'
    xcrun notarytool history --keychain-profile spotiglass
    ```
-   If the profile is stored in a keychain other than the default one, pass it as
-   `NOTARY_KEYCHAIN=<path>` (and `NOTARY_PROFILE=<name>` for another profile name)
-   to the release script, which hands it to every `notarytool` call.
+   If the profile is stored in a keychain other than the default one, check it with
+   `xcrun notarytool history --keychain-profile <name> --keychain <path>` and pass it
+   as `NOTARY_KEYCHAIN=<path>` (and `NOTARY_PROFILE=<name>` for another profile name)
+   to the release script, which hands it to every `notarytool` call. Unlock that
+   keychain first when running over ssh.
 3. Validate the version and release notes without building or writing files:
    ```sh
    SPARKLE_RELEASE_VALIDATE_ONLY=1 ./scripts/sparkle-release.sh 0.5.0 7 docs/release-notes/v0.5.0.md
