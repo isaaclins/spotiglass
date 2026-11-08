@@ -32,4 +32,58 @@ final class PlaylistOwnerDisplayTests: XCTestCase {
         )
         XCTAssertTrue(line.contains("Spotify"))
     }
+
+    func testUnknownCountLeavesOnlyTheOwner() {
+        let line = PlaylistOwnerDisplay.ownerTracksLine(
+            ownerName: "Apple Music",
+            ownerID: "apple-curator",
+            trackCountText: "",
+            currentUserID: "apple-music-library"
+        )
+        XCTAssertEqual(line, "Apple Music")
+    }
+
+    func testAccessibilityLabelWithoutACountHasNoEmptyPart() {
+        for locale in ["en", "de", "es"].map(Locale.init(identifier:)) {
+            let own = PlaylistOwnerDisplay.accessibilityLabel(
+                title: "Road",
+                ownerName: "",
+                ownerID: "apple-music-library",
+                trackCountText: "",
+                currentUserID: "apple-music-library",
+                nowPlaying: SpotiglassL10n.string("browser.playlistRow.nowPlaying", locale: locale),
+                pinned: "",
+                locale: locale
+            )
+            XCTAssertEqual(own, "Road" + SpotiglassL10n.string("browser.playlistRow.nowPlaying", locale: locale))
+            let other = PlaylistOwnerDisplay.accessibilityLabel(
+                title: "Chill",
+                ownerName: "Apple Music",
+                ownerID: "curator",
+                trackCountText: "",
+                currentUserID: "apple-music-library",
+                nowPlaying: "",
+                pinned: "",
+                locale: locale
+            )
+            XCTAssertFalse(other.hasSuffix(", "), other)
+            XCTAssertFalse(other.contains("\u{1}"))
+            XCTAssertTrue(other.hasPrefix("Chill, "))
+        }
+    }
+
+    /// Spotify still names a missing count; only Apple Music rows, whose count loads a moment
+    /// after the sidebar, stay quiet.
+    func testOnlyAppleMusicRowsHideAnUnknownCount() {
+        func row(snapshotID: String) -> PlaylistRowViewModel {
+            PlaylistRowViewModel(MusicPlaylistSummary(
+                id: "p", name: "P", ownerID: "o", ownerName: "O", imageURL: nil, trackCount: nil, snapshotID: snapshotID
+            ))
+        }
+        XCTAssertEqual(row(snapshotID: AppleMusicItemMapping.playlistSnapshotID).localizedTrackCountText(), "")
+        XCTAssertEqual(
+            row(snapshotID: "spotify-snapshot").localizedTrackCountText(),
+            SpotiglassL10n.string("browser.trackCountUnavailable")
+        )
+    }
 }
