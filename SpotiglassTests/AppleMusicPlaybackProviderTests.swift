@@ -786,9 +786,11 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
 
     /// A play chosen while the failed Next still shows, and still looking up its songs when
     /// the recovery is due: the recovery waits for it instead of putting the old song (or
-    /// "Ready") back under it, and the play's own result is what the bar shows.
+    /// "Ready") back under it, and once the play is through, the next read shows its song.
     func testAppleMusicRecoveryWaitsForAPlayStillRunning() async throws {
-        let (player, session) = try await Self.playingSession(passingErrorRecoveryDelay: .milliseconds(30))
+        // Long enough that the held play is surely running before the recovery is due, even on
+        // a busy machine; the wait below is well past it.
+        let (player, session) = try await Self.playingSession(passingErrorRecoveryDelay: .milliseconds(300))
         try await Self.read(session, player, at: 30)
         player.skipFailure = MusicPlaybackError(service: .appleMusic, reason: .failed, detail: "refused")
         await session.next()
@@ -797,7 +799,7 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         player.holdLookups = true
         let play = Task { await session.play(uri: Self.uris[3]) }
         while player.waitingLookups.isEmpty { await Task.yield() }
-        try await Task.sleep(for: .milliseconds(150))
+        try await Task.sleep(for: .milliseconds(700))
         XCTAssertEqual(session.connectionState, .error(failed), "the recovery ran under the running play")
 
         player.releaseLookups()
