@@ -768,6 +768,46 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         XCTAssertEqual(session.currentNowPlaying?.uri, Self.uris[0])
     }
 
+    /// A subscription message stays, but once the subscription is back, a song that then
+    /// fails for a moment recovers like any other: the bar doesn't stay on that error.
+    func testAppleMusicMomentaryFailureAfterAPersistentErrorStillRecovers() async throws {
+        let (player, session) = try await Self.playingSession(passingErrorRecoveryDelay: .milliseconds(20))
+        try await Self.read(session, player, at: 30)
+        player.skipFailure = MusicPlaybackError(service: .appleMusic, reason: .subscriptionRequired(message: nil))
+        await session.next()
+        XCTAssertNil(session.passingErrorRecoveryTask)
+
+        player.failure = NSError(domain: "MPMusicPlayerControllerErrorDomain", code: 6)
+        await session.play(uri: Self.uris[3])
+        XCTAssertNotNil(session.passingErrorRecoveryTask, "the momentary failure that followed must recover")
+        await session.passingErrorRecoveryTask?.value
+        XCTAssertTrue(Self.isPlaying(session), "the bar stayed on the error: \(session.connectionState)")
+    }
+
+    /// A play chosen while the failed Next still shows, and still looking up its songs when
+    /// the recovery is due: the recovery waits for it instead of putting the old song (or
+    /// "Ready") back under it, and the play's own result is what the bar shows.
+    func testAppleMusicRecoveryWaitsForAPlayStillRunning() async throws {
+        let (player, session) = try await Self.playingSession(passingErrorRecoveryDelay: .milliseconds(30))
+        try await Self.read(session, player, at: 30)
+        player.skipFailure = MusicPlaybackError(service: .appleMusic, reason: .failed, detail: "refused")
+        await session.next()
+        guard case let .error(failed) = session.connectionState else { return XCTFail("Expected the failed Next") }
+
+        player.holdLookups = true
+        let play = Task { await session.play(uri: Self.uris[3]) }
+        while player.waitingLookups.isEmpty { await Task.yield() }
+        try await Task.sleep(for: .milliseconds(150))
+        XCTAssertEqual(session.connectionState, .error(failed), "the recovery ran under the running play")
+
+        player.releaseLookups()
+        await play.value
+        player.advance(by: 1)
+        await session.syncTransportFromSpotify()
+        XCTAssertTrue(Self.isPlaying(session), "\(session.connectionState)")
+        XCTAssertEqual(session.currentNowPlaying?.uri, Self.uris[3])
+    }
+
     /// Access turned off in System Settings or a lapsed subscription is not a passing
     /// failure: the bar keeps saying so instead of going back to controls that fail again.
     func testAppleMusicAccessAndSubscriptionErrorsStayOnScreen() async throws {
