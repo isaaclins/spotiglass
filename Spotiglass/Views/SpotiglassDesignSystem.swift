@@ -219,6 +219,8 @@ enum SpotiglassDesign {
 
         /// Widest one breadcrumb gets in the toolbar before it truncates.
         static let breadcrumbMaxWidth: CGFloat = 220
+        /// The back button at the leading edge of the toolbar.
+        static let toolbarButtonSize: CGFloat = 32
 
         /// Width of the library prefetch progress bar in the toolbar.
         static let toolbarProgressWidth: CGFloat = 72
@@ -237,6 +239,7 @@ enum SpotiglassDesign {
         static let sheetWidth: CGFloat = 380
         /// Smallest a shortcut field gets, so assigned and empty fields read as one control.
         static let shortcutFieldMinWidth: CGFloat = 132
+        static let shortcutFieldMinHeight: CGFloat = 28
         /// Smallest height of a multi-line text editor in Settings.
         static let textEditorMinHeight: CGFloat = 200
         /// Smallest size of the keyboard settings when shown in a window of their own.

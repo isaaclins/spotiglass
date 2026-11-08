@@ -40,8 +40,8 @@ struct NavigationToolbarChrome: NSViewRepresentable {
         back.toolTip = backLabel
         back.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            back.widthAnchor.constraint(equalToConstant: 32),
-            back.heightAnchor.constraint(equalToConstant: 32)
+            back.widthAnchor.constraint(equalToConstant: SpotiglassDesign.Layout.toolbarButtonSize),
+            back.heightAnchor.constraint(equalToConstant: SpotiglassDesign.Layout.toolbarButtonSize)
         ])
 
         let hosting = NSHostingView(

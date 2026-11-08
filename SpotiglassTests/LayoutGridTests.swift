@@ -78,6 +78,8 @@ final class LayoutGridTests: XCTestCase {
         ("equalizerSliderHeight", SpotiglassDesign.Layout.equalizerSliderHeight),
         ("sheetWidth", SpotiglassDesign.Layout.sheetWidth),
         ("shortcutFieldMinWidth", SpotiglassDesign.Layout.shortcutFieldMinWidth),
+        ("shortcutFieldMinHeight", SpotiglassDesign.Layout.shortcutFieldMinHeight),
+        ("toolbarButtonSize", SpotiglassDesign.Layout.toolbarButtonSize),
         ("textEditorMinHeight", SpotiglassDesign.Layout.textEditorMinHeight),
         ("standaloneSettingsMinWidth", SpotiglassDesign.Layout.standaloneSettingsMinWidth),
         ("standaloneSettingsMinHeight", SpotiglassDesign.Layout.standaloneSettingsMinHeight),
@@ -159,6 +161,10 @@ final class LayoutGridTests: XCTestCase {
             "maxHeight: max(200, usableHeight * 0.5)",
             ".padding(.horizontal, isCompact ? SpotiglassDesign.spacingS : 6)",
             ".offset(x: 0, y: 6)",
+            ".padding(.horizontal, /* line up with the header */ 10)",
+            "back.widthAnchor.constraint(equalToConstant: 32),",
+            "heightAnchor.constraint(greaterThanOrEqualToConstant: 28),",
+            "label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),",
             "stack.edgeInsets = NSEdgeInsets(top: 0, left: 10, bottom: 0, right: 10)",
         ]
         for line in flagged {
@@ -179,6 +185,9 @@ final class LayoutGridTests: XCTestCase {
             ".frame(width: SpotiglassDesign.Layout.cardWidth * 2)",
             ".frame(maxWidth: isWide ? SpotiglassDesign.Layout.paragraphMaxWidth : .infinity)",
             "static let maxHeight: CGFloat = 14",
+            "Text(\"a\") /* .padding(6) */",
+            "/// Matches Spotiglass/*.swift .padding(SpotiglassDesign.spacingS)",
+            "button.leadingAnchor.constraint(equalTo: leadingAnchor),",
             "Text(\"Width: 400\").padding(SpotiglassDesign.spacingS)",
         ]
         for line in allowed {
@@ -210,6 +219,30 @@ final class LayoutGridTests: XCTestCase {
         struct B: View { var body: some View { Text("b").padding(6) } }
         """
         XCTAssertEqual(Self.looseStatements(in: source).map(\.0), [3])
+    }
+
+    /// A `/*` mentioned in a doc comment or a string opens no block comment,
+    /// so the code after it is still checked.
+    func testSlashStarInTextDoesNotHideLaterCode() {
+        let source = """
+        /// Reads Spotiglass/*.swift
+        let pattern = "/*"
+        struct B: View { var body: some View { Text("b").padding(6) } }
+        """
+        XCTAssertEqual(Self.looseStatements(in: source).map(\.0), [2])
+    }
+
+    /// A preview inside a type is left out like one at the top level.
+    func testIndentedPreviewIsLeftOut() {
+        let source = """
+        extension A {
+            #Preview {
+                A().padding(20)
+            }
+        }
+        struct B: View { var body: some View { Text("b").padding(6) } }
+        """
+        XCTAssertEqual(Self.looseStatements(in: source).map(\.0), [5])
     }
 
     /// A call written over several lines is still one call.
@@ -247,6 +280,7 @@ final class LayoutGridTests: XCTestCase {
         #"EdgeInsets\([^)]*?\b(?:top|leading|bottom|trailing):\s*(\#(number))"#,
         #"\bminLength:\s*(\#(number))"#,
         #"\.spacing\s*=\s*(\#(number))"#,
+        #"(?:\bconstant|[eE]qualToConstant):\s*(\#(number))"#,
         #"\b\w+(?:Padding|Spacing):\s*(\#(number))"#,
         #"(?:Artwork\w*|Logo)\([^)]*?\bsize:\s*(\#(number))"#,
         #"\.(?:adaptive|fixed|flexible)\((?:minimum:\s*)?(\#(number))"#,
@@ -256,7 +290,7 @@ final class LayoutGridTests: XCTestCase {
     private static let allowedValues: Set<Double> = [0, 1]
 
     static func looseNumbers(in line: String) -> [String] {
-        let code = codeOnly(line)
+        let code = codeOnly(withoutBlockComments(line))
         let range = NSRange(code.startIndex..., in: code)
         // Keyed by where the digits start, so a number two patterns find counts once.
         var hits: [Int: String] = [:]
@@ -366,7 +400,7 @@ final class LayoutGridTests: XCTestCase {
         var found: [(Int, String)] = []
         var pending: (index: Int, code: String)?
         var depth = 0
-        for (index, line) in linesOutsidePreviews(text) {
+        for (index, line) in linesOutsidePreviews(withoutBlockComments(text)) {
             let code = codeOnly(line).trimmingCharacters(in: .whitespaces)
             let statement = pending.map { ($0.index, $0.code + " " + code) } ?? (index, code)
             depth += code.filter { "([".contains($0) }.count - code.filter { ")]".contains($0) }.count
@@ -379,6 +413,46 @@ final class LayoutGridTests: XCTestCase {
             if !looseNumbers(in: statement.1).isEmpty { found.append(statement) }
         }
         return found
+    }
+
+    /// `text` with every `/* ... */` comment blanked out, line breaks kept so
+    /// line numbers stay right. A `/*` inside a string or a `//` comment
+    /// doesn't open one.
+    static func withoutBlockComments(_ text: String) -> String {
+        var result = ""
+        var state = (blockComment: false, lineComment: false, string: false)
+        var previous: Character?
+        for character in text {
+            var current: Character? = character
+            if character == "\n" {
+                state.lineComment = false
+                state.string = false
+                result.append(character)
+            } else if state.blockComment {
+                result.append(" ")
+                if previous == "*", character == "/" {
+                    state.blockComment = false
+                    current = nil
+                }
+            } else if state.lineComment {
+                result.append(character)
+            } else if state.string {
+                result.append(character)
+                if character == "\"", previous != "\\" { state.string = false }
+                if previous == "\\", character == "\\" { current = nil }
+            } else if previous == "/", character == "*" {
+                result.removeLast()
+                result.append("  ")
+                state.blockComment = true
+                current = nil
+            } else {
+                result.append(character)
+                if previous == "/", character == "/" { state.lineComment = true }
+                if character == "\"" { state.string = true }
+            }
+            previous = current
+        }
+        return result
     }
 
     /// `line` without its `//` comment and with every string literal emptied,
@@ -411,7 +485,7 @@ final class LayoutGridTests: XCTestCase {
         var kept: [(Int, String)] = []
         var previewDepth: Int?
         for (index, line) in text.components(separatedBy: "\n").enumerated() {
-            if previewDepth == nil, line.hasPrefix("#Preview") { previewDepth = 0 }
+            if previewDepth == nil, line.trimmingCharacters(in: .whitespaces).hasPrefix("#Preview") { previewDepth = 0 }
             guard let depth = previewDepth else {
                 kept.append((index, line))
                 continue
