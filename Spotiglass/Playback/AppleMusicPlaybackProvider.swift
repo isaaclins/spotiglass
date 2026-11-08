@@ -85,9 +85,21 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
     /// The latest play while it runs. An add made after it waits for it, so the song goes into
     /// the queue that play starts instead of the one it is about to replace.
     private var latestPlay: Task<Void, Never>?
+    /// The generation of the play still running, if the latest play hasn't finished yet.
+    private var runningPlayGeneration: UInt64?
+    /// Queue reads waiting for the latest play. A newer play takes them over, so a read never
+    /// waits for a play that was replaced (#413).
+    private var queueReadWaiters: [UUID: CheckedContinuation<Void, Never>] = [:]
+    /// The longest a queue read waits for a play. A play that never finishes (a stalled
+    /// lookup) must not hold the queue panel on "loading" for good; the read then shows what
+    /// the player has.
+    private let queueReadWaitLimit: Duration
 
-    init(player: (any AppleMusicPlayerControlling)? = nil) {
+    var isQueueSettling: Bool { runningPlayGeneration != nil }
+
+    init(player: (any AppleMusicPlayerControlling)? = nil, queueReadWaitLimit: Duration = .seconds(15)) {
         self.player = player ?? MusicKitApplicationPlayer()
+        self.queueReadWaitLimit = queueReadWaitLimit
     }
 
     // MARK: - Player lifecycle
@@ -102,6 +114,8 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
     }
 
     func disconnectPlayer(generation: PlaybackHostGeneration) async throws {
+        runningPlayGeneration = nil
+        releaseQueueReads()
         player.stop()
     }
 
@@ -114,7 +128,11 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
         let run = Task { @MainActor [player] in
             try await player.play(queueRequest, isCurrent: { [weak self] in self?.playGeneration == generation })
         }
-        latestPlay = Task { _ = await run.result }
+        runningPlayGeneration = generation
+        latestPlay = Task { [weak self] in
+            _ = await run.result
+            self?.playFinished(generation: generation)
+        }
         try await perform { try await run.value }
     }
 
@@ -186,8 +204,49 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
         )
     }
 
+    /// A play still looking up its songs hasn't handed the player its queue yet, so a read
+    /// then would return the old queue (or none). The read waits for the latest play, so a panel
+    /// opened right after starting a long list shows the list it started (#413).
     func fetchQueue() async throws -> MusicPlaybackQueue {
-        MusicPlaybackQueue(queue: player.readUpcoming().map { .track($0) })
+        await waitForLatestPlay()
+        return MusicPlaybackQueue(queue: player.readUpcoming().map { .track($0) })
+    }
+
+    /// Only the latest play's end lets the queue reads go: a replaced play finishing late (or
+    /// still looking up its songs) leaves them waiting for the play that replaced it.
+    private func playFinished(generation: UInt64) {
+        guard runningPlayGeneration == generation else { return }
+        runningPlayGeneration = nil
+        releaseQueueReads()
+    }
+
+    /// Waits until the latest play is in, the read is cancelled, the player disconnects or
+    /// ``queueReadWaitLimit`` passes, whichever comes first.
+    private func waitForLatestPlay() async {
+        guard runningPlayGeneration != nil, !Task.isCancelled else { return }
+        let id = UUID()
+        let limit = queueReadWaitLimit
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                queueReadWaiters[id] = continuation
+                Task { [weak self] in
+                    try? await Task.sleep(for: limit)
+                    self?.releaseQueueRead(id)
+                }
+            }
+        } onCancel: {
+            Task { @MainActor [weak self] in self?.releaseQueueRead(id) }
+        }
+    }
+
+    private func releaseQueueRead(_ id: UUID) {
+        queueReadWaiters.removeValue(forKey: id)?.resume()
+    }
+
+    private func releaseQueueReads() {
+        let waiters = queueReadWaiters
+        queueReadWaiters = [:]
+        waiters.values.forEach { $0.resume() }
     }
 
     // MARK: - Mapping
