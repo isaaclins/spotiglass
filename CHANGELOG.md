@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- The Spotiglass website now shows the real app.
+- Small fixes behind the scenes.
 
 ## [0.8.1] - 2026-11-08
 
