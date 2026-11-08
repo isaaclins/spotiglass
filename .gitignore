@@ -27,3 +27,4 @@ docs/sparkle-archives/
 
 # Session research scratch — not app content
 digital-agency-site-playbook.md
+__pycache__/

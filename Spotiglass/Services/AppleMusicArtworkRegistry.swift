@@ -5,7 +5,9 @@ import MusicKit
 /// can fetch; only MusicKit's `ArtworkImage` view can draw them. The neutral models carry URLs,
 /// so the Apple Music mapping registers each such artwork here under its URL, and the artwork
 /// views draw it with `ArtworkImage` instead of downloading it. Catalog artwork stays plain
-/// https and goes through the normal image cache.
+/// https and goes through the normal image cache, but is registered too: its URL is fixed to the
+/// size it was mapped with, and ``sizedURL(for:itemKey:pixelSize:)`` asks Apple for the size a
+/// view actually draws (#426).
 final class AppleMusicArtworkRegistry: @unchecked Sendable {
     static let shared = AppleMusicArtworkRegistry()
 
@@ -38,6 +40,28 @@ final class AppleMusicArtworkRegistry: @unchecked Sendable {
             guard let itemKey else { return }
             artworkByItemKey.setValue(artwork, forKey: itemKey)
         }
+    }
+
+    /// Pixel sizes artwork is requested in. Views round their drawn size up to one of these, so
+    /// a 44 pt and a 56 pt thumbnail share one download and one cache entry.
+    static let requestPixelSizes = [120, 300, 600, 1200]
+
+    static func requestPixelSize(forDrawnPixels pixels: CGFloat) -> Int {
+        let needed = Int(pixels.rounded(.up))
+        return requestPixelSizes.first { $0 >= needed } ?? requestPixelSizes[requestPixelSizes.count - 1]
+    }
+
+    /// `url` (as mapped, at a fixed size) at `pixelSize`, so a cover is never stretched past what
+    /// Apple sent. Library artwork and URLs this session never mapped come back unchanged: MusicKit
+    /// draws library covers at the view's size itself, and an unknown URL can't be resized.
+    func sizedURL(for url: URL, itemKey: String? = nil, pixelSize: Int) -> URL {
+        guard !Self.needsMusicKit(url), let artwork = artwork(for: url, itemKey: itemKey) else { return url }
+        // Asking past the original only returns the original under another cache key.
+        let side = min(pixelSize, max(artwork.maximumWidth, artwork.maximumHeight, 1))
+        // The item key can hold library artwork now (a pin saved with a catalog URL), and the
+        // caller downloads what comes back, so a `musicKit://` URL would only fail to load.
+        guard let sized = artwork.url(width: side, height: side), !Self.needsMusicKit(sized) else { return url }
+        return sized
     }
 
     /// The artwork for `url`, or else the artwork last registered for `itemKey`. A hit counts

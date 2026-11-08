@@ -89,13 +89,15 @@ struct HomeQuickAccessTile: View {
 
 /// Square "jump back in" card used in the Recently played carousel.
 struct HomeMediaCardView: View {
+    static let artworkSize = SpotiglassDesign.Layout.cardWidth
+
     let card: HomeMediaCard
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
-                ArtworkView(url: card.artworkURL, size: SpotiglassDesign.Layout.cardWidth)
+                ArtworkView(url: card.artworkURL, size: Self.artworkSize)
                 Text(card.title)
                     .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
@@ -104,7 +106,7 @@ struct HomeMediaCardView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
-            .frame(width: SpotiglassDesign.Layout.cardWidth, alignment: .leading)
+            .frame(width: Self.artworkSize, alignment: .leading)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

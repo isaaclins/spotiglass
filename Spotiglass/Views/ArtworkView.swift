@@ -128,11 +128,32 @@ struct MusicKitArtwork: View {
     }
 }
 
+/// The artwork URL to download for a cover drawn `points` wide on a `scale` screen. Apple Music
+/// tracks are mapped with a row-sized URL, so without this a Home card or the Lyrics cover
+/// stretched a 120 px image to 300 px and more (#426). Spotify URLs come back unchanged: they
+/// already point at the largest image Spotify offers.
+enum ArtworkRequest {
+    static func url(
+        _ url: URL,
+        points: CGFloat,
+        scale: CGFloat,
+        itemKey: String? = nil,
+        registry: AppleMusicArtworkRegistry = .shared
+    ) -> URL {
+        registry.sizedURL(
+            for: url,
+            itemKey: itemKey,
+            pixelSize: AppleMusicArtworkRegistry.requestPixelSize(forDrawnPixels: points * max(scale, 1))
+        )
+    }
+}
+
 private struct CachedArtworkImage: View {
     let url: URL
     let size: CGFloat
     var artworkKey: String? = nil
     @StateObject private var artworkLoader = ArtworkImageLoader()
+    @Environment(\.displayScale) private var displayScale
 
     var body: some View {
         if AppleMusicArtworkRegistry.needsMusicKit(url) {
@@ -161,10 +182,14 @@ private struct CachedArtworkImage: View {
                 )
             }
         }
-        .task(id: url.absoluteString) {
+        .task(id: requestURL.absoluteString) {
             // Re-entering this state resets the failure, so scrolling a row back
             // into view retries rather than leaving a permanent hole.
-            await artworkLoader.load(for: url)
+            await artworkLoader.load(for: requestURL, artwork: url)
         }
+    }
+
+    private var requestURL: URL {
+        ArtworkRequest.url(url, points: size, scale: displayScale, itemKey: artworkKey)
     }
 }
