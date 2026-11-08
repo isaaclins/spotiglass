@@ -259,11 +259,11 @@ struct AppleMusicLibraryEditor: Sendable {
     /// a like or unlike changes that, and the pending edit that covers it ends once the library
     /// shows the change, before the row is read again.
     private func rememberLibraryState(of reference: AppleMusicSongReference, isInLibrary: Bool) {
-        guard var listed = songReferences.reference(for: reference.itemID) else { return }
-        listed.isInLibrary = isInLibrary
-        listed.catalogID = listed.catalogID ?? reference.catalogID
-        listed.cloudLibraryID = listed.cloudLibraryID ?? reference.cloudLibraryID
-        songReferences.remember(listed)
+        songReferences.update(matching: reference.matchKeys) { listed in
+            listed.isInLibrary = isInLibrary
+            listed.catalogID = listed.catalogID ?? reference.catalogID
+            listed.cloudLibraryID = listed.cloudLibraryID ?? reference.cloudLibraryID
+        }
     }
 
     /// Whether each song is in the library, counting edits the library has not caught up with.

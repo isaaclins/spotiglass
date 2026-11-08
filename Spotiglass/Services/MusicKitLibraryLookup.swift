@@ -89,6 +89,16 @@ final class AppleMusicSongReferenceRegistry: @unchecked Sendable {
         lock.withLock { references.value(forKey: itemID) }
     }
 
+    /// Changes every remembered row of the song with these keys: a playlist row is remembered
+    /// under its persistent ID, while a like from search names the song by its catalog ID.
+    func update(matching keys: Set<String>, _ change: (inout AppleMusicSongReference) -> Void) {
+        lock.withLock {
+            references.updateValues { reference in
+                if !reference.matchKeys.isDisjoint(with: keys) { change(&reference) }
+            }
+        }
+    }
+
     /// Records the songs of a library playlist or album that MusicKit listed under a persistent
     /// ID. `playlistID` is the playlist they were read from: a song from Apple Music can be in a
     /// playlist without being in the library, and the Music app then finds it only there.

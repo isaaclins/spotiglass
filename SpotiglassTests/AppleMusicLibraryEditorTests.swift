@@ -2086,6 +2086,25 @@ final class AppleMusicPlaylistOnlySongTests: XCTestCase {
         XCTAssertEqual(editor.knownSongStatus(id: rowID), true)
     }
 
+    /// Liked from search, the song comes by its catalog ID; its 18P1 row, remembered under the
+    /// persistent ID, must follow once the pending like ends.
+    func testALikeFromSearchReachesThePlaylistRow() async throws {
+        registry.remember([.song(try row())], playlistID: playlistID)
+        lookup.songsByID["1441154439"] = AppleMusicSongReference(
+            itemID: "1441154439", catalogID: "1441154439", cloudLibraryID: "i.aJGod6dt36dmrrA",
+            musicAppPersistentID: rowPersistentID, isInLibrary: false,
+            title: "Don't Stop The Music", artistName: "Rihanna", albumTitle: nil
+        )
+
+        try await editor.saveSongs(ids: ["1441154439"])
+        _ = pending.applied(
+            toLibrarySongs: [(track: AppleMusicLibraryEditorTests.track(id: "i.aJGod6dt36dmrrA", name: "Don't Stop The Music"), keys: Set(["i.aJGod6dt36dmrrA", "1441154439", rowID]))],
+            isComplete: true
+        )
+
+        XCTAssertEqual(editor.knownSongStatus(id: rowID), true)
+    }
+
     func testAPlaylistOnlySongWithoutALibraryEntryIsNotLikedBlindly() async throws {
         lookup.libraryIdentitiesByPersistentID = [:]
         registry.remember([.song(try row())], playlistID: playlistID)

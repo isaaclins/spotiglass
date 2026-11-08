@@ -30,6 +30,13 @@ struct LRUDictionary<Key: Hashable, Value> {
         return entry.value
     }
 
+    /// Changes every value in place; not a use, so nothing moves in the eviction order.
+    mutating func updateValues(_ change: (inout Value) -> Void) {
+        for key in Array(entries.keys) {
+            change(&entries[key]!.value)
+        }
+    }
+
     /// Stores `value` under `key` as the most recently used entry, then evicts the least
     /// recently used entries if the capacity is exceeded.
     mutating func setValue(_ value: Value, forKey key: Key) {
