@@ -158,6 +158,8 @@ final class LayoutGridTests: XCTestCase {
             ".frame(width: min(320, geo.size.width * 0.36), alignment: .leading)",
             "maxHeight: max(200, usableHeight * 0.5)",
             ".padding(.horizontal, isCompact ? SpotiglassDesign.spacingS : 6)",
+            ".offset(x: 0, y: 6)",
+            "stack.edgeInsets = NSEdgeInsets(top: 0, left: 10, bottom: 0, right: 10)",
         ]
         for line in flagged {
             XCTAssertFalse(Self.looseNumbers(in: line).isEmpty, "not flagged: \(line)")
@@ -177,6 +179,7 @@ final class LayoutGridTests: XCTestCase {
             ".frame(width: SpotiglassDesign.Layout.cardWidth * 2)",
             ".frame(maxWidth: isWide ? SpotiglassDesign.Layout.paragraphMaxWidth : .infinity)",
             "static let maxHeight: CGFloat = 14",
+            "Text(\"Width: 400\").padding(SpotiglassDesign.spacingS)",
         ]
         for line in allowed {
             XCTAssertTrue(Self.looseNumbers(in: line).isEmpty, "wrongly flagged: \(line)")
@@ -194,8 +197,40 @@ final class LayoutGridTests: XCTestCase {
         }
         struct B: View { var body: some View { Text("b").padding(6) } }
         """
-        let kept = Self.linesOutsidePreviews(source).map(\.1)
-        XCTAssertEqual(kept.flatMap { Self.looseNumbers(in: $0) }, ["6"])
+        XCTAssertEqual(Self.looseStatements(in: source).map(\.0), [6])
+    }
+
+    /// A brace inside a string or comment in a preview doesn't make the
+    /// preview swallow the code after it.
+    func testPreviewBracesInTextDoNotHideLaterCode() {
+        let source = """
+        #Preview {
+            Text("{ not a brace") // nor this {
+        }
+        struct B: View { var body: some View { Text("b").padding(6) } }
+        """
+        XCTAssertEqual(Self.looseStatements(in: source).map(\.0), [3])
+    }
+
+    /// A call written over several lines is still one call.
+    func testScannerReadsCallsOverSeveralLines() {
+        let source = """
+        Text("a")
+            .padding(
+                6
+            )
+            .frame(width:
+                150)
+            .listRowInsets(EdgeInsets(
+                top: 0,
+                leading: SpotiglassDesign.spacingS,
+                bottom: 0,
+                trailing: 10
+            ))
+        Text("(") .padding(SpotiglassDesign.spacingM)
+        Text("b").padding(SpotiglassDesign.spacingM)
+        """
+        XCTAssertEqual(Self.looseStatements(in: source).map(\.0), [1, 4, 6])
     }
 
     // MARK: - Scanner
@@ -221,7 +256,7 @@ final class LayoutGridTests: XCTestCase {
     private static let allowedValues: Set<Double> = [0, 1]
 
     static func looseNumbers(in line: String) -> [String] {
-        let code = line.components(separatedBy: "//").first ?? line
+        let code = codeOnly(line)
         let range = NSRange(code.startIndex..., in: code)
         // Keyed by where the digits start, so a number two patterns find counts once.
         var hits: [Int: String] = [:]
@@ -258,23 +293,28 @@ final class LayoutGridTests: XCTestCase {
         pattern: #"(?<!let )(?<!var )\b(?:spacing|width|height|minWidth|maxWidth|minHeight|maxHeight|idealWidth|idealHeight|minLength)\s*:"#
     )
 
-    /// The argument expressions of `.padding(...)` and of every `layoutLabel`,
-    /// each running to the next comma or closing bracket at its own depth.
+    /// Calls whose every argument is a layout number: `.padding(.top, 6)`,
+    /// `.offset(x: 0, y: 6)`, `EdgeInsets(...)` and AppKit's `NSEdgeInsets(...)`.
+    private static let layoutCalls = [".padding(", ".offset(", "EdgeInsets("]
+
+    /// The argument expressions of every `layoutCalls` call (all of its
+    /// arguments) and of every `layoutLabel` (up to the next comma or closing
+    /// bracket at its own depth).
     private static func layoutArguments(in code: String) -> [Range<String.Index>] {
-        var starts: [String.Index] = []
+        var starts: [(String.Index, wholeCall: Bool)] = []
         for match in layoutLabel.matches(in: code, range: NSRange(code.startIndex..., in: code)) {
-            if let range = Range(match.range, in: code) { starts.append(range.upperBound) }
+            if let range = Range(match.range, in: code) { starts.append((range.upperBound, false)) }
         }
-        var searchFrom = code.startIndex
-        while let padding = code.range(of: ".padding(", range: searchFrom..<code.endIndex) {
-            starts.append(padding.upperBound)
-            searchFrom = padding.upperBound
+        for call in layoutCalls {
+            var searchFrom = code.startIndex
+            while let found = code.range(of: call, range: searchFrom..<code.endIndex) {
+                starts.append((found.upperBound, true))
+                searchFrom = found.upperBound
+            }
         }
-        return starts.map { start in
+        return starts.map { start, isWholeCall in
             var depth = 0
             var index = start
-            // `.padding(` owns everything up to its own closing bracket, commas included.
-            let isPadding = code[..<start].hasSuffix(".padding(")
             while index < code.endIndex {
                 let character = code[index]
                 if "([".contains(character) {
@@ -282,7 +322,7 @@ final class LayoutGridTests: XCTestCase {
                 } else if ")]".contains(character) {
                     if depth == 0 { break }
                     depth -= 1
-                } else if character == ",", depth == 0, !isPadding {
+                } else if character == ",", depth == 0, !isWholeCall {
                     break
                 }
                 index = code.index(after: index)
@@ -312,13 +352,56 @@ final class LayoutGridTests: XCTestCase {
             let text = try String(contentsOf: url, encoding: .utf8)
             guard text.contains("import SwiftUI") else { continue }
             let relative = url.path.replacingOccurrences(of: repositoryURL.path + "/", with: "")
-            for (index, line) in linesOutsidePreviews(text) {
-                if !looseNumbers(in: line).isEmpty {
-                    findings.append("\(relative):\(index + 1): \(line.trimmingCharacters(in: .whitespaces))")
-                }
+            for (index, statement) in looseStatements(in: text) {
+                findings.append("\(relative):\(index + 1): \(statement)")
             }
         }
         return findings.sorted()
+    }
+
+    /// Every statement of `text` that holds a loose layout number, with the
+    /// index of the line it starts on. A call that spans several lines
+    /// (`.frame(\n width: 150\n)`) is read as one statement.
+    static func looseStatements(in text: String) -> [(Int, String)] {
+        var found: [(Int, String)] = []
+        var pending: (index: Int, code: String)?
+        var depth = 0
+        for (index, line) in linesOutsidePreviews(text) {
+            let code = codeOnly(line).trimmingCharacters(in: .whitespaces)
+            let statement = pending.map { ($0.index, $0.code + " " + code) } ?? (index, code)
+            depth += code.filter { "([".contains($0) }.count - code.filter { ")]".contains($0) }.count
+            if depth > 0 {
+                pending = statement
+                continue
+            }
+            depth = 0
+            pending = nil
+            if !looseNumbers(in: statement.1).isEmpty { found.append(statement) }
+        }
+        return found
+    }
+
+    /// `line` without its `//` comment and with every string literal emptied,
+    /// so text and comments can't count as code or brackets.
+    static func codeOnly(_ line: String) -> String {
+        var code = ""
+        var inString = false
+        var previous: Character?
+        for character in line {
+            if inString {
+                if character == "\"", previous != "\\" { inString = false; code.append(character) }
+            } else if character == "\"" {
+                inString = true
+                code.append(character)
+            } else if character == "/", previous == "/" {
+                code.removeLast()
+                break
+            } else {
+                code.append(character)
+            }
+            previous = previous == "\\" && character == "\\" ? nil : character
+        }
+        return code
     }
 
     /// The source's lines with their index, leaving out each `#Preview { ... }`
@@ -333,8 +416,9 @@ final class LayoutGridTests: XCTestCase {
                 kept.append((index, line))
                 continue
             }
-            let opened = line.filter { $0 == "{" }.count
-            let closed = line.filter { $0 == "}" }.count
+            let code = codeOnly(line)
+            let opened = code.filter { $0 == "{" }.count
+            let closed = code.filter { $0 == "}" }.count
             let newDepth = depth + opened - closed
             previewDepth = (opened > 0 || depth > 0) && newDepth <= 0 ? nil : newDepth
         }
