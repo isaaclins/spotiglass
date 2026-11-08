@@ -337,6 +337,14 @@ cp -pR "$ROOT/build/SpotiglassEQDriver.driver" "$DRIVER_DST/"
 # why users saw "unidentified developer" on a build that appeared to be signed.
 DEVELOPER_ID_IDENTITY="${DEVELOPER_ID_IDENTITY:-$(security find-identity -v -p codesigning | awk -F'\"' '/Developer ID Application/ { print $2; exit }')}"
 NOTARY_PROFILE="${NOTARY_PROFILE:-spotiglass}"
+# notarytool looks for the profile in the default keychain unless told
+# otherwise. When the profile lives in another keychain (for example one kept
+# next to the signing identity), name it in NOTARY_KEYCHAIN; otherwise an ssh
+# session, where the login keychain stays locked, reports no profile at all.
+NOTARY_ARGS=(--keychain-profile "$NOTARY_PROFILE")
+if [[ -n "${NOTARY_KEYCHAIN:-}" ]]; then
+  NOTARY_ARGS+=(--keychain "$NOTARY_KEYCHAIN")
+fi
 ALLOW_UNSIGNED_RELEASE="${ALLOW_UNSIGNED_RELEASE:-0}"
 ALLOW_UNNOTARIZED_RELEASE="${ALLOW_UNNOTARIZED_RELEASE:-0}"
 
@@ -417,13 +425,13 @@ ZIP_PATH="$ARCHIVES_DIR/$ZIP_NAME"
 # made before stapling does not contain the ticket.
 NOTARIZED=0
 if [[ -n "$DEVELOPER_ID_IDENTITY" ]]; then
-  if xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1; then
+  if xcrun notarytool history "${NOTARY_ARGS[@]}" >/dev/null 2>&1; then
     NOTARIZE_DIR="$(mktemp -d)"
     NOTARIZE_ZIP="$NOTARIZE_DIR/Spotiglass-notarize.zip"
     ditto -c -k --sequesterRsrc --keepParent "$APP_SOURCE" "$NOTARIZE_ZIP"
 
     echo "==> Submitting to Apple for notarization (this can take several minutes)"
-    xcrun notarytool submit "$NOTARIZE_ZIP" --keychain-profile "$NOTARY_PROFILE" --wait
+    xcrun notarytool submit "$NOTARIZE_ZIP" "${NOTARY_ARGS[@]}" --wait
 
     echo "==> Stapling notarization ticket"
     xcrun stapler staple "$APP_SOURCE"
@@ -445,6 +453,7 @@ if [[ -n "$DEVELOPER_ID_IDENTITY" ]]; then
     echo "       A published release must be notarized so Gatekeeper accepts it." >&2
     echo "       Create the profile with:" >&2
     echo "       xcrun notarytool store-credentials \"$NOTARY_PROFILE\" --apple-id <id> --team-id <team> --password <app-specific-password>" >&2
+    echo "       If the profile lives in another keychain, set NOTARY_KEYCHAIN=<path to it>." >&2
     echo "       For local signing tests only, set ALLOW_UNNOTARIZED_RELEASE=1." >&2
     exit 1
   fi
@@ -473,7 +482,7 @@ if [[ -n "$DEVELOPER_ID_IDENTITY" ]]; then
   codesign --force --sign "$DEVELOPER_ID_IDENTITY" --timestamp "$DMG_PATH"
   if [[ "$NOTARIZED" == "1" ]]; then
     echo "==> Notarizing disk image"
-    xcrun notarytool submit "$DMG_PATH" --keychain-profile "$NOTARY_PROFILE" --wait
+    xcrun notarytool submit "$DMG_PATH" "${NOTARY_ARGS[@]}" --wait
     xcrun stapler staple "$DMG_PATH"
     xcrun stapler validate "$DMG_PATH"
     spctl --assess --verbose=4 --type open --context context:primary-signature "$DMG_PATH"
