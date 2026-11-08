@@ -522,12 +522,29 @@ final class PlaybackChromeViewsTests: XCTestCase {
     /// bar is laid out for real in each state that changes its parts (playing,
     /// paused, the Reconnect and Retry buttons, no track) and at a wide row
     /// with the volume slider, a compact-volume row and the stacked layout.
+    /// Apple Music's bar has no volume control, and the bar showing the other
+    /// service's player has a label instead of the Lyrics button.
     /// In one row the scrubber shares the line; stacked, it sits on its own
     /// row under the others.
-    func testEveryPlayerBarControlSharesTheBarsCentreLine() throws {
+    func testEveryPlayerBarControlSharesTheBarsCentreLine() async throws {
+        // Apple Music reads its state from the player, so the scripted
+        // MusicKit player really plays the song.
+        let appleMusicPlayer = ScriptedAppleMusicPlayer()
+        let appleMusicProvider = AppleMusicPlaybackProvider(player: appleMusicPlayer)
+        let appleMusic = PlaybackSessionViewModel(provider: appleMusicProvider)
+        appleMusic.handle(.ready(deviceID: AppleMusicPlaybackProvider.deviceID))
+        try await appleMusicProvider.play(
+            .items(uris: ["applemusic:song:midnight"], startURI: nil),
+            deviceID: AppleMusicPlaybackProvider.deviceID
+        )
+        appleMusicPlayer.advance(by: 1)
+        appleMusic.setConnectionState(.playing(Self.midnightCity()))
+
         let states: [(String, () -> PlaybackSessionViewModel)] = [
             ("playing", { self.makePlayingPlayback() }),
             ("paused", { self.makePlayingPlayback(paused: true) }),
+            ("apple music", { appleMusic }),
+            ("other service", { self.makePlayingPlayback() }),
             ("disconnected", {
                 PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(
                     playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
@@ -553,7 +570,8 @@ final class PlaybackChromeViewsTests: XCTestCase {
                     rootView: PlaybackControlsView(
                         viewModel: makePlayback(),
                         isLyricsPresented: .constant(false),
-                        openArtist: { _ in }
+                        openArtist: { _ in },
+                        otherService: state == "other service" ? .appleMusic : nil
                     )
                 )
                 let window = OffscreenTestWindow(
@@ -604,6 +622,10 @@ final class PlaybackChromeViewsTests: XCTestCase {
                     controls.contains { $0.role == "AXMenuButton" || $0.role == "AXPopUpButton" } || state != "playing",
                     "the device menu is missing, \(label)"
                 )
+                if state == "apple music" {
+                    XCTAssertTrue(controls.contains { $0.axDescription == lyricsLabel }, "Apple Music shows its Lyrics button, \(label)")
+                    XCTAssertFalse(controls.contains { $0.axDescription == SpotiglassL10n.string("playback.controls.volume") }, "Apple Music has no volume control, \(label)")
+                }
                 sawLyrics = sawLyrics || controls.contains { $0.axDescription == lyricsLabel }
             }
         }
