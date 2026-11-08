@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.1] - 2026-11-08
+
+### Fixed and changed
+
+- null (#392)
+
 ## [0.8.0] - 2026-11-08
 
 ### Added
