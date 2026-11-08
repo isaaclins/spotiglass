@@ -254,7 +254,8 @@ kbd {
 
   .hero { min-height: calc(100svh - 72px); }
   .hero__text { padding-top: clamp(16px, 4.5vh, 56px); }
-  .hero__window { flex: 1 1 0; min-height: 260px; height: auto; margin-top: clamp(32px, 5vh, 56px); border-radius: 14px 14px 0 0; }
+  /* Fills the rest of the first screen, but never taller than the capture itself (2200 x 1406). */
+  .hero__window { flex: 1 1 0; min-height: 260px; max-height: calc(min(1100px, 100vw - 2 * var(--gut)) * 1406 / 2200); height: auto; margin-top: clamp(32px, 5vh, 56px); border-radius: 14px; }
   .hero__window img { width: 100%; min-width: 0; }
 
   .split { grid-template-columns: 5fr 7fr; gap: 64px; align-items: center; }
