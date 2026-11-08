@@ -564,9 +564,10 @@ final class PlaybackChromeViewsTests: XCTestCase {
         ]
         let lyricsLabel = SpotiglassL10n.string("playback.controls.lyrics")
         let progressLabel = SpotiglassL10n.string("playback.scrubber.progress")
-        var sawLyrics = false
         for (state, makePlayback) in states {
-            for width in [CGFloat(1_400), 1_100, 640] {
+            for (appearance, width) in [NSAppearance.Name.darkAqua, .aqua].flatMap({ name in
+                [CGFloat(1_400), 1_100, 640].map { (name, $0) }
+            }) {
                 let controller = NSHostingController(
                     rootView: PlaybackControlsView(
                         viewModel: makePlayback(),
@@ -581,6 +582,7 @@ final class PlaybackChromeViewsTests: XCTestCase {
                     backing: .buffered,
                     defer: false
                 )
+                window.appearance = NSAppearance(named: appearance)
                 window.contentViewController = controller
                 window.isReleasedWhenClosed = false
                 window.setContentSize(NSSize(width: width, height: 160))
@@ -610,7 +612,7 @@ final class PlaybackChromeViewsTests: XCTestCase {
                 func name(_ element: RealizedAccessibilityElement) -> String {
                     "\(element.role) \(element.axDescription.isEmpty ? element.title : element.axDescription)"
                 }
-                let label = "\(state) at \(Int(width)): \(controls.map { "\(name($0)) \(midY($0))" })"
+                let label = "\(state), \(appearance.rawValue) at \(Int(width)): \(controls.map { "\(name($0)) \(midY($0))" })"
                 let previous = try XCTUnwrap(
                     controls.first { $0.axDescription == SpotiglassL10n.string("playback.controls.previous") }, label
                 )
@@ -626,26 +628,34 @@ final class PlaybackChromeViewsTests: XCTestCase {
                     controls.contains { $0.role == "AXMenuButton" || $0.role == "AXPopUpButton" } || state != "playing",
                     "the device menu is missing, \(label)"
                 )
-                // The title and the artist line under it, as one block: its
-                // top and bottom sit the same distance from the centre line.
-                if state != "disconnected", state != "reconnect", state != "retry" {
-                    let text = elements.filter { element in
-                        guard element.position != nil, element.size.height > 0 else { return false }
-                        return [element.value, element.title, element.axDescription].contains { $0 == "Midnight City" || $0.contains("M83") }
-                    }
-                    let top = try XCTUnwrap(text.compactMap { $0.position?.y }.min(), "no title or artist, \(label)")
-                    let bottom = try XCTUnwrap(text.compactMap { element in element.position.map { $0.y + element.size.height } }.max())
-                    XCTAssertGreaterThan(text.count, 1, "the title and artist were not both found, \(text)")
-                    XCTAssertEqual((top + bottom) / 2, midY(previous), accuracy: 1, "the title and artist are off the centre line, \(text), \(label)")
+                // The title and the line under it (the artists, the state or
+                // the error), as one block: its top and bottom sit the same
+                // distance from the centre line. They are the texts left of
+                // the scrubber, or stacked, left of the transport buttons
+                // above it; the artist names are links.
+                let summaryEnd = (stacked ? previous.position?.x : scrubber.position?.x) ?? 0
+                let text = elements.filter { element in
+                    guard let position = element.position, element.size.height > 0 else { return false }
+                    let isText = element.role == "AXStaticText" || element.title.contains("M83") || element.axDescription.contains("M83")
+                    return isText && element.value != window.title
+                        && position.x + element.size.width <= summaryEnd + 0.5
+                        && (!stacked || position.y + element.size.height <= (scrubber.position?.y ?? 0))
                 }
+                let top = try XCTUnwrap(text.compactMap { $0.position?.y }.min(), "no title, \(label)")
+                let bottom = try XCTUnwrap(text.compactMap { element in element.position.map { $0.y + element.size.height } }.max())
+                XCTAssertGreaterThan(text.count, 1, "the title and the line under it were not both found, \(text), \(label)")
+                XCTAssertEqual((top + bottom) / 2, midY(previous), accuracy: 1, "the title block is off the centre line, \(text), \(label)")
+
+                let showsLyrics = ["playing", "paused", "apple music"].contains(state)
+                XCTAssertEqual(
+                    controls.contains { $0.axDescription == lyricsLabel }, showsLyrics,
+                    showsLyrics ? "the Lyrics button is missing, \(label)" : "no track, no Lyrics button, \(label)"
+                )
                 if state == "apple music" {
-                    XCTAssertTrue(controls.contains { $0.axDescription == lyricsLabel }, "Apple Music shows its Lyrics button, \(label)")
                     XCTAssertFalse(controls.contains { $0.axDescription == SpotiglassL10n.string("playback.controls.volume") }, "Apple Music has no volume control, \(label)")
                 }
-                sawLyrics = sawLyrics || controls.contains { $0.axDescription == lyricsLabel }
             }
         }
-        XCTAssertTrue(sawLyrics, "the bar never showed its Lyrics button")
     }
 
     func testPlaybackTransportLayoutAtWindowMinimumKeepsScrubberUsable() throws {
