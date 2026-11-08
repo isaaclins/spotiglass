@@ -107,45 +107,6 @@ final class PlaylistBrowserBreadcrumbTests: XCTestCase {
         XCTAssertEqual(id, "artist-b")
     }
 
-    func testBreadcrumbJumpToBreadcrumbTrimsPrefix() async {
-        let liked = PlaylistBrowsingTestFixtures.track(id: "liked-one")
-        let api = MockBrowsingAPI(
-            playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
-            trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]],
-            savedTracksResult: .success(MusicSavedTracksResult(tracks: [liked], totalAvailable: 1))
-        )
-        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
-
-        await viewModel.load()
-        await viewModel.selectSidebar(.likedSongs)
-        await viewModel.selectArtist(id: "artist-xyz", origin: .extend, displayName: "Malcolm Todd")
-
-        await viewModel.jumpToBreadcrumb(at: 0)
-
-        XCTAssertEqual(viewModel.breadcrumbPath.count, 1)
-        XCTAssertEqual(viewModel.breadcrumbPath[0].label, "Liked Songs")
-        XCTAssertEqual(viewModel.sidebarSelection, .likedSongs)
-        XCTAssertFalse(viewModel.canNavigateBack)
-    }
-
-    func testBreadcrumbJumpToHomeClearsTrailAndSelectsHome() async {
-        let api = MockBrowsingAPI(
-            playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
-            trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]],
-            savedTracksResult: .success(MusicSavedTracksResult(tracks: [PlaylistBrowsingTestFixtures.track(id: "liked-one")], totalAvailable: 1))
-        )
-        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
-
-        await viewModel.load()
-        await viewModel.selectSidebar(.likedSongs)
-
-        await viewModel.jumpToHome()
-
-        XCTAssertTrue(viewModel.breadcrumbPath.isEmpty)
-        XCTAssertEqual(viewModel.sidebarSelection, .home)
-        XCTAssertFalse(viewModel.canNavigateBack)
-    }
-
     func testBreadcrumbClearForSignOutEmptiesTrail() async {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],

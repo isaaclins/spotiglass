@@ -45,46 +45,6 @@ extension PlaylistBrowserViewModel {
         reconcileBreadcrumbAfterNavigateBack(to: target)
     }
 
-    func jumpToHome() async {
-        breadcrumbPath = []
-        backNavigationStack = []
-        currentNavigationTarget = nil
-        canNavigateBack = false
-        isPerformingBackNavigation = true
-        defer { isPerformingBackNavigation = false }
-        await selectSidebar(.home, origin: .backStackReplay)
-    }
-
-    func jumpToBreadcrumb(at index: Int) async {
-        guard index >= 0, index < breadcrumbPath.count else { return }
-        breadcrumbPath = Array(breadcrumbPath.prefix(index + 1))
-        let crumb = breadcrumbPath[index]
-        backNavigationStack = []
-        currentNavigationTarget = nil
-        canNavigateBack = false
-        isPerformingBackNavigation = true
-        defer { isPerformingBackNavigation = false }
-        switch crumb.kind {
-        case .search:
-            await selectSidebar(.search, origin: .backStackReplay)
-        case .likedSongs:
-            await selectSidebar(.likedSongs, origin: .backStackReplay)
-        case let .playlist(id):
-            await selectSidebar(.playlist(id), origin: .backStackReplay)
-        case let .artist(id):
-            await selectArtist(id: id, forceRefresh: false, origin: .backStackReplay, displayName: crumb.label)
-        case let .album(id, title, subtitle, artworkURL):
-            await selectAlbum(
-                id: id,
-                displayTitle: title,
-                displaySubtitle: subtitle,
-                artworkURL: artworkURL,
-                origin: .backStackReplay
-            )
-        }
-        syncCanNavigateBack()
-    }
-
     func registerNavigationTransition(to target: BrowserNavigationTarget) {
         if isPerformingBackNavigation {
             currentNavigationTarget = target
@@ -106,6 +66,43 @@ extension PlaylistBrowserViewModel {
         }
         currentNavigationTarget = target
         syncCanNavigateBack()
+    }
+
+    /// Where ``navigateBack()`` goes next, without going there. The toolbar's
+    /// back button names it, so the label always matches what a click does.
+    var backDestination: BrowserNavigationTarget? {
+        backNavigationStack.last { $0 != currentNavigationTarget }
+    }
+
+    /// The name of a place the browser can go back to, in the words the
+    /// sidebar and the window title use for it (#443).
+    func displayName(
+        for target: BrowserNavigationTarget,
+        locale: Locale = SpotiglassL10n.locale
+    ) -> String {
+        switch target {
+        case .sidebar(.home):
+            return SpotiglassL10n.string("browser.home", locale: locale)
+        case .sidebar(.search):
+            return SpotiglassL10n.string("browser.search", locale: locale)
+        case .sidebar(.likedSongs):
+            return SpotiglassL10n.string("browser.likedSongs.title", locale: locale)
+        case let .sidebar(.playlist(id)):
+            return (playlistsByID[id] ?? knownPlaylistSummariesByID[id])?.name
+                ?? SpotiglassL10n.string("browser.breadcrumb.playlistFallback", locale: locale)
+        case .sidebar(.pinnedItem):
+            // Pinned rows open an artist or album, which is what gets recorded,
+            // so this target never lands on the back stack.
+            return SpotiglassL10n.string("browser.home", locale: locale)
+        case let .artist(id):
+            if let crumb = breadcrumbPath.last(where: { $0.kind == .artist(id: id) }) {
+                return crumb.label
+            }
+            return cachedArtistSnapshots[id]?.snapshot.artistDetail.name
+                ?? SpotiglassL10n.string("browser.breadcrumb.artistFallback", locale: locale)
+        case let .album(_, title, _, _):
+            return title
+        }
     }
 
     private func popPreviousNavigationTarget() -> BrowserNavigationTarget? {
