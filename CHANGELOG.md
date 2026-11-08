@@ -4,7 +4,7 @@
 
 ### Added
 
-- **Apple Music.** Sign in with your Apple Music account and Spotiglass shows your library, playlists, Home and search, plays songs, and lets you like songs, add them to playlists, create, rename and delete playlists, remove songs from a playlist, and add or remove albums.
+- **Apple Music.** Add it on the welcome screen or with **Add a service…** in the service switcher and allow access when macOS asks. Spotiglass then shows your library, playlists, Home and search, plays songs, and lets you like songs, add them to playlists, create, rename and delete playlists, remove songs from a playlist, and add or remove albums. Playback and catalog search need an Apple Music subscription; the library loads without one. Library edits go partly through the Music app, so the first one asks once whether Spotiglass may control Music.
 - A **service switcher** at the top left of the sidebar, like profiles in Arc. Spotify and Apple Music sit side by side, each with its own sign-in, pins and place, and switching never signs anything out. ⌃1 switches to Apple Music and ⌃2 to Spotify; both can be rebound in Settings › Keyboard, and the command palette has **Switch to Spotify** and **Switch to Apple Music**.
 - Apple Music playlists show their track counts in the sidebar.
 - The equalizer installs its audio driver itself, through a privileged helper registered with the Service Management framework. macOS asks for your approval in its own words; the previous build asked you to run `sudo` commands in Terminal.
@@ -21,8 +21,10 @@
 - The queue panel fits at every window width, shows the queue while Spotiglass is in the background, and says "Next 20 tracks" instead of a wrong exact count when more are queued.
 - German and Spanish no longer show English or misspelled text in several places, and Apple Music mode names Apple Music on screen and shows calm errors instead of raw MusicKit messages.
 - ⌃1 and ⌃2 work while lyrics are open, and a Spotify session that lapsed can be removed without signing in again first.
-- Apple Music songs can be pinned from track lists, covers no longer disappear in large libraries, and the language switch and the narrow sidebar behave in Apple Music mode too.
+- Apple Music songs can be pinned from track lists, covers no longer disappear in large libraries, and a library album on an artist page counts the songs it really has in your library.
+- After a language switch your own playlists keep **Edit playlist name**, and the sidebar collapses in a narrow window instead of getting cut off.
 - Playlist edits in Apple Music work for every song in a playlist and never leave half-done changes, such as an empty new playlist.
+- An Apple Music edit that takes Music longer than 60 seconds no longer goes through after Spotiglass said it failed. Spotiglass waits for Music and reports what really happened.
 - Songs that are only in a playlist, not in your library, no longer show as liked.
 - Every cache Spotiglass keeps on disk now has a size limit and drops what it no longer needs.
 - The equalizer could never install its driver on a real Mac. A daemon that has never been registered reports "not found", which the app treated as fatal; it connected to the helper before launchd had the job running; its retry path discarded an approval you had already granted and asked again, forever; and the helper carried a debug-only entitlement that launchd refuses to run a daemon with, so registration reported success while the job silently never loaded.
