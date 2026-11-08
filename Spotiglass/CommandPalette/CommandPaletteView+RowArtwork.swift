@@ -8,8 +8,10 @@ struct CommandPaletteArtistAvatar: View {
 
     @Environment(\.colorScheme) private var colorScheme
     @StateObject private var artworkLoader = ArtworkImageLoader()
+    @Environment(\.displayScale) private var displayScale
 
     var body: some View {
+        let requestURL = imageURL.map { ArtworkRequest.url($0, points: diameter, scale: displayScale) }
         ZStack {
             Circle()
                 .fill(Color.secondary.opacity(0.12))
@@ -30,8 +32,8 @@ struct CommandPaletteArtistAvatar: View {
             Circle()
                 .strokeBorder(SpotiglassDesign.artworkBorderColor(colorScheme: colorScheme), lineWidth: 1)
         }
-        .task(id: imageURL?.absoluteString ?? "") {
-            await artworkLoader.load(for: imageURL)
+        .task(id: requestURL?.absoluteString ?? "") {
+            await artworkLoader.load(for: requestURL)
         }
     }
 }
@@ -46,8 +48,10 @@ struct CommandPaletteTrackArtwork: View {
 
     @Environment(\.colorScheme) private var colorScheme
     @StateObject private var artworkLoader = ArtworkImageLoader()
+    @Environment(\.displayScale) private var displayScale
 
     var body: some View {
+        let requestURL = ArtworkRequest.url(imageURL, points: side, scale: displayScale)
         ZStack {
             RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
                 .fill(Color.secondary.opacity(0.12))
@@ -68,8 +72,8 @@ struct CommandPaletteTrackArtwork: View {
             RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
                 .strokeBorder(SpotiglassDesign.artworkBorderColor(colorScheme: colorScheme), lineWidth: 1)
         }
-        .task(id: imageURL.absoluteString) {
-            await artworkLoader.load(for: imageURL)
+        .task(id: requestURL.absoluteString) {
+            await artworkLoader.load(for: requestURL)
         }
     }
 }
