@@ -68,6 +68,17 @@ jobs:
         # and two test files already shipped that way (#107).
         run: ./scripts/audit-orphaned-sources.sh
 
+      - name: make clean keeps the login
+        # `make clean` once deleted the Spotify refresh token too (#383).
+        run: ./scripts/test-make-clean.sh
+
+      - name: Project-file script tests
+        # The audit and the register scripts parse and edit project.pbxproj.
+        # These tests replay the ways that file has gone wrong: a test file
+        # in a group but not in the target, a file registered twice, and two
+        # branches handing out the same object ID (#384).
+        run: python3 -m unittest discover -s scripts/tests -v
+
   test:
     name: Unit tests and coverage gate
     # Pinned to macos-26 (Tahoe) because Spotiglass and SpotiglassTests both

@@ -3,81 +3,13 @@
     <channel>
         <title>Spotiglass</title>
         <item>
-            <title>0.8.0</title>
-            <pubDate>Sun, 08 Nov 2026 20:41:23 +0100</pubDate>
-            <sparkle:version>11</sparkle:version>
-            <sparkle:shortVersionString>0.8.0</sparkle:shortVersionString>
+            <title>0.8.1</title>
+            <pubDate>Sun, 08 Nov 2026 23:26:02 +0100</pubDate>
+            <sparkle:version>12</sparkle:version>
+            <sparkle:shortVersionString>0.8.1</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[Spotiglass now plays Apple Music too. You can keep Spotify, add Apple Music next to it, and switch between the two with a keyboard shortcut. This release also fixes a lot of things I ran into while using it every day, and the equalizer finally installs on a normal Mac.
-
-If you have 0.7.0, it offers this update by itself. You don't need to download anything by hand.
-
-## Apple Music
-
-Add Apple Music on the welcome screen or with Add a service… in the service switcher, and allow access when macOS asks. Spotiglass then shows your library, your playlists, Home and search, and plays your music. You can like songs, add them to playlists, create, rename and delete playlists, remove songs from a playlist, and add or remove albums. Playlists show their track counts in the sidebar.
-
-Playing music needs an Apple Music subscription. Some library edits go through the Music app, so the first one asks once whether Spotiglass may control Music. In Apple Music, Liked Songs is your library, so unliking a song also takes it out of your playlists on all your devices. Spotiglass asks before it does that.
-
-## Switch between Spotify and Apple Music
-
-The service you're using sits at the top left of the sidebar, like profiles in Arc. Click it to switch or to add a service. ⌃1 switches to Apple Music and ⌃2 to Spotify, and you can change both in Settings › Keyboard. Each service keeps its own sign-in, pins and place, and switching never signs you out.
-
-## Fixes you will notice
-
-- Clicking the progress bar while a song plays seeks right away. The first click used to get lost.
-- Playback uses a lot less CPU. With a playlist open and a song playing, Spotiglass kept a good part of a core busy. Now it only redraws the progress bar.
-- The play bar and Space control the music you actually hear, even if it comes from the other service. Signing out of Apple Music stops its music.
-- The queue panel fits at every window size, shows your queue while Spotiglass is in the background, and no longer claims an exact count it doesn't know.
-- German and Spanish no longer show English or misspelled text in several places. In Apple Music mode the app talks about Apple Music, not Spotify, and its errors are written in plain words.
-- ⌃1 and ⌃2 work while lyrics are open, and while Apple Music is added, a Spotify account whose sign-in ran out can be removed without signing in again.
-- In Apple Music, songs that are only in a playlist, not in your library, no longer show as liked, New playlist… never leaves an empty playlist behind, a failed add takes back what it added, and an edit Music is slow to finish no longer happens after Spotiglass said it failed.
-- The lyrics and Spotify response caches on disk have size limits now, so they can't keep growing.
-
-## The equalizer installs itself now
-
-Installing a system audio plug-in means writing into `/Library/Audio/Plug-Ins/HAL`, which no ordinary app may touch. The previous build asked you to run shell commands with `sudo`. Spotiglass now ships a privileged helper, registers it with macOS's own Service Management framework, and lets the operating system ask for your approval in its own words. There are no Terminal instructions anywhere.
-
-Getting that working end to end on a real machine exposed faults no test could reach, because a test never registers a daemon:
-
-- A daemon that has never been registered reports "not found". The app treated that as fatal, so the very first enable could never install anything.
-- The app connected to the helper the instant registration returned, before launchd had the job running, and read the resulting failure as a broken helper.
-- Its retry path unregistered an approved service and registered again, which asks you for approval a second time. Because it keyed that decision on a marker written only after a successful install, every enable threw your approval away and asked again, forever.
-- The helper carried a debug-only entitlement that launchd refuses to run a daemon with, so registration reported success and the job silently never loaded.
-- If Spotiglass was not allowed to run in the background, the switch simply sprang back with nothing on screen. Install failures are deliberately kept out of the settings pane, because macOS's own prompt is normally the whole story. That is right for every case except this one, which only you can resolve. It now says so and offers the trip to Login Items.
-
-## The equalizer tells the truth about its state
-
-It used to report itself live the moment it selected the virtual output device, which happens well before the driver has opened a route to your real speakers. A missing or disconnected target left the pane green while audio went nowhere. Readiness is now reported by the driver itself, and the pane reflects the actual route.
-
-Turning it off used to discard the saved output device even when restoring it failed, which could leave you routed to a virtual device that the app believed was disabled. Disabling is transactional now, and the pre-equalizer device is stored by a stable identifier so it survives a relaunch.
-
-Editing external settings while the app runs reaches the engine, changing the system output device outside Spotiglass is reconciled instead of ignored, the ten band faders are reachable from the keyboard, the editor is disabled while the equalizer is off rather than pretending to accept edits, and preamp values are clamped where they are saved rather than where they are drawn.
-
-## Playback
-
-A second window could not play anything, because the playback host belonged to the first one. Playback started elsewhere on Spotify Connect did not appear in the transport. The scrubber could seek the wrong track if you scrubbed across a track change. Skipping past the end of a queue and rapid play or skip presses could interleave into an inconsistent state. Volume changed on another device did not come back. Disconnecting left work in flight that could resurrect a signed-out session.
-
-The now-playing summary had disappeared entirely, the lyrics button in the transport did nothing when clicked, and Repeat had two competing shortcuts and no single cycling one.
-
-## More from this release
-
-More from your library, in the track menu, queues more music from your own Spotify library after the current song. Track options are one menu everywhere, rather than a different subset per surface. Artist pages have selectable rows and play and shuffle actions in the header.
-
-## Browsing, settings and accounts
-
-The sidebar was clipped at narrow window widths instead of collapsing. Two different context menus disagreed about whether a track was liked. Search and Home did not refresh. Removing several tracks from a playlist removed the wrong ones, because batched removals were applied from the front. Liked Songs stopped paginating partway.
-
-Missing Spotify permission scopes were detected only by failing, and a raw 403 was printed into the sidebar. Shortcut conflicts were swallowed silently. Editing one bad field in the keymap discarded the rest of the file. Upgraded installs lost keybindings that a migration should have carried across. The command palette and other transient state leaked between windows.
-
-The in-app language picker is now a dependency the interface observes, so every surface changes language at once instead of some of them waiting for a relaunch.
-
-## Under the hood
-
-The test suite no longer sleeps for fixed durations anywhere; it waits for the condition it actually cares about. Local test runs use the same per-test timeout as CI, so a wedged test fails with a name instead of burning forty minutes. View tests are hosted off screen so no remote view service attaches to them, and the artwork tests no longer read or write your real cache. The audio driver's router has unit tests that run in CI.
-
-Local builds are signed with a stable identity, so the keychain stops asking for your password after every rebuild.
-]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.0/Spotiglass-0.8.0.zip" length="12142713" type="application/octet-stream" sparkle:edSignature="/JXcmKpIez0Ny61ntCEllFGGOBGKcx94cqSWoK2i8ZC0j5TUVM6wE+kSO2kX1T0zx3oJS0er09yCWYAkNQ/dAg=="/>
+            <description sparkle:format="plain-text"><![CDATA[Small fixes behind the scenes that make sign-in more reliable.]]></description>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.1/Spotiglass-0.8.1.zip" length="12137520" type="application/octet-stream" sparkle:edSignature="3SMml4bBLiS0qbxRd38esSI2EWZRALpQnm/JmdntDbUPeCwcliUIxg09XjN0o4djdedSiApy37AWgJsiI3eqDg=="/>
         </item>
     </channel>
 </rss>
