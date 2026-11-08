@@ -300,11 +300,9 @@ struct AppleMusicLibraryEditor: Sendable {
             // Liked Songs are the library: the album's songs show there at once, in album order
             // (each pending save goes on top).
             for track in ((try? await lookup.catalogAlbumTracks(albumIDs: catalogIDs)) ?? []).reversed() {
-                pending.recordSavedSong(
-                    track,
-                    reference: AppleMusicSongReference(itemID: track.id, catalogID: track.id, isInLibrary: false),
-                    requestedAt: requestedAt
-                )
+                let reference = AppleMusicSongReference(itemID: track.id, catalogID: track.id, isInLibrary: false)
+                pending.recordSavedSong(track, reference: reference, requestedAt: requestedAt)
+                rememberLibraryState(of: reference, isInLibrary: true)
             }
         } else if references.contains(where: { !$0.isInLibrary }) {
             throw AppleMusicLibraryEditError.notEditable
@@ -326,6 +324,7 @@ struct AppleMusicLibraryEditor: Sendable {
         try await musicApp.removeFromLibrary(matches)
         for song in songs {
             pending.recordRemovedSong(song.matchKeys)
+            rememberLibraryState(of: song, isInLibrary: false)
         }
         for reference in references {
             pending.recordRemovedAlbum(reference.itemID)

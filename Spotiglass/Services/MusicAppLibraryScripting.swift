@@ -283,7 +283,8 @@ enum MusicAppScripts {
         ]
         // Music may still be adding the song that timed out; a rollback now would miss it.
         lines += lateChange(progress: "(countBefore as text) & \"|\" & (addedIDs as text) & \"|\" & pendingID")
-        lines += rollbackLines + [
+        // The rollback itself can time out halfway; the edit then takes back what is left.
+        lines += cleanup(rollbackLines, progress: "(countBefore as text) & \"|\" & (addedIDs as text) & \"|\"") + [
             "error errorMessage number errorNumber",
             "end try",
             "end tell",
@@ -345,8 +346,7 @@ enum MusicAppScripts {
         ]
         // Music may still be making the playlist or adding to it; a delete now could miss it.
         lines += lateChange(progress: "newID & \"|\" & (namesakesBefore as text)")
-        lines += [
-            "if newID is not \"\" then delete pl",
+        lines += cleanup(["if newID is not \"\" then delete pl"], progress: "newID & \"|\" & (namesakesBefore as text)") + [
             "error errorMessage number errorNumber",
             "end try",
             "return newID",
@@ -392,10 +392,19 @@ enum MusicAppScripts {
         ]
     }
 
+    /// The cleanup inside an edit's `on error`: a cleanup that times out may stop halfway while
+    /// Music still carries out the step that timed out, so it becomes `lateChangeError` with
+    /// `progress` too, and the edit's take-back finishes the cleanup once Music answers.
+    static func cleanup(_ lines: [String], progress: String) -> [String] {
+        ["try"] + lines + ["on error cleanupMessage number cleanupNumber"]
+            + lateChange(progress: progress, number: "cleanupNumber")
+            + ["error cleanupMessage number cleanupNumber", "end try"]
+    }
+
     /// Inside an `on error`: a timeout becomes `lateChangeError` with `progress`.
-    private static func lateChange(progress: String) -> [String] {
+    private static func lateChange(progress: String, number: String = "errorNumber") -> [String] {
         [
-            "if errorNumber is \(eventTimeoutError) then",
+            "if \(number) is \(eventTimeoutError) then",
             "set AppleScript's text item delimiters to \",\"",
             "error (\(progress)) number \(lateChangeError)",
             "end if",

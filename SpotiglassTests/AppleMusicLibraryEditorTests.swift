@@ -2066,6 +2066,23 @@ final class AppleMusicLateMusicChangeTests: XCTestCase {
         }
     }
 
+    /// Adding C failed, and taking back B then timed out: Music still deletes B, but the
+    /// rollback stopped before A. The edit must take back what is left once Music answers.
+    func testARollbackThatTimesOutHalfwayIsFinishedAfterwards() throws {
+        let rollback = ["if \"B2\" is not \"\" then error \"Music got a time out.\" number -1712"]
+        let part = (["set countBefore to 5", "set addedIDs to {\"A1\", \"B2\"}"]
+            + MusicAppScripts.cleanup(rollback, progress: "(countBefore as text) & \"|\" & (addedIDs as text) & \"|\""))
+            .joined(separator: "\n")
+
+        XCTAssertThrowsError(try AppleEventMusicAppScriptRunner.executeAppleScript(part)) { error in
+            XCTAssertEqual(error as? MusicAppLateChange, MusicAppLateChange(progress: "5|A1,B2|"))
+        }
+        let add = MusicAppScripts.addToPlaylist(.persistentID("FE82FB07F4D3B511"), tracks: [.persistentID(rowPersistentID)])
+        XCTAssertTrue(add.contains("on error cleanupMessage number cleanupNumber"), "the add's rollback can end late")
+        let create = MusicAppScripts.createPlaylist(name: "Spotiglass test", tracks: [.persistentID(rowPersistentID)])
+        XCTAssertTrue(create.contains("try\nif newID is not \"\" then delete pl\non error cleanupMessage"), "so can the new playlist's delete")
+    }
+
     func testALookupThatTimesOutChangedNothing() throws {
         XCTAssertThrowsError(try AppleEventMusicAppScriptRunner.executeAppleScript("error \"Music got a time out.\" number -1712")) { error in
             XCTAssertEqual(error as? AppleMusicLibraryEditError, .musicUnavailable)
@@ -2245,6 +2262,21 @@ final class AppleMusicPlaylistOnlySongTests: XCTestCase {
         )
 
         XCTAssertEqual(editor.knownSongStatus(id: rowID), true)
+    }
+
+    /// Removing the album takes the song out of the library; its remembered row follows, so
+    /// it doesn't read as liked once the pending removal ends.
+    func testRemovingAnAlbumReachesItsRememberedRows() async throws {
+        let librarySong = AppleMusicSongReference(
+            itemID: "-5", catalogID: "51", musicAppPersistentID: "FFFFFFFFFFFFFFFB", isInLibrary: true,
+            title: "Kept", artistName: "Rihanna", albumTitle: "Good Girl Gone Bad: Reloaded"
+        )
+        registry.remember(librarySong)
+        lookup.albumsByID["-7"] = AppleMusicAlbumReference(itemID: "-7", catalogID: "70", isInLibrary: true, librarySongs: [librarySong])
+
+        try await editor.removeAlbums(ids: ["-7"])
+
+        XCTAssertEqual(registry.reference(for: "-5")?.isInLibrary, false)
     }
 
     func testAPlaylistOnlySongWithoutALibraryEntryIsNotLikedBlindly() async throws {
