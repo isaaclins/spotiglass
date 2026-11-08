@@ -8,10 +8,7 @@
             <sparkle:version>12</sparkle:version>
             <sparkle:shortVersionString>0.8.1</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[## Fixed and changed
-
-- null (#392)
-]]></description>
+            <description sparkle:format="plain-text"><![CDATA[Small fixes behind the scenes that make sign-in more reliable.]]></description>
             <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.1/Spotiglass-0.8.1.zip" length="12137520" type="application/octet-stream" sparkle:edSignature="3SMml4bBLiS0qbxRd38esSI2EWZRALpQnm/JmdntDbUPeCwcliUIxg09XjN0o4djdedSiApy37AWgJsiI3eqDg=="/>
         </item>
     </channel>

@@ -2,9 +2,9 @@
 
 ## [0.8.1] - 2026-11-08
 
-### Fixed and changed
+### Fixed
 
-- null (#392)
+- Small fixes behind the scenes that make sign-in more reliable (#392).
 
 ## [0.8.0] - 2026-11-08
 
