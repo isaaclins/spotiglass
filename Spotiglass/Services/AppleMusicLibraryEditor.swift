@@ -8,6 +8,9 @@ enum AppleMusicLibraryEditError: LocalizedError, Equatable {
     case musicControlDenied
     /// The Music app did not start or did not answer.
     case musicUnavailable
+    /// A change answered late and Music still didn't answer after a long wait, so the change
+    /// may still go through (#411).
+    case musicStillBusy
     /// The item was changed through Apple Music moments ago and the Music app on this Mac has not
     /// received it yet, so Music can't find it to change it again.
     case notInMusicYet
@@ -26,6 +29,8 @@ enum AppleMusicLibraryEditError: LocalizedError, Equatable {
             SpotiglassL10n.string("appleMusic.edit.error.musicControlDenied")
         case .musicUnavailable:
             SpotiglassL10n.string("appleMusic.edit.error.musicUnavailable")
+        case .musicStillBusy:
+            SpotiglassL10n.string("appleMusic.edit.error.musicStillBusy")
         case .notInMusicYet:
             SpotiglassL10n.string("appleMusic.edit.error.notInMusicYet")
         case .ambiguousPlaylist:
@@ -149,6 +154,9 @@ protocol AppleMusicLibraryLookup: Sendable {
     func albums(ids: [String]) async throws -> [AppleMusicAlbumReference]
     /// The library playlist with this ID, or `nil`.
     func playlist(id: String) async throws -> AppleMusicPlaylistReference?
+    /// The IDs MusicKit keeps for a song it lists only under its persistent ID (a playlist row),
+    /// found among the library's songs; `nil` when there is none.
+    func libraryIdentity(of reference: AppleMusicSongReference) async throws -> AppleMusicSongIdentity?
 }
 
 /// Library edits for Apple Music, over two routes:
@@ -192,11 +200,14 @@ struct AppleMusicLibraryEditor: Sendable {
     /// Liked Songs in Apple Music mode are the songs in the library, so a like saves the song to
     /// the library and loves it, the way the Music app's Favorite does.
     func saveSongs(ids: [String]) async throws {
-        let references = try await lookup.songs(ids: ids)
         // A song removed moments ago can still read as in the library on this Mac; it needs the
         // save as much as one that never was.
         let needsSave: (AppleMusicSongReference) -> Bool = { reference in
             (!reference.isInLibrary || pending.isRemoved(reference.matchKeys)) && !pending.isSaved(reference.matchKeys)
+        }
+        var references: [AppleMusicSongReference] = []
+        for reference in try await lookup.songs(ids: ids) {
+            references.append(needsSave(reference) ? try await withLibraryIDs(reference) : reference)
         }
         let toAdd = references.filter(needsSave)
         let catalogIDs = toAdd.compactMap(\.catalogID)
@@ -218,6 +229,7 @@ struct AppleMusicLibraryEditor: Sendable {
         }
         for reference in references {
             pending.forgetRemovedSong(reference.matchKeys)
+            rememberLibraryState(of: reference, isInLibrary: true)
             // The love rating is a nicety on top of the save; a failed rating does not undo it.
             try? await rate(reference, .love)
         }
@@ -225,7 +237,12 @@ struct AppleMusicLibraryEditor: Sendable {
 
     /// Removes songs from the library through the Music app and clears the love a like gave them.
     func removeSongs(ids: [String]) async throws {
-        let references = try await lookup.songs(ids: ids).map(withPendingDetails)
+        var references: [AppleMusicSongReference] = []
+        for reference in try await lookup.songs(ids: ids).map(withPendingDetails) {
+            // A row listed only under its persistent ID (a song liked from a playlist moments
+            // ago) needs its catalog ID to clear the love and to end the like everywhere (#401).
+            references.append((try? await withLibraryIDs(reference)) ?? reference)
+        }
         let matches = references.compactMap(\.musicAppMatch)
         guard matches.count == references.count, !matches.isEmpty else {
             throw AppleMusicLibraryEditError.notInMusicYet
@@ -233,7 +250,19 @@ struct AppleMusicLibraryEditor: Sendable {
         try await musicApp.removeFromLibrary(matches)
         for reference in references {
             pending.recordRemovedSong(reference.matchKeys)
+            rememberLibraryState(of: reference, isInLibrary: false)
             try? await rate(reference, nil)
+        }
+    }
+
+    /// A playlist or album row remembers whether its song was in the library when it was read;
+    /// a like or unlike changes that, and the pending edit that covers it ends once the library
+    /// shows the change, before the row is read again.
+    private func rememberLibraryState(of reference: AppleMusicSongReference, isInLibrary: Bool) {
+        songReferences.update(matching: reference.matchKeys) { listed in
+            listed.isInLibrary = isInLibrary
+            listed.catalogID = listed.catalogID ?? reference.catalogID
+            listed.cloudLibraryID = listed.cloudLibraryID ?? reference.cloudLibraryID
         }
     }
 
@@ -246,13 +275,17 @@ struct AppleMusicLibraryEditor: Sendable {
         }
     }
 
-    /// What is known about a song without reading the library: a song listed under a library ID
-    /// (a persistent ID or `i.…`) is in the library, unless Spotiglass removed it moments ago.
-    /// `nil` for a catalog ID, which only a lookup can answer.
+    /// What is known about a song without reading the library: what the playlist or album read
+    /// found for its row (a song can be in a playlist without being in the library, #401), else a
+    /// song listed under a cloud library ID (`i.…`) is in the library, unless Spotiglass changed
+    /// it moments ago. `nil` for a catalog ID or a persistent ID no read remembers (a row of a
+    /// very long playlist can drop out of the registry), which only a lookup can answer.
     func knownSongStatus(id: String) -> Bool? {
-        if pending.isRemoved([id]) { return false }
-        if pending.isSaved([id]) { return true }
-        return MusicKitLibraryLookup.isLibraryID(id) ? true : nil
+        let keys = songReferences.reference(for: id)?.matchKeys ?? [id]
+        if pending.isRemoved(keys) { return false }
+        if pending.isSaved(keys) { return true }
+        if let listed = songReferences.reference(for: id) { return listed.isInLibrary }
+        return id.hasPrefix("i.") ? true : nil
     }
 
     // MARK: - Albums
@@ -267,11 +300,9 @@ struct AppleMusicLibraryEditor: Sendable {
             // Liked Songs are the library: the album's songs show there at once, in album order
             // (each pending save goes on top).
             for track in ((try? await lookup.catalogAlbumTracks(albumIDs: catalogIDs)) ?? []).reversed() {
-                pending.recordSavedSong(
-                    track,
-                    reference: AppleMusicSongReference(itemID: track.id, catalogID: track.id, isInLibrary: false),
-                    requestedAt: requestedAt
-                )
+                let reference = AppleMusicSongReference(itemID: track.id, catalogID: track.id, isInLibrary: false)
+                pending.recordSavedSong(track, reference: reference, requestedAt: requestedAt)
+                rememberLibraryState(of: reference, isInLibrary: true)
             }
         } else if references.contains(where: { !$0.isInLibrary }) {
             throw AppleMusicLibraryEditError.notEditable
@@ -281,10 +312,13 @@ struct AppleMusicLibraryEditor: Sendable {
         }
     }
 
-    /// Removes the album's songs from the library through the Music app.
+    /// Removes the album's songs from the library through the Music app. A song of the album that
+    /// is only in a playlist isn't in the library, so Music couldn't find it there, unless it was
+    /// liked moments ago.
     func removeAlbums(ids: [String]) async throws {
         let references = try await lookup.albums(ids: ids)
-        let songs = references.flatMap(\.librarySongs)
+        // A song liked moments ago counts too: the library on this Mac just doesn't show it yet.
+        let songs = references.flatMap(\.librarySongs).filter { $0.isInLibrary || pending.isSaved($0.matchKeys) }
         let matches = songs.compactMap(\.musicAppMatch)
         guard !matches.isEmpty else {
             throw AppleMusicLibraryEditError.notInMusicYet
@@ -292,6 +326,7 @@ struct AppleMusicLibraryEditor: Sendable {
         try await musicApp.removeFromLibrary(matches)
         for song in songs {
             pending.recordRemovedSong(song.matchKeys)
+            rememberLibraryState(of: song, isInLibrary: false)
         }
         for reference in references {
             pending.recordRemovedAlbum(reference.itemID)
@@ -497,6 +532,18 @@ struct AppleMusicLibraryEditor: Sendable {
     static func musicAppPersistentID(fromMusicKitID id: String) -> String? {
         guard let value = Int64(id) else { return nil }
         return String(format: "%016llX", UInt64(bitPattern: value))
+    }
+
+    /// A playlist row MusicKit lists only under its persistent ID has no catalog ID, which a save
+    /// needs; the song's library entry has it (#401).
+    private func withLibraryIDs(_ reference: AppleMusicSongReference) async throws -> AppleMusicSongReference {
+        guard reference.catalogID == nil, let identity = try await lookup.libraryIdentity(of: reference) else {
+            return reference
+        }
+        var detailed = reference
+        detailed.catalogID = identity.catalogID
+        detailed.cloudLibraryID = reference.cloudLibraryID ?? identity.cloudLibraryID
+        return detailed
     }
 
     /// A song saved moments ago is not in the library on this Mac yet; the pending edit still

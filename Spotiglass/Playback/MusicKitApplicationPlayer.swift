@@ -24,6 +24,9 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
     /// are matched on what they show: title, subtitle and length, then title and subtitle
     /// alone (``entryKeys(title:subtitle:durationSeconds:)``).
     private var uriByEntryKey: [String: String] = [:]
+    /// Counts the queues ``uriByEntryKey`` was filled for, so a failed add only takes back keys
+    /// from the queue it was added to.
+    private var uriMapGeneration = 0
     /// The row at each queue position and where the added songs are (positions, because
     /// MusicKit's entry ids don't last); see ``AppleMusicQueueBook``.
     private var book = AppleMusicQueueBook()
@@ -76,6 +79,7 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         var queued = ordered
         queued.insert(contentsOf: carriedInQueue, at: startIndex + 1)
         uriByEntryKey = [:]
+        uriMapGeneration += 1
         for item in queued + (shuffleWanted ? carried : []) {
             remember(item.uri, for: item.entry)
         }
@@ -121,6 +125,7 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         player.stop()
         book = AppleMusicQueueBook()
         uriByEntryKey = [:]
+        uriMapGeneration += 1
     }
 
     func seek(toMilliseconds milliseconds: Int) {
@@ -193,7 +198,8 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         guard let resolved = try await Self.resolveEntries([uri]).first else { throw Self.notFound(uri) }
         // Signed out during the lookup: the queue belongs to the session that ended.
         guard isCurrent() else { throw CancellationError() }
-        remember(uri, for: resolved.entry)
+        let rememberedKeys = remember(uri, for: resolved.entry)
+        let rememberedIn = uriMapGeneration
         // After a shuffle the ids give the positions back; the add is then placed and
         // recorded by position.
         noteEntries()
@@ -209,8 +215,17 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         if let index = plan.index, !plan.isAfterCurrent {
             player.queue.entries.insert(resolved.entry, at: index)
         } else {
-            try await Self.mapped {
-                try await self.player.queue.insert(resolved.entry, position: .afterCurrentEntry)
+            do {
+                try await Self.mapped {
+                    try await self.player.queue.insert(resolved.entry, position: .afterCurrentEntry)
+                }
+            } catch {
+                // The song never joined the queue, so a later song with the same keys must
+                // not show this row. A queue that replaced this one meanwhile keeps its own.
+                if uriMapGeneration == rememberedIn {
+                    for key in rememberedKeys { uriByEntryKey[key] = nil }
+                }
+                throw error
             }
         }
         book.finishAdd(plan)
@@ -300,11 +315,14 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         return reordered
     }
 
-    /// The first row URI queued under each of the entry's keys wins.
-    private func remember(_ uri: String, for entry: MusicPlayer.Queue.Entry) {
-        for key in Self.keys(entry) where uriByEntryKey[key] == nil {
+    /// The first row URI queued under each of the entry's keys wins. Returns the keys it set.
+    @discardableResult
+    private func remember(_ uri: String, for entry: MusicPlayer.Queue.Entry) -> [String] {
+        let added = Self.keys(entry).filter { uriByEntryKey[$0] == nil }
+        for key in added {
             uriByEntryKey[key] = uri
         }
+        return added
     }
 
     private static func keys(_ entry: MusicPlayer.Queue.Entry) -> [String] {

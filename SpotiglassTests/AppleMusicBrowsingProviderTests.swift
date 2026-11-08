@@ -518,6 +518,23 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         XCTAssertEqual(source.calls, ["librarySongs(200,0)", "librarySongs(200,200)", "librarySongs(200,400)"])
     }
 
+    /// On a real library MusicKit listed 2552 songs, 956 of them with an added date; the Apple
+    /// Music API counted 956 library songs. The others are only in a playlist and sort last.
+    func testLikedSongsLeaveOutSongsThatAreOnlyInAPlaylist() async throws {
+        let source = MockAppleMusicSource()
+        source.librarySongCount = 450
+        source.playlistOnlySongIDs = Set((150..<450).map { "i.\($0)" })
+        let result = try await AppleMusicBrowsingProvider(source: source).currentUserSavedTracks(limit: 50, maxPages: nil)
+
+        let ids = result.tracks.compactMap { item -> String? in
+            if case let .track(track) = item.content { return track.id }
+            return nil
+        }
+        XCTAssertEqual(ids, (0..<150).map { "i.\($0)" })
+        XCTAssertEqual(result.totalAvailable, 150)
+        XCTAssertEqual(source.calls, ["librarySongs(200,0)", "librarySongs(200,200)", "librarySongs(200,400)"], "pages by what MusicKit listed")
+    }
+
     func testLikedSongsHonourAPageCap() async throws {
         let source = MockAppleMusicSource()
         source.librarySongCount = 450
@@ -1183,6 +1200,8 @@ private final class MockAppleMusicSource: AppleMusicContentSource, @unchecked Se
     var playlists: [Playlist] = []
     var playlistTracksByID: [String: [Track]] = [:]
     var librarySongCount = 0
+    /// Library songs MusicKit lists without an added date: songs that are only in a playlist.
+    var playlistOnlySongIDs: Set<String> = []
     var recentSongs: [Song] = []
     var recommended: [Playlist] = []
     var albumsByID: [String: Album] = [:]
@@ -1235,6 +1254,10 @@ private final class MockAppleMusicSource: AppleMusicContentSource, @unchecked Se
         let end = min(librarySongCount, offset + limit)
         guard offset < end else { return [] }
         return try (offset..<end).map { try AppleMusicFixtures.song(id: "i.\($0)", title: "Song \($0)") }
+    }
+
+    func isInLibrary(_ song: Song) -> Bool {
+        !playlistOnlySongIDs.contains(song.id.rawValue)
     }
 
     func recentlyPlayedSongs(limit: Int) async throws -> [Song] {
