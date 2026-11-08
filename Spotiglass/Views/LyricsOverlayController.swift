@@ -273,3 +273,56 @@ final class LyricsOverlayController: ObservableObject {
         isPresented = false
     }
 }
+
+/// Renders ``ImmersiveLyricsView`` in the browser's main column, in place of the page that was
+/// showing. The sidebar, the queue panel and the player bar stay where they are on every other
+/// screen (#438); the backdrop runs up under the toolbar so the bar reads as part of the lyrics.
+struct LyricsOverlayLayer: View {
+    @ObservedObject var lyricsOverlay: LyricsOverlayController
+    let keymapStore: CommandPaletteKeymapStore
+    @EnvironmentObject private var settingsStore: SpotiglassSettingsStore
+
+    /// Avoid blocking the column when `isPresented` is true before the browser has called `attach` (nil models).
+    private var immersiveLyricsReady: Bool {
+        lyricsOverlay.isPresented
+            && lyricsOverlay.playbackViewModel != nil
+            && lyricsOverlay.queueViewModel != nil
+            && lyricsOverlay.lyricsModel != nil
+            && lyricsOverlay.navigateToArtist != nil
+            && lyricsOverlay.navigateToAlbum != nil
+    }
+
+    var body: some View {
+        ZStack {
+            if immersiveLyricsReady,
+                let playback = lyricsOverlay.playbackViewModel,
+                let queue = lyricsOverlay.queueViewModel,
+                let lyrics = lyricsOverlay.lyricsModel,
+                let navigateArtist = lyricsOverlay.navigateToArtist,
+                let navigateAlbum = lyricsOverlay.navigateToAlbum
+            {
+                LyricsOverlayFocusContainer(
+                    content: ImmersiveLyricsView(
+                        playbackViewModel: playback,
+                        queueViewModel: queue,
+                        lyricsModel: lyrics,
+                        navigateToArtist: navigateArtist,
+                        navigateToAlbum: navigateAlbum,
+                        onDismiss: { lyricsOverlay.dismiss() }
+                    )
+                    .environmentObject(settingsStore)
+                    .environment(\.locale, settingsStore.appLocale)
+                    .environment(\.spotiglassLocale, settingsStore.appLocale),
+                    isActive: immersiveLyricsReady,
+                    keymapStore: keymapStore
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .transition(.opacity.combined(with: .scale(scale: 0.98)))
+            }
+        }
+        .animation(.easeOut(duration: 0.22), value: lyricsOverlay.isPresented)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .ignoresSafeArea(.container, edges: .top)
+        .allowsHitTesting(immersiveLyricsReady)
+    }
+}

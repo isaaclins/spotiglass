@@ -13,31 +13,13 @@ struct ImmersiveLyricsLeftColumnView: View {
                 ArtworkView(url: track.albumArtURL, size: 220)
                     .shadow(color: .black.opacity(0.45), radius: 28, y: 14)
 
-                HStack(alignment: .firstTextBaseline, spacing: SpotiglassDesign.spacingS) {
-                    Text(track.name)
-                        .font(.title2.weight(.bold))
-                        .foregroundStyle(.white)
-                        .lineLimit(3)
-                        .multilineTextAlignment(.leading)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                    Button {
-                        Task { await playbackViewModel.cycleRepeat() }
-                    } label: {
-                        Image(systemName: lyricsRepeatButtonIcon)
-                            .font(.title3.weight(.medium))
-                            .foregroundStyle(
-                                lyricsRepeatUsesAccent
-                                    ? AnyShapeStyle(SpotiglassAccentStyle())
-                                    : AnyShapeStyle(.white.opacity(0.5))
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(!playbackViewModel.isTransportMutationReady)
-                    .help(PlaybackTransportTooltips.repeatTooltip(currentMode: playbackViewModel.repeatMode))
-                    .accessibilityLabel(lyricsRepeatAccessibilityLabel)
-                    .accessibilityHint(SpotiglassL10n.string("playback.controls.repeat.hint"))
-                }
+                // Repeat lives in the player bar, which stays visible under the lyrics (#438).
+                Text(track.name)
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(.white)
+                    .lineLimit(3)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
                 ImmersiveLyricsArtistLineView(track: track, navigateToArtist: navigateToArtist)
 
@@ -69,31 +51,6 @@ struct ImmersiveLyricsLeftColumnView: View {
             }
         }
     }
-
-    private var lyricsRepeatButtonIcon: String {
-        switch playbackViewModel.repeatMode {
-        case .off, .context:
-            "infinity.circle"
-        case .track:
-            "infinity.circle.fill"
-        }
-    }
-
-    private var lyricsRepeatUsesAccent: Bool {
-        playbackViewModel.repeatMode != .off
-    }
-
-    private var lyricsRepeatAccessibilityLabel: String {
-        switch playbackViewModel.repeatMode {
-        case .off:
-            SpotiglassL10n.string("playback.repeat.off")
-        case .context:
-            SpotiglassL10n.string("playback.repeat.playlist")
-        case .track:
-            SpotiglassL10n.string("playback.repeat.one")
-        }
-    }
-
 }
 
 struct ImmersiveLyricsArtistLineView: View {

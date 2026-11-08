@@ -253,6 +253,117 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
         XCTAssertNoThrow(try column.inspect())
     }
 
+
+    /// #438: the lyrics used to cover the whole window, player bar included, so while they were
+    /// open there was no play/pause, skip or scrubber. The lyrics now take the main column only.
+    /// This hosts the real browser with the lyrics open and checks that the lyrics are there,
+    /// that the player bar's buttons sit outside them and that a click on the bar reaches the
+    /// bar, not the lyrics.
+    func testLyricsLeaveThePlayerBarVisibleAndUsable() async throws {
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "p1", name: "Focus")])],
+            trackResults: ["p1": [.success([PlaylistBrowsingTestFixtures.track(id: "t1")])]]
+        )
+        let browserVM = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+        await browserVM.load()
+        let store = PinnedItemsStore(cache: InMemoryPinnedItemsCache())
+        store.bind(userID: "u1")
+        let settings = try ViewTestHost.makeSettingsStore()
+        let lyricsOverlay = LyricsOverlayController()
+        let palette = CommandPaletteManager()
+        let tokens = ShellTestTokenProvider()
+        let playbackHost = SpotiglassPlaybackHost(tokenProvider: tokens)
+        let view = PlaylistBrowserView(
+            viewModel: browserVM,
+            playbackHost: playbackHost,
+            catalogProvider: SpotifyAPIClient(tokenProvider: tokens, getResponseCache: .shared),
+            commandPaletteManager: palette,
+            signOut: {}
+        )
+        .environmentObject(store)
+        .environmentObject(settings)
+        .environmentObject(lyricsOverlay)
+        let controller = ViewTestHost.host(view, size: CGSize(width: 1_100, height: 720))
+        AppKitTestSupport.pumpRunLoop(for: 0.4)
+
+        // A paused track: the lyrics need one, and paused keeps the browser from prefetching
+        // real lyrics over the network. The overlay gets a lyrics model that never fetches.
+        let playback = playbackHost.playbackViewModel
+        playback.handle(.ready(deviceID: "device-1"))
+        playback.handle(.stateChanged(Self.lyricsTrack, isPaused: true, nextTracks: []))
+        let queue = QueueViewModel(
+            provider: playbackHost.playbackProvider,
+            playbackSession: playback,
+            pollIntervalNanoseconds: 60_000_000_000
+        )
+        lyricsOverlay.attach(
+            playback: playback,
+            queue: queue,
+            lyrics: ImmersiveLyricsViewModel { _ in .instrumental },
+            navigateToArtist: { _ in },
+            navigateToAlbum: { _, _, _ in }
+        )
+        lyricsOverlay.isPresented = true
+        let root = controller.view
+        root.frame = CGRect(x: 0, y: 0, width: 1_100, height: 720)
+        root.layoutSubtreeIfNeeded()
+        AppKitTestSupport.pumpRunLoop(for: 0.6)
+        root.layoutSubtreeIfNeeded()
+        XCTAssertTrue(lyricsOverlay.isPresented, "the lyrics closed by themselves")
+        let lyricsSurface = try XCTUnwrap(
+            Self.firstView(in: root) { String(describing: type(of: $0)).hasPrefix("LyricsOverlayFocusContainerView") },
+            "the browser shows no lyrics while they are open"
+        )
+        let lyricsFrame = lyricsSurface.convert(lyricsSurface.bounds, to: nil)
+        XCTAssertGreaterThan(
+            lyricsFrame.height, 200,
+            "the lyrics are open but have no room: \(lyricsFrame) in \(root.frame)"
+        )
+
+        let barLyricsButton = try XCTUnwrap(
+            Self.allNSButtons(in: root).first {
+                $0.accessibilityLabel() == SpotiglassL10n.string("playback.controls.lyrics")
+                    && !$0.isDescendant(of: lyricsSurface)
+            },
+            "the player bar is gone while the lyrics are open"
+        )
+        let barFrame = barLyricsButton.convert(barLyricsButton.bounds, to: nil)
+        XCTAssertGreaterThan(barFrame.width, 0)
+        XCTAssertFalse(
+            barFrame.intersects(lyricsFrame),
+            "the lyrics cover the player bar: bar \(barFrame), lyrics \(lyricsFrame)"
+        )
+
+        // `hitTest` takes a point in the receiver's superview's coordinates.
+        let container = try XCTUnwrap(root.superview)
+        let clickPoint = container.convert(NSPoint(x: barFrame.midX, y: barFrame.midY), from: nil)
+        let hit = try XCTUnwrap(root.hitTest(clickPoint), "nothing answers a click on the player bar")
+        XCTAssertFalse(hit.isDescendant(of: lyricsSurface), "a click on the player bar lands in the lyrics")
+    }
+
+    private static let lyricsTrack = PlaybackNowPlaying(
+        name: "Title",
+        artists: ["Artist"],
+        albumName: "Album",
+        albumID: "album-1",
+        albumArtURL: nil,
+        durationMilliseconds: 180_000,
+        positionMilliseconds: 12_000,
+        uri: "spotify:track:lyricsShellTrack"
+    )
+
+    private static func firstView(in view: NSView, where matches: (NSView) -> Bool) -> NSView? {
+        if matches(view) { return view }
+        for subview in view.subviews {
+            if let found = firstView(in: subview, where: matches) { return found }
+        }
+        return nil
+    }
+
+    private static func allNSButtons(in view: NSView) -> [NSButton] {
+        let own = view as? NSButton
+        return (own.map { [$0] } ?? []) + view.subviews.flatMap { allNSButtons(in: $0) }
+    }
 }
 
 @MainActor

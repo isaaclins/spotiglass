@@ -188,9 +188,48 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
 
         ViewTestHost.host(view, size: CGSize(width: 800, height: 600))
         XCTAssertNoThrow(try view.inspect().find(text: "Title"))
-        let closeLyrics = ViewTestHost.localizedString("browser.closeLyrics")
-        try view.inspect().find(button: closeLyrics).tap()
-        XCTAssertTrue(dismissed)
+        XCTAssertFalse(dismissed, "a playing track must keep the lyrics open")
+    }
+
+    /// #438: a small repeat button sat next to the song title in the lyrics, a second copy of
+    /// the player bar's. The bar stays visible under the lyrics now, so repeat lives only there.
+    /// Checked for every repeat mode, since each one drew its own icon.
+    func testLyricsShowNoRepeatButtonNextToTheTitle() throws {
+        let api = MockPlaybackAPI()
+        let playback = PlaybackSessionViewModel(
+            provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander())
+        )
+        let queue = QueueViewModel(
+            provider: SpotifyPlaybackProvider(playbackAPI: api),
+            playbackSession: playback,
+            pollIntervalNanoseconds: 60_000_000_000
+        )
+        let track = sampleTrack(spotifyID: "noRepeatView")
+        playback.handle(.ready(deviceID: "device-1"))
+        playback.handle(.stateChanged(track, isPaused: true, nextTracks: []))
+
+        for mode in [MusicRepeatMode.off, .context, .track] {
+            playback.repeatMode = mode
+            let column = ImmersiveLyricsLeftColumnView(
+                playbackViewModel: playback,
+                queueViewModel: queue,
+                navigateToArtist: { _ in },
+                navigateToAlbum: { _, _, _ in },
+                currentTrack: track
+            )
+            ViewTestHost.host(column, size: CGSize(width: 320, height: 640))
+            XCTAssertNoThrow(try column.inspect().find(text: "Title"), "the title is missing")
+            // ViewInspector can't read accessibility labels on macOS 26+, so look for the icon:
+            // the stray button drew "infinity.circle" / "infinity.circle.fill".
+            let symbols = try column.inspect().findAll(ViewType.Image.self)
+                .compactMap { try? $0.actualImage().name() }
+            XCTAssertFalse(symbols.isEmpty, "the column's images were not read")
+            let repeatSymbols = symbols.filter { $0.contains("infinity") || $0.contains("repeat") }
+            XCTAssertEqual(
+                repeatSymbols, [],
+                "a repeat button is back next to the title with repeat \(mode)"
+            )
+        }
     }
 
     func testLyricsOverlayAccessibilityContract() throws {
@@ -206,17 +245,11 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
             encoding: .utf8
         )
 
-        XCTAssertTrue(lyricsSource.contains(".accessibilityAddTraits(.isModal)"))
-        XCTAssertTrue(lyricsSource.contains(".focusScope(focusNamespace)"))
-        XCTAssertTrue(lyricsSource.contains(".defaultFocus($focusedControl, .close)"))
-        XCTAssertTrue(
-            lyricsSource.contains(".accessibilityDefaultFocus($accessibilityFocusedControl, .close)")
-        )
-        XCTAssertTrue(
-            lyricsSource.contains(".accessibilityFocused($accessibilityFocusedControl, equals: .close)")
-        )
-        XCTAssertTrue(rootSource.contains(".accessibilityHidden(lyricsOverlayController.isPresented)"))
-        XCTAssertTrue(rootSource.contains("LyricsOverlayFocusContainer"))
+        // The lyrics share the window with the sidebar, the toolbar and the player bar (#438):
+        // they must not claim to be modal or hide the rest of the window from VoiceOver.
+        XCTAssertTrue(lyricsSource.contains(".accessibilityElement(children: .contain)"))
+        XCTAssertFalse(lyricsSource.contains(".isModal"))
+        XCTAssertFalse(rootSource.contains(".accessibilityHidden(lyricsOverlayController.isPresented)"))
     }
 
     func testBackgroundLayerInspectable() throws {
