@@ -241,6 +241,255 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         XCTAssertEqual(playlists.count, AppleMusicBrowsingProvider.maxLibraryPlaylists)
     }
 
+    // MARK: - Playlist track counts (#407)
+
+    /// MusicKit lists library playlists without their tracks, so the listing itself has no count.
+    func testLibraryPlaylistsAreListedWithoutACountUntilOneWasLoaded() async throws {
+        let source = MockAppleMusicSource()
+        source.playlists = [try AppleMusicFixtures.playlist(id: "p.1", name: "Road")]
+        source.trackCountsByPlaylistID = ["p.1": 8]
+        let provider = AppleMusicBrowsingProvider(source: source)
+
+        let first = try await provider.currentUserPlaylists(limit: 50)
+        XCTAssertNil(first.first?.trackCount)
+        XCTAssertEqual(source.calls, ["libraryPlaylists(50,0)"], "listing must not wait for counts")
+
+        let counts = await provider.playlistTrackCounts(playlistIDs: ["p.1"])
+        XCTAssertEqual(counts, ["p.1": 8])
+
+        let second = try await provider.currentUserPlaylists(limit: 50)
+        XCTAssertEqual(second.first?.trackCount, 8, "a refresh shows the loaded count at once")
+        XCTAssertEqual(source.calls.filter { $0.hasPrefix("trackCounts") }.count, 1)
+    }
+
+    func testACountIsDroppedOnceThePlaylistChanged() async throws {
+        let source = MockAppleMusicSource()
+        source.playlists = [try AppleMusicFixtures.playlist(id: "p.1", name: "Road", lastModified: "2026-11-01T10:00:00Z")]
+        source.trackCountsByPlaylistID = ["p.1": 8]
+        let provider = AppleMusicBrowsingProvider(source: source)
+        _ = try await provider.currentUserPlaylists(limit: 50)
+        _ = await provider.playlistTrackCounts(playlistIDs: ["p.1"])
+
+        source.playlists = [try AppleMusicFixtures.playlist(id: "p.1", name: "Road", lastModified: "2026-11-07T10:00:00Z")]
+        let refreshed = try await provider.currentUserPlaylists(limit: 50)
+
+        XCTAssertNil(refreshed.first?.trackCount)
+    }
+
+    func testAFailedCountLookupLeavesTheRowsWithoutACount() async throws {
+        let source = MockAppleMusicSource()
+        source.trackCountsError = URLError(.cannotConnectToHost)
+        let counts = await AppleMusicBrowsingProvider(source: source).playlistTrackCounts(playlistIDs: ["p.1"])
+        XCTAssertEqual(counts, [:])
+    }
+
+    func testTrackCountCacheExpiresAndForgetsPlaylistsThatLeftTheLibrary() async {
+        let clock = TrackCountTestClock()
+        let cache = AppleMusicPlaylistTrackCountCache(now: { clock.now })
+        let stillThere = await cache.counts(forVersions: ["a": nil, "b": nil])
+        XCTAssertEqual(stillThere, [:])
+        await cache.store(["a": 3, "b": 4], from: cache.startLookup(["a", "b"]))
+
+        let afterDelete = await cache.counts(forVersions: ["a": nil])
+        XCTAssertEqual(afterDelete, ["a": 3])
+        let readded = await cache.counts(forVersions: ["a": nil, "b": nil])
+        XCTAssertEqual(readded, ["a": 3], "a deleted playlist's count is gone, not kept around")
+
+        clock.now = clock.now.addingTimeInterval(AppleMusicPlaylistTrackCountCache.maxAge + 1)
+        let expired = await cache.counts(forVersions: ["a": nil])
+        XCTAssertEqual(expired, [:])
+    }
+
+    func testTrackCountCacheKeepsAtMostItsBound() async {
+        let clock = TrackCountTestClock()
+        let cache = AppleMusicPlaylistTrackCountCache(now: { clock.now })
+        let total = AppleMusicPlaylistTrackCountCache.maxPlaylists + 5
+        for index in 0..<total {
+            clock.now = clock.now.addingTimeInterval(0.01)
+            await cache.store(["p.\(index)": index], from: cache.startLookup(["p.\(index)"]))
+        }
+        let listing = Dictionary(uniqueKeysWithValues: (0..<total).map { ("p.\($0)", Date?.none) })
+        let kept = await cache.counts(forVersions: listing)
+        XCTAssertEqual(kept.count, AppleMusicPlaylistTrackCountCache.maxPlaylists)
+        XCTAssertNil(kept["p.0"], "the oldest entries go first")
+    }
+
+    /// A lookup that was already reading the library when the playlist was edited, or when a
+    /// newer listing saw it change, read the count from before: it must not be kept.
+    func testACountReadBeforeAnEditOrANewerVersionIsNotKept() async {
+        let cache = AppleMusicPlaylistTrackCountCache()
+        let first = Date(timeIntervalSince1970: 1_800_000_000)
+        _ = await cache.counts(forVersions: ["a": first, "b": first])
+
+        let start = await cache.startLookup(["a", "b"])
+        await cache.forget(["a"])
+        _ = await cache.counts(forVersions: ["a": first, "b": first.addingTimeInterval(60)])
+        await cache.store(["a": 10, "b": 4], from: start)
+
+        let listed = await cache.counts(forVersions: ["a": first, "b": first.addingTimeInterval(60)])
+        XCTAssertEqual(listed, [:])
+    }
+
+    /// An edit made while a refresh is still counting keeps the edited count: the lookup that
+    /// was already running has the one from before the edit.
+    @MainActor
+    func testAnEditDuringARefreshKeepsTheEditedCount() async throws {
+        let clock = TrackCountTestClock()
+        let source = MockAppleMusicSource()
+        source.playlists = [try AppleMusicFixtures.playlist(id: "p.1", name: "Road")]
+        source.trackCountsByPlaylistID = ["p.1": 10]
+        let provider = AppleMusicBrowsingProvider(
+            source: source,
+            trackCountCache: AppleMusicPlaylistTrackCountCache(now: { clock.now })
+        )
+        let viewModel = PlaylistBrowserViewModel(api: provider, cache: MockBrowsingCache())
+        await viewModel.refreshPlaylists()
+        await viewModel.playlistTrackCountTask?.value
+
+        clock.now = clock.now.addingTimeInterval(AppleMusicPlaylistTrackCountCache.maxAge + 1)
+        let gate = TrackCountGate()
+        source.trackCountsGate = gate
+        await viewModel.refreshPlaylists()
+        viewModel.adjustSidebarTrackCountAfterEdit(playlistID: "p.1", by: 1)
+        // The edit went through: asked again, the library (or the pending edit) has it.
+        source.trackCountsByPlaylistID = ["p.1": 11]
+        gate.open()
+        await viewModel.playlistTrackCountTask?.value
+
+        XCTAssertEqual(viewModel.playlistState.currentValue?.first?.trackCount, 11)
+    }
+
+    /// Opening a playlist before its count arrived: the header gets the count once it does,
+    /// even when the tracks finish loading after it.
+    @MainActor
+    func testAPlaylistOpenedBeforeItsCountShowsItInTheHeader() async throws {
+        let source = MockAppleMusicSource()
+        source.playlists = [try AppleMusicFixtures.playlist(id: "p.1", name: "Road")]
+        source.trackCountsByPlaylistID = ["p.1": 1]
+        source.playlistTracksByID["p.1"] = [.song(try AppleMusicFixtures.song(id: "1", title: "One"))]
+        let countGate = TrackCountGate()
+        let tracksGate = TrackCountGate()
+        source.trackCountsGate = countGate
+        source.playlistTracksGate = tracksGate
+        let viewModel = PlaylistBrowserViewModel(api: AppleMusicBrowsingProvider(source: source), cache: MockBrowsingCache())
+        await viewModel.refreshPlaylists()
+
+        let opening = Task { await viewModel.selectSidebar(.playlist("p.1")) }
+        for _ in 0..<1000 where !source.calls.contains(where: { $0.hasPrefix("playlistTracks(p.1") }) {
+            await Task.yield()
+        }
+        countGate.open()
+        await viewModel.playlistTrackCountTask?.value
+        tracksGate.open()
+        await opening.value
+
+        guard case let .playlist(detail)? = viewModel.detailState.currentValue else {
+            return XCTFail("the playlist is open")
+        }
+        XCTAssertEqual(detail.playlist.trackCount, 1)
+    }
+
+    /// Opening a playlist while a refresh recounts it: the header ends with the fresh count,
+    /// not the stand-in it was opened with.
+    @MainActor
+    func testAPlaylistOpenedDuringARecountShowsTheFreshCount() async throws {
+        let clock = TrackCountTestClock()
+        let source = MockAppleMusicSource()
+        source.playlists = [try AppleMusicFixtures.playlist(id: "p.1", name: "Road")]
+        source.trackCountsByPlaylistID = ["p.1": 5]
+        source.playlistTracksByID["p.1"] = [.song(try AppleMusicFixtures.song(id: "1", title: "One"))]
+        let provider = AppleMusicBrowsingProvider(
+            source: source,
+            trackCountCache: AppleMusicPlaylistTrackCountCache(now: { clock.now })
+        )
+        let viewModel = PlaylistBrowserViewModel(api: provider, cache: MockBrowsingCache())
+        await viewModel.refreshPlaylists()
+        await viewModel.playlistTrackCountTask?.value
+
+        clock.now = clock.now.addingTimeInterval(AppleMusicPlaylistTrackCountCache.maxAge + 1)
+        source.trackCountsByPlaylistID = ["p.1": 6]
+        let countGate = TrackCountGate()
+        let tracksGate = TrackCountGate()
+        source.trackCountsGate = countGate
+        source.playlistTracksGate = tracksGate
+        await viewModel.refreshPlaylists()
+        let opening = Task { await viewModel.selectSidebar(.playlist("p.1")) }
+        for _ in 0..<1000 where !source.calls.contains(where: { $0.hasPrefix("playlistTracks(p.1") }) {
+            await Task.yield()
+        }
+        countGate.open()
+        await viewModel.playlistTrackCountTask?.value
+        tracksGate.open()
+        await opening.value
+
+        guard case let .playlist(detail)? = viewModel.detailState.currentValue else {
+            return XCTFail("the playlist is open")
+        }
+        XCTAssertEqual(detail.playlist.trackCount, 6)
+    }
+
+    /// The sidebar shows right away; counts arrive in batches afterwards and an unknown count stays
+    /// quiet instead of reading "Track count unavailable" on every row.
+    @MainActor
+    func testSidebarFillsInCountsAfterItIsShownAndKeepsUnknownOnesQuiet() async throws {
+        let source = MockAppleMusicSource()
+        let total = PlaylistBrowserViewModel.playlistTrackCountBatchSize + 3
+        source.playlists = try (0..<total).map { try AppleMusicFixtures.playlist(id: "p.\($0)", name: "Playlist \($0)") }
+        source.trackCountsByPlaylistID = Dictionary(uniqueKeysWithValues: (1..<total).map { ("p.\($0)", $0) })
+        let viewModel = PlaylistBrowserViewModel(api: AppleMusicBrowsingProvider(source: source), cache: MockBrowsingCache())
+
+        await viewModel.refreshPlaylists()
+        await viewModel.playlistTrackCountTask?.value
+
+        let rows = try XCTUnwrap(viewModel.playlistState.currentValue)
+        XCTAssertEqual(rows.count, total)
+        XCTAssertEqual(rows[1].trackCount, 1)
+        XCTAssertEqual(rows[total - 1].trackCount, total - 1, "later batches are filled in too")
+        XCTAssertEqual(source.calls.filter { $0.hasPrefix("trackCounts") }.count, 2)
+
+        let unknown = rows[0]
+        XCTAssertNil(unknown.trackCount)
+        let line = unknown.ownerTracksLine(currentUserID: AppleMusicBrowsingProvider.libraryUserID)
+        XCTAssertEqual(line, "")
+        XCTAssertFalse(line.contains(SpotiglassL10n.string("browser.trackCountUnavailable")))
+        XCTAssertEqual(
+            rows[1].ownerTracksLine(currentUserID: AppleMusicBrowsingProvider.libraryUserID),
+            SpotiglassL10n.format("browser.trackCount", Int64(1))
+        )
+    }
+
+    /// A refresh after the counts expired keeps each row's count until the fresh one arrives
+    /// (no blank sidebar), and a playlist the library no longer counts goes back to no count.
+    @MainActor
+    func testARefreshKeepsTheShownCountsUntilFreshOnesArrive() async throws {
+        let clock = TrackCountTestClock()
+        let source = MockAppleMusicSource()
+        source.playlists = [
+            try AppleMusicFixtures.playlist(id: "p.1", name: "Road"),
+            try AppleMusicFixtures.playlist(id: "p.2", name: "Chill"),
+        ]
+        source.trackCountsByPlaylistID = ["p.1": 5, "p.2": 7]
+        let provider = AppleMusicBrowsingProvider(
+            source: source,
+            trackCountCache: AppleMusicPlaylistTrackCountCache(now: { clock.now })
+        )
+        let viewModel = PlaylistBrowserViewModel(api: provider, cache: MockBrowsingCache())
+        await viewModel.refreshPlaylists()
+        await viewModel.playlistTrackCountTask?.value
+        XCTAssertEqual(viewModel.playlistState.currentValue?.map(\.trackCount), [5, 7])
+
+        clock.now = clock.now.addingTimeInterval(AppleMusicPlaylistTrackCountCache.maxAge + 1)
+        source.trackCountsByPlaylistID = ["p.1": 6]
+        let gate = TrackCountGate()
+        source.trackCountsGate = gate
+        await viewModel.refreshPlaylists()
+
+        XCTAssertEqual(viewModel.playlistState.currentValue?.map(\.trackCount), [5, 7], "no row goes blank while counting")
+        gate.open()
+        await viewModel.playlistTrackCountTask?.value
+        XCTAssertEqual(viewModel.playlistState.currentValue?.map(\.trackCount), [6, nil])
+    }
+
     func testPlaylistTracksAskForEveryPageAndReportMissingPlaylists() async throws {
         let source = MockAppleMusicSource()
         source.playlistTracksByID["p.1"] = [.song(try AppleMusicFixtures.song(id: "1", title: "One"))]
@@ -910,6 +1159,39 @@ private final class MockAppleMusicAuthorization: AppleMusicAuthorizing, @uncheck
     func canPlayCatalogContent() async -> Bool? { canPlay }
 }
 
+private final class TrackCountTestClock: @unchecked Sendable {
+    var now = Date(timeIntervalSince1970: 1_800_000_000)
+}
+
+/// Holds a count lookup until `open()`, like a slow library.
+private final class TrackCountGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var isOpen = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func wait() async {
+        await withCheckedContinuation { continuation in
+            lock.lock()
+            if isOpen {
+                lock.unlock()
+                continuation.resume()
+            } else {
+                waiters.append(continuation)
+                lock.unlock()
+            }
+        }
+    }
+
+    func open() {
+        lock.lock()
+        isOpen = true
+        let resumed = waiters
+        waiters = []
+        lock.unlock()
+        resumed.forEach { $0.resume() }
+    }
+}
+
 private final class MockAppleMusicSource: AppleMusicContentSource, @unchecked Sendable {
     private let lock = NSLock()
     private var recordedCalls: [String] = []
@@ -944,8 +1226,26 @@ private final class MockAppleMusicSource: AppleMusicContentSource, @unchecked Se
         return Array(playlists[offset..<min(playlists.count, offset + limit)])
     }
 
+    var trackCountsByPlaylistID: [String: Int] = [:]
+    var trackCountsError: Error?
+
+    var trackCountsGate: TrackCountGate?
+    var playlistTracksGate: TrackCountGate?
+
+    func libraryPlaylistTracks(playlistIDs: [String]) async throws -> [String: [Track]] {
+        record("trackCounts(\(playlistIDs.joined(separator: ",")))")
+        // Read first, then slow to answer: the result is from before anything done meanwhile.
+        let read = try trackCountsByPlaylistID.filter { playlistIDs.contains($0.key) }.mapValues { count in
+            try (0..<count).map { Track.song(try AppleMusicFixtures.song(id: "i.\($0)", title: "Song \($0)")) }
+        }
+        await trackCountsGate?.wait()
+        if let trackCountsError { throw trackCountsError }
+        return read
+    }
+
     func playlistTracks(playlistID: String, limit: Int) async throws -> [Track]? {
         record("playlistTracks(\(playlistID),\(limit))")
+        await playlistTracksGate?.wait()
         return playlistTracksByID[playlistID]
     }
 
@@ -1100,10 +1400,12 @@ enum AppleMusicFixtures {
         name: String,
         curator: String? = nil,
         kind: String? = nil,
-        trackCount: Int? = nil
+        trackCount: Int? = nil,
+        lastModified: String? = nil
     ) throws -> Playlist {
         var attributes: [String: Any] = ["name": name, "artwork": artwork(id)]
         if let curator { attributes["curatorName"] = curator }
+        if let lastModified { attributes["lastModifiedDate"] = lastModified }
         if let kind { attributes["playlistType"] = kind }
         var resource: [String: Any] = ["id": id, "type": "playlists", "attributes": attributes]
         if let trackCount {

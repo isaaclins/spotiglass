@@ -15,6 +15,9 @@ extension AppleMusicBrowsingProvider {
 
     func removeSavedTracks(ids: [String]) async throws {
         try await editor.removeSongs(ids: ids)
+        // Music takes the songs out of every playlist they were in, and which ones that are is
+        // not known here.
+        await trackCountCache.forgetAll()
     }
 
     func savedTrackStatuses(ids: [String]) async throws -> [Bool] {
@@ -27,6 +30,7 @@ extension AppleMusicBrowsingProvider {
 
     func removeSavedAlbums(ids: [String]) async throws {
         try await editor.removeAlbums(ids: ids)
+        await trackCountCache.forgetAll()
     }
 
     func savedAlbumStatuses(ids: [String]) async throws -> [Bool] {
@@ -72,6 +76,7 @@ extension AppleMusicBrowsingProvider {
             return nil
         }
         try await editor.addToPlaylist(playlistID: playlistID, songIDs: ids, shownTracks: shownTracks)
+        await trackCountCache.forget([playlistID])
     }
 
     /// `snapshotID` is Spotify's; Apple Music has none.
@@ -104,6 +109,7 @@ extension AppleMusicBrowsingProvider {
             shownCounts: shownCounts,
             shownOrdinals: shownOrdinals
         )
+        await trackCountCache.forget([playlistID])
     }
 
     func updatePlaylist(playlistID: String, name: String) async throws {
@@ -136,6 +142,25 @@ extension AppleMusicBrowsingProvider {
             return (mapped, [track.id.rawValue, AppleMusicPendingLibraryEdits.metadataKey(mapped)])
         }
         return editor.pending.applied(toPlaylistTracks: identified, playlistID: playlistID)
+    }
+
+    /// Each playlist's count, leaving out the songs removed from the library from Spotiglass
+    /// that the library still lists, as the open playlist leaves them out. Empty playlists have
+    /// no count.
+    func countsLeavingOutRemovedSongs(_ tracksByPlaylistID: [String: [Track]]) -> [String: Int] {
+        guard editor.pending.hasRemovedSongs else {
+            return tracksByPlaylistID.compactMapValues { $0.isEmpty ? nil : $0.count }
+        }
+        return tracksByPlaylistID.compactMapValues { tracks in
+            let count = editor.pending.countNotRemoved(tracks.map(Self.pendingKeys))
+            return count > 0 ? count : nil
+        }
+    }
+
+    /// Every key a pending edit may know a track by.
+    private static func pendingKeys(_ track: Track) -> Set<String> {
+        if case let .song(song) = track { return identified(song).keys }
+        return [track.id.rawValue, AppleMusicPendingLibraryEdits.metadataKey(AppleMusicItemMapping.track(track))]
     }
 
     /// A song with every key a pending edit may know it by.

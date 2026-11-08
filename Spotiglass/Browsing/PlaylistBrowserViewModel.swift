@@ -126,6 +126,14 @@ final class PlaylistBrowserViewModel: ObservableObject {
     var inFlightPlaylistListRefreshTask: Task<([MusicPlaylistSummary], MusicUserProfile), Error>?
     var playlistListRefreshGeneration = 0
     var lastManualPlaylistRefreshAt: Date?
+    /// Fills in sidebar track counts the playlist listing came without (Apple Music).
+    var playlistTrackCountTask: Task<Void, Never>?
+    /// Rows whose count is still the one from before the latest listing; the count run replaces
+    /// it.
+    var playlistTrackCountStandIns: Set<String> = []
+    /// How often each playlist was edited from Spotiglass: a count read before an edit is
+    /// dropped and asked for again (`startPlaylistTrackCountRun`).
+    var playlistTrackCountEdits: [String: Int] = [:]
     /// Collapses concurrent liked-songs refresh triggers into one network run.
     var likedSongsRevalidationTask: Task<MusicSavedTracksResult, Error>?
     var likedSongsRevalidationTaskGeneration: Int?
@@ -222,6 +230,10 @@ final class PlaylistBrowserViewModel: ObservableObject {
     }
 
     func clearForSignOut() {
+        playlistTrackCountTask?.cancel()
+        playlistTrackCountTask = nil
+        playlistTrackCountStandIns = []
+        playlistTrackCountEdits = [:]
         adjacentPlaylistSelectionTask?.cancel()
         adjacentPlaylistSelectionTask = nil
         pendingAdjacentPlaylistOffset = 0

@@ -46,6 +46,10 @@ struct AppleMusicSearchItems {
 protocol AppleMusicContentSource: Sendable {
     /// One page of the user's library playlists, in the library's own order.
     func libraryPlaylists(limit: Int, offset: Int) async throws -> [Playlist]
+    /// The tracks of each of these library playlists, keyed by playlist ID, read in one go to
+    /// count them. Playlists the library returns no tracks for are left out, so an unknown count
+    /// never reads as zero.
+    func libraryPlaylistTracks(playlistIDs: [String]) async throws -> [String: [Track]]
     /// The tracks of one playlist, or `nil` when no playlist has that ID.
     func playlistTracks(playlistID: String, limit: Int) async throws -> [Track]?
     /// The songs MusicKit lists as the user's library, most recently added first. Songs that are
@@ -85,6 +89,21 @@ struct MusicKitContentSource: AppleMusicContentSource {
         // No `sort(by:)`: on macOS MusicKit's library backend aborts the process on sort
         // descriptors it does not support (seen on macOS 27 with `lastPlayedDate`).
         return Array(try await request.response().items)
+    }
+
+    func libraryPlaylistTracks(playlistIDs: [String]) async throws -> [String: [Track]] {
+        guard !playlistIDs.isEmpty else { return [:] }
+        // One local library query for the whole batch: each playlist comes back as a section
+        // holding its tracks, which follow MusicKit's batches like every other read here, up to
+        // the same bound as opening the playlist.
+        var request = MusicLibrarySectionedRequest<Playlist, Track>()
+        request.filterSections(matching: \.id, memberOf: playlistIDs.map { MusicItemID($0) })
+        let sections = try await request.response().sections
+        var tracks: [String: [Track]] = [:]
+        for section in sections where !section.items.isEmpty {
+            tracks[section.id.rawValue] = try await Self.collect(section.items, limit: Self.maxCountedPlaylistTracks)
+        }
+        return tracks
     }
 
     func playlistTracks(playlistID: String, limit: Int) async throws -> [Track]? {
@@ -234,6 +253,9 @@ struct MusicKitContentSource: AppleMusicContentSource {
     }
 
     /// Follows MusicKit batches until `limit` items are collected or the collection ends.
+    /// The most tracks a playlist is counted to: what opening it reads (100 pages of 100).
+    static let maxCountedPlaylistTracks = 10_000
+
     private static func collect<Item>(_ collection: MusicItemCollection<Item>?, limit: Int) async throws -> [Item] {
         guard var batch = collection else { return [] }
         var items = Array(batch)

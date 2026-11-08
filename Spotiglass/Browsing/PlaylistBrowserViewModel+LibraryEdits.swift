@@ -92,8 +92,13 @@ extension PlaylistBrowserViewModel {
     /// had when the list was loaded (#395). Only for providers with their own playlist edits
     /// (Apple Music); Spotify's counts stay as they were, refreshed with the next playlist load.
     func adjustSidebarTrackCountAfterEdit(playlistID: String, by delta: Int) {
-        guard supportedLibraryEdits.contains(.removeFromPlaylist), delta != 0,
-              let summary = playlistsByID[playlistID], let count = summary.trackCount else { return }
+        guard supportedLibraryEdits.contains(.removeFromPlaylist), delta != 0 else { return }
+        // A count run that was already reading the library may have the count from before the
+        // edit, or one that already has it: either way the playlist is counted again with the
+        // edit, and that count replaces this quick one.
+        playlistTrackCountEdits[playlistID, default: 0] += 1
+        countPlaylistTracks(of: playlistID)
+        guard let summary = playlistsByID[playlistID], let count = summary.trackCount else { return }
         let adjusted = MusicPlaylistSummary(
             id: summary.id,
             name: summary.name,
@@ -116,7 +121,7 @@ extension PlaylistBrowserViewModel {
         case let .staleCache(_, displayError):
             playlistState = .staleCache(updated, displayError)
         }
-        try? cache.savePlaylists(Array(playlistsByID.values), cachedAt: now())
+        try? cache.savePlaylists(playlistsInSidebarOrder(), cachedAt: now())
     }
 
     private func removeSidebarPlaylist(id: String) {
@@ -137,7 +142,7 @@ extension PlaylistBrowserViewModel {
         case let .staleCache(_, displayError):
             playlistState = .staleCache(remaining, displayError)
         }
-        try? cache.savePlaylists(Array(playlistsByID.values), cachedAt: now())
+        try? cache.savePlaylists(playlistsInSidebarOrder(), cachedAt: now())
     }
 
     // MARK: - Albums
@@ -177,6 +182,7 @@ extension PlaylistBrowserViewModel {
             // The album's songs changed too; their liked state loads again when a menu needs it.
             savedTrackStates = [:]
             invalidateLikedSongsCache()
+            if isSaved { recountPlaylistTracksAfterLibraryRemoval() }
             await refreshLikedSongsDetailAfterMutation()
             trackMutationToast = SpotiglassL10n.format(
                 isSaved ? "playlist.mutation.removedAlbum" : "playlist.mutation.addedAlbum",

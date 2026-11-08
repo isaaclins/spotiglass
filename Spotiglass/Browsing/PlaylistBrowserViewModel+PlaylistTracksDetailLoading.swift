@@ -68,7 +68,10 @@ extension PlaylistBrowserViewModel {
             if tracks.isEmpty {
                 detailState = .empty(SpotiglassL10n.string("browser.noTracks.emptyPlaylist"))
             } else {
-                detailState = .loaded(.playlist(PlaylistDetailViewModel(playlist: playlistRow, tracks: TrackRowViewModel.numberedPlaylistRows(tracks))))
+                detailState = .loaded(.playlist(PlaylistDetailViewModel(
+                    playlist: withSidebarTrackCount(playlistRow),
+                    tracks: TrackRowViewModel.numberedPlaylistRows(tracks)
+                )))
             }
         } catch is CancellationError {
             return
@@ -97,6 +100,14 @@ extension PlaylistBrowserViewModel {
                 detailState = .error(displayError)
             }
         }
+    }
+
+    /// The header row with the sidebar's count when a newer one arrived while the tracks
+    /// loaded (Apple Music counts arrive after the listing, #407).
+    private func withSidebarTrackCount(_ row: PlaylistRowViewModel) -> PlaylistRowViewModel {
+        guard api.listsPlaylistsWithoutTrackCounts,
+              let summary = playlistsByID[row.id], summary.trackCount != row.trackCount else { return row }
+        return PlaylistRowViewModel(summary)
     }
 
     private func playlistIsOwnedByCurrentUser(_ playlist: MusicPlaylistSummary) -> Bool {
