@@ -94,6 +94,18 @@ extension PlaylistBrowserViewModel {
         savedTrackStates[id] ?? api.knownSavedTrackStatus(id: id)
     }
 
+    /// A provider can know one song under several IDs (Apple Music: a playlist row's persistent
+    /// ID, search's catalog ID). After a like or unlike, a cached answer the provider now answers
+    /// differently is for another ID of the same song, so it goes and the row reads the
+    /// provider's answer. Spotify answers nothing here, so its cache stays as it was.
+    private func dropSavedTrackStatesTheProviderNowAnswers() {
+        for (id, cached) in savedTrackStates {
+            if let known = api.knownSavedTrackStatus(id: id), known != cached {
+                savedTrackStates[id] = nil
+            }
+        }
+    }
+
     /// Resolves the missing saved states for a menu's catalog rows. The Liked
     /// Songs surface skips this entirely because membership is known locally.
     func loadSavedTrackStates(for rows: [TrackRowViewModel]) async {
@@ -248,6 +260,7 @@ extension PlaylistBrowserViewModel {
         ) else { return }
         do {
             try await api.saveTracks(ids: ids)
+            dropSavedTrackStatesTheProviderNowAnswers()
             for id in ids {
                 savedTrackStates[id] = true
             }
@@ -282,6 +295,7 @@ extension PlaylistBrowserViewModel {
         ) else { return }
         do {
             try await api.removeSavedTracks(ids: ids)
+            dropSavedTrackStatesTheProviderNowAnswers()
             for id in ids {
                 savedTrackStates[id] = false
             }
