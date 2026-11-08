@@ -7,10 +7,11 @@ extension QueueViewModel {
 
     func requestQueueRefresh(trigger: RefreshTrigger, allowsHiddenPanel: Bool) async {
         publishMergedState()
-        guard shouldAllowQueueRequest(allowsHiddenPanel: allowsHiddenPanel) else { return }
+        guard shouldAllowQueueRequest(trigger: trigger, allowsHiddenPanel: allowsHiddenPanel) else { return }
         if isRefreshInFlight {
             pendingRefreshRequested = true
             pendingRefreshAllowsHiddenPanel = pendingRefreshAllowsHiddenPanel || allowsHiddenPanel
+            if !trigger.waitsForActiveApp { pendingRefreshTrigger = trigger }
             // Wait for the follow-up round this request joined. Callers await a
             // refresh (after an enqueue, a shuffle or the toolbar refresh) and
             // expect the queue they asked for once it returns.
@@ -19,6 +20,7 @@ extension QueueViewModel {
         }
 
         var nextAllowsHiddenPanel = allowsHiddenPanel
+        var nextTrigger = trigger
         // Waiters whose request the current round answers.
         var roundWaiters: [CheckedContinuation<Void, Never>] = []
         defer {
@@ -28,11 +30,12 @@ extension QueueViewModel {
             pendingRefreshWaiters = []
         }
         while true {
-            guard shouldAllowQueueRequest(allowsHiddenPanel: nextAllowsHiddenPanel) else { break }
+            guard shouldAllowQueueRequest(trigger: nextTrigger, allowsHiddenPanel: nextAllowsHiddenPanel) else { break }
             if let cooldownUntil = queueCooldownUntil, cooldownUntil > Date() {
                 lastError = Self.rateLimitDisplayError(retryAfter: cooldownUntil.timeIntervalSinceNow)
                 pendingRefreshRequested = false
                 pendingRefreshAllowsHiddenPanel = false
+                pendingRefreshTrigger = .poll
                 break
             }
 
@@ -93,8 +96,20 @@ extension QueueViewModel {
             roundWaiters = pendingRefreshWaiters
             pendingRefreshWaiters = []
             nextAllowsHiddenPanel = pendingRefreshAllowsHiddenPanel
+            // A follow-up that an event joined runs in the background too.
+            nextTrigger = pendingRefreshTrigger
             pendingRefreshRequested = false
             pendingRefreshAllowsHiddenPanel = false
+            pendingRefreshTrigger = .poll
+        }
+
+        // The read gave up waiting for a slow play and showed the queue from before it. Read
+        // again, so the panel shows the new queue as soon as the play is in; the provider's
+        // wait paces these reads (#413).
+        if provider.isQueueSettling, isPanelVisible, !isQueueSessionBoundary {
+            Task { @MainActor [weak self] in
+                await self?.requestQueueRefresh(trigger: .event, allowsHiddenPanel: false)
+            }
         }
     }
 
@@ -157,9 +172,14 @@ extension QueueViewModel {
         }
     }
 
-    private func shouldAllowQueueRequest(allowsHiddenPanel: Bool) -> Bool {
+    /// Only the timed reads (the poll and the lyrics prefetch) wait for the app to be active.
+    /// Opening the panel, a new song or a new queue still read the queue when Spotiglass is in
+    /// the background: its window can be on screen behind another app, and Apple Music has no
+    /// other source for the upcoming songs, so the panel would show "0 tracks up next" until the
+    /// app was activated again (#413).
+    private func shouldAllowQueueRequest(trigger: RefreshTrigger, allowsHiddenPanel: Bool) -> Bool {
         guard !isQueueSessionBoundary else { return false }
-        guard isAppActive else { return false }
+        if trigger.waitsForActiveApp, !isAppActive { return false }
         if allowsHiddenPanel {
             return shouldPoll
         }

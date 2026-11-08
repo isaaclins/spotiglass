@@ -55,8 +55,21 @@ extension PlaylistBrowserView {
 
         if result.crossedIntoSidebarCollapse {
             playlistColumnVisibility = .detailOnly
-        } else if result.crossedOutOfSidebarCollapse,
-                  playlistColumnVisibility == .detailOnly {
+            return
+        }
+        switch BrowserWidthCommitPolicy.sidebarOnWidening(
+            result,
+            sidebarCollapsed: playlistColumnVisibility == .detailOnly,
+            heldForQueue: isSidebarHeldForQueue,
+            isQueueVisible: isQueueVisible,
+            isNarrow: isMutualExclusionWidth
+        ) {
+        case .none:
+            break
+        case .hold:
+            isSidebarHeldForQueue = true
+        case .restore:
+            isSidebarHeldForQueue = false
             playlistColumnVisibility = .doubleColumn
         }
     }
