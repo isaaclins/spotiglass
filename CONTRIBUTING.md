@@ -47,7 +47,12 @@ The Xcode project uses explicit file references. After adding
 python3 scripts/register-test-files.py YourTests.swift
 ```
 
-Then run `make test` to confirm the file is in the test target.
+Running it again for the same file changes nothing, and the object IDs it
+writes are derived from the file's path, so two branches adding different
+files do not collide. Main-target files go through
+`scripts/register-source-files.py` the same way.
+`./scripts/audit-orphaned-sources.sh` then confirms every Swift file is in its
+target's Sources phase exactly once, and `make test` confirms it compiles.
 
 ## Parallel work / merge conflicts
 
