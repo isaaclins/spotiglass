@@ -42,7 +42,12 @@ reset() {
   touch "$work/DerivedData/Build/stale.o"
 }
 run_make() {
-  make -s -C "$repo" "$1" DERIVED_DATA="$work/DerivedData" >/dev/null
+  # When this runs under `make test`, the parent's flags and command-line
+  # variables arrive through MAKEFLAGS. A `make test PATH=...` would then put
+  # the real `security` back in front of the fake and sign you out for real,
+  # so drop everything inherited and pass PATH explicitly.
+  env -u MAKEFLAGS -u MFLAGS -u MAKEOVERRIDES -u MAKELEVEL \
+    make -s -C "$repo" "$1" PATH="$PATH" DERIVED_DATA="$work/DerivedData" >/dev/null
 }
 
 # make clean: build output gone, login untouched.
