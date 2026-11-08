@@ -960,7 +960,7 @@ struct PlaybackControlsView: View {
     private var subtitle: String {
         switch viewModel.connectionState {
         case .disconnected:
-            SpotiglassL10n.string("playback.controls.state.disconnected.subtitle")
+            Self.serviceString("playback.controls.state.disconnected.subtitle", appleMusic: "playback.controls.state.disconnected.subtitle.appleMusic", service: shownService)
         case .connecting:
             Self.serviceString("playback.controls.state.connecting.subtitle", appleMusic: "playback.controls.state.connecting.subtitle.appleMusic", service: shownService)
         case .ready:

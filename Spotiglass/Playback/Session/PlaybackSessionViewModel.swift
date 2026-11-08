@@ -170,7 +170,9 @@ final class PlaybackSessionViewModel: ObservableObject {
         let message = action == .reconnect
             ? SpotiglassL10n.string("error.playback.deviceUnavailable.notReady")
             : error.message
-        return .error(PlaybackDisplayError(title: error.title, message: message, recoveryAction: nil))
+        // The fix it offered was for a connection or a device this player doesn't have: the
+        // player is still there, so the failure was momentary.
+        return .error(PlaybackDisplayError(title: error.title, message: message, recoveryAction: nil, isMomentary: true))
     }
 
     /// Whether the in-app player has its own volume. The transport bar hides its volume
@@ -315,7 +317,8 @@ final class PlaybackSessionViewModel: ObservableObject {
     /// restore before the session reads that player again (#430).
     let passingErrorRecoveryDelay: Duration
     var passingErrorRecoveryTask: Task<Void, Never>?
-    private var isRecoveringFromPassingError = false
+    /// While the recovery reads the player: an error that arrives then still recovers.
+    private var isReadingAfterPassingError = false
     let seekRateLimitInterval: Duration
     let seekDeduplicationWindowMilliseconds: Int
     let seekMatchToleranceMilliseconds: Int
@@ -982,7 +985,8 @@ final class PlaybackSessionViewModel: ObservableObject {
             return PlaybackDisplayError(
                 title: SpotiglassL10n.string("error.playback.commandFailed.title"),
                 message: SpotiglassL10n.string("error.playback.appleMusic.notPlayable"),
-                recoveryAction: nil
+                recoveryAction: nil,
+                isMomentary: true
             )
         case .explicitContentRestricted:
             return PlaybackDisplayError(
@@ -994,7 +998,8 @@ final class PlaybackSessionViewModel: ObservableObject {
             return PlaybackDisplayError(
                 title: SpotiglassL10n.string("error.playback.commandFailed.title"),
                 message: SpotiglassL10n.string("error.playback.appleMusic.failed"),
-                recoveryAction: nil
+                recoveryAction: nil,
+                isMomentary: true
             )
         }
     }
@@ -1050,28 +1055,34 @@ final class PlaybackSessionViewModel: ObservableObject {
             restartTransportPollingIfNeeded()
         }
         if state != previousState {
+            // A recovery waiting or reading means the player worked before the first error, so
+            // an error that replaces that one (a song that can't play, chosen meanwhile) recovers too.
+            let playerWorkedBefore = passingErrorRecoveryTask != nil || isReadingAfterPassingError
             passingErrorRecoveryTask?.cancel()
             passingErrorRecoveryTask = nil
-            schedulePassingErrorRecoveryIfNeeded(for: state, after: previousState)
+            schedulePassingErrorRecoveryIfNeeded(for: state, after: previousState, playerWorkedBefore: playerWorkedBefore)
         }
     }
 
-    /// A command that failed on a player with no connection to restore (Apple Music plays on
-    /// this Mac) leaves that player as it was: the bar shows what went wrong, then reads the
-    /// player again and gives its song and controls back, the way Reconnect once did with a
-    /// button that named a connection Apple Music doesn't have (#430). Only an error that
-    /// interrupted a working player recovers this way, once: one the reading itself raises
-    /// (access turned off) stays.
+    /// A command that failed for a moment on a player with no connection to restore (Apple
+    /// Music plays on this Mac) leaves that player as it was: the bar shows what went wrong,
+    /// then reads the player again and gives its song and controls back, the way Reconnect
+    /// once did with a button that named a connection Apple Music doesn't have (#430). Only a
+    /// momentary failure of a player that was working recovers this way; missing access or
+    /// subscription stays on screen.
     private func schedulePassingErrorRecoveryIfNeeded(
         for state: PlaybackConnectionState,
-        after previousState: PlaybackConnectionState
+        after previousState: PlaybackConnectionState,
+        playerWorkedBefore: Bool
     ) {
-        guard case let .error(error) = state, error.recoveryAction == nil,
-              !canReconnectPlayer, !isRecoveringFromPassingError, deviceID != nil else { return }
+        guard case let .error(error) = state, error.isMomentary, error.recoveryAction == nil,
+              !canReconnectPlayer, deviceID != nil else { return }
         switch previousState {
         case .ready, .transferring, .playing, .paused:
             break
-        case .disconnected, .connecting, .unavailable, .error:
+        case .error:
+            guard playerWorkedBefore else { return }
+        case .disconnected, .connecting, .unavailable:
             return
         }
         let generation = playbackHostGeneration
@@ -1080,10 +1091,11 @@ final class PlaybackSessionViewModel: ObservableObject {
             try? await Task.sleep(for: delay)
             guard let self, !Task.isCancelled, self.ownsPlaybackHostGeneration(generation),
                   self.connectionState == state, let deviceID = self.deviceID else { return }
+            // From here the read's own state changes must not cancel this task.
             self.passingErrorRecoveryTask = nil
-            self.isRecoveringFromPassingError = true
-            defer { self.isRecoveringFromPassingError = false }
+            self.isReadingAfterPassingError = true
             await self.syncTransportFromSpotify(generation: generation)
+            self.isReadingAfterPassingError = false
             // Nothing loaded (or a read that predates the failed command): the player is
             // still there and ready, and polling from `.ready` picks up what it plays.
             guard self.ownsPlaybackHostGeneration(generation), self.connectionState == state else { return }

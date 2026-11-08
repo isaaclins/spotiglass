@@ -15259,6 +15259,29 @@
         }
       }
     },
+    "playback.controls.state.disconnected.subtitle.appleMusic": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple Music playback starts on its own in a moment."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La reproducción de Apple Music empieza sola en un momento."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Apple-Music-Wiedergabe startet gleich von selbst."
+          }
+        }
+      }
+    },
     "playback.controls.playPause.appleMusic.hint": {
       "extractionState": "manual",
       "localizations": {
