@@ -8,11 +8,10 @@ import SwiftUI
 enum LyricsPopOutWindow {
     static let sceneID = "lyrics-popout"
     /// Size and position are remembered under this name, the way AppKit remembers any window.
-    /// The unit tests run inside the app and share its settings, so their windows save under a
-    /// name of their own and never move or resize the real pop-out.
-    static let frameAutosaveName = AppMetadata.isRunningUnitTests
-        ? "Spotiglass Lyrics Pop-Out (unit tests)"
-        : "Spotiglass Lyrics Pop-Out"
+    static let frameAutosaveName = "Spotiglass Lyrics Pop-Out"
+    /// The unit tests run inside the app and AppKit saves frames in the app's real preferences,
+    /// so test windows never save or restore one: they can't move or resize the real pop-out.
+    static let savesFrame = !AppMetadata.isRunningUnitTests
     /// Whether the window stays above other apps. On by default: that is what it is for.
     static let pinnedStorageKey = "lyrics.popOut.pinned"
     static let isPinnedByDefault = true
@@ -40,6 +39,7 @@ enum LyricsPopOutWindow {
         guard window !== newWindow else { return }
         window = newWindow
         newWindow.isMovableByWindowBackground = true
+        guard savesFrame else { return }
         newWindow.setFrameUsingName(frameAutosaveName)
         newWindow.setFrameAutosaveName(frameAutosaveName)
     }

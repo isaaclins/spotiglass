@@ -7,19 +7,6 @@ import XCTest
 /// The pop-out lyrics window (#439).
 @MainActor
 final class LyricsPopOutTests: XCTestCase {
-    /// The test windows save their frame under the tests' own name (the test host is the app and
-    /// shares its settings); clear it so nothing piles up there.
-    override func tearDown() {
-        UserDefaults.standard.removeObject(forKey: "NSWindow Frame \(LyricsPopOutWindow.frameAutosaveName)")
-        super.tearDown()
-    }
-
-    /// A closed window can still save its frame once more as it goes away, after the last test.
-    override class func tearDown() {
-        UserDefaults.standard.removeObject(forKey: "NSWindow Frame \(LyricsPopOutWindow.frameAutosaveName)")
-        super.tearDown()
-    }
-
     private func makeManager() -> (CommandPaletteManager, CommandPaletteKeymapStore) {
         let settings = SpotiglassSettingsStore(fileURL: makeCommandPaletteTestsTempSettingsURL())
         let keymap = CommandPaletteKeymapStore(settingsStore: settings)
@@ -399,27 +386,23 @@ final class LyricsPopOutTests: XCTestCase {
         XCTAssertFalse(window.collectionBehavior.contains(.fullScreenAuxiliary))
     }
 
-    /// The tests run inside the app, so their windows must never save over the real pop-out's frame.
-    func testTestWindowsNeverSaveOverTheRealPopOutsFrame() {
-        XCTAssertNotEqual(LyricsPopOutWindow.frameAutosaveName, "Spotiglass Lyrics Pop-Out")
-    }
-
-    func testTheWindowRemembersItsFrameAndIsPinnedByDefault() {
+    /// The tests run inside the app, and AppKit saves window frames in the app's real preferences:
+    /// a test window must never save one, or the real pop-out would open at a test window's frame.
+    func testTestWindowsNeverSaveAFrame() {
+        XCTAssertFalse(LyricsPopOutWindow.savesFrame)
         let window = makeWindow()
         defer { AppKitTestSupport.closeWindowSafely(window) }
         LyricsPopOutWindow.adopt(window)
-        XCTAssertEqual(window.frameAutosaveName, LyricsPopOutWindow.frameAutosaveName)
-        XCTAssertTrue(LyricsPopOutWindow.isPopOut(window))
-        XCTAssertTrue(LyricsPopOutWindow.isPinnedByDefault)
+        XCTAssertEqual(window.frameAutosaveName, "")
+    }
 
-        // Resized to a strip, closed, opened again: the next window comes back at that size.
-        window.setFrame(NSRect(x: 0, y: 0, width: 360, height: 84), display: false)
-        window.saveFrame(usingName: LyricsPopOutWindow.frameAutosaveName)
-        window.setFrameAutosaveName("")
-        let reopened = makeWindow()
-        defer { AppKitTestSupport.closeWindowSafely(reopened) }
-        LyricsPopOutWindow.adopt(reopened)
-        XCTAssertEqual(reopened.frame.size, CGSize(width: 360, height: 84))
+    func testTheAdoptedWindowIsThePopOutAndPinnedByDefault() {
+        let window = makeWindow()
+        defer { AppKitTestSupport.closeWindowSafely(window) }
+        LyricsPopOutWindow.adopt(window)
+        XCTAssertTrue(LyricsPopOutWindow.isPopOut(window))
+        XCTAssertTrue(window.isMovableByWindowBackground)
+        XCTAssertTrue(LyricsPopOutWindow.isPinnedByDefault)
     }
 
     func testLayoutShrinksToAStripAndDropsSkipButtonsWhenNarrow() {
@@ -511,7 +494,7 @@ final class LyricsPopOutTests: XCTestCase {
     }
 
     /// At every size the content loads the playing song's lyrics and makes its window the pinned
-    /// pop-out: above other windows, with its frame saved under the pop-out's name.
+    /// pop-out, above other windows.
     func testAtEverySizeTheWindowLoadsTheSongsLyricsAndBecomesThePinnedPopOut() throws {
         let (_, keymap) = makeManager()
         defer { ViewTestHost.tearDownAll() }
@@ -532,15 +515,11 @@ final class LyricsPopOutTests: XCTestCase {
             XCTAssertEqual(lines.map(\.words), ["First line", "Second line"])
             XCTAssertTrue(LyricsPopOutWindow.isPopOut(window), "\(size)")
             XCTAssertEqual(window.level, .floating, "pinned by default at \(size)")
-            XCTAssertEqual(window.frameAutosaveName, LyricsPopOutWindow.frameAutosaveName)
             // What the strip says at this moment of the song.
             XCTAssertEqual(
                 LyricsPopOutStripText.lyric(phase: lyrics.phase, trackDurationMs: 240_000, positionMs: 5_000),
                 "First line"
             )
-            // AppKit gives a frame autosave name to one window at a time; the app has one pop-out
-            // window, the test makes one per size, so each hands the name back.
-            window.setFrameAutosaveName("")
             ViewTestHost.tearDownAll()
         }
     }
