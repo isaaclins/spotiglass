@@ -535,10 +535,17 @@ final class SidebarRowLayoutTests: XCTestCase {
             id: "p.2", name: "Deep Focus", ownerID: "me", ownerName: "Me",
             imageURL: nil, trackCount: 13, snapshotID: "s3"
         ))
+        var stalePin = PinnedItem.playlist(MusicPlaylistSummary(
+            id: "p.3", name: "A playlist with a name long enough to be cut", ownerID: "me", ownerName: "Me",
+            imageURL: nil, trackCount: 13, snapshotID: "s4"
+        ))
+        stalePin.isStale = true
+        // The row's height is a floor, so a row whose content outgrows it measures taller here.
         let rows: [(String, CGFloat)] = [
             ("Search", height(of: SidebarDestinationRow(titleKey: "browser.search", systemImage: "magnifyingglass"))),
             ("Home", height(of: LibraryHomeSidebarRow())),
             ("pin", height(of: PinnedRowView(item: pin, onUnpin: {}))),
+            ("unavailable pin", height(of: PinnedRowView(item: stalePin, onUnpin: {}))),
             ("Liked Songs", height(of: PlaylistListRow(playlist: likedSongs))),
             ("playlist", height(of: PlaylistListRow(playlist: playlist))),
             ("playing playlist", height(of: PlaylistListRow(playlist: playlist, isActive: true, isPlaying: true, isPinned: true))),

@@ -339,40 +339,69 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         XCTAssertNil(AppleMusicItemMapping.globalID(of: try AppleMusicFixtures.playlist(id: "p.2", name: "Own")))
     }
 
-    /// The sidebar never waits on the API: a slow answer is dropped and the last listing's
-    /// result is used, and an API that can't be reached keeps it too.
-    func testASlowOrFailingCoverLookupNeverHoldsTheSidebarBack() async throws {
+    /// Once the API has answered, listings use that answer straight away and never wait on the
+    /// network: a slow lookup finishes in the background and the next listing uses it.
+    func testListingsWaitOnlyForTheFirstAnswerAndALaterOneIsUsedNextTime() async throws {
         let source = MockAppleMusicSource()
         source.playlists = [try AppleMusicFixtures.playlist(id: "-1", name: "Road")]
         source.playlistCovers = [AppleMusicPlaylistCover(name: "Road", globalID: nil, isGenerated: true)]
-        // Long enough that an instant answer always wins on a busy CI runner; the slow listing
-        // below waits this long.
-        let provider = AppleMusicBrowsingProvider(source: source, coverLookupTimeout: .seconds(1))
+        let covers = AppleMusicGeneratedCoverCache()
+        let provider = AppleMusicBrowsingProvider(source: source, generatedCovers: covers, coverLookupTimeout: .seconds(60))
 
         let first = try await provider.currentUserPlaylists(limit: 50)
-        XCTAssertNil(first.first?.imageURL)
+        XCTAssertNil(first.first?.imageURL, "waited for the first answer")
 
         let gate = TrackCountGate()
         source.playlistCoversGate = gate
-        let stopped = expectation(description: "the timed-out lookup is cancelled, so it stops paging")
-        source.onPlaylistCoversAfterGate = { isCancelled in
-            if isCancelled { stopped.fulfill() }
-        }
-        let slow = try await provider.currentUserPlaylists(limit: 50)
-        XCTAssertNil(slow.first?.imageURL, "the last listing's result")
-        gate.open()
-        await fulfillment(of: [stopped], timeout: 5)
-        source.onPlaylistCoversAfterGate = nil
+        source.playlistCovers = [AppleMusicPlaylistCover(name: "Road", globalID: nil, isGenerated: false)]
+        let started = ContinuousClock.now
+        let second = try await provider.currentUserPlaylists(limit: 50)
+        XCTAssertLessThan(ContinuousClock.now - started, .seconds(10), "didn't wait out the 60 s timeout")
+        XCTAssertNil(second.first?.imageURL, "the answer it already had")
 
-        source.playlistCoversGate = nil
+        gate.open()
+        await covers.refresh(using: source).value
+        let third = try await provider.currentUserPlaylists(limit: 50)
+        XCTAssertNotNil(third.first?.imageURL, "the slow lookup's answer, now the user picked a cover")
+    }
+
+    /// A library too big to read before the timeout still gets the placeholder: the lookup that
+    /// lost the race runs on and the next listing uses its answer.
+    func testALookupSlowerThanTheTimeoutIsUsedByTheNextListing() async throws {
+        let source = MockAppleMusicSource()
+        source.playlists = [try AppleMusicFixtures.playlist(id: "-1", name: "Road")]
+        source.playlistCovers = [AppleMusicPlaylistCover(name: "Road", globalID: nil, isGenerated: true)]
+        let gate = TrackCountGate()
+        source.playlistCoversGate = gate
+        let covers = AppleMusicGeneratedCoverCache()
+        let provider = AppleMusicBrowsingProvider(source: source, generatedCovers: covers, coverLookupTimeout: .milliseconds(50))
+
+        let first = try await provider.currentUserPlaylists(limit: 50)
+        XCTAssertNotNil(first.first?.imageURL, "no answer yet: Apple's cover stays")
+
+        gate.open()
+        await covers.refresh(using: source).value
+        let next = try await provider.currentUserPlaylists(limit: 50)
+        XCTAssertNil(next.first?.imageURL)
+    }
+
+    /// An API that can't be reached keeps the last answer, and one that never answered keeps
+    /// every cover.
+    func testAnUnreachableAPIKeepsTheLastAnswer() async throws {
+        let source = MockAppleMusicSource()
+        source.playlists = [try AppleMusicFixtures.playlist(id: "-1", name: "Road")]
+        source.playlistCovers = [AppleMusicPlaylistCover(name: "Road", globalID: nil, isGenerated: true)]
+        let covers = AppleMusicGeneratedCoverCache()
+        let provider = AppleMusicBrowsingProvider(source: source, generatedCovers: covers)
+        _ = try await provider.currentUserPlaylists(limit: 50)
+
         source.playlistCovers = nil
+        await covers.refresh(using: source).value
         let offline = try await provider.currentUserPlaylists(limit: 50)
         XCTAssertNil(offline.first?.imageURL)
 
-        // A fresh provider that never reached the API keeps every cover.
-        let unknown = try await AppleMusicBrowsingProvider(source: source, coverLookupTimeout: .milliseconds(50))
-            .currentUserPlaylists(limit: 50)
-        XCTAssertNotNil(unknown.first?.imageURL)
+        let neverAnswered = try await AppleMusicBrowsingProvider(source: source).currentUserPlaylists(limit: 50)
+        XCTAssertNotNil(neverAnswered.first?.imageURL)
     }
 
     /// Two library playlists share a name and the API lists only one of them (the other is
@@ -1533,13 +1562,8 @@ private final class MockAppleMusicSource: AppleMusicContentSource, @unchecked Se
     var playlistCovers: [AppleMusicPlaylistCover]? = []
     var playlistCoversGate: TrackCountGate?
 
-    /// Called after the gate opens with whether the lookup was cancelled by then.
-    var onPlaylistCoversAfterGate: (@Sendable (Bool) -> Void)?
-
     func libraryPlaylistCovers() async throws -> [AppleMusicPlaylistCover] {
         await playlistCoversGate?.wait()
-        onPlaylistCoversAfterGate?(Task.isCancelled)
-        try Task.checkCancellation()
         guard let playlistCovers else { throw URLError(.notConnectedToInternet) }
         return playlistCovers
     }

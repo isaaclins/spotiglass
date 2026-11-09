@@ -133,7 +133,8 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
     /// Search page and the command palette search through a provider of their own, which never
     /// lists the library itself.
     let generatedCovers: AppleMusicGeneratedCoverCache
-    /// How long a listing waits for the covers before it shows the playlists without that check.
+    /// How long a listing waits for the API's covers while it has no answer from it yet. Once it
+    /// has one, listings use it straight away and never wait on the network.
     let coverLookupTimeout: Duration
 
     init(
@@ -166,8 +167,9 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
     /// `limit` is the page size, like Spotify's: every library playlist is returned, not only the
     /// first page.
     func currentUserPlaylists(limit: Int) async throws -> [MusicPlaylistSummary] {
-        // Read alongside the library, so it adds no wait unless the API is slower than MusicKit.
-        async let covers = playlistCovers()
+        // Asked alongside the library read. It runs to its end in the background and its answer
+        // is kept for later listings, even when this one doesn't wait for it.
+        let coverLookup = await generatedCovers.refresh(using: source)
         let pageSize = max(1, limit)
         var playlists: [Playlist] = []
         while playlists.count < Self.maxLibraryPlaylists {
@@ -180,8 +182,11 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         let counts = await trackCountCache.counts(
             forVersions: Dictionary(playlists.map { ($0.id.rawValue, $0.lastModifiedDate) }, uniquingKeysWith: { first, _ in first })
         )
+        if await generatedCovers.covers == nil {
+            await waitForFirstAnswer(from: coverLookup)
+        }
         let generated: Set<String>
-        if let covers = await covers {
+        if let covers = await generatedCovers.covers {
             let identities = playlists.map { ($0.id.rawValue, $0.name, AppleMusicItemMapping.globalID(of: $0)) }
             generated = AppleMusicPlaylistCover.generatedPlaylistIDs(identities, covers: covers)
             // Catalog search returns a shared playlist under its catalog ID (`pl.u-…`), so that
@@ -189,8 +194,8 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
             let generatedCatalogIDs = identities.compactMap { generated.contains($0.0) ? $0.2 : nil }
             await generatedCovers.store(generated.union(generatedCatalogIDs))
         } else {
-            // The API didn't answer in time or failed: keep what the last listing found.
-            generated = await generatedCovers.playlistIDs
+            // The API hasn't answered yet (slow, offline): Apple's covers stay until it does.
+            generated = []
         }
         return editor.pending.applied(toPlaylists: playlists.map {
             // A playlist edited from Spotiglass is counted again (`playlistTrackCounts`) with
@@ -206,29 +211,29 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         })
     }
 
-    /// The API's covers for the library playlists, or `nil` when it fails or takes longer than
-    /// `coverLookupTimeout`: the sidebar never waits on it.
-    private func playlistCovers() async -> [AppleMusicPlaylistCover]? {
-        let source = source
+    /// Waits for the cover lookup, but no longer than `coverLookupTimeout`, and not at all once
+    /// the listing is cancelled. The lookup itself carries on either way.
+    private func waitForFirstAnswer(from lookup: Task<Void, Never>) async {
         let timeout = coverLookupTimeout
-        // A race rather than a task group: a group waits for the slow request to end even after
-        // the timeout won, which is the wait this exists to avoid. The loser is cancelled, so a
-        // lookup that timed out stops paging instead of running on unseen, and cancelling the
-        // listing ends both at once.
-        let answer = FirstAnswer<[AppleMusicPlaylistCover]?>()
-        return await withTaskCancellationHandler {
+        // A race rather than a task group: a group waits for the slow side to end even after
+        // the timeout won, which is the wait this exists to avoid.
+        let answer = FirstAnswer<Void>()
+        await withTaskCancellationHandler {
             await withCheckedContinuation { continuation in
                 answer.attach(continuation)
                 answer.attach([
-                    Task { answer.give(try? await source.libraryPlaylistCovers()) },
+                    Task {
+                        await lookup.value
+                        answer.give(())
+                    },
                     Task {
                         try? await Task.sleep(for: timeout)
-                        answer.give(nil)
+                        answer.give(())
                     },
                 ])
             }
         } onCancel: {
-            answer.give(nil)
+            answer.give(())
         }
     }
 
@@ -698,15 +703,38 @@ private final class FirstAnswer<Value: Sendable>: @unchecked Sendable {
     }
 }
 
-/// The library playlists the last listing found with a generated cover (#444).
+/// What the Apple Music API said about the library playlists' covers (#444).
 actor AppleMusicGeneratedCoverCache {
     /// The app's one cache, shared by the sidebar's provider and the one Search uses.
     static let shared = AppleMusicGeneratedCoverCache()
 
+    /// The API's last answer, `nil` until one arrived. A failed lookup keeps the one before.
+    private(set) var covers: [AppleMusicPlaylistCover]?
+    /// The playlists the last listing found with a generated cover, by library ID and, for
+    /// shared ones, by catalog ID, for search results.
     private(set) var playlistIDs: Set<String> = []
+    private var lookup: Task<Void, Never>?
 
     func store(_ ids: Set<String>) {
         playlistIDs = ids
+    }
+
+    /// The lookup in flight, or a new one. It always runs to its end (its paging is capped), so
+    /// a library too big to read before a listing's timeout still gets its answer for the next
+    /// listing, and only one runs at a time however often the sidebar refreshes.
+    func refresh(using source: any AppleMusicContentSource) -> Task<Void, Never> {
+        if let lookup { return lookup }
+        let lookup = Task {
+            let answer = try? await source.libraryPlaylistCovers()
+            finish(answer)
+        }
+        self.lookup = lookup
+        return lookup
+    }
+
+    private func finish(_ answer: [AppleMusicPlaylistCover]?) {
+        if let answer { covers = answer }
+        lookup = nil
     }
 }
 

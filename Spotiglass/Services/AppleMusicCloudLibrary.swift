@@ -233,6 +233,8 @@ struct AppleMusicPlaylistCover: Equatable, Sendable {
     let isGenerated: Bool
 
     static func isGenerated(artworkURL: String?) -> Bool {
+        // No artwork at all: the API knows of no cover the user picked or that was made from
+        // the songs, so what MusicKit hands out for it is the generated one too.
         guard let artworkURL else { return true }
         return artworkURL.contains("/image/thumb/gen/")
     }

@@ -45,7 +45,9 @@ struct SidebarRow<Artwork: View, Title: View, Accessory: View>: View {
             Spacer(minLength: 0)
             accessory()
         }
-        .frame(height: SpotiglassDesign.Layout.sidebarRowHeight)
+        // A floor, not a cap: content that ever outgrows it makes the row taller instead of
+        // drawing over the next one, and `SidebarRowLayoutTests` notices.
+        .frame(minHeight: SpotiglassDesign.Layout.sidebarRowHeight)
         .contentShape(Rectangle())
     }
 

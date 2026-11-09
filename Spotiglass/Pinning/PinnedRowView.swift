@@ -30,6 +30,8 @@ struct PinnedRowView: View {
                         .foregroundStyle(Color.primary)
                         .padding(SpotiglassDesign.Layout.badgeInsets)
                         .background(.quaternary, in: Capsule())
+                        // The row's one-line limit cuts the title, never the badge that explains it.
+                        .fixedSize()
                 }
             }
         } accessory: {
