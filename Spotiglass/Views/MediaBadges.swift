@@ -54,17 +54,12 @@ struct PinnedBadge: View {
     }
 }
 
-/// Placeholder artwork for Liked Songs, which has no cover image of its own.
-///
-/// Previously drawn four different ways. Three surfaces used a secondary fill
-/// with an accent-tinted heart and a border, while the Home tile used a
-/// hard-coded sRGB gradient with a white heart and no border, so it was the one
-/// Liked Songs tile that ignored light mode, the accent color and increased
-/// contrast.
-struct LikedSongsArtwork: View {
+/// A symbol on the same tile as a missing cover, for sidebar rows and destinations that have no
+/// artwork of their own (Search, Home, Liked Songs), so they line up with the covers around them.
+struct SymbolArtwork: View {
+    let systemImage: String
     let size: CGFloat
-    /// Filled heart while the row is selected or the tile is the current
-    /// destination, matching the sidebar row's behavior.
+    /// Draws the symbol in the accent color (Liked Songs while it is the current destination).
     var isEmphasized: Bool = false
     var cornerRadius: CGFloat = SpotiglassDesign.cornerS
 
@@ -72,14 +67,14 @@ struct LikedSongsArtwork: View {
 
     /// Keeps the glyph proportional to the tile instead of hard-coding a size
     /// per call site.
-    private var glyphSize: CGFloat { max(14, size * 0.42) }
+    private var glyphSize: CGFloat { max(SpotiglassDesign.spacingS, size * 0.42) }
 
     var body: some View {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
             .fill(.secondary.opacity(0.16))
             .frame(width: size, height: size)
             .overlay {
-                Image(systemName: isEmphasized ? "heart.fill" : "heart")
+                Image(systemName: systemImage)
                     .font(.system(size: glyphSize, weight: .semibold))
                     .foregroundStyle(
                         isEmphasized
@@ -95,5 +90,30 @@ struct LikedSongsArtwork: View {
                         lineWidth: 1
                     )
             }
+            .accessibilityHidden(true)
+    }
+}
+
+/// Placeholder artwork for Liked Songs, which has no cover image of its own.
+///
+/// Previously drawn four different ways. Three surfaces used a secondary fill
+/// with an accent-tinted heart and a border, while the Home tile used a
+/// hard-coded sRGB gradient with a white heart and no border, so it was the one
+/// Liked Songs tile that ignored light mode, the accent color and increased
+/// contrast.
+struct LikedSongsArtwork: View {
+    let size: CGFloat
+    /// Filled heart while the row is selected or the tile is the current
+    /// destination, matching the sidebar row's behavior.
+    var isEmphasized: Bool = false
+    var cornerRadius: CGFloat = SpotiglassDesign.cornerS
+
+    var body: some View {
+        SymbolArtwork(
+            systemImage: isEmphasized ? "heart.fill" : "heart",
+            size: size,
+            isEmphasized: isEmphasized,
+            cornerRadius: cornerRadius
+        )
     }
 }

@@ -3,9 +3,17 @@ import SwiftUI
 
 struct PlaylistBrowserView: View {
     @StateObject var viewModel: PlaylistBrowserViewModel
-    @ObservedObject var playbackViewModel: PlaybackSessionViewModel
-    @StateObject var queueViewModel: QueueViewModel
-    @StateObject var lyricsViewModel = ImmersiveLyricsViewModel()
+    /// Not observed, and neither are the queue and the lyrics: observing them re-ran this whole
+    /// body, and with it the sidebar, the detail column and every visible row, on each
+    /// play/pause and each new track (#422). The bar and ``BrowserPlaybackReactions`` observe the
+    /// player; the rows read their own playing state.
+    let playbackViewModel: PlaybackSessionViewModel
+    @StateObject private var queueViewModelHolder: UnobservedStateObject<QueueViewModel>
+    @StateObject private var lyricsViewModelHolder = UnobservedStateObject(ImmersiveLyricsViewModel())
+    var queueViewModel: QueueViewModel { queueViewModelHolder.object }
+    var lyricsViewModel: ImmersiveLyricsViewModel { lyricsViewModelHolder.object }
+    /// The player's device, kept here because Play, Shuffle and Add to Queue depend on it.
+    @State var playbackDeviceID: String?
     @EnvironmentObject var pinnedStore: PinnedItemsStore
     @EnvironmentObject var lyricsOverlay: LyricsOverlayController
     @Environment(\.spotiglassLocale) private var spotiglassLocale
@@ -49,7 +57,8 @@ struct PlaylistBrowserView: View {
     /// enough for all three columns, so the sidebar stayed collapsed; it comes back once they
     /// fit, or at the next widening after the queue closed (``BrowserWidthCommitPolicy/sidebarOnWidening(_:sidebarCollapsed:heldForQueue:isQueueVisible:isNarrow:)``).
     @State var isSidebarHeldForQueue = false
-    @ObservedObject var commandPaletteManager: CommandPaletteManager
+    /// Only written to, so not observed (#422).
+    let commandPaletteManager: CommandPaletteManager
     /// Catalog search and profile lookups for the command palette, Search view
     /// and tap targets. Separate from the view model's provider so palette
     /// searches never share its request state.
@@ -99,9 +108,10 @@ struct PlaylistBrowserView: View {
         )
 
         _viewModel = StateObject(wrappedValue: viewModel)
-        _playbackViewModel = ObservedObject(wrappedValue: playbackViewModel)
-        _queueViewModel = StateObject(wrappedValue: queueViewModel)
-        _commandPaletteManager = ObservedObject(wrappedValue: commandPaletteManager)
+        self.playbackViewModel = playbackViewModel
+        _queueViewModelHolder = StateObject(wrappedValue: UnobservedStateObject(queueViewModel))
+        _playbackDeviceID = State(initialValue: playbackViewModel.deviceID)
+        self.commandPaletteManager = commandPaletteManager
         self.catalogProvider = catalogProvider
         self.signOut = signOut
         self.playbackMode = playbackMode
@@ -122,9 +132,13 @@ struct PlaylistBrowserView: View {
         return SpotiglassL10n.format("browser.disconnect.hint.switch", next.displayName)
     }
 
-    /// Where you are, falling back to the app name at the root.
+    /// Where you are, falling back to the app name at the root. With the lyrics open that is
+    /// the lyrics, not the page underneath them (#438).
     private var windowTitle: String {
-        BrowserToolbarPresentation.windowTitle(
+        if lyricsOverlay.isPresented {
+            return SpotiglassL10n.string("playback.controls.lyrics")
+        }
+        return BrowserToolbarPresentation.windowTitle(
             for: viewModel.breadcrumbPath,
             locale: spotiglassLocale
         )
@@ -158,7 +172,6 @@ struct PlaylistBrowserView: View {
                     pinDroppedTransfers: pinDroppedTransfers,
                     header: sidebarHeader
                 )
-                .toolbar(removing: lyricsOverlay.isPresented ? .sidebarToggle : nil)
                 .navigationSplitViewColumnWidth(
                     min: SpotiglassDesign.playlistSidebarMinWidth,
                     ideal: SpotiglassDesign.sidebarWidth
@@ -174,12 +187,22 @@ struct PlaylistBrowserView: View {
                         queueViewModel: queueViewModel,
                         pendingPlaylistListScrollRestoreID: $pendingPlaylistListScrollRestoreID,
                         detailLastVisibleTrackID: $detailLastVisibleTrackID,
-                        currentPlaybackURI: currentPlaybackURI,
-                        isCurrentlyPlaying: isCurrentlyPlaying,
                         hasPlaybackDevice: hasPlaybackDevice,
                         onRequestCreatePlaylist: requestCreatePlaylist,
                         onRequestLibraryContinuation: requestLibraryContinuation
                     )
+                    // The page is covered while the lyrics are open: VoiceOver, Tab and the
+                    // page's own shortcuts must not reach rows you can't see.
+                    .disabled(lyricsOverlay.isPresented)
+                    .accessibilityHidden(lyricsOverlay.isPresented)
+                    // Lyrics take the place of the page in this column only, so the sidebar,
+                    // the queue and the player bar below stay as on every other screen (#438).
+                    .overlay {
+                        LyricsOverlayLayer(
+                            lyricsOverlay: lyricsOverlay,
+                            keymapStore: commandPaletteManager.keymapStore
+                        )
+                    }
                 } queueColumn: {
                     QueuePanelColumn(
                         browserViewModel: viewModel,
@@ -193,16 +216,12 @@ struct PlaylistBrowserView: View {
             }
             switch playbackMode {
             case .live:
-                // The bar shows and controls the music you hear (#396): the other service's
-                // player while it plays and nothing plays here.
-                let transport = playbackViewModel.audiblePlayer
-                PlaybackControlsView(
-                    viewModel: transport,
+                BrowserTransportBar(
+                    playbackViewModel: playbackViewModel,
                     isLyricsPresented: isLyricsPresentedBinding,
                     openArtist: { target in
                         openArtistFromTapTarget(target)
-                    },
-                    otherService: transport === playbackViewModel ? nil : transport.service
+                    }
                 )
             case let .unavailable(message):
                 PlaybackUnavailableBar(message: message)
@@ -222,31 +241,13 @@ struct PlaylistBrowserView: View {
         .onGeometryChange(for: CGFloat.self, of: \.size.width) { _, newWidth in
             commitBrowserContentWidthIfNeeded(newWidth)
         }
-        .task(id: lyricsPrefetchTrack?.uri) {
-            guard let track = lyricsPrefetchTrack, track.lyricsTrackKey != nil else { return }
-            await Task(priority: .userInitiated) {
-                await lyricsViewModel.preload(track: track)
-            }.value
-        }
-        .task(id: lyricsHalfwayNextPreloadTaskID) {
-            guard let current = lyricsPrefetchTrack,
-                  current.durationMilliseconds > 0,
-                  current.lyricsTrackKey != nil
-            else { return }
-            let halfMs = current.durationMilliseconds / 2
-            let waitMs = max(0, halfMs - current.positionMilliseconds)
-            if waitMs > 0 {
-                try? await Task.sleep(nanoseconds: UInt64(waitMs) * 1_000_000)
-            }
-            guard !Task.isCancelled else { return }
-            await Task(priority: .userInitiated) {
-                await queueViewModel.prefetchQueueForLyricsOverlay()
-                guard let nextPlayback = queueViewModel.upcomingItems.first?.playbackNowPlayingForLyricsPrefetch(),
-                      let nextID = nextPlayback.lyricsTrackKey
-                else { return }
-                guard nextID != current.lyricsTrackKey else { return }
-                await lyricsViewModel.preload(track: nextPlayback)
-            }.value
+        .background {
+            BrowserPlaybackReactions(
+                playbackViewModel: playbackViewModel,
+                queueViewModel: queueViewModel,
+                lyricsViewModel: lyricsViewModel,
+                commandPaletteManager: commandPaletteManager
+            )
         }
         .background(.background)
         // An empty title left the window untitled: blank in the Window menu, in
@@ -265,48 +266,55 @@ struct PlaylistBrowserView: View {
             }
             // At the root there is no trail and nothing to go back to, so the
             // item would render as an empty capsule beside the window title.
-            if viewModel.canNavigateBack || !viewModel.breadcrumbPath.isEmpty {
+            // The trail belongs to the page under the lyrics, so it leaves with that page (#438).
+            if !lyricsOverlay.isPresented, viewModel.canNavigateBack || !viewModel.breadcrumbPath.isEmpty {
                 ToolbarItem(placement: .navigation) {
                     NavigationToolbarChrome(viewModel: viewModel)
                 }
             }
-            if lyricsOverlay.isPresented {
-                ToolbarItemGroup(placement: .automatic) {
+            // With the lyrics open the bar keeps what still applies (the queue panel stays next
+            // to them) and trades Refresh and Disconnect for closing the lyrics: Refresh would
+            // reload a page that isn't showing (#438).
+            ToolbarItemGroup(placement: .automatic) {
+                Button {
+                    isQueueVisible.toggle()
+                } label: {
+                    Label(SpotiglassL10n.string("browser.queue"), systemImage: "list.bullet.indent")
+                }
+                .help(
+                    isQueueVisible
+                        ? SpotiglassL10n.string("tooltip.toolbar.queue.hide")
+                        : SpotiglassL10n.string("tooltip.toolbar.queue.show")
+                )
+                .accessibilityHint(SpotiglassL10n.string("browser.queue.hint"))
+
+                if lyricsOverlay.isPresented {
+                    // Moves the lyrics into the small window that can stay above other apps (#439).
+                    Button {
+                        commandPaletteManager.execute(commandID: CommandPaletteCommandID.popOutLyrics)
+                    } label: {
+                        Label(SpotiglassL10n.string("lyrics.popOut.button"), systemImage: "pip.enter")
+                    }
+                    .help(SpotiglassL10n.string("lyrics.popOut.button.help"))
+
                     Button {
                         lyricsOverlay.dismiss()
                     } label: {
-                        Label(SpotiglassL10n.string("browser.closeLyrics"), systemImage: "xmark.circle")
+                        Label(SpotiglassL10n.string("browser.closeLyrics"), systemImage: "xmark")
                     }
                     .help(SpotiglassL10n.string("browser.closeLyrics"))
                     .accessibilityHint(SpotiglassL10n.string("browser.closeLyrics.hint"))
-                }
-                ToolbarItem(placement: .primaryAction) {
-                    unifiedRefreshToolbarButton
-                }
-            } else {
-                ToolbarItemGroup(placement: .automatic) {
+                } else if canDisconnect {
                     Button {
-                        isQueueVisible.toggle()
+                        isConfirmingDisconnect = true
                     } label: {
-                        Label(SpotiglassL10n.string("browser.queue"), systemImage: "list.bullet.indent")
+                        Label(SpotiglassL10n.string("browser.disconnect"), systemImage: "rectangle.portrait.and.arrow.right")
                     }
-                    .help(
-                        isQueueVisible
-                            ? SpotiglassL10n.string("tooltip.toolbar.queue.hide")
-                            : SpotiglassL10n.string("tooltip.toolbar.queue.show")
-                    )
-                    .accessibilityHint(SpotiglassL10n.string("browser.queue.hint"))
-
-                    if canDisconnect {
-                        Button {
-                            isConfirmingDisconnect = true
-                        } label: {
-                            Label(SpotiglassL10n.string("browser.disconnect"), systemImage: "rectangle.portrait.and.arrow.right")
-                        }
-                        .help(SpotiglassL10n.string("browser.disconnect"))
-                        .accessibilityHint(Self.disconnectHint(switchingTo: disconnectSwitchesTo))
-                    }
+                    .help(SpotiglassL10n.string("browser.disconnect"))
+                    .accessibilityHint(Self.disconnectHint(switchingTo: disconnectSwitchesTo))
                 }
+            }
+            if !lyricsOverlay.isPresented {
                 ToolbarItem(placement: .primaryAction) {
                     unifiedRefreshToolbarButton
                 }
@@ -387,14 +395,12 @@ struct PlaylistBrowserView: View {
         .onChange(of: viewModel.selectedDetailTrackIDs) { _, _ in
             syncTrackSelectionMenuState()
         }
-        .onChange(of: playbackViewModel.deviceID) { _, _ in
+        // `$deviceID` announces the new id before storing it: keep the value it delivers.
+        .onReceive(playbackViewModel.$deviceID) { deviceID in
+            if playbackDeviceID != deviceID { playbackDeviceID = deviceID }
+        }
+        .onChange(of: playbackDeviceID) { _, _ in
             syncTrackSelectionMenuState()
-        }
-        .onChange(of: playbackViewModel.connectionState) { _, _ in
-            commandPaletteManager.setPlaybackTransportMutability(playbackViewModel.isTransportMutationReady)
-        }
-        .onChange(of: playbackViewModel.isTransportStateKnown) { _, _ in
-            commandPaletteManager.setPlaybackTransportMutability(playbackViewModel.isTransportMutationReady)
         }
         .onChange(of: pinnedStore.items) { _, _ in
             // Auth teardown detaches this scene before clearing account-bound
@@ -408,6 +414,9 @@ struct PlaylistBrowserView: View {
     }
 
     var body: some View {
+        #if DEBUG
+        let _ = ViewBodyTally.record("PlaylistBrowserView")
+        #endif
         browserCommandBindings
         .onChange(of: isQueueVisible) { _, visible in
             queueViewModel.setPanelVisible(visible)
@@ -442,14 +451,11 @@ struct PlaylistBrowserView: View {
         .onChange(of: lyricsOverlay.isPresented) { _, _ in
             syncUnifiedRefreshRoutingToViewModel()
         }
-        .onChange(of: playbackViewModel.sdkNextTracks) { _, _ in
-            queueViewModel.handleSdkQueueSnapshotChanged()
-        }
-        .onChange(of: playbackViewModel.repeatMode) { _, _ in
-            queueViewModel.syncFromPlaybackSession()
-        }
-        .onChange(of: queueRelevantPlaybackKey) { _, _ in
-            queueViewModel.handlePlaybackStateChange()
+        // The sidebar, the queue and the player bar stay usable next to the lyrics, so you can
+        // go somewhere else while they are open (a sidebar row, an artist link, Back). The new
+        // page would load out of sight under the lyrics, so going there closes them (#438).
+        .onChange(of: LyricsCoveredPage(viewModel)) { oldPage, newPage in
+            if lyricsOverlay.isPresented, newPage.isAnotherPage(than: oldPage) { lyricsOverlay.dismiss() }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             queueViewModel.setAppActive(true)
@@ -481,5 +487,149 @@ struct PlaylistBrowserView: View {
         }
         .modifier(PlaylistDeletionConfirmation(viewModel: viewModel))
         .modifier(LibraryRemovalConfirmation(viewModel: viewModel))
+    }
+}
+
+/// Which page sits under the lyrics: the sidebar row and the trail pushed on top of it, by id.
+/// Titles and covers are left out, so a rename or a sharper cover doesn't count as going
+/// somewhere else.
+struct LyricsCoveredPage: Equatable {
+    let selection: SidebarSelection?
+    let trail: [String]
+
+    @MainActor
+    init(_ viewModel: PlaylistBrowserViewModel) {
+        selection = viewModel.sidebarSelection
+        trail = viewModel.breadcrumbPath.map { crumb in
+            switch crumb.kind {
+            case .search: "search"
+            case .likedSongs: "likedSongs"
+            case let .playlist(id): "playlist:\(id)"
+            case let .artist(id): "artist:\(id)"
+            case let .album(id, _, _, _): "album:\(id)"
+            }
+        }
+    }
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.selection == rhs.selection && lhs.trail == rhs.trail
+    }
+
+    /// A pinned row is selected only for a moment: a pinned song plays and the previous row is
+    /// selected again, so that round trip stays on the page. A pinned playlist, album or
+    /// artist opens its page, which changes the trail.
+    func isAnotherPage(than old: Self) -> Bool {
+        if trail != old.trail { return true }
+        guard selection != old.selection else { return false }
+        return !Self.isPinnedRow(selection) && !Self.isPinnedRow(old.selection)
+    }
+
+    private static func isPinnedRow(_ selection: SidebarSelection?) -> Bool {
+        if case .pinnedItem = selection { return true }
+        return false
+    }
+}
+
+/// The player bar. It observes the player, so a play/pause re-renders the bar, not the browser
+/// around it (#422).
+private struct BrowserTransportBar: View {
+    @ObservedObject var playbackViewModel: PlaybackSessionViewModel
+    let isLyricsPresented: Binding<Bool>
+    let openArtist: (ArtistTapTarget) -> Void
+
+    var body: some View {
+        // The bar shows and controls the music you hear (#396): the other service's player
+        // while it plays and nothing plays here.
+        let transport = playbackViewModel.audiblePlayer
+        PlaybackControlsView(
+            viewModel: transport,
+            isLyricsPresented: isLyricsPresented,
+            openArtist: openArtist,
+            otherService: transport === playbackViewModel ? nil : transport.service
+        )
+    }
+}
+
+/// What the browser does when the player changes: refresh the queue, preload lyrics, update the
+/// menus. A view of its own that draws nothing and observes the player and the queue, so a
+/// play/pause or a new track runs this small body instead of the whole browser's (#422).
+private struct BrowserPlaybackReactions: View {
+    @ObservedObject var playbackViewModel: PlaybackSessionViewModel
+    @ObservedObject var queueViewModel: QueueViewModel
+    let lyricsViewModel: ImmersiveLyricsViewModel
+    let commandPaletteManager: CommandPaletteManager
+
+    /// Now playing track used to prefetch LRCLIB lyrics before the lyrics overlay opens (only while transport is playing).
+    private var lyricsPrefetchTrack: PlaybackNowPlaying? {
+        PlaylistBrowserPlaybackHelpers.lyricsPrefetchTrack(connectionState: playbackViewModel.connectionState)
+    }
+
+    /// Stable per playing track; used to schedule halfway next-track lyrics prefetch.
+    private var lyricsHalfwayNextPreloadTaskID: String? {
+        PlaylistBrowserPlaybackHelpers.lyricsHalfwayNextPreloadTaskID(
+            prefetchTrack: lyricsPrefetchTrack,
+            nextQueueURI: queueViewModel.upcomingItems.first?.uri
+        )
+    }
+
+    /// Playback identity without scrubber position ticks (avoids re-running queue hooks every progress frame).
+    private var queueRelevantPlaybackKey: String {
+        PlaylistBrowserPlaybackHelpers.queueRelevantPlaybackKey(connectionState: playbackViewModel.connectionState)
+    }
+
+    var body: some View {
+        Color.clear
+            .accessibilityHidden(true)
+            .task(id: lyricsPrefetchTrack?.uri) {
+                guard let track = lyricsPrefetchTrack, track.lyricsTrackKey != nil else { return }
+                await Task(priority: .userInitiated) {
+                    await lyricsViewModel.preload(track: track)
+                }.value
+            }
+            .task(id: lyricsHalfwayNextPreloadTaskID) {
+                guard let current = lyricsPrefetchTrack,
+                      current.durationMilliseconds > 0,
+                      current.lyricsTrackKey != nil
+                else { return }
+                let halfMs = current.durationMilliseconds / 2
+                let waitMs = max(0, halfMs - current.positionMilliseconds)
+                if waitMs > 0 {
+                    try? await Task.sleep(nanoseconds: UInt64(waitMs) * 1_000_000)
+                }
+                guard !Task.isCancelled else { return }
+                await Task(priority: .userInitiated) {
+                    await queueViewModel.prefetchQueueForLyricsOverlay()
+                    guard let nextPlayback = queueViewModel.upcomingItems.first?.playbackNowPlayingForLyricsPrefetch(),
+                          let nextID = nextPlayback.lyricsTrackKey
+                    else { return }
+                    guard nextID != current.lyricsTrackKey else { return }
+                    await lyricsViewModel.preload(track: nextPlayback)
+                }.value
+            }
+            .onChange(of: playbackViewModel.connectionState) { _, _ in
+                commandPaletteManager.setPlaybackTransportMutability(playbackViewModel.isTransportMutationReady)
+            }
+            .onChange(of: playbackViewModel.isTransportStateKnown) { _, _ in
+                commandPaletteManager.setPlaybackTransportMutability(playbackViewModel.isTransportMutationReady)
+            }
+            .onChange(of: playbackViewModel.sdkNextTracks) { _, _ in
+                queueViewModel.handleSdkQueueSnapshotChanged()
+            }
+            .onChange(of: playbackViewModel.repeatMode) { _, _ in
+                queueViewModel.syncFromPlaybackSession()
+            }
+            .onChange(of: queueRelevantPlaybackKey) { _, _ in
+                queueViewModel.handlePlaybackStateChange()
+            }
+    }
+}
+
+/// Keeps an object for the life of a view, as `@StateObject` does, without re-rendering the view
+/// when the object changes. For objects a view only calls into or hands to other views (#422).
+final class UnobservedStateObject<Object: AnyObject>: ObservableObject {
+    let object: Object
+
+    init(_ object: Object) {
+        self.object = object
     }
 }

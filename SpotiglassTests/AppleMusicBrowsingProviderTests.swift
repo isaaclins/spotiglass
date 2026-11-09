@@ -241,6 +241,315 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         XCTAssertEqual(playlists.count, AppleMusicBrowsingProvider.maxLibraryPlaylists)
     }
 
+    // MARK: - Generated playlist covers (#444)
+
+    /// What `/v1/me/library/playlists` answered for a real library (names changed): Apple serves
+    /// the gradient it generates for a playlist without a cover from `/image/thumb/gen/`, and a
+    /// cover the user picked, or one made from the songs, from anywhere else.
+    static let libraryPlaylistsPage = """
+    {"next": "/v1/me/library/playlists?offset=100", "data": [
+      {"id": "p.8Wx6vr6UMd0g55p", "type": "library-playlists", "attributes": {"name": "Road",
+        "artwork": {"url": "https://is1-ssl.mzstatic.com/image/thumb/gen/1200x1200AM.PDCXS11.jpg?c1=9DF2E0&c2=FF7240&c3=B37700&c4=401300&signature=29ae8d80"},
+        "playParams": {"id": "p.8Wx6vr6UMd0g55p", "kind": "playlist", "isLibrary": true}}},
+      {"id": "p.YJXV7dEIe7gZkkd", "type": "library-playlists", "attributes": {"name": "Mix",
+        "artwork": {"url": "https://is1-ssl.mzstatic.com/image/thumb/SG-MQ-US-004-Image-000001/v4/dc/b5/62/dcb5628a/image/{w}x{h}bb.jpg"},
+        "playParams": {"id": "p.YJXV7dEIe7gZkkd", "kind": "playlist", "isLibrary": true}}},
+      {"id": "p.3VKWkoGsbWBYJJ7", "type": "library-playlists", "attributes": {"name": "Shared",
+        "artwork": {"url": "https://is1-ssl.mzstatic.com/image/thumb/gen/1200x1200AM.PDCXS11.jpg?c1=F2DC9D"},
+        "playParams": {"id": "p.3VKWkoGsbWBYJJ7", "kind": "playlist", "isLibrary": true, "globalId": "pl.u-ZmblDrrtVmXYkko"}}},
+      {"id": "p.kGoqBQrsd03ZKKQ", "type": "library-playlists", "attributes": {"name": "Untouched"}}
+    ]}
+    """
+
+    func testLibraryPlaylistsPageTellsGeneratedCoversFromRealOnes() throws {
+        let page = try AppleMusicPlaylistCover.page(from: Data(Self.libraryPlaylistsPage.utf8))
+
+        XCTAssertEqual(page.next, "/v1/me/library/playlists?offset=100")
+        XCTAssertEqual(page.covers, [
+            AppleMusicPlaylistCover(name: "Road", globalID: nil, isGenerated: true),
+            AppleMusicPlaylistCover(name: "Mix", globalID: nil, isGenerated: false),
+            AppleMusicPlaylistCover(name: "Shared", globalID: "pl.u-ZmblDrrtVmXYkko", isGenerated: true),
+            // No artwork at all is no cover of its own either.
+            AppleMusicPlaylistCover(name: "Untouched", globalID: nil, isGenerated: true),
+        ])
+    }
+
+    /// MusicKit on the Mac hands out Apple's generated gradient (the name printed small in its
+    /// corner) like a real cover. The sidebar showed a wall of them; those playlists now come
+    /// without a cover, so the placeholder shows.
+    func testPlaylistsWithAGeneratedCoverAreListedWithoutOne() async throws {
+        let source = MockAppleMusicSource()
+        source.playlists = [
+            try AppleMusicFixtures.playlist(id: "-7585332124925747685", name: "Road"),
+            try AppleMusicFixtures.playlist(id: "-2449795120789511213", name: "Mix"),
+            try AppleMusicFixtures.playlist(id: "46595082274209082", name: "Not in the cloud"),
+        ]
+        source.playlistCovers = try AppleMusicPlaylistCover.page(from: Data(Self.libraryPlaylistsPage.utf8)).covers
+
+        let playlists = try await AppleMusicBrowsingProvider(source: source).currentUserPlaylists(limit: 50)
+
+        XCTAssertNil(playlists[0].imageURL, "generated gradient")
+        XCTAssertNotNil(playlists[1].imageURL, "a real cover stays")
+        XCTAssertNotNil(playlists[2].imageURL, "nothing known about it: the cover stays")
+    }
+
+    func testSharedPlaylistsMatchByCatalogIDAndSameNamesKeepARealCover() {
+        let covers = [
+            AppleMusicPlaylistCover(name: "Summer", globalID: nil, isGenerated: true),
+            AppleMusicPlaylistCover(name: "Summer", globalID: nil, isGenerated: false),
+            AppleMusicPlaylistCover(name: "Renamed here", globalID: "pl.u-1", isGenerated: true),
+            AppleMusicPlaylistCover(name: "Gym", globalID: nil, isGenerated: true),
+            AppleMusicPlaylistCover(name: "Gym", globalID: nil, isGenerated: true),
+        ]
+        let ids = AppleMusicPlaylistCover.generatedPlaylistIDs(
+            [
+                (id: "1", name: "Summer", globalID: nil),
+                (id: "2", name: "Shared", globalID: "pl.u-1"),
+                (id: "3", name: "Gym", globalID: nil),
+            ],
+            covers: covers
+        )
+        // Two "Summer" playlists, one with a real cover: which is which is unknown, so both keep
+        // theirs rather than risk hiding a real one.
+        XCTAssertEqual(ids, ["2", "3"])
+    }
+
+    /// A catalog ID that names another playlist is a mismatch, not a reason to fall back to the
+    /// name: while the local and cloud libraries are out of sync, a shared "Gym" with a real
+    /// cover must not take the generated cover of a different "Gym".
+    func testAPlaylistWithACatalogIDIsNeverMatchedByNameAlone() {
+        let covers = [
+            AppleMusicPlaylistCover(name: "Gym", globalID: "pl.u-other", isGenerated: true),
+            AppleMusicPlaylistCover(name: "Mix", globalID: "pl.u-shared", isGenerated: true),
+        ]
+        let ids = AppleMusicPlaylistCover.generatedPlaylistIDs(
+            [
+                (id: "1", name: "Gym", globalID: "pl.u-real"),
+                // An own playlist named like a shared one is a different playlist.
+                (id: "2", name: "Mix", globalID: nil),
+            ],
+            covers: covers
+        )
+        XCTAssertEqual(ids, [])
+    }
+
+    func testTheCatalogIDIsReadFromALibraryPlaylist() throws {
+        let shared = try AppleMusicFixtures.playlist(id: "p.1", name: "Shared", globalID: "pl.u-ZmblDrrtVmXYkko")
+        XCTAssertEqual(AppleMusicItemMapping.globalID(of: shared), "pl.u-ZmblDrrtVmXYkko")
+        XCTAssertNil(AppleMusicItemMapping.globalID(of: try AppleMusicFixtures.playlist(id: "p.2", name: "Own")))
+    }
+
+    /// Once the API has answered, listings use that answer straight away and never wait on the
+    /// network: a slow lookup finishes in the background and the next listing uses it.
+    func testListingsWaitOnlyForTheFirstAnswerAndALaterOneIsUsedNextTime() async throws {
+        let source = MockAppleMusicSource()
+        source.playlists = [try AppleMusicFixtures.playlist(id: "-1", name: "Road")]
+        source.playlistCovers = [AppleMusicPlaylistCover(name: "Road", globalID: nil, isGenerated: true)]
+        let covers = AppleMusicGeneratedCoverCache()
+        let provider = AppleMusicBrowsingProvider(source: source, generatedCovers: covers, coverLookupTimeout: .seconds(60))
+
+        let first = try await provider.currentUserPlaylists(limit: 50)
+        XCTAssertNil(first.first?.imageURL, "waited for the first answer")
+        let firstMissed = await provider.missedCoverAnswer()
+        XCTAssertFalse(firstMissed, "it applied the answer itself, so no second listing is needed")
+
+        let gate = TrackCountGate()
+        source.playlistCoversGate = gate
+        source.playlistCovers = [AppleMusicPlaylistCover(name: "Road", globalID: nil, isGenerated: false)]
+        let started = ContinuousClock.now
+        let second = try await provider.currentUserPlaylists(limit: 50)
+        XCTAssertLessThan(ContinuousClock.now - started, .seconds(10), "didn't wait out the 60 s timeout")
+        XCTAssertNil(second.first?.imageURL, "the answer it already had")
+
+        gate.open()
+        await covers.refresh(using: source).value
+        let secondMissed = await provider.missedCoverAnswer()
+        XCTAssertTrue(secondMissed, "the slow lookup's answer came after the listing")
+        let third = try await provider.currentUserPlaylists(limit: 50)
+        XCTAssertNotNil(third.first?.imageURL, "the slow lookup's answer, now the user picked a cover")
+        let thirdMissed = await provider.missedCoverAnswer()
+        XCTAssertFalse(thirdMissed)
+    }
+
+    /// A library too big to read before the timeout still gets the placeholder: the lookup that
+    /// lost the race runs on and the next listing uses its answer.
+    func testALookupSlowerThanTheTimeoutIsUsedByTheNextListing() async throws {
+        let source = MockAppleMusicSource()
+        source.playlists = [try AppleMusicFixtures.playlist(id: "-1", name: "Road")]
+        source.playlistCovers = [AppleMusicPlaylistCover(name: "Road", globalID: nil, isGenerated: true)]
+        let gate = TrackCountGate()
+        source.playlistCoversGate = gate
+        let covers = AppleMusicGeneratedCoverCache()
+        let provider = AppleMusicBrowsingProvider(source: source, generatedCovers: covers, coverLookupTimeout: .milliseconds(50))
+
+        let first = try await provider.currentUserPlaylists(limit: 50)
+        XCTAssertNotNil(first.first?.imageURL, "no answer yet: Apple's cover stays")
+
+        // The sidebar lists once per launch, so the late answer is announced and the provider
+        // reports the listing on screen as missing it.
+        let announced = expectation(forNotification: AppleMusicGeneratedCoverCache.answerChangedNotification, object: covers)
+        gate.open()
+        await fulfillment(of: [announced], timeout: 5)
+        let missed = await provider.missedCoverAnswer()
+        XCTAssertTrue(missed)
+        let next = try await provider.currentUserPlaylists(limit: 50)
+        XCTAssertNil(next.first?.imageURL)
+        let stillMissed = await provider.missedCoverAnswer()
+        XCTAssertFalse(stillMissed)
+    }
+
+    /// The same covers in another order are no new answer, or every listing would ask for the
+    /// next one.
+    func testTheSameCoversInAnotherOrderAreNoNewAnswer() async {
+        let source = MockAppleMusicSource()
+        let road = AppleMusicPlaylistCover(name: "Road", globalID: nil, isGenerated: true)
+        let mix = AppleMusicPlaylistCover(name: "Mix", globalID: nil, isGenerated: false)
+        source.playlistCovers = [road, mix]
+        let covers = AppleMusicGeneratedCoverCache()
+        await covers.refresh(using: source).value
+        let before = await covers.answerVersion
+
+        source.playlistCovers = [mix, road]
+        await covers.refresh(using: source).value
+        let after = await covers.answerVersion
+        XCTAssertEqual(after, before)
+    }
+
+    /// Losing Apple Music access forgets the answer, and a lookup started before doesn't bring
+    /// the old account's answer back.
+    func testAResetForgetsTheAnswerAndDropsALookupStartedBefore() async throws {
+        let source = MockAppleMusicSource()
+        source.playlistCovers = [AppleMusicPlaylistCover(name: "Road", globalID: nil, isGenerated: true)]
+        let covers = AppleMusicGeneratedCoverCache()
+        await covers.refresh(using: source).value
+        let answered = await covers.covers
+        XCTAssertNotNil(answered)
+
+        let gate = TrackCountGate()
+        source.playlistCoversGate = gate
+        let before = await covers.refresh(using: source)
+        await covers.reset()
+        gate.open()
+        await before.value
+
+        let afterReset = await covers.covers
+        XCTAssertNil(afterReset)
+        let ids = await covers.playlistIDs
+        XCTAssertEqual(ids, [])
+    }
+
+    /// A listing that read the answer before a reset doesn't store its result over the next
+    /// account's, even when both answers look the same.
+    func testAListingFromBeforeAResetDoesNotStoreItsResult() async {
+        let source = MockAppleMusicSource()
+        source.playlistCovers = [AppleMusicPlaylistCover(name: "Road", globalID: nil, isGenerated: true)]
+        let covers = AppleMusicGeneratedCoverCache()
+        await covers.refresh(using: source).value
+        let before = await covers.answer()
+
+        await covers.reset()
+        await covers.refresh(using: source).value
+        let now = await covers.answer()
+        await covers.store(["new"], forAnswer: now.version)
+        await covers.store(["old"], forAnswer: before.version)
+
+        let ids = await covers.playlistIDs
+        XCTAssertEqual(ids, ["new"])
+    }
+
+    /// An API that can't be reached keeps the last answer, and one that never answered keeps
+    /// every cover.
+    func testAnUnreachableAPIKeepsTheLastAnswer() async throws {
+        let source = MockAppleMusicSource()
+        source.playlists = [try AppleMusicFixtures.playlist(id: "-1", name: "Road")]
+        source.playlistCovers = [AppleMusicPlaylistCover(name: "Road", globalID: nil, isGenerated: true)]
+        let covers = AppleMusicGeneratedCoverCache()
+        let provider = AppleMusicBrowsingProvider(source: source, generatedCovers: covers)
+        _ = try await provider.currentUserPlaylists(limit: 50)
+
+        source.playlistCovers = nil
+        await covers.refresh(using: source).value
+        let offline = try await provider.currentUserPlaylists(limit: 50)
+        XCTAssertNil(offline.first?.imageURL)
+
+        let neverAnswered = try await AppleMusicBrowsingProvider(source: source).currentUserPlaylists(limit: 50)
+        XCTAssertNotNil(neverAnswered.first?.imageURL)
+    }
+
+    /// Two library playlists share a name and the API lists only one of them (the other is
+    /// local only, or not synced yet): which one it is is unknown, so both keep their covers.
+    func testANameTheAPIListsFewerTimesThanTheLibraryKeepsEveryCover() {
+        let ids = AppleMusicPlaylistCover.generatedPlaylistIDs(
+            [
+                (id: "1", name: "Road", globalID: nil),
+                (id: "2", name: "Road", globalID: nil),
+            ],
+            covers: [AppleMusicPlaylistCover(name: "Road", globalID: nil, isGenerated: true)]
+        )
+        XCTAssertEqual(ids, [])
+    }
+
+    /// Catalog search returns a shared playlist under its catalog ID, not its library ID, so
+    /// the generated cover the sidebar found must be dropped there too, or a pin made from that
+    /// result would bring the gradient back.
+    func testSearchDropsAGeneratedCoverOfASharedPlaylistFoundInTheCatalog() async throws {
+        let source = MockAppleMusicSource()
+        source.playlists = [try AppleMusicFixtures.playlist(id: "-1", name: "Shared", globalID: "pl.u-1")]
+        source.playlistCovers = [AppleMusicPlaylistCover(name: "Shared", globalID: "pl.u-1", isGenerated: true)]
+        source.catalogSearchItems = AppleMusicSearchItems(
+            playlists: [try AppleMusicFixtures.playlist(id: "pl.u-1", name: "Shared")]
+        )
+        let covers = AppleMusicGeneratedCoverCache()
+        _ = try await AppleMusicBrowsingProvider(source: source, generatedCovers: covers).currentUserPlaylists(limit: 50)
+
+        let results = try await AppleMusicBrowsingProvider(source: source, generatedCovers: covers)
+            .search(query: "shared", limit: 10)
+
+        let found = try XCTUnwrap(results.playlists.first { $0.id == "pl.u-1" })
+        XCTAssertNil(found.imageURL)
+        XCTAssertNil(PinnedItem.playlist(found).artworkURL, "a pin made from the result")
+    }
+
+    /// Cancelling a listing (the sidebar going away, a service switch) doesn't wait out the
+    /// cover lookup's timeout.
+    func testCancellingAListingDoesNotWaitForTheCoverLookup() async throws {
+        let source = MockAppleMusicSource()
+        source.playlists = [try AppleMusicFixtures.playlist(id: "-1", name: "Road")]
+        let gate = TrackCountGate()
+        source.playlistCoversGate = gate
+        defer { gate.open() }
+        let provider = AppleMusicBrowsingProvider(source: source, coverLookupTimeout: .seconds(60))
+
+        let started = ContinuousClock.now
+        let listing = Task { try await provider.currentUserPlaylists(limit: 50) }
+        try await Task.sleep(for: .milliseconds(100))
+        listing.cancel()
+        _ = try? await listing.value
+
+        XCTAssertLessThan(ContinuousClock.now - started, .seconds(10))
+    }
+
+    /// Library playlists in search results are the same playlists as in the sidebar, so they
+    /// get the same placeholder. The Search page and the command palette search through a
+    /// provider of their own (`catalogProvider`), which never lists the library, so the two share
+    /// one cache, as `AppleMusicBrowserRoot` wires them.
+    func testSearchShowsLibraryPlaylistsWithTheSidebarsPlaceholder() async throws {
+        let source = MockAppleMusicSource()
+        let road = try AppleMusicFixtures.playlist(id: "-1", name: "Road")
+        source.playlists = [road]
+        source.playlistCovers = [AppleMusicPlaylistCover(name: "Road", globalID: nil, isGenerated: true)]
+        source.librarySearchItems = AppleMusicSearchItems(playlists: [road])
+        let covers = AppleMusicGeneratedCoverCache()
+        let sidebar = AppleMusicBrowsingProvider(source: source, generatedCovers: covers)
+        let search = AppleMusicBrowsingProvider(source: source, generatedCovers: covers)
+        _ = try await sidebar.currentUserPlaylists(limit: 50)
+
+        let results = try await search.search(query: "road", limit: 10)
+
+        XCTAssertEqual(results.playlists.map(\.name), ["Road"])
+        XCTAssertNil(results.playlists.first?.imageURL)
+    }
+
     // MARK: - Playlist track counts (#407)
 
     /// MusicKit lists library playlists without their tracks, so the listing itself has no count.
@@ -1320,6 +1629,16 @@ private final class MockAppleMusicSource: AppleMusicContentSource, @unchecked Se
         guard let countryCode else { throw URLError(.userAuthenticationRequired) }
         return countryCode
     }
+
+    /// `nil` answers like an API that can't be reached.
+    var playlistCovers: [AppleMusicPlaylistCover]? = []
+    var playlistCoversGate: TrackCountGate?
+
+    func libraryPlaylistCovers() async throws -> [AppleMusicPlaylistCover] {
+        await playlistCoversGate?.wait()
+        guard let playlistCovers else { throw URLError(.notConnectedToInternet) }
+        return playlistCovers
+    }
 }
 
 // MARK: - Artwork size on screen
@@ -1484,9 +1803,13 @@ enum AppleMusicFixtures {
         curator: String? = nil,
         kind: String? = nil,
         trackCount: Int? = nil,
-        lastModified: String? = nil
+        lastModified: String? = nil,
+        globalID: String? = nil
     ) throws -> Playlist {
         var attributes: [String: Any] = ["name": name, "artwork": artwork(id)]
+        if let globalID {
+            attributes["playParams"] = ["id": id, "kind": "playlist", "isLibrary": true, "globalId": globalID]
+        }
         if let curator { attributes["curatorName"] = curator }
         if let lastModified { attributes["lastModifiedDate"] = lastModified }
         if let kind { attributes["playlistType"] = kind }

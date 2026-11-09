@@ -8,11 +8,12 @@ import SwiftUI
 struct CatalogSearchView: View {
     @ObservedObject var viewModel: PlaylistBrowserViewModel
     @ObservedObject var searchViewModel: CatalogSearchViewModel
-    @ObservedObject var playbackViewModel: PlaybackSessionViewModel
-    @ObservedObject var queueViewModel: QueueViewModel
+    /// Not observed: only the actions use them, and each track row reads by itself whether it is
+    /// the playing one. Observing them re-rendered this view and every row on each play/pause
+    /// and each new track (#422).
+    let playbackViewModel: PlaybackSessionViewModel
+    let queueViewModel: QueueViewModel
 
-    let currentPlaybackURI: String?
-    let isPlaying: Bool
     let hasPlaybackDevice: Bool
     /// Shared playlist-creation prompt supplied by the browser detail host.
     let onRequestCreatePlaylist: (([TrackRowViewModel]) -> Void)?
@@ -30,8 +31,6 @@ struct CatalogSearchView: View {
         searchViewModel: CatalogSearchViewModel,
         playbackViewModel: PlaybackSessionViewModel,
         queueViewModel: QueueViewModel,
-        currentPlaybackURI: String?,
-        isPlaying: Bool,
         hasPlaybackDevice: Bool,
         onRequestCreatePlaylist: (([TrackRowViewModel]) -> Void)? = nil,
         onRequestLibraryContinuation: ((TrackRowViewModel) -> Void)? = nil
@@ -40,8 +39,6 @@ struct CatalogSearchView: View {
         self.searchViewModel = searchViewModel
         self.playbackViewModel = playbackViewModel
         self.queueViewModel = queueViewModel
-        self.currentPlaybackURI = currentPlaybackURI
-        self.isPlaying = isPlaying
         self.hasPlaybackDevice = hasPlaybackDevice
         self.onRequestCreatePlaylist = onRequestCreatePlaylist
         self.onRequestLibraryContinuation = onRequestLibraryContinuation
@@ -226,53 +223,50 @@ struct CatalogSearchView: View {
         VStack(alignment: .leading, spacing: SpotiglassDesign.Layout.sectionTitleSpacing) {
             HomeSectionHeader(title: CatalogSearchCategory.tracks.pillLabel)
             let playableURIs = tracks.compactMap(\.playableURI)
-            // An Apple Music song started from another list carries that list's id (#396).
-            let playingURI = PlaylistBrowserPlaybackHelpers.rowURI(
-                markedAs: currentPlaybackURI,
-                connectionState: playbackViewModel.connectionState,
-                rows: tracks
-            )
+            let marks = TrackRowPlaybackSource(session: playbackViewModel).marks(in: tracks)
             ForEach(tracks) { track in
-                TrackListRow(
-                    trackNumber: track.listPosition,
-                    track: track,
-                    playURI: { uri in
-                        Task {
-                            await playbackViewModel.playFromPlaylist(
-                                clickedURI: uri,
-                                playableURIs: playableURIs,
-                                playlistID: nil
-                            )
+                marks.row(for: track) { mark in
+                    TrackListRow(
+                        trackNumber: track.listPosition,
+                        track: track,
+                        playURI: { uri in
+                            Task {
+                                await playbackViewModel.playFromPlaylist(
+                                    clickedURI: uri,
+                                    playableURIs: playableURIs,
+                                    playlistID: nil
+                                )
+                            }
+                        },
+                        togglePlayPause: {
+                            Task { await playbackViewModel.togglePlayPause() }
+                        },
+                        isCurrent: mark.isCurrent,
+                        isPlaying: mark.isPlaying,
+                        openArtist: { artistID in
+                            Task { await viewModel.selectArtist(id: artistID, origin: .extend, displayName: nil) }
+                        },
+                        trackOpsMenuItems: {
+                            AnyView(TrackOpsMenuItems(
+                                targets: [track],
+                                browserViewModel: viewModel,
+                                sourcePlaylistID: nil,
+                                onRequestCreatePlaylist: onRequestCreatePlaylist,
+                                onRequestLibraryContinuation: onRequestLibraryContinuation,
+                                openArtist: { target in
+                                    if let id = target.id {
+                                        Task { await viewModel.selectArtist(id: id, origin: .extend, displayName: nil) }
+                                    }
+                                },
+                                addToQueue: { uri in
+                                    await queueViewModel.addToQueue(uri: uri)
+                                },
+                                hasPlaybackDevice: hasPlaybackDevice,
+                                copyableURI: track.playableURI
+                            ))
                         }
-                    },
-                    togglePlayPause: {
-                        Task { await playbackViewModel.togglePlayPause() }
-                    },
-                    isCurrent: track.playableURI != nil && track.playableURI == playingURI,
-                    isPlaying: isPlaying,
-                    openArtist: { artistID in
-                        Task { await viewModel.selectArtist(id: artistID, origin: .extend, displayName: nil) }
-                    },
-                    trackOpsMenuItems: {
-                        AnyView(TrackOpsMenuItems(
-                            targets: [track],
-                            browserViewModel: viewModel,
-                            sourcePlaylistID: nil,
-                            onRequestCreatePlaylist: onRequestCreatePlaylist,
-                            onRequestLibraryContinuation: onRequestLibraryContinuation,
-                            openArtist: { target in
-                                if let id = target.id {
-                                    Task { await viewModel.selectArtist(id: id, origin: .extend, displayName: nil) }
-                                }
-                            },
-                            addToQueue: { uri in
-                                await queueViewModel.addToQueue(uri: uri)
-                            },
-                            hasPlaybackDevice: hasPlaybackDevice,
-                            copyableURI: track.playableURI
-                        ))
-                    }
-                )
+                    )
+                }
             }
         }
     }

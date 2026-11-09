@@ -486,24 +486,43 @@ struct PlaybackControlsView: View {
             // row: there it sat on the title's baseline, above the centre line
             // every other part of the bar shares (#427).
             if showsLyricsButton {
+                // The bar stays under the open lyrics (#438), so the button toggles them and
+                // shows when they are open, like Repeat and Shuffle show their state.
                 PlaybackTransportButton(
                     accessibilityLabel: SpotiglassL10n.string("playback.controls.lyrics"),
-                    accessibilityHint: SpotiglassL10n.string("playback.controls.lyrics.hint"),
+                    accessibilityHint: lyricsButtonHint,
                     size: SpotiglassDesign.Layout.inlineButtonFrame,
-                    action: { isLyricsPresented = true }
+                    action: { isLyricsPresented.toggle() }
                 ) {
                     Image(systemName: "music.note.list")
                         .font(.body.weight(.medium))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(
+                            isLyricsPresented
+                                ? AnyShapeStyle(SpotiglassAccentStyle())
+                                : AnyShapeStyle(.secondary)
+                        )
                 }
                 .frame(width: SpotiglassDesign.Layout.inlineButtonSize, height: SpotiglassDesign.Layout.inlineButtonSize)
-                .help(SpotiglassL10n.string("tooltip.playback.lyrics"))
+                .accessibilityAddTraits(isLyricsPresented ? .isSelected : [])
+                .help(lyricsButtonTooltip)
             }
         }
         // Keep the summary as an accessibility container, not a replacement
         // element. The artwork and title Lyrics controls and each artist are
         // real Buttons and must remain separate VoiceOver actions (#267).
         .accessibilityElement(children: .contain)
+    }
+
+    var lyricsButtonTooltip: String {
+        isLyricsPresented
+            ? SpotiglassL10n.string("browser.closeLyrics")
+            : SpotiglassL10n.string("tooltip.playback.lyrics")
+    }
+
+    private var lyricsButtonHint: String {
+        isLyricsPresented
+            ? SpotiglassL10n.string("browser.closeLyrics.hint")
+            : SpotiglassL10n.string("playback.controls.lyrics.hint")
     }
 
     @ViewBuilder
@@ -517,13 +536,15 @@ struct PlaybackControlsView: View {
                             size: PlaybackTransportLayoutPolicy.nowPlayingArtworkSize
                         )
                         PlaybackTransportButton(
-                            accessibilityLabel: SpotiglassL10n.string("playback.controls.openLyrics"),
-                            accessibilityHint: SpotiglassL10n.string("playback.controls.lyrics.hint"),
+                            accessibilityLabel: isLyricsPresented
+                                ? SpotiglassL10n.string("browser.closeLyrics")
+                                : SpotiglassL10n.string("playback.controls.openLyrics"),
+                            accessibilityHint: lyricsButtonHint,
                             size: CGSize(
                                 width: PlaybackTransportLayoutPolicy.nowPlayingArtworkSize,
                                 height: PlaybackTransportLayoutPolicy.nowPlayingArtworkSize
                             ),
-                            action: { isLyricsPresented = true }
+                            action: { isLyricsPresented.toggle() }
                         ) {
                             EmptyView()
                         }
@@ -534,7 +555,7 @@ struct PlaybackControlsView: View {
                     )
                     .id("artwork:\(item.uri ?? item.name)")
                     .transition(.opacity.combined(with: .scale(scale: 0.94)))
-                    .help(SpotiglassL10n.string("tooltip.playback.lyrics"))
+                    .help(lyricsButtonTooltip)
                 } else {
                     ArtworkView(
                         url: item.albumArtURL,

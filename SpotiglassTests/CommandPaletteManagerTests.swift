@@ -187,6 +187,27 @@ final class CommandPaletteManagerTests: XCTestCase {
         XCTAssertTrue(ids().isSuperset(of: gated))
     }
 
+    /// #438: Refresh would reload the page under the lyrics, so the palette doesn't offer it
+    /// while they are open, and offers it again once they close.
+    func testPaletteLeavesOutRefreshWhileLyricsAreOpen() {
+        let manager = CommandPaletteManager()
+        manager.isSignedIn = true
+        var lyricsOpen = false
+        manager.isLyricsPresented = { lyricsOpen }
+        func offersRefresh() -> Bool {
+            manager.viewModel.staticItemsProvider().contains { $0.id == CommandPaletteCommandID.refreshPlaylists }
+        }
+
+        XCTAssertTrue(offersRefresh())
+        lyricsOpen = true
+        XCTAssertFalse(offersRefresh(), "the palette offers Refresh for the page under the lyrics")
+        lyricsOpen = false
+        XCTAssertTrue(offersRefresh())
+
+        manager.detach()
+        XCTAssertNil(manager.isLyricsPresented, "detach left the lyrics state of a closed scene behind")
+    }
+
     func testLyricsCommandRequiresCurrentMusicTrack() {
         let manager = CommandPaletteManager()
         manager.isSignedIn = true

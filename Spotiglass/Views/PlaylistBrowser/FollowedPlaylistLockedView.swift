@@ -6,7 +6,8 @@ import SwiftUI
 /// whole playlist in-app or open it in Spotify.
 struct FollowedPlaylistLockedView: View {
     let info: LockedPlaylistInfo
-    @ObservedObject var playbackViewModel: PlaybackSessionViewModel
+    /// Only its Play button uses the session, so it doesn't observe it (#422).
+    let playbackViewModel: PlaybackSessionViewModel
 
     var body: some View {
         VStack(spacing: SpotiglassDesign.spacingM) {
