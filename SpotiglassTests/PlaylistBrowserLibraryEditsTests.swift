@@ -105,6 +105,27 @@ final class PlaylistBrowserLibraryEditsTests: XCTestCase {
         XCTAssertEqual(viewModel.trackMutationToast, SpotiglassL10n.format("playlist.mutation.deletedPlaylist", "Spotiglass test"))
     }
 
+    /// A deleted playlist leaves the back history: back names the place
+    /// before it and opens that, not "Playlist" and an unavailable page.
+    func testBackSkipsADeletedPlaylist() async {
+        let api = LibraryEditsMockAPI(edits: .all)
+        let doomed = playlist("-1", "Spotiglass test")
+        api.playlists = [doomed, playlist("-2", "Italian")]
+        let viewModel = await makeViewModel(api)
+        await viewModel.selectSidebar(.playlist("-2"))
+        await viewModel.selectSidebar(.playlist("-1"))
+
+        await viewModel.deletePlaylist(doomed)
+
+        XCTAssertEqual(viewModel.sidebarSelection, .home)
+        XCTAssertFalse(viewModel.backNavigationStack.contains(.sidebar(.playlist("-1"))))
+        XCTAssertEqual(viewModel.backDestination, .sidebar(.playlist("-2")))
+        XCTAssertEqual(viewModel.backDestination.map { viewModel.displayName(for: $0) }, "Italian")
+
+        await viewModel.navigateBack()
+        XCTAssertEqual(viewModel.sidebarSelection, .playlist("-2"))
+    }
+
     func testAFailedDeletionKeepsThePlaylist() async {
         let api = LibraryEditsMockAPI(edits: .all)
         let doomed = playlist("-1", "Spotiglass test")

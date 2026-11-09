@@ -99,6 +99,7 @@ extension PlaylistBrowserViewModel {
                 return crumb.label
             }
             return cachedArtistSnapshots[id]?.snapshot.artistDetail.name
+                ?? backNavigationArtistNames[id]
                 ?? SpotiglassL10n.string("browser.breadcrumb.artistFallback", locale: locale)
         case let .album(_, title, _, _):
             return title
@@ -115,7 +116,29 @@ extension PlaylistBrowserViewModel {
     }
 
     func syncCanNavigateBack() {
-        canNavigateBack = !backNavigationStack.isEmpty
+        // The same test ``navigateBack()`` uses: entries equal to the current
+        // place are skipped, so they alone give back nowhere to go.
+        canNavigateBack = backDestination != nil
+    }
+
+    /// Keeps an artist's name for the back button once the breadcrumb that
+    /// held it is gone. Only artists still in the history are kept.
+    func rememberArtistNameForBack(_ name: String?, artistID: String) {
+        if let name, !name.isEmpty {
+            backNavigationArtistNames[artistID] = name
+        }
+        let inHistory = Set((backNavigationStack + [currentNavigationTarget].compactMap { $0 }).compactMap { target in
+            if case let .artist(id) = target { return id }
+            return nil
+        })
+        backNavigationArtistNames = backNavigationArtistNames.filter { inHistory.contains($0.key) }
+    }
+
+    /// Takes a place that no longer exists (a deleted playlist) out of the
+    /// history, so back neither names it nor opens an empty page.
+    func forgetNavigationTarget(_ target: BrowserNavigationTarget) {
+        backNavigationStack.removeAll { $0 == target }
+        syncCanNavigateBack()
     }
 
     func applyBreadcrumbForSidebar(_ selection: SidebarSelection, origin: BrowserNavigationOrigin) {
@@ -261,6 +284,7 @@ extension PlaylistBrowserViewModel {
     }
 
     func refineLastBreadcrumbArtistLabelIfNeeded(artistID: String, resolvedName: String) {
+        rememberArtistNameForBack(resolvedName, artistID: artistID)
         guard let idx = breadcrumbPath.indices.last,
               case let .artist(aid) = breadcrumbPath[idx].kind,
               aid == artistID,

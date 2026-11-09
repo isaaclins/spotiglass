@@ -255,6 +255,39 @@ final class BrowserChromeViewsTests: XCTestCase {
         XCTAssertFalse(named.contains(AppMetadata.displayName))
     }
 
+    /// Leaving an artist before its page loads drops the breadcrumb that knew
+    /// the name and caches nothing, yet back still opens that artist. It has
+    /// to keep naming them instead of saying "Artist".
+    func testBackNamesAnArtistLeftBeforeTheirPageLoaded() async throws {
+        let entered = LibraryEditsGate()
+        let release = LibraryEditsGate()
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
+            trackResults: [:],
+            artistAlbumsHandler: { _, _, _ in
+                entered.open()
+                await release.wait()
+                return []
+            }
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+        await viewModel.load()
+        await viewModel.selectSidebar(.search)
+
+        let opening = Task { @MainActor in
+            await viewModel.selectArtist(id: "artist-xyz", origin: .extend, displayName: "Malcolm Todd")
+        }
+        await entered.wait()
+        await viewModel.selectSidebar(.home)
+        release.open()
+        await opening.value
+
+        XCTAssertNil(viewModel.cachedArtistSnapshots["artist-xyz"])
+        XCTAssertEqual(viewModel.backDestination, .artist("artist-xyz"))
+        let chrome = NavigationToolbarChrome(viewModel: viewModel)
+        XCTAssertEqual(chrome.destinationDescription, "Go back to Malcolm Todd")
+    }
+
     /// Every app language names the destination, not just English.
     func testBackDestinationIsLocalized() async throws {
         let api = MockBrowsingAPI(
