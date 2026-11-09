@@ -161,8 +161,8 @@ struct HomeView: View {
                         },
                         isCurrent: mark.isCurrent,
                         isPlaying: mark.isPlaying,
-                        openArtist: { artistID in
-                            Task { await viewModel.selectArtist(id: artistID, origin: .extend, displayName: nil) }
+                        openArtist: { artist in
+                            Task { await viewModel.selectArtist(id: artist.id, origin: .extend, displayName: artist.name) }
                         },
                         trackOpsMenuItems: {
                             AnyView(TrackOpsMenuItems(
@@ -173,7 +173,7 @@ struct HomeView: View {
                                 onRequestLibraryContinuation: onRequestLibraryContinuation,
                                 openArtist: { target in
                                     if let id = target.id {
-                                        Task { await viewModel.selectArtist(id: id, origin: .extend, displayName: nil) }
+                                        Task { await viewModel.selectArtist(id: id, origin: .extend, displayName: target.name) }
                                     }
                                 },
                                 addToQueue: { uri in

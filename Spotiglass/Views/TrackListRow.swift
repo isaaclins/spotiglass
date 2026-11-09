@@ -104,7 +104,8 @@ struct TrackListRow: View {
     let togglePlayPause: () -> Void
     let isCurrent: Bool
     let isPlaying: Bool
-    let openArtist: (String) -> Void
+    /// The artist that was clicked, with the name this row shows for it.
+    let openArtist: (MusicArtistRef) -> Void
     /// When set, the row participates in drag-to-pin for this surface (e.g. `pl:<playlistId>` or `ar:<artistID>`).
     var tracksSurfaceID: String? = nil
     /// Selection is normally painted by the enclosing native `List`. The value
@@ -319,7 +320,7 @@ struct TrackListRow: View {
                             .foregroundStyle(.secondary)
                     }
                     Button {
-                        openArtist(ref.id)
+                        openArtist(ref)
                     } label: {
                         Text(ref.name)
                             .font(.caption)

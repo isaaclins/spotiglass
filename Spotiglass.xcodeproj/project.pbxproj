@@ -89,7 +89,7 @@
 		D40000000000000000000005 /* TrackListRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000015 /* TrackListRow.swift */; };
 		SRC000000000000000000001B /* TrackListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC000000000000000008001B /* TrackListView.swift */; };
 		D40000000000000000000006 /* ArtistDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000016 /* ArtistDetailView.swift */; };
-		D40000000000000000000008 /* BreadcrumbToolbarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000018 /* BreadcrumbToolbarView.swift */; };
+		D40000000000000000000008 /* BrowserToolbarPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000018 /* BrowserToolbarPresentation.swift */; };
 		D40000000000000000000009 /* NavigationToolbarChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = D40000000000000000000019 /* NavigationToolbarChrome.swift */; };
 		D4000000000000000000003A /* PlaylistBrowserViewModel+Navigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4000000000000000000002A /* PlaylistBrowserViewModel+Navigation.swift */; };
 		D4000000000000000000003D /* PlaylistBrowserViewModel+ErrorMapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4000000000000000000002D /* PlaylistBrowserViewModel+ErrorMapping.swift */; };
@@ -540,7 +540,7 @@
 		D40000000000000000000015 /* TrackListRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackListRow.swift; sourceTree = "<group>"; };
 		SRC000000000000000008001B /* TrackListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackListView.swift; sourceTree = "<group>"; };
 		D40000000000000000000016 /* ArtistDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtistDetailView.swift; sourceTree = "<group>"; };
-		D40000000000000000000018 /* BreadcrumbToolbarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BreadcrumbToolbarView.swift; sourceTree = "<group>"; };
+		D40000000000000000000018 /* BrowserToolbarPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserToolbarPresentation.swift; sourceTree = "<group>"; };
 		D40000000000000000000019 /* NavigationToolbarChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationToolbarChrome.swift; sourceTree = "<group>"; };
 		D4000000000000000000002A /* PlaylistBrowserViewModel+Navigation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlaylistBrowserViewModel+Navigation.swift"; sourceTree = "<group>"; };
 		D4000000000000000000002D /* PlaylistBrowserViewModel+ErrorMapping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlaylistBrowserViewModel+ErrorMapping.swift"; sourceTree = "<group>"; };
@@ -1339,7 +1339,7 @@
 		D40000000000000000000021 /* Breadcrumbs */ = {
 			isa = PBXGroup;
 			children = (
-				D40000000000000000000018 /* BreadcrumbToolbarView.swift */,
+				D40000000000000000000018 /* BrowserToolbarPresentation.swift */,
 				D40000000000000000000019 /* NavigationToolbarChrome.swift */,
 			);
 			path = Breadcrumbs;
@@ -1779,7 +1779,7 @@
 				E60000000000000000000015 /* PlaylistBrowserView+TapTargets.swift in Sources */,
 				E60000000000000000000016 /* PlaylistBrowserView+CommandPalette.swift in Sources */,
 				D40000000000000000000002 /* PlaylistBrowserView.swift in Sources */,
-				D40000000000000000000008 /* BreadcrumbToolbarView.swift in Sources */,
+				D40000000000000000000008 /* BrowserToolbarPresentation.swift in Sources */,
 				D40000000000000000000009 /* NavigationToolbarChrome.swift in Sources */,
 				E50000000000000000000080 /* ImmersiveLyricsBackgroundLayer.swift in Sources */,
 				E50000000000000000000081 /* ImmersiveLyricsMainLayout.swift in Sources */,

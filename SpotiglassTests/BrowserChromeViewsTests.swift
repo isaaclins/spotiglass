@@ -10,73 +10,26 @@ final class BrowserChromeViewsTests: XCTestCase {
         super.tearDown()
     }
 
-    /// At the root the window title already names the app, so the breadcrumb
-    /// renders nothing rather than repeating it as an inert second copy (#161).
-    func testBreadcrumbToolbarEmptyPathShowsNothing() throws {
+    /// The title names where you are: the app at the root, the place after.
+    func testWindowTitleNamesTheCurrentPlace() async throws {
+        let liked = PlaylistBrowsingTestFixtures.track(id: "liked-one")
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
-            trackResults: [:]
+            trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]],
+            savedTracksResult: .success(MusicSavedTracksResult(tracks: [liked], totalAvailable: 1))
         )
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
-        let view = BreadcrumbToolbarView(viewModel: viewModel)
-
-        ViewTestHost.host(view, size: CGSize(width: 400, height: 44))
-        XCTAssertThrowsError(try view.inspect().find(text: AppMetadata.displayName))
-        XCTAssertTrue(BrowserToolbarPresentation.ancestors(of: viewModel.breadcrumbPath).isEmpty)
         XCTAssertEqual(
             BrowserToolbarPresentation.windowTitle(for: viewModel.breadcrumbPath),
             AppMetadata.displayName
         )
-    }
-
-    func testBreadcrumbToolbarShowsAncestorsAndLeavesCurrentLocationToWindowTitle() async throws {
-        let liked = PlaylistBrowsingTestFixtures.track(id: "liked-one")
-        let api = MockBrowsingAPI(
-            playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
-            trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]],
-            savedTracksResult: .success(MusicSavedTracksResult(tracks: [liked], totalAvailable: 1))
-        )
-        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
         await viewModel.load()
         await viewModel.selectSidebar(.likedSongs)
         await viewModel.selectArtist(id: "artist-xyz", origin: .extend, displayName: "Malcolm Todd")
-
-        let view = BreadcrumbToolbarView(viewModel: viewModel)
-        ViewTestHost.host(view, size: CGSize(width: 520, height: 44))
-        XCTAssertNoThrow(try view.inspect().find(text: "Liked Songs"))
-        XCTAssertThrowsError(try view.inspect().find(text: "Artist artist-xyz"))
         XCTAssertEqual(
             BrowserToolbarPresentation.windowTitle(for: viewModel.breadcrumbPath),
             "Artist artist-xyz"
         )
-    }
-
-    func testBreadcrumbToolbarHomeTapClearsTrail() async throws {
-        let liked = PlaylistBrowsingTestFixtures.track(id: "liked-one")
-        let api = MockBrowsingAPI(
-            playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
-            trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]],
-            savedTracksResult: .success(MusicSavedTracksResult(tracks: [liked], totalAvailable: 1))
-        )
-        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
-        await viewModel.load()
-        await viewModel.selectSidebar(.likedSongs)
-        XCTAssertFalse(viewModel.breadcrumbPath.isEmpty)
-
-        let view = BreadcrumbToolbarView(viewModel: viewModel)
-        ViewTestHost.host(view, size: CGSize(width: 520, height: 44))
-        // The home crumb is a real Button now, not a tap gesture, so that the
-        // trait it advertises matches a working action (#113).
-        try view.inspect().find(button: AppMetadata.displayName).tap()
-        let deadline = ContinuousClock.now.advanced(by: .seconds(2))
-        while !viewModel.breadcrumbPath.isEmpty, ContinuousClock.now < deadline {
-            await Task.yield()
-        }
-        XCTAssertTrue(
-            viewModel.breadcrumbPath.isEmpty,
-            "the home breadcrumb should clear the navigation trail"
-        )
-        XCTAssertEqual(viewModel.sidebarSelection, .home)
     }
 
     func testPlayingWaveformIconPausedAndPlaying() throws {
@@ -217,7 +170,7 @@ final class BrowserChromeViewsTests: XCTestCase {
         XCTAssertNoThrow(try view.inspect())
     }
 
-    func testNavigationToolbarChromeHidesBackWhenCannotNavigate() async throws {
+    func testNavigationToolbarChromeIsDisabledWhenCannotNavigate() async throws {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
             trackResults: [:]
@@ -226,10 +179,227 @@ final class BrowserChromeViewsTests: XCTestCase {
         await viewModel.load()
 
         let chrome = NavigationToolbarChrome(viewModel: viewModel)
-            .frame(width: 480, height: 44)
-        ViewTestHost.host(chrome, size: CGSize(width: 480, height: 44))
-        XCTAssertNoThrow(try chrome.inspect())
+        ViewTestHost.host(chrome, size: CGSize(width: 48, height: 32))
         XCTAssertFalse(viewModel.canNavigateBack)
+        XCTAssertTrue(try chrome.inspect().find(ViewType.Button.self).isDisabled())
+        XCTAssertNil(viewModel.backDestination)
+        XCTAssertEqual(chrome.destinationDescription, "Back")
+    }
+
+    /// #443: opening a playlist from Home showed "< Spotiglass" in small text,
+    /// as if back went to the app. Back must name Home, and nothing in the
+    /// toolbar may print the app name.
+    func testBackFromAPlaylistOpenedOnHomeNamesHomeNotTheApp() async throws {
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "fav", name: "Favourite Songs")])],
+            trackResults: ["fav": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]]
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+        await viewModel.load()
+        await viewModel.selectSidebar(.home)
+        await viewModel.selectSidebar(.playlist("fav"))
+        XCTAssertTrue(viewModel.canNavigateBack)
+
+        let chrome = NavigationToolbarChrome(viewModel: viewModel)
+        ViewTestHost.host(chrome, size: CGSize(width: 48, height: 32))
+        XCTAssertEqual(chrome.destinationDescription, "Go back to Home")
+        // VoiceOver reads a toolbar button's title, so the title names the place.
+        XCTAssertNoThrow(try chrome.inspect().find(text: "Go back to Home"))
+        XCTAssertFalse(try chrome.inspect().find(ViewType.Button.self).isDisabled())
+        XCTAssertThrowsError(try chrome.inspect().find(text: AppMetadata.displayName))
+    }
+
+    /// The label has to match what a click does: walk Liked Songs, an artist
+    /// and an album, then go back step by step and check every step lands on
+    /// the place the button named before the click.
+    func testBackButtonNamesEveryPlaceItThenOpens() async throws {
+        let liked = PlaylistBrowsingTestFixtures.track(id: "liked-one")
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
+            trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]],
+            savedTracksResult: .success(MusicSavedTracksResult(tracks: [liked], totalAvailable: 1))
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+        await viewModel.load()
+        await viewModel.selectSidebar(.home)
+        // The title of every place visited, in order: what back has to name
+        // and open again on the way out.
+        var visited: [String] = ["Home"]
+        await viewModel.selectSidebar(.likedSongs)
+        visited.append(BrowserToolbarPresentation.windowTitle(for: viewModel.breadcrumbPath))
+        await viewModel.selectArtist(id: "artist-xyz", origin: .extend, displayName: "Malcolm Todd")
+        visited.append(BrowserToolbarPresentation.windowTitle(for: viewModel.breadcrumbPath))
+        await viewModel.selectAlbum(
+            id: "album-1",
+            displayTitle: "Sweet Boy",
+            displaySubtitle: "Malcolm Todd",
+            artworkURL: nil,
+            origin: .extend
+        )
+
+        var named: [String] = []
+        var landed: [String] = []
+        while viewModel.canNavigateBack {
+            let destination = try XCTUnwrap(viewModel.backDestination)
+            named.append(viewModel.displayName(for: destination))
+            await viewModel.navigateBack()
+            landed.append(
+                viewModel.sidebarSelection == .home
+                    ? "Home"
+                    : BrowserToolbarPresentation.windowTitle(for: viewModel.breadcrumbPath)
+            )
+        }
+
+        XCTAssertEqual(named, Array(visited.reversed()))
+        XCTAssertEqual(named, landed)
+        XCTAssertFalse(named.contains(AppMetadata.displayName))
+    }
+
+    /// Leaving an artist before its page loads drops the breadcrumb that knew
+    /// the name and caches nothing, yet back still opens that artist. It has
+    /// to keep naming them instead of saying "Artist".
+    func testBackNamesAnArtistLeftBeforeTheirPageLoaded() async throws {
+        let entered = LibraryEditsGate()
+        let release = LibraryEditsGate()
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
+            trackResults: [:],
+            artistAlbumsHandler: { _, _, _ in
+                entered.open()
+                await release.wait()
+                return []
+            }
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+        await viewModel.load()
+        await viewModel.selectSidebar(.search)
+
+        let opening = Task { @MainActor in
+            await viewModel.selectArtist(id: "artist-xyz", origin: .extend, displayName: "Malcolm Todd")
+        }
+        await entered.wait()
+        await viewModel.selectSidebar(.home)
+        release.open()
+        await opening.value
+
+        XCTAssertNil(viewModel.cachedArtistSnapshots["artist-xyz"])
+        XCTAssertEqual(viewModel.backDestination, .artist("artist-xyz"))
+        let chrome = NavigationToolbarChrome(viewModel: viewModel)
+        XCTAssertEqual(chrome.destinationDescription, "Go back to Malcolm Todd")
+    }
+
+    /// An artist link in a track row hands over the name that row shows, not
+    /// one looked up elsewhere: with the same artist in two rows, one of them
+    /// with Spotify's "Unknown artist" placeholder, clicking Bonobo in the other
+    /// row must make back say Bonobo, even when the page never loaded.
+    func testBackNamesTheArtistAsTheClickedRowShowsThem() async throws {
+        func item(_ id: String, artistName: String) -> MusicPlaylistTrackItem {
+            MusicPlaylistTrackItem(
+                id: id,
+                content: .track(MusicTrack(
+                    id: id,
+                    name: "Track \(id)",
+                    artists: [artistName],
+                    artistRefs: [MusicArtistRef(id: "artist-bonobo", name: artistName)],
+                    albumArtworkURL: nil,
+                    durationMilliseconds: 237_000,
+                    isExplicit: false,
+                    isPlayable: true,
+                    linkedFromID: nil,
+                    uri: "spotify:track:\(id)"
+                ))
+            )
+        }
+        let items = [item("first", artistName: "Unknown artist"), item("kerala", artistName: "Bonobo")]
+        let rows = TrackRowViewModel.numberedPlaylistRows(items)
+
+        var clicked: MusicArtistRef?
+        let row = TrackListRow(
+            trackNumber: 2,
+            track: rows[1],
+            playURI: { _ in },
+            togglePlayPause: {},
+            isCurrent: false,
+            isPlaying: false,
+            openArtist: { clicked = $0 }
+        )
+        .environmentObject(PinnedItemsStore(cache: InMemoryPinnedItemsCache()))
+        ViewTestHost.host(row, size: CGSize(width: 520, height: 48))
+        try row.inspect().find(button: "Bonobo").tap()
+        let artist = try XCTUnwrap(clicked)
+        XCTAssertEqual(artist, MusicArtistRef(id: "artist-bonobo", name: "Bonobo"))
+
+        let entered = LibraryEditsGate()
+        let release = LibraryEditsGate()
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
+            trackResults: ["one": [.success(items)]],
+            artistAlbumsHandler: { _, _, _ in
+                entered.open()
+                await release.wait()
+                return []
+            }
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+        await viewModel.load()
+        await viewModel.selectSidebar(.playlist("one"))
+
+        let opening = Task { @MainActor in
+            await viewModel.selectArtist(id: artist.id, origin: .extend, displayName: artist.name)
+        }
+        await entered.wait()
+        XCTAssertEqual(BrowserToolbarPresentation.windowTitle(for: viewModel.breadcrumbPath), "Bonobo")
+        await viewModel.selectSidebar(.home)
+        release.open()
+        await opening.value
+
+        XCTAssertNil(viewModel.cachedArtistSnapshots["artist-bonobo"])
+        XCTAssertEqual(NavigationToolbarChrome(viewModel: viewModel).destinationDescription, "Go back to Bonobo")
+    }
+
+    /// Going back to an artist whose page failed to load replays them without
+    /// a name. The title and the next back must still say the name the link
+    /// showed, not "Artist".
+    func testGoingBackToAnArtistThatFailedToLoadKeepsTheirName() async throws {
+        struct Offline: Error {}
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
+            trackResults: [:],
+            artistAlbumsHandler: { _, _, _ in throw Offline() }
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+        await viewModel.load()
+        await viewModel.selectSidebar(.search)
+        await viewModel.selectArtist(id: "artist-bonobo", origin: .extend, displayName: "Bonobo")
+        XCTAssertNil(viewModel.cachedArtistSnapshots["artist-bonobo"])
+        await viewModel.selectSidebar(.home)
+
+        XCTAssertEqual(NavigationToolbarChrome(viewModel: viewModel).destinationDescription, "Go back to Bonobo")
+        await viewModel.navigateBack()
+        XCTAssertEqual(BrowserToolbarPresentation.windowTitle(for: viewModel.breadcrumbPath), "Bonobo")
+
+        await viewModel.selectArtist(id: "artist-tycho", origin: .extend, displayName: "Tycho")
+        XCTAssertEqual(NavigationToolbarChrome(viewModel: viewModel).destinationDescription, "Go back to Bonobo")
+    }
+
+    /// Every app language names the destination, not just English.
+    func testBackDestinationIsLocalized() async throws {
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "fav", name: "Favourite Songs")])],
+            trackResults: ["fav": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]]
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+        await viewModel.load()
+        await viewModel.selectSidebar(.home)
+        await viewModel.selectSidebar(.playlist("fav"))
+
+        let expected = ["en": "Go back to Home", "de": "Zurück zu Start", "es": "Volver a Inicio"]
+        for (identifier, text) in expected {
+            XCTAssertEqual(
+                NavigationToolbarChrome.destinationDescription(for: viewModel, locale: Locale(identifier: identifier)),
+                text
+            )
+        }
     }
 }
 

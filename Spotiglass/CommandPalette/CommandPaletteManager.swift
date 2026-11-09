@@ -76,7 +76,8 @@ final class CommandPaletteManager: ObservableObject {
     var seekBy: ((Int) async -> Void)?
     var playURI: ((String) async -> Void)?
     var openPlaylist: ((String) async -> Void)?
-    var openArtist: ((String) async -> Void)?
+    /// Artist ID and, when the caller knows it, the artist's name.
+    var openArtist: ((String, String?) async -> Void)?
     var openAlbum: ((String, String, String, URL?) async -> Void)?
     /// Opens the dedicated catalog Search view. Wired by the browser host.
     var openSearch: (() -> Void)?
@@ -456,7 +457,9 @@ final class CommandPaletteManager: ObservableObject {
             }
         case CommandPaletteCommandID.openArtist:
             if case let .string(artistID)? = args?["artistID"] {
-                Task { await openArtist?(artistID) }
+                var artistName: String?
+                if case let .string(name)? = args?["artistName"] { artistName = name }
+                Task { await openArtist?(artistID, artistName) }
             }
         case CommandPaletteCommandID.openAlbum:
             guard case let .string(albumID)? = args?["albumID"],
