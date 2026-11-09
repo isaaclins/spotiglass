@@ -75,6 +75,9 @@ final class CommandPaletteManager: ObservableObject {
     var prefetchAllPlaylists: (() -> Void)?
     /// When immersive lyrics are visible, return true after calling dismiss so Escape is consumed before keymaps/WebKit.
     var dismissLyricsOverlayIfPresented: (() -> Bool)?
+    /// Whether this scene's lyrics are open. Refresh leaves the palette while they are: it
+    /// would reload the page under them (#438).
+    var isLyricsPresented: (() -> Bool)?
     /// When set, Toggle Play/Pause only runs if this returns true (e.g. Web Playback transport ready).
     var playbackTogglePrerequisite: (() -> Bool)?
     /// Mirrors the session's effective local Play/Pause readiness for the menu bar
@@ -244,6 +247,15 @@ final class CommandPaletteManager: ObservableObject {
         .store(in: &playbackReadinessCancellables)
     }
 
+    /// Whether Escape is meant for what has the keyboard: a text field being edited, or a
+    /// sheet or prompt in front of the window.
+    static func escapeBelongsToFocusedControl(_ event: NSEvent) -> Bool {
+        guard let window = event.window else { return false }
+        if window.sheetParent != nil || window.attachedSheet != nil { return true }
+        if window is NSPanel { return true }
+        return window.firstResponder is NSText
+    }
+
     func handleKeyEvent(_ event: NSEvent) -> Bool {
         guard isCurrentScene() else { return false }
 
@@ -256,7 +268,10 @@ final class CommandPaletteManager: ObservableObject {
                 viewModel.hide()
                 return true
             }
-            if dismissLyricsOverlayIfPresented?() == true {
+            // The sidebar and the queue stay usable next to the lyrics (#438): Escape in a
+            // text field there (a playlist rename) or in a prompt over the window cancels
+            // that, not the lyrics.
+            if !Self.escapeBelongsToFocusedControl(event), dismissLyricsOverlayIfPresented?() == true {
                 return true
             }
         }
@@ -513,6 +528,7 @@ final class CommandPaletteManager: ObservableObject {
         toggleLyrics = nil
         prefetchAllPlaylists = nil
         dismissLyricsOverlayIfPresented = nil
+        isLyricsPresented = nil
         playbackTogglePrerequisite = nil
         playbackTransportMutationPrerequisite = nil
         repeatMutationPrerequisite = nil
@@ -523,6 +539,9 @@ final class CommandPaletteManager: ObservableObject {
             guard !spec.requiresSignInForPalette || isSignedIn else { return nil }
             guard spec.commandID != CommandPaletteCommandID.togglePlayback || canTogglePlayback else { return nil }
             guard spec.commandID != CommandPaletteCommandID.toggleLyrics || canToggleLyrics else { return nil }
+            guard spec.commandID != CommandPaletteCommandID.refreshPlaylists || isLyricsPresented?() != true else {
+                return nil
+            }
             // A service without Disconnect or that can't play (Apple Music without a
             // subscription) leaves these unwired; listing them would offer commands that do nothing.
             guard spec.commandID != CommandPaletteCommandID.signOut || signOut != nil else { return nil }

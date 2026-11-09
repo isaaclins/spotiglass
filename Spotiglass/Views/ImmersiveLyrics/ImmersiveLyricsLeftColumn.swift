@@ -7,93 +7,69 @@ struct ImmersiveLyricsLeftColumnView: View {
     let navigateToAlbum: (AlbumTapTarget, String, URL?) -> Void
     let currentTrack: PlaybackNowPlaying?
 
+    /// Narrow layout: the lyrics share the column with this header, so it shrinks to a small
+    /// cover beside the title and leaves Next in Queue to the queue panel (#438).
+    var isCompact = false
+
     var body: some View {
-        VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
-            if let track = currentTrack {
-                ArtworkView(url: track.albumArtURL, size: SpotiglassDesign.Layout.lyricsArtworkSize)
-                    .shadow(color: .black.opacity(0.45), radius: 28, y: 14)
-
-                HStack(alignment: .firstTextBaseline, spacing: SpotiglassDesign.spacingS) {
-                    Text(track.name)
-                        .font(.title2.weight(.bold))
-                        .foregroundStyle(.white)
-                        .lineLimit(3)
-                        .multilineTextAlignment(.leading)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                    Button {
-                        Task { await playbackViewModel.cycleRepeat() }
-                    } label: {
-                        Image(systemName: lyricsRepeatButtonIcon)
-                            .font(.title3.weight(.medium))
-                            .foregroundStyle(
-                                lyricsRepeatUsesAccent
-                                    ? AnyShapeStyle(SpotiglassAccentStyle())
-                                    : AnyShapeStyle(.white.opacity(0.5))
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(!playbackViewModel.isTransportMutationReady)
-                    .help(PlaybackTransportTooltips.repeatTooltip(currentMode: playbackViewModel.repeatMode))
-                    .accessibilityLabel(lyricsRepeatAccessibilityLabel)
-                    .accessibilityHint(SpotiglassL10n.string("playback.controls.repeat.hint"))
+        if let track = currentTrack {
+            if isCompact {
+                HStack(alignment: .center, spacing: SpotiglassDesign.spacingM) {
+                    ArtworkView(url: track.albumArtURL, size: SpotiglassDesign.Layout.lyricsCompactArtworkSize)
+                        .shadow(color: .black.opacity(0.45), radius: 12, y: 6)
+                    trackDetails(track, titleFont: .headline)
                 }
+            } else {
+                VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
+                    ArtworkView(url: track.albumArtURL, size: SpotiglassDesign.Layout.lyricsArtworkSize)
+                        .shadow(color: .black.opacity(0.45), radius: 28, y: 14)
 
-                ImmersiveLyricsArtistLineView(track: track, navigateToArtist: navigateToArtist)
+                    trackDetails(track, titleFont: .title2.weight(.bold))
 
-                if let album = track.albumName, !album.isEmpty {
-                    Button {
-                        navigateToAlbum(
-                            AlbumTapTarget(id: track.albumID, name: album),
-                            track.artistText,
-                            track.albumArtURL
-                        )
-                    } label: {
-                        Text(album)
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.5))
-                            .lineLimit(2)
-                            .multilineTextAlignment(.leading)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(String(format: SpotiglassL10n.string("lyrics.openAlbum"), album))
+                    ImmersiveLyricsNextInQueueSectionView(
+                        queueViewModel: queueViewModel,
+                        playbackViewModel: playbackViewModel,
+                        navigateToArtist: navigateToArtist,
+                        navigateToAlbum: navigateToAlbum
+                    )
                 }
-
-                ImmersiveLyricsNextInQueueSectionView(
-                    queueViewModel: queueViewModel,
-                    playbackViewModel: playbackViewModel,
-                    navigateToArtist: navigateToArtist,
-                    navigateToAlbum: navigateToAlbum
-                )
             }
         }
     }
 
-    private var lyricsRepeatButtonIcon: String {
-        switch playbackViewModel.repeatMode {
-        case .off, .context:
-            "infinity.circle"
-        case .track:
-            "infinity.circle.fill"
+    /// Title, artists and album. Repeat lives in the player bar, which stays visible under the
+    /// lyrics (#438).
+    private func trackDetails(_ track: PlaybackNowPlaying, titleFont: Font) -> some View {
+        VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
+            Text(track.name)
+                .font(titleFont.weight(.bold))
+                .foregroundStyle(.white)
+                .lineLimit(isCompact ? 2 : 3)
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            ImmersiveLyricsArtistLineView(track: track, navigateToArtist: navigateToArtist)
+
+            if let album = track.albumName, !album.isEmpty {
+                Button {
+                    navigateToAlbum(
+                        AlbumTapTarget(id: track.albumID, name: album),
+                        track.artistText,
+                        track.albumArtURL
+                    )
+                } label: {
+                    Text(album)
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.5))
+                        .lineLimit(isCompact ? 1 : 2)
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(String(format: SpotiglassL10n.string("lyrics.openAlbum"), album))
+            }
         }
     }
-
-    private var lyricsRepeatUsesAccent: Bool {
-        playbackViewModel.repeatMode != .off
-    }
-
-    private var lyricsRepeatAccessibilityLabel: String {
-        switch playbackViewModel.repeatMode {
-        case .off:
-            SpotiglassL10n.string("playback.repeat.off")
-        case .context:
-            SpotiglassL10n.string("playback.repeat.playlist")
-        case .track:
-            SpotiglassL10n.string("playback.repeat.one")
-        }
-    }
-
 }
 
 struct ImmersiveLyricsArtistLineView: View {

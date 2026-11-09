@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.8] - 2026-11-09
+
+### Fixed
+
+- The player bar stays visible while lyrics are open, and the top bar shows only lyrics controls.
+
 ## [0.8.7] - 2026-11-09
 
 ### Fixed

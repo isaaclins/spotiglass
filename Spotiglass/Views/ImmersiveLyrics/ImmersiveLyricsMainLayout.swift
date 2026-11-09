@@ -11,6 +11,9 @@ struct ImmersiveLyricsMainLayout: View {
     let reduceMotion: Bool
     let usesLyricsScrollEdgeFade: Bool
     let lyricsTextSize: LyricsTextMetrics
+    /// Height of the narrow header, measured: a long title or artist line wraps and makes it
+    /// taller than its 64 pt cover.
+    @State private var compactHeaderHeight = SpotiglassDesign.Layout.lyricsCompactArtworkSize
 
     /// Hand to the lyrics column so tapping a synced line seeks playback to
     /// that line's timestamp. The async hop is wrapped in a `Task` so the
@@ -53,14 +56,18 @@ struct ImmersiveLyricsMainLayout: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 } else {
+                    // Narrow: the lyrics now share the window with the sidebar and the player
+                    // bar, so a small header keeps the lyrics in view (#438).
                     VStack(alignment: .leading, spacing: SpotiglassDesign.spacingM) {
                         ImmersiveLyricsLeftColumnView(
                             playbackViewModel: playbackViewModel,
                             queueViewModel: queueViewModel,
                             navigateToArtist: navigateToArtist,
                             navigateToAlbum: navigateToAlbum,
-                            currentTrack: currentTrack
+                            currentTrack: currentTrack,
+                            isCompact: true
                         )
+                        .onGeometryChange(for: CGFloat.self, of: \.size.height) { compactHeaderHeight = $0 }
                         ImmersiveLyricsLyricsPhaseColumn(
                             lyricsModel: lyricsModel,
                             currentTrack: currentTrack,
@@ -68,8 +75,10 @@ struct ImmersiveLyricsMainLayout: View {
                             reduceMotion: reduceMotion,
                             usesLyricsScrollEdgeFade: usesLyricsScrollEdgeFade,
                             lyricsTextSize: lyricsTextSize,
-                            maxHeight: max(SpotiglassDesign.Layout.lyricsColumnMinHeight, usableHeight * 0.5)
+                            maxHeight: max(SpotiglassDesign.Layout.lyricsColumnMinHeight, usableHeight - compactHeaderHeight - SpotiglassDesign.spacingM),
+                            onSeek: seekHandler
                         )
+                        .frame(maxHeight: .infinity, alignment: .top)
                     }
                 }
             }

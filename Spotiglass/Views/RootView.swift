@@ -362,18 +362,9 @@ struct RootView: View {
 
     var body: some View {
         content
+            // The lyrics surface lives in the browser's main column (`PlaylistBrowserView`), so the
+            // sidebar, the toolbar and the player bar stay usable while it is open (#438).
             .environmentObject(lyricsOverlayController)
-            // The lyrics surface is a full-window modal. Hide the complete
-            // browser tree here, rather than only replacing the detail column,
-            // so the sidebar, queue and playback chrome leave the VoiceOver
-            // tree while the overlay is visible.
-            .accessibilityHidden(lyricsOverlayController.isPresented)
-            .overlay {
-                LyricsOverlayLayer(
-                    lyricsOverlay: lyricsOverlayController,
-                    keymapStore: commandPaletteManager.keymapStore
-                )
-            }
             .overlay {
                 ZStack {
                     if commandPaletteManager.viewModel.isPresented {
@@ -390,7 +381,6 @@ struct RootView: View {
                     .spring(response: 0.32, dampingFraction: 0.86),
                     value: commandPaletteManager.viewModel.isPresented
                 )
-                .accessibilityHidden(lyricsOverlayController.isPresented)
             }
             .background {
                 CommandPaletteEventMonitor(manager: commandPaletteManager)
@@ -659,57 +649,6 @@ struct RootView: View {
         case .signedIn, .refreshing:
             EmptyView()
         }
-    }
-}
-
-/// Renders ``ImmersiveLyricsView`` above the whole window (not only the split-view detail column).
-private struct LyricsOverlayLayer: View {
-    @ObservedObject var lyricsOverlay: LyricsOverlayController
-    let keymapStore: CommandPaletteKeymapStore
-    @EnvironmentObject private var settingsStore: SpotiglassSettingsStore
-
-    /// Avoid blocking the window when `isPresented` is true before browse VC has called `attach` (nil models).
-    private var immersiveLyricsReady: Bool {
-        lyricsOverlay.isPresented
-            && lyricsOverlay.playbackViewModel != nil
-            && lyricsOverlay.queueViewModel != nil
-            && lyricsOverlay.lyricsModel != nil
-            && lyricsOverlay.navigateToArtist != nil
-            && lyricsOverlay.navigateToAlbum != nil
-    }
-
-    var body: some View {
-        ZStack {
-            if immersiveLyricsReady,
-                let playback = lyricsOverlay.playbackViewModel,
-                let queue = lyricsOverlay.queueViewModel,
-                let lyrics = lyricsOverlay.lyricsModel,
-                let navigateArtist = lyricsOverlay.navigateToArtist,
-                let navigateAlbum = lyricsOverlay.navigateToAlbum
-            {
-                LyricsOverlayFocusContainer(
-                    content: ImmersiveLyricsView(
-                        playbackViewModel: playback,
-                        queueViewModel: queue,
-                        lyricsModel: lyrics,
-                        navigateToArtist: navigateArtist,
-                        navigateToAlbum: navigateAlbum,
-                        onDismiss: { lyricsOverlay.dismiss() }
-                    )
-                    .environmentObject(settingsStore)
-                    .environment(\.locale, settingsStore.appLocale)
-                    .environment(\.spotiglassLocale, settingsStore.appLocale),
-                    isActive: immersiveLyricsReady,
-                    keymapStore: keymapStore
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .transition(.opacity.combined(with: .scale(scale: 0.98)))
-                .zIndex(200)
-            }
-        }
-        .animation(.easeOut(duration: 0.22), value: lyricsOverlay.isPresented)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .allowsHitTesting(immersiveLyricsReady)
     }
 }
 
