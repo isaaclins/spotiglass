@@ -326,6 +326,19 @@ final class PlaylistBrowserConcurrencyTests: XCTestCase {
     /// Home stays selected in the sidebar, and Retry must load the album again instead of
     /// reloading Home (#465).
     func testFailedAlbumPageRetriesTheSameAlbum() async {
+        await assertFailedAlbumFromHomeComesBack { await $0.retryFailedDetail() }
+    }
+
+    /// Refresh (toolbar, ⌘R) on that failed album does the same as Retry.
+    func testFailedAlbumPageRefreshesTheSameAlbum() async {
+        await assertFailedAlbumFromHomeComesBack { await $0.unifiedRefreshMainSurface() }
+    }
+
+    private func assertFailedAlbumFromHomeComesBack(
+        _ reload: (PlaylistBrowserViewModel) async -> Void,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async {
         var attempts = 0
         let albumTrack = MusicTrack(
             id: "alb-track-1",
@@ -349,20 +362,20 @@ final class PlaylistBrowserConcurrencyTests: XCTestCase {
         )
         let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
         await viewModel.load()
-        XCTAssertEqual(viewModel.sidebarSelection, .home)
+        XCTAssertEqual(viewModel.sidebarSelection, .home, file: file, line: line)
         await viewModel.selectAlbum(id: "album-123", displayTitle: "Sweet Boy", displaySubtitle: "Malcolm Todd", artworkURL: nil)
         guard case .error = viewModel.detailState else {
-            return XCTFail("Expected an error state, got \(viewModel.detailState)")
+            return XCTFail("Expected an error state, got \(viewModel.detailState)", file: file, line: line)
         }
 
-        await viewModel.retryFailedDetail()
+        await reload(viewModel)
 
-        XCTAssertEqual(attempts, 2)
+        XCTAssertEqual(attempts, 2, file: file, line: line)
         guard case let .loaded(.playlist(detail)) = viewModel.detailState else {
-            return XCTFail("Retry must load the album again, got \(viewModel.detailState)")
+            return XCTFail("The album must load again, got \(viewModel.detailState)", file: file, line: line)
         }
-        XCTAssertEqual(detail.playlist.id, "album-123")
-        XCTAssertEqual(detail.tracks.map(\.spotifyTrackID), ["alb-track-1"])
+        XCTAssertEqual(detail.playlist.id, "album-123", file: file, line: line)
+        XCTAssertEqual(detail.tracks.map(\.spotifyTrackID), ["alb-track-1"], file: file, line: line)
     }
 
     func testSignOutClearsBrowsingState() async {

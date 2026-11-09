@@ -248,21 +248,13 @@ struct MusicKitContentSource: AppleMusicContentSource {
         return try await !request.response().items.isEmpty
     }
 
-    /// A catalog relationship past its first batch, read from the Apple Music API by offset.
-    ///
-    /// MusicKit can't follow a catalog relationship's batches: asking for the next one stops the
-    /// whole app inside MusicKit ("Loading next batch of catalog resource collection of a non
-    /// decodable music item type is not supported", macOS 27). An artist with more than 25 albums
-    /// closed Spotiglass while its page loaded (#465). Library relationships page normally.
     private func collectCatalog<Item: MusicItem & Decodable>(
         _ firstBatch: MusicItemCollection<Item>?,
         limit: Int,
         relationship: AppleMusicCatalogRelationship
     ) async throws -> [Item] {
-        guard Self.needsMore(firstBatch, limit: limit) else { return Array((firstBatch ?? []).prefix(limit)) }
-        let path = relationship.path(storefront: try await storefrontCountryCode())
-        return try await AppleMusicCatalogPages.items(Item.self, from: path, limit: limit) { path in
-            try await MusicDataRequestCloudLibrary.musicDataRequest(AppleMusicCloudRequests.get(path))
+        try await AppleMusicCatalogPages.collect(firstBatch, limit: limit, relationship: relationship) {
+            try await storefrontCountryCode()
         }
     }
 
@@ -374,6 +366,27 @@ enum AppleMusicCatalogPages {
 
     private struct Next: Decodable {
         let next: String?
+    }
+
+    /// A catalog relationship past its first batch, read from the Apple Music API by offset.
+    ///
+    /// MusicKit can't follow a catalog relationship's batches: asking for the next one stops the
+    /// whole app inside MusicKit ("Loading next batch of catalog resource collection of a non
+    /// decodable music item type is not supported", macOS 27). An artist with more than 25 albums
+    /// closed Spotiglass while its page loaded (#465). Library relationships page normally.
+    static func collect<Item: MusicItem & Decodable>(
+        _ firstBatch: MusicItemCollection<Item>?,
+        limit: Int,
+        relationship: AppleMusicCatalogRelationship,
+        storefront: () async throws -> String = { try await MusicDataRequest.currentCountryCode }
+    ) async throws -> [Item] {
+        guard let firstBatch, firstBatch.hasNextBatch, firstBatch.count < limit else {
+            return Array((firstBatch ?? []).prefix(limit))
+        }
+        let path = relationship.path(storefront: try await storefront())
+        return try await items(Item.self, from: path, limit: limit) { path in
+            try await MusicDataRequestCloudLibrary.musicDataRequest(AppleMusicCloudRequests.get(path))
+        }
     }
 
     static func items<Item: MusicItem & Decodable>(

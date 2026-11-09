@@ -28,6 +28,16 @@ extension PlaylistBrowserViewModel {
 
     /// Reloads the playlist library list (sidebar) or the current detail surface (tracks / artist).
     func unifiedRefreshMainSurface() async {
+        // A failed artist or album page reloads that page, like its Retry button (#465).
+        if case .error = detailState {
+            switch currentNavigationTarget {
+            case .artist, .album:
+                await retryFailedDetail()
+                return
+            case .sidebar, nil:
+                break
+            }
+        }
         guard let selection = sidebarSelection else {
             await refreshSelectedPlaylist()
             return
@@ -45,8 +55,8 @@ extension PlaylistBrowserViewModel {
     }
 
     /// Retry on a page that failed to load: the artist or album it was opened for loads again.
-    /// An album opened from Home or Search keeps that sidebar row selected, so Refresh would
-    /// reload Home or the search instead of the album (#465).
+    /// An album opened from Home or Search keeps that sidebar row selected, so the sidebar
+    /// alone would reload Home or the search instead of the album (#465).
     func retryFailedDetail() async {
         switch currentNavigationTarget {
         case let .artist(id):

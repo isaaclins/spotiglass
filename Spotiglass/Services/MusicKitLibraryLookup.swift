@@ -193,11 +193,13 @@ struct MusicKitLibraryLookup: AppleMusicLibraryLookup {
             var request = MusicCatalogResourceRequest<Album>(matching: \.id, memberOf: batch.map { MusicItemID($0) })
             request.properties = [.tracks]
             for album in try await request.response().items {
-                var page = album.tracks
-                while let current = page {
-                    tracks += current.map { AppleMusicItemMapping.track($0, album: album) }
-                    page = current.hasNextBatch ? try await current.nextBatch() : nil
-                }
+                // Not MusicKit's next batch: on a catalog album it closes the app (#465).
+                let albumTracks = try await AppleMusicCatalogPages.collect(
+                    album.tracks,
+                    limit: .max,
+                    relationship: AppleMusicCatalogRelationship(kind: "albums", id: album.id.rawValue, name: "tracks")
+                )
+                tracks += albumTracks.map { AppleMusicItemMapping.track($0, album: album) }
             }
         }
         return tracks
