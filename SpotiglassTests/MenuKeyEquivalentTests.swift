@@ -277,6 +277,64 @@ final class MenuKeyEquivalentTests: XCTestCase {
         XCTAssertFalse(commands.isLyricsToggleEnabled)
     }
 
+    /// #438: View › Refresh (⌘R) reloaded the page hidden under the lyrics. It dims while they're open.
+    func testRefreshMenuItemDimsWhileLyricsAreOpen() {
+        let manager = CommandPaletteManager(keymapStore: makeStore())
+        let scene = SpotiglassSceneHost(commandPaletteManager: manager)
+        let registry = SpotiglassSceneRegistry()
+        registry.activate(scene)
+        let commands = SpotiglassMenuCommands(
+            sceneRegistry: registry,
+            keymapStore: manager.keymapStore,
+            settingsStore: makeSettingsStore(),
+            serviceStore: MusicServiceStore(
+                storage: InMemoryMusicServiceSelectionStorage(services: [.spotify], active: .spotify)
+            ),
+            isSignedIn: true,
+            isQueueVisible: false
+        )
+
+        XCTAssertTrue(commands.isRefreshEnabled)
+        scene.lyricsOverlayController.isPresented = true
+        XCTAssertFalse(commands.isRefreshEnabled, "View › Refresh still reloads the page under the lyrics")
+        scene.lyricsOverlayController.isPresented = false
+        XCTAssertTrue(commands.isRefreshEnabled)
+    }
+
+    /// #438: with the lyrics open, Back (⌘[) and the selection commands (⌥⌘E, ⌥⌘P) acted on
+    /// the page under them, which you can't see; the toolbar already hides Back there.
+    func testPageCommandsDimWhileLyricsAreOpen() {
+        let manager = CommandPaletteManager(keymapStore: makeStore())
+        manager.canNavigateBack = true
+        manager.canEnqueueTrackSelection = true
+        manager.trackSelectionPinState = .pin
+        let scene = SpotiglassSceneHost(commandPaletteManager: manager)
+        let registry = SpotiglassSceneRegistry()
+        registry.activate(scene)
+        let commands = SpotiglassMenuCommands(
+            sceneRegistry: registry,
+            keymapStore: manager.keymapStore,
+            settingsStore: makeSettingsStore(),
+            serviceStore: MusicServiceStore(
+                storage: InMemoryMusicServiceSelectionStorage(services: [.spotify], active: .spotify)
+            ),
+            isSignedIn: true,
+            isQueueVisible: false
+        )
+
+        XCTAssertTrue(commands.isBackEnabled)
+        XCTAssertTrue(commands.isTrackSelectionEnqueueEnabled)
+        XCTAssertTrue(commands.isTrackSelectionPinEnabled)
+        scene.lyricsOverlayController.isPresented = true
+        XCTAssertFalse(commands.isBackEnabled, "Back still goes back from the page under the lyrics")
+        XCTAssertFalse(commands.isTrackSelectionEnqueueEnabled, "Add to Queue still queues rows you can't see")
+        XCTAssertFalse(commands.isTrackSelectionPinEnabled, "Pin still pins rows you can't see")
+        scene.lyricsOverlayController.isPresented = false
+        XCTAssertTrue(commands.isBackEnabled)
+        XCTAssertTrue(commands.isTrackSelectionEnqueueEnabled)
+        XCTAssertTrue(commands.isTrackSelectionPinEnabled)
+    }
+
     func testLyricsMenuTitleReflectsPresentedState() {
         let manager = CommandPaletteManager(keymapStore: makeStore())
         let scene = SpotiglassSceneHost(commandPaletteManager: manager)

@@ -126,6 +126,39 @@ final class PlaybackChromeViewsTests: XCTestCase {
         XCTAssertTrue(isPresented, "The artwork lyrics button is not wired to the lyrics binding")
     }
 
+    /// #438: the player bar stays under the open lyrics. Its Lyrics button set them open and
+    /// nothing else, so with the lyrics open a click did nothing and the tooltip still said
+    /// "Show lyrics". It toggles now and says it closes them.
+    func testPlayerBarLyricsButtonClosesOpenLyrics() throws {
+        let playback = makePlayingPlayback()
+        var isPresented = true
+        let view = PlaybackControlsView(
+            viewModel: playback,
+            isLyricsPresented: Binding(
+                get: { isPresented },
+                set: { isPresented = $0 }
+            ),
+            openArtist: { _ in }
+        )
+        XCTAssertEqual(view.lyricsButtonTooltip, SpotiglassL10n.string("browser.closeLyrics"))
+
+        let controller = ViewTestHost.host(view, size: CGSize(width: 900, height: 120))
+        let buttons = allNSButtons(in: controller.view)
+        let lyricsButton = try XCTUnwrap(
+            buttons.first { $0.accessibilityLabel() == SpotiglassL10n.string("playback.controls.lyrics") }
+        )
+        let artworkButton = try XCTUnwrap(
+            buttons.first { $0.accessibilityLabel() == SpotiglassL10n.string("browser.closeLyrics") },
+            "with the lyrics open the cover button still offers to open them"
+        )
+        lyricsButton.performClick(nil)
+        XCTAssertFalse(isPresented, "the bar's Lyrics button doesn't close open lyrics")
+
+        isPresented = true
+        artworkButton.performClick(nil)
+        XCTAssertFalse(isPresented, "the cover button doesn't close open lyrics")
+    }
+
     /// Asserts no ancestor of the button is faded out. `hitTest` cannot answer
     /// this: `NSHostingView` reports itself for every point and never a nested
     /// bridged control. Alpha is the mechanism that broke #355, and a view with

@@ -178,6 +178,8 @@ enum SpotiglassDesign {
         static let cardWidth: CGFloat = 152
         /// Artwork of the large now-playing cover beside the lyrics.
         static let lyricsArtworkSize: CGFloat = 220
+        /// The small cover beside the title above the lyrics in a narrow window.
+        static let lyricsCompactArtworkSize: CGFloat = 64
         /// Smallest height the lyrics column keeps while it loads, so the layout doesn't jump.
         static let lyricsStatusMinHeight: CGFloat = 160
         /// Smallest height of the "instrumental" note in place of lyrics.

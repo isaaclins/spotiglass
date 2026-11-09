@@ -57,6 +57,7 @@ final class LayoutGridTests: XCTestCase {
         ("sectionNoticeMinHeight", SpotiglassDesign.Layout.sectionNoticeMinHeight),
         ("cardWidth", SpotiglassDesign.Layout.cardWidth),
         ("lyricsArtworkSize", SpotiglassDesign.Layout.lyricsArtworkSize),
+        ("lyricsCompactArtworkSize", SpotiglassDesign.Layout.lyricsCompactArtworkSize),
         ("lyricsStatusMinHeight", SpotiglassDesign.Layout.lyricsStatusMinHeight),
         ("lyricsInstrumentalMinHeight", SpotiglassDesign.Layout.lyricsInstrumentalMinHeight),
         ("lyricsSideColumnMaxWidth", SpotiglassDesign.Layout.lyricsSideColumnMaxWidth),

@@ -44,12 +44,12 @@ extension PlaylistBrowserViewModel {
         }
     }
 
-    /// Single refresh entry for toolbar, ⌘R, and legacy palette bindings.
+    /// Single refresh entry for toolbar, ⌘R, the View menu and the palette.
     func performUnifiedRefresh(queueRefresh: () async -> Void) async {
-        if refreshRoutingLyricsPresented {
-            await unifiedRefreshMainSurface()
-            return
-        }
+        // The lyrics cover the page, so Refresh would reload something you can't see. Every
+        // path does nothing while they are open; the toolbar, the menu and the palette also
+        // stop offering it (#438).
+        if refreshRoutingLyricsPresented { return }
         if refreshRoutingQueuePanelVisible, refreshRoutingQueuePanelFocused {
             isUnifiedQueueRefreshActive = true
             defer { isUnifiedQueueRefreshActive = false }

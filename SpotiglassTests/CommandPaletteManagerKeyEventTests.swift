@@ -63,6 +63,41 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
         XCTAssertTrue(manager.handleKeyEvent(keyDown(keyCode: 53)))
     }
 
+    /// #438: the sidebar stays usable next to the lyrics. Escape while renaming a playlist
+    /// there cancelled nothing and closed the lyrics instead; it belongs to the text field.
+    func testEscapeInATextFieldNextToTheLyricsLeavesThemOpen() {
+        let window = OffscreenTestWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 320, height: 240),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        window.isReleasedWhenClosed = false
+        let root = NSView(frame: NSRect(x: 0, y: 0, width: 320, height: 240))
+        let renameField = NSTextView(frame: NSRect(x: 0, y: 0, width: 160, height: 24))
+        let lyricsArea = LyricsKeyTestResponderView(frame: NSRect(x: 160, y: 0, width: 160, height: 240))
+        root.addSubview(renameField)
+        root.addSubview(lyricsArea)
+        window.contentView = root
+        defer { AppKitTestSupport.closeWindowSafely(window) }
+
+        let manager = CommandPaletteManager()
+        var dismissals = 0
+        manager.dismissLyricsOverlayIfPresented = {
+            dismissals += 1
+            return true
+        }
+        let escape = keyDown(keyCode: 53, windowNumber: window.windowNumber)
+
+        XCTAssertTrue(AppKitTestSupport.makeFirstResponder(renameField, in: window))
+        _ = manager.handleKeyEvent(escape)
+        XCTAssertEqual(dismissals, 0, "Escape in the rename field closed the lyrics")
+
+        XCTAssertTrue(AppKitTestSupport.makeFirstResponder(lyricsArea, in: window))
+        XCTAssertTrue(manager.handleKeyEvent(escape))
+        XCTAssertEqual(dismissals, 1)
+    }
+
     func testIsRecordingHotkeyBypassesKeymap() throws {
         let url = makeCommandPaletteTestsTempSettingsURL()
         let settings = SpotiglassSettingsStore(fileURL: url)
@@ -506,4 +541,8 @@ private final class TestFocusedKeyEventOwnerView: NSView, FocusedKeyEventOwner {
         event.keyCode == ownedKeyCode
             && event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty
     }
+}
+
+private final class LyricsKeyTestResponderView: NSView {
+    override var acceptsFirstResponder: Bool { true }
 }

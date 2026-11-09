@@ -3,14 +3,14 @@
     <channel>
         <title>Spotiglass</title>
         <item>
-            <title>0.8.7</title>
-            <pubDate>Mon, 09 Nov 2026 02:47:21 +0100</pubDate>
-            <sparkle:version>18</sparkle:version>
-            <sparkle:shortVersionString>0.8.7</sparkle:shortVersionString>
+            <title>0.8.8</title>
+            <pubDate>Mon, 09 Nov 2026 03:07:45 +0100</pubDate>
+            <sparkle:version>19</sparkle:version>
+            <sparkle:shortVersionString>0.8.8</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[• The lyrics backdrop now shows album art for songs from your Apple Music library, instead of staying black.
+            <description sparkle:format="plain-text"><![CDATA[• The player bar stays visible while lyrics are open, and the top bar shows only lyrics controls.
 ]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.7/Spotiglass-0.8.7.zip" length="12356214" type="application/octet-stream" sparkle:edSignature="yimMs/mijqQjKdx8RrQ3JI36gW4gMpvlHsoulra+1e638l1O2kg2nmHhvn0uogO/EM1+xk5JuGlSR68EUbHRAA=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.8/Spotiglass-0.8.8.zip" length="12366736" type="application/octet-stream" sparkle:edSignature="EyvoDWVf6DxUhaLC4NILVFc1S1Oh7ptA0K4qKQXARDevDV7aeAvAGj8LBS0F+uptK1W06CAO4rl935kYFgDVDQ=="/>
         </item>
     </channel>
 </rss>
