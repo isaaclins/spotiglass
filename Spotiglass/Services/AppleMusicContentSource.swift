@@ -378,14 +378,27 @@ enum AppleMusicCatalogPages {
         _ firstBatch: MusicItemCollection<Item>?,
         limit: Int,
         relationship: AppleMusicCatalogRelationship,
-        storefront: () async throws -> String = { try await MusicDataRequest.currentCountryCode }
+        storefront: () async throws -> String = { try await MusicDataRequest.currentCountryCode },
+        fetch: (String) async throws -> Data = Self.fetch
     ) async throws -> [Item] {
         guard let firstBatch, firstBatch.hasNextBatch, firstBatch.count < limit else {
             return Array((firstBatch ?? []).prefix(limit))
         }
         let path = relationship.path(storefront: try await storefront())
-        return try await items(Item.self, from: path, limit: limit) { path in
-            try await MusicDataRequestCloudLibrary.musicDataRequest(AppleMusicCloudRequests.get(path))
+        return try await items(Item.self, from: path, limit: limit, fetch: fetch)
+    }
+
+    /// One API page. Its error stays MusicKit's or the network's, so a failed read shows as
+    /// a failed read, not as a library change Apple Music refused.
+    static func fetch(_ path: String) async throws -> Data {
+        let request = AppleMusicCloudRequests.get(path)
+        do {
+            return try await MusicDataRequest(urlRequest: request).response().data
+        } catch {
+            if !(error is CancellationError) {
+                SpotiglassLog.error(.api, "Apple Music GET \(request.url?.path ?? "") failed: \(error)")
+            }
+            throw error
         }
     }
 

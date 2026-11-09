@@ -2101,6 +2101,50 @@ final class AppleMusicCatalogPagesTests: XCTestCase {
         XCTAssertEqual(albums.count, 100)
     }
 
+    /// The artist's albums as MusicKit hands them over: the first batch, with more behind it.
+    /// Reading on goes to the API from the start, never to MusicKit's next batch, which closes
+    /// the app on a catalog artist (#465).
+    func testACatalogFirstBatchWithMoreIsReadFromTheAPI() async throws {
+        let firstBatch = try JSONDecoder().decode(
+            MusicItemCollection<Album>.self,
+            from: try page(0..<25, next: "/v1/catalog/ch/artists/159260351/albums?offset=25")
+        )
+        XCTAssertTrue(firstBatch.hasNextBatch)
+        let first = try page(0..<100, next: nextPath)
+        let second = try page(100..<188, next: nil)
+        var requested: [String] = []
+        let albums = try await AppleMusicCatalogPages.collect(
+            firstBatch,
+            limit: 1_000,
+            relationship: AppleMusicCatalogRelationship(kind: "artists", id: "159260351", name: "albums"),
+            storefront: { "ch" },
+            fetch: { path in
+                requested.append(path)
+                return requested.count == 1 ? first : second
+            }
+        )
+        XCTAssertEqual(requested, [firstPath, nextPath + "&limit=100"])
+        XCTAssertEqual(albums.count, 188)
+    }
+
+    /// A first batch that holds everything is used as it is, without asking the API.
+    func testACompleteFirstBatchNeedsNoRequest() async throws {
+        let firstBatch = try JSONDecoder().decode(MusicItemCollection<Album>.self, from: try page(0..<12, next: nil))
+        var requests = 0
+        let albums = try await AppleMusicCatalogPages.collect(
+            firstBatch,
+            limit: 1_000,
+            relationship: AppleMusicCatalogRelationship(kind: "artists", id: "159260351", name: "albums"),
+            storefront: { "ch" },
+            fetch: { _ in
+                requests += 1
+                return Data()
+            }
+        )
+        XCTAssertEqual(requests, 0)
+        XCTAssertEqual(albums.count, 12)
+    }
+
     /// A later page that fails is an error the artist page can show, not the end of the app.
     func testAFailedLaterPageThrows() async throws {
         let first = try page(0..<100, next: nextPath)
