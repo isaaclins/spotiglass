@@ -3,15 +3,14 @@
     <channel>
         <title>Spotiglass</title>
         <item>
-            <title>0.8.3</title>
-            <pubDate>Mon, 09 Nov 2026 00:58:16 +0100</pubDate>
-            <sparkle:version>14</sparkle:version>
-            <sparkle:shortVersionString>0.8.3</sparkle:shortVersionString>
+            <title>0.8.7</title>
+            <pubDate>Mon, 09 Nov 2026 02:47:21 +0100</pubDate>
+            <sparkle:version>18</sparkle:version>
+            <sparkle:shortVersionString>0.8.7</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[• The lyrics button in the player bar is centred again.
-• Apple Music covers in Recently played are sharp instead of blurry.
+            <description sparkle:format="plain-text"><![CDATA[• The lyrics backdrop now shows album art for songs from your Apple Music library, instead of staying black.
 ]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.3/Spotiglass-0.8.3.zip" length="12145395" type="application/octet-stream" sparkle:edSignature="MiqnSAEJ4lXLtFjHFuN0n1iI6WRsUQc/qN3GD4Gstti170zuKAeoFZjzyHYs/txe2dioikdWKxzocWfu9zjoBQ=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.7/Spotiglass-0.8.7.zip" length="12356214" type="application/octet-stream" sparkle:edSignature="yimMs/mijqQjKdx8RrQ3JI36gW4gMpvlHsoulra+1e638l1O2kg2nmHhvn0uogO/EM1+xk5JuGlSR68EUbHRAA=="/>
         </item>
     </channel>
 </rss>

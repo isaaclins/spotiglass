@@ -17,59 +17,29 @@ struct PlaylistListRow: View {
         playlist.id == SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID
     }
 
-    private let artworkSize: CGFloat = 46
-    @Environment(\.colorScheme) private var colorScheme
+    private let artworkSize = SpotiglassDesign.Layout.sidebarRowArtworkSize
     @Environment(\.spotiglassLocale) private var spotiglassLocale
 
     var body: some View {
-        HStack(spacing: SpotiglassDesign.spacingS) {
-            Group {
-                if isLikedSongsRow {
-                    LikedSongsArtwork(size: artworkSize, isEmphasized: isListSelected)
-                } else {
-                    ArtworkView(url: playlist.artworkURL, size: artworkSize)
-                }
+        #if DEBUG
+        let _ = ViewBodyTally.record("PlaylistListRow:\(playlist.id)")
+        #endif
+        SidebarRow(subtitle: playlist.ownerTracksLine(currentUserID: currentUserSpotifyID, locale: spotiglassLocale)) {
+            if isLikedSongsRow {
+                LikedSongsArtwork(size: artworkSize, isEmphasized: isListSelected, cornerRadius: SpotiglassDesign.cornerXS)
+            } else {
+                // A playlist without a cover of its own gets the calm placeholder (#444).
+                ArtworkView(url: playlist.artworkURL, size: artworkSize, cornerRadius: SpotiglassDesign.cornerXS)
             }
-            .overlay(alignment: .bottomTrailing) {
-                if isActive {
-                    PlayingWaveformIcon(isPlaying: isPlaying)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 3)
-                        .background(
-                            RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                .fill(SpotiglassDesign.mediaBadgeBackgroundColor(colorScheme: colorScheme))
-                        )
-                        .padding(3)
-                }
+        } title: {
+            if let titleOverride {
+                titleOverride
+            } else {
+                Text(playlist.localizedTitle(locale: spotiglassLocale))
             }
-            .overlay(alignment: .topTrailing) {
-                if isPinned {
-                    PinnedBadge(scale: .compact)
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                if let titleOverride {
-                    titleOverride
-                } else {
-                    Text(playlist.localizedTitle(locale: spotiglassLocale))
-                        .font(.headline)
-                        .lineLimit(1)
-                }
-
-                // A count still loading (or unknown) leaves the line blank but keeps its height,
-                // so rows don't jump when the count arrives.
-                Text(playlist.ownerTracksLine(
-                    currentUserID: currentUserSpotifyID,
-                    locale: spotiglassLocale
-                ).nonEmptyLine)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
+        } accessory: {
+            SidebarRowStatus(isPinned: isPinned, isNowPlaying: isActive, isPlaying: isPlaying)
         }
-        .padding(.vertical, SpotiglassDesign.spacingXS)
-        .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
             PlaylistOwnerDisplay.accessibilityLabel(

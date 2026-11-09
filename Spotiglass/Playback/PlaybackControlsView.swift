@@ -37,7 +37,7 @@ enum PlaybackTransportLayoutPolicy {
     /// A playing summary always keeps the artwork, its gap, and enough title
     /// width to remain readable. The title is allowed to truncate beyond this
     /// floor rather than forcing the scrubber or timestamps off the bar.
-    static let nowPlayingArtworkSize: CGFloat = 44
+    static let nowPlayingArtworkSize: CGFloat = SpotiglassDesign.Layout.nowPlayingArtworkSize
     static let nowPlayingSummaryTitleMinimumWidth: CGFloat = 120
     static let nowPlayingSummaryMinimumWidth: CGFloat =
         nowPlayingArtworkSize + SpotiglassDesign.spacingS + nowPlayingSummaryTitleMinimumWidth
@@ -72,18 +72,18 @@ enum PlaybackTransportLayoutPolicy {
     /// The volume slider's width range, and the full volume control's floor:
     /// its speaker icon, the gap and the narrowest slider.
     static let volumeSliderWidths: (minimum: CGFloat, ideal: CGFloat, maximum: CGFloat) = (100, 120, 140)
-    static let fullVolumeMinimumWidth: CGFloat = 16 + SpotiglassDesign.spacingS + volumeSliderWidths.minimum
+    static let fullVolumeMinimumWidth: CGFloat = SpotiglassDesign.Layout.iconSize + SpotiglassDesign.spacingS + volumeSliderWidths.minimum
 
     /// The fixed trailing controls' floor, including the two gaps between the
     /// controls cluster, device picker, and volume control.
     static func transportActionsMinimumWidth(useCompactVolume: Bool) -> CGFloat {
         let controlsClusterWidth =
-            (4 * 28)
+            (4 * SpotiglassDesign.Layout.iconButtonSize)
             + (3 * SpotiglassDesign.spacingS)
-        let volumeWidth = useCompactVolume ? 28 : fullVolumeMinimumWidth
+        let volumeWidth = useCompactVolume ? SpotiglassDesign.Layout.iconButtonSize : fullVolumeMinimumWidth
         return controlsClusterWidth
             + (2 * SpotiglassDesign.spacingM)
-            + 28
+            + SpotiglassDesign.Layout.iconButtonSize
             + volumeWidth
     }
 }
@@ -444,8 +444,8 @@ struct PlaybackControlsView: View {
         HStack(spacing: SpotiglassDesign.spacingS) {
             leadingNowPlayingVisual
 
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
+            VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXXS) {
+                HStack(alignment: .firstTextBaseline, spacing: SpotiglassDesign.spacingXS) {
                     Text(title)
                         .font(.headline)
                         .lineLimit(1)
@@ -489,14 +489,14 @@ struct PlaybackControlsView: View {
                 PlaybackTransportButton(
                     accessibilityLabel: SpotiglassL10n.string("playback.controls.lyrics"),
                     accessibilityHint: SpotiglassL10n.string("playback.controls.lyrics.hint"),
-                    size: CGSize(width: 22, height: 22),
+                    size: SpotiglassDesign.Layout.inlineButtonFrame,
                     action: { isLyricsPresented = true }
                 ) {
                     Image(systemName: "music.note.list")
                         .font(.body.weight(.medium))
                         .foregroundStyle(.secondary)
                 }
-                .frame(width: 22, height: 22)
+                .frame(width: SpotiglassDesign.Layout.inlineButtonSize, height: SpotiglassDesign.Layout.inlineButtonSize)
                 .help(SpotiglassL10n.string("tooltip.playback.lyrics"))
             }
         }
@@ -548,7 +548,7 @@ struct PlaybackControlsView: View {
                 Image(systemName: stateIcon)
                     .font(.title3)
                     .foregroundStyle(stateIconStyle)
-                    .frame(width: 28)
+                    .frame(width: SpotiglassDesign.Layout.iconButtonSize)
                     .id("state-icon:\(stateIcon)")
                     .transition(.opacity)
                     .accessibilityHidden(true)
@@ -590,19 +590,19 @@ struct PlaybackControlsView: View {
             PlaybackTransportButton(
                 accessibilityLabel: SpotiglassL10n.string("playback.controls.previous"),
                 accessibilityHint: Self.serviceString("playback.controls.previous.hint", appleMusic: "playback.controls.previous.appleMusic.hint", service: shownService),
-                size: CGSize(width: 28, height: 28),
+                size: SpotiglassDesign.Layout.iconButtonFrame,
                 isEnabled: hasReadyDevice && !viewModel.isSkipCommandPending,
                 action: { Task { await viewModel.previous() } }
             ) {
                 Image(systemName: "backward.fill")
             }
-            .frame(width: 28, height: 28)
+            .frame(width: SpotiglassDesign.Layout.iconButtonSize, height: SpotiglassDesign.Layout.iconButtonSize)
             .help(SpotiglassL10n.string("tooltip.playback.previous"))
 
             PlaybackTransportButton(
                 accessibilityLabel: playPauseAccessibilityLabel,
                 accessibilityHint: Self.serviceString("playback.controls.playPause.hint", appleMusic: "playback.controls.playPause.appleMusic.hint", service: shownService),
-                size: CGSize(width: 28, height: 28),
+                size: SpotiglassDesign.Layout.iconButtonFrame,
                 isEnabled: viewModel.isPlaybackToggleReady,
                 action: { Task { await viewModel.togglePlayPause() } }
             ) {
@@ -612,7 +612,7 @@ struct PlaybackControlsView: View {
                     // Apple Music's Play is off while nothing is loaded (#396): it must look off.
                     .opacity(viewModel.isPlaybackToggleReady ? 1 : 0.45)
             }
-            .frame(width: 28, height: 28)
+            .frame(width: SpotiglassDesign.Layout.iconButtonSize, height: SpotiglassDesign.Layout.iconButtonSize)
             // Label and tooltip agree here: the state and the next action are
             // the same word, so "Pause" shows while something is playing.
             .help(playPauseAccessibilityLabel)
@@ -620,7 +620,7 @@ struct PlaybackControlsView: View {
             PlaybackTransportButton(
                 accessibilityLabel: SpotiglassL10n.string("playback.controls.next"),
                 accessibilityHint: Self.serviceString("playback.controls.next.hint", appleMusic: "playback.controls.next.appleMusic.hint", service: shownService),
-                size: CGSize(width: 28, height: 28),
+                size: SpotiglassDesign.Layout.iconButtonFrame,
                 isEnabled: hasReadyDevice
                     && !viewModel.isSkipCommandPending
                     && !viewModel.isNextCommandLockedOut,
@@ -628,13 +628,13 @@ struct PlaybackControlsView: View {
             ) {
                 Image(systemName: "forward.fill")
             }
-            .frame(width: 28, height: 28)
+            .frame(width: SpotiglassDesign.Layout.iconButtonSize, height: SpotiglassDesign.Layout.iconButtonSize)
             .help(SpotiglassL10n.string("tooltip.playback.next"))
 
             PlaybackTransportButton(
                 accessibilityLabel: repeatAccessibilityLabel,
                 accessibilityHint: SpotiglassL10n.string("playback.controls.repeat.hint"),
-                size: CGSize(width: 28, height: 28),
+                size: SpotiglassDesign.Layout.iconButtonFrame,
                 isEnabled: viewModel.isTransportMutationReady,
                 action: { Task { await viewModel.cycleRepeat() } }
             ) {
@@ -645,7 +645,7 @@ struct PlaybackControlsView: View {
                             : AnyShapeStyle(.secondary)
                     )
             }
-            .frame(width: 28, height: 28)
+            .frame(width: SpotiglassDesign.Layout.iconButtonSize, height: SpotiglassDesign.Layout.iconButtonSize)
             .help(PlaybackTransportTooltips.repeatTooltip(currentMode: viewModel.repeatMode))
         }
         .controlSize(.regular)
@@ -734,7 +734,7 @@ struct PlaybackControlsView: View {
                     .font(.body.weight(.medium))
                     .foregroundStyle(.primary)
                 }
-                .frame(width: 28, height: 28)
+                .frame(width: SpotiglassDesign.Layout.iconButtonSize, height: SpotiglassDesign.Layout.iconButtonSize)
             }
             .menuIndicator(.hidden)
             .disabled(!hasReadyDevice)
@@ -782,7 +782,7 @@ struct PlaybackControlsView: View {
         PlaybackTransportButton(
             accessibilityLabel: SpotiglassL10n.string("playback.controls.volume"),
             accessibilityHint: SpotiglassL10n.string("playback.controls.volume.hint"),
-            size: CGSize(width: 28, height: 28),
+            size: SpotiglassDesign.Layout.iconButtonFrame,
             isEnabled: isPlaybackVolumeReady,
             action: { isVolumePopoverPresented.toggle() }
         ) {
@@ -790,11 +790,11 @@ struct PlaybackControlsView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
-        .frame(width: 28, height: 28)
+        .frame(width: SpotiglassDesign.Layout.iconButtonSize, height: SpotiglassDesign.Layout.iconButtonSize)
         .popover(isPresented: $isVolumePopoverPresented) {
             Slider(value: playbackVolumeBinding, in: 0 ... 1)
                 .controlSize(.small)
-                .frame(width: 140)
+                .frame(width: PlaybackTransportLayoutPolicy.volumeSliderWidths.maximum)
                 .padding()
         }
         .help(SpotiglassL10n.string("playback.controls.volume"))
@@ -860,12 +860,12 @@ struct PlaybackControlsView: View {
                 PlaybackTransportButton(
                     accessibilityLabel: SpotiglassL10n.string("playback.controls.reconnect.label"),
                     accessibilityHint: SpotiglassL10n.string("playback.controls.reconnect.hint"),
-                    size: CGSize(width: 170, height: 28),
+                    size: SpotiglassDesign.Layout.wideButtonFrame,
                     action: { viewModel.start() }
                 ) {
                     Label(SpotiglassL10n.string("playback.controls.reconnect"), systemImage: "dot.radiowaves.left.and.right")
                 }
-                .frame(width: 170, height: 28)
+                .frame(width: SpotiglassDesign.Layout.wideButtonWidth, height: SpotiglassDesign.Layout.iconButtonSize)
             }
         case .connecting:
             ProgressView()
@@ -877,32 +877,32 @@ struct PlaybackControlsView: View {
                 PlaybackTransportButton(
                     accessibilityLabel: SpotiglassL10n.string("playback.controls.reconnect.label"),
                     accessibilityHint: SpotiglassL10n.string("playback.controls.reconnect.sdk.hint"),
-                    size: CGSize(width: 170, height: 28),
+                    size: SpotiglassDesign.Layout.wideButtonFrame,
                     action: { viewModel.start() }
                 ) {
                     Label(SpotiglassL10n.string("playback.controls.reconnect"), systemImage: "dot.radiowaves.left.and.right")
                 }
-                .frame(width: 170, height: 28)
+                .frame(width: SpotiglassDesign.Layout.wideButtonWidth, height: SpotiglassDesign.Layout.iconButtonSize)
             case .retryTransfer:
                 PlaybackTransportButton(
                     accessibilityLabel: SpotiglassL10n.string("playback.controls.retry.label"),
                     accessibilityHint: SpotiglassL10n.string("playback.controls.retry.hint"),
-                    size: CGSize(width: 170, height: 28),
+                    size: SpotiglassDesign.Layout.wideButtonFrame,
                     action: { Task { await viewModel.retryPlaybackTransfer() } }
                 ) {
                     Label(SpotiglassL10n.string("playback.controls.retry"), systemImage: "arrow.clockwise")
                 }
-                .frame(width: 170, height: 28)
+                .frame(width: SpotiglassDesign.Layout.wideButtonWidth, height: SpotiglassDesign.Layout.iconButtonSize)
             case .reauthenticate:
                 PlaybackTransportButton(
                     accessibilityLabel: SpotiglassL10n.string("auth.reconnect.button"),
                     accessibilityHint: error.message,
-                    size: CGSize(width: 170, height: 28),
+                    size: SpotiglassDesign.Layout.wideButtonFrame,
                     action: { openSettingsAction() }
                 ) {
                     Label(SpotiglassL10n.string("auth.reconnect.button"), systemImage: "gear")
                 }
-                .frame(width: 170, height: 28)
+                .frame(width: SpotiglassDesign.Layout.wideButtonWidth, height: SpotiglassDesign.Layout.iconButtonSize)
             case .none:
                 EmptyView()
             }
@@ -1109,7 +1109,7 @@ private struct PlaybackTransportButton<Content: View>: View {
     init(
         accessibilityLabel: String,
         accessibilityHint: String,
-        size: CGSize = CGSize(width: 28, height: 28),
+        size: CGSize = SpotiglassDesign.Layout.iconButtonFrame,
         isEnabled: Bool = true,
         action: @escaping () -> Void,
         @ViewBuilder content: () -> Content

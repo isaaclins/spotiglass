@@ -85,7 +85,12 @@ struct AppleMusicBrowserRoot: View {
             }
             switch Self.accessTransition(from: old, to: state) {
             case .granted: rewireScene()
-            case .lost: prepareForReset()
+            case .lost:
+                // Access comes back only through this, possibly for another account, so the
+                // covers' answer is forgotten here rather than on the grant, where it would race
+                // the first listing.
+                Task { await AppleMusicGeneratedCoverCache.shared.reset() }
+                prepareForReset()
             case .unchanged: break
             }
         }
@@ -95,7 +100,7 @@ struct AppleMusicBrowserRoot: View {
         PlaylistBrowserView(
             viewModel: viewModel,
             playbackHost: playbackHost,
-            catalogProvider: AppleMusicBrowsingProvider(),
+            catalogProvider: AppleMusicBrowsingProvider(generatedCovers: .shared),
             commandPaletteManager: commandPaletteManager,
             // No Disconnect: access is a system permission, turned off in System Settings,
             // and signing out of Apple Music lives in Settings › Account (#373).
@@ -105,6 +110,26 @@ struct AppleMusicBrowserRoot: View {
             sidebarHeader: sidebarHeader
         )
         .id(MusicService.appleMusic)
+        // The covers' answer can come after the sidebar was listed (a slow API, a big library),
+        // also while another service is on screen: list again then, so Apple's generated covers
+        // give way to the placeholder (#444).
+        .task { await relistIfCoverAnswerMissed() }
+        .onReceive(
+            NotificationCenter.default.publisher(for: AppleMusicGeneratedCoverCache.answerChangedNotification)
+        ) { notification in
+            guard (notification.object as AnyObject?) === AppleMusicGeneratedCoverCache.shared else { return }
+            Task { await relistIfCoverAnswerMissed() }
+        }
+    }
+
+    private func relistIfCoverAnswerMissed() async {
+        guard let provider = viewModel.api as? AppleMusicBrowsingProvider else { return }
+        // Twice at most: a refresh joins a listing already in flight, which may have read the
+        // answer before this one arrived.
+        for _ in 0..<2 {
+            guard await provider.missedCoverAnswer() else { return }
+            await viewModel.refreshPlaylists(trigger: .automatic)
+        }
     }
 
     /// MusicKit's player needs an Apple Music subscription. While that is unknown the bar is
@@ -136,7 +161,7 @@ struct AppleMusicBrowserRoot: View {
                     )
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
-                    .frame(maxWidth: 420)
+                    .frame(maxWidth: SpotiglassDesign.Layout.paragraphMaxWidth)
 
                     if session.state == .denied {
                         Button(SpotiglassL10n.string("appleMusic.permission.openSettings")) {
@@ -158,7 +183,7 @@ struct AppleMusicBrowserRoot: View {
                 }
                 .padding(SpotiglassDesign.spacingL)
             }
-            .frame(maxWidth: 560)
+            .frame(maxWidth: SpotiglassDesign.Layout.panelMaxWidth)
             .padding(SpotiglassDesign.spacingL)
         }
     }
@@ -167,7 +192,7 @@ struct AppleMusicBrowserRoot: View {
     /// URLs are only valid while MusicKit's session lives, so a stored copy would go blank.
     /// Spotify's own cache is never shared with this browser.
     static func makeViewModel() -> PlaylistBrowserViewModel {
-        PlaylistBrowserViewModel(api: AppleMusicBrowsingProvider(), cache: DisabledSpotifyBrowsingCache())
+        PlaylistBrowserViewModel(api: AppleMusicBrowsingProvider(generatedCovers: .shared), cache: DisabledSpotifyBrowsingCache())
     }
 }
 
@@ -180,7 +205,7 @@ struct PlaybackUnavailableBar: View {
             Label(message, systemImage: "play.slash")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, minHeight: 44)
+                .frame(maxWidth: .infinity, minHeight: SpotiglassDesign.Layout.nowPlayingArtworkSize)
                 .padding(.horizontal, SpotiglassDesign.spacingM)
                 .padding(.vertical, SpotiglassDesign.spacingS)
         }

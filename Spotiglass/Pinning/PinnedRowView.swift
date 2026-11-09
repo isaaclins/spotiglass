@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// One pinned-item row, shaped to match `PlaylistListRow` so pinned items feel
-/// native to the existing sidebar. Owns the hover-only ✕ unpin badge and
+/// One pinned-item row, laid out by `SidebarRow` like every other sidebar row.
+/// Owns the hover-only ✕ unpin button and
 /// stale-state visuals; drag/reorder lives on the Library sidebar host view.
 struct PinnedRowView: View {
     let item: PinnedItem
@@ -13,59 +13,45 @@ struct PinnedRowView: View {
     @State private var isHovering: Bool = false
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.spotiglassLocale) private var spotiglassLocale
-    private let artworkSize: CGFloat = 46
+    private let artworkSize = SpotiglassDesign.Layout.sidebarRowArtworkSize
 
     var body: some View {
-        HStack(spacing: SpotiglassDesign.spacingS) {
+        SidebarRow(subtitle: item.localizedSubtitle(locale: spotiglassLocale)) {
             artwork
-                .overlay(alignment: .topLeading) {
-                    if isHovering {
-                        Button(action: onUnpin) {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(SpotiglassDesign.Typography.pinRemove)
-                                .symbolRenderingMode(.palette)
-                                .foregroundStyle(.white, .red)
-                                .background(
-                                    Circle().fill(Color.black.opacity(0.001))
-                                )
-                        }
-                        .buttonStyle(.plain)
-                        .offset(x: -6, y: -6)
-                        .help(SpotiglassL10n.string("tooltip.pin.unpin", locale: spotiglassLocale))
-                        .accessibilityLabel(String(format: SpotiglassL10n.string("pin.unpin"), item.localizedTitle(locale: spotiglassLocale)))
-                    }
+        } title: {
+            HStack(spacing: SpotiglassDesign.spacingXS) {
+                Text(item.localizedTitle(locale: spotiglassLocale))
+                    .foregroundStyle(item.isStale ? Color.secondary : Color.primary)
+                if item.isStale {
+                    // The badge explains the state, so it must be the most
+                    // legible thing in the row, not the least (#144).
+                    Text(SpotiglassL10n.string("pin.unavailable", locale: spotiglassLocale))
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(Color.primary)
+                        .padding(SpotiglassDesign.Layout.badgeInsets)
+                        .background(.quaternary, in: Capsule())
+                        // The row's one-line limit cuts the title, never the badge that explains it.
+                        .fixedSize()
                 }
-
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: SpotiglassDesign.spacingXS) {
-                    Text(item.localizedTitle(locale: spotiglassLocale))
-                        .font(.headline)
-                        .foregroundStyle(item.isStale ? Color.secondary : Color.primary)
-                        .lineLimit(1)
-                    if item.isStale {
-                        // The badge explains the state, so it must be the most
-                        // legible thing in the row, not the least (#144).
-                        Text(SpotiglassL10n.string("pin.unavailable", locale: spotiglassLocale))
-                            .font(.caption2.weight(.medium))
-                            .foregroundStyle(Color.primary)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(.quaternary, in: Capsule())
-                    }
-                }
-                Text(item.localizedSubtitle(locale: spotiglassLocale))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
             }
-            Spacer(minLength: 0)
+        } accessory: {
+            // At the trailing end on hover, like Finder's eject button, rather than over the
+            // cover's corner (#444).
+            if isHovering {
+                Button(action: onUnpin) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(SpotiglassDesign.Typography.pinRemove)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help(SpotiglassL10n.string("tooltip.pin.unpin", locale: spotiglassLocale))
+                .accessibilityLabel(String(format: SpotiglassL10n.string("pin.unpin"), item.localizedTitle(locale: spotiglassLocale)))
+            }
         }
-        .padding(.vertical, SpotiglassDesign.spacingXS)
         // Staleness is carried by the badge and the demoted title. Fading the
         // whole row multiplied 55% onto text that is already secondary, which
         // put the subtitle near 30% effective opacity and made the badge that
         // explains the state the hardest thing in the row to read (#144).
-        .contentShape(Rectangle())
         .onHover { isHovering = $0 }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
@@ -83,7 +69,7 @@ struct PinnedRowView: View {
     private var artwork: some View {
         switch item.kind {
         case .likedSongs:
-            LikedSongsArtwork(size: artworkSize, isEmphasized: isSelected)
+            LikedSongsArtwork(size: artworkSize, isEmphasized: isSelected, cornerRadius: SpotiglassDesign.cornerXS)
         case .artist:
             ZStack {
                 Circle().fill(.secondary.opacity(0.16))
@@ -99,7 +85,7 @@ struct PinnedRowView: View {
             .clipShape(Circle())
             .overlay { Circle().strokeBorder(SpotiglassDesign.artworkBorderColor(colorScheme: colorScheme), lineWidth: 1) }
         case .playlist, .album, .track:
-            ArtworkView(url: item.artworkURL, size: artworkSize, artworkKey: item.id)
+            ArtworkView(url: item.artworkURL, size: artworkSize, artworkKey: item.id, cornerRadius: SpotiglassDesign.cornerXS)
         }
     }
 }
@@ -147,18 +133,18 @@ private extension PinnedItemKind {
 /// or dragging a pinned row out to unpin. SF Symbol per kind + truncated title.
 struct PinnedItemDragPill: View {
     let item: PinnedItem
-    private let artworkSize: CGFloat = 24
+    private let artworkSize = SpotiglassDesign.Layout.thumbnailSize
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.spotiglassLocale) private var spotiglassLocale
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: SpotiglassDesign.spacingXS) {
             previewArtwork
 
             Image(systemName: kindSymbolName)
                 .font(SpotiglassDesign.Typography.pinKind)
                 .foregroundStyle(.spotiglassAccent)
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: SpotiglassDesign.spacingHalf) {
                 Text(item.localizedTitle(locale: spotiglassLocale))
                     .font(.caption.weight(.semibold))
                     .lineLimit(1)
@@ -172,12 +158,8 @@ struct PinnedItemDragPill: View {
                 }
             }
         }
-        .frame(maxWidth: 260, alignment: .leading)
-        .spotiglassPillBackground(
-            variant: .material(.regularMaterial),
-            horizontalPadding: 10,
-            verticalPadding: 6
-        )
+        .frame(maxWidth: SpotiglassDesign.Layout.dragPreviewMaxWidth, alignment: .leading)
+        .spotiglassPillBackground(variant: .material(.regularMaterial))
     }
 
     @ViewBuilder

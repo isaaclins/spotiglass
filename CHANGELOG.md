@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.8.7] - 2026-11-09
+
+### Fixed
+
+- The lyrics backdrop now shows album art for songs from your Apple Music library, instead of staying black.
+
+## [0.8.6] - 2026-11-09
+
+### Fixed
+
+- The sidebar now looks consistent, with matching rows, headers and tiles.
+
+## [0.8.5] - 2026-11-09
+
+### Fixed
+
+- Play, pause and track changes are smoother, because only the rows and the player bar that change get redrawn.
+
+## [0.8.4] - 2026-11-09
+
+### Fixed
+
+- Spacing and alignment now follow one grid, so elements in the app line up.
+- The Reconnect button no longer shows up in the player bar when you use Apple Music.
+- Updates now install by themselves, and the app checks for them every few hours.
+- Playlists with explicit songs play on a Mac set to allow only clean music, including Your top tracks.
+
 ## [0.8.3] - 2026-11-09
 
 ### Fixed

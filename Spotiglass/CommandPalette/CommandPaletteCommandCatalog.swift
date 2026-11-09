@@ -67,7 +67,7 @@ enum CommandPaletteCommandCatalog {
         ),
         spec(
             commandID: CommandPaletteCommandID.openPalette,
-            iconSystemName: "command.circle",
+            iconSystemName: "command",
             defaultWhen: .always,
             defaultKeystroke: "cmd-k"
         ),
@@ -97,13 +97,13 @@ enum CommandPaletteCommandCatalog {
         ),
         spec(
             commandID: CommandPaletteCommandID.nextTrack,
-            iconSystemName: "forward.fill",
+            iconSystemName: "forward",
             defaultWhen: .signedIn,
             defaultKeystroke: "shift-cmd-right"
         ),
         spec(
             commandID: CommandPaletteCommandID.previousTrack,
-            iconSystemName: "backward.fill",
+            iconSystemName: "backward",
             defaultWhen: .signedIn,
             defaultKeystroke: "shift-cmd-left"
         ),
@@ -127,7 +127,7 @@ enum CommandPaletteCommandCatalog {
         ),
         spec(
             commandID: CommandPaletteCommandID.signOut,
-            iconSystemName: "xmark.circle",
+            iconSystemName: "rectangle.portrait.and.arrow.right",
             defaultWhen: .signedIn,
             defaultKeystroke: nil,
             isDestructive: true

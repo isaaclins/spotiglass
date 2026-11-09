@@ -14,12 +14,12 @@ import SwiftUI
 /// Optional header and footer content lets a detail surface keep its metadata
 /// and release shelves in the same native collection instead of nesting a
 /// selectable table inside another scroll view.
-struct TrackListView: View {
+struct TrackListView<Row: View>: View {
     let tracks: [TrackRowViewModel]
     /// Bound straight through to the browser view model's selection set, which
     /// stays the source of truth every context menu action reads.
     @Binding var selection: Set<String>
-    let rowBuilder: (TrackRowViewModel) -> TrackListRow
+    let rowBuilder: (TrackRowViewModel) -> Row
     /// Optional content rendered above the track rows in the native list.
     let headerContent: AnyView?
     /// Optional content rendered below the track rows in the native list.
@@ -38,7 +38,7 @@ struct TrackListView: View {
     init(
         tracks: [TrackRowViewModel],
         selection: Binding<Set<String>>,
-        rowBuilder: @escaping (TrackRowViewModel) -> TrackListRow,
+        rowBuilder: @escaping (TrackRowViewModel) -> Row,
         pendingScrollRestoreTrackID: Binding<String?>,
         onFirstVisibleTrackChanged: @escaping (String) -> Void,
         playSelection: ((Set<String>) -> Void)? = nil,
@@ -73,11 +73,13 @@ struct TrackListView: View {
                 ForEach(tracks) { track in
                     rowBuilder(track)
                         .frame(height: TrackListRow.listRowHeight)
+                        // With the list's own inset the row's edge lands on the
+                        // page margin, under the header's artwork and titles.
                         .listRowInsets(EdgeInsets(
                             top: 0,
-                            leading: SpotiglassDesign.spacingXS,
+                            leading: SpotiglassDesign.Layout.insetListContentInset,
                             bottom: 0,
-                            trailing: SpotiglassDesign.spacingXS
+                            trailing: SpotiglassDesign.Layout.insetListContentInset
                         ))
                         .tag(track.id)
                         // Row lifecycle is what tells us where the list is. Deriving

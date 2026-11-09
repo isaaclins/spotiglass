@@ -39,7 +39,7 @@ struct ImmersiveLyricsMainLayout: View {
                             navigateToAlbum: navigateToAlbum,
                             currentTrack: currentTrack
                         )
-                        .frame(width: min(320, geo.size.width * 0.36), alignment: .leading)
+                        .frame(width: min(SpotiglassDesign.Layout.lyricsSideColumnMaxWidth, geo.size.width * 0.36), alignment: .leading)
                         ImmersiveLyricsLyricsPhaseColumn(
                             lyricsModel: lyricsModel,
                             currentTrack: currentTrack,
@@ -68,7 +68,7 @@ struct ImmersiveLyricsMainLayout: View {
                             reduceMotion: reduceMotion,
                             usesLyricsScrollEdgeFade: usesLyricsScrollEdgeFade,
                             lyricsTextSize: lyricsTextSize,
-                            maxHeight: max(200, usableHeight * 0.5)
+                            maxHeight: max(SpotiglassDesign.Layout.lyricsColumnMinHeight, usableHeight * 0.5)
                         )
                     }
                 }

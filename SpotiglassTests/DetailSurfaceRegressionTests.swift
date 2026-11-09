@@ -37,8 +37,7 @@ final class DetailSurfaceRegressionTests: XCTestCase {
             playTrack: { _ in },
             openAlbum: { _ in },
             playAlbumContext: { _ in },
-            currentPlaybackURI: nil,
-            isPlaying: false,
+            playback: .nothingPlaying,
             togglePlayPause: {},
             hasPlaybackDevice: true,
             addToQueue: { _ in },
@@ -48,7 +47,7 @@ final class DetailSurfaceRegressionTests: XCTestCase {
         .environmentObject(pinnedStore())
 
         ViewTestHost.host(view, size: CGSize(width: 800, height: 700))
-        XCTAssertNoThrow(try view.inspect().find(TrackListView.self))
+        XCTAssertNoThrow(try view.inspect().find(TrackListView<PlaybackValueReader<TrackRowPlaybackMark, TrackListRow>>.self))
 
         browserViewModel.detailState = .loaded(.artist(detail))
         browserViewModel.selectedDetailTrackIDs = [detail.tracks[0].id]
@@ -356,8 +355,7 @@ final class DetailSurfaceRegressionTests: XCTestCase {
             pendingScrollRestoreTrackID: .constant(nil),
             onTrackEnteredViewportApproximation: { _ in },
             playURI: { _ in },
-            currentPlaybackURI: nil,
-            isPlaying: false,
+            playback: .nothingPlaying,
             togglePlayPause: {},
             hasPlaybackDevice: false,
             addToQueue: { _ in },
@@ -373,8 +371,7 @@ final class DetailSurfaceRegressionTests: XCTestCase {
             playTrack: { _ in },
             openAlbum: { _ in },
             playAlbumContext: { _ in },
-            currentPlaybackURI: nil,
-            isPlaying: false,
+            playback: .nothingPlaying,
             togglePlayPause: {},
             hasPlaybackDevice: false,
             addToQueue: { _ in },

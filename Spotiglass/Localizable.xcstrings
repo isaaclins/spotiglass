@@ -7206,19 +7206,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass-Einstellungen und Tastenkürzel"
+            "value": "Spotiglass-Einstellungen und Tastenkürzel ändern"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass preferences and shortcuts"
+            "value": "Change Spotiglass preferences and shortcuts"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Preferencias y atajos de Spotiglass"
+            "value": "Cambiar preferencias y atajos de Spotiglass"
           }
         }
       }
@@ -7391,19 +7391,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Stellt den hervorgehobenen Titel in die Warteschlange, ohne die Palette zu schliessen"
+            "value": "Hervorgehobenen Titel in die Warteschlange stellen, ohne die Palette zu schliessen"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Queues the highlighted track without dismissing the palette"
+            "value": "Queue the highlighted track without dismissing the palette"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Encola la canción resaltada sin cerrar la paleta"
+            "value": "Añadir la canción resaltada a la cola sin cerrar la paleta"
           }
         }
       }
@@ -7426,7 +7426,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Añadir elemento seleccionado a la cola"
+            "value": "Añadir elemento seleccionado de la paleta a la cola"
           }
         }
       }
@@ -7449,7 +7449,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Busca canciones, listas y comandos"
+            "value": "Buscar canciones, listas y comandos"
           }
         }
       }
@@ -7483,7 +7483,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Heftet das hervorgehobene Ergebnis an die Seitenleiste"
+            "value": "Hervorgehobenes Ergebnis an die Seitenleiste heften"
           }
         },
         "en": {
@@ -7495,7 +7495,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fija el resultado resaltado en la barra lateral"
+            "value": "Fijar el resultado resaltado en la barra lateral"
           }
         }
       }
@@ -7529,7 +7529,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Entfernt das hervorgehobene Ergebnis aus der Seitenleiste"
+            "value": "Hervorgehobenes Ergebnis aus der Seitenleiste entfernen"
           }
         },
         "en": {
@@ -7541,7 +7541,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Quita el resultado resaltado de la barra lateral"
+            "value": "Quitar el resultado resaltado de la barra lateral"
           }
         }
       }
@@ -7564,7 +7564,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Quitar elemento seleccionado de la barra lateral"
+            "value": "Dejar de fijar elemento seleccionado de la paleta"
           }
         }
       }
@@ -7667,7 +7667,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Zum vorherigen Titel zurück"
+            "value": "Zum vorherigen Titel zurückkehren"
           }
         },
         "en": {
@@ -7725,7 +7725,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pausa o reanuda la reproducción de Spotify"
+            "value": "Pausar o reanudar la reproducción de Spotify"
           }
         }
       }
@@ -7759,7 +7759,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Speichert die Titel jeder Playlist für sofortiges Öffnen im Cache"
+            "value": "Titel jeder Playlist für sofortiges Öffnen im Cache speichern"
           }
         },
         "en": {
@@ -7771,7 +7771,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Guarda en caché las canciones de cada lista para abrirlas al instante"
+            "value": "Guardar en caché las canciones de cada lista para abrirlas al instante"
           }
         }
       }
@@ -7788,7 +7788,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Load all your songs into Spotiglass"
+            "value": "Load All Your Songs into Spotiglass"
           }
         },
         "es": {
@@ -7805,7 +7805,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lädt die fokussierte Mediathek, Playlist, den Künstler oder die Warteschlange neu"
+            "value": "Fokussierte Mediathek, Playlist, Künstler oder Warteschlange neu laden"
           }
         },
         "en": {
@@ -7817,7 +7817,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Recarga la biblioteca, lista, artista o cola enfocados"
+            "value": "Recargar la biblioteca, lista, artista o cola enfocados"
           }
         }
       }
@@ -14719,7 +14719,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Muestra tu biblioteca de Apple Music"
+            "value": "Mostrar tu biblioteca de Apple Music"
           }
         },
         "de": {
@@ -14765,7 +14765,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Muestra tu biblioteca de Spotify"
+            "value": "Mostrar tu biblioteca de Spotify"
           }
         },
         "de": {
@@ -15501,7 +15501,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pausa o reanuda la reproducción de Apple Music"
+            "value": "Pausar o reanudar la reproducción de Apple Music"
           }
         },
         "de": {

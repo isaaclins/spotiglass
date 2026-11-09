@@ -129,8 +129,6 @@ final class CatalogSearchViewTests: XCTestCase {
                     defaults: makeEphemeralDefaults()
                 )
             ),
-            currentPlaybackURI: nil,
-            isPlaying: false,
             hasPlaybackDevice: false
         )
         .environmentObject(PinnedItemsStore(cache: InMemoryPinnedItemsCache()))

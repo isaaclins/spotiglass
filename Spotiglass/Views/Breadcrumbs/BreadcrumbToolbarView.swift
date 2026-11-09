@@ -59,7 +59,7 @@ struct BreadcrumbToolbarView: View {
     }
 
     private var trail: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: SpotiglassDesign.spacingXS) {
             homeCrumb
 
             ForEach(Array(ancestorPath.enumerated()), id: \.element.id) { index, crumb in
@@ -71,8 +71,8 @@ struct BreadcrumbToolbarView: View {
                 crumbRow(crumb: crumb, breadcrumbIndex: index)
             }
         }
-        .padding(.vertical, 2)
-        .padding(.trailing, 4)
+        .padding(.vertical, SpotiglassDesign.spacingHalf)
+        .padding(.trailing, SpotiglassDesign.spacingXXS)
         .fixedSize(horizontal: true, vertical: false)
     }
 
@@ -119,7 +119,7 @@ struct BreadcrumbToolbarView: View {
     }
 
     private func crumbLabel(crumb: BrowserBreadcrumb, label: String) -> some View {
-        HStack(spacing: 5) {
+        HStack(spacing: SpotiglassDesign.spacingXXS) {
             Image(systemName: crumb.systemImage)
                 .font(SpotiglassDesign.Typography.breadcrumb)
 
@@ -128,7 +128,7 @@ struct BreadcrumbToolbarView: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
         }
-        .frame(maxWidth: 220, alignment: .leading)
+        .frame(maxWidth: SpotiglassDesign.Layout.breadcrumbMaxWidth, alignment: .leading)
         .foregroundStyle(Color.secondary)
         .contentShape(Rectangle())
     }

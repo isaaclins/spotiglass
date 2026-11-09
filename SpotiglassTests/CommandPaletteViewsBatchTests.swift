@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import ViewInspector
 import XCTest
@@ -55,6 +56,76 @@ final class CommandPaletteViewsBatchTests: XCTestCase {
         )
         ViewTestHost.host(tabs, size: CGSize(width: 760, height: 560))
         XCTAssertNoThrow(try tabs.inspect().find(text: "Shortcuts"))
+    }
+
+    /// Bound and unbound rows used to end on different lines: an unbound row had
+    /// no clear button, so its trailing-aligned field sat further right (#428).
+    /// Checked in the window's standalone layout and in the Settings pane's Form.
+    func testKeyboardRowsKeepOneShortcutColumnWhetherBoundOrNot() throws {
+        let (_, keymap, _) = try makeHarness()
+        try keymap.clearBinding(commandID: CommandPaletteCommandID.nextTrack)
+        XCTAssertNil(keymap.primaryShortcut(for: CommandPaletteCommandID.nextTrack))
+        let bindable = CommandPaletteCommandCatalog.editable.filter { !$0.isDestructive }
+
+        for presentation in [CommandPaletteSettingsView.Presentation.standalone, .settingsTabs] {
+            let controller = ViewTestHost.host(
+                CommandPaletteSettingsView(keymapStore: keymap, presentation: presentation),
+                size: CGSize(width: 760, height: 1_600)
+            )
+            let fields = recorderFields(in: controller.view)
+            XCTAssertEqual(fields.count, bindable.count, "\(presentation): one recorder per bindable command")
+            let frames = fields.map { $0.convert($0.bounds, to: nil) }
+            for frame in frames {
+                XCTAssertEqual(frame.width, SpotiglassDesign.Layout.shortcutFieldWidth, accuracy: 0.5, "\(presentation)")
+                XCTAssertEqual(frame.minX, frames[0].minX, accuracy: 0.5, "\(presentation): a shortcut field left the column")
+            }
+        }
+    }
+
+    /// The "Not bindable" row used to show loose text with a lock where the
+    /// field goes. It now takes the same column as every other row.
+    func testNotBindableRowTakesTheSameShortcutColumn() throws {
+        let (_, keymap, _) = try makeHarness()
+        let view = CommandPaletteSettingsView(keymapStore: keymap, presentation: .standalone)
+        ViewTestHost.host(view, size: CGSize(width: 760, height: 1_600))
+
+        let columns = try view.inspect().findAll(where: {
+            (try? $0.fixedWidth()) == SpotiglassDesign.Layout.shortcutFieldWidth
+        })
+        XCTAssertEqual(columns.count, CommandPaletteCommandCatalog.editable.count, "one shortcut column per row")
+        let notBindable = SpotiglassL10n.string("palette.settings.notBindable")
+        let destructive = CommandPaletteCommandCatalog.editable.filter(\.isDestructive).count
+        XCTAssertGreaterThan(destructive, 0)
+        XCTAssertEqual(
+            columns.filter { (try? $0.find(text: notBindable)) != nil }.count, destructive,
+            "every not-bindable row shows its notice inside the shortcut column"
+        )
+    }
+
+    /// The field has one width for every row, so it has to fit the longest
+    /// state in every language the app ships, or German would clip.
+    func testShortcutFieldFitsEveryStateInEveryLanguage() {
+        for language in ["en", "de", "es"] {
+            let locale = Locale(identifier: language)
+            let recording = SpotiglassL10n.string("palette.hotkeyRecorder.recording", locale: locale)
+            let states = [
+                SpotiglassL10n.string("palette.hotkeyRecorder.clickToRecord", locale: locale),
+                "\(recording)  ⌃ ⌥ ⇧ ⌘",
+                SpotiglassL10n.string("palette.settings.notBindable", locale: locale),
+            ]
+            for state in states {
+                let button = NSButton(title: state, target: nil, action: nil)
+                button.bezelStyle = .rounded
+                XCTAssertLessThanOrEqual(
+                    button.fittingSize.width, SpotiglassDesign.Layout.shortcutFieldWidth,
+                    "\(language): \"\(state)\" doesn't fit the shortcut field"
+                )
+            }
+        }
+    }
+
+    private func recorderFields(in view: NSView) -> [RecorderKeyContainerView] {
+        (view as? RecorderKeyContainerView).map { [$0] } ?? view.subviews.flatMap { recorderFields(in: $0) }
     }
 
     func testSettingsViewSurfacesCrossContextDuplicate() throws {

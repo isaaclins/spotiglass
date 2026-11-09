@@ -101,11 +101,165 @@ enum SpotiglassDesign {
         return luminance > 0.5 ? .black : .white
     }
 
-    static let spacingXS: CGFloat = 6
-    static let spacingS: CGFloat = 10
-    static let spacingM: CGFloat = 16
-    static let spacingL: CGFloat = 24
-    static let spacingXL: CGFloat = 36
+    // MARK: - Layout grid
+
+    /// Every spacing, margin and size in the app is a multiple of this (#428).
+    /// The old scale (6, 10, 16, 24, 36) was off the grid and views picked their
+    /// own numbers next to it, so edges and centre lines drifted between sections.
+    /// `LayoutGridTests` fails when a view hard-codes a spacing number again.
+    static let gridUnit: CGFloat = 4
+
+    /// Half a grid step. Only for the gap inside one label: a title over its
+    /// subtitle, or a badge's vertical inset. Never between two separate things.
+    static let spacingHalf: CGFloat = gridUnit / 2
+    static let spacingXXS: CGFloat = gridUnit
+    static let spacingXS: CGFloat = gridUnit * 2
+    static let spacingS: CGFloat = gridUnit * 3
+    static let spacingM: CGFloat = gridUnit * 4
+    static let spacingL: CGFloat = gridUnit * 6
+    static let spacingXL: CGFloat = gridUnit * 8
+
+    /// Fixed layout values for the things that repeat across surfaces. A view
+    /// that needs one of these sizes uses the value here, so two surfaces showing
+    /// the same kind of thing can't drift apart.
+    enum Layout {
+        // MARK: Pages
+
+        /// Inset from a page's edge to its content. Page titles, section titles,
+        /// cards and the leading edge of track rows all start on this line.
+        static let contentMargin: CGFloat = spacingL
+        /// The horizontal inset a macOS `.inset` `List` adds to every row on its own.
+        static let insetListMargin: CGFloat = spacingM
+        /// What content inside an `.inset` `List` (track lists, the artist page) adds
+        /// on top of the list's own inset to land on `contentMargin`.
+        static let insetListContentInset: CGFloat = contentMargin - insetListMargin
+        /// Gap between two sections of a page.
+        static let sectionSpacing: CGFloat = spacingL
+        /// Gap between a section's title and its content.
+        static let sectionTitleSpacing: CGFloat = spacingS
+        /// Inset of the narrow side panels (queue, sidebar header) from their edges.
+        static let panelMargin: CGFloat = spacingM
+
+        // MARK: Rows
+
+        /// Height of every row that renders a track: artwork plus the row's padding.
+        static let trackRowHeight: CGFloat = trackRowArtworkSize + 2 * spacingXS
+        static let trackRowArtworkSize: CGFloat = 40
+        /// The track number or play button column in front of a track's artwork.
+        static let trackNumberColumnWidth: CGFloat = 40
+        /// Room for `m:ss` and `mm:ss` durations, so resizing doesn't reflow the trailing edge.
+        static let durationColumnWidth: CGFloat = 48
+        /// The cover or symbol tile at the leading edge of every sidebar row: Search, Home,
+        /// pins, Liked Songs and playlists all use this one size (#444).
+        static let sidebarRowArtworkSize: CGFloat = 32
+        /// Height of every sidebar row: its tile plus a grid step above and below, which also
+        /// fits a title over a subtitle.
+        static let sidebarRowHeight: CGFloat = sidebarRowArtworkSize + 2 * spacingXXS
+        /// Artwork of command palette results; rows without artwork reserve the same width.
+        static let smallArtworkSize: CGFloat = 28
+        /// Artwork of a pinned item's drag preview and other inline thumbnails.
+        static let thumbnailSize: CGFloat = 24
+        /// Widest a pinned item's drag preview gets before its title truncates.
+        static let dragPreviewMaxWidth: CGFloat = 260
+        /// Artwork of the up-next rows beside the lyrics.
+        static let compactRowArtworkSize: CGFloat = 36
+        /// The cover at the leading edge of the player bar. Also the player bar's
+        /// content height, so a bar that stands in for it keeps the same height.
+        static let nowPlayingArtworkSize: CGFloat = 44
+        /// Height of a home quick-access tile, which is also its artwork size.
+        static let quickAccessTileHeight: CGFloat = 56
+        static let quickAccessTileMinWidth: CGFloat = 220
+        /// Smallest height a section keeps while it loads or shows a notice, so it doesn't jump.
+        static let sectionNoticeMinHeight: CGFloat = 56
+
+        // MARK: Cards
+
+        /// Width of every album, playlist and artist card (Home, Search, artist pages).
+        static let cardWidth: CGFloat = 152
+        /// Artwork of the large now-playing cover beside the lyrics.
+        static let lyricsArtworkSize: CGFloat = 220
+        /// Smallest height the lyrics column keeps while it loads, so the layout doesn't jump.
+        static let lyricsStatusMinHeight: CGFloat = 160
+        /// Smallest height of the "instrumental" note in place of lyrics.
+        static let lyricsInstrumentalMinHeight: CGFloat = 120
+        /// Widest the now-playing column beside the lyrics gets.
+        static let lyricsSideColumnMaxWidth: CGFloat = 320
+        /// Smallest height the lyrics column keeps in a short window.
+        static let lyricsColumnMinHeight: CGFloat = 200
+        /// Artwork on the service choice buttons of the welcome screen.
+        static let serviceChoiceLogoSize: CGFloat = 44
+        static let serviceChoiceWidth: CGFloat = 192
+
+        // MARK: Controls
+
+        /// Square hit area of an icon button (player bar, palette, queue).
+        static let iconButtonSize: CGFloat = 28
+        static let iconButtonFrame = CGSize(width: iconButtonSize, height: iconButtonSize)
+        /// A button that sits inline with a line of text (the lyrics button beside the title).
+        static let inlineButtonSize: CGFloat = 24
+        static let inlineButtonFrame = CGSize(width: inlineButtonSize, height: inlineButtonSize)
+        /// Square frame of a small glyph next to a label (palette rows, toolbar).
+        static let iconSize: CGFloat = 16
+        /// Smallest width of the elapsed and remaining times beside the scrubber.
+        static let timeLabelMinWidth: CGFloat = 40
+        /// Width of the player bar's recovery and device buttons.
+        static let wideButtonWidth: CGFloat = 168
+        static let wideButtonFrame = CGSize(width: wideButtonWidth, height: iconButtonSize)
+        /// Inset of a small text badge ("Explicit", "Unavailable", "Owner").
+        static let badgeInsets = EdgeInsets(
+            top: spacingHalf, leading: spacingXS, bottom: spacingHalf, trailing: spacingXS
+        )
+        /// Smallest width of a value readout beside a slider or field.
+        static let valueLabelMinWidth: CGFloat = 48
+
+        // MARK: Readable widths
+
+        /// Widest a short message (empty and error states) runs before it wraps.
+        static let messageMaxWidth: CGFloat = 360
+        /// Widest a longer explanation runs before it wraps.
+        static let paragraphMaxWidth: CGFloat = 420
+        /// Widest a centered panel (welcome, sign-in) gets.
+        static let panelMaxWidth: CGFloat = 560
+
+        /// Widest one breadcrumb gets in the toolbar before it truncates.
+        static let breadcrumbMaxWidth: CGFloat = 220
+        /// The back button at the leading edge of the toolbar.
+        static let toolbarButtonSize: CGFloat = 32
+
+        /// Width of the library prefetch progress bar in the toolbar.
+        static let toolbarProgressWidth: CGFloat = 72
+
+        // MARK: Settings
+
+        /// Widest a pop-up picker in a Settings row gets.
+        static let pickerMaxWidth: CGFloat = 240
+        /// Width of a signed gain readout ("-12.0 dB") in the equalizer.
+        static let gainLabelWidth: CGFloat = 64
+        /// Smallest width of one equalizer band column, so frequency labels don't clip.
+        static let equalizerBandMinWidth: CGFloat = 52
+        /// Height of an equalizer band's vertical slider.
+        static let equalizerSliderHeight: CGFloat = 200
+        /// Width of a small sheet (save preset, rename).
+        static let sheetWidth: CGFloat = 380
+        /// Smallest a shortcut field gets, so assigned and empty fields read as one control.
+        /// Width of every shortcut field in Settings > Keyboard, bound or not.
+        /// Fits the longest state in every language ("Zum Aufzeichnen klicken",
+        /// or recording with all four modifiers held), so no row grows.
+        static let shortcutFieldWidth: CGFloat = 176
+        static let shortcutFieldMinHeight: CGFloat = 28
+        /// Smallest height of a multi-line text editor in Settings.
+        static let textEditorMinHeight: CGFloat = 200
+        /// Smallest size of the keyboard settings when shown in a window of their own.
+        static let standaloneSettingsMinWidth: CGFloat = 720
+        static let standaloneSettingsMinHeight: CGFloat = 520
+
+        // MARK: Command palette
+
+        static let paletteMaxWidth: CGFloat = 760
+        static let paletteResultsHeight: CGFloat = 360
+        /// Widest the palette's prefetch progress bar gets.
+        static let paletteProgressMaxWidth: CGFloat = 140
+    }
 
     // MARK: - Dynamic typography
 
@@ -136,9 +290,9 @@ enum SpotiglassDesign {
     static let settingsSidebarMinWidth: CGFloat = 220
     static let settingsSidebarIdealWidth: CGFloat = 240
     static let settingsSidebarMaxWidth: CGFloat = 280
-    static let settingsProfileAvatarSize: CGFloat = 34
+    static let settingsProfileAvatarSize: CGFloat = 32
     static let settingsHeaderIconSize: CGFloat = 28
-    static let settingsSidebarIconSize: CGFloat = 22
+    static let settingsSidebarIconSize: CGFloat = 24
 
     // MARK: - Playback chrome
 
@@ -156,6 +310,9 @@ enum SpotiglassDesign {
     /// Artwork size for the playlist, Liked Songs and artist detail headers.
     /// One value so equivalent headers cannot drift apart (#145).
     static let detailHeaderArtworkSize: CGFloat = 120
+    /// Small artwork in dense rows (the sidebar). `cornerS` on a 32 pt tile rounds it into an
+    /// app icon; covers that small read as covers with a quarter of that.
+    static let cornerXS: CGFloat = 4
     static let cornerS: CGFloat = 8
     static let cornerM: CGFloat = 14
     static let cornerL: CGFloat = 22

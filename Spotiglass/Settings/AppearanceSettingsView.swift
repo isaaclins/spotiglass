@@ -261,7 +261,7 @@ struct AppearanceSettingsView: View {
             )
             .font(.callout.monospacedDigit())
             .foregroundStyle(.secondary)
-            .frame(width: 48, alignment: .trailing)
+            .frame(width: SpotiglassDesign.Layout.valueLabelMinWidth, alignment: .trailing)
         }
     }
 
@@ -293,7 +293,7 @@ private struct LyricsTextSizePreview: View {
     ]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: max(8, metrics.timedLineSpacing * 0.55)) {
+        VStack(alignment: .leading, spacing: max(SpotiglassDesign.spacingXS, metrics.timedLineSpacing * 0.55)) {
             ForEach(lines, id: \.distance) { line in
                 Text(line.text)
                     .font(.system(
