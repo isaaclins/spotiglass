@@ -80,6 +80,12 @@ final class AppleMusicSongReferenceRegistry: @unchecked Sendable {
 
     private let lock = NSLock()
     private var references = LRUDictionary<String, AppleMusicSongReference>(capacity: AppleMusicSongReferenceRegistry.maxEntries)
+    /// Each song's other IDs, worked out once: encoding a song to read them takes about a
+    /// quarter of a millisecond, a fifth of a second for an 800-song playlist that was paid again
+    /// on every open (#442). Keyed by item ID and whether the song is in the library, as adding
+    /// it gives it a cloud library ID.
+    private var identities = LRUDictionary<String, AppleMusicSongIdentity>(capacity: AppleMusicSongReferenceRegistry.maxIdentities)
+    static let maxIdentities = 20_000
 
     func remember(_ reference: AppleMusicSongReference) {
         lock.withLock { references.setValue(reference, forKey: reference.itemID) }
@@ -105,15 +111,32 @@ final class AppleMusicSongReferenceRegistry: @unchecked Sendable {
     func remember(_ tracks: [Track], playlistID: String? = nil) {
         let playlistPersistentID = playlistID.flatMap(AppleMusicLibraryEditor.musicAppPersistentID(fromMusicKitID:))
         for case let .song(song) in tracks where MusicKitLibraryLookup.isPersistentID(song.id.rawValue) {
+            let isInLibrary = addedDate(song) != nil
             var reference = MusicKitLibraryLookup.reference(
                 song,
-                identity: AppleMusicSongIdentity(encoding: song),
+                identity: identity(of: song, isInLibrary: isInLibrary),
                 itemID: song.id.rawValue,
-                isInLibrary: addedDate(song) != nil
+                isInLibrary: isInLibrary
             )
             reference.sourcePlaylistPersistentID = playlistPersistentID
             remember(reference)
         }
+    }
+
+    /// Works out the other IDs of the songs a library playlist lists under a persistent ID ahead
+    /// of time, so opening the playlist later doesn't have to (#442).
+    func prepareIdentities(of tracks: [Track]) {
+        for case let .song(song) in tracks where MusicKitLibraryLookup.isPersistentID(song.id.rawValue) {
+            _ = identity(of: song, isInLibrary: addedDate(song) != nil)
+        }
+    }
+
+    private func identity(of song: Song, isInLibrary: Bool) -> AppleMusicSongIdentity {
+        let key = "\(song.id.rawValue)|\(isInLibrary)"
+        if let known = lock.withLock({ identities.value(forKey: key) }) { return known }
+        let identity = AppleMusicSongIdentity(encoding: song)
+        lock.withLock { identities.setValue(identity, forKey: key) }
+        return identity
     }
 }
 

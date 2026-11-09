@@ -29,6 +29,16 @@ extension PlaylistBrowserViewModel {
             return
         }
 
+        // Opening from Home or the palette sets the sidebar selection, and the sidebar then
+        // reports that change back here. Loading again would read the whole playlist a second
+        // time while the first read still runs (#442). Only while that load is for this
+        // selection: an album opened from a playlist keeps the sidebar on the playlist, and
+        // opening the playlist again while the album loads must still open it.
+        if origin == .reset, selection == sidebarSelection, detailLoadTask != nil,
+           currentNavigationTarget == .sidebar(selection) {
+            return
+        }
+
         registerNavigationTransition(to: .sidebar(selection))
         applyBreadcrumbForSidebar(selection, origin: origin)
         ignoreNextNilSidebarSelectionForDetail = false

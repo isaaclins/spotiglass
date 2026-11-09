@@ -188,11 +188,12 @@ struct AppleMusicBrowserRoot: View {
         }
     }
 
-    /// No disk cache for Apple Music: library reads are local and fast, and library artwork
-    /// URLs are only valid while MusicKit's session lives, so a stored copy would go blank.
-    /// Spotify's own cache is never shared with this browser.
+    /// No disk cache for Apple Music: library artwork URLs are only valid while MusicKit's
+    /// session lives, so a stored copy would go blank. Track lists are kept in memory instead, so
+    /// reopening a playlist shows it at once and refreshes it quietly (#442). Spotify's own cache
+    /// is never shared with this browser.
     static func makeViewModel() -> PlaylistBrowserViewModel {
-        PlaylistBrowserViewModel(api: AppleMusicBrowsingProvider(generatedCovers: .shared), cache: DisabledSpotifyBrowsingCache())
+        PlaylistBrowserViewModel(api: AppleMusicBrowsingProvider(generatedCovers: .shared), cache: MemoryBrowsingCache())
     }
 }
 

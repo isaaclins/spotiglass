@@ -52,6 +52,10 @@ protocol AppleMusicContentSource: Sendable {
     func libraryPlaylistTracks(playlistIDs: [String]) async throws -> [String: [Track]]
     /// The tracks of one playlist, or `nil` when no playlist has that ID.
     func playlistTracks(playlistID: String, limit: Int) async throws -> [Track]?
+    /// One playlist of the user's library without its tracks, or `nil` when the library lists
+    /// none with that ID. Cheap next to reading the tracks: it tells whether the playlist changed
+    /// since its tracks were last read (`lastModifiedDate`).
+    func libraryPlaylist(id: String) async throws -> Playlist?
     /// The songs MusicKit lists as the user's library, most recently added first. Songs that are
     /// only in a playlist come with them (#401); `isInLibrary` tells them apart.
     func librarySongs(limit: Int, offset: Int) async throws -> [Song]
@@ -108,12 +112,16 @@ struct MusicKitContentSource: AppleMusicContentSource {
         return tracks
     }
 
+    func libraryPlaylist(id: String) async throws -> Playlist? {
+        var request = MusicLibraryRequest<Playlist>()
+        request.filter(matching: \.id, equalTo: MusicItemID(id))
+        return try await request.response().items.first
+    }
+
     func playlistTracks(playlistID: String, limit: Int) async throws -> [Track]? {
         let id = MusicItemID(playlistID)
-        var libraryRequest = MusicLibraryRequest<Playlist>()
-        libraryRequest.filter(matching: \.id, equalTo: id)
         let playlist: Playlist?
-        if let libraryPlaylist = try await libraryRequest.response().items.first {
+        if let libraryPlaylist = try await libraryPlaylist(id: playlistID) {
             playlist = libraryPlaylist
         } else if Self.isLibraryPlaylistID(playlistID) {
             // A library playlist this Mac doesn't list yet (created moments ago). The catalog

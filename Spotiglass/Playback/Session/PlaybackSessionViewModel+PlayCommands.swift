@@ -3,6 +3,7 @@ import Foundation
 @MainActor
 extension PlaybackSessionViewModel {
     func play(uri: String) async {
+        playbackCommandCount &+= 1
         guard !refusesNewPlayback else {
             SpotiglassLog.info(.playback, "play(uri:) refused: another service is on screen")
             return
@@ -58,6 +59,7 @@ extension PlaybackSessionViewModel {
     /// `playlistID` marks the sidebar row of the list that plays (the header Play and Shuffle
     /// of a playlist or album, #396), the way ``playFromPlaylist(clickedURI:playableURIs:playlistID:)`` does.
     func play(contextURI: String, playlistID: String? = nil) async {
+        playbackCommandCount &+= 1
         guard !refusesNewPlayback else {
             SpotiglassLog.info(.playback, "play(contextURI:) refused: another service is on screen")
             return
@@ -97,6 +99,7 @@ extension PlaybackSessionViewModel {
     }
 
     func playFromPlaylist(clickedURI: String, playableURIs: [String], playlistID: String? = nil) async {
+        playbackCommandCount &+= 1
         guard !refusesNewPlayback else {
             SpotiglassLog.info(.playback, "playFromPlaylist refused: another service is on screen")
             return

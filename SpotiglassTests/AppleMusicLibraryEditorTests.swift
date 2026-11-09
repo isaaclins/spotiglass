@@ -1218,6 +1218,7 @@ final class EditTestContentSource: AppleMusicContentSource, @unchecked Sendable 
         return read
     }
     func playlistTracks(playlistID: String, limit: Int) async throws -> [Track]? { tracksByPlaylistID[playlistID] }
+    func libraryPlaylist(id: String) async throws -> Playlist? { playlists.first { $0.id.rawValue == id } }
     func librarySongs(limit: Int, offset: Int) async throws -> [Song] { offset == 0 ? songs : [] }
     func isInLibrary(_ song: Song) -> Bool { true }
     func recentlyPlayedSongs(limit: Int) async throws -> [Song] { [] }

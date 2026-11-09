@@ -592,6 +592,164 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         XCTAssertEqual(counts, [:])
     }
 
+    // MARK: - Opening big playlists (#442)
+
+    private func trackIDs(_ items: [MusicPlaylistTrackItem]) -> [String] {
+        items.compactMap { item in
+            if case let .track(track) = item.content { return track.id }
+            return nil
+        }
+    }
+
+    private func songs(_ range: Range<Int>) throws -> [Track] {
+        try range.map { Track.song(try AppleMusicFixtures.song(id: "i.\($0)", title: "Song \($0)")) }
+    }
+
+    /// "My music mix" (796 songs) sat on "Loading…" for every open: MusicKit reads a playlist's
+    /// songs all at once, about a second for 800, though counting had read them right after the
+    /// sidebar showed.
+    func testOpeningACountedPlaylistShowsTheCountedSongsWithoutReadingThemAgain() async throws {
+        let source = MockAppleMusicSource()
+        source.playlists = [try AppleMusicFixtures.playlist(id: "p.1", name: "My music mix", lastModified: "2026-11-01T10:00:00Z")]
+        source.trackCountsByPlaylistID = ["p.1": 796]
+        let provider = AppleMusicBrowsingProvider(source: source)
+        _ = try await provider.currentUserPlaylists(limit: 50)
+        _ = await provider.playlistTrackCounts(playlistIDs: ["p.1"])
+
+        let rows = try await provider.playlistTracks(playlistID: "p.1", limit: 50, maxPages: 200)
+
+        XCTAssertEqual(trackIDs(rows), (0..<796).map { "i.\($0)" }, "the same songs in the same order")
+        XCTAssertFalse(source.calls.contains { $0.hasPrefix("playlistTracks") }, "no second read")
+    }
+
+    func testReopeningAnUnchangedPlaylistReadsItOnce() async throws {
+        let source = MockAppleMusicSource()
+        source.playlists = [try AppleMusicFixtures.playlist(id: "p.1", name: "Italian", lastModified: "2026-11-01T10:00:00Z")]
+        source.playlistTracksByID = ["p.1": try songs(0..<328)]
+        let provider = AppleMusicBrowsingProvider(source: source)
+
+        let first = try await provider.playlistTracks(playlistID: "p.1", limit: 50, maxPages: 200)
+        let second = try await provider.playlistTracks(playlistID: "p.1", limit: 50, maxPages: 200)
+
+        XCTAssertEqual(trackIDs(second), trackIDs(first))
+        XCTAssertEqual(source.calls.filter { $0.hasPrefix("playlistTracks") }.count, 1)
+    }
+
+    func testAPlaylistChangedSinceItsLastReadIsReadAgain() async throws {
+        let source = MockAppleMusicSource()
+        source.playlists = [try AppleMusicFixtures.playlist(id: "p.1", name: "Italian", lastModified: "2026-11-01T10:00:00Z")]
+        source.playlistTracksByID = ["p.1": try songs(0..<3)]
+        let provider = AppleMusicBrowsingProvider(source: source)
+        _ = try await provider.playlistTracks(playlistID: "p.1", limit: 50, maxPages: 200)
+
+        // Edited in Music: the library lists a newer modification date.
+        source.playlists = [try AppleMusicFixtures.playlist(id: "p.1", name: "Italian", lastModified: "2026-11-08T10:00:00Z")]
+        source.playlistTracksByID = ["p.1": try songs(0..<4)]
+        let rows = try await provider.playlistTracks(playlistID: "p.1", limit: 50, maxPages: 200)
+
+        XCTAssertEqual(trackIDs(rows), ["i.0", "i.1", "i.2", "i.3"])
+    }
+
+    /// MusicKit on macOS gives library playlists no modification date (all 13 of a real
+    /// library, 2026-11-09): the counted songs can't be trusted as current, so they are only
+    /// shown first, and opening still reads the playlist.
+    func testWithoutAModificationDateTheCountedSongsAreShownFirstAndReadAgain() async throws {
+        let source = MockAppleMusicSource()
+        source.playlists = [try AppleMusicFixtures.playlist(id: "p.1", name: "My music mix")]
+        source.trackCountsByPlaylistID = ["p.1": 796]
+        source.playlistTracksByID = ["p.1": try songs(0..<797)]
+        let provider = AppleMusicBrowsingProvider(source: source)
+        _ = try await provider.currentUserPlaylists(limit: 50)
+        _ = await provider.playlistTrackCounts(playlistIDs: ["p.1"])
+
+        let shownFirst = await provider.lastReadPlaylistTracks(playlistID: "p.1")
+        let current = try await provider.playlistTracks(playlistID: "p.1", limit: 50, maxPages: 200)
+
+        XCTAssertEqual(trackIDs(shownFirst ?? []), (0..<796).map { "i.\($0)" })
+        XCTAssertEqual(current.count, 797, "the read finds the song added since")
+        let afterwards = await provider.lastReadPlaylistTracks(playlistID: "p.1")
+        XCTAssertEqual(afterwards?.count, 797, "the next open starts from the newer read")
+    }
+
+    /// The counted songs are only shown until a fresh read replaces them, so they stay usable
+    /// however long ago the app launched: an age limit made a first open 10 minutes after
+    /// launch wait for the whole read again.
+    func testTheCountedSongsAreStillShownFirstLongAfterLaunch() async throws {
+        let source = MockAppleMusicSource()
+        source.playlists = [try AppleMusicFixtures.playlist(id: "p.1", name: "My music mix")]
+        source.trackCountsByPlaylistID = ["p.1": 796]
+        source.playlistTracksByID = ["p.1": try songs(0..<796)]
+        let clock = TrackCountTestClock()
+        let provider = AppleMusicBrowsingProvider(
+            source: source,
+            trackCountCache: AppleMusicPlaylistTrackCountCache(now: { clock.now })
+        )
+        _ = try await provider.currentUserPlaylists(limit: 50)
+        _ = await provider.playlistTrackCounts(playlistIDs: ["p.1"])
+
+        clock.now = clock.now.addingTimeInterval(15 * 60)
+        let shownFirst = await provider.lastReadPlaylistTracks(playlistID: "p.1")
+
+        XCTAssertEqual(shownFirst?.count, 796)
+    }
+
+    func testAPlaylistWithoutAModificationDateIsAlwaysRead() async throws {
+        let source = MockAppleMusicSource()
+        source.playlists = [try AppleMusicFixtures.playlist(id: "p.1", name: "Road")]
+        source.playlistTracksByID = ["p.1": try songs(0..<3)]
+        let provider = AppleMusicBrowsingProvider(source: source)
+
+        _ = try await provider.playlistTracks(playlistID: "p.1", limit: 50, maxPages: 200)
+        _ = try await provider.playlistTracks(playlistID: "p.1", limit: 50, maxPages: 200)
+
+        XCTAssertEqual(source.calls.filter { $0.hasPrefix("playlistTracks") }.count, 2)
+    }
+
+    func testKeptSongsAreDroppedByAnEditAndBoundedLeastRecentlyUsedFirst() async throws {
+        let version = Date(timeIntervalSince1970: 1_000)
+        let cache = AppleMusicPlaylistTrackCountCache(maxTracks: 5)
+        _ = await cache.counts(forVersions: ["a": version, "b": version, "c": version])
+        await cache.storeTracks(try songs(0..<2), playlistID: "a", version: version, from: cache.startLookup(["a"]))
+        await cache.storeTracks(try songs(0..<2), playlistID: "b", version: version, from: cache.startLookup(["b"]))
+        _ = await cache.tracks(playlistID: "a", version: version)
+        await cache.storeTracks(try songs(0..<2), playlistID: "c", version: version, from: cache.startLookup(["c"]))
+
+        let a = await cache.tracks(playlistID: "a", version: version)
+        let b = await cache.tracks(playlistID: "b", version: version)
+        XCTAssertNotNil(a, "opened most recently, kept")
+        XCTAssertNil(b, "over the bound, the least recently opened goes")
+
+        await cache.forget(["a"])
+        let afterEdit = await cache.tracks(playlistID: "a", version: version)
+        XCTAssertNil(afterEdit)
+    }
+
+    func testARunningReadOfAnEditedPlaylistIsNotKept() async throws {
+        let version = Date(timeIntervalSince1970: 1_000)
+        let cache = AppleMusicPlaylistTrackCountCache()
+        let start = await cache.startLookup(["a"])
+        await cache.forget(["a"])
+        await cache.storeTracks(try songs(0..<2), playlistID: "a", version: version, from: start)
+        let kept = await cache.tracks(playlistID: "a", version: version)
+        XCTAssertNil(kept, "read before the edit")
+    }
+
+    /// Liked Songs (956 songs, 13 pages of MusicKit) showed nothing until every page was read.
+    func testLikedSongsHandOverTheirFirstPageWhileTheRestIsRead() async throws {
+        let source = MockAppleMusicSource()
+        source.librarySongCount = 450
+        let provider = AppleMusicBrowsingProvider(source: source)
+        let handedOver = LockedFirstPages()
+
+        let result = try await provider.currentUserSavedTracks(limit: 50, maxPages: nil) { first in
+            handedOver.append(first.tracks.count, callsSoFar: source.calls.count)
+        }
+
+        XCTAssertEqual(handedOver.pages.map(\.count), [200])
+        XCTAssertEqual(handedOver.pages.first?.callsSoFar, 1, "handed over before the second page was read")
+        XCTAssertEqual(result.tracks.count, 450)
+    }
+
     func testTrackCountCacheExpiresAndForgetsPlaylistsThatLeftTheLibrary() async {
         let clock = TrackCountTestClock()
         let cache = AppleMusicPlaylistTrackCountCache(now: { clock.now })
@@ -1554,6 +1712,11 @@ private final class MockAppleMusicSource: AppleMusicContentSource, @unchecked Se
         return read
     }
 
+    /// Not recorded: it only tells whether a playlist changed, and every open asks.
+    func libraryPlaylist(id: String) async throws -> Playlist? {
+        playlists.first { $0.id.rawValue == id }
+    }
+
     func playlistTracks(playlistID: String, limit: Int) async throws -> [Track]? {
         record("playlistTracks(\(playlistID),\(limit))")
         await playlistTracksGate?.wait()
@@ -1850,4 +2013,11 @@ enum AppleMusicFixtures {
         }
         return try decode(Artist.self, try json(resource))
     }
+}
+
+private final class LockedFirstPages: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: [(count: Int, callsSoFar: Int)] = []
+    var pages: [(count: Int, callsSoFar: Int)] { lock.withLock { stored } }
+    func append(_ count: Int, callsSoFar: Int) { lock.withLock { stored.append((count, callsSoFar)) } }
 }

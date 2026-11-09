@@ -392,6 +392,9 @@ final class PlaybackSessionViewModel: ObservableObject {
     /// Monotonically identifies the Web Playback host lifecycle currently owned by this session.
     /// Events and asynchronous completions from an older generation cannot publish into this one.
     var playbackHostGeneration = PlaybackHostGeneration.initial
+    /// Counts the user's playback commands (play, play/pause, next, previous) from anywhere, so a
+    /// play that waited before sending its own can tell a newer one came first (#442).
+    var playbackCommandCount: UInt64 = 0
     var playbackHostConnectTask: Task<Void, Never>?
     var playbackHostConnectTimeoutTask: Task<Void, Never>?
     var playbackHostConnectTimeoutSerial: UInt64 = 0
