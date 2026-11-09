@@ -82,7 +82,10 @@ struct MusicServiceSwitcher: View {
 
     private func label(for service: MusicService) -> some View {
         HStack(spacing: SpotiglassDesign.spacingXS) {
+            // Centered in the sidebar rows' tile column, so the logo sits over the tiles and the
+            // name starts on the rows' title edge (#444).
             MusicServiceLogo(service: service, size: Self.logoSize)
+                .frame(width: SpotiglassDesign.Layout.sidebarRowArtworkSize)
             Text(service.displayName)
                 .font(.headline)
                 .lineLimit(1)

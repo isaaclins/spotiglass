@@ -32,14 +32,13 @@ struct PlaylistBrowserSidebar: View {
         #endif
         ScrollViewReader { proxy in
             List(selection: $viewModel.sidebarSelection) {
-                // Kept out of the Library section (and out of `LibrarySidebarOrder`)
-                // so it always sits at the very top and never joins the
-                // drag-to-reorder group.
                 Section {
-                    Label(SpotiglassL10n.string("browser.search"), systemImage: "magnifyingglass")
+                    // First in Library, like Spotify's Search at the top of its sidebar. Pins and
+                    // Home follow in the order the user dragged them into (pins above Home by
+                    // default). Outside the `ForEach` (and `LibrarySidebarOrder`), so it stays on
+                    // top and never joins the drag-to-reorder group.
+                    SidebarDestinationRow(titleKey: "browser.search", systemImage: "magnifyingglass")
                         .tag(SidebarSelection.search)
-                }
-                Section {
                     ForEach(libraryRows) { row in
                         libraryRow(row)
                             .tag(row.sidebarSelectionTag)

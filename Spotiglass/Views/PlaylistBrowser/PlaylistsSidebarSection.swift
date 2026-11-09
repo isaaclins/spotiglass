@@ -5,8 +5,8 @@ struct PlaylistsSidebarSectionHeader: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
+            // The sidebar's own header style, the same as Library's (#444).
             Text(SpotiglassL10n.string("browser.playlists"))
-                .font(.title3.weight(.semibold))
             switch playlistState {
             case let .staleCache(_, error):
                 let caption = Self.cachedDataCaption(for: error)
@@ -170,7 +170,7 @@ struct PlaylistsSidebarSectionContent: View {
 
     private func playlistRenameEditor(playlist: PlaylistRowViewModel) -> some View {
         TextField("", text: $editedPlaylistName)
-            .font(.headline)
+            .font(.body)
             .textFieldStyle(.plain)
             .focused($isPlaylistNameFocused)
             .onSubmit { commitPlaylistName(for: playlist.id) }
