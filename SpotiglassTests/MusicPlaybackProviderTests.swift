@@ -852,7 +852,8 @@ final class PlayPauseFollowsThePressTests: XCTestCase {
         await press.value
 
         XCTAssertEqual(session.connectionState, .playing(Self.song), "the controls kept showing a pause that didn't happen")
-        XCTAssertEqual(session.refusedPlayPause?.title, SpotiglassL10n.string("error.playback.commandFailed.title"))
+        XCTAssertEqual(session.refusedPlayPause?.title, SpotiglassL10n.string("playback.refused.pause"))
+        XCTAssertEqual(session.refusedPlayPause?.message, SpotiglassL10n.string("error.playback.appleMusic.failed"))
         XCTAssertNil(session.localCommandExpectsPlaying, "the next read must be believed again")
 
         provider.refusal = nil
@@ -957,5 +958,27 @@ final class PlayPauseFollowsThePressTests: XCTestCase {
         api.snapshotResponses = [Self.snapshot(isPlaying: false, device: phone)]
         await session.syncTransportFromSpotify()
         XCTAssertTrue(Self.isPaused(session))
+    }
+
+    /// Spotify refusing a pause (HTTP 503): the bar says so in a sentence, not with the raw
+    /// error Spotify's display error keeps for diagnostics.
+    func testASpotifyRefusalSaysWhyInASentence() async {
+        let phone = MusicPlaybackDevice(deviceID: "phone-device", isActive: true, isRestricted: false, name: "Phone", type: "smartphone")
+        let api = MockPlaybackAPI()
+        let session = PlaybackSessionViewModel(
+            provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander())
+        )
+        session.deviceID = "local-device"
+        session.setConnectionState(.ready(deviceID: "local-device"))
+        api.snapshotResponses = [Self.snapshot(isPlaying: true, device: phone)]
+        await session.syncTransportFromSpotify()
+        XCTAssertTrue(Self.isPlaying(session))
+
+        api.pauseError = SpotifyAPIError.server(statusCode: 503, message: nil, details: nil)
+        await session.togglePlayPause()
+
+        XCTAssertTrue(Self.isPlaying(session), "the refused pause went back")
+        XCTAssertEqual(session.refusedPlayPause?.title, SpotiglassL10n.string("playback.refused.pause"))
+        XCTAssertEqual(session.refusedPlayPause?.message, SpotiglassL10n.string("error.playback.spotify.failed"))
     }
 }

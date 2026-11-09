@@ -217,6 +217,7 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
         var seekDelayNanoseconds: UInt64 = 0
         var seekError: Error?
         var nextError: Error?
+        var pauseError: Error?
         var setRepeatDelayNanoseconds: UInt64 = 0
         var setShuffleDelayNanoseconds: UInt64 = 0
         var onTransferPlayback: ((String, Bool) async -> Void)?
@@ -324,6 +325,10 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
         get { locked { $0.nextError } }
         set { locked { $0.nextError = newValue } }
     }
+    var pauseError: Error? {
+        get { locked { $0.pauseError } }
+        set { locked { $0.pauseError = newValue } }
+    }
     var setRepeatDelayNanoseconds: UInt64 {
         get { locked { $0.setRepeatDelayNanoseconds } }
         set { locked { $0.setRepeatDelayNanoseconds = newValue } }
@@ -402,6 +407,9 @@ final class MockPlaybackAPI: SpotifyPlaybackControlling {
     }
 
     func pause(deviceID: String) async throws {
+        if let pauseError {
+            throw pauseError
+        }
         actionRecorder.append("pause:\(deviceID)")
     }
 

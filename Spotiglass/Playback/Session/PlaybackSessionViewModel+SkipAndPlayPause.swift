@@ -169,7 +169,34 @@ extension PlaybackSessionViewModel {
             return
         }
         setConnectionState(request.stateBefore)
-        showRefusedPlayPause(displayError)
+        showRefusedPlayPause(refusedPlayPauseLine(for: error, displayError: displayError, shouldPause: request.shouldPause))
+    }
+
+    /// The bar's line for a refused press, in place of the artist: "Couldn't pause" as the
+    /// title (the line fits about two dozen characters), the reason as a sentence on hover.
+    /// Spotify's display error carries the raw error detail for diagnostics
+    /// (`server(statusCode: 503 …)`), which must not end up there; Apple Music's and a rate
+    /// limit's are already sentences.
+    private func refusedPlayPauseLine(
+        for error: Error,
+        displayError: PlaybackDisplayError,
+        shouldPause: Bool
+    ) -> PlaybackDisplayError {
+        let playbackError = MusicPlaybackError.from(error)
+        let reason: String
+        switch (playbackError?.service, playbackError?.reason) {
+        case (.appleMusic?, _), (.spotify?, .rateLimited?):
+            reason = displayError.message
+        default:
+            reason = service == .appleMusic
+                ? SpotiglassL10n.string("error.playback.appleMusic.failed")
+                : SpotiglassL10n.string("error.playback.spotify.failed")
+        }
+        return PlaybackDisplayError(
+            title: SpotiglassL10n.string(shouldPause ? "playback.refused.pause" : "playback.refused.play"),
+            message: reason,
+            recoveryAction: nil
+        )
     }
 
     /// Whether a refused play / pause just goes back: everything except what only you can fix.

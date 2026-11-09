@@ -490,7 +490,7 @@ struct PlaybackControlsView: View {
                         .lineLimit(1)
                         .contentTransition(.opacity)
                         .animation(.smooth(duration: 0.28), value: subtitle)
-                        .help(subtitle)
+                        .help(viewModel.refusedPlayPause?.message ?? subtitle)
                 } else {
                     artistLine
                 }
@@ -951,9 +951,10 @@ struct PlaybackControlsView: View {
     }
 
     private var subtitle: String {
-        // A refused play / pause went back to the state before it; the line says why (#437).
+        // A refused play / pause went back to the state before it; the line says so, and why
+        // on hover (#437).
         if let refused = viewModel.refusedPlayPause {
-            return refused.message
+            return refused.title
         }
         return switch viewModel.connectionState {
         case .disconnected:
