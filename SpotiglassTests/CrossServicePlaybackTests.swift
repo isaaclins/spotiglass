@@ -561,7 +561,7 @@ final class CrossServicePlaybackTests: XCTestCase {
         await search.waitForSearchCompletion()
         let searchView = CatalogSearchView(
             viewModel: browser, searchViewModel: search, playbackViewModel: playback, queueViewModel: queue,
-            currentPlaybackURI: fromAlbum, isPlaying: true, hasPlaybackDevice: true
+            hasPlaybackDevice: true
         )
         .environmentObject(pins)
         let searchRows = try searchView.inspect().findAll(TrackListRow.self)
@@ -570,7 +570,7 @@ final class CrossServicePlaybackTests: XCTestCase {
         browser.homeTopTracks = .loaded(TrackRowViewModel.numberedTopTracks([found]))
         let homeView = HomeView(
             viewModel: browser, playbackViewModel: playback, queueViewModel: queue,
-            currentPlaybackURI: fromAlbum, isPlaying: true, hasPlaybackDevice: true
+            hasPlaybackDevice: true
         )
         .environmentObject(pins)
         let homeRows = try homeView.inspect().findAll(TrackListRow.self)

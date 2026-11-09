@@ -41,23 +41,23 @@ struct PlaylistsSidebarSectionContent: View {
     let playlistState: BrowsingLoadState<[PlaylistRowViewModel]>
     let likedSongsStubRow: PlaylistRowViewModel
     @ObservedObject var viewModel: PlaylistBrowserViewModel
-    @ObservedObject var playbackViewModel: PlaybackSessionViewModel
+    /// Not observed: each row reads by itself whether its playlist is the one playing, so
+    /// play/pause re-renders that row only, not the whole section and every row (#422).
+    let playbackViewModel: PlaybackSessionViewModel
     @EnvironmentObject private var pinnedStore: PinnedItemsStore
     @State private var editingPlaylistID: String?
     @State private var editedPlaylistName = ""
     @FocusState private var isPlaylistNameFocused: Bool
     let playlistSummaryFromRow: (PlaylistRowViewModel) -> MusicPlaylistSummary
 
-    private var isCurrentlyPlaying: Bool {
-        if case .playing = playbackViewModel.connectionState { return true }
-        return false
-    }
-
     private var visiblePlaylistIDs: [String] {
         playlistState.currentValue?.map(\.id) ?? []
     }
 
     var body: some View {
+        #if DEBUG
+        let _ = ViewBodyTally.record("PlaylistsSidebarSectionContent")
+        #endif
         Group {
             likedSongsSidebarRow
             switch playlistState {
@@ -95,14 +95,16 @@ struct PlaylistsSidebarSectionContent: View {
 
     @ViewBuilder
     private var likedSongsSidebarRow: some View {
-        PlaylistListRow(
-            playlist: likedSongsStubRow,
-            currentUserSpotifyID: viewModel.currentUserSpotifyID,
-            isActive: playbackViewModel.activePlaylistID == SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID,
-            isPlaying: isCurrentlyPlaying,
-            isListSelected: viewModel.sidebarSelection == .likedSongs,
-            isPinned: false
-        )
+        playbackViewModel.playlistRow(SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID) { mark in
+            PlaylistListRow(
+                playlist: likedSongsStubRow,
+                currentUserSpotifyID: viewModel.currentUserSpotifyID,
+                isActive: mark.isActive,
+                isPlaying: mark.isPlaying,
+                isListSelected: viewModel.sidebarSelection == .likedSongs,
+                isPinned: false
+            )
+        }
         .id(SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID)
         .tag(SidebarSelection.likedSongs)
     }
@@ -111,17 +113,19 @@ struct PlaylistsSidebarSectionContent: View {
     private func playlistSidebarRow(playlist: PlaylistRowViewModel) -> some View {
         let pinned = pinnedStore.isPinned(spotifyID: playlist.id, kind: .playlist)
         let summary = playlistSummaryFromRow(playlist)
-        PlaylistListRow(
-            playlist: playlist,
-            currentUserSpotifyID: viewModel.currentUserSpotifyID,
-            isActive: playlist.id == playbackViewModel.activePlaylistID,
-            isPlaying: isCurrentlyPlaying,
-            isListSelected: viewModel.sidebarSelection == .playlist(playlist.id),
-            isPinned: pinned,
-            titleOverride: editingPlaylistID == playlist.id
-                ? AnyView(playlistRenameEditor(playlist: playlist))
-                : nil
-        )
+        playbackViewModel.playlistRow(playlist.id) { mark in
+            PlaylistListRow(
+                playlist: playlist,
+                currentUserSpotifyID: viewModel.currentUserSpotifyID,
+                isActive: mark.isActive,
+                isPlaying: mark.isPlaying,
+                isListSelected: viewModel.sidebarSelection == .playlist(playlist.id),
+                isPinned: pinned,
+                titleOverride: editingPlaylistID == playlist.id
+                    ? AnyView(playlistRenameEditor(playlist: playlist))
+                    : nil
+            )
+        }
         .tag(SidebarSelection.playlist(playlist.id))
         .id(playlist.id)
         .draggable(PinnedItemTransfer(item: .playlist(summary))) {

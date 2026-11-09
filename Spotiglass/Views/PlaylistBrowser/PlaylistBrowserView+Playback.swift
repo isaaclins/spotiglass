@@ -23,24 +23,6 @@ extension PlaylistBrowserView {
         )
     }
 
-    /// Now playing track used to prefetch LRCLIB lyrics before the lyrics overlay opens (only while transport is playing).
-    var lyricsPrefetchTrack: PlaybackNowPlaying? {
-        PlaylistBrowserPlaybackHelpers.lyricsPrefetchTrack(connectionState: playbackViewModel.connectionState)
-    }
-
-    /// Stable per playing track; used to schedule halfway next-track lyrics prefetch.
-    var lyricsHalfwayNextPreloadTaskID: String? {
-        PlaylistBrowserPlaybackHelpers.lyricsHalfwayNextPreloadTaskID(
-            prefetchTrack: lyricsPrefetchTrack,
-            nextQueueURI: queueViewModel.upcomingItems.first?.uri
-        )
-    }
-
-    /// Playback identity without scrubber position ticks (avoids re-running queue hooks every progress frame).
-    var queueRelevantPlaybackKey: String {
-        PlaylistBrowserPlaybackHelpers.queueRelevantPlaybackKey(connectionState: playbackViewModel.connectionState)
-    }
-
     var currentPlaybackURI: String? {
         PlaylistBrowserPlaybackHelpers.currentPlaybackURI(
             connectionState: playbackViewModel.connectionState,
@@ -48,13 +30,9 @@ extension PlaylistBrowserView {
         )
     }
 
-    var isCurrentlyPlaying: Bool {
-        PlaylistBrowserPlaybackHelpers.isCurrentlyPlaying(connectionState: playbackViewModel.connectionState)
-    }
-
     /// Only a space that plays its own music offers Play and Shuffle: the Apple Music space must
     /// not reach Spotify's player just because Spotify's space started it earlier (#373).
     var hasPlaybackDevice: Bool {
-        playbackMode == .live && playbackViewModel.deviceID != nil
+        playbackMode == .live && playbackDeviceID != nil
     }
 }
