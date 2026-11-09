@@ -206,7 +206,7 @@ extension PlaybackSessionViewModel {
         switch reason {
         case .signInExpired, .missingPermission, .subscriptionRequired:
             return false
-        case .rateLimited, .network, .server, .notFound, .failed:
+        case .rateLimited, .network, .server, .notFound, .explicitContentRestricted, .failed:
             return true
         }
     }
