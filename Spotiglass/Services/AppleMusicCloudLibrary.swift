@@ -254,10 +254,11 @@ struct AppleMusicPlaylistCover: Equatable, Sendable {
     /// The IDs of the library playlists whose cover is a generated one.
     ///
     /// The API names library playlists by their cloud ID (`p.…`), MusicKit on the Mac by the
-    /// Music app's persistent ID, and nothing links the two. So a playlist is matched by its
-    /// catalog ID where it has one, otherwise by name, and only counts as generated when every
-    /// cloud playlist of that name is: two playlists with one name, one with a real cover, keep
-    /// the cover rather than risk hiding a real one.
+    /// Music app's persistent ID, and nothing links the two. So a playlist with a catalog ID
+    /// (a shared one) is matched by that ID only, and one without by name among the cloud
+    /// playlists that have none either. It only counts as generated when every match is: two
+    /// playlists with one name, one with a real cover, keep the cover rather than risk hiding a
+    /// real one, and so does a playlist the API doesn't list (yet).
     static func generatedPlaylistIDs(
         _ playlists: [(id: String, name: String, globalID: String?)],
         covers: [AppleMusicPlaylistCover]
@@ -266,9 +267,16 @@ struct AppleMusicPlaylistCover: Equatable, Sendable {
             covers.compactMap { cover in cover.globalID.map { ($0, cover.isGenerated) } },
             uniquingKeysWith: { $0 && $1 }
         )
-        let byName = Dictionary(covers.map { ($0.name, $0.isGenerated) }, uniquingKeysWith: { $0 && $1 })
+        let byName = Dictionary(
+            covers.filter { $0.globalID == nil }.map { ($0.name, $0.isGenerated) },
+            uniquingKeysWith: { $0 && $1 }
+        )
         return Set(playlists.compactMap { playlist in
-            let generated = playlist.globalID.flatMap { byGlobalID[$0] } ?? byName[playlist.name] ?? false
+            let generated = if let globalID = playlist.globalID {
+                byGlobalID[globalID] ?? false
+            } else {
+                byName[playlist.name] ?? false
+            }
             return generated ? playlist.id : nil
         })
     }

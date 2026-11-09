@@ -210,14 +210,23 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         let source = source
         let timeout = coverLookupTimeout
         // A race rather than a task group: a group waits for the slow request to end even after
-        // the timeout won, which is the wait this exists to avoid.
-        return await withCheckedContinuation { continuation in
-            let answer = FirstAnswer(continuation)
-            Task { answer.give(try? await source.libraryPlaylistCovers()) }
-            Task {
-                try? await Task.sleep(for: timeout)
-                answer.give(nil)
+        // the timeout won, which is the wait this exists to avoid. The loser is cancelled, so a
+        // lookup that timed out stops paging instead of running on unseen, and cancelling the
+        // listing ends both at once.
+        let answer = FirstAnswer<[AppleMusicPlaylistCover]?>()
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                answer.attach(continuation)
+                answer.attach([
+                    Task { answer.give(try? await source.libraryPlaylistCovers()) },
+                    Task {
+                        try? await Task.sleep(for: timeout)
+                        answer.give(nil)
+                    },
+                ])
             }
+        } onCancel: {
+            answer.give(nil)
         }
     }
 
@@ -642,21 +651,48 @@ actor AppleMusicArtistAlbumsCache {
     }
 }
 
-/// Resumes a continuation with the first value given and ignores the rest.
+/// Resumes a continuation with the first value given, ignores the rest and cancels the tasks
+/// still racing for it. Either side may come first: a value given before the continuation is
+/// attached (a cancelled caller) is handed over on attach, and tasks attached after the answer
+/// are cancelled straight away.
 private final class FirstAnswer<Value: Sendable>: @unchecked Sendable {
     private let lock = NSLock()
     private var continuation: CheckedContinuation<Value, Never>?
+    private var tasks: [Task<Void, Never>] = []
+    private var answer: Value?
+    private var isAnswered = false
 
-    init(_ continuation: CheckedContinuation<Value, Never>) {
-        self.continuation = continuation
+    func attach(_ continuation: CheckedContinuation<Value, Never>) {
+        let answered: Value? = lock.withLock {
+            guard isAnswered else {
+                self.continuation = continuation
+                return nil
+            }
+            return answer
+        }
+        if let answered { continuation.resume(returning: answered) }
+    }
+
+    func attach(_ tasks: [Task<Void, Never>]) {
+        let cancelNow = lock.withLock {
+            if isAnswered { return true }
+            self.tasks += tasks
+            return false
+        }
+        if cancelNow { tasks.forEach { $0.cancel() } }
     }
 
     func give(_ value: Value) {
-        let waiting = lock.withLock {
-            defer { continuation = nil }
-            return continuation
+        let taken: (waiting: CheckedContinuation<Value, Never>?, racing: [Task<Void, Never>])? = lock.withLock {
+            guard !isAnswered else { return nil }
+            isAnswered = true
+            answer = value
+            defer { continuation = nil; tasks = [] }
+            return (continuation, tasks)
         }
-        waiting?.resume(returning: value)
+        guard let taken else { return }
+        taken.racing.forEach { $0.cancel() }
+        taken.waiting?.resume(returning: value)
     }
 }
 

@@ -314,6 +314,25 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         XCTAssertEqual(ids, ["2", "3"])
     }
 
+    /// A catalog ID that names another playlist is a mismatch, not a reason to fall back to the
+    /// name: while the local and cloud libraries are out of sync, a shared "Gym" with a real
+    /// cover must not take the generated cover of a different "Gym".
+    func testAPlaylistWithACatalogIDIsNeverMatchedByNameAlone() {
+        let covers = [
+            AppleMusicPlaylistCover(name: "Gym", globalID: "pl.u-other", isGenerated: true),
+            AppleMusicPlaylistCover(name: "Mix", globalID: "pl.u-shared", isGenerated: true),
+        ]
+        let ids = AppleMusicPlaylistCover.generatedPlaylistIDs(
+            [
+                (id: "1", name: "Gym", globalID: "pl.u-real"),
+                // An own playlist named like a shared one is a different playlist.
+                (id: "2", name: "Mix", globalID: nil),
+            ],
+            covers: covers
+        )
+        XCTAssertEqual(ids, [])
+    }
+
     func testTheCatalogIDIsReadFromALibraryPlaylist() throws {
         let shared = try AppleMusicFixtures.playlist(id: "p.1", name: "Shared", globalID: "pl.u-ZmblDrrtVmXYkko")
         XCTAssertEqual(AppleMusicItemMapping.globalID(of: shared), "pl.u-ZmblDrrtVmXYkko")
@@ -335,9 +354,15 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
 
         let gate = TrackCountGate()
         source.playlistCoversGate = gate
+        let stopped = expectation(description: "the timed-out lookup is cancelled, so it stops paging")
+        source.onPlaylistCoversAfterGate = { isCancelled in
+            if isCancelled { stopped.fulfill() }
+        }
         let slow = try await provider.currentUserPlaylists(limit: 50)
         XCTAssertNil(slow.first?.imageURL, "the last listing's result")
         gate.open()
+        await fulfillment(of: [stopped], timeout: 5)
+        source.onPlaylistCoversAfterGate = nil
 
         source.playlistCoversGate = nil
         source.playlistCovers = nil
@@ -348,6 +373,25 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         let unknown = try await AppleMusicBrowsingProvider(source: source, coverLookupTimeout: .milliseconds(50))
             .currentUserPlaylists(limit: 50)
         XCTAssertNotNil(unknown.first?.imageURL)
+    }
+
+    /// Cancelling a listing (the sidebar going away, a service switch) doesn't wait out the
+    /// cover lookup's timeout.
+    func testCancellingAListingDoesNotWaitForTheCoverLookup() async throws {
+        let source = MockAppleMusicSource()
+        source.playlists = [try AppleMusicFixtures.playlist(id: "-1", name: "Road")]
+        let gate = TrackCountGate()
+        source.playlistCoversGate = gate
+        defer { gate.open() }
+        let provider = AppleMusicBrowsingProvider(source: source, coverLookupTimeout: .seconds(60))
+
+        let started = ContinuousClock.now
+        let listing = Task { try await provider.currentUserPlaylists(limit: 50) }
+        try await Task.sleep(for: .milliseconds(100))
+        listing.cancel()
+        _ = try? await listing.value
+
+        XCTAssertLessThan(ContinuousClock.now - started, .seconds(10))
     }
 
     /// Library playlists in search results are the same playlists as in the sidebar, so they
@@ -1455,8 +1499,13 @@ private final class MockAppleMusicSource: AppleMusicContentSource, @unchecked Se
     var playlistCovers: [AppleMusicPlaylistCover]? = []
     var playlistCoversGate: TrackCountGate?
 
+    /// Called after the gate opens with whether the lookup was cancelled by then.
+    var onPlaylistCoversAfterGate: (@Sendable (Bool) -> Void)?
+
     func libraryPlaylistCovers() async throws -> [AppleMusicPlaylistCover] {
         await playlistCoversGate?.wait()
+        onPlaylistCoversAfterGate?(Task.isCancelled)
+        try Task.checkCancellation()
         guard let playlistCovers else { throw URLError(.notConnectedToInternet) }
         return playlistCovers
     }
