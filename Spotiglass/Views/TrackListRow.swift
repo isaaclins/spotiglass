@@ -193,6 +193,9 @@ struct TrackListRow: View {
     }
 
     var body: some View {
+        #if DEBUG
+        let _ = ViewBodyTally.record("TrackListRow:\(track.id)")
+        #endif
         HStack(spacing: SpotiglassDesign.spacingS) {
             leadingColumn
                 .frame(width: SpotiglassDesign.Layout.trackNumberColumnWidth, alignment: .trailing)
