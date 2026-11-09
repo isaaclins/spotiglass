@@ -15259,25 +15259,25 @@
         }
       }
     },
-    "playback.controls.reconnect.appleMusic.hint": {
+    "playback.controls.state.disconnected.subtitle.appleMusic": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Connects Spotiglass to Apple Music again."
+            "value": "Apple Music playback starts on its own in a moment."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vuelve a conectar Spotiglass con Apple Music."
+            "value": "La reproducción de Apple Music empieza sola en un momento."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Verbindet Spotiglass wieder mit Apple Music."
+            "value": "Die Apple-Music-Wiedergabe startet gleich von selbst."
           }
         }
       }
