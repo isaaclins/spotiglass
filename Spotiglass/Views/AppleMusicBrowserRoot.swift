@@ -85,7 +85,12 @@ struct AppleMusicBrowserRoot: View {
             }
             switch Self.accessTransition(from: old, to: state) {
             case .granted: rewireScene()
-            case .lost: prepareForReset()
+            case .lost:
+                // Access comes back only through this, possibly for another account, so the
+                // covers' answer is forgotten here rather than on the grant, where it would race
+                // the first listing.
+                Task { await AppleMusicGeneratedCoverCache.shared.reset() }
+                prepareForReset()
             case .unchanged: break
             }
         }
@@ -105,6 +110,14 @@ struct AppleMusicBrowserRoot: View {
             sidebarHeader: sidebarHeader
         )
         .id(MusicService.appleMusic)
+        .onReceive(
+            NotificationCenter.default.publisher(for: AppleMusicGeneratedCoverCache.answerChangedNotification)
+        ) { notification in
+            // The covers' answer came after the sidebar was listed (a slow API, a big library):
+            // list it again so Apple's generated covers give way to the placeholder (#444).
+            guard (notification.object as AnyObject?) === AppleMusicGeneratedCoverCache.shared else { return }
+            Task { await viewModel.refreshPlaylists(trigger: .automatic) }
+        }
     }
 
     /// MusicKit's player needs an Apple Music subscription. While that is unknown the bar is

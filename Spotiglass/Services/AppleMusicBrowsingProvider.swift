@@ -167,34 +167,40 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
     /// `limit` is the page size, like Spotify's: every library playlist is returned, not only the
     /// first page.
     func currentUserPlaylists(limit: Int) async throws -> [MusicPlaylistSummary] {
+        try await libraryPlaylists(limit: limit, checksCovers: true)
+    }
+
+    /// The library playlists. `checksCovers` drops Apple's generated covers (#444); a listing
+    /// read only for the playlists' names or IDs leaves the API alone.
+    func libraryPlaylists(limit: Int, checksCovers: Bool) async throws -> [MusicPlaylistSummary] {
         // Asked alongside the library read. It runs to its end in the background and its answer
         // is kept for later listings, even when this one doesn't wait for it.
-        let coverLookup = await generatedCovers.refresh(using: source)
-        let pageSize = max(1, limit)
-        var playlists: [Playlist] = []
-        while playlists.count < Self.maxLibraryPlaylists {
-            try Task.checkCancellation()
-            let requested = min(pageSize, Self.maxLibraryPlaylists - playlists.count)
-            let page = try await source.libraryPlaylists(limit: requested, offset: playlists.count)
-            playlists.append(contentsOf: page)
-            if page.count < requested { break }
+        let coverLookup = checksCovers ? await generatedCovers.startListing(using: source) : nil
+        let playlists: [Playlist]
+        do {
+            playlists = try await readLibraryPlaylists(pageSize: max(1, limit))
+        } catch {
+            if coverLookup != nil { _ = await generatedCovers.answerEndingListing() }
+            throw error
         }
         let counts = await trackCountCache.counts(
             forVersions: Dictionary(playlists.map { ($0.id.rawValue, $0.lastModifiedDate) }, uniquingKeysWith: { first, _ in first })
         )
-        if await generatedCovers.covers == nil {
+        if let coverLookup, await generatedCovers.covers == nil {
             await waitForFirstAnswer(from: coverLookup)
         }
+        let answer = coverLookup == nil ? nil : await generatedCovers.answerEndingListing()
         let generated: Set<String>
-        if let covers = await generatedCovers.covers {
+        if let covers = answer {
             let identities = playlists.map { ($0.id.rawValue, $0.name, AppleMusicItemMapping.globalID(of: $0)) }
             generated = AppleMusicPlaylistCover.generatedPlaylistIDs(identities, covers: covers)
             // Catalog search returns a shared playlist under its catalog ID (`pl.u-…`), so that
             // ID is kept too, or the gradient would come back in Search and in pins made there.
             let generatedCatalogIDs = identities.compactMap { generated.contains($0.0) ? $0.2 : nil }
-            await generatedCovers.store(generated.union(generatedCatalogIDs))
+            await generatedCovers.store(generated.union(generatedCatalogIDs), from: covers)
         } else {
-            // The API hasn't answered yet (slow, offline): Apple's covers stay until it does.
+            // The API hasn't answered yet (slow, offline): Apple's covers stay until it does,
+            // and the cache asks for a new listing then.
             generated = []
         }
         return editor.pending.applied(toPlaylists: playlists.map {
@@ -209,6 +215,18 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
                 hasGeneratedCover: generated.contains(id)
             )
         })
+    }
+
+    private func readLibraryPlaylists(pageSize: Int) async throws -> [Playlist] {
+        var playlists: [Playlist] = []
+        while playlists.count < Self.maxLibraryPlaylists {
+            try Task.checkCancellation()
+            let requested = min(pageSize, Self.maxLibraryPlaylists - playlists.count)
+            let page = try await source.libraryPlaylists(limit: requested, offset: playlists.count)
+            playlists.append(contentsOf: page)
+            if page.count < requested { break }
+        }
+        return playlists
     }
 
     /// Waits for the cover lookup, but no longer than `coverLookupTimeout`, and not at all once
@@ -708,33 +726,75 @@ actor AppleMusicGeneratedCoverCache {
     /// The app's one cache, shared by the sidebar's provider and the one Search uses.
     static let shared = AppleMusicGeneratedCoverCache()
 
+    /// Posted (on the main thread, with the cache as object) when an answer arrives that no
+    /// listing is waiting for, so the sidebar on screen was listed without it: list it again.
+    static let answerChangedNotification = Notification.Name("AppleMusicGeneratedCoverCache.answerChanged")
+
     /// The API's last answer, `nil` until one arrived. A failed lookup keeps the one before.
     private(set) var covers: [AppleMusicPlaylistCover]?
     /// The playlists the last listing found with a generated cover, by library ID and, for
     /// shared ones, by catalog ID, for search results.
     private(set) var playlistIDs: Set<String> = []
     private var lookup: Task<Void, Never>?
+    /// Listings between `startListing` and `answerEndingListing`: an answer arriving meanwhile
+    /// is applied by them, so it isn't announced as one the sidebar missed.
+    private var listingsInProgress = 0
+    /// Bumped by `reset`, so a lookup started for the account before doesn't land.
+    private var generation = 0
 
-    func store(_ ids: Set<String>) {
+    /// Keeps a listing's result for search, unless a newer answer arrived meanwhile.
+    func store(_ ids: Set<String>, from answer: [AppleMusicPlaylistCover]) {
+        guard answer == covers else { return }
         playlistIDs = ids
     }
 
+    /// A listing begins: it asks for a lookup (`refresh`) and counts as in progress until it
+    /// reads its answer with `answerEndingListing`.
+    func startListing(using source: any AppleMusicContentSource) -> Task<Void, Never> {
+        listingsInProgress += 1
+        return refresh(using: source)
+    }
+
+    /// The answer a listing applies; the listing is over (also when it failed, ignoring the
+    /// answer).
+    func answerEndingListing() -> [AppleMusicPlaylistCover]? {
+        listingsInProgress -= 1
+        return covers
+    }
+
     /// The lookup in flight, or a new one. It always runs to its end (its paging is capped), so
-    /// a library too big to read before a listing's timeout still gets its answer for the next
-    /// listing, and only one runs at a time however often the sidebar refreshes.
+    /// a library too big to read before a listing's timeout still gets its answer, and only
+    /// one runs at a time however often the sidebar refreshes.
     func refresh(using source: any AppleMusicContentSource) -> Task<Void, Never> {
         if let lookup { return lookup }
+        let generation = generation
         let lookup = Task {
             let answer = try? await source.libraryPlaylistCovers()
-            finish(answer)
+            finish(answer, generation: generation)
         }
         self.lookup = lookup
         return lookup
     }
 
-    private func finish(_ answer: [AppleMusicPlaylistCover]?) {
-        if let answer { covers = answer }
+    /// Forgets everything, for when Apple Music access is lost: when it comes back the library
+    /// may be another account's.
+    func reset() {
+        generation += 1
         lookup = nil
+        covers = nil
+        playlistIDs = []
+    }
+
+    private func finish(_ answer: [AppleMusicPlaylistCover]?, generation: Int) {
+        guard generation == self.generation else { return }
+        lookup = nil
+        guard let answer, answer != covers else { return }
+        covers = answer
+        if listingsInProgress == 0 {
+            Task { @MainActor in
+                NotificationCenter.default.post(name: Self.answerChangedNotification, object: self)
+            }
+        }
     }
 }
 

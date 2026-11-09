@@ -348,8 +348,12 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         let covers = AppleMusicGeneratedCoverCache()
         let provider = AppleMusicBrowsingProvider(source: source, generatedCovers: covers, coverLookupTimeout: .seconds(60))
 
+        let missed = expectation(forNotification: AppleMusicGeneratedCoverCache.answerChangedNotification, object: covers)
+        missed.isInverted = true
         let first = try await provider.currentUserPlaylists(limit: 50)
         XCTAssertNil(first.first?.imageURL, "waited for the first answer")
+        // It applied the answer itself, so no second listing is asked for.
+        await fulfillment(of: [missed], timeout: 0.3)
 
         let gate = TrackCountGate()
         source.playlistCoversGate = gate
@@ -379,10 +383,51 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         let first = try await provider.currentUserPlaylists(limit: 50)
         XCTAssertNotNil(first.first?.imageURL, "no answer yet: Apple's cover stays")
 
+        // The sidebar lists once per launch, so the late answer asks for a new listing.
+        let relist = expectation(forNotification: AppleMusicGeneratedCoverCache.answerChangedNotification, object: covers)
         gate.open()
-        await covers.refresh(using: source).value
+        await fulfillment(of: [relist], timeout: 5)
         let next = try await provider.currentUserPlaylists(limit: 50)
         XCTAssertNil(next.first?.imageURL)
+    }
+
+    /// A listing that fails still ends, so a later answer is still announced.
+    func testAFailedListingDoesNotSilenceALaterAnswer() async throws {
+        let source = MockAppleMusicSource()
+        source.libraryPlaylistsError = URLError(.cannotConnectToHost)
+        source.playlistCovers = [AppleMusicPlaylistCover(name: "Road", globalID: nil, isGenerated: true)]
+        let gate = TrackCountGate()
+        source.playlistCoversGate = gate
+        let covers = AppleMusicGeneratedCoverCache()
+        let provider = AppleMusicBrowsingProvider(source: source, generatedCovers: covers)
+        _ = try? await provider.currentUserPlaylists(limit: 50)
+
+        let announced = expectation(forNotification: AppleMusicGeneratedCoverCache.answerChangedNotification, object: covers)
+        gate.open()
+        await fulfillment(of: [announced], timeout: 5)
+    }
+
+    /// Losing Apple Music access forgets the answer, and a lookup started before doesn't bring
+    /// the old account's answer back.
+    func testAResetForgetsTheAnswerAndDropsALookupStartedBefore() async throws {
+        let source = MockAppleMusicSource()
+        source.playlistCovers = [AppleMusicPlaylistCover(name: "Road", globalID: nil, isGenerated: true)]
+        let covers = AppleMusicGeneratedCoverCache()
+        await covers.refresh(using: source).value
+        let answered = await covers.covers
+        XCTAssertNotNil(answered)
+
+        let gate = TrackCountGate()
+        source.playlistCoversGate = gate
+        let before = await covers.refresh(using: source)
+        await covers.reset()
+        gate.open()
+        await before.value
+
+        let afterReset = await covers.covers
+        XCTAssertNil(afterReset)
+        let ids = await covers.playlistIDs
+        XCTAssertEqual(ids, [])
     }
 
     /// An API that can't be reached keeps the last answer, and one that never answered keeps
@@ -1459,8 +1504,11 @@ private final class MockAppleMusicSource: AppleMusicContentSource, @unchecked Se
         lock.withLock { recordedCalls.append(call) }
     }
 
+    var libraryPlaylistsError: Error?
+
     func libraryPlaylists(limit: Int, offset: Int) async throws -> [Playlist] {
         record("libraryPlaylists(\(limit),\(offset))")
+        if let libraryPlaylistsError { throw libraryPlaylistsError }
         guard offset < playlists.count else { return [] }
         return Array(playlists[offset..<min(playlists.count, offset + limit)])
     }
