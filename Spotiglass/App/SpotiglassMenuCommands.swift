@@ -130,10 +130,14 @@ struct SpotiglassMenuCommands: Commands {
             Button(sidebarItemTitle) {
                 // A text field has no use for ⌘S, and the sidebar must not move while typing.
                 guard !CommandPaletteSidebarShortcut.isTypingKeyPress(NSApp.currentEvent) else { return }
-                run(CommandPaletteCommandID.toggleSidebar)
+                if let manager = activeCommandPaletteManager {
+                    manager.execute(commandID: CommandPaletteCommandID.toggleSidebar)
+                } else {
+                    NSApp.sendAction(#selector(NSSplitViewController.toggleSidebar(_:)), to: nil, from: nil)
+                }
             }
             .keyboardShortcut(keymapShortcut(for: CommandPaletteCommandID.toggleSidebar))
-            .disabled(!isSignedIn)
+            .disabled(!isSidebarItemEnabled)
 
             Divider()
 
@@ -303,10 +307,19 @@ struct SpotiglassMenuCommands: Commands {
         NSWorkspace.shared.open(url)
     }
 
+    /// With another window in front (Settings) the item is that window's, so its title can't
+    /// name the browser's sidebar state, and it works signed out too, as the system item did.
     var sidebarItemTitle: String {
-        (activeCommandPaletteManager?.isSidebarVisible ?? true)
+        guard sceneRegistry.isMainWindowInFront else {
+            return SpotiglassL10n.string("palette.command.view.sidebar.toggle.title", locale: locale)
+        }
+        return (activeCommandPaletteManager?.isSidebarVisible ?? true)
             ? SpotiglassL10n.string("menu.view.hideSidebar", locale: locale)
             : SpotiglassL10n.string("menu.view.showSidebar", locale: locale)
+    }
+
+    var isSidebarItemEnabled: Bool {
+        isSignedIn || !sceneRegistry.isMainWindowInFront
     }
 
     private var queueItemTitle: String {

@@ -33,6 +33,17 @@ final class CommandPaletteManager: ObservableObject {
     var sceneWindow: () -> NSWindow? = { nil }
     /// The window in front; a seam so tests can put another window there.
     var frontWindow: () -> NSWindow? = { NSApp.keyWindow }
+    /// The system's Show/Hide Sidebar action for the window in front; a seam for tests.
+    var sendSystemSidebarToggle: () -> Void = {
+        NSApp.sendAction(#selector(NSSplitViewController.toggleSidebar(_:)), to: nil, from: nil)
+    }
+
+    /// True while a window other than this scene's main window is in front, such as Settings.
+    /// Show/Hide Sidebar then belongs to that window's own sidebar (#436).
+    var isAnotherWindowInFront: Bool {
+        guard let front = frontWindow(), let own = sceneWindow() else { return false }
+        return front !== own
+    }
     var signOut: (() -> Void)?
     var openSettings: (() -> Void)?
     /// Switches the app to another added service. App-wide and browser-free, so ``detach()``
@@ -356,7 +367,8 @@ final class CommandPaletteManager: ObservableObject {
             return true
         }
         // ⌃⌘S is the system's Show/Hide Sidebar chord, kept next to the rebindable one (#436).
-        if filtered.isEmpty, context == .signedIn, toggleSidebar != nil,
+        // With Settings in front it is Settings' chord, signed in or not.
+        if filtered.isEmpty, toggleSidebar != nil || isAnotherWindowInFront,
            CommandPaletteSidebarShortcut.isSystemChord(event),
            !CommandPaletteSidebarShortcut.isTypingKeyPress(event) {
             execute(commandID: CommandPaletteCommandID.toggleSidebar)
@@ -457,8 +469,8 @@ final class CommandPaletteManager: ObservableObject {
             // Like the system item it replaces, Show/Hide Sidebar acts on the window in front:
             // with Settings in front it collapses Settings' own sidebar, not the browser's
             // sidebar behind it (#436).
-            if let front = frontWindow(), let own = sceneWindow(), front !== own {
-                NSApp.sendAction(#selector(NSSplitViewController.toggleSidebar(_:)), to: nil, from: nil)
+            if isAnotherWindowInFront {
+                sendSystemSidebarToggle()
             } else {
                 toggleSidebar?()
             }

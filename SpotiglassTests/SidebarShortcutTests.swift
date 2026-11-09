@@ -298,6 +298,8 @@ extension SidebarShortcutTests {
     /// not hide the browser's sidebar in the window behind (#436).
     func testAnotherWindowInFrontKeepsTheBrowserSidebar() {
         let (manager, toggles) = makeManager()
+        var systemToggles = 0
+        manager.sendSystemSidebarToggle = { systemToggles += 1 }
         let browserWindow = makeWindow(content: NSView())
         let settingsWindow = makeWindow(content: NSView())
         manager.sceneWindow = { browserWindow }
@@ -307,9 +309,59 @@ extension SidebarShortcutTests {
         XCTAssertTrue(manager.handleKeyEvent(controlCommandS))
         manager.execute(commandID: CommandPaletteCommandID.toggleSidebar)
         XCTAssertEqual(toggles(), 0)
+        XCTAssertEqual(systemToggles, 3)
 
         manager.frontWindow = { browserWindow }
         XCTAssertTrue(manager.handleKeyEvent(commandS))
         XCTAssertEqual(toggles(), 1)
+        XCTAssertEqual(systemToggles, 3)
+    }
+
+    /// Signed out there is no browser sidebar, but Settings still has its own: ⌃⌘S and the
+    /// View menu reach it there, as the system item did.
+    func testSettingsKeepsItsSidebarShortcutWhileSignedOut() throws {
+        let (manager, toggles) = makeManager()
+        manager.detach()
+        var systemToggles = 0
+        manager.sendSystemSidebarToggle = { systemToggles += 1 }
+        let browserWindow = makeWindow(content: NSView())
+        let settingsWindow = makeWindow(content: NSView())
+        manager.sceneWindow = { browserWindow }
+
+        manager.frontWindow = { browserWindow }
+        XCTAssertFalse(manager.handleKeyEvent(controlCommandS), "nothing to toggle in a signed-out main window")
+        manager.frontWindow = { settingsWindow }
+        XCTAssertTrue(manager.handleKeyEvent(controlCommandS))
+        XCTAssertEqual(systemToggles, 1)
+        XCTAssertEqual(toggles(), 0)
+
+        let scene = SpotiglassSceneHost(commandPaletteManager: manager)
+        let registry = SpotiglassSceneRegistry()
+        registry.activate(scene)
+        let commands = SpotiglassMenuCommands(
+            sceneRegistry: registry,
+            keymapStore: manager.keymapStore,
+            settingsStore: SpotiglassSettingsStore(fileURL: makeCommandPaletteTestsTempSettingsURL()),
+            serviceStore: MusicServiceStore(
+                storage: InMemoryMusicServiceSelectionStorage(services: [.spotify], active: .spotify)
+            ),
+            isSignedIn: false,
+            isQueueVisible: false
+        )
+        XCTAssertFalse(commands.isSidebarItemEnabled, "signed out, with the main window in front")
+        XCTAssertEqual(commands.sidebarItemTitle, SpotiglassL10n.string("menu.view.hideSidebar"))
+
+        // Settings comes to the front: the item is Settings', so it works and names no state.
+        registry.mainWindowResignedKey()
+        XCTAssertTrue(commands.isSidebarItemEnabled)
+        XCTAssertEqual(
+            commands.sidebarItemTitle,
+            SpotiglassL10n.string("palette.command.view.sidebar.toggle.title")
+        )
+
+        // Back to the main window.
+        registry.activate(scene)
+        XCTAssertFalse(commands.isSidebarItemEnabled)
+        XCTAssertEqual(commands.sidebarItemTitle, SpotiglassL10n.string("menu.view.hideSidebar"))
     }
 }
