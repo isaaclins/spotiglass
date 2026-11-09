@@ -127,6 +127,12 @@ enum CommandPaletteCommandCatalog {
             defaultKeystroke: "shift-alt-cmd-l"
         ),
         spec(
+            commandID: CommandPaletteCommandID.toggleSidebar,
+            iconSystemName: "sidebar.left",
+            defaultWhen: .signedIn,
+            defaultKeystroke: "cmd-s"
+        ),
+        spec(
             commandID: CommandPaletteCommandID.signOut,
             iconSystemName: "rectangle.portrait.and.arrow.right",
             defaultWhen: .signedIn,
@@ -186,6 +192,7 @@ enum CommandPaletteCommandCatalog {
         CommandPaletteCommandID.toggleQueue,
         CommandPaletteCommandID.toggleLyrics,
         CommandPaletteCommandID.popOutLyrics,
+        CommandPaletteCommandID.toggleSidebar,
         CommandPaletteCommandID.openSettings,
         CommandPaletteCommandID.pinSelected,
         CommandPaletteCommandID.enqueueSelected,

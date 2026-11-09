@@ -11,11 +11,15 @@ import Foundation
 /// A command belongs here only while its menu item hardcodes
 /// `.keyboardShortcut(...)`. The moment an item derives its key equivalent from
 /// the keymap, the ordinary conflict check covers it and the entry must go.
+/// The one exception is a fixed second chord of a keymap command (⌃⌘S for
+/// Show/Hide Sidebar): the key monitor runs it, and only that command may take it.
 enum CommandPaletteReservedShortcuts {
     struct Reservation {
         let keystroke: String
         /// Catalog key for the menu item's title, used to name the conflict.
         let menuTitleKey: String
+        /// The keymap command this chord already runs, which may still be bound to it.
+        var commandID: String?
     }
 
     static let all: [Reservation] = [
@@ -26,11 +30,18 @@ enum CommandPaletteReservedShortcuts {
         Reservation(keystroke: "cmd-left", menuTitleKey: "menu.playback.seekBackward"),
         Reservation(keystroke: "alt-cmd-e", menuTitleKey: "browser.addToQueue"),
         Reservation(keystroke: "alt-cmd-p", menuTitleKey: "browser.pin"),
+        Reservation(
+            keystroke: CommandPaletteSidebarShortcut.systemKeystroke,
+            menuTitleKey: "palette.command.view.sidebar.toggle.title",
+            commandID: CommandPaletteCommandID.toggleSidebar
+        ),
     ]
 
     /// The menu item that already owns this chord, named for a person to read.
-    static func reservingMenuItem(for shortcut: CommandShortcut) -> String? {
+    /// `nil` when the chord is free, or when it already belongs to `commandID` itself.
+    static func reservingMenuItem(for shortcut: CommandShortcut, bindingCommand commandID: String? = nil) -> String? {
         for reservation in all {
+            if let owner = reservation.commandID, owner == commandID { continue }
             guard let reserved = try? CommandShortcut(keystroke: reservation.keystroke) else { continue }
             if reserved == shortcut {
                 return SpotiglassL10n.string(reservation.menuTitleKey)

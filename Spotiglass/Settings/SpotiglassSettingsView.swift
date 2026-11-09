@@ -91,6 +91,7 @@ struct SpotiglassSettingsView: View {
     /// so without an explicit binding a single "Hide Sidebar" click keeps the
     /// navigation list hidden on every later launch.
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    @State private var isRecordingHotkey = false
 
     private var searchQuery: String {
         searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -131,6 +132,7 @@ struct SpotiglassSettingsView: View {
         }
         .navigationSplitViewStyle(.balanced)
         .background(SettingsWindowChrome().frame(width: 0, height: 0))
+        .background(SidebarSystemChordMonitor(isRecordingHotkey: isRecordingHotkey).frame(width: 0, height: 0))
         // Keep the content proposal stable while switching panes (#23): a fixed
         // width stops an intrinsically wide pane from resizing the window, and
         // it also pulls a stale autosaved frame back to the same size. The
@@ -289,7 +291,10 @@ struct SpotiglassSettingsView: View {
                         CommandPaletteSettingsView(
                             keymapStore: keymapStore,
                             presentation: .settingsTabs,
-                            onRecordingChange: onHotkeyRecordingChange
+                            onRecordingChange: { isRecording in
+                                isRecordingHotkey = isRecording
+                                onHotkeyRecordingChange(isRecording)
+                            }
                         )
                     }
                 }
