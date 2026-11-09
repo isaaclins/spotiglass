@@ -183,8 +183,9 @@ struct PlaylistBrowserView: View {
                         onRequestCreatePlaylist: requestCreatePlaylist,
                         onRequestLibraryContinuation: requestLibraryContinuation
                     )
-                    // The page is covered while the lyrics are open: VoiceOver and Tab must not
-                    // land on rows you can't see.
+                    // The page is covered while the lyrics are open: VoiceOver, Tab and the
+                    // page's own shortcuts must not reach rows you can't see.
+                    .disabled(lyricsOverlay.isPresented)
                     .accessibilityHidden(lyricsOverlay.isPresented)
                     // Lyrics take the place of the page in this column only, so the sidebar,
                     // the queue and the player bar below stay as on every other screen (#438).
@@ -458,8 +459,8 @@ struct PlaylistBrowserView: View {
         // The sidebar, the queue and the player bar stay usable next to the lyrics, so you can
         // go somewhere else while they are open (a sidebar row, an artist link, Back). The new
         // page would load out of sight under the lyrics, so going there closes them (#438).
-        .onChange(of: LyricsCoveredPage(viewModel)) { _, _ in
-            if lyricsOverlay.isPresented { lyricsOverlay.dismiss() }
+        .onChange(of: LyricsCoveredPage(viewModel)) { oldPage, newPage in
+            if lyricsOverlay.isPresented, newPage.isAnotherPage(than: oldPage) { lyricsOverlay.dismiss() }
         }
         .onChange(of: playbackViewModel.sdkNextTracks) { _, _ in
             queueViewModel.handleSdkQueueSnapshotChanged()
@@ -526,5 +527,19 @@ struct LyricsCoveredPage: Equatable {
 
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.selection == rhs.selection && lhs.trail == rhs.trail
+    }
+
+    /// A pinned row is selected only for a moment: a pinned song plays and the previous row is
+    /// selected again, so that round trip stays on the page. A pinned playlist, album or
+    /// artist opens its page, which changes the trail.
+    func isAnotherPage(than old: Self) -> Bool {
+        if trail != old.trail { return true }
+        guard selection != old.selection else { return false }
+        return !Self.isPinnedRow(selection) && !Self.isPinnedRow(old.selection)
+    }
+
+    private static func isPinnedRow(_ selection: SidebarSelection?) -> Bool {
+        if case .pinnedItem = selection { return true }
+        return false
     }
 }

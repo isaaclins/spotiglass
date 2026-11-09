@@ -147,6 +147,72 @@ final class LyricsOverlayControllerTests: XCTestCase {
         )
     }
 
+    /// #438: the sidebar and the queue stay usable next to the lyrics. Clicking a sidebar row
+    /// (which also closes the lyrics) or pressing Escape in the queue put the keyboard back on
+    /// whatever had it before the lyrics opened, so the arrows stopped moving in the sidebar.
+    /// With the keyboard moved out, the lyrics also stop claiming shortcuts, and they never
+    /// claim ⌘ shortcuts, which belong to the menu bar (Repeat ⌥⌘R, seeking).
+    func testKeyboardMovedOutOfTheLyricsStaysWhereTheUserPutIt() {
+        let root = NSView(frame: NSRect(x: 0, y: 0, width: 320, height: 240))
+        let previousResponder = LyricsTestFirstResponderView(frame: NSRect(x: 0, y: 0, width: 100, height: 32))
+        let sidebar = LyricsTestFirstResponderView(frame: NSRect(x: 0, y: 40, width: 100, height: 32))
+        root.addSubview(previousResponder)
+        root.addSubview(sidebar)
+        let keymapStore = CommandPaletteKeymapStore(fileURL: makeCommandPaletteTestsTempSettingsURL())
+        let focusContainer = LyricsOverlayFocusContainerView(
+            content: Text("Lyrics"),
+            isActive: false,
+            keymapStore: keymapStore
+        )
+        focusContainer.frame = NSRect(x: 120, y: 0, width: 200, height: 240)
+        root.addSubview(focusContainer)
+        let window = OffscreenTestWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 320, height: 240),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        window.isReleasedWhenClosed = false
+        window.contentView = root
+        defer {
+            focusContainer.deactivate()
+            AppKitTestSupport.closeWindowSafely(window)
+        }
+
+        XCTAssertTrue(AppKitTestSupport.makeFirstResponder(previousResponder, in: window))
+        focusContainer.setActive(true)
+        AppKitTestSupport.pumpRunLoop()
+        XCTAssertTrue(focusContainer.hasKeyboardFocus)
+        XCTAssertFalse(focusContainer.keyboardFocusMovedAway)
+
+        let plainX = keyDown(keyCode: 7, characters: "x", windowNumber: window.windowNumber)
+        let repeatShortcut = keyDown(
+            keyCode: 15,
+            characters: "r",
+            modifiers: [.option, .command],
+            windowNumber: window.windowNumber
+        )
+        XCTAssertTrue(focusContainer.performKeyEquivalent(with: plainX))
+        XCTAssertFalse(
+            focusContainer.performKeyEquivalent(with: repeatShortcut),
+            "the lyrics swallowed ⌥⌘R before the menu bar saw it"
+        )
+
+        XCTAssertTrue(AppKitTestSupport.makeFirstResponder(sidebar, in: window))
+        XCTAssertTrue(focusContainer.keyboardFocusMovedAway)
+        XCTAssertFalse(
+            focusContainer.performKeyEquivalent(with: plainX),
+            "the lyrics claimed a key while the keyboard was in the sidebar"
+        )
+
+        focusContainer.setActive(false)
+        AppKitTestSupport.pumpRunLoop()
+        XCTAssertTrue(
+            window.firstResponder === sidebar,
+            "closing the lyrics moved the keyboard out of the sidebar to \(String(describing: window.firstResponder))"
+        )
+    }
+
     /// #438: opening the lyrics left the keyboard on the invisible container around them, so
     /// the arrow and page keys did nothing until Tab was pressed. The lyrics list now takes
     /// focus once it is laid out. Hosts the real list (`ImmersiveLyricsScrollCore`) with the

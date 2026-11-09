@@ -382,6 +382,28 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
         XCTAssertNotEqual(LyricsCoveredPage(browser), before)
     }
 
+    /// A pinned song selects its pinned row for a moment, plays, and selects the previous row
+    /// again; that round trip stays on the page, so the lyrics stay open.
+    func testPinnedSongRoundTripStaysOnThePage() {
+        let browser = PlaylistBrowserViewModel(
+            api: MockBrowsingAPI(playlistResults: [], trackResults: [:]),
+            cache: MockBrowsingCache()
+        )
+        browser.sidebarSelection = .playlist("p1")
+        let onPlaylist = LyricsCoveredPage(browser)
+        browser.sidebarSelection = .pinnedItem("pin-song")
+        let onPinnedRow = LyricsCoveredPage(browser)
+        XCTAssertFalse(onPinnedRow.isAnotherPage(than: onPlaylist), "selecting a pinned song counted as leaving")
+        browser.sidebarSelection = .playlist("p1")
+        XCTAssertFalse(LyricsCoveredPage(browser).isAnotherPage(than: onPinnedRow))
+
+        browser.sidebarSelection = .playlist("p2")
+        XCTAssertTrue(LyricsCoveredPage(browser).isAnotherPage(than: onPlaylist))
+        browser.sidebarSelection = .pinnedItem("pin-album")
+        browser.breadcrumbPath = [Self.albumCrumb(artwork: nil)]
+        XCTAssertTrue(LyricsCoveredPage(browser).isAnotherPage(than: onPlaylist), "a pinned album opened under the lyrics")
+    }
+
     private static func albumCrumb(id: String = "a1", artwork: URL?) -> BrowserBreadcrumb {
         BrowserBreadcrumb(
             id: UUID(),

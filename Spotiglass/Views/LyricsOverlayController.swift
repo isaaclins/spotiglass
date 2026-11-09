@@ -9,23 +9,28 @@ struct LyricsOverlayFocusContainer<Content: View>: NSViewRepresentable {
     let content: Content
     let isActive: Bool
     let keymapStore: CommandPaletteKeymapStore?
+    let keyboardFocus: LyricsKeyboardFocusProbe?
 
     init(
         content: Content,
         isActive: Bool,
-        keymapStore: CommandPaletteKeymapStore? = nil
+        keymapStore: CommandPaletteKeymapStore? = nil,
+        keyboardFocus: LyricsKeyboardFocusProbe? = nil
     ) {
         self.content = content
         self.isActive = isActive
         self.keymapStore = keymapStore
+        self.keyboardFocus = keyboardFocus
     }
 
     func makeNSView(context: Context) -> LyricsOverlayFocusContainerView<Content> {
-        LyricsOverlayFocusContainerView(
+        let view = LyricsOverlayFocusContainerView(
             content: content,
             isActive: isActive,
             keymapStore: keymapStore ?? CommandPaletteKeymapStore()
         )
+        keyboardFocus?.container = view
+        return view
     }
 
     func updateNSView(_ nsView: LyricsOverlayFocusContainerView<Content>, context: Context) {
@@ -56,10 +61,37 @@ private enum LyricsOverlayGlobalCommands {
     ]
 }
 
+/// Tells the lyrics whether the user moved the keyboard out of them, so focus placed once the
+/// lyrics finish loading doesn't pull it back from the sidebar or the queue (#438).
+@MainActor
+final class LyricsKeyboardFocusProbe {
+    weak var container: (any LyricsKeyboardFocusOwner)?
+
+    var userMovedFocusAway: Bool {
+        container?.keyboardFocusMovedAway ?? false
+    }
+}
+
+@MainActor
+protocol LyricsKeyboardFocusOwner: AnyObject {
+    var keyboardFocusMovedAway: Bool { get }
+}
+
+private struct LyricsKeyboardFocusKey: EnvironmentKey {
+    static var defaultValue: LyricsKeyboardFocusProbe? { nil }
+}
+
+extension EnvironmentValues {
+    var lyricsKeyboardFocus: LyricsKeyboardFocusProbe? {
+        get { self[LyricsKeyboardFocusKey.self] }
+        set { self[LyricsKeyboardFocusKey.self] = newValue }
+    }
+}
+
 /// Owns the keyboard focus while the lyrics overlay is presented and returns it
 /// to the responder that was focused before the presentation opened.
 @MainActor
-final class LyricsOverlayFocusContainerView<Content: View>: NSView, FocusedKeyEventOwner {
+final class LyricsOverlayFocusContainerView<Content: View>: NSView, FocusedKeyEventOwner, LyricsKeyboardFocusOwner {
     private let hostingView: NSHostingView<Content>
     private let keymapStore: CommandPaletteKeymapStore
     private var overlayIsActive: Bool
@@ -67,6 +99,8 @@ final class LyricsOverlayFocusContainerView<Content: View>: NSView, FocusedKeyEv
     private weak var previousWindow: NSWindow?
     private var previousResponder: NSResponder?
     private var focusRequestScheduled = false
+    /// Set once the keyboard is in the lyrics, so a later move elsewhere reads as the user's.
+    private var didHoldKeyboardFocus = false
 
     init(content: Content, isActive: Bool, keymapStore: CommandPaletteKeymapStore) {
         hostingView = NSHostingView(rootView: content)
@@ -145,11 +179,31 @@ final class LyricsOverlayFocusContainerView<Content: View>: NSView, FocusedKeyEv
     /// is the first responder.
     override func keyDown(with event: NSEvent) {}
 
+    /// AppKit offers key equivalents to every view in the window, not only the focused one,
+    /// and before the menu bar. The lyrics only claim plain keys, and only while the keyboard
+    /// is in them: with focus in the sidebar or the queue, shortcuts work as on every other
+    /// screen, and ⌘ shortcuts always reach the menu bar, so Repeat (⌥⌘R, now only in the
+    /// player bar), Shuffle and seeking work with the lyrics open (#438). Menu commands that
+    /// act on the page under the lyrics are dimmed while they are open.
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        guard ownsKeyEvent(event) else {
+        guard hasKeyboardFocus,
+            !event.modifierFlags.contains(.command),
+            ownsKeyEvent(event)
+        else {
             return super.performKeyEquivalent(with: event)
         }
         return true
+    }
+
+    /// Whether the keyboard is in the lyrics: this container or a view inside it.
+    var hasKeyboardFocus: Bool {
+        guard let window else { return false }
+        return isInResponderChain(window.firstResponder)
+    }
+
+    var keyboardFocusMovedAway: Bool {
+        if hasKeyboardFocus { didHoldKeyboardFocus = true }
+        return didHoldKeyboardFocus && !hasKeyboardFocus
     }
 
     private func matchesGlobalCommandBinding(_ event: NSEvent) -> Bool {
@@ -177,6 +231,7 @@ final class LyricsOverlayFocusContainerView<Content: View>: NSView, FocusedKeyEv
         // key-window update. SwiftUI can otherwise leave the old responder in
         // place until the next run-loop turn.
         if window.makeFirstResponder(self) {
+            didHoldKeyboardFocus = true
             return
         }
 
@@ -189,7 +244,7 @@ final class LyricsOverlayFocusContainerView<Content: View>: NSView, FocusedKeyEv
                 self.window === window,
                 !self.isInResponderChain(window.firstResponder)
             else { return }
-            _ = window.makeFirstResponder(self)
+            if window.makeFirstResponder(self) { self.didHoldKeyboardFocus = true }
         }
     }
 
@@ -199,8 +254,15 @@ final class LyricsOverlayFocusContainerView<Content: View>: NSView, FocusedKeyEv
         previousWindow = nil
         previousResponder = nil
         capturedPreviousResponder = false
+        didHoldKeyboardFocus = false
 
         guard let window else { return }
+        // The sidebar, the queue and the player bar stay usable next to the lyrics (#438). When
+        // the keyboard already moved there (a click on a sidebar row that also closed the
+        // lyrics, Escape from the queue), it stays where the user put it.
+        if let current = window.firstResponder, current !== window, !isInResponderChain(current) {
+            return
+        }
         if let responder, responder !== self, isResponderInWindow(responder, window) {
             _ = window.makeFirstResponder(responder)
         } else {
@@ -281,6 +343,7 @@ struct LyricsOverlayLayer: View {
     @ObservedObject var lyricsOverlay: LyricsOverlayController
     let keymapStore: CommandPaletteKeymapStore
     @EnvironmentObject private var settingsStore: SpotiglassSettingsStore
+    @State private var keyboardFocus = LyricsKeyboardFocusProbe()
 
     /// Avoid blocking the column when `isPresented` is true before the browser has called `attach` (nil models).
     private var immersiveLyricsReady: Bool {
@@ -312,9 +375,11 @@ struct LyricsOverlayLayer: View {
                     )
                     .environmentObject(settingsStore)
                     .environment(\.locale, settingsStore.appLocale)
-                    .environment(\.spotiglassLocale, settingsStore.appLocale),
+                    .environment(\.spotiglassLocale, settingsStore.appLocale)
+                    .environment(\.lyricsKeyboardFocus, keyboardFocus),
                     isActive: immersiveLyricsReady,
-                    keymapStore: keymapStore
+                    keymapStore: keymapStore,
+                    keyboardFocus: keyboardFocus
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .transition(.opacity.combined(with: .scale(scale: 0.98)))

@@ -15,6 +15,7 @@ struct ImmersiveLyricsView: View {
     /// Focus goes to the lyrics once per opening; a later song must not take it back from
     /// wherever the user moved it.
     @State private var hasPlacedInitialFocus = false
+    @Environment(\.lyricsKeyboardFocus) private var keyboardFocus
 
     /// Soft fade at scroll top/bottom; off when legibility or calm motion is preferred.
     private var usesLyricsScrollEdgeFade: Bool {
@@ -69,14 +70,16 @@ struct ImmersiveLyricsView: View {
     /// The lyrics list exists only once lyrics are ready (not while loading or for an
     /// instrumental), so focus is placed when it first appears. A request made while the
     /// lyrics are still being laid out is dropped, so it is repeated for a moment until the
-    /// list has the keyboard.
+    /// list has the keyboard, unless the user has moved it somewhere else meanwhile.
     private func placeInitialFocusIfReady() {
         guard !hasPlacedInitialFocus, Self.showsLyricsList(lyricsModel.phase) else { return }
         hasPlacedInitialFocus = true
         Task { @MainActor in
             for delay in [0, 150, 400, 800] {
                 try? await Task.sleep(for: .milliseconds(delay))
-                if isLyricsListFocused { return }
+                // The lyrics can take seconds to load; by then you may be typing in the sidebar
+                // or the queue, and the keyboard stays there.
+                if isLyricsListFocused || keyboardFocus?.userMovedFocusAway == true { return }
                 isLyricsListFocused = true
             }
         }
