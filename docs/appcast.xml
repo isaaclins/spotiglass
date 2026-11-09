@@ -3,14 +3,14 @@
     <channel>
         <title>Spotiglass</title>
         <item>
-            <title>0.8.10</title>
-            <pubDate>Mon, 09 Nov 2026 04:14:32 +0100</pubDate>
-            <sparkle:version>21</sparkle:version>
-            <sparkle:shortVersionString>0.8.10</sparkle:shortVersionString>
+            <title>0.8.11</title>
+            <pubDate>Mon, 09 Nov 2026 04:32:36 +0100</pubDate>
+            <sparkle:version>22</sparkle:version>
+            <sparkle:shortVersionString>0.8.11</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[• Play and pause now show up the moment you press them, instead of taking about 5 seconds.
+            <description sparkle:format="plain-text"><![CDATA[• The back button now uses a normal label that says where it goes, instead of tiny "Spotiglass" text.
 ]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.10/Spotiglass-0.8.10.zip" length="12492875" type="application/octet-stream" sparkle:edSignature="HzfXAovOyPF9rM8oN58Sketcj5pZa0DnBHpkRN63esF8XPq6n4UrpUWSKlubuGt1PxcthBQErOIEzovOjnIQCw=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.11/Spotiglass-0.8.11.zip" length="12456353" type="application/octet-stream" sparkle:edSignature="DsE+kIYVphHenWP4i6vg+1Z/XioS16wkESOHU84RlFLzpKZlmu3PJJX+BxXN0MwouBJUiNYOpb285MjYp4r8BA=="/>
         </item>
     </channel>
 </rss>
