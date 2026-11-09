@@ -2021,3 +2021,143 @@ private final class LockedFirstPages: @unchecked Sendable {
     var pages: [(count: Int, callsSoFar: Int)] { lock.withLock { stored } }
     func append(_ count: Int, callsSoFar: Int) { lock.withLock { stored.append((count, callsSoFar)) } }
 }
+
+/// The real MusicKit requests behind an Apple Music artist page, against the live catalog.
+///
+/// Opening Taylor Swift (catalog ID 159260351, more than 25 albums) from Search closed the app:
+/// MusicKit stops the process when asked for the second batch of albums loaded with
+/// `artist.with([.albums])` (#465). This runs only where the test host has Apple Music access.
+final class MusicKitContentSourceLiveTests: XCTestCase {
+    private static let artistWithManyAlbums = "159260351"
+
+    func testCatalogArtistAlbumsLoadPastTheFirstBatch() async throws {
+        try XCTSkipUnless(MusicAuthorization.currentStatus == .authorized, "Needs Apple Music access")
+        let source = MusicKitContentSource()
+        let found = try await source.artist(id: Self.artistWithManyAlbums)
+        let artist = try XCTUnwrap(found)
+        let firstBatch = try XCTUnwrap(artist.albums)
+        XCTAssertTrue(firstBatch.hasNextBatch, "The artist must have more albums than MusicKit's first batch")
+
+        let albums = try await source.albums(of: artist, limit: AppleMusicBrowsingProvider.maxArtistAlbums)
+
+        XCTAssertGreaterThan(albums.count, firstBatch.count)
+        XCTAssertEqual(Set(albums.map(\.id)).count, albums.count)
+    }
+}
+
+/// Reading a catalog relationship page by page, as the Apple Music API answered for the artist
+/// that closed the app (#465): 188 albums, 100 on the first page, and a `next` path that keeps
+/// the offset but drops the page size.
+final class AppleMusicCatalogPagesTests: XCTestCase {
+    private let firstPath = "/v1/catalog/ch/artists/159260351/albums?limit=100"
+    private let nextPath = "/v1/catalog/ch/artists/159260351/albums?offset=100"
+
+    private func page(_ range: Range<Int>, next: String?) throws -> Data {
+        var object: [String: Any] = ["data": range.map { index in
+            [
+                "id": "\(1_440_000_000 + index)",
+                "type": "albums",
+                "attributes": ["name": "Album \(index)", "artistName": "Taylor Swift", "trackCount": 13,
+                               "releaseDate": "2019-08-23", "isSingle": false, "isCompilation": false] as [String: Any],
+            ] as [String: Any]
+        }]
+        if let next { object["next"] = next }
+        return try JSONSerialization.data(withJSONObject: object)
+    }
+
+    func testFollowsNextPagesWithTheFullPageSize() async throws {
+        let first = try page(0..<100, next: nextPath)
+        let second = try page(100..<188, next: nil)
+        var requested: [String] = []
+        let albums = try await AppleMusicCatalogPages.items(Album.self, from: firstPath, limit: 1_000) { path in
+            requested.append(path)
+            return requested.count == 1 ? first : second
+        }
+        XCTAssertEqual(requested, [firstPath, nextPath + "&limit=100"])
+        XCTAssertEqual(albums.count, 188)
+        XCTAssertEqual(Set(albums.map(\.id)).count, 188)
+    }
+
+    func testStopsAtTheLimit() async throws {
+        let first = try page(0..<100, next: nextPath)
+        var requests = 0
+        let albums = try await AppleMusicCatalogPages.items(Album.self, from: firstPath, limit: 40) { _ in
+            requests += 1
+            return first
+        }
+        XCTAssertEqual(requests, 1)
+        XCTAssertEqual(albums.count, 40)
+    }
+
+    /// A page whose `next` points back at a page already read ends the list instead of looping.
+    func testStopsWhenAPageRepeats() async throws {
+        let looping = try page(0..<100, next: firstPath)
+        var requests = 0
+        let albums = try await AppleMusicCatalogPages.items(Album.self, from: firstPath, limit: 1_000) { _ in
+            requests += 1
+            return looping
+        }
+        XCTAssertEqual(requests, 1)
+        XCTAssertEqual(albums.count, 100)
+    }
+
+    /// The artist's albums as MusicKit hands them over: the first batch, with more behind it.
+    /// Reading on goes to the API from the start, never to MusicKit's next batch, which closes
+    /// the app on a catalog artist (#465).
+    func testACatalogFirstBatchWithMoreIsReadFromTheAPI() async throws {
+        let firstBatch = try JSONDecoder().decode(
+            MusicItemCollection<Album>.self,
+            from: try page(0..<25, next: "/v1/catalog/ch/artists/159260351/albums?offset=25")
+        )
+        XCTAssertTrue(firstBatch.hasNextBatch)
+        let first = try page(0..<100, next: nextPath)
+        let second = try page(100..<188, next: nil)
+        var requested: [String] = []
+        let albums = try await AppleMusicCatalogPages.collect(
+            firstBatch,
+            limit: 1_000,
+            relationship: AppleMusicCatalogRelationship(kind: "artists", id: "159260351", name: "albums"),
+            storefront: { "ch" },
+            fetch: { path in
+                requested.append(path)
+                return requested.count == 1 ? first : second
+            }
+        )
+        XCTAssertEqual(requested, [firstPath, nextPath + "&limit=100"])
+        XCTAssertEqual(albums.count, 188)
+    }
+
+    /// A first batch that holds everything is used as it is, without asking the API.
+    func testACompleteFirstBatchNeedsNoRequest() async throws {
+        let firstBatch = try JSONDecoder().decode(MusicItemCollection<Album>.self, from: try page(0..<12, next: nil))
+        var requests = 0
+        let albums = try await AppleMusicCatalogPages.collect(
+            firstBatch,
+            limit: 1_000,
+            relationship: AppleMusicCatalogRelationship(kind: "artists", id: "159260351", name: "albums"),
+            storefront: { "ch" },
+            fetch: { _ in
+                requests += 1
+                return Data()
+            }
+        )
+        XCTAssertEqual(requests, 0)
+        XCTAssertEqual(albums.count, 12)
+    }
+
+    /// A later page that fails is an error the artist page can show, not the end of the app.
+    func testAFailedLaterPageThrows() async throws {
+        let first = try page(0..<100, next: nextPath)
+        var requests = 0
+        do {
+            _ = try await AppleMusicCatalogPages.items(Album.self, from: firstPath, limit: 1_000) { _ in
+                requests += 1
+                if requests == 2 { throw URLError(.timedOut) }
+                return first
+            }
+            XCTFail("Expected the failed page to throw")
+        } catch let error as URLError {
+            XCTAssertEqual(error.code, .timedOut)
+        }
+    }
+}

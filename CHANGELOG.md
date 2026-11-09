@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.13] - 2026-11-09
+
+### Fixed
+
+- Opening an Apple Music artist page no longer closes Spotiglass.
+
 ## [0.8.12] - 2026-11-09
 
 ### Fixed

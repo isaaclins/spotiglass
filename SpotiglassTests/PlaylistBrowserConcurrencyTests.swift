@@ -246,6 +246,138 @@ final class PlaylistBrowserConcurrencyTests: XCTestCase {
         XCTAssertEqual(api.artistAlbumsPageCallCount, 2, "Load more should fetch exactly one additional albums page.")
     }
 
+    /// A Load More that failed (#465) leaves the artist page open with what it has, and the
+    /// next Load More asks for the same page again instead of ending the album list there.
+    func testFailedLoadMoreArtistAlbumsIsAskedAgain() async {
+        let nextURL = URL(string: "spotiglass-apple-music://artist-albums?offset=10")!
+        var laterPageAttempts = 0
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
+            trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]],
+            artistAlbumsPageHandler: { _, _, _, offset, _ in
+                if offset == 0 {
+                    return MusicArtistAlbumsPage(
+                        items: [MusicArtistAlbum(id: "alb-1", name: "First", imageURL: nil, releaseYear: "2024", totalTracks: 1, group: .album, uri: "apple-music:album:alb-1")],
+                        next: nextURL
+                    )
+                }
+                laterPageAttempts += 1
+                if laterPageAttempts == 1 { throw URLError(.timedOut) }
+                return MusicArtistAlbumsPage(
+                    items: [MusicArtistAlbum(id: "alb-2", name: "Second", imageURL: nil, releaseYear: "2023", totalTracks: 1, group: .album, uri: "apple-music:album:alb-2")],
+                    next: nil
+                )
+            }
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache(), initialArtistAlbumPageCount: 1)
+        await viewModel.load()
+        await viewModel.selectArtist(id: "artist-xyz")
+
+        await viewModel.loadMoreArtistAlbums()
+        guard case let .staleCache(.artist(failed), error) = viewModel.detailState else {
+            return XCTFail("A failed Load More must keep the artist page open, got \(viewModel.detailState)")
+        }
+        XCTAssertNotNil(error)
+        XCTAssertEqual(failed.albums.map(\.id), ["alb-1"])
+        XCTAssertTrue(failed.canLoadMoreAlbums)
+
+        await viewModel.loadMoreArtistAlbums()
+        XCTAssertEqual(laterPageAttempts, 2, "The failed page must be asked for again")
+        guard case let .loaded(.artist(recovered)) = viewModel.detailState else {
+            return XCTFail("Expected the artist page after the retried page, got \(viewModel.detailState)")
+        }
+        XCTAssertEqual(recovered.albums.map(\.id), ["alb-1", "alb-2"])
+        XCTAssertFalse(recovered.canLoadMoreAlbums)
+    }
+
+    /// An artist page whose albums failed to load (#465) shows an error, and Retry (the same
+    /// as Refresh) loads that artist again.
+    func testFailedArtistPageRetriesTheSameArtist() async {
+        var attempts = 0
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
+            trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]],
+            artistAlbumsPageHandler: { _, _, _, _, _ in
+                attempts += 1
+                if attempts == 1 { throw URLError(.networkConnectionLost) }
+                return MusicArtistAlbumsPage(
+                    items: [MusicArtistAlbum(id: "alb-1", name: "First", imageURL: nil, releaseYear: "2024", totalTracks: 1, group: .album, uri: "apple-music:album:alb-1")],
+                    next: nil
+                )
+            }
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache(), initialArtistAlbumPageCount: 1)
+        await viewModel.load()
+        await viewModel.selectArtist(id: "artist-xyz")
+        guard case .error = viewModel.detailState else {
+            return XCTFail("Expected an error state, got \(viewModel.detailState)")
+        }
+
+        await viewModel.unifiedRefreshMainSurface()
+
+        XCTAssertEqual(attempts, 2)
+        guard case let .loaded(.artist(detail)) = viewModel.detailState else {
+            return XCTFail("Retry must load the artist again, got \(viewModel.detailState)")
+        }
+        XCTAssertEqual(detail.albums.map(\.id), ["alb-1"])
+    }
+
+    /// An album opened from Home that failed to load shows the same error view with Retry.
+    /// Home stays selected in the sidebar, and Retry must load the album again instead of
+    /// reloading Home (#465).
+    func testFailedAlbumPageRetriesTheSameAlbum() async {
+        await assertFailedAlbumFromHomeComesBack { await $0.retryFailedDetail() }
+    }
+
+    /// Refresh (toolbar, ⌘R) on that failed album does the same as Retry.
+    func testFailedAlbumPageRefreshesTheSameAlbum() async {
+        await assertFailedAlbumFromHomeComesBack { await $0.unifiedRefreshMainSurface() }
+    }
+
+    private func assertFailedAlbumFromHomeComesBack(
+        _ reload: (PlaylistBrowserViewModel) async -> Void,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async {
+        var attempts = 0
+        let albumTrack = MusicTrack(
+            id: "alb-track-1",
+            name: "Album Track 1",
+            artists: ["Malcolm Todd"],
+            albumArtworkURL: nil,
+            durationMilliseconds: 180_000,
+            isExplicit: false,
+            isPlayable: true,
+            linkedFromID: nil,
+            uri: "spotify:track:alb-track-1"
+        )
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
+            trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]],
+            albumTracksHandler: { _, _, _ in
+                attempts += 1
+                if attempts == 1 { throw URLError(.networkConnectionLost) }
+                return [albumTrack]
+            }
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+        await viewModel.load()
+        XCTAssertEqual(viewModel.sidebarSelection, .home, file: file, line: line)
+        await viewModel.selectAlbum(id: "album-123", displayTitle: "Sweet Boy", displaySubtitle: "Malcolm Todd", artworkURL: nil)
+        guard case .error = viewModel.detailState else {
+            return XCTFail("Expected an error state, got \(viewModel.detailState)", file: file, line: line)
+        }
+
+        await reload(viewModel)
+
+        XCTAssertEqual(attempts, 2, file: file, line: line)
+        guard case let .loaded(.playlist(detail)) = viewModel.detailState else {
+            return XCTFail("The album must load again, got \(viewModel.detailState)", file: file, line: line)
+        }
+        XCTAssertEqual(detail.playlist.id, "album-123", file: file, line: line)
+        XCTAssertEqual(detail.tracks.map(\.spotifyTrackID), ["alb-track-1"], file: file, line: line)
+    }
+
     func testSignOutClearsBrowsingState() async {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],

@@ -3,14 +3,14 @@
     <channel>
         <title>Spotiglass</title>
         <item>
-            <title>0.8.12</title>
-            <pubDate>Mon, 09 Nov 2026 04:54:57 +0100</pubDate>
-            <sparkle:version>23</sparkle:version>
-            <sparkle:shortVersionString>0.8.12</sparkle:shortVersionString>
+            <title>0.8.13</title>
+            <pubDate>Mon, 09 Nov 2026 05:33:10 +0100</pubDate>
+            <sparkle:version>24</sparkle:version>
+            <sparkle:shortVersionString>0.8.13</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[• Big Apple Music playlists and Liked Songs now open without a long wait.
+            <description sparkle:format="plain-text"><![CDATA[• Opening an Apple Music artist page no longer closes Spotiglass.
 ]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.12/Spotiglass-0.8.12.zip" length="12546226" type="application/octet-stream" sparkle:edSignature="B8i5dZidKo9xMsFVfHnX1nWul/SJtzwIb+s1Ia396MwyMl6lRgq1Tc3CvaATx6Oi/KCmAL5Ef9Gd76r6v3WjDQ=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.13/Spotiglass-0.8.13.zip" length="12580211" type="application/octet-stream" sparkle:edSignature="0P1YU3ItjUGkbcU1on7BF+NqcR17AzWObWHPSqjXIQcZ6EAlCfaucl1mrkJzoOz1OwaESlmUels3yaoiSQNTCQ=="/>
         </item>
     </channel>
 </rss>

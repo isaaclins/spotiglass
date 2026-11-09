@@ -202,7 +202,7 @@ enum AppleMusicCloudRequests {
         request(URL(string: path, relativeTo: baseURL)?.absoluteURL ?? baseURL, method: "GET")
     }
 
-    private static func pathComponent(_ id: String) -> String {
+    static func pathComponent(_ id: String) -> String {
         id.addingPercentEncoding(withAllowedCharacters: .alphanumerics.union(CharacterSet(charactersIn: ".-_"))) ?? id
     }
 
