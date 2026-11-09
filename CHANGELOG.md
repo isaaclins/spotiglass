@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.14] - 2026-11-09
+
+### Fixed
+
+- Lyrics can now pop out into a small window that stays on top of your other apps.
+
 ## [0.8.13] - 2026-11-09
 
 ### Fixed
