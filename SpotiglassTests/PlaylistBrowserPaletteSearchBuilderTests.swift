@@ -18,7 +18,7 @@ final class PlaylistBrowserPaletteSearchBuilderTests: XCTestCase {
             unpin: { id in pinnedIDs.removeAll { $0 == id } },
             playURI: { playedURIs.append($0) },
             openPlaylist: { _ in },
-            openArtist: { _ in },
+            openArtist: { _, _ in },
             openAlbum: { _, _, _, _ in },
             addToQueue: { _ in }
         )
@@ -165,7 +165,7 @@ final class PlaylistBrowserPaletteSearchBuilderTests: XCTestCase {
             unpin: { _ in },
             playURI: { _ in },
             openPlaylist: { _ in },
-            openArtist: { _ in },
+            openArtist: { _, _ in },
             openAlbum: { id, title, subtitle, artworkURL in
                 openedAlbum = (id, title, subtitle, artworkURL)
             },

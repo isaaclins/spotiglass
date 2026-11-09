@@ -46,7 +46,7 @@ struct ArtistDetailContent: View {
     let togglePlayPause: () -> Void
     let hasPlaybackDevice: Bool
     let addToQueue: (String) async -> Void
-    let openArtist: (String) -> Void
+    let openArtist: (MusicArtistRef) -> Void
     let loadMoreAlbums: () -> Void
     /// Presented by the shared browser detail host so the same Add submenu can
     /// create a playlist from artist rows as it can from playlist rows.
@@ -90,7 +90,7 @@ struct ArtistDetailContent: View {
         togglePlayPause: @escaping () -> Void,
         hasPlaybackDevice: Bool,
         addToQueue: @escaping (String) async -> Void,
-        openArtist: @escaping (String) -> Void,
+        openArtist: @escaping (MusicArtistRef) -> Void,
         loadMoreAlbums: @escaping () -> Void,
         onRequestCreatePlaylist: (([TrackRowViewModel]) -> Void)? = nil,
         onRequestLibraryContinuation: ((TrackRowViewModel) -> Void)? = nil,
@@ -264,7 +264,7 @@ struct ArtistDetailContent: View {
                     onRequestCreatePlaylist: onRequestCreatePlaylist,
                     onRequestLibraryContinuation: onRequestLibraryContinuation,
                     openArtist: { target in
-                        if let id = target.id { openArtist(id) }
+                        if let id = target.id { openArtist(MusicArtistRef(id: id, name: target.name)) }
                     },
                     addToQueue: addToQueue,
                     hasPlaybackDevice: hasPlaybackDevice,

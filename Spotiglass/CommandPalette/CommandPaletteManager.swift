@@ -22,11 +22,28 @@ final class CommandPaletteManager: ObservableObject {
     @Published var trackSelectionPinState: TrackSelectionPinState = .unavailable
 
     @Published var canNavigateBack = false
+    /// Drives the View menu's "Show Sidebar" / "Hide Sidebar" title for this scene (#436).
+    @Published private(set) var isSidebarVisible = true
 
     var isSignedIn = false
     /// Event monitors exist in every main-window scene. Only the key scene may
     /// consume a shortcut, while standalone manager tests keep the default.
     var isCurrentScene: () -> Bool = { true }
+    /// The main window this scene runs in. `nil` in tests and previews.
+    var sceneWindow: () -> NSWindow? = { nil }
+    /// The window in front; a seam so tests can put another window there.
+    var frontWindow: () -> NSWindow? = { NSApp.keyWindow }
+    /// The system's Show/Hide Sidebar action for the window in front; a seam for tests.
+    var sendSystemSidebarToggle: () -> Void = {
+        NSApp.sendAction(#selector(NSSplitViewController.toggleSidebar(_:)), to: nil, from: nil)
+    }
+
+    /// True while a window other than this scene's main window is in front, such as Settings.
+    /// Show/Hide Sidebar then belongs to that window's own sidebar (#436).
+    var isAnotherWindowInFront: Bool {
+        guard let front = frontWindow(), let own = sceneWindow() else { return false }
+        return front !== own
+    }
     var signOut: (() -> Void)?
     var openSettings: (() -> Void)?
     /// Switches the app to another added service. App-wide and browser-free, so ``detach()``
@@ -40,7 +57,8 @@ final class CommandPaletteManager: ObservableObject {
     var selectNextPlaylist: (() async -> Void)?
     var selectPreviousPlaylist: (() async -> Void)?
     var connectPlayback: (() -> Void)?
-    var togglePlayback: (() async -> Void)?
+    /// Synchronous, so the controls show the new state before any task runs (#437).
+    var togglePlayback: (() -> Void)?
     var nextTrack: (() async -> Void)?
     var previousTrack: (() async -> Void)?
     var disconnectPlayback: (() async -> Void)?
@@ -58,7 +76,8 @@ final class CommandPaletteManager: ObservableObject {
     var seekBy: ((Int) async -> Void)?
     var playURI: ((String) async -> Void)?
     var openPlaylist: ((String) async -> Void)?
-    var openArtist: ((String) async -> Void)?
+    /// Artist ID and, when the caller knows it, the artist's name.
+    var openArtist: ((String, String?) async -> Void)?
     var openAlbum: ((String, String, String, URL?) async -> Void)?
     /// Opens the dedicated catalog Search view. Wired by the browser host.
     var openSearch: (() -> Void)?
@@ -69,6 +88,8 @@ final class CommandPaletteManager: ObservableObject {
     var filterByArtist: ((String) -> Void)?
     var toggleQueue: (() -> Void)?
     var toggleLyrics: (() -> Void)?
+    /// Shows or hides the browser's playlist sidebar (#436).
+    var toggleSidebar: (() -> Void)?
     /// Bulk-warms the on-disk track cache for every library playlist + Liked
     /// Songs. Invoking the command while a run is in flight cancels it.
     var prefetchAllPlaylists: (() -> Void)?
@@ -144,6 +165,12 @@ final class CommandPaletteManager: ObservableObject {
     func setPlaybackTransportMutability(_ ready: Bool) {
         guard canMutatePlaybackTransport != ready else { return }
         canMutatePlaybackTransport = ready
+    }
+
+    /// Publishes only real changes: each one rebuilds the menus (#409).
+    func setSidebarVisible(_ visible: Bool) {
+        guard isSidebarVisible != visible else { return }
+        isSidebarVisible = visible
     }
 
     func setPlaybackToggleAvailability(_ available: Bool) {
@@ -341,7 +368,6 @@ final class CommandPaletteManager: ObservableObject {
 
         let context: CommandPaletteContext = viewModel.isPresented ? .paletteOpen : (isSignedIn ? .signedIn : .signedOut)
         let matched = keymapStore.commandBindings(for: event, context: context)
-        guard !matched.isEmpty else { return false }
         let filtered = matched.filter { binding in
             if binding.command == CommandPaletteCommandID.togglePlayback {
                 return playbackTogglePrerequisite?() ?? true
@@ -352,6 +378,17 @@ final class CommandPaletteManager: ObservableObject {
             if let service = MusicService(switchCommandID: binding.command) {
                 return switchService != nil && switchableServices.contains(service)
             }
+            if binding.command == CommandPaletteCommandID.toggleSidebar {
+                return toggleSidebar != nil && !CommandPaletteSidebarShortcut.isTypingKeyPress(event)
+            }
+            return true
+        }
+        // ⌃⌘S is the system's Show/Hide Sidebar chord, kept next to the rebindable one (#436).
+        // With Settings in front it is Settings' chord, answered by Settings itself.
+        if filtered.isEmpty, toggleSidebar != nil, !isAnotherWindowInFront,
+           CommandPaletteSidebarShortcut.isSystemChord(event),
+           !CommandPaletteSidebarShortcut.isTypingKeyPress(event) {
+            execute(commandID: CommandPaletteCommandID.toggleSidebar)
             return true
         }
         guard !filtered.isEmpty else { return false }
@@ -391,7 +428,7 @@ final class CommandPaletteManager: ObservableObject {
             connectPlayback?()
         case CommandPaletteCommandID.togglePlayback:
             guard playbackTogglePrerequisite?() ?? true else { return }
-            Task { await togglePlayback?() }
+            togglePlayback?()
         case CommandPaletteCommandID.nextTrack:
             Task { await nextTrack?() }
         case CommandPaletteCommandID.previousTrack:
@@ -420,7 +457,9 @@ final class CommandPaletteManager: ObservableObject {
             }
         case CommandPaletteCommandID.openArtist:
             if case let .string(artistID)? = args?["artistID"] {
-                Task { await openArtist?(artistID) }
+                var artistName: String?
+                if case let .string(name)? = args?["artistName"] { artistName = name }
+                Task { await openArtist?(artistID, artistName) }
             }
         case CommandPaletteCommandID.openAlbum:
             guard case let .string(albumID)? = args?["albumID"],
@@ -445,6 +484,15 @@ final class CommandPaletteManager: ObservableObject {
         case CommandPaletteCommandID.toggleLyrics:
             guard canToggleLyrics else { return }
             toggleLyrics?()
+        case CommandPaletteCommandID.toggleSidebar:
+            // Like the system item it replaces, Show/Hide Sidebar acts on the window in front:
+            // with Settings in front it collapses Settings' own sidebar, not the browser's
+            // sidebar behind it (#436).
+            if isAnotherWindowInFront {
+                sendSystemSidebarToggle()
+            } else {
+                toggleSidebar?()
+            }
         case CommandPaletteCommandID.enqueueTrackSelection:
             Task { await enqueueTrackSelection?() }
         case CommandPaletteCommandID.pinTrackSelection:
@@ -488,6 +536,7 @@ final class CommandPaletteManager: ObservableObject {
         isSignedIn = false
         isRecordingHotkey = false
         canNavigateBack = false
+        isSidebarVisible = true
         canEnqueueTrackSelection = false
         trackSelectionPinState = .unavailable
         canTogglePlayback = false
@@ -525,6 +574,7 @@ final class CommandPaletteManager: ObservableObject {
         filterByArtist = nil
         toggleQueue = nil
         toggleLyrics = nil
+        toggleSidebar = nil
         prefetchAllPlaylists = nil
         dismissLyricsOverlayIfPresented = nil
         isLyricsPresented = nil
@@ -547,6 +597,7 @@ final class CommandPaletteManager: ObservableObject {
             guard spec.commandID != CommandPaletteCommandID.connectPlayback || connectPlayback != nil else { return nil }
             guard spec.commandID != CommandPaletteCommandID.nextTrack || nextTrack != nil else { return nil }
             guard spec.commandID != CommandPaletteCommandID.previousTrack || previousTrack != nil else { return nil }
+            guard spec.commandID != CommandPaletteCommandID.toggleSidebar || toggleSidebar != nil else { return nil }
             if let service = MusicService(switchCommandID: spec.commandID) {
                 guard switchService != nil, switchableServices.contains(service) else { return nil }
             }
@@ -592,9 +643,11 @@ final class CommandPaletteManager: ObservableObject {
         case CommandPaletteCommandID.previousTrack:
             ["previous", "back"]
         case CommandPaletteCommandID.toggleQueue:
-            ["queue", "up next", "sidebar"]
+            ["queue", "up next", "panel"]
         case CommandPaletteCommandID.toggleLyrics:
             ["lyrics", "immersive", "karaoke", "overlay"]
+        case CommandPaletteCommandID.toggleSidebar:
+            ["sidebar", "library", "playlists", "show", "hide"]
         case CommandPaletteCommandID.signOut:
             ["disconnect", "logout", "sign out"]
         case CommandPaletteCommandID.switchToSpotify, CommandPaletteCommandID.switchToAppleMusic:

@@ -172,6 +172,16 @@ struct PlaylistBrowserView: View {
                     pinDroppedTransfers: pinDroppedTransfers,
                     header: sidebarHeader
                 )
+                // The system toggle collapses the split view on its own: in a narrow window it
+                // squeezed the sidebar in and cut it off. This button runs Show/Hide Sidebar,
+                // like ⌘S, ⌃⌘S and the View menu, so all of them behave the same (#436).
+                .toolbar(removing: .sidebarToggle)
+                .toolbar {
+                    // At the sidebar's trailing edge, where the system toggle sat. SwiftUI keeps
+                    // it in the toolbar while the sidebar is collapsed, like the system toggle.
+                    ToolbarSpacer(.flexible)
+                    ToolbarItem(placement: .automatic) { sidebarToggleButton }
+                }
                 .navigationSplitViewColumnWidth(
                     min: SpotiglassDesign.playlistSidebarMinWidth,
                     ideal: SpotiglassDesign.sidebarWidth
@@ -253,8 +263,7 @@ struct PlaylistBrowserView: View {
         // An empty title left the window untitled: blank in the Window menu, in
         // Mission Control and to assistive tech, while the Settings window was
         // correctly named (#161). The title is the current location rather than
-        // the app name, because the breadcrumb's home crumb already says
-        // "Spotiglass" and repeating it in the titlebar reads as a mistake.
+        // the app name; the back button names the place before it (#443).
         .navigationTitle(windowTitle)
         .toolbar {
             if let progress = viewModel.prefetchAllPlaylistsProgress {
@@ -264,10 +273,10 @@ struct PlaylistBrowserView: View {
                     }
                 }
             }
-            // At the root there is no trail and nothing to go back to, so the
-            // item would render as an empty capsule beside the window title.
-            // The trail belongs to the page under the lyrics, so it leaves with that page (#438).
-            if !lyricsOverlay.isPresented, viewModel.canNavigateBack || !viewModel.breadcrumbPath.isEmpty {
+            // Only once there is somewhere to go back to, like Music: at the
+            // root a dimmed chevron would sit beside the title doing nothing.
+            // Back belongs to the page under the lyrics, so it leaves with that page (#438).
+            if !lyricsOverlay.isPresented, viewModel.canNavigateBack {
                 ToolbarItem(placement: .navigation) {
                     NavigationToolbarChrome(viewModel: viewModel)
                 }
@@ -324,6 +333,13 @@ struct PlaylistBrowserView: View {
         } message: {
             Text(Self.disconnectConfirmationMessage(switchingTo: disconnectSwitchesTo))
         }
+    }
+
+    private var sidebarToggleButton: some View {
+        PlaylistBrowserSidebarToggleButton(
+            isSidebarVisible: playlistColumnVisibility != .detailOnly,
+            commandPaletteManager: commandPaletteManager
+        )
     }
 
     private var browserLifecycle: some View {
@@ -427,6 +443,7 @@ struct PlaylistBrowserView: View {
             }
         }
         .onChange(of: playlistColumnVisibility) { _, newValue in
+            commandPaletteManager.setSidebarVisible(newValue != .detailOnly)
             if newValue != .detailOnly {
                 // The sidebar is back (by hand or by widening), so nothing is held for the
                 // queue any more; a later hide by hand must not be undone by a widening (#413).

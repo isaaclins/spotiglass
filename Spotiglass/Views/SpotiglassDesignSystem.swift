@@ -223,11 +223,6 @@ enum SpotiglassDesign {
         /// Widest a centered panel (welcome, sign-in) gets.
         static let panelMaxWidth: CGFloat = 560
 
-        /// Widest one breadcrumb gets in the toolbar before it truncates.
-        static let breadcrumbMaxWidth: CGFloat = 220
-        /// The back button at the leading edge of the toolbar.
-        static let toolbarButtonSize: CGFloat = 32
-
         /// Width of the library prefetch progress bar in the toolbar.
         static let toolbarProgressWidth: CGFloat = 72
 
@@ -268,7 +263,6 @@ enum SpotiglassDesign {
     /// Semantic fonts for compact custom chrome. Text styles follow the user's
     /// accessibility text-size setting; fixed-point `Font.system(size:)` does not.
     enum Typography {
-        static let breadcrumb = Font.footnote
         static let commandPaletteIcon = Font.body.weight(.medium)
         static let commandPaletteClearShortcut = Font.body
         static let commandPaletteEmptyState = Font.largeTitle

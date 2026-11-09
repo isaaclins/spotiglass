@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.8.11] - 2026-11-09
+
+### Fixed
+
+- The back button now uses a normal label that says where it goes, instead of tiny "Spotiglass" text.
+
+## [0.8.10] - 2026-11-09
+
+### Fixed
+
+- Play and pause now show up the moment you press them, instead of taking about 5 seconds.
+
+## [0.8.9] - 2026-11-09
+
+### Fixed
+
+- ⌘S now shows and hides the sidebar.
+
 ## [0.8.8] - 2026-11-09
 
 ### Fixed

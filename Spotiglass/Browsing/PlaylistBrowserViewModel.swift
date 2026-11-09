@@ -167,6 +167,10 @@ final class PlaylistBrowserViewModel: ObservableObject {
     /// Clears sidebar selection when opening an artist; SwiftUI then calls `selectSidebar(nil)`, which must not reset the detail pane or bump `detailSession`.
     var ignoreNextNilSidebarSelectionForDetail = false
     var backNavigationStack: [BrowserNavigationTarget] = []
+    /// Names of the artists in the back history. The history keeps only an
+    /// artist's ID, and the breadcrumb that knew the name is gone once you
+    /// leave, so back would otherwise say "Artist" when a load never finished (#443).
+    var backNavigationArtistNames: [String: String] = [:]
     var currentNavigationTarget: BrowserNavigationTarget?
     var isPerformingBackNavigation = false
     let maxBackNavigationDepth = 40
@@ -270,6 +274,7 @@ final class PlaylistBrowserViewModel: ObservableObject {
         cachedArtistSnapshots = [:]
         currentArtistAlbumsPaging = nil
         backNavigationStack = []
+        backNavigationArtistNames = [:]
         currentNavigationTarget = nil
         canNavigateBack = false
         breadcrumbPath = []

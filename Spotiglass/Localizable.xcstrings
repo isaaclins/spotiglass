@@ -1779,52 +1779,6 @@
         }
       }
     },
-    "breadcrumb.hint": {
-      "extractionState": "stale",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Zeigt diesen Ort im Browser an."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shows this location in the browser."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Muestra esta ubicación en el explorador."
-          }
-        }
-      }
-    },
-    "breadcrumb.home.hint": {
-      "extractionState": "stale",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kehrt zur Mediathek-Startseite zurück."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Returns to library home."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vuelve al inicio de la biblioteca."
-          }
-        }
-      }
-    },
     "browser.addToQueue": {
       "extractionState": "stale",
       "localizations": {
@@ -7104,6 +7058,52 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mostrar cola"
+          }
+        }
+      }
+    },
+    "menu.view.showSidebar": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Sidebar"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar barra lateral"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seitenleiste einblenden"
+          }
+        }
+      }
+    },
+    "menu.view.hideSidebar": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hide Sidebar"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ocultar barra lateral"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seitenleiste ausblenden"
           }
         }
       }
@@ -13971,29 +13971,6 @@
         }
       }
     },
-    "tooltip.breadcrumb.home": {
-      "extractionState": "stale",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Zurück zu Start"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Go back to Home"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Volver a Inicio"
-          }
-        }
-      }
-    },
     "tooltip.breadcrumb.jump": {
       "extractionState": "stale",
       "localizations": {
@@ -14569,6 +14546,78 @@
         }
       }
     },
+    "playback.refused.pause": {
+      "comment": "Player bar line, shown for a few seconds in place of the artist when the service refused a pause press. The reason shows on hover.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't pause"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo pausar"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konnte nicht pausieren"
+          }
+        }
+      }
+    },
+    "playback.refused.play": {
+      "comment": "Player bar line, shown for a few seconds in place of the artist when the service refused a play press. The reason shows on hover.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't play"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo reproducir"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konnte nicht abspielen"
+          }
+        }
+      }
+    },
+    "error.playback.spotify.failed": {
+      "comment": "Player bar line, shown for a few seconds in place of the artist when Spotify refused a play or pause press.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify couldn't do that. Try again in a moment."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify no pudo hacerlo. Vuelve a intentarlo en un momento."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify konnte das nicht ausführen. Versuche es gleich erneut."
+          }
+        }
+      }
+    },
     "appleMusic.permission.message": {
       "extractionState": "manual",
       "localizations": {
@@ -14749,6 +14798,52 @@
           "stringUnit": {
             "state": "translated",
             "value": "Zu Spotify wechseln"
+          }
+        }
+      }
+    },
+    "palette.command.view.sidebar.toggle.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toggle Sidebar"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alternar barra lateral"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seitenleiste umschalten"
+          }
+        }
+      }
+    },
+    "palette.command.view.sidebar.toggle.subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show or hide the sidebar with your library"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar u ocultar la barra lateral con tu biblioteca"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seitenleiste mit deiner Mediathek ein- oder ausblenden"
           }
         }
       }

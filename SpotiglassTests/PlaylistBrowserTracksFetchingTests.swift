@@ -727,7 +727,7 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         await player.play(uri: "spotify:track:a")
         await player.play(contextURI: "spotify:playlist:p")
         await player.playFromPlaylist(clickedURI: "spotify:track:a", playableURIs: ["spotify:track:a"])
-        await player.togglePlayPause()
+        await player.requestTogglePlayPause()?.value
         await player.next()
         await player.previous()
 

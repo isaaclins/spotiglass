@@ -9,6 +9,7 @@ extension PlaylistBrowserViewModel {
     ) async {
         clearTrackSelection()
         registerNavigationTransition(to: .artist(id))
+        rememberArtistNameForBack(displayName, artistID: id)
         applyBreadcrumbForArtist(
             id: id,
             displayName: displayName,

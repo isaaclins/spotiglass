@@ -23,7 +23,8 @@ enum PlaylistBrowserCommandPaletteConfiguration {
         to manager: CommandPaletteManager,
         dependencies: Dependencies,
         queueVisible: Binding<Bool>,
-        lyricsPresented: Binding<Bool>
+        lyricsPresented: Binding<Bool>,
+        sidebarVisible: Binding<Bool>? = nil
     ) {
         dependencies.syncUnifiedRefreshRouting()
         let includeThisPlaylist = dependencies.viewModel.isCommandPaletteContextSearchEligible
@@ -66,7 +67,7 @@ enum PlaylistBrowserCommandPaletteConfiguration {
             playback?.isTransportMutationReady ?? false
         }
         manager.togglePlayback = { [weak playback = dependencies.playbackViewModel] in
-            await playback?.audiblePlayer.togglePlayPause()
+            playback?.audiblePlayer.requestTogglePlayPause()
         }
         manager.nextTrack = { [weak playback = dependencies.playbackViewModel] in
             await playback?.audiblePlayer.next()
@@ -154,9 +155,9 @@ enum PlaylistBrowserCommandPaletteConfiguration {
             lyricsPresented.wrappedValue = false
             await viewModel?.selectPlaylist(id: playlistID, origin: .reset)
         }
-        manager.openArtist = { [weak viewModel = dependencies.viewModel] artistID in
+        manager.openArtist = { [weak viewModel = dependencies.viewModel] artistID, artistName in
             lyricsPresented.wrappedValue = false
-            await viewModel?.selectArtist(id: artistID, origin: .reset, displayName: nil)
+            await viewModel?.selectArtist(id: artistID, origin: .reset, displayName: artistName)
         }
         manager.openAlbum = { [weak viewModel = dependencies.viewModel] id, title, subtitle, artworkURL in
             lyricsPresented.wrappedValue = false
@@ -198,6 +199,17 @@ enum PlaylistBrowserCommandPaletteConfiguration {
         }
         manager.toggleQueue = {
             queueVisible.wrappedValue.toggle()
+        }
+        // The browser's own sidebar state, not AppKit's toggleSidebar: that action only reaches
+        // the split view while focus is inside it, so it did nothing from lyrics or the queue (#436).
+        if let sidebarVisible {
+            manager.setSidebarVisible(sidebarVisible.wrappedValue)
+            manager.toggleSidebar = { [weak manager] in
+                sidebarVisible.wrappedValue.toggle()
+                manager?.setSidebarVisible(sidebarVisible.wrappedValue)
+            }
+        } else {
+            manager.toggleSidebar = nil
         }
         // `CommandPaletteManager` disables this command whenever there is no
         // current music track, so the callback itself can stay a pure toggle.
@@ -270,10 +282,10 @@ enum PlaylistBrowserCommandPaletteConfiguration {
                     args: ["playlistID": .string(playlistID)]
                 )
             },
-            openArtist: { artistID in
+            openArtist: { artistID, artistName in
                 commandPaletteManager.execute(
                     commandID: CommandPaletteCommandID.openArtist,
-                    args: ["artistID": .string(artistID)]
+                    args: ["artistID": .string(artistID), "artistName": .string(artistName)]
                 )
             },
             openAlbum: { albumID, title, subtitle, artworkURL in

@@ -417,7 +417,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
         XCTAssertTrue(playbackAPI.actions.contains("play:living-room:spotify:track:played"))
         XCTAssertTrue(playbackAPI.actions.contains("pause:living-room"))
         XCTAssertFalse(playbackAPI.actions.contains("transfer:sdk-device:false"))
-        XCTAssertTrue(commander.commands.filter { $0.command == .togglePlay }.isEmpty)
+        XCTAssertTrue(commander.commands.filter { [.togglePlay, .pause, .resume].contains($0.command) }.isEmpty)
     }
 
     // MARK: - Skip command (previous/next) spam guard

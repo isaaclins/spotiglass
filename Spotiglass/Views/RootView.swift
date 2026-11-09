@@ -9,6 +9,9 @@ import SwiftUI
 final class SpotiglassSceneHost: ObservableObject {
     let commandPaletteManager: CommandPaletteManager
     let lyricsOverlayController: LyricsOverlayController
+    /// The main window this scene runs in, set when it becomes key. Show/Hide Sidebar
+    /// compares it with the window in front (#436).
+    weak var window: NSWindow?
     /// Each service's browser state, kept while another service is on screen, so switching back
     /// shows that library instantly at the place it was left (#373). Dropped when the service's
     /// session ends.
@@ -62,6 +65,9 @@ final class SpotiglassSceneHost: ObservableObject {
 @MainActor
 final class SpotiglassSceneRegistry: ObservableObject {
     @Published private(set) var activeScene: SpotiglassSceneHost? = nil
+    /// False while another window (Settings) is key. The View menu's Show/Hide Sidebar then
+    /// acts on that window, so it can't show the browser's sidebar state (#436).
+    @Published private(set) var isMainWindowInFront = true
 
     private var scenes: [SpotiglassSceneHost] = []
     private var activeSceneCancellable: AnyCancellable?
@@ -84,6 +90,13 @@ final class SpotiglassSceneRegistry: ObservableObject {
     func activate(_ scene: SpotiglassSceneHost) {
         register(scene)
         setActiveScene(scene)
+        if !isMainWindowInFront { isMainWindowInFront = true }
+    }
+
+    /// A main window stopped being key. Another main window becoming key calls `activate`
+    /// right after, so this stays false only while some other window is in front.
+    func mainWindowResignedKey() {
+        if isMainWindowInFront { isMainWindowInFront = false }
     }
 
     /// Removes a scene from the live registry. Only the current host is
@@ -132,25 +145,30 @@ final class SpotiglassSceneRegistry: ObservableObject {
 /// A zero-sized AppKit probe makes menu routing follow the key main window,
 /// rather than only the last window that happened to appear.
 private struct SceneHostActivationView: NSViewRepresentable {
-    let activate: () -> Void
+    let activate: (NSWindow) -> Void
+    let resignKey: () -> Void
 
     func makeNSView(context: Context) -> SceneHostActivationProbeView {
-        SceneHostActivationProbeView(activate: activate)
+        SceneHostActivationProbeView(activate: activate, resignKey: resignKey)
     }
 
     func updateNSView(_ nsView: SceneHostActivationProbeView, context: Context) {
         nsView.activate = activate
+        nsView.resignKey = resignKey
         nsView.observeWindowIfNeeded()
     }
 }
 
 private final class SceneHostActivationProbeView: NSView {
-    var activate: () -> Void
+    var activate: (NSWindow) -> Void
+    var resignKey: () -> Void
     private weak var observedWindow: NSWindow?
     private var keyWindowObserver: NSObjectProtocol?
+    private var resignKeyObserver: NSObjectProtocol?
 
-    init(activate: @escaping () -> Void) {
+    init(activate: @escaping (NSWindow) -> Void, resignKey: @escaping () -> Void) {
         self.activate = activate
+        self.resignKey = resignKey
         super.init(frame: .zero)
     }
 
@@ -171,14 +189,22 @@ private final class SceneHostActivationProbeView: NSView {
 
         observedWindow = window
         if window.isKeyWindow {
-            activate()
+            activate(window)
         }
         keyWindowObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didBecomeKeyNotification,
             object: window,
             queue: .main
+        ) { [weak self, weak window] _ in
+            guard let window else { return }
+            self?.activate(window)
+        }
+        resignKeyObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didResignKeyNotification,
+            object: window,
+            queue: .main
         ) { [weak self] _ in
-            self?.activate()
+            self?.resignKey()
         }
     }
 
@@ -195,7 +221,11 @@ private final class SceneHostActivationProbeView: NSView {
         if let keyWindowObserver {
             NotificationCenter.default.removeObserver(keyWindowObserver)
         }
+        if let resignKeyObserver {
+            NotificationCenter.default.removeObserver(resignKeyObserver)
+        }
         keyWindowObserver = nil
+        resignKeyObserver = nil
         observedWindow = nil
     }
 }
@@ -394,9 +424,13 @@ struct RootView: View {
             }
             .background {
                 if let sceneRegistry {
-                    SceneHostActivationView {
-                        sceneRegistry.activate(sceneHost)
-                    }
+                    SceneHostActivationView(
+                        activate: { window in
+                            sceneHost.window = window
+                            sceneRegistry.activate(sceneHost)
+                        },
+                        resignKey: { sceneRegistry.mainWindowResignedKey() }
+                    )
                     .frame(width: 0, height: 0)
                 }
             }
@@ -407,6 +441,7 @@ struct RootView: View {
                 await viewModel.restoreSessionIfAvailable()
             }
             .onAppear {
+                commandPaletteManager.sceneWindow = { [weak sceneHost] in sceneHost?.window }
                 commandPaletteManager.isCurrentScene = { [weak sceneHost, weak sceneRegistry] in
                     guard let sceneRegistry else { return true }
                     guard let sceneHost else { return false }

@@ -480,7 +480,7 @@ final class CommandPaletteManagerKeyEventTests: XCTestCase {
         await fulfillment(of: [next], timeout: 2)
 
         let openArtist = expectation(description: "openArtist")
-        manager.openArtist = { id in
+        manager.openArtist = { id, _ in
             XCTAssertEqual(id, "artist-9")
             openArtist.fulfill()
         }

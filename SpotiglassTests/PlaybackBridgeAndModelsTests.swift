@@ -98,6 +98,30 @@ final class PlaybackBridgeAndModelsTests: XCTestCase {
         )
     }
 
+    func testBridgeParsesPlayerCommandFailed() throws {
+        XCTAssertEqual(
+            try SpotifyPlaybackBridgeParser.parse([
+                "name": "player_command_failed",
+                "payload": ["command": "pause", "message": "Spotify pause failed: offline"],
+            ]),
+            .playerCommandFailed(command: "pause", message: "Spotify pause failed: offline")
+        )
+    }
+
+    func testBridgeParsesThePressIDOfAnAnswer() throws {
+        XCTAssertEqual(
+            try SpotifyPlaybackBridgeParser.parse(["name": "player_command_finished", "payload": ["command": "pause", "id": 7]]),
+            .playerCommandFinished(command: "pause", id: 7)
+        )
+        XCTAssertEqual(
+            try SpotifyPlaybackBridgeParser.parse([
+                "name": "player_command_failed",
+                "payload": ["command": "resume", "id": 8, "message": "Spotify resume failed: offline"],
+            ]),
+            .playerCommandFailed(command: "resume", message: "Spotify resume failed: offline", id: 8)
+        )
+    }
+
     func testBridgeParsesPlayerCommandFinished() throws {
         XCTAssertEqual(
             try SpotifyPlaybackBridgeParser.parse(["name": "player_command_finished", "payload": ["command": "togglePlay"]]),
@@ -105,7 +129,10 @@ final class PlaybackBridgeAndModelsTests: XCTestCase {
         )
     }
 
-    func testTogglePlayPauseSerializesUntilBridgeAck() async {
+    /// A second press while Spotify's page is still running the first one is sent once the page
+    /// answers (#437): before, it was dropped, so a quick pause then play stayed paused. Sent at
+    /// once, the two could run together in Spotify's player and land in either order.
+    func testASecondPressIsSentOnceTheBridgeAnswersTheFirst() async {
         let commander = MockWebPlaybackCommander()
         let playbackAPI = MockPlaybackAPI()
         let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: commander))
@@ -113,12 +140,12 @@ final class PlaybackBridgeAndModelsTests: XCTestCase {
         await viewModel.togglePlayPause()
         XCTAssertEqual(commander.commands.filter { $0.command == .togglePlay }.count, 1)
 
-        await viewModel.togglePlayPause()
-        XCTAssertEqual(commander.commands.filter { $0.command == .togglePlay }.count, 1)
+        let second = viewModel.requestTogglePlayPause()
+        for _ in 0..<20 { await Task.yield() }
+        XCTAssertEqual(commander.commands.filter { $0.command == .togglePlay }.count, 1, "sent while the page still ran the first")
 
         viewModel.handle(.playerCommandFinished(command: "togglePlay"))
-
-        await viewModel.togglePlayPause()
+        await second?.value
         XCTAssertEqual(commander.commands.filter { $0.command == .togglePlay }.count, 2)
     }
 

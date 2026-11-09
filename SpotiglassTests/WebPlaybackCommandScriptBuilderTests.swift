@@ -12,6 +12,13 @@ final class WebPlaybackCommandScriptBuilderTests: XCTestCase {
         XCTAssertTrue(try WebPlaybackCommandScriptBuilder.script(for: .previous).contains("previous()"))
     }
 
+    /// A play / pause press's id goes to the page, which sends it back with its answer (#437).
+    func testPlayPauseScriptsCarryThePressID() throws {
+        XCTAssertTrue(try WebPlaybackCommandScriptBuilder.script(for: .pause, payload: ["id": NSNumber(value: UInt64(7))]).contains("pause(7)"))
+        XCTAssertTrue(try WebPlaybackCommandScriptBuilder.script(for: .resume, payload: ["id": NSNumber(value: UInt64(8))]).contains("resume(8)"))
+        XCTAssertTrue(try WebPlaybackCommandScriptBuilder.script(for: .togglePlay, payload: ["id": NSNumber(value: UInt64(9))]).contains("togglePlay(9)"))
+    }
+
     func testSeekPlayURIAndVolumeScripts() throws {
         let seek = try WebPlaybackCommandScriptBuilder.script(for: .seek, payload: ["milliseconds": 12_500])
         XCTAssertTrue(seek.contains("seek(12500)"))

@@ -13,6 +13,11 @@ extension PlaybackSessionViewModel {
         return error
     }
 
+    /// Presses play / pause and waits until the command went out.
+    func togglePlayPause() async {
+        await requestTogglePlayPause()?.value
+    }
+
     /// Delivers a bridge event stamped with the current host generation.
     func handle(_ event: MusicPlaybackEvent) {
         handle(MusicPlaybackEventEnvelope(event: event, hostGeneration: playbackHostGeneration))

@@ -73,13 +73,31 @@ final class CommandPaletteManagerTests: XCTestCase {
         let manager = CommandPaletteManager()
         let expectation = expectation(description: "openArtist")
         var receivedID: String?
-        manager.openArtist = { id in
+        manager.openArtist = { id, _ in
             receivedID = id
             expectation.fulfill()
         }
         manager.execute(commandID: CommandPaletteCommandID.openArtist, args: ["artistID": .string("abc123")])
         await fulfillment(of: [expectation], timeout: 2)
         XCTAssertEqual(receivedID, "abc123")
+    }
+
+    /// The palette knows the artist's name; it travels with the ID so the
+    /// title and the back button can say it before the page loads (#443).
+    func testOpenArtistCommandPassesTheArtistName() async {
+        let manager = CommandPaletteManager()
+        let expectation = expectation(description: "openArtist")
+        var receivedName: String?
+        manager.openArtist = { _, name in
+            receivedName = name
+            expectation.fulfill()
+        }
+        manager.execute(
+            commandID: CommandPaletteCommandID.openArtist,
+            args: ["artistID": .string("abc123"), "artistName": .string("Bonobo")]
+        )
+        await fulfillment(of: [expectation], timeout: 2)
+        XCTAssertEqual(receivedName, "Bonobo")
     }
 
     func testOpenAlbumCommandInvokesHandlerWithMetadata() async {
