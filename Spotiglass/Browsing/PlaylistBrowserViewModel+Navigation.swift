@@ -134,10 +134,12 @@ extension PlaylistBrowserViewModel {
         backNavigationArtistNames = backNavigationArtistNames.filter { inHistory.contains($0.key) }
     }
 
-    /// Takes a place that no longer exists (a deleted playlist) out of the
-    /// history, so back neither names it nor opens an empty page.
-    func forgetNavigationTarget(_ target: BrowserNavigationTarget) {
-        backNavigationStack.removeAll { $0 == target }
+    /// Takes a deleted playlist out of the history and out of the title's
+    /// trail, so back neither names it nor opens an empty page, and going back
+    /// from a page opened in it doesn't leave its name in the title.
+    func forgetDeletedPlaylist(id: String) {
+        backNavigationStack.removeAll { $0 == .sidebar(.playlist(id)) }
+        breadcrumbPath.removeAll { $0.kind == .playlist(id: id) }
         syncCanNavigateBack()
     }
 

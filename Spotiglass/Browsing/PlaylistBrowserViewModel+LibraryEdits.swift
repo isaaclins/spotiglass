@@ -85,7 +85,7 @@ extension PlaylistBrowserViewModel {
         if sidebarSelection == .playlist(summary.id) {
             await selectSidebar(.home)
         }
-        forgetNavigationTarget(.sidebar(.playlist(summary.id)))
+        forgetDeletedPlaylist(id: summary.id)
         trackMutationToast = SpotiglassL10n.format("playlist.mutation.deletedPlaylist", summary.name)
     }
 
