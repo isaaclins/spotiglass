@@ -127,7 +127,8 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
     /// sidebar refresh shows them straight away.
     let trackCountCache: AppleMusicPlaylistTrackCountCache
     let editor: AppleMusicLibraryEditor
-    /// Library playlists whose cover Apple generated, from the last listing, so search results
+    /// Library playlists whose cover Apple generated, from the last listing, by library ID and,
+    /// for shared ones, by catalog ID, so search results
     /// show them with the same placeholder as the sidebar (#444). The app passes `.shared`: the
     /// Search page and the command palette search through a provider of their own, which never
     /// lists the library itself.
@@ -181,11 +182,12 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         )
         let generated: Set<String>
         if let covers = await covers {
-            generated = AppleMusicPlaylistCover.generatedPlaylistIDs(
-                playlists.map { ($0.id.rawValue, $0.name, AppleMusicItemMapping.globalID(of: $0)) },
-                covers: covers
-            )
-            await generatedCovers.store(generated)
+            let identities = playlists.map { ($0.id.rawValue, $0.name, AppleMusicItemMapping.globalID(of: $0)) }
+            generated = AppleMusicPlaylistCover.generatedPlaylistIDs(identities, covers: covers)
+            // Catalog search returns a shared playlist under its catalog ID (`pl.u-…`), so that
+            // ID is kept too, or the gradient would come back in Search and in pins made there.
+            let generatedCatalogIDs = identities.compactMap { generated.contains($0.0) ? $0.2 : nil }
+            await generatedCovers.store(generated.union(generatedCatalogIDs))
         } else {
             // The API didn't answer in time or failed: keep what the last listing found.
             generated = await generatedCovers.playlistIDs

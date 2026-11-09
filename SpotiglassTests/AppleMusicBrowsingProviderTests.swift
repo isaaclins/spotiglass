@@ -375,6 +375,40 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         XCTAssertNotNil(unknown.first?.imageURL)
     }
 
+    /// Two library playlists share a name and the API lists only one of them (the other is
+    /// local only, or not synced yet): which one it is is unknown, so both keep their covers.
+    func testANameTheAPIListsFewerTimesThanTheLibraryKeepsEveryCover() {
+        let ids = AppleMusicPlaylistCover.generatedPlaylistIDs(
+            [
+                (id: "1", name: "Road", globalID: nil),
+                (id: "2", name: "Road", globalID: nil),
+            ],
+            covers: [AppleMusicPlaylistCover(name: "Road", globalID: nil, isGenerated: true)]
+        )
+        XCTAssertEqual(ids, [])
+    }
+
+    /// Catalog search returns a shared playlist under its catalog ID, not its library ID, so
+    /// the generated cover the sidebar found must be dropped there too, or a pin made from that
+    /// result would bring the gradient back.
+    func testSearchDropsAGeneratedCoverOfASharedPlaylistFoundInTheCatalog() async throws {
+        let source = MockAppleMusicSource()
+        source.playlists = [try AppleMusicFixtures.playlist(id: "-1", name: "Shared", globalID: "pl.u-1")]
+        source.playlistCovers = [AppleMusicPlaylistCover(name: "Shared", globalID: "pl.u-1", isGenerated: true)]
+        source.catalogSearchItems = AppleMusicSearchItems(
+            playlists: [try AppleMusicFixtures.playlist(id: "pl.u-1", name: "Shared")]
+        )
+        let covers = AppleMusicGeneratedCoverCache()
+        _ = try await AppleMusicBrowsingProvider(source: source, generatedCovers: covers).currentUserPlaylists(limit: 50)
+
+        let results = try await AppleMusicBrowsingProvider(source: source, generatedCovers: covers)
+            .search(query: "shared", limit: 10)
+
+        let found = try XCTUnwrap(results.playlists.first { $0.id == "pl.u-1" })
+        XCTAssertNil(found.imageURL)
+        XCTAssertNil(PinnedItem.playlist(found).artworkURL, "a pin made from the result")
+    }
+
     /// Cancelling a listing (the sidebar going away, a service switch) doesn't wait out the
     /// cover lookup's timeout.
     func testCancellingAListingDoesNotWaitForTheCoverLookup() async throws {

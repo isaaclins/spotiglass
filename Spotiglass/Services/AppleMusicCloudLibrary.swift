@@ -256,9 +256,11 @@ struct AppleMusicPlaylistCover: Equatable, Sendable {
     /// The API names library playlists by their cloud ID (`p.…`), MusicKit on the Mac by the
     /// Music app's persistent ID, and nothing links the two. So a playlist with a catalog ID
     /// (a shared one) is matched by that ID only, and one without by name among the cloud
-    /// playlists that have none either. It only counts as generated when every match is: two
+    /// playlists that have none either. It only counts as generated when every match is, and
+    /// when the API lists at least as many playlists of that name as the library has: two
     /// playlists with one name, one with a real cover, keep the cover rather than risk hiding a
-    /// real one, and so does a playlist the API doesn't list (yet).
+    /// real one, and so does a playlist the API doesn't list (yet), even next to a namesake it
+    /// does.
     static func generatedPlaylistIDs(
         _ playlists: [(id: String, name: String, globalID: String?)],
         covers: [AppleMusicPlaylistCover]
@@ -267,15 +269,23 @@ struct AppleMusicPlaylistCover: Equatable, Sendable {
             covers.compactMap { cover in cover.globalID.map { ($0, cover.isGenerated) } },
             uniquingKeysWith: { $0 && $1 }
         )
+        // Per name: how many cloud playlists carry it, and whether all of their covers are generated.
         let byName = Dictionary(
-            covers.filter { $0.globalID == nil }.map { ($0.name, $0.isGenerated) },
-            uniquingKeysWith: { $0 && $1 }
+            covers.filter { $0.globalID == nil }.map { ($0.name, (count: 1, allGenerated: $0.isGenerated)) },
+            uniquingKeysWith: { (count: $0.count + $1.count, allGenerated: $0.allGenerated && $1.allGenerated) }
+        )
+        let localNameCounts = Dictionary(
+            playlists.filter { $0.globalID == nil }.map { ($0.name, 1) },
+            uniquingKeysWith: +
         )
         return Set(playlists.compactMap { playlist in
-            let generated = if let globalID = playlist.globalID {
-                byGlobalID[globalID] ?? false
+            let generated: Bool
+            if let globalID = playlist.globalID {
+                generated = byGlobalID[globalID] ?? false
+            } else if let cloud = byName[playlist.name] {
+                generated = cloud.allGenerated && cloud.count >= localNameCounts[playlist.name, default: 0]
             } else {
-                byName[playlist.name] ?? false
+                generated = false
             }
             return generated ? playlist.id : nil
         })
