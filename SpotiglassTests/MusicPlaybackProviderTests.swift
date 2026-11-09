@@ -1320,6 +1320,64 @@ final class PlayPauseFollowsThePressTests: XCTestCase {
         await press?.value
     }
 
+    /// Apple Music, paused: play, and pause while the play is still starting (a stream that
+    /// takes its time). The pause doesn't wait for ever, and if the play lands after it, the
+    /// pause is sent again: the last press wins.
+    func testAPauseDuringASlowPlayStillEndsPaused() async {
+        let (provider, session) = playingReadPlayer()
+        session.setConnectionState(.paused(Self.song))
+        provider.state = Self.snapshot(isPlaying: false)
+        session.playPauseQueueWait = .milliseconds(20)
+        provider.holdsCommands = true
+
+        let play = session.requestTogglePlayPause()
+        await Self.settle { provider.waitingCommandCount == 1 }
+        provider.holdsCommands = false
+        let pause = session.requestTogglePlayPause()
+        try? await Task.sleep(for: .milliseconds(150))
+        await pause?.value
+        XCTAssertEqual(provider.commands, ["resume local", "pause local"], "the pause waited for the slow play")
+
+        provider.releaseCommands()
+        await play?.value
+        XCTAssertEqual(provider.commands, ["resume local", "pause local", "pause local"], "the late play won over the last press")
+        XCTAssertTrue(Self.isPaused(session))
+    }
+
+    /// Spotify on a phone: a pause on its way, then another song. The pause failing late is
+    /// about the old song: the screen keeps the new one, with no refusal line.
+    func testARefusalOfAPressFromBeforeANewSongChangesNothing() async {
+        let (provider, session) = playingReadPlayer()
+        provider.holdsCommands = true
+
+        let pause = session.requestTogglePlayPause()
+        await Self.settle { provider.waitingCommandCount == 1 }
+        await session.play(uri: "music:song:2")
+        let shown = session.connectionState
+        provider.refusal = MusicPlaybackError(service: .appleMusic, reason: .failed, detail: "offline")
+        provider.releaseCommands()
+        await pause?.value
+
+        XCTAssertEqual(session.connectionState, shown, "the old pause's refusal put the old song's state back")
+        XCTAssertNil(session.refusedPlayPause)
+    }
+
+    /// A sign-in error while a press waits for Spotify's page: the report held back for the
+    /// press must not replace it when the wait ends, or the Sign In button goes away.
+    func testSpotifyAHeldBackReportDoesntReplaceASignInError() async {
+        let (_, session) = playingSpotify()
+        session.pushedPlayStateExpectationTimeout = .milliseconds(20)
+
+        session.requestTogglePlayPause()
+        session.handle(.stateChanged(Self.song, isPaused: false, nextTracks: []))
+        session.handle(.authenticationError("token expired"))
+        try? await Task.sleep(for: .milliseconds(150))
+
+        guard case .error = session.connectionState else {
+            return XCTFail("the held-back report replaced the sign-in error: \(session.connectionState)")
+        }
+    }
+
     /// The wait for the page ends without the page reporting the last press: its latest report
     /// is then shown, so the bar doesn't keep a song the page has moved on from.
     func testSpotifyShowsThePagesLastReportWhenTheWaitEnds() async {

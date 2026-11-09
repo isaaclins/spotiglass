@@ -668,6 +668,11 @@ final class PlaybackSessionViewModel: ObservableObject {
     /// Presses up to this serial that haven't gone out yet never do: a play started after them
     /// is the latest thing asked for, and they would otherwise reach the new item.
     var playPauseSupersededThrough: UInt64 = 0
+    /// How long a press waits for the one before it to finish. A play that never returns (a
+    /// stream that doesn't start) mustn't hold every press after it.
+    var playPauseQueueWait: Duration = .seconds(3)
+    /// For a player whose state is read: the latest press sent to it.
+    var lastSentReadPress: PlayPauseRequest?
     /// Until then, a read that disagrees with the last pause or resume doesn't use up the
     /// settle window: the service can report the old state for a few seconds (#437).
     var playPauseReadHoldUntil: ContinuousClock.Instant?

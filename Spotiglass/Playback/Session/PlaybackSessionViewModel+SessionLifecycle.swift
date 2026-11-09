@@ -226,6 +226,7 @@ extension PlaybackSessionViewModel {
         clearRefusedPlayPause()
         pageReportedPlayState = nil
         playPauseConfirmedState = nil
+        lastSentReadPress = nil
         playPauseReadHoldUntil = nil
         guard ownsPlaybackHostGeneration(generation) else { return }
         do {

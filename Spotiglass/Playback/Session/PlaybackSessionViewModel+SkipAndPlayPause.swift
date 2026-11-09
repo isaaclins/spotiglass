@@ -13,12 +13,45 @@ extension PlaybackSessionViewModel {
         let previous = playPauseCommandTail
         let send = Task { @MainActor [weak self] in
             // One after another: a quick pause then play must reach the player in that order,
-            // even when the first one waits for the player.
-            await previous?.value
+            // even when the first one waits for the player (up to ``playPauseQueueWait``).
+            await self?.waitForPreviousPress(previous)
             await self?.sendPlayPause(request)
         }
         playPauseCommandTail = send
         return send
+    }
+
+    private func waitForPreviousPress(_ previous: Task<Void, Never>?) async {
+        guard let previous else { return }
+        let limit = playPauseQueueWait
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            let once = ResumeOnce(continuation)
+            once.timeout = Task { @MainActor in
+                try? await Task.sleep(for: limit)
+                once.resume()
+            }
+            Task { @MainActor in
+                await previous.value
+                once.resume()
+            }
+        }
+    }
+
+    /// Resumes a continuation once, whichever of two tasks gets there first.
+    @MainActor
+    private final class ResumeOnce {
+        private var continuation: CheckedContinuation<Void, Never>?
+        var timeout: Task<Void, Never>?
+
+        init(_ continuation: CheckedContinuation<Void, Never>) {
+            self.continuation = continuation
+        }
+
+        func resume() {
+            timeout?.cancel()
+            continuation?.resume()
+            continuation = nil
+        }
     }
 
     /// What one press asked for, and what to go back to when the player refuses it.
@@ -168,16 +201,13 @@ extension PlaybackSessionViewModel {
         guard let deviceID = request.deviceID else { return }
         let action = request.shouldPause ? "pause" : "resume"
         SpotiglassLog.info(.playback, "togglePlayPause remote action=\(action) deviceID=\(deviceID)")
+        lastSentReadPress = request
         do {
-            try await performPrioritizedControlCommand {
-                if request.shouldPause {
-                    try await provider.pause(deviceID: deviceID)
-                } else {
-                    try await provider.resume(deviceID: deviceID)
-                }
-            }
-            guard ownsPlaybackHostGeneration(request.generation), !Task.isCancelled else { return }
+            try await sendReadPlayerCommand(request, deviceID: deviceID)
+            guard ownsPlaybackHostGeneration(request.generation), !Task.isCancelled,
+                  request.serial > playPauseSupersededThrough else { return }
             playPauseConfirmedState = request.stateAfter
+            await reassertLaterPress(after: request)
             guard request.serial == playPauseRequestSerial else { return }
             // The player has it now: read it at the settle cadence until it agrees.
             noteLocalPlaybackMutation(playExpectation: request.shouldPause ? .paused : .playing)
@@ -195,7 +225,9 @@ extension PlaybackSessionViewModel {
     /// too).
     private func refusePlayPause(_ request: PlayPauseRequest, error: Error) {
         guard ownsPlaybackHostGeneration(request.generation), !Task.isCancelled else { return }
-        guard request.serial == playPauseRequestSerial else { return }
+        // A later press, or a play started after it, decides what is shown.
+        guard request.serial == playPauseRequestSerial,
+              request.serial > playPauseSupersededThrough else { return }
         SpotiglassLog.error(.playback, "togglePlayPause refused: \(error.localizedDescription)")
         let displayError = Self.displayError(for: error)
         localCommandExpectsPlaying = nil
@@ -207,6 +239,30 @@ extension PlaybackSessionViewModel {
         let playerState = request.usesInAppPlayer ? pageReportedPlayState : playPauseConfirmedState
         setConnectionState(playerState ?? request.stateBefore)
         showRefusedPlayPause(refusedPlayPauseLine(for: error, displayError: displayError, shouldPause: request.shouldPause))
+    }
+
+    private func sendReadPlayerCommand(_ request: PlayPauseRequest, deviceID: String) async throws {
+        try await performPrioritizedControlCommand {
+            if request.shouldPause {
+                try await provider.pause(deviceID: deviceID)
+            } else {
+                try await provider.resume(deviceID: deviceID)
+            }
+        }
+    }
+
+    /// A press finished after a later, opposite one was already sent (the later one stopped
+    /// waiting for it after ``playPauseQueueWait``, e.g. a play that took long to start): its
+    /// effect may have landed last, so the latest press is sent again.
+    private func reassertLaterPress(after request: PlayPauseRequest) async {
+        guard let later = lastSentReadPress,
+              later.serial > request.serial,
+              later.shouldPause != request.shouldPause,
+              later.serial == playPauseRequestSerial,
+              later.serial > playPauseSupersededThrough,
+              let deviceID = later.deviceID else { return }
+        SpotiglassLog.info(.playback, "togglePlayPause sending the latest press again after an earlier one finished late")
+        try? await sendReadPlayerCommand(later, deviceID: deviceID)
     }
 
     /// The bar's line for a refused press, in place of the artist: "Couldn't pause" as the
@@ -370,6 +426,8 @@ extension PlaybackSessionViewModel {
             let held = self.heldBackPageReport
             self.clearPushedPlayStateExpectation()
             // With the generation it came with: a report from a page since replaced is dropped.
+            // An error since then (sign in again, Premium) stays: it says what to do.
+            if case .error = self.connectionState { return }
             if let held {
                 self.handle(held)
             }

@@ -174,6 +174,8 @@ extension PlaybackSessionViewModel {
         case let .initializationError(message):
             cancelPlaybackHostConnectTimeout()
             SpotiglassLog.error(.playback, "Spotify playback SDK initialization failed: \(message)")
+            // Its error says what to do; a report held back for a press mustn't replace it (#437).
+            clearPushedPlayStateExpectation()
             setConnectionState(.error(PlaybackDisplayError(
                 title: SpotiglassL10n.string("error.playback.couldNotStart.title"),
                 message: message,
@@ -197,6 +199,8 @@ extension PlaybackSessionViewModel {
         case let .authenticationError(message):
             cancelPlaybackHostConnectTimeout()
             SpotiglassLog.error(.playback, "Spotify playback SDK authentication failed: \(message)")
+            // Its error says what to do; a report held back for a press mustn't replace it (#437).
+            clearPushedPlayStateExpectation()
             setConnectionState(.error(PlaybackDisplayError(
                 title: SpotiglassL10n.string("error.playback.signInAgain.title"),
                 message: message,
@@ -205,6 +209,8 @@ extension PlaybackSessionViewModel {
         case let .accountError(message):
             cancelPlaybackHostConnectTimeout()
             SpotiglassLog.error(.playback, "Spotify playback SDK account error: \(message)")
+            // Its error says what to do; a report held back for a press mustn't replace it (#437).
+            clearPushedPlayStateExpectation()
             setConnectionState(.error(PlaybackDisplayError(
                 title: SpotiglassL10n.string("error.playback.premium.title"),
                 message: message,
