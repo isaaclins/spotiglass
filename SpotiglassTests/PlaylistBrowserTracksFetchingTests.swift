@@ -516,6 +516,33 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         XCTAssertEqual(PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).map(\.id), all.map(\.id))
     }
 
+    /// Play, Shuffle or a double-click while Liked Songs show their first page queued only that
+    /// page, and nothing added the rest. Playing now waits for the full read.
+    func testPlayingLikedSongsWhileTheRestIsReadQueuesEverySong() async {
+        let first = (0..<200).map { PlaylistBrowsingTestFixtures.track(id: "l\($0)") }
+        let all = (0..<956).map { PlaylistBrowsingTestFixtures.track(id: "l\($0)") }
+        let api = FirstPageSavedTracksAPI(firstPage: first, all: all)
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledSpotifyBrowsingCache())
+
+        let opening = Task { await viewModel.selectSidebar(.likedSongs) }
+        await api.waitUntilRestIsBeingRead()
+        for _ in 0..<50 where PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count < 200 {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        guard case let .playlist(firstPage)? = viewModel.detailState.currentValue else {
+            return XCTFail("Expected the first page, got \(viewModel.detailState)")
+        }
+        XCTAssertEqual(firstPage.tracks.count, 200)
+        let playing = Task { await viewModel.detailForPlayback(firstPage) }
+        api.finishReading()
+        let played = await playing.value
+        await opening.value
+
+        XCTAssertEqual(played.tracks.map(\.id), all.map(\.id), "every song, not the first page")
+        XCTAssertEqual(DetailHeaderPlayback.target(for: played),
+                       .tracks(uris: played.tracks.compactMap(\.playableURI), playlistID: SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID))
+    }
+
     func testMemoryCacheKeepsTrackListsBoundedLeastRecentlyUsedFirst() throws {
         let cache = MemoryBrowsingCache(maxTracks: 4)
         let now = Date()

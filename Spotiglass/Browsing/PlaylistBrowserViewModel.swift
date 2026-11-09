@@ -137,6 +137,9 @@ final class PlaylistBrowserViewModel: ObservableObject {
     /// Collapses concurrent liked-songs refresh triggers into one network run.
     var likedSongsRevalidationTask: Task<MusicSavedTracksResult, Error>?
     var likedSongsRevalidationTaskGeneration: Int?
+    /// The detail session in which Liked Songs showed the first page of a read still running
+    /// (#442); playing from them then waits for the rest (`detailForPlayback`).
+    var likedSongsFirstPageSession: Int?
     /// Prevents a pre-mutation response from repopulating the virtual cache.
     var likedSongsMutationGeneration = 0
     var lastLikedSongsRevalidationAt: Date?
@@ -246,6 +249,7 @@ final class PlaylistBrowserViewModel: ObservableObject {
         likedSongsRevalidationTask?.cancel()
         likedSongsRevalidationTask = nil
         likedSongsRevalidationTaskGeneration = nil
+        likedSongsFirstPageSession = nil
         likedSongsMutationGeneration += 1
         lastLikedSongsRevalidationAt = nil
         savedTrackStates = [:]

@@ -57,11 +57,27 @@ extension PlaylistBrowserViewModel {
             totalTrackCount: first.totalAvailable > first.tracks.count ? first.totalAvailable : nil,
             artworkURL: firstLikedSongsArtwork(from: first.tracks)
         )
+        likedSongsFirstPageSession = session
         await showPlaylistRows(
             PlaylistDetailViewModel(playlist: row, tracks: TrackRowViewModel.numberedPlaylistRows(first.tracks)),
             refreshing: true,
             session: session
         )
+    }
+
+    /// The detail to play from. While Liked Songs show only the first page of a read that is
+    /// still running (#442), playing waits for that read: the queue gets every song, not just
+    /// the first page, and nothing would add the rest later. Everything else plays as shown.
+    func detailForPlayback(_ detail: PlaylistDetailViewModel) async -> PlaylistDetailViewModel {
+        guard detail.playlist.id == SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID,
+              likedSongsFirstPageSession == detailSession else { return detail }
+        if let read = likedSongsRevalidationTask, let full = try? await read.value, !full.tracks.isEmpty {
+            return PlaylistDetailViewModel(playlist: detail.playlist, tracks: TrackRowViewModel.numberedPlaylistRows(full.tracks))
+        }
+        if case let .playlist(shown)? = detailState.currentValue, shown.playlist.id == detail.playlist.id {
+            return shown
+        }
+        return detail
     }
 
     private func setLikedSongsDetailState(from tracks: [MusicPlaylistTrackItem], session: Int) async -> Bool {
