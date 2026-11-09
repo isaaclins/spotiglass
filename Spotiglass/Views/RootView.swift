@@ -356,7 +356,9 @@ struct RootView: View {
         let openWindow = openWindowAction
         let lyricsOverlay = lyricsOverlayController
         return {
-            lyricsOverlay.dismiss()
+            if LyricsPopOutWindow.popOutClosesLyricsView(keyWindow: NSApp.keyWindow) {
+                lyricsOverlay.dismiss()
+            }
             openWindow(id: LyricsPopOutWindow.sceneID)
         }
     }

@@ -8,7 +8,11 @@ import SwiftUI
 enum LyricsPopOutWindow {
     static let sceneID = "lyrics-popout"
     /// Size and position are remembered under this name, the way AppKit remembers any window.
-    static let frameAutosaveName = "Spotiglass Lyrics Pop-Out"
+    /// The unit tests run inside the app and share its settings, so their windows save under a
+    /// name of their own and never move or resize the real pop-out.
+    static let frameAutosaveName = AppMetadata.isRunningUnitTests
+        ? "Spotiglass Lyrics Pop-Out (unit tests)"
+        : "Spotiglass Lyrics Pop-Out"
     /// Whether the window stays above other apps. On by default: that is what it is for.
     static let pinnedStorageKey = "lyrics.popOut.pinned"
     static let isPinnedByDefault = true
@@ -52,6 +56,13 @@ enum LyricsPopOutWindow {
         CommandPaletteCommandID.seekBackward,
         CommandPaletteCommandID.popOutLyrics,
     ]
+
+    /// Popping out from a main window moves the lyrics: that window's lyrics view closes. Asked
+    /// for again while the pop-out itself is in front, it only brings the pop-out forward and
+    /// leaves the lyrics view in the window behind it alone.
+    static func popOutClosesLyricsView(keyWindow: NSWindow?) -> Bool {
+        !isPopOut(keyWindow)
+    }
 
     /// Whether a menu command chosen while the pop-out has focus first needs a main window in front.
     static func bringsMainWindowForward(for commandID: String, keyWindow: NSWindow?) -> Bool {

@@ -155,7 +155,11 @@ struct SpotiglassMenuCommands: Commands {
             Button(sidebarItemTitle) {
                 // A text field has no use for ⌘S, and the sidebar must not move while typing.
                 guard !CommandPaletteSidebarShortcut.isTypingKeyPress(NSApp.currentEvent) else { return }
-                if let manager = activeCommandPaletteManager {
+                // The pop-out lyrics window has no sidebar: the main window comes forward and its
+                // sidebar moves, like every other main-window command chosen there (#439).
+                if LyricsPopOutWindow.isPopOut(NSApp.keyWindow), let scene = sceneRegistry.activeScene {
+                    scene.performMenuCommand(CommandPaletteCommandID.toggleSidebar)
+                } else if let manager = activeCommandPaletteManager {
                     manager.execute(commandID: CommandPaletteCommandID.toggleSidebar)
                 } else {
                     NSApp.sendAction(#selector(NSSplitViewController.toggleSidebar(_:)), to: nil, from: nil)
@@ -350,7 +354,14 @@ struct SpotiglassMenuCommands: Commands {
     }
 
     var isSidebarItemEnabled: Bool {
-        isSignedIn || !sceneRegistry.isMainWindowInFront
+        isSidebarItemEnabled(keyWindow: NSApp.keyWindow)
+    }
+
+    /// With the pop-out lyrics window in front the item acts on a main window, so it needs one
+    /// (#439); otherwise it is the window in front's own sidebar, Settings' included (#436).
+    func isSidebarItemEnabled(keyWindow: NSWindow?) -> Bool {
+        if LyricsPopOutWindow.isPopOut(keyWindow) { return isAvailable }
+        return isSignedIn || !sceneRegistry.isMainWindowInFront
     }
 
     private var queueItemTitle: String {

@@ -7,6 +7,19 @@ import XCTest
 /// The pop-out lyrics window (#439).
 @MainActor
 final class LyricsPopOutTests: XCTestCase {
+    /// The test windows save their frame under the tests' own name (the test host is the app and
+    /// shares its settings); clear it so nothing piles up there.
+    override func tearDown() {
+        UserDefaults.standard.removeObject(forKey: "NSWindow Frame \(LyricsPopOutWindow.frameAutosaveName)")
+        super.tearDown()
+    }
+
+    /// A closed window can still save its frame once more as it goes away, after the last test.
+    override class func tearDown() {
+        UserDefaults.standard.removeObject(forKey: "NSWindow Frame \(LyricsPopOutWindow.frameAutosaveName)")
+        super.tearDown()
+    }
+
     private func makeManager() -> (CommandPaletteManager, CommandPaletteKeymapStore) {
         let settings = SpotiglassSettingsStore(fileURL: makeCommandPaletteTestsTempSettingsURL())
         let keymap = CommandPaletteKeymapStore(settingsStore: settings)
@@ -264,6 +277,82 @@ final class LyricsPopOutTests: XCTestCase {
         XCTAssertFalse(commands.isAvailable)
     }
 
+    /// ⌘S in the pop-out: it has no sidebar, so the item works only through a main window, and
+    /// dims when there is none.
+    func testShowHideSidebarFromThePopOutNeedsAMainWindow() {
+        let (manager, keymap) = makeManager()
+        let popOut = makeWindow()
+        LyricsPopOutWindow.adopt(popOut)
+        defer { AppKitTestSupport.closeWindowSafely(popOut) }
+        let registry = SpotiglassSceneRegistry()
+        let commands = SpotiglassMenuCommands(
+            sceneRegistry: registry,
+            keymapStore: keymap,
+            settingsStore: SpotiglassSettingsStore(fileURL: makeCommandPaletteTestsTempSettingsURL()),
+            serviceStore: MusicServiceStore(
+                storage: InMemoryMusicServiceSelectionStorage(services: [.spotify], active: .spotify)
+            ),
+            isSignedIn: true,
+            isQueueVisible: false
+        )
+        XCTAssertFalse(commands.isSidebarItemEnabled(keyWindow: popOut), "no main window to show a sidebar in")
+
+        let main = makeWindow()
+        defer { AppKitTestSupport.closeWindowSafely(main) }
+        let scene = SpotiglassSceneHost(commandPaletteManager: manager)
+        scene.window = main
+        registry.activate(scene)
+        registry.mainWindowResignedKey()
+        XCTAssertTrue(commands.isSidebarItemEnabled(keyWindow: popOut))
+        XCTAssertTrue(LyricsPopOutWindow.bringsMainWindowForward(for: CommandPaletteCommandID.toggleSidebar, keyWindow: popOut))
+    }
+
+    /// Popping out from the main window closes its lyrics view; asking again from the pop-out only
+    /// brings the pop-out forward and leaves the lyrics view behind it alone.
+    func testPoppingOutAgainFromThePopOutLeavesTheMainWindowsLyricsAlone() {
+        let popOut = makeWindow()
+        LyricsPopOutWindow.adopt(popOut)
+        defer { AppKitTestSupport.closeWindowSafely(popOut) }
+        let main = makeWindow()
+        defer { AppKitTestSupport.closeWindowSafely(main) }
+        XCTAssertTrue(LyricsPopOutWindow.popOutClosesLyricsView(keyWindow: main))
+        XCTAssertFalse(LyricsPopOutWindow.popOutClosesLyricsView(keyWindow: popOut))
+    }
+
+    /// Clicking the Dock icon with only the pop-out open brings a main window back through File ›
+    /// New Window; with a main window open the system handles it as before.
+    func testReopeningTheAppWithOnlyThePopOutOpenOpensANewMainWindow() {
+        let popOut = makeWindow()
+        LyricsPopOutWindow.adopt(popOut)
+        defer { AppKitTestSupport.closeWindowSafely(popOut) }
+        popOut.setIsVisible(true)
+        XCTAssertTrue(SpotiglassApplicationDelegate.onlyThePopOutIsOpen([popOut]))
+
+        let main = makeWindow()
+        defer { AppKitTestSupport.closeWindowSafely(main) }
+        main.setIsVisible(true)
+        XCTAssertFalse(SpotiglassApplicationDelegate.onlyThePopOutIsOpen([popOut, main]))
+        XCTAssertFalse(SpotiglassApplicationDelegate.onlyThePopOutIsOpen([]))
+
+        final class Target: NSObject {
+            var opened = 0
+            @objc func newWindow(_ sender: Any?) { opened += 1 }
+        }
+        let target = Target()
+        let menu = NSMenu()
+        let file = NSMenuItem(title: "File", action: nil, keyEquivalent: "")
+        file.submenu = NSMenu(title: "File")
+        let newWindow = NSMenuItem(title: "New Window", action: #selector(Target.newWindow(_:)), keyEquivalent: "n")
+        newWindow.keyEquivalentModifierMask = [.command]
+        newWindow.target = target
+        file.submenu?.addItem(newWindow)
+        menu.addItem(file)
+
+        XCTAssertTrue(SpotiglassApplicationDelegate.performNewWindow(in: menu))
+        XCTAssertEqual(target.opened, 1)
+        XCTAssertFalse(SpotiglassApplicationDelegate.performNewWindow(in: NSMenu()))
+    }
+
     // MARK: Playback without a main window
 
     /// With every main window closed the pop-out keeps Spotify's page alive, so signing out of
@@ -310,6 +399,11 @@ final class LyricsPopOutTests: XCTestCase {
         XCTAssertFalse(window.collectionBehavior.contains(.fullScreenAuxiliary))
     }
 
+    /// The tests run inside the app, so their windows must never save over the real pop-out's frame.
+    func testTestWindowsNeverSaveOverTheRealPopOutsFrame() {
+        XCTAssertNotEqual(LyricsPopOutWindow.frameAutosaveName, "Spotiglass Lyrics Pop-Out")
+    }
+
     func testTheWindowRemembersItsFrameAndIsPinnedByDefault() {
         let window = makeWindow()
         defer { AppKitTestSupport.closeWindowSafely(window) }
@@ -317,6 +411,15 @@ final class LyricsPopOutTests: XCTestCase {
         XCTAssertEqual(window.frameAutosaveName, LyricsPopOutWindow.frameAutosaveName)
         XCTAssertTrue(LyricsPopOutWindow.isPopOut(window))
         XCTAssertTrue(LyricsPopOutWindow.isPinnedByDefault)
+
+        // Resized to a strip, closed, opened again: the next window comes back at that size.
+        window.setFrame(NSRect(x: 0, y: 0, width: 360, height: 84), display: false)
+        window.saveFrame(usingName: LyricsPopOutWindow.frameAutosaveName)
+        window.setFrameAutosaveName("")
+        let reopened = makeWindow()
+        defer { AppKitTestSupport.closeWindowSafely(reopened) }
+        LyricsPopOutWindow.adopt(reopened)
+        XCTAssertEqual(reopened.frame.size, CGSize(width: 360, height: 84))
     }
 
     func testLayoutShrinksToAStripAndDropsSkipButtonsWhenNarrow() {

@@ -315,4 +315,40 @@ final class SpotiglassApplicationDelegate: NSObject, NSApplicationDelegate {
         guard AppMetadata.isRunningUnitTests else { return }
         NSApp.setActivationPolicy(.prohibited)
     }
+
+    /// Clicking the Dock icon with no main window open brings one back. The pop-out lyrics window
+    /// counts as a visible window, so with only it open the system would bring nothing back
+    /// (#439): open a main window the way File › New Window does.
+    @MainActor
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        guard Self.onlyThePopOutIsOpen(sender.windows) else { return true }
+        Self.performNewWindow(in: sender.mainMenu)
+        return false
+    }
+
+    /// True when the pop-out is the only window that could be a main window: no main window and
+    /// no Settings, just the pop-out (menus, tooltips and panels don't count).
+    @MainActor
+    static func onlyThePopOutIsOpen(_ windows: [NSWindow]) -> Bool {
+        let visible = windows.filter { $0.isVisible && $0.canBecomeMain }
+        return !visible.isEmpty && visible.allSatisfy { LyricsPopOutWindow.isPopOut($0) }
+    }
+
+    /// Runs File › New Window (⌘N), the item SwiftUI adds for the main windows.
+    @MainActor
+    @discardableResult
+    static func performNewWindow(in mainMenu: NSMenu?) -> Bool {
+        func find(in menu: NSMenu) -> (NSMenu, Int)? {
+            for (index, item) in menu.items.enumerated() {
+                if item.keyEquivalent == "n", item.keyEquivalentModifierMask == [.command], item.isEnabled {
+                    return (menu, index)
+                }
+                if let submenu = item.submenu, let found = find(in: submenu) { return found }
+            }
+            return nil
+        }
+        guard let mainMenu, let (menu, index) = find(in: mainMenu) else { return false }
+        menu.performActionForItem(at: index)
+        return true
+    }
 }
