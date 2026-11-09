@@ -82,7 +82,7 @@ final class CommandPaletteKeymapStore: ObservableObject {
         // Menu-owned chords are checked first: the key monitor consumes a match
         // before AppKit reaches the menu, so this binding would silently kill a
         // menu item that still shows the chord (#129).
-        if let menuItem = CommandPaletteReservedShortcuts.reservingMenuItem(for: shortcut) {
+        if let menuItem = CommandPaletteReservedShortcuts.reservingMenuItem(for: shortcut, bindingCommand: commandID) {
             throw KeymapConflictError.reservedByMenuItem(menuItemTitle: menuItem)
         }
         if let other = Self.conflictingCommandID(

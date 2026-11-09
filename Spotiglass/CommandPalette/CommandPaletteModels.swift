@@ -36,6 +36,10 @@ enum CommandPaletteCommandID {
     static let filterByArtist = "search.filterByArtist"
     static let toggleQueue = "queue.toggle"
     static let toggleLyrics = "lyrics.toggle"
+    /// Shows or hides the playlist sidebar. Default ⌘S; the system's ⌃⌘S also
+    /// works (see ``CommandPaletteSidebarShortcut``), because the View menu item
+    /// it replaces carried that chord (#436).
+    static let toggleSidebar = "view.sidebar.toggle"
     static let openArtist = "navigation.artist.open"
     /// Opens an album result through the browser's existing album-detail path.
     /// This is an internal palette-result action, not an editable keymap command.

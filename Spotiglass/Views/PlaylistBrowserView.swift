@@ -172,6 +172,16 @@ struct PlaylistBrowserView: View {
                     pinDroppedTransfers: pinDroppedTransfers,
                     header: sidebarHeader
                 )
+                // The system toggle collapses the split view on its own: in a narrow window it
+                // squeezed the sidebar in and cut it off. This button runs Show/Hide Sidebar,
+                // like ⌘S, ⌃⌘S and the View menu, so all of them behave the same (#436).
+                .toolbar(removing: .sidebarToggle)
+                .toolbar {
+                    // At the sidebar's trailing edge, where the system toggle sat. SwiftUI keeps
+                    // it in the toolbar while the sidebar is collapsed, like the system toggle.
+                    ToolbarSpacer(.flexible)
+                    ToolbarItem(placement: .automatic) { sidebarToggleButton }
+                }
                 .navigationSplitViewColumnWidth(
                     min: SpotiglassDesign.playlistSidebarMinWidth,
                     ideal: SpotiglassDesign.sidebarWidth
@@ -325,6 +335,13 @@ struct PlaylistBrowserView: View {
         }
     }
 
+    private var sidebarToggleButton: some View {
+        PlaylistBrowserSidebarToggleButton(
+            isSidebarVisible: playlistColumnVisibility != .detailOnly,
+            commandPaletteManager: commandPaletteManager
+        )
+    }
+
     private var browserLifecycle: some View {
         browserChrome
         .task {
@@ -426,6 +443,7 @@ struct PlaylistBrowserView: View {
             }
         }
         .onChange(of: playlistColumnVisibility) { _, newValue in
+            commandPaletteManager.setSidebarVisible(newValue != .detailOnly)
             if newValue != .detailOnly {
                 // The sidebar is back (by hand or by widening), so nothing is held for the
                 // queue any more; a later hide by hand must not be undone by a widening (#413).
