@@ -2,7 +2,9 @@ import SwiftUI
 
 struct PlaylistBrowserSidebar: View {
     @ObservedObject var viewModel: PlaylistBrowserViewModel
-    @ObservedObject var playbackViewModel: PlaybackSessionViewModel
+    /// Not observed: the rows read their own playing state, and the scroll to the playing
+    /// playlist follows ``PlaybackSessionViewModel/activePlaylistID`` alone (#422).
+    let playbackViewModel: PlaybackSessionViewModel
 
     let libraryRows: [LibrarySidebarRow]
     /// Set when the account lookup behind the pinned list failed, so the empty
@@ -25,6 +27,9 @@ struct PlaylistBrowserSidebar: View {
     var header: AnyView? = nil
 
     var body: some View {
+        #if DEBUG
+        let _ = ViewBodyTally.record("PlaylistBrowserSidebar")
+        #endif
         ScrollViewReader { proxy in
             List(selection: $viewModel.sidebarSelection) {
                 // Kept out of the Library section (and out of `LibrarySidebarOrder`)
@@ -76,7 +81,8 @@ struct PlaylistBrowserSidebar: View {
             .onChange(of: viewModel.sidebarSelection) { oldValue, newValue in
                 onSidebarListSelectionChange(oldValue, newValue)
             }
-            .onChange(of: playbackViewModel.activePlaylistID) { _, newActiveID in
+            // The first value is the playlist playing already: like `onChange`, only a new one scrolls.
+            .onReceive(playbackViewModel.$activePlaylistID.dropFirst()) { newActiveID in
                 guard let newActiveID else { return }
                 proxy.scrollTo(newActiveID, anchor: .center)
             }
@@ -102,7 +108,8 @@ struct PlaylistBrowserSidebar: View {
                         header
                         Spacer(minLength: 0)
                     }
-                    .padding(.horizontal, SpotiglassDesign.spacingS)
+                    // With the switcher's own inset its logo lands on the rows' artwork edge.
+                    .padding(.horizontal, SpotiglassDesign.spacingXS)
                     .padding(.bottom, SpotiglassDesign.spacingXS)
                 }
             }

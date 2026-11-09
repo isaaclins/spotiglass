@@ -664,6 +664,186 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         XCTAssertNil(displayError.recoveryAction)
     }
 
+    /// #430: a play that MusicKit refused put "Reconnect playback / Connects Spotiglass to
+    /// Apple Music again" in the bar. Apple Music's player is this Mac, so there is nothing to
+    /// reconnect, and no Spotify device to retry: every error it shows offers no button.
+    /// Spotify keeps Reconnect for a web player that really dropped, and a failed command
+    /// there offers Retry, never Reconnect.
+    func testPlayerBarOffersReconnectOnlyForASpotifyPlayerThatLostItsConnection() async {
+        let player = ScriptedAppleMusicPlayer()
+        player.failure = NSError(domain: "MPMusicPlayerControllerErrorDomain", code: 6)
+        let appleMusic = PlaybackSessionViewModel(provider: AppleMusicPlaybackProvider(player: player))
+        appleMusic.deviceID = AppleMusicPlaybackProvider.deviceID
+        appleMusic.setActivePlaybackDeviceID(AppleMusicPlaybackProvider.deviceID)
+        appleMusic.setConnectionState(.ready(deviceID: AppleMusicPlaybackProvider.deviceID))
+        XCTAssertFalse(appleMusic.canReconnectPlayer)
+
+        await appleMusic.play(uri: Self.uris[0])
+        guard case let .error(failedPlay) = appleMusic.connectionState else {
+            return XCTFail("Expected an error, got \(appleMusic.connectionState)")
+        }
+        XCTAssertEqual(failedPlay.message, SpotiglassL10n.string("error.playback.appleMusic.failed"))
+        XCTAssertNil(failedPlay.recoveryAction, "Apple Music has no connection to reconnect")
+
+        // The errors the session raises for any player (no device yet, a connect that timed
+        // out, a raw error from a command) offer nothing either.
+        for error in [
+            PlaybackSessionViewModel.playbackDeviceNotReadyError(),
+            PlaybackSessionViewModel.playbackDeviceReconnectRequiredError(),
+            PlaybackSessionViewModel.playbackHostConnectionTimedOutError(),
+            PlaybackSessionViewModel.displayError(for: CocoaError(.fileReadUnknown)),
+        ] {
+            appleMusic.setConnectionState(.error(error))
+            guard case let .error(shown) = appleMusic.connectionState else { return XCTFail("Expected an error") }
+            XCTAssertNil(shown.recoveryAction, error.message)
+            XCTAssertFalse(shown.message.contains("Reconnect"), shown.message)
+            XCTAssertFalse(shown.message.contains("Spotify"), shown.message)
+        }
+
+        // The bar's text before Apple Music starts doesn't point at Reconnect either.
+        let disconnected = PlaybackControlsView.serviceString(
+            "playback.controls.state.disconnected.subtitle",
+            appleMusic: "playback.controls.state.disconnected.subtitle.appleMusic",
+            service: .appleMusic
+        )
+        XCTAssertFalse(disconnected.contains("Reconnect"), disconnected)
+
+        let spotify = PlaybackSessionViewModel(
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander())
+        )
+        XCTAssertTrue(spotify.canReconnectPlayer)
+        // Play before the web player reported its device: the player isn't connected.
+        await spotify.play(uri: "spotify:track:1")
+        guard case let .error(notConnected) = spotify.connectionState else {
+            return XCTFail("Expected an error, got \(spotify.connectionState)")
+        }
+        XCTAssertEqual(notConnected.recoveryAction, .reconnect)
+        spotify.setConnectionState(.error(PlaybackSessionViewModel.playbackHostConnectionTimedOutError()))
+        guard case let .error(timedOut) = spotify.connectionState else { return XCTFail("Expected an error") }
+        XCTAssertEqual(timedOut.recoveryAction, .reconnect)
+        // A command Spotify refused leaves the player connected: Retry, not Reconnect.
+        let failedCommand = PlaybackSessionViewModel.displayError(for: SpotifyAPIError.network("offline"))
+        spotify.setConnectionState(.error(failedCommand))
+        guard case let .error(retry) = spotify.connectionState else { return XCTFail("Expected an error") }
+        XCTAssertEqual(retry.recoveryAction, .retryTransfer)
+    }
+
+    /// #430, the other half: on main the failed command's Reconnect was the only way out of
+    /// the error, because it restarted the player. Without the button, a Next that MusicKit
+    /// refused while a song kept playing left the bar on the error with Play, Previous and
+    /// Next off and polling stopped, until another song was started from the library. The
+    /// bar shows the message, then reads the player again and gives the song and its
+    /// controls back by itself.
+    func testAppleMusicBarComesBackToThePlayingSongAfterACommandFails() async throws {
+        // A refused Next, and a Next to songs this Mac blocks (only clean music allowed, #429).
+        let failures: [(MusicPlaybackError.Reason, String)] = [
+            (.failed, "error.playback.appleMusic.failed"),
+            (.explicitContentRestricted, "error.playback.appleMusic.explicit.message"),
+        ]
+        for (reason, messageKey) in failures {
+            let (player, session) = try await Self.playingSession(passingErrorRecoveryDelay: .milliseconds(20))
+            try await Self.read(session, player, at: 30)
+            XCTAssertTrue(Self.isPlaying(session))
+
+            player.skipFailure = MusicPlaybackError(service: .appleMusic, reason: reason, detail: "MPMusicPlayerControllerErrorDomain 6")
+            await session.next()
+            guard case let .error(failed) = session.connectionState else {
+                return XCTFail("Expected the failed Next to show, got \(session.connectionState)")
+            }
+            XCTAssertNil(failed.recoveryAction)
+            XCTAssertEqual(failed.message, SpotiglassL10n.string(messageKey))
+            XCTAssertFalse(session.isTransportMutationReady, "the error is on screen for a moment")
+
+            player.advance(by: 1)
+            await session.passingErrorRecoveryTask?.value
+            XCTAssertTrue(Self.isPlaying(session), "\(reason): the bar stayed on the error: \(session.connectionState)")
+            XCTAssertEqual(session.currentNowPlaying?.uri, Self.uris[0])
+            XCTAssertTrue(session.isTransportMutationReady, "\(reason): Play, Previous and Next work again")
+        }
+    }
+
+    /// A song that can't play, double-clicked while the bar still shows the failed Next,
+    /// replaces that error. The player is still the one that worked, so the bar comes back
+    /// from the second error too instead of staying on it.
+    func testAppleMusicBarComesBackWhenASecondFailureReplacesTheFirst() async throws {
+        let (player, session) = try await Self.playingSession(passingErrorRecoveryDelay: .milliseconds(300))
+        try await Self.read(session, player, at: 30)
+        player.skipFailure = MusicPlaybackError(service: .appleMusic, reason: .notFound)
+        await session.next()
+        XCTAssertNotNil(session.passingErrorRecoveryTask)
+
+        player.failure = NSError(domain: "MPMusicPlayerControllerErrorDomain", code: 6)
+        await session.play(uri: Self.uris[3])
+        guard case let .error(second) = session.connectionState else {
+            return XCTFail("Expected the failed play to show, got \(session.connectionState)")
+        }
+        XCTAssertEqual(second.message, SpotiglassL10n.string("error.playback.appleMusic.failed"))
+
+        await session.passingErrorRecoveryTask?.value
+        XCTAssertTrue(Self.isPlaying(session), "the bar stayed on the second error: \(session.connectionState)")
+        XCTAssertEqual(session.currentNowPlaying?.uri, Self.uris[0])
+    }
+
+    /// A subscription message stays, but once the subscription is back, a song that then
+    /// fails for a moment recovers like any other: the bar doesn't stay on that error.
+    func testAppleMusicMomentaryFailureAfterAPersistentErrorStillRecovers() async throws {
+        let (player, session) = try await Self.playingSession(passingErrorRecoveryDelay: .milliseconds(20))
+        try await Self.read(session, player, at: 30)
+        player.skipFailure = MusicPlaybackError(service: .appleMusic, reason: .subscriptionRequired(message: nil))
+        await session.next()
+        XCTAssertNil(session.passingErrorRecoveryTask)
+
+        player.failure = NSError(domain: "MPMusicPlayerControllerErrorDomain", code: 6)
+        await session.play(uri: Self.uris[3])
+        XCTAssertNotNil(session.passingErrorRecoveryTask, "the momentary failure that followed must recover")
+        await session.passingErrorRecoveryTask?.value
+        XCTAssertTrue(Self.isPlaying(session), "the bar stayed on the error: \(session.connectionState)")
+    }
+
+    /// A play chosen while the failed Next still shows, and still looking up its songs when
+    /// the recovery is due: the recovery waits for it instead of putting the old song (or
+    /// "Ready") back under it, and once the play is through, the next read shows its song.
+    func testAppleMusicRecoveryWaitsForAPlayStillRunning() async throws {
+        // Long enough that the held play is surely running before the recovery is due, even on
+        // a busy machine; the wait below is well past it.
+        let (player, session) = try await Self.playingSession(passingErrorRecoveryDelay: .milliseconds(300))
+        try await Self.read(session, player, at: 30)
+        player.skipFailure = MusicPlaybackError(service: .appleMusic, reason: .failed, detail: "refused")
+        await session.next()
+        guard case let .error(failed) = session.connectionState else { return XCTFail("Expected the failed Next") }
+
+        player.holdLookups = true
+        let play = Task { await session.play(uri: Self.uris[3]) }
+        while player.waitingLookups.isEmpty { await Task.yield() }
+        try await Task.sleep(for: .milliseconds(700))
+        XCTAssertEqual(session.connectionState, .error(failed), "the recovery ran under the running play")
+
+        player.releaseLookups()
+        await play.value
+        player.advance(by: 1)
+        await session.syncTransportFromSpotify()
+        XCTAssertTrue(Self.isPlaying(session), "\(session.connectionState)")
+        XCTAssertEqual(session.currentNowPlaying?.uri, Self.uris[3])
+    }
+
+    /// Access turned off in System Settings or a lapsed subscription is not a passing
+    /// failure: the bar keeps saying so instead of going back to controls that fail again.
+    func testAppleMusicAccessAndSubscriptionErrorsStayOnScreen() async throws {
+        for reason in [MusicPlaybackError.Reason.missingPermission, .subscriptionRequired(message: nil)] {
+            let (player, session) = try await Self.playingSession(passingErrorRecoveryDelay: .milliseconds(20))
+            player.skipFailure = MusicPlaybackError(service: .appleMusic, reason: reason)
+            await session.next()
+            guard case .error = session.connectionState else {
+                return XCTFail("Expected \(reason) to show, got \(session.connectionState)")
+            }
+            XCTAssertNil(session.passingErrorRecoveryTask, "\(reason) must stay on screen")
+            try await Task.sleep(for: .milliseconds(60))
+            guard case .error = session.connectionState else {
+                return XCTFail("\(reason) went away: \(session.connectionState)")
+            }
+        }
+    }
+
     // MARK: - Measured MusicKit lag
 
     /// Replays the lag measured on a Mac mini M4 (macOS 27, 2026-11-06): how long
@@ -800,8 +980,6 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
             ("playback.controls.previous.hint", "playback.controls.previous.appleMusic.hint"),
             ("playback.controls.playPause.hint", "playback.controls.playPause.appleMusic.hint"),
             ("playback.controls.next.hint", "playback.controls.next.appleMusic.hint"),
-            ("playback.controls.reconnect.hint", "playback.controls.reconnect.appleMusic.hint"),
-            ("playback.controls.reconnect.sdk.hint", "playback.controls.reconnect.appleMusic.hint"),
             ("playback.controls.state.connecting.title", "playback.controls.state.connecting.title.appleMusic"),
             ("playback.controls.state.connecting.subtitle", "playback.controls.state.connecting.subtitle.appleMusic"),
             ("playback.fallbackName", "playback.fallbackName.appleMusic"),
@@ -929,10 +1107,13 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         )
     }
 
-    private static func playingSession(startIndex: Int = 0) async throws -> (ScriptedAppleMusicPlayer, PlaybackSessionViewModel) {
+    private static func playingSession(
+        startIndex: Int = 0,
+        passingErrorRecoveryDelay: Duration = .seconds(5)
+    ) async throws -> (ScriptedAppleMusicPlayer, PlaybackSessionViewModel) {
         let player = ScriptedAppleMusicPlayer()
         let provider = AppleMusicPlaybackProvider(player: player)
-        let session = PlaybackSessionViewModel(provider: provider)
+        let session = PlaybackSessionViewModel(provider: provider, passingErrorRecoveryDelay: passingErrorRecoveryDelay)
         session.deviceID = AppleMusicPlaybackProvider.deviceID
         session.setActivePlaybackDeviceID(AppleMusicPlaybackProvider.deviceID)
         try await provider.play(.items(uris: uris, startURI: uris[startIndex]), deviceID: "x")
@@ -968,6 +1149,8 @@ final class ScriptedAppleMusicPlayer: AppleMusicPlayerControlling {
 
     var authorized = true
     var failure: Error?
+    /// A skip MusicKit refuses; the song that was playing keeps playing.
+    var skipFailure: MusicPlaybackError?
     private(set) var commands: [String] = []
     /// While true, play and enqueue wait in their lookup (like a slow MusicKit request) until
     /// ``releaseLookups()``. ``waitingLookups`` names who waits.
@@ -1070,6 +1253,7 @@ final class ScriptedAppleMusicPlayer: AppleMusicPlayerControlling {
     }
 
     func skipToNext() async throws {
+        if let skipFailure { throw skipFailure }
         positionBase = 0
         positionAnchor = now
         later("next") { [self] in index = min(index + 1, queue.count - 1); positionBase = 0; positionAnchor = now }

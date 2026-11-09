@@ -83,7 +83,7 @@ struct PlaybackProgressScrubberGroup: View {
                 progress: progress,
                 widestText: Self.widestTime(durationMs: durationMs),
                 boundaryMilliseconds: 0,
-                minWidth: 36,
+                minWidth: SpotiglassDesign.Layout.timeLabelMinWidth,
                 alignment: .trailing
             ) { positionMs in
                 Self.elapsedText(positionMs: positionMs)
@@ -109,7 +109,7 @@ struct PlaybackProgressScrubberGroup: View {
                 progress: progress,
                 widestText: Self.remainingText(Self.widestTime(durationMs: durationMs)),
                 boundaryMilliseconds: progress.remainingBoundaryMilliseconds,
-                minWidth: 40,
+                minWidth: SpotiglassDesign.Layout.timeLabelMinWidth,
                 alignment: .leading
             ) { positionMs in
                 Self.remainingText(positionMs: positionMs, durationMs: durationMs)

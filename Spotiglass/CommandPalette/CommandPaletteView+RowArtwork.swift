@@ -4,7 +4,7 @@ import SwiftUI
 struct CommandPaletteArtistAvatar: View {
     let imageURL: URL?
     let fallbackSystemName: String
-    private let diameter: CGFloat = 28
+    private let diameter = SpotiglassDesign.Layout.smallArtworkSize
 
     @Environment(\.colorScheme) private var colorScheme
     @StateObject private var artworkLoader = ArtworkImageLoader()
@@ -44,7 +44,7 @@ struct CommandPaletteArtistAvatar: View {
 struct CommandPaletteTrackArtwork: View {
     let imageURL: URL
     let fallbackSystemName: String
-    private let side: CGFloat = 28
+    private let side = SpotiglassDesign.Layout.smallArtworkSize
 
     @Environment(\.colorScheme) private var colorScheme
     @StateObject private var artworkLoader = ArtworkImageLoader()

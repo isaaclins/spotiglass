@@ -8,11 +8,12 @@ import SwiftUI
 struct CatalogSearchView: View {
     @ObservedObject var viewModel: PlaylistBrowserViewModel
     @ObservedObject var searchViewModel: CatalogSearchViewModel
-    @ObservedObject var playbackViewModel: PlaybackSessionViewModel
-    @ObservedObject var queueViewModel: QueueViewModel
+    /// Not observed: only the actions use them, and each track row reads by itself whether it is
+    /// the playing one. Observing them re-rendered this view and every row on each play/pause
+    /// and each new track (#422).
+    let playbackViewModel: PlaybackSessionViewModel
+    let queueViewModel: QueueViewModel
 
-    let currentPlaybackURI: String?
-    let isPlaying: Bool
     let hasPlaybackDevice: Bool
     /// Shared playlist-creation prompt supplied by the browser detail host.
     let onRequestCreatePlaylist: (([TrackRowViewModel]) -> Void)?
@@ -22,7 +23,7 @@ struct CatalogSearchView: View {
     @FocusState private var isQueryFieldFocused: Bool
 
     private let cardColumns = [
-        GridItem(.adaptive(minimum: 150), spacing: SpotiglassDesign.spacingM, alignment: .leading)
+        GridItem(.adaptive(minimum: SpotiglassDesign.Layout.cardWidth), spacing: SpotiglassDesign.spacingM, alignment: .leading)
     ]
 
     init(
@@ -30,8 +31,6 @@ struct CatalogSearchView: View {
         searchViewModel: CatalogSearchViewModel,
         playbackViewModel: PlaybackSessionViewModel,
         queueViewModel: QueueViewModel,
-        currentPlaybackURI: String?,
-        isPlaying: Bool,
         hasPlaybackDevice: Bool,
         onRequestCreatePlaylist: (([TrackRowViewModel]) -> Void)? = nil,
         onRequestLibraryContinuation: ((TrackRowViewModel) -> Void)? = nil
@@ -40,8 +39,6 @@ struct CatalogSearchView: View {
         self.searchViewModel = searchViewModel
         self.playbackViewModel = playbackViewModel
         self.queueViewModel = queueViewModel
-        self.currentPlaybackURI = currentPlaybackURI
-        self.isPlaying = isPlaying
         self.hasPlaybackDevice = hasPlaybackDevice
         self.onRequestCreatePlaylist = onRequestCreatePlaylist
         self.onRequestLibraryContinuation = onRequestLibraryContinuation
@@ -57,7 +54,7 @@ struct CatalogSearchView: View {
             }
             resultsBody
         }
-        .padding(SpotiglassDesign.spacingL)
+        .padding(SpotiglassDesign.Layout.contentMargin)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(.background)
         .onAppear {
@@ -176,7 +173,7 @@ struct CatalogSearchView: View {
         let showsLoadMore = searchViewModel.category != .all
             && (searchViewModel.canLoadMore || searchViewModel.isLoadingMore)
         return ScrollView {
-            VStack(alignment: .leading, spacing: SpotiglassDesign.spacingL) {
+            VStack(alignment: .leading, spacing: SpotiglassDesign.Layout.sectionSpacing) {
                 if results.isEmpty {
                     // Selecting a category with no matches used to render an
                     // empty ScrollView, because the .empty state is derived from
@@ -223,62 +220,59 @@ struct CatalogSearchView: View {
     }
 
     private func trackSection(_ tracks: [TrackRowViewModel]) -> some View {
-        VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
+        VStack(alignment: .leading, spacing: SpotiglassDesign.Layout.sectionTitleSpacing) {
             HomeSectionHeader(title: CatalogSearchCategory.tracks.pillLabel)
             let playableURIs = tracks.compactMap(\.playableURI)
-            // An Apple Music song started from another list carries that list's id (#396).
-            let playingURI = PlaylistBrowserPlaybackHelpers.rowURI(
-                markedAs: currentPlaybackURI,
-                connectionState: playbackViewModel.connectionState,
-                rows: tracks
-            )
+            let marks = TrackRowPlaybackSource(session: playbackViewModel).marks(in: tracks)
             ForEach(tracks) { track in
-                TrackListRow(
-                    trackNumber: track.listPosition,
-                    track: track,
-                    playURI: { uri in
-                        Task {
-                            await playbackViewModel.playFromPlaylist(
-                                clickedURI: uri,
-                                playableURIs: playableURIs,
-                                playlistID: nil
-                            )
+                marks.row(for: track) { mark in
+                    TrackListRow(
+                        trackNumber: track.listPosition,
+                        track: track,
+                        playURI: { uri in
+                            Task {
+                                await playbackViewModel.playFromPlaylist(
+                                    clickedURI: uri,
+                                    playableURIs: playableURIs,
+                                    playlistID: nil
+                                )
+                            }
+                        },
+                        togglePlayPause: {
+                            playbackViewModel.requestTogglePlayPause()
+                        },
+                        isCurrent: mark.isCurrent,
+                        isPlaying: mark.isPlaying,
+                        openArtist: { artistID in
+                            Task { await viewModel.selectArtist(id: artistID, origin: .extend, displayName: nil) }
+                        },
+                        trackOpsMenuItems: {
+                            AnyView(TrackOpsMenuItems(
+                                targets: [track],
+                                browserViewModel: viewModel,
+                                sourcePlaylistID: nil,
+                                onRequestCreatePlaylist: onRequestCreatePlaylist,
+                                onRequestLibraryContinuation: onRequestLibraryContinuation,
+                                openArtist: { target in
+                                    if let id = target.id {
+                                        Task { await viewModel.selectArtist(id: id, origin: .extend, displayName: nil) }
+                                    }
+                                },
+                                addToQueue: { uri in
+                                    await queueViewModel.addToQueue(uri: uri)
+                                },
+                                hasPlaybackDevice: hasPlaybackDevice,
+                                copyableURI: track.playableURI
+                            ))
                         }
-                    },
-                    togglePlayPause: {
-                        playbackViewModel.requestTogglePlayPause()
-                    },
-                    isCurrent: track.playableURI != nil && track.playableURI == playingURI,
-                    isPlaying: isPlaying,
-                    openArtist: { artistID in
-                        Task { await viewModel.selectArtist(id: artistID, origin: .extend, displayName: nil) }
-                    },
-                    trackOpsMenuItems: {
-                        AnyView(TrackOpsMenuItems(
-                            targets: [track],
-                            browserViewModel: viewModel,
-                            sourcePlaylistID: nil,
-                            onRequestCreatePlaylist: onRequestCreatePlaylist,
-                            onRequestLibraryContinuation: onRequestLibraryContinuation,
-                            openArtist: { target in
-                                if let id = target.id {
-                                    Task { await viewModel.selectArtist(id: id, origin: .extend, displayName: nil) }
-                                }
-                            },
-                            addToQueue: { uri in
-                                await queueViewModel.addToQueue(uri: uri)
-                            },
-                            hasPlaybackDevice: hasPlaybackDevice,
-                            copyableURI: track.playableURI
-                        ))
-                    }
-                )
+                    )
+                }
             }
         }
     }
 
     private func artistSection(_ artists: [MusicArtist]) -> some View {
-        VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
+        VStack(alignment: .leading, spacing: SpotiglassDesign.Layout.sectionTitleSpacing) {
             HomeSectionHeader(title: CatalogSearchCategory.artists.pillLabel)
             cardLayout(isFocused: searchViewModel.category == .artists) {
                 ForEach(artists) { artist in
@@ -291,7 +285,7 @@ struct CatalogSearchView: View {
     }
 
     private func albumSection(_ albums: [MusicAlbum]) -> some View {
-        VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
+        VStack(alignment: .leading, spacing: SpotiglassDesign.Layout.sectionTitleSpacing) {
             HomeSectionHeader(title: CatalogSearchCategory.albums.pillLabel)
             cardLayout(isFocused: searchViewModel.category == .albums) {
                 ForEach(albums) { album in
@@ -326,7 +320,7 @@ struct CatalogSearchView: View {
     }
 
     private func playlistSection(_ playlists: [MusicPlaylistSummary]) -> some View {
-        VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
+        VStack(alignment: .leading, spacing: SpotiglassDesign.Layout.sectionTitleSpacing) {
             HomeSectionHeader(title: CatalogSearchCategory.playlists.pillLabel)
             cardLayout(isFocused: searchViewModel.category == .playlists) {
                 ForEach(playlists) { playlist in
@@ -374,7 +368,7 @@ struct CatalogSearchArtistCard: View {
     var body: some View {
         Button(action: action) {
             VStack(spacing: SpotiglassDesign.spacingXS) {
-                ArtworkView(url: artist.imageURL, size: 120)
+                ArtworkView(url: artist.imageURL, size: SpotiglassDesign.Layout.cardWidth)
                     .clipShape(Circle())
                 Text(artist.name)
                     .font(.subheadline.weight(.semibold))
@@ -384,7 +378,7 @@ struct CatalogSearchArtistCard: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
-            .frame(width: 120)
+            .frame(width: SpotiglassDesign.Layout.cardWidth)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

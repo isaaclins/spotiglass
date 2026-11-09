@@ -9,7 +9,7 @@ struct CommandPaletteFooterView: View {
     var body: some View {
         HStack(alignment: .center, spacing: SpotiglassDesign.spacingS) {
             CommandPaletteHintsChipView(viewModel: viewModel, paletteGlass: paletteGlass)
-            Spacer(minLength: 8)
+            Spacer(minLength: SpotiglassDesign.spacingXS)
             if viewModel.currentScope == .commands {
                 CommandPaletteCommandsHintChipView(paletteGlass: paletteGlass)
             } else {

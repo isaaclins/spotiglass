@@ -35,7 +35,12 @@ struct CommandPaletteSectionedListView: View {
                                 isSelected: row.flatIndex == viewModel.selectedIndex
                             )
                                 .id(CommandPaletteRowScrollIDs.id(flatIndex: row.flatIndex))
-                                .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
+                                .listRowInsets(EdgeInsets(
+                                    top: SpotiglassDesign.spacingXXS,
+                                    leading: SpotiglassDesign.spacingS,
+                                    bottom: SpotiglassDesign.spacingXXS,
+                                    trailing: SpotiglassDesign.spacingS
+                                ))
                                 .listRowBackground(row.flatIndex == viewModel.selectedIndex ? Color.primary.opacity(0.12) : Color.clear)
                                 .contentShape(Rectangle())
                                 .onTapGesture {
@@ -44,7 +49,7 @@ struct CommandPaletteSectionedListView: View {
                                 }
                         }
                     } header: {
-                        HStack(spacing: 8) {
+                        HStack(spacing: SpotiglassDesign.spacingXS) {
                             // Title case, no letter spacing. Tracking existed to
                             // make shouted all-caps labels readable, and section
                             // headers no longer render in all caps.
@@ -53,14 +58,14 @@ struct CommandPaletteSectionedListView: View {
                                 .foregroundStyle(.secondary)
                             Spacer()
                         }
-                        .padding(.top, sectionIndex == 0 ? 0 : 4)
+                        .padding(.top, sectionIndex == 0 ? 0 : SpotiglassDesign.spacingXXS)
                     }
                 }
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .frame(maxWidth: .infinity)
-            .frame(height: 360)
+            .frame(height: SpotiglassDesign.Layout.paletteResultsHeight)
             // Arrow keys are handled by `CommandPaletteEventMonitor`; keep keyboard focus on the query field for typing.
             .focusable(false)
             .onChange(of: viewModel.selectedIndex) { _, newIndex in
@@ -110,15 +115,14 @@ struct CommandPaletteResultRowView: View {
     var body: some View {
         HStack(spacing: SpotiglassDesign.spacingS) {
             CommandPaletteRowLeadingView(item: item)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: SpotiglassDesign.spacingHalf) {
                 HStack(spacing: SpotiglassDesign.spacingXS) {
                     Text(item.title)
                         .lineLimit(1)
                     if item.isExplicit {
                         Text(SpotiglassL10n.string("palette.explicit"))
                             .font(.caption2.weight(.medium))
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
+                            .padding(SpotiglassDesign.Layout.badgeInsets)
                             .background(.secondary.opacity(0.15), in: Capsule())
                             .fixedSize(horizontal: true, vertical: false)
                     }
@@ -132,7 +136,7 @@ struct CommandPaletteResultRowView: View {
             }
             Spacer()
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, SpotiglassDesign.spacingXXS)
         // One element per result instead of icon plus title plus "Explicit" plus
         // subtitle as separate fragments (#119).
         .accessibilityElement(children: .ignore)
@@ -168,8 +172,9 @@ struct CommandPaletteRowLeadingView: View {
                 fallbackSystemName: item.iconSystemName
             )
         } else {
+            // As wide as the artwork other rows lead with, so every title starts on one line.
             Image(systemName: item.iconSystemName)
-                .frame(width: 18)
+                .frame(width: SpotiglassDesign.Layout.smallArtworkSize)
                 .foregroundStyle(.secondary)
         }
     }

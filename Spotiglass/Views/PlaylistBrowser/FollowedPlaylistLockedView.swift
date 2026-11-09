@@ -6,7 +6,8 @@ import SwiftUI
 /// whole playlist in-app or open it in Spotify.
 struct FollowedPlaylistLockedView: View {
     let info: LockedPlaylistInfo
-    @ObservedObject var playbackViewModel: PlaybackSessionViewModel
+    /// Only its Play button uses the session, so it doesn't observe it (#422).
+    let playbackViewModel: PlaybackSessionViewModel
 
     var body: some View {
         VStack(spacing: SpotiglassDesign.spacingM) {
@@ -21,7 +22,7 @@ struct FollowedPlaylistLockedView: View {
             Text(SpotiglassL10n.string("error.browsing.followedPlaylistLocked.message"))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: 360)
+                .frame(maxWidth: SpotiglassDesign.Layout.messageMaxWidth)
 
             HStack(spacing: SpotiglassDesign.spacingM) {
                 Button {

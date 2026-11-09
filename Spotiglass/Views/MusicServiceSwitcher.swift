@@ -34,7 +34,7 @@ extension MusicService {
 /// A service's logo at a given height.
 struct MusicServiceLogo: View {
     let service: MusicService
-    var size: CGFloat = 22
+    var size: CGFloat = MusicServiceSwitcher.logoSize
 
     var body: some View {
         Image(service.logoAssetName)
@@ -58,7 +58,7 @@ struct MusicServiceSwitcher: View {
     let add: (MusicService) -> Void
 
     /// Spotify's minimum for its icon in digital use is 21 px; this keeps it above that at 1x.
-    static let logoSize: CGFloat = 22
+    static let logoSize: CGFloat = SpotiglassDesign.Layout.thumbnailSize
 
     @State private var anchor = MusicServiceMenuAnchor()
     @State private var isHovering = false
@@ -92,7 +92,7 @@ struct MusicServiceSwitcher: View {
                 .accessibilityHidden(true)
         }
         .padding(.horizontal, SpotiglassDesign.spacingXS)
-        .padding(.vertical, 4)
+        .padding(.vertical, SpotiglassDesign.spacingXXS)
         .background(
             RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
                 .fill(.primary.opacity(isHovering ? 0.08 : 0))
@@ -199,7 +199,8 @@ final class MusicServiceMenuAnchor: NSObject {
         guard let view else { return }
         let menu = makeMenu(items: items)
         // Just under the label, aligned with its leading edge.
-        let origin = NSPoint(x: 0, y: view.isFlipped ? view.bounds.height + 4 : -4)
+        let gap = SpotiglassDesign.spacingXXS
+        let origin = NSPoint(x: 0, y: view.isFlipped ? view.bounds.height + gap : -gap)
         menu.popUp(positioning: nil, at: origin, in: view)
     }
 
@@ -249,7 +250,7 @@ struct MusicServiceWelcomeView: View {
                         Text(SpotiglassL10n.string("welcome.service.message"))
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
-                            .frame(maxWidth: 420)
+                            .frame(maxWidth: SpotiglassDesign.Layout.paragraphMaxWidth)
                     }
 
                     HStack(spacing: SpotiglassDesign.spacingM) {
@@ -262,7 +263,7 @@ struct MusicServiceWelcomeView: View {
                 }
                 .padding(SpotiglassDesign.spacingL)
             }
-            .frame(maxWidth: 560)
+            .frame(maxWidth: SpotiglassDesign.Layout.panelMaxWidth)
             .padding(SpotiglassDesign.spacingL)
         }
     }
@@ -284,7 +285,7 @@ private struct MusicServiceChoiceButton: View {
     var body: some View {
         Button(action: action) {
             VStack(spacing: SpotiglassDesign.spacingS) {
-                MusicServiceLogo(service: service, size: 44)
+                MusicServiceLogo(service: service, size: SpotiglassDesign.Layout.serviceChoiceLogoSize)
                 Text(service.displayName)
                     .font(.headline)
                 Text(detail)
@@ -293,7 +294,7 @@ private struct MusicServiceChoiceButton: View {
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .frame(width: 190)
+            .frame(width: SpotiglassDesign.Layout.serviceChoiceWidth)
             .padding(.vertical, SpotiglassDesign.spacingL)
             .padding(.horizontal, SpotiglassDesign.spacingM)
             .background(

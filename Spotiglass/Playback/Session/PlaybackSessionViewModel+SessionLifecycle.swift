@@ -15,6 +15,8 @@ extension PlaybackSessionViewModel {
         playbackHostAutoResumeTask?.cancel()
         playbackHostAutoResumeTask = nil
         playbackHostAutoResumeSerial &+= 1
+        passingErrorRecoveryTask?.cancel()
+        passingErrorRecoveryTask = nil
         shuffleSyncTask?.cancel()
         shuffleSyncTask = nil
         repeatSyncTask?.cancel()
