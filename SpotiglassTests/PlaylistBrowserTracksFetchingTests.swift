@@ -665,6 +665,75 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         XCTAssertNil(result)
     }
 
+    /// Any playback command from elsewhere while a play waits (a pinned track, Home, the player
+    /// bar, a media key) wins over it.
+    func testAPlayWaitingForLikedSongsGivesWayToAnyOtherPlaybackCommand() async {
+        let first = (0..<200).map { PlaylistBrowsingTestFixtures.track(id: "l\($0)") }
+        let all = (0..<956).map { PlaylistBrowsingTestFixtures.track(id: "l\($0)") }
+        let api = FirstPageSavedTracksAPI(firstPage: first, all: all)
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledSpotifyBrowsingCache())
+
+        let opening = Task { await viewModel.selectSidebar(.likedSongs) }
+        await api.waitUntilRestIsBeingRead()
+        for _ in 0..<50 where PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count < 200 {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        guard case let .playlist(firstPage)? = viewModel.detailState.currentValue else {
+            return XCTFail("Expected the first page, got \(viewModel.detailState)")
+        }
+        let commands = ReadCounter()
+        let waiting = Task { await viewModel.detailForPlayback(firstPage, playbackCommands: { UInt64(commands.count) }) }
+        try? await Task.sleep(for: .milliseconds(20))
+        commands.increment() // A pinned track starts playing meanwhile.
+        api.finishReading()
+
+        let result = await waiting.value
+        await opening.value
+        XCTAssertNil(result)
+    }
+
+    /// A play that waited for a read that then failed must still give way to what came after.
+    func testAPlayWaitingForAFailedLikedSongsReadGivesWayToAnotherSurface() async {
+        let first = (0..<200).map { PlaylistBrowsingTestFixtures.track(id: "l\($0)") }
+        let all = (0..<956).map { PlaylistBrowsingTestFixtures.track(id: "l\($0)") }
+        let api = FirstPageSavedTracksAPI(firstPage: first, all: all)
+        api.restFails = true
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledSpotifyBrowsingCache())
+
+        let opening = Task { await viewModel.selectSidebar(.likedSongs) }
+        await api.waitUntilRestIsBeingRead()
+        for _ in 0..<50 where PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count < 200 {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        guard case let .playlist(firstPage)? = viewModel.detailState.currentValue else {
+            return XCTFail("Expected the first page, got \(viewModel.detailState)")
+        }
+        let waiting = Task { await viewModel.detailForPlayback(firstPage) }
+        try? await Task.sleep(for: .milliseconds(20))
+        await viewModel.selectSidebar(nil)
+        api.finishReading()
+
+        let result = await waiting.value
+        await opening.value
+        XCTAssertNil(result)
+    }
+
+    /// The count a waiting play compares: every route a user starts or changes playback by
+    /// (rows, Home, pinned items, the queue, the player bar, media keys) ends in one of these.
+    func testThePlayerCountsEveryPlaybackCommand() async {
+        let player = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: MockWebPlaybackCommander()))
+        let before = player.playbackCommandCount
+
+        await player.play(uri: "spotify:track:a")
+        await player.play(contextURI: "spotify:playlist:p")
+        await player.playFromPlaylist(clickedURI: "spotify:track:a", playableURIs: ["spotify:track:a"])
+        await player.togglePlayPause()
+        await player.next()
+        await player.previous()
+
+        XCTAssertEqual(player.playbackCommandCount, before + 6)
+    }
+
     func testMemoryCacheKeepsTrackListsBoundedLeastRecentlyUsedFirst() throws {
         let cache = MemoryBrowsingCache(maxTracks: 4)
         let now = Date()
@@ -697,6 +766,8 @@ private final class FirstPageSavedTracksAPI: MusicBrowsingProvider, @unchecked S
     private var restFinished: CheckedContinuation<Void, Never>?
     private var isRestStarted = false
     private var isReadFinished = false
+    /// The rest of the read fails instead of answering.
+    var restFails = false
     /// How long the owner lookup takes once the read has finished.
     var profileDelayAfterRead: UInt64 = 0
     private let lock = NSLock()
@@ -750,6 +821,7 @@ private final class FirstPageSavedTracksAPI: MusicBrowsingProvider, @unchecked S
             }
             waiting?.resume()
         }
+        if lock.withLock({ restFails }) { throw URLError(.notConnectedToInternet) }
         return MusicSavedTracksResult(tracks: all, totalAvailable: all.count)
     }
 
