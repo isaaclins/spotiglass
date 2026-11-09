@@ -108,6 +108,20 @@ final class PlaybackBridgeAndModelsTests: XCTestCase {
         )
     }
 
+    func testBridgeParsesThePressIDOfAnAnswer() throws {
+        XCTAssertEqual(
+            try SpotifyPlaybackBridgeParser.parse(["name": "player_command_finished", "payload": ["command": "pause", "id": 7]]),
+            .playerCommandFinished(command: "pause", id: 7)
+        )
+        XCTAssertEqual(
+            try SpotifyPlaybackBridgeParser.parse([
+                "name": "player_command_failed",
+                "payload": ["command": "resume", "id": 8, "message": "Spotify resume failed: offline"],
+            ]),
+            .playerCommandFailed(command: "resume", message: "Spotify resume failed: offline", id: 8)
+        )
+    }
+
     func testBridgeParsesPlayerCommandFinished() throws {
         XCTAssertEqual(
             try SpotifyPlaybackBridgeParser.parse(["name": "player_command_finished", "payload": ["command": "togglePlay"]]),

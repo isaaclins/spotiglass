@@ -162,12 +162,12 @@ extension PlaybackSessionViewModel {
                 hasTransferredPlaybackToCurrentDevice = true
             }
             setConnectionState(isPaused ? .paused(effectiveNowPlaying) : .playing(effectiveNowPlaying ?? fallbackNowPlaying()))
-        case let .playerCommandFinished(command):
-            handleInAppCommandFinished(command)
-        case let .playerCommandFailed(command, message):
+        case let .playerCommandFinished(command, id):
+            handleInAppCommandFinished(command, id: id)
+        case let .playerCommandFailed(command, message, id):
             // A refused pause or play goes back instead of replacing the bar with an error (#437).
             if Self.isPlayPauseCommand(command) {
-                handleInAppPlayPauseFailure(command: command, message: message)
+                handleInAppPlayPauseFailure(command: command, message: message, id: id)
             } else {
                 handleCurrentPlaybackEvent(.playbackError(message))
             }

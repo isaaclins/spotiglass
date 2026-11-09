@@ -110,23 +110,25 @@
         };
       }
 
-      function runPlayerCommand(name, action) {
+      // `id` comes back with the answer, so the app knows which press it belongs to.
+      function runPlayerCommand(name, action, id) {
         if (!player) return;
+        const answer = id === undefined ? { command: name } : { command: name, id };
         try {
           const result = action();
           if (result && typeof result.then === 'function') {
             result
-              .then(() => post('player_command_finished', { command: name }))
+              .then(() => post('player_command_finished', answer))
               .catch(error => {
                 const message = error && error.message ? error.message : String(error);
-                post('player_command_failed', { command: name, message: `Spotify ${name} failed: ${message}` });
+                post('player_command_failed', { ...answer, message: `Spotify ${name} failed: ${message}` });
               });
           } else {
-            post('player_command_finished', { command: name });
+            post('player_command_finished', answer);
           }
         } catch (error) {
           const message = error && error.message ? error.message : String(error);
-          post('player_command_failed', { command: name, message: `Spotify ${name} threw: ${message}` });
+          post('player_command_failed', { ...answer, message: `Spotify ${name} threw: ${message}` });
         }
       }
 
@@ -143,9 +145,9 @@
           });
         },
         disconnect: () => { if (player) player.disconnect(); },
-        togglePlay: () => runPlayerCommand('togglePlay', () => player.togglePlay()),
-        pause: () => runPlayerCommand('pause', () => player.pause()),
-        resume: () => runPlayerCommand('resume', () => player.resume()),
+        togglePlay: id => runPlayerCommand('togglePlay', () => player.togglePlay(), id),
+        pause: id => runPlayerCommand('pause', () => player.pause(), id),
+        resume: id => runPlayerCommand('resume', () => player.resume(), id),
         seek: milliseconds => runPlayerCommand('seek', () => player.seek(milliseconds)),
         next: () => runPlayerCommand('next', () => player.nextTrack()),
         previous: () => runPlayerCommand('previous', () => player.previousTrack()),

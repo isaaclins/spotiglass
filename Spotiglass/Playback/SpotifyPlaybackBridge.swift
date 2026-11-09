@@ -83,12 +83,12 @@ enum SpotifyPlaybackBridgeParser {
             guard let command = payload["command"] as? String, !command.isEmpty else {
                 throw PlaybackBridgeMessageError.missingPayload("command")
             }
-            return .playerCommandFinished(command: command)
+            return .playerCommandFinished(command: command, id: commandID(from: payload))
         case "player_command_failed":
             guard let command = payload["command"] as? String, !command.isEmpty else {
                 throw PlaybackBridgeMessageError.missingPayload("command")
             }
-            return .playerCommandFailed(command: command, message: message(from: payload))
+            return .playerCommandFailed(command: command, message: message(from: payload), id: commandID(from: payload))
         case "initialization_error":
             return .initializationError(message(from: payload))
         case "authentication_error":
@@ -102,6 +102,10 @@ enum SpotifyPlaybackBridgeParser {
         default:
             throw PlaybackBridgeMessageError.unsupportedEvent(name)
         }
+    }
+
+    private static func commandID(from payload: [String: Any]) -> UInt64? {
+        (payload["id"] as? NSNumber)?.uint64Value
     }
 
     private static func parseNowPlaying(from value: Any?) -> PlaybackNowPlaying? {

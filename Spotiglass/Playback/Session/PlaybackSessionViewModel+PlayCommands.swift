@@ -196,6 +196,7 @@ extension PlaybackSessionViewModel {
         // for: the new item's reports must show at once (#437).
         skipLeftItemURI = nil
         clearPushedPlayStateExpectation()
+        playPauseSupersededThrough = playPauseRequestSerial
         let hostGeneration = playbackHostGeneration
         let deadline = clock.now.advanced(by: pendingPlayURITimeout)
         pendingPlayTransition = PendingPlayTransition(

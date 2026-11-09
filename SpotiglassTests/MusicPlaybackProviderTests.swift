@@ -45,9 +45,9 @@ final class MusicPlaybackProviderTests: XCTestCase {
 
         provider.loadPlayer(generation: generation)
         try await provider.connectPlayer(generation: generation)
-        try await provider.togglePlayPause()
-        try await provider.setInAppPlayerPlaying(false)
-        try await provider.setInAppPlayerPlaying(true)
+        try await provider.togglePlayPause(commandID: nil)
+        try await provider.setInAppPlayerPlaying(false, commandID: 7)
+        try await provider.setInAppPlayerPlaying(true, commandID: nil)
         try await provider.setVolume(0.25, generation: generation)
         try await provider.didStartLocalPlayback(uri: "spotify:track:1")
         try await provider.disconnectPlayer(generation: generation)
@@ -57,6 +57,7 @@ final class MusicPlaybackProviderTests: XCTestCase {
             commander.commands.map(\.command),
             [.connect, .togglePlay, .pause, .resume, .setVolume, .playURI, .disconnect]
         )
+        XCTAssertEqual((commander.commands[2].payload["id"] as? NSNumber)?.uint64Value, 7, "the press's id goes to the page")
         XCTAssertEqual(commander.commands[4].payload["volume"] as? Double, 0.25)
         XCTAssertEqual(commander.commands[5].payload["uri"] as? String, "spotify:track:1")
         XCTAssertTrue(api.actions.isEmpty, "in-app player commands must not reach the Web API")
@@ -702,8 +703,8 @@ final class ReadOnlyStatePlaybackProvider: MusicPlaybackProvider {
     func setShuffle(enabled: Bool, deviceID: String) async throws { commands.append("shuffle \(enabled) on \(deviceID)") }
     func setRepeat(mode: MusicRepeatMode, deviceID: String) async throws { commands.append("repeat \(mode) on \(deviceID)") }
     func enqueue(uri: String, deviceID: String) async throws { commands.append("enqueue \(uri) on \(deviceID)") }
-    func togglePlayPause() async throws { commands.append("togglePlayPause") }
-    func setInAppPlayerPlaying(_ playing: Bool) async throws { commands.append(playing ? "inAppPlay" : "inAppPause") }
+    func togglePlayPause(commandID: UInt64?) async throws { commands.append("togglePlayPause") }
+    func setInAppPlayerPlaying(_ playing: Bool, commandID: UInt64?) async throws { commands.append(playing ? "inAppPlay" : "inAppPause") }
     func setVolume(_ volume: Double, generation: PlaybackHostGeneration) async throws { commands.append("volume \(volume)") }
 
     func fetchPlaybackState() async throws -> MusicPlaybackSnapshot? {
@@ -1262,6 +1263,61 @@ final class PlayPauseFollowsThePressTests: XCTestCase {
         let state = session.connectionState
         try? await Task.sleep(for: .milliseconds(150))
         XCTAssertEqual(session.connectionState, state, "the old page's report was shown after the reconnect")
+    }
+
+    /// Pause, play, pause, and the page answers the first pause only after the wait: its late
+    /// refusal carries that press's id, so it isn't taken for the last pause's (#437).
+    func testSpotifyALateRefusalIsMatchedByItsPressNotItsName() async {
+        let (_, session) = playingSpotify()
+        session.inAppCommandAckTimeout = .milliseconds(20)
+
+        await session.requestTogglePlayPause()?.value
+        let firstPause = session.playPauseRequestSerial
+        try? await Task.sleep(for: .milliseconds(150))
+        await session.requestTogglePlayPause()?.value
+        session.handle(.playerCommandFinished(command: "resume", id: session.playPauseRequestSerial))
+        await session.requestTogglePlayPause()?.value
+        let lastPause = session.playPauseRequestSerial
+        XCTAssertEqual(session.inAppCommandInFlight?.serial, lastPause)
+
+        session.handle(.playerCommandFailed(command: "pause", message: "Spotify pause failed: offline", id: firstPause))
+        XCTAssertTrue(Self.isPaused(session), "the first pause's refusal undid the last pause")
+        XCTAssertNil(session.refusedPlayPause)
+        XCTAssertEqual(session.inAppCommandInFlight?.serial, lastPause, "the first pause's answer let the next press go early")
+    }
+
+    /// Play, pause while the page still runs the play, then another song: the pause waiting its
+    /// turn never goes out, or it would stop the song chosen last.
+    func testSpotifyAPressWaitingItsTurnDoesntReachASongChosenAfterIt() async {
+        let (commander, session) = playingSpotify()
+
+        await session.requestTogglePlayPause()?.value
+        let play = session.requestTogglePlayPause()
+        await session.play(uri: "spotify:track:other")
+        session.handle(.playerCommandFinished(command: "pause", id: session.playPauseRequestSerial - 1))
+        await play?.value
+
+        XCTAssertEqual(Self.playPauseCommands(commander), [.pause], "a press from before the new song reached it")
+    }
+
+    /// A pause stuck on the old player when it reconnects doesn't hold the first press on the
+    /// new one: it goes out at once.
+    func testAPressAfterAReconnectDoesntWaitForTheOldPlayer() async {
+        let (provider, session) = playingReadPlayer()
+        provider.holdsCommands = true
+
+        let stuck = session.requestTogglePlayPause()
+        await Self.settle { provider.waitingCommandCount == 1 }
+        _ = session.beginPlaybackHostLifecycle()
+        session.setConnectionState(.paused(Self.song))
+        provider.holdsCommands = false
+        let press = session.requestTogglePlayPause()
+        await Self.settle { provider.commands.count == 2 }
+
+        XCTAssertEqual(provider.commands, ["pause local", "resume local"], "the new press waited for the stuck one")
+        provider.releaseCommands()
+        await stuck?.value
+        await press?.value
     }
 
     /// The wait for the page ends without the page reporting the last press: its latest report

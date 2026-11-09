@@ -34,8 +34,8 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
     func testSetInAppPlayerPlayingPausesAndResumes() async throws {
         let player = ScriptedAppleMusicPlayer()
         let provider = AppleMusicPlaybackProvider(player: player)
-        try await provider.setInAppPlayerPlaying(false)
-        try await provider.setInAppPlayerPlaying(true)
+        try await provider.setInAppPlayerPlaying(false, commandID: nil)
+        try await provider.setInAppPlayerPlaying(true, commandID: nil)
         XCTAssertEqual(player.commands.filter { $0 == "pause" || $0 == "resume" }, ["pause", "resume"])
     }
 

@@ -93,12 +93,16 @@ final class SpotifyPlaybackProvider: MusicPlaybackProvider, MusicPlaybackDeviceT
 
     // MARK: - Commands for the in-app player
 
-    func togglePlayPause() async throws {
-        try await webCommander.send(.togglePlay, payload: [:])
+    func togglePlayPause(commandID: UInt64?) async throws {
+        try await webCommander.send(.togglePlay, payload: Self.commandPayload(commandID))
     }
 
-    func setInAppPlayerPlaying(_ playing: Bool) async throws {
-        try await webCommander.send(playing ? .resume : .pause, payload: [:])
+    func setInAppPlayerPlaying(_ playing: Bool, commandID: UInt64?) async throws {
+        try await webCommander.send(playing ? .resume : .pause, payload: Self.commandPayload(commandID))
+    }
+
+    private static func commandPayload(_ commandID: UInt64?) -> [String: Any] {
+        commandID.map { ["id": NSNumber(value: $0)] } ?? [:]
     }
 
     func setVolume(_ volume: Double, generation: PlaybackHostGeneration) async throws {

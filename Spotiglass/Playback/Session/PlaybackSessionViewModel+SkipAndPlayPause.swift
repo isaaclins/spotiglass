@@ -137,20 +137,27 @@ extension PlaybackSessionViewModel {
     }
 
     private func sendPlayPause(_ request: PlayPauseRequest) async {
-        defer { playPauseRequestsInFlight = max(0, playPauseRequestsInFlight - 1) }
-        guard ownsPlaybackHostGeneration(request.generation), !Task.isCancelled else { return }
+        defer {
+            // A replaced player page started counting again (``forgetInAppPlayPauseWaits()``).
+            if ownsPlaybackHostGeneration(request.generation) {
+                playPauseRequestsInFlight = max(0, playPauseRequestsInFlight - 1)
+            }
+        }
+        guard ownsPlaybackHostGeneration(request.generation), !Task.isCancelled,
+              request.serial > playPauseSupersededThrough else { return }
         if request.usesInAppPlayer {
             // The page is still running the press before: a quick pause, play would otherwise
             // run both at once in Spotify's player, and the pause could land last.
             await waitForInAppCommandToFinish()
-            guard ownsPlaybackHostGeneration(request.generation), !Task.isCancelled else { return }
+            guard ownsPlaybackHostGeneration(request.generation), !Task.isCancelled,
+                  request.serial > playPauseSupersededThrough else { return }
             beginInAppCommand(request)
             do {
                 // The state asked for, not a toggle: a toggle flips whatever the player has.
                 if request.sendsRequestedState {
-                    try await provider.setInAppPlayerPlaying(!request.shouldPause)
+                    try await provider.setInAppPlayerPlaying(!request.shouldPause, commandID: request.serial)
                 } else {
-                    try await provider.togglePlayPause()
+                    try await provider.togglePlayPause(commandID: request.serial)
                 }
             } catch {
                 finishInAppCommand()
@@ -262,27 +269,30 @@ extension PlaybackSessionViewModel {
     }
 
     /// Spotify's page failed to run the press it is running, or one it answered too late for.
-    func handleInAppPlayPauseFailure(command: String, message: String) {
+    func handleInAppPlayPauseFailure(command: String, message: String, id: UInt64?) {
         SpotiglassLog.error(.playback, "Spotify playback SDK \(command) failed: \(message)")
-        let request: PlayPauseRequest
-        if let inFlight = inAppCommandInFlight, inFlight.inAppCommand == command {
-            request = inFlight
-            finishInAppCommand()
-        } else if let index = inAppCommandsUnanswered.firstIndex(where: { $0.inAppCommand == command }) {
-            request = inAppCommandsUnanswered.remove(at: index)
-        } else {
-            return
-        }
+        guard let request = takeAnsweredInAppPress(command: command, id: id) else { return }
         inAppPressFailed(request, error: MusicPlaybackError(service: .spotify, reason: .failed, detail: message))
     }
 
     /// Spotify's page finished a command: the next press may go out.
-    func handleInAppCommandFinished(_ command: String) {
-        if inAppCommandInFlight?.inAppCommand == command {
-            finishInAppCommand()
-        } else if let index = inAppCommandsUnanswered.firstIndex(where: { $0.inAppCommand == command }) {
-            inAppCommandsUnanswered.remove(at: index)
+    func handleInAppCommandFinished(_ command: String, id: UInt64?) {
+        _ = takeAnsweredInAppPress(command: command, id: id)
+    }
+
+    /// The press an answer from the page is for: by the press's id, which the page sends back
+    /// (two presses of the same kind can be out when one was answered too late), or by the
+    /// command's name for an answer without one. The running press's answer lets the next go.
+    private func takeAnsweredInAppPress(command: String, id: UInt64?) -> PlayPauseRequest? {
+        func answers(_ request: PlayPauseRequest) -> Bool {
+            id.map { request.serial == $0 } ?? (request.inAppCommand == command)
         }
+        if let inFlight = inAppCommandInFlight, answers(inFlight) {
+            finishInAppCommand()
+            return inFlight
+        }
+        guard let index = inAppCommandsUnanswered.firstIndex(where: answers) else { return nil }
+        return inAppCommandsUnanswered.remove(at: index)
     }
 
     /// The latest press refused: the controls go back to what the page last reported and the
@@ -319,11 +329,15 @@ extension PlaybackSessionViewModel {
 
     static let inAppCommandsUnansweredLimit = 4
 
-    /// A new player page, or a new play: nothing the page owed earlier presses counts any more.
+    /// A new player page: nothing the old one owed earlier presses counts any more, and a new
+    /// press doesn't queue behind one still stuck on the old page (its result is fenced by the
+    /// generation anyway).
     func forgetInAppPlayPauseWaits() {
         clearPushedPlayStateExpectation()
         finishInAppCommand()
         inAppCommandsUnanswered.removeAll()
+        playPauseCommandTail = nil
+        playPauseRequestsInFlight = 0
     }
 
     func finishInAppCommand() {
