@@ -92,6 +92,7 @@ final class MockBrowsingAPI: MusicBrowsingProvider {
         var albumTracksCallCount = 0
         var artistAlbumsPageCallCount = 0
         var playlistTracksInvocationCountByID: [String: Int] = [:]
+        var lastReadTracksByID: [String: [MusicPlaylistTrackItem]] = [:]
         var updatePlaylistCalls: [(playlistID: String, name: String)] = []
         var addTracksCalls: [(playlistID: String, uris: [String])] = []
         var removeTracksCalls: [(playlistID: String, items: [MusicPlaylistTrackRemoval], snapshotID: String?)] = []
@@ -268,6 +269,16 @@ final class MockBrowsingAPI: MusicBrowsingProvider {
             return result
         }
         return try result?.get() ?? []
+    }
+
+    /// What `lastReadPlaylistTracks` answers, by playlist ID.
+    var lastReadTracksByID: [String: [MusicPlaylistTrackItem]] {
+        get { locked { $0.lastReadTracksByID } }
+        set { locked { $0.lastReadTracksByID = newValue } }
+    }
+
+    func lastReadPlaylistTracks(playlistID: String) async -> [MusicPlaylistTrackItem]? {
+        locked { $0.lastReadTracksByID[playlistID] }
     }
 
     func currentUserProfile() async throws -> MusicUserProfile {

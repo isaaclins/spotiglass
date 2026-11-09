@@ -65,7 +65,18 @@ protocol MusicBrowsingProvider {
     /// `playlistTrackCounts` for them (Apple Music). Spotify lists them, so nothing changes there.
     var listsPlaylistsWithoutTrackCounts: Bool { get }
     func playlistTracks(playlistID: String, limit: Int, maxPages: Int) async throws -> [MusicPlaylistTrackItem]
+    /// A playlist's tracks as the provider last read them, possibly out of date, to show while
+    /// `playlistTracks` reads the current ones; `nil` when it has none (#442). The default has none.
+    func lastReadPlaylistTracks(playlistID: String) async -> [MusicPlaylistTrackItem]?
     func currentUserSavedTracks(limit: Int, maxPages: Int?) async throws -> MusicSavedTracksResult
+    /// `currentUserSavedTracks`, handing the first page to `firstPage` as soon as it is read, so
+    /// the list shows it while the rest loads (#442). The default reads everything first and
+    /// never calls it.
+    func currentUserSavedTracks(
+        limit: Int,
+        maxPages: Int?,
+        firstPage: @escaping @Sendable (MusicSavedTracksResult) async -> Void
+    ) async throws -> MusicSavedTracksResult
     func currentUserProfile() async throws -> MusicUserProfile
     func artist(id: String, cacheMode: MusicRequestCacheMode) async throws -> MusicArtistDetail
     func artistCached(id: String, cacheMode: MusicRequestCacheMode) async throws -> MusicCachedResponse<MusicArtistDetail>
@@ -188,6 +199,16 @@ extension MusicBrowsingProvider {
     func savedTrackStatuses(ids: [String]) async throws -> [Bool] {
         throw SpotifyAPIError.invalidRequest("Saved-track status lookup is not supported by this API implementation.")
     }
+
+    func currentUserSavedTracks(
+        limit: Int,
+        maxPages: Int?,
+        firstPage: @escaping @Sendable (MusicSavedTracksResult) async -> Void
+    ) async throws -> MusicSavedTracksResult {
+        try await currentUserSavedTracks(limit: limit, maxPages: maxPages)
+    }
+
+    func lastReadPlaylistTracks(playlistID: String) async -> [MusicPlaylistTrackItem]? { nil }
 
     func playlistTrackCounts(playlistIDs: [String]) async -> [String: Int] { [:] }
     var listsPlaylistsWithoutTrackCounts: Bool { false }

@@ -1,3 +1,4 @@
+import Combine
 import XCTest
 @testable import Spotiglass
 
@@ -279,4 +280,255 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         XCTAssertEqual(api.playlistTracksInvocationCountByID["c"], 1)
     }
 
+
+    // MARK: - Big playlists (#442)
+
+    private func bigPlaylist(count: Int) -> (MusicPlaylistSummary, [MusicPlaylistTrackItem]) {
+        (
+            PlaylistBrowsingTestFixtures.playlist(id: "big", name: "My music mix"),
+            (0..<count).map { PlaylistBrowsingTestFixtures.track(id: "t\($0)") }
+        )
+    }
+
+    /// Opening "My music mix" (796 songs) showed nothing until the list had laid out every row,
+    /// most of a second on its own. The first screen of rows now comes first, then the rest
+    /// below it.
+    func testALongPlaylistShowsItsFirstScreenOfRowsBeforeTheRest() async {
+        let (playlist, tracks) = bigPlaylist(count: 796)
+        let api = MockBrowsingAPI(playlistResults: [.success([playlist])], trackResults: ["big": [.success(tracks)]])
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledSpotifyBrowsingCache())
+        await viewModel.load()
+        var shown: [[String]] = []
+        let observation = viewModel.$detailState.sink { state in
+            let rows = PlaylistBrowsingTestFixtures.playlistTracks(state).map(\.id)
+            if !rows.isEmpty { shown.append(rows) }
+        }
+
+        await viewModel.selectPlaylist(id: "big")
+        observation.cancel()
+
+        XCTAssertEqual(shown.first?.count, PlaylistBrowserViewModel.firstScreenRowCount)
+        XCTAssertEqual(shown.last, tracks.map(\.id), "every row, in order")
+        XCTAssertEqual(shown.count, 2, "every change lays out the whole list again, so the rest goes in one step")
+        XCTAssertEqual(shown.first, Array(tracks.map(\.id).prefix(PlaylistBrowserViewModel.firstScreenRowCount)),
+                       "the rest is only added below the first screen")
+    }
+
+    /// Apple Music reads a playlist's songs all at once, about a second for 800. The songs it
+    /// read after launch to count them show at once; the read then replaces them only if the
+    /// playlist changed.
+    func testAPlaylistShowsTheSongsReadEarlierWhileItIsReadAgain() async {
+        let (playlist, tracks) = bigPlaylist(count: 796)
+        let current = tracks + [PlaylistBrowsingTestFixtures.track(id: "added")]
+        let api = MockBrowsingAPI(playlistResults: [.success([playlist])], trackResults: ["big": [.success(current)]])
+        api.lastReadTracksByID = ["big": tracks]
+        api.playlistTracksDelayOnInvocation = 200_000_000
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledSpotifyBrowsingCache())
+        await viewModel.load()
+        var shownWhileReading: [String] = []
+        api.onPlaylistTracksInvocation = { _ in
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(100))
+                shownWhileReading = PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).map(\.id)
+            }
+        }
+
+        await viewModel.selectPlaylist(id: "big")
+
+        XCTAssertEqual(shownWhileReading, tracks.map(\.id), "the earlier songs, before the read finished")
+        XCTAssertEqual(PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).map(\.id), current.map(\.id))
+    }
+
+    func testAFreshReadThatMatchesTheShownSongsLeavesTheListAlone() async {
+        let (playlist, tracks) = bigPlaylist(count: 796)
+        let api = MockBrowsingAPI(playlistResults: [.success([playlist])], trackResults: ["big": [.success(tracks)]])
+        api.lastReadTracksByID = ["big": tracks]
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledSpotifyBrowsingCache())
+        await viewModel.load()
+        var changes = 0
+        let observation = viewModel.$detailState.dropFirst().sink { state in
+            if !PlaylistBrowsingTestFixtures.playlistTracks(state).isEmpty { changes += 1 }
+        }
+
+        await viewModel.selectPlaylist(id: "big")
+        observation.cancel()
+
+        XCTAssertEqual(changes, 2, "first screen, then all rows; the matching read sets nothing")
+        XCTAssertEqual(api.playlistTracksInvocationCountByID["big"], 1)
+    }
+
+    func testAShortPlaylistShowsAllItsRowsAtOnce() async {
+        let (playlist, tracks) = bigPlaylist(count: 37)
+        let api = MockBrowsingAPI(playlistResults: [.success([playlist])], trackResults: ["big": [.success(tracks)]])
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledSpotifyBrowsingCache())
+        await viewModel.load()
+        var shown: [Int] = []
+        let observation = viewModel.$detailState.sink { state in
+            let count = PlaylistBrowsingTestFixtures.playlistTracks(state).count
+            if count > 0 { shown.append(count) }
+        }
+
+        await viewModel.selectPlaylist(id: "big")
+        observation.cancel()
+
+        XCTAssertEqual(shown, [37])
+    }
+
+    /// Opening a playlist from Home sets the sidebar selection, and the sidebar reports that
+    /// change back: the playlist was read a second time while the first read still ran.
+    func testOpeningAPlaylistFromHomeReadsItOnce() async {
+        let (playlist, tracks) = bigPlaylist(count: 796)
+        let api = MockBrowsingAPI(playlistResults: [.success([playlist])], trackResults: ["big": [.success(tracks)]])
+        api.playlistTracksDelayOnInvocation = 50_000_000
+        let reads = ReadCounter()
+        api.onPlaylistTracksInvocation = { _ in reads.increment() }
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledSpotifyBrowsingCache())
+        await viewModel.load()
+
+        let opening = Task { await viewModel.selectSidebar(.playlist("big")) }
+        // The first read is under way (MusicKit's read doesn't stop when its task is cancelled).
+        while reads.count == 0 { await Task.yield() }
+        // What the sidebar's selection change does.
+        await viewModel.selectSidebar(.playlist("big"))
+        await opening.value
+
+        XCTAssertEqual(reads.count, 1)
+        XCTAssertEqual(PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count, 796)
+    }
+
+    /// Liked Songs read every page (13 for 956 Apple Music songs) before showing a row.
+    func testLikedSongsShowTheirFirstPageWhileTheRestIsRead() async {
+        let first = (0..<200).map { PlaylistBrowsingTestFixtures.track(id: "l\($0)") }
+        let all = (0..<956).map { PlaylistBrowsingTestFixtures.track(id: "l\($0)") }
+        let api = FirstPageSavedTracksAPI(firstPage: first, all: all)
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledSpotifyBrowsingCache())
+
+        let opening = Task { await viewModel.selectSidebar(.likedSongs) }
+        await api.waitUntilRestIsBeingRead()
+        for _ in 0..<50 where PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count < 200 {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        let whileReading = PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).map(\.id)
+        api.finishReading()
+        await opening.value
+
+        XCTAssertEqual(whileReading, first.map(\.id))
+        XCTAssertEqual(PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).map(\.id), all.map(\.id))
+    }
+
+    func testMemoryCacheKeepsTrackListsBoundedLeastRecentlyUsedFirst() throws {
+        let cache = MemoryBrowsingCache(maxTracks: 4)
+        let now = Date()
+        let two = [PlaylistBrowsingTestFixtures.track(id: "x"), PlaylistBrowsingTestFixtures.track(id: "y")]
+        try cache.saveTracks(two, playlistID: "a", snapshotID: "s", cachedAt: now)
+        try cache.saveTracks(two, playlistID: "b", snapshotID: "s", cachedAt: now)
+        XCTAssertEqual(try cache.loadTracks(playlistID: "a", snapshotID: "s", now: now, maxAge: 60), two)
+        try cache.saveTracks(two, playlistID: "c", snapshotID: "s", cachedAt: now)
+
+        XCTAssertNotNil(try cache.loadTracks(playlistID: "a", snapshotID: "s", now: now, maxAge: 60))
+        XCTAssertNil(try cache.loadTracks(playlistID: "b", snapshotID: "s", now: now, maxAge: 60))
+        XCTAssertNil(try cache.loadTracks(playlistID: "a", snapshotID: "s", now: now.addingTimeInterval(61), maxAge: 60))
+        try cache.invalidateTracks(playlistID: "c")
+        XCTAssertNil(try cache.loadTracksIgnoringAge(playlistID: "c", snapshotID: "s"))
+    }
+}
+
+private final class ReadCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = 0
+    var count: Int { lock.withLock { value } }
+    func increment() { lock.withLock { value += 1 } }
+}
+
+/// Liked Songs that hand over their first page, then wait until the test lets the rest finish.
+private final class FirstPageSavedTracksAPI: MusicBrowsingProvider, @unchecked Sendable {
+    private let firstPage: [MusicPlaylistTrackItem]
+    private let all: [MusicPlaylistTrackItem]
+    private var restStarted: CheckedContinuation<Void, Never>?
+    private var restFinished: CheckedContinuation<Void, Never>?
+    private var isRestStarted = false
+    private let lock = NSLock()
+
+    init(firstPage: [MusicPlaylistTrackItem], all: [MusicPlaylistTrackItem]) {
+        self.firstPage = firstPage
+        self.all = all
+    }
+
+    func waitUntilRestIsBeingRead() async {
+        await withCheckedContinuation { continuation in
+            let started = lock.withLock { () -> Bool in
+                if isRestStarted { return true }
+                restStarted = continuation
+                return false
+            }
+            if started { continuation.resume() }
+        }
+    }
+
+    func finishReading() {
+        lock.withLock { () -> CheckedContinuation<Void, Never>? in
+            defer { restFinished = nil }
+            return restFinished
+        }?.resume()
+    }
+
+    /// A browser that doesn't ask for the first page reads everything at once.
+    func currentUserSavedTracks(limit: Int, maxPages: Int?) async throws -> MusicSavedTracksResult {
+        lock.withLock { () -> CheckedContinuation<Void, Never>? in
+            isRestStarted = true
+            defer { restStarted = nil }
+            return restStarted
+        }?.resume()
+        return MusicSavedTracksResult(tracks: all, totalAvailable: all.count)
+    }
+
+    func currentUserSavedTracks(
+        limit: Int,
+        maxPages: Int?,
+        firstPage handOver: @escaping @Sendable (MusicSavedTracksResult) async -> Void
+    ) async throws -> MusicSavedTracksResult {
+        await handOver(MusicSavedTracksResult(tracks: firstPage, totalAvailable: firstPage.count))
+        await withCheckedContinuation { continuation in
+            let waiting = lock.withLock { () -> CheckedContinuation<Void, Never>? in
+                isRestStarted = true
+                restFinished = continuation
+                defer { restStarted = nil }
+                return restStarted
+            }
+            waiting?.resume()
+        }
+        return MusicSavedTracksResult(tracks: all, totalAvailable: all.count)
+    }
+
+    func currentUserPlaylists(limit: Int) async throws -> [MusicPlaylistSummary] { [] }
+    func playlistTracks(playlistID: String, limit: Int, maxPages: Int) async throws -> [MusicPlaylistTrackItem] { [] }
+    func currentUserProfile() async throws -> MusicUserProfile { MusicUserProfile(id: "u", displayName: nil, country: "CH") }
+    func artist(id: String, cacheMode: MusicRequestCacheMode) async throws -> MusicArtistDetail {
+        MusicArtistDetail(id: id, name: id, imageURL: nil, followersTotal: nil, genres: [], uri: id)
+    }
+    func artistCached(id: String, cacheMode: MusicRequestCacheMode) async throws -> MusicCachedResponse<MusicArtistDetail> {
+        MusicCachedResponse(value: try await artist(id: id, cacheMode: cacheMode), isStale: false)
+    }
+    func artistAlbumsCached(
+        id: String,
+        includeGroups: [MusicArtistAlbumGroup],
+        limit: Int,
+        cacheMode: MusicRequestCacheMode
+    ) async throws -> MusicCachedResponse<[MusicArtistAlbum]> {
+        MusicCachedResponse(value: [], isStale: false)
+    }
+    func artistAlbumsPage(
+        id: String,
+        includeGroups: [MusicArtistAlbumGroup],
+        limit: Int,
+        offset: Int,
+        nextURL: URL?,
+        cacheMode: MusicRequestCacheMode
+    ) async throws -> MusicArtistAlbumsPage {
+        MusicArtistAlbumsPage(items: [], next: nil)
+    }
+    func search(query: String, limit: Int) async throws -> MusicSearchResults {
+        MusicSearchResults(tracks: [], artists: [], albums: [], playlists: [])
+    }
+    func albumTracks(albumID: String, market: String?, limit: Int) async throws -> [MusicTrack] { [] }
 }

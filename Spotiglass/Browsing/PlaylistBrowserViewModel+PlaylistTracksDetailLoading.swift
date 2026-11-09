@@ -20,7 +20,11 @@ extension PlaylistBrowserViewModel {
             if cachedTracks.isEmpty {
                 detailState = .empty(SpotiglassL10n.string("browser.noTracks.emptyPlaylist"))
             } else {
-                detailState = .loaded(.playlist(PlaylistDetailViewModel(playlist: playlistRow, tracks: TrackRowViewModel.numberedPlaylistRows(cachedTracks))))
+                await showPlaylistRows(
+                    PlaylistDetailViewModel(playlist: playlistRow, tracks: TrackRowViewModel.numberedPlaylistRows(cachedTracks)),
+                    session: session
+                )
+                guard session == detailSession else { return }
             }
             if let last = lastTracksRevalidationByID[playlist.id],
                last.snapshotID == playlist.snapshotID,
@@ -36,11 +40,29 @@ extension PlaylistBrowserViewModel {
             if staleTracks.isEmpty {
                 detailState = .empty(SpotiglassL10n.string("browser.noTracks.emptyPlaylist"))
             } else {
-                detailState = .loaded(.playlist(PlaylistDetailViewModel(playlist: playlistRow, tracks: TrackRowViewModel.numberedPlaylistRows(staleTracks))))
+                await showPlaylistRows(
+                    PlaylistDetailViewModel(playlist: playlistRow, tracks: TrackRowViewModel.numberedPlaylistRows(staleTracks)),
+                    refreshing: true,
+                    session: session
+                )
+                guard session == detailSession else { return }
             }
             if let existingDetail = detailState.currentValue {
                 detailState = .refreshing(existingDetail)
             }
+            await revalidatePlaylistTracks(playlist: playlist, playlistRow: playlistRow, session: session)
+            return
+        }
+
+        // Songs the provider read earlier (Apple Music counts every playlist after launch) show
+        // at once; the read below replaces them if the playlist changed since (#442).
+        if refreshCachedData, let lastRead = await api.lastReadPlaylistTracks(playlistID: playlist.id) {
+            guard session == detailSession else { return }
+            await showPlaylistRows(
+                PlaylistDetailViewModel(playlist: withSidebarTrackCount(playlistRow), tracks: TrackRowViewModel.numberedPlaylistRows(lastRead)),
+                session: session
+            )
+            guard session == detailSession else { return }
             await revalidatePlaylistTracks(playlist: playlist, playlistRow: playlistRow, session: session)
             return
         }
@@ -68,10 +90,13 @@ extension PlaylistBrowserViewModel {
             if tracks.isEmpty {
                 detailState = .empty(SpotiglassL10n.string("browser.noTracks.emptyPlaylist"))
             } else {
-                detailState = .loaded(.playlist(PlaylistDetailViewModel(
-                    playlist: withSidebarTrackCount(playlistRow),
-                    tracks: TrackRowViewModel.numberedPlaylistRows(tracks)
-                )))
+                await showPlaylistRows(
+                    PlaylistDetailViewModel(
+                        playlist: withSidebarTrackCount(playlistRow),
+                        tracks: TrackRowViewModel.numberedPlaylistRows(tracks)
+                    ),
+                    session: session
+                )
             }
         } catch is CancellationError {
             return
@@ -102,9 +127,47 @@ extension PlaylistBrowserViewModel {
         }
     }
 
+    /// Rows a long list shows before the rest: a screen and a bit of a tall window.
+    static let firstScreenRowCount = 60
+    /// How long the first screen of rows gets to draw before the rest is added.
+    static let firstScreenDrawTime: Duration = .milliseconds(16)
+
+    /// Shows a playlist's rows. The list lays out every row it is given before it draws again,
+    /// so 800 songs at once kept it blank for most of a second (#442). A long list that isn't
+    /// on screen yet shows one screen of rows first, then all of them below it. Every change
+    /// lays out the whole list again, so the rest goes in one step: adding it in smaller ones
+    /// cost more in total, and more for each step than the one before. A list already showing
+    /// the start of these rows gets the rest the same way; any other list on screen is replaced
+    /// at once, as cutting it back would make it jump.
+    func showPlaylistRows(_ detail: PlaylistDetailViewModel, refreshing: Bool = false, session: Int) async {
+        let state: (PlaylistDetailViewModel) -> BrowsingLoadState<BrowsingDetailContent> = { shown in
+            refreshing ? .refreshing(.playlist(shown)) : .loaded(.playlist(shown))
+        }
+        if case let .playlist(shown)? = detailState.currentValue, shown.playlist.id == detail.playlist.id {
+            // A fresh read that found what is on screen changes nothing: setting it anyway lays
+            // the whole list out again.
+            let next = state(detail)
+            if detailState != next { detailState = next }
+            return
+        }
+        guard detail.tracks.count > Self.firstScreenRowCount else {
+            detailState = state(detail)
+            return
+        }
+        let firstScreen = state(PlaylistDetailViewModel(
+            playlist: detail.playlist,
+            tracks: Array(detail.tracks.prefix(Self.firstScreenRowCount))
+        ))
+        detailState = firstScreen
+        try? await Task.sleep(for: Self.firstScreenDrawTime)
+        // Another surface, or a newer read of this one, took over meanwhile.
+        guard session == detailSession, detailState == firstScreen else { return }
+        detailState = state(detail)
+    }
+
     /// The header row with the sidebar's count when a newer one arrived while the tracks
     /// loaded (Apple Music counts arrive after the listing, #407).
-    private func withSidebarTrackCount(_ row: PlaylistRowViewModel) -> PlaylistRowViewModel {
+    func withSidebarTrackCount(_ row: PlaylistRowViewModel) -> PlaylistRowViewModel {
         guard api.listsPlaylistsWithoutTrackCounts,
               let summary = playlistsByID[row.id], summary.trackCount != row.trackCount else { return row }
         return PlaylistRowViewModel(summary)

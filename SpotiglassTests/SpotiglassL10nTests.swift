@@ -24,6 +24,27 @@ final class SpotiglassL10nTests: XCTestCase {
         XCTAssertEqual(locale.identifier, "en")
     }
 
+    /// Each lookup used to ask every loaded bundle and framework for the language's folder
+    /// again; a track row looks up several strings, so an 800-song list spent most of its
+    /// layout there (#442). The folders are found once per language.
+    func testTheLanguageBundlesAreFoundOncePerLanguage() {
+        let german = Locale(identifier: "de")
+        let english = Locale(identifier: "en")
+        _ = SpotiglassL10n.string("browser.home", locale: german)
+        _ = SpotiglassL10n.string("browser.home", locale: english)
+        let searches = SpotiglassL10n.localizationBundleSearches.withLock { $0 }
+
+        for _ in 0..<500 {
+            _ = SpotiglassL10n.string("browser.track.play", locale: german)
+            _ = SpotiglassL10n.string("playback.pause", locale: english)
+        }
+
+        XCTAssertEqual(SpotiglassL10n.localizationBundleSearches.withLock { $0 }, searches)
+        XCTAssertNotEqual(SpotiglassL10n.string("browser.home", locale: german),
+                          SpotiglassL10n.string("browser.home", locale: english),
+                          "each language still gets its own strings")
+    }
+
     func testStringAndFormatResolveKeys() {
         SpotiglassL10n.settingsStore = nil
         let home = SpotiglassL10n.string("browser.home")

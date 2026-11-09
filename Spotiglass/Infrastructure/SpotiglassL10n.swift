@@ -56,6 +56,15 @@ enum SpotiglassL10n {
     /// "Untitled Playlist" on background tasks, which used to fall back to English (#398).
     /// ``settingsStore`` and ``SpotiglassSettingsStore`` keep it current.
     private static let offMainLocale = OSAllocatedUnfairLock<Locale?>(initialState: nil)
+    /// The `.lproj` bundles each language's strings can come from, in lookup order, found once.
+    /// Finding them asks every loaded bundle and framework (hundreds) for a folder, which every
+    /// lookup used to do again: a track row looks up several strings, so a list of 800 songs
+    /// spent most of its layout time here (#442).
+    private static let localizationBundles = OSAllocatedUnfairLock<[String: [Bundle]]>(initialState: [:])
+    #if DEBUG
+    /// How often the bundles were looked for, for tests.
+    static let localizationBundleSearches = OSAllocatedUnfairLock<Int>(initialState: 0)
+    #endif
 
     static var locale: Locale {
         if Thread.isMainThread {
@@ -113,29 +122,34 @@ enum SpotiglassL10n {
         String(format: string(key, locale: locale), arguments: arguments)
     }
 
+    /// The first of the language's bundles that has `key`, else the first of them.
     private static func bundle(for loc: Locale, key: String) -> Bundle {
+        let bundles = localizationBundles(for: loc)
+        return bundles.first { containsKey(key, in: $0) } ?? bundles.first ?? .main
+    }
+
+    private static func localizationBundles(for loc: Locale) -> [Bundle] {
+        if let known = localizationBundles.withLock({ $0[loc.identifier] }) { return known }
+        #if DEBUG
+        localizationBundleSearches.withLock { $0 += 1 }
+        #endif
         // `Bundle.main` is the app bundle in production. The test host can make
         // it the XCTest bundle, so also search the bundle that owns the app
         // type; this keeps direct localization lookups honest in both targets.
         var candidates = [Bundle.main, Bundle(for: SpotiglassSettingsStore.self)]
         candidates.append(contentsOf: Bundle.allBundles)
         candidates.append(contentsOf: Bundle.allFrameworks)
-        var fallback: Bundle?
+        var bundles: [Bundle] = []
         var seen: Set<URL> = []
         for candidate in candidates where seen.insert(candidate.bundleURL).inserted {
             var paths = [candidate.path(forResource: loc.identifier, ofType: "lproj")]
             if let language = loc.language.languageCode?.identifier {
                 paths.append(candidate.path(forResource: language, ofType: "lproj"))
             }
-            for path in paths.compactMap({ $0 }) {
-                guard let bundle = Bundle(path: path) else { continue }
-                fallback = fallback ?? bundle
-                if containsKey(key, in: bundle) {
-                    return bundle
-                }
-            }
+            bundles += paths.compactMap { $0 }.compactMap(Bundle.init(path:))
         }
-        return fallback ?? .main
+        localizationBundles.withLock { $0[loc.identifier] = bundles }
+        return bundles
     }
 
     private static func containsKey(_ key: String, in bundle: Bundle) -> Bool {
