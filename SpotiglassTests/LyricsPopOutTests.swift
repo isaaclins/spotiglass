@@ -815,5 +815,64 @@ final class LyricsPopOutTests: XCTestCase {
         defer { AppKitTestSupport.closeWindowSafely(open) }
         XCTAssertEqual(SpotiglassApplicationDelegate.reopenAction(for: [popOut, open]), .system)
     }
+
+    /// Apple Music's player made by a main window after the pop-out opened: the window picks it up.
+    func testTheWindowPicksUpAnAppleMusicPlayerMadeLater() throws {
+        let (_, keymap) = makeManager()
+        let (spotify, _) = playingSpotify()
+        let hosts = SpotiglassPlaybackHosts(spotify: spotify) {
+            SpotiglassPlaybackHost(provider: AppleMusicPlaybackProvider(player: ScriptedAppleMusicPlayer()))
+        }
+        let services = MusicServiceStore(
+            storage: InMemoryMusicServiceSelectionStorage(services: [.spotify, .appleMusic], active: .appleMusic)
+        )
+        var made = 0
+        defer { ViewTestHost.tearDownAll() }
+        _ = try hostPopOut(
+            LyricsPopOutRoot(
+                playbackHosts: hosts,
+                serviceStore: services,
+                keymapStore: keymap,
+                makeLyricsModel: {
+                    made += 1
+                    return ImmersiveLyricsViewModel(fetchLyrics: { _ in .instrumental })
+                }
+            ),
+            size: LyricsPopOutWindow.defaultSize
+        )
+        XCTAssertEqual(made, 0, "no player yet, nothing to follow")
+
+        _ = hosts.appleMusic
+        for _ in 0..<40 where made == 0 {
+            AppKitTestSupport.pumpRunLoop(for: 0.05)
+        }
+        XCTAssertEqual(made, 1, "the window follows the player once it exists")
+    }
+
+    /// The player bar's lines for every state with no song to name, pinned: the bar and the pop-out
+    /// share them, and an edit there must not change the bar unnoticed.
+    func testThePlayerBarsStatusLinesForEveryState() {
+        func lines(_ state: PlaybackConnectionState, pushes: Bool = true, _ service: MusicService = .spotify) -> [String]? {
+            PlaybackControlsView.statusLines(for: state, playerPushesState: pushes, service: service).map { [$0.title, $0.subtitle] }
+        }
+        func l(_ key: String) -> String { SpotiglassL10n.string(key) }
+        XCTAssertEqual(lines(.disconnected), [l("playback.controls.state.disconnected.title"), l("playback.controls.state.disconnected.subtitle")])
+        XCTAssertEqual(lines(.disconnected, .appleMusic), [l("playback.controls.state.disconnected.title"), l("playback.controls.state.disconnected.subtitle.appleMusic")])
+        XCTAssertEqual(lines(.connecting), [l("playback.controls.state.connecting.title"), l("playback.controls.state.connecting.subtitle")])
+        XCTAssertEqual(lines(.connecting, .appleMusic), [l("playback.controls.state.connecting.title.appleMusic"), l("playback.controls.state.connecting.subtitle.appleMusic")])
+        XCTAssertEqual(lines(.ready(deviceID: "d")), [l("playback.controls.state.ready.title"), l("playback.controls.state.ready.subtitle")])
+        XCTAssertEqual(lines(.ready(deviceID: "d"), pushes: false), [l("playback.controls.state.ready.title"), l("playback.controls.state.ready.subtitle.appleMusic")])
+        XCTAssertEqual(lines(.transferring(deviceID: "d")), [l("playback.controls.state.transferring.title"), l("playback.controls.state.transferring.subtitle")])
+        XCTAssertEqual(lines(.paused(nil)), [l("playback.controls.state.paused.title"), l("playback.controls.state.paused.subtitle")])
+        XCTAssertEqual(lines(.unavailable("No subscription.")), [l("playback.controls.state.unavailable.title"), "No subscription."])
+        let error = PlaybackDisplayError(title: "Couldn't play", message: "Try again.", recoveryAction: nil)
+        XCTAssertEqual(lines(.error(error)), ["Couldn't play", "Try again."])
+        let song = PlaybackNowPlaying(
+            name: "Midnight City", artists: ["M83"], albumName: nil, albumID: nil, albumArtURL: nil,
+            durationMilliseconds: 240_000, positionMilliseconds: 1_000, uri: "spotify:track:1"
+        )
+        XCTAssertNil(lines(.playing(song)))
+        XCTAssertNil(lines(.paused(song)))
+    }
 }
 

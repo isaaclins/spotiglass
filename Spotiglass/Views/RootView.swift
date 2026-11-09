@@ -213,6 +213,9 @@ private final class SceneHostActivationProbeView: NSView {
         guard let window else { return }
 
         observedWindow = window
+        // Recorded as soon as it has a window, key or not: one restored minimised at launch
+        // never becomes key, and a Dock click must still find it (#439).
+        SpotiglassMainWindows.add(window)
         if window.isKeyWindow {
             activate(window)
         }
@@ -464,7 +467,6 @@ struct RootView: View {
                     SceneHostActivationView(
                         activate: { window in
                             sceneHost.window = window
-                            SpotiglassMainWindows.add(window)
                             sceneRegistry.activate(sceneHost)
                         },
                         resignKey: { sceneRegistry.mainWindowResignedKey() }

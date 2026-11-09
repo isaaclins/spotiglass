@@ -100,6 +100,9 @@ final class SpotiglassPlaybackHosts: ObservableObject {
     let spotify: SpotiglassPlaybackHost
     private let makeAppleMusic: () -> SpotiglassPlaybackHost
     private(set) var appleMusicIfCreated: SpotiglassPlaybackHost?
+    /// Fires once Apple Music's player exists, for views that follow it without creating it (the
+    /// pop-out lyrics window, #439). Sent on the next turn: the player is often made mid-render.
+    let appleMusicCreated = PassthroughSubject<Void, Never>()
     private var addedServices: [MusicService]?
     private var cancellables: Set<AnyCancellable> = []
 
@@ -114,6 +117,7 @@ final class SpotiglassPlaybackHosts: ObservableObject {
         link(spotify.playbackViewModel, created.playbackViewModel)
         link(created.playbackViewModel, spotify.playbackViewModel)
         appleMusicIfCreated = created
+        DispatchQueue.main.async { [weak self] in self?.appleMusicCreated.send() }
         return created
     }
 

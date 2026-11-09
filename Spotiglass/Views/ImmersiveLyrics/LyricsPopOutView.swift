@@ -63,8 +63,12 @@ struct LyricsPopOutRoot: View {
     let keymapStore: CommandPaletteKeymapStore
     /// Where the window's lyrics come from: LRCLIB through the app-wide cache, or a stand-in in tests.
     var makeLyricsModel: @MainActor () -> ImmersiveLyricsViewModel = { ImmersiveLyricsViewModel() }
+    /// Counts Apple Music's player coming into being, so the window looks again once a main
+    /// window has made it.
+    @State private var appleMusicCreations = 0
 
     var body: some View {
+        let _ = appleMusicCreations
         Group {
             if let service = serviceStore.active, let onScreenPlayer = player(for: service) {
                 LyricsPopOutPlayerResolver(
@@ -84,6 +88,7 @@ struct LyricsPopOutRoot: View {
                 .opacity(0.01)
                 .accessibilityHidden(true)
         }
+        .onReceive(playbackHosts.appleMusicCreated) { appleMusicCreations += 1 }
     }
 
     private func player(for service: MusicService) -> PlaybackSessionViewModel? {
