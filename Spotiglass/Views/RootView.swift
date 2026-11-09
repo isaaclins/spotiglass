@@ -9,6 +9,9 @@ import SwiftUI
 final class SpotiglassSceneHost: ObservableObject {
     let commandPaletteManager: CommandPaletteManager
     let lyricsOverlayController: LyricsOverlayController
+    /// The main window this scene runs in, set when it becomes key. Show/Hide Sidebar
+    /// compares it with the window in front (#436).
+    weak var window: NSWindow?
     /// Each service's browser state, kept while another service is on screen, so switching back
     /// shows that library instantly at the place it was left (#373). Dropped when the service's
     /// session ends.
@@ -132,7 +135,7 @@ final class SpotiglassSceneRegistry: ObservableObject {
 /// A zero-sized AppKit probe makes menu routing follow the key main window,
 /// rather than only the last window that happened to appear.
 private struct SceneHostActivationView: NSViewRepresentable {
-    let activate: () -> Void
+    let activate: (NSWindow) -> Void
 
     func makeNSView(context: Context) -> SceneHostActivationProbeView {
         SceneHostActivationProbeView(activate: activate)
@@ -145,11 +148,11 @@ private struct SceneHostActivationView: NSViewRepresentable {
 }
 
 private final class SceneHostActivationProbeView: NSView {
-    var activate: () -> Void
+    var activate: (NSWindow) -> Void
     private weak var observedWindow: NSWindow?
     private var keyWindowObserver: NSObjectProtocol?
 
-    init(activate: @escaping () -> Void) {
+    init(activate: @escaping (NSWindow) -> Void) {
         self.activate = activate
         super.init(frame: .zero)
     }
@@ -171,14 +174,15 @@ private final class SceneHostActivationProbeView: NSView {
 
         observedWindow = window
         if window.isKeyWindow {
-            activate()
+            activate(window)
         }
         keyWindowObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didBecomeKeyNotification,
             object: window,
             queue: .main
-        ) { [weak self] _ in
-            self?.activate()
+        ) { [weak self, weak window] _ in
+            guard let window else { return }
+            self?.activate(window)
         }
     }
 
@@ -404,7 +408,8 @@ struct RootView: View {
             }
             .background {
                 if let sceneRegistry {
-                    SceneHostActivationView {
+                    SceneHostActivationView { window in
+                        sceneHost.window = window
                         sceneRegistry.activate(sceneHost)
                     }
                     .frame(width: 0, height: 0)
@@ -417,6 +422,7 @@ struct RootView: View {
                 await viewModel.restoreSessionIfAvailable()
             }
             .onAppear {
+                commandPaletteManager.sceneWindow = { [weak sceneHost] in sceneHost?.window }
                 commandPaletteManager.isCurrentScene = { [weak sceneHost, weak sceneRegistry] in
                     guard let sceneRegistry else { return true }
                     guard let sceneHost else { return false }

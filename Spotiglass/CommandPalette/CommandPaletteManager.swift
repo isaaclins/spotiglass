@@ -29,6 +29,10 @@ final class CommandPaletteManager: ObservableObject {
     /// Event monitors exist in every main-window scene. Only the key scene may
     /// consume a shortcut, while standalone manager tests keep the default.
     var isCurrentScene: () -> Bool = { true }
+    /// The main window this scene runs in. `nil` in tests and previews.
+    var sceneWindow: () -> NSWindow? = { nil }
+    /// The window in front; a seam so tests can put another window there.
+    var frontWindow: () -> NSWindow? = { NSApp.keyWindow }
     var signOut: (() -> Void)?
     var openSettings: (() -> Void)?
     /// Switches the app to another added service. App-wide and browser-free, so ``detach()``
@@ -450,7 +454,14 @@ final class CommandPaletteManager: ObservableObject {
             guard canToggleLyrics else { return }
             toggleLyrics?()
         case CommandPaletteCommandID.toggleSidebar:
-            toggleSidebar?()
+            // Like the system item it replaces, Show/Hide Sidebar acts on the window in front:
+            // with Settings in front it collapses Settings' own sidebar, not the browser's
+            // sidebar behind it (#436).
+            if let front = frontWindow(), let own = sceneWindow(), front !== own {
+                NSApp.sendAction(#selector(NSSplitViewController.toggleSidebar(_:)), to: nil, from: nil)
+            } else {
+                toggleSidebar?()
+            }
         case CommandPaletteCommandID.enqueueTrackSelection:
             Task { await enqueueTrackSelection?() }
         case CommandPaletteCommandID.pinTrackSelection:

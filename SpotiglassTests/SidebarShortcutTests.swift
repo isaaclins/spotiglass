@@ -292,3 +292,24 @@ final class SidebarShortcutTests: XCTestCase {
         XCTAssertEqual(toggles(), 2)
     }
 }
+
+extension SidebarShortcutTests {
+    /// With Settings in front, ⌘S is for Settings' own sidebar, as the system item was. It must
+    /// not hide the browser's sidebar in the window behind (#436).
+    func testAnotherWindowInFrontKeepsTheBrowserSidebar() {
+        let (manager, toggles) = makeManager()
+        let browserWindow = makeWindow(content: NSView())
+        let settingsWindow = makeWindow(content: NSView())
+        manager.sceneWindow = { browserWindow }
+
+        manager.frontWindow = { settingsWindow }
+        XCTAssertTrue(manager.handleKeyEvent(commandS))
+        XCTAssertTrue(manager.handleKeyEvent(controlCommandS))
+        manager.execute(commandID: CommandPaletteCommandID.toggleSidebar)
+        XCTAssertEqual(toggles(), 0)
+
+        manager.frontWindow = { browserWindow }
+        XCTAssertTrue(manager.handleKeyEvent(commandS))
+        XCTAssertEqual(toggles(), 1)
+    }
+}
