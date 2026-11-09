@@ -178,7 +178,7 @@ enum LyricsPopOutTransport {
         guard canRun(commandID, on: player) else { return }
         switch commandID {
         case CommandPaletteCommandID.togglePlayback:
-            Task { await player.togglePlayPause() }
+            player.requestTogglePlayPause()
         case CommandPaletteCommandID.previousTrack:
             Task { await player.previous() }
         case CommandPaletteCommandID.nextTrack:

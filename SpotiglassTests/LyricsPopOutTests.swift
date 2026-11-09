@@ -66,8 +66,10 @@ final class LyricsPopOutTests: XCTestCase {
         return (host, commander)
     }
 
-    private func toggles(_ commander: MockWebPlaybackCommander) -> Int {
-        commander.commands.filter { $0.command == .togglePlay }.count
+    /// Play / pause on a playing Spotify asks its in-app player to pause (#437), never toggles it.
+    private func pauses(_ commander: MockWebPlaybackCommander) -> Int {
+        XCTAssertFalse(commander.commands.contains { $0.command == .togglePlay }, "Spotify was toggled, not paused")
+        return commander.commands.filter { $0.command == .pause }.count
     }
 
     // MARK: Opening it
@@ -184,10 +186,10 @@ final class LyricsPopOutTests: XCTestCase {
         XCTAssertFalse(monitor.handle(keyDown(keyCode: 53, characters: "\u{1b}", window: popOut)))
         XCTAssertFalse(monitor.handle(keyDown(keyCode: 40, characters: "k", modifiers: [.command], window: popOut)))
         XCTAssertTrue(monitor.handle(keyDown(keyCode: 49, characters: " ", window: popOut)))
-        for _ in 0..<20 where toggles(commander) == 0 {
+        for _ in 0..<20 where pauses(commander) == 0 {
             try await Task.sleep(for: .milliseconds(25))
         }
-        XCTAssertEqual(toggles(commander), 1, "Space pauses what the pop-out shows")
+        XCTAssertEqual(pauses(commander), 1, "Space pauses what the pop-out shows")
 
         // The same key in another window is not the pop-out's to answer.
         let main = makeWindow()
@@ -537,11 +539,11 @@ final class LyricsPopOutTests: XCTestCase {
         XCTAssertTrue(LyricsPopOutWindow.isPopOut(window))
 
         NSApp.postEvent(keyDown(keyCode: 49, characters: " ", window: window), atStart: false)
-        for _ in 0..<40 where toggles(commander) == 0 {
+        for _ in 0..<40 where pauses(commander) == 0 {
             AppKitTestSupport.pumpRunLoop(for: 0.05)
             try await Task.sleep(for: .milliseconds(10))
         }
-        XCTAssertEqual(toggles(commander), 1, "Space in the pop-out pauses what it shows")
+        XCTAssertEqual(pauses(commander), 1, "Space in the pop-out pauses what it shows")
     }
 
     /// With no service signed in the window has no player to follow and shows its empty state;
