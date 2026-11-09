@@ -232,7 +232,7 @@ struct PlaylistBrowserMainDetailColumn: View {
             },
             playback: TrackRowPlaybackSource(session: playbackViewModel),
             togglePlayPause: {
-                Task { await playbackViewModel.togglePlayPause() }
+                playbackViewModel.requestTogglePlayPause()
             },
             hasPlaybackDevice: hasPlaybackDevice,
             addToQueue: { uri in
@@ -290,7 +290,7 @@ struct PlaylistBrowserMainDetailColumn: View {
             },
             playback: TrackRowPlaybackSource(session: playbackViewModel),
             togglePlayPause: {
-                Task { await playbackViewModel.togglePlayPause() }
+                playbackViewModel.requestTogglePlayPause()
             },
             hasPlaybackDevice: hasPlaybackDevice,
             addToQueue: { uri in

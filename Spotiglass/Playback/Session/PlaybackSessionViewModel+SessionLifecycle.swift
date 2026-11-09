@@ -4,6 +4,8 @@ import Foundation
 extension PlaybackSessionViewModel {
     @discardableResult
     func beginPlaybackHostLifecycle() -> PlaybackHostGeneration {
+        // The old page's reports and answers no longer count for play / pause (#437).
+        forgetInAppPlayPauseWaits()
         playbackHostConnectTask?.cancel()
         playbackHostConnectTask = nil
         playbackHostConnectTimeoutTask?.cancel()
@@ -220,7 +222,13 @@ extension PlaybackSessionViewModel {
         playbackHostHardReloadInstants.removeAll()
         inflightTransferTask = nil
         activeInflightTransferSerial = nil
-        clearTogglePlayPauseAckWait()
+        forgetInAppPlayPauseWaits()
+        clearRefusedPlayPause()
+        pageReportedPlayState = nil
+        playPauseConfirmedState = nil
+        lastSentReadPress = nil
+        lastSentInAppPress = nil
+        playPauseReadHoldUntil = nil
         guard ownsPlaybackHostGeneration(generation) else { return }
         do {
             try await provider.disconnectPlayer(generation: hostGeneration)

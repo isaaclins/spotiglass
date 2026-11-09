@@ -8,12 +8,10 @@ enum WebPlaybackCommandScriptBuilder {
             return "window.spotiglassPlayback && window.spotiglassPlayback.connect();"
         case .disconnect:
             return "window.spotiglassPlayback && window.spotiglassPlayback.disconnect();"
-        case .togglePlay:
-            return "window.spotiglassPlayback && window.spotiglassPlayback.togglePlay();"
-        case .pause:
-            return "window.spotiglassPlayback && window.spotiglassPlayback.pause();"
-        case .resume:
-            return "window.spotiglassPlayback && window.spotiglassPlayback.resume();"
+        case .togglePlay, .pause, .resume:
+            // A play / pause press's id comes back with the page's answer (#437).
+            let id = (payload["id"] as? NSNumber).map { String($0.uint64Value) } ?? ""
+            return "window.spotiglassPlayback && window.spotiglassPlayback.\(command.rawValue)(\(id));"
         case .seek:
             let milliseconds = payload["milliseconds"] as? Int ?? 0
             return "window.spotiglassPlayback && window.spotiglassPlayback.seek(\(milliseconds));"

@@ -157,7 +157,7 @@ struct HomeView: View {
                             }
                         },
                         togglePlayPause: {
-                            Task { await playbackViewModel.togglePlayPause() }
+                            playbackViewModel.requestTogglePlayPause()
                         },
                         isCurrent: mark.isCurrent,
                         isPlaying: mark.isPlaying,

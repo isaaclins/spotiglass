@@ -31,8 +31,10 @@ final class CrossServicePlaybackTests: XCTestCase {
         return (host, commander)
     }
 
+    /// Play / pause commands Spotify's page got: a toggle, or the pause / resume a press sends
+    /// when it knows the state it wants (#437).
     private func toggles(_ commander: MockWebPlaybackCommander) -> Int {
-        commander.commands.filter { $0.command == .togglePlay }.count
+        commander.commands.filter { [.togglePlay, .pause, .resume].contains($0.command) }.count
     }
 
     private func hosts(
@@ -322,7 +324,8 @@ final class CrossServicePlaybackTests: XCTestCase {
         let manager = wirePalette(to: playback)
         XCTAssertTrue(manager.canTogglePlayback, "Playback › Play/Pause can pause what you hear")
         XCTAssertTrue(manager.playbackTogglePrerequisite?() ?? false)
-        await manager.togglePlayback?()
+        manager.togglePlayback?()
+        await appleMusic.playPauseCommandTail?.value
         player.advance(by: 1)
 
         XCTAssertEqual(toggles(commander), 0, "Midnight City stays paused")
