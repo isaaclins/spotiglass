@@ -7160,19 +7160,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass-Einstellungen und Tastenkürzel"
+            "value": "Spotiglass-Einstellungen und Tastenkürzel ändern"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spotiglass preferences and shortcuts"
+            "value": "Change Spotiglass preferences and shortcuts"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Preferencias y atajos de Spotiglass"
+            "value": "Cambiar preferencias y atajos de Spotiglass"
           }
         }
       }
@@ -7345,19 +7345,19 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Stellt den hervorgehobenen Titel in die Warteschlange, ohne die Palette zu schliessen"
+            "value": "Hervorgehobenen Titel in die Warteschlange stellen, ohne die Palette zu schliessen"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Queues the highlighted track without dismissing the palette"
+            "value": "Queue the highlighted track without dismissing the palette"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Encola la canción resaltada sin cerrar la paleta"
+            "value": "Añadir la canción resaltada a la cola sin cerrar la paleta"
           }
         }
       }
@@ -7380,7 +7380,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Añadir elemento seleccionado a la cola"
+            "value": "Añadir elemento seleccionado de la paleta a la cola"
           }
         }
       }
@@ -7403,7 +7403,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Busca canciones, listas y comandos"
+            "value": "Buscar canciones, listas y comandos"
           }
         }
       }
@@ -7437,7 +7437,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Heftet das hervorgehobene Ergebnis an die Seitenleiste"
+            "value": "Hervorgehobenes Ergebnis an die Seitenleiste heften"
           }
         },
         "en": {
@@ -7449,7 +7449,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fija el resultado resaltado en la barra lateral"
+            "value": "Fijar el resultado resaltado en la barra lateral"
           }
         }
       }
@@ -7483,7 +7483,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Entfernt das hervorgehobene Ergebnis aus der Seitenleiste"
+            "value": "Hervorgehobenes Ergebnis aus der Seitenleiste entfernen"
           }
         },
         "en": {
@@ -7495,7 +7495,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Quita el resultado resaltado de la barra lateral"
+            "value": "Quitar el resultado resaltado de la barra lateral"
           }
         }
       }
@@ -7518,7 +7518,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Quitar elemento seleccionado de la barra lateral"
+            "value": "Dejar de fijar elemento seleccionado de la paleta"
           }
         }
       }
@@ -7621,7 +7621,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Zum vorherigen Titel zurück"
+            "value": "Zum vorherigen Titel zurückkehren"
           }
         },
         "en": {
@@ -7679,7 +7679,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pausa o reanuda la reproducción de Spotify"
+            "value": "Pausar o reanudar la reproducción de Spotify"
           }
         }
       }
@@ -7713,7 +7713,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Speichert die Titel jeder Playlist für sofortiges Öffnen im Cache"
+            "value": "Titel jeder Playlist für sofortiges Öffnen im Cache speichern"
           }
         },
         "en": {
@@ -7725,7 +7725,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Guarda en caché las canciones de cada lista para abrirlas al instante"
+            "value": "Guardar en caché las canciones de cada lista para abrirlas al instante"
           }
         }
       }
@@ -7742,7 +7742,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Load all your songs into Spotiglass"
+            "value": "Load All Your Songs into Spotiglass"
           }
         },
         "es": {
@@ -7759,7 +7759,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lädt die fokussierte Mediathek, Playlist, den Künstler oder die Warteschlange neu"
+            "value": "Fokussierte Mediathek, Playlist, Künstler oder Warteschlange neu laden"
           }
         },
         "en": {
@@ -7771,7 +7771,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Recarga la biblioteca, lista, artista o cola enfocados"
+            "value": "Recargar la biblioteca, lista, artista o cola enfocados"
           }
         }
       }
@@ -14500,6 +14500,52 @@
         }
       }
     },
+    "error.playback.appleMusic.explicit.message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Change it in Screen Time > Content & Privacy."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cámbialo en Tiempo de uso > Contenido y privacidad."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ändern unter Bildschirmzeit > Inhalt & Datenschutz."
+          }
+        }
+      }
+    },
+    "error.playback.appleMusic.explicit.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This Mac blocks explicit songs"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este Mac bloquea canciones explícitas"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Mac sperrt explizite Titel"
+          }
+        }
+      }
+    },
     "error.playback.appleMusic.failed": {
       "extractionState": "manual",
       "localizations": {
@@ -14627,7 +14673,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Muestra tu biblioteca de Apple Music"
+            "value": "Mostrar tu biblioteca de Apple Music"
           }
         },
         "de": {
@@ -14673,7 +14719,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Muestra tu biblioteca de Spotify"
+            "value": "Mostrar tu biblioteca de Spotify"
           }
         },
         "de": {
@@ -15213,25 +15259,25 @@
         }
       }
     },
-    "playback.controls.reconnect.appleMusic.hint": {
+    "playback.controls.state.disconnected.subtitle.appleMusic": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Connects Spotiglass to Apple Music again."
+            "value": "Apple Music playback starts on its own in a moment."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vuelve a conectar Spotiglass con Apple Music."
+            "value": "La reproducción de Apple Music empieza sola en un momento."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Verbindet Spotiglass wieder mit Apple Music."
+            "value": "Die Apple-Music-Wiedergabe startet gleich von selbst."
           }
         }
       }
@@ -15363,7 +15409,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pausa o reanuda la reproducción de Apple Music"
+            "value": "Pausar o reanudar la reproducción de Apple Music"
           }
         },
         "de": {
@@ -16269,6 +16315,116 @@
           "stringUnit": {
             "state": "translated",
             "value": "Leertaste"
+          }
+        }
+      }
+    },
+    "settings.updates.header": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updates"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updates"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualizaciones"
+          }
+        }
+      }
+    },
+    "settings.updates.installAutomatically": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updates automatisch installieren"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Install updates automatically"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Instalar actualizaciones automáticamente"
+          }
+        }
+      }
+    },
+    "settings.updates.footer.automatic": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass sucht alle paar Stunden nach einer neuen Version, lädt sie im Hintergrund und installiert sie beim nächsten Beenden der App."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass checks for a new version every few hours, downloads it in the background and installs it the next time you quit the app."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass busca una versión nueva cada pocas horas, la descarga en segundo plano y la instala la próxima vez que cierres la app."
+          }
+        }
+      }
+    },
+    "settings.updates.footer.manual": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass sucht nicht von selbst nach neuen Versionen. Mit „Nach Updates suchen…“ suchst du sofort."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass doesn't look for new versions by itself. Use Check for Updates… to look now."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass no busca versiones nuevas por sí sola. Usa «Buscar actualizaciones…» para buscar ahora."
+          }
+        }
+      }
+    },
+    "settings.updates.footer.prompt": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass sucht alle paar Stunden nach einer neuen Version und fragt dich, bevor sie installiert wird."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass checks for a new version every few hours and asks you before it installs one."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass busca una versión nueva cada pocas horas y te pregunta antes de instalarla."
           }
         }
       }

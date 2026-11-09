@@ -614,7 +614,7 @@ struct RootView: View {
                 }
                 .padding(SpotiglassDesign.spacingL)
             }
-            .frame(maxWidth: 560)
+            .frame(maxWidth: SpotiglassDesign.Layout.panelMaxWidth)
             .padding(SpotiglassDesign.spacingL)
         }
     }
@@ -633,7 +633,7 @@ struct RootView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
-                    .frame(maxWidth: 420)
+                    .frame(maxWidth: SpotiglassDesign.Layout.paragraphMaxWidth)
             }
         case .failed:
             VStack(alignment: .center, spacing: SpotiglassDesign.spacingXS) {
@@ -644,7 +644,7 @@ struct RootView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
-                    .frame(maxWidth: 420)
+                    .frame(maxWidth: SpotiglassDesign.Layout.paragraphMaxWidth)
             }
         case .signedIn, .refreshing:
             EmptyView()

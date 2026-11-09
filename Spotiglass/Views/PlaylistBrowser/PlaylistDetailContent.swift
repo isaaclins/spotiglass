@@ -273,7 +273,7 @@ struct PlaylistDetailContent: View {
 
             Spacer()
         }
-        .padding(SpotiglassDesign.spacingL)
+        .padding(SpotiglassDesign.Layout.contentMargin)
         .modifier(LibraryHeaderPinningModifier(
             supportsHeaderPinning: supportsHeaderPinning,
             headerPinnedItem: headerPinnedItem,

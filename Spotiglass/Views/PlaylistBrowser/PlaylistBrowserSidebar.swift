@@ -102,7 +102,8 @@ struct PlaylistBrowserSidebar: View {
                         header
                         Spacer(minLength: 0)
                     }
-                    .padding(.horizontal, SpotiglassDesign.spacingS)
+                    // With the switcher's own inset its logo lands on the rows' artwork edge.
+                    .padding(.horizontal, SpotiglassDesign.spacingXS)
                     .padding(.bottom, SpotiglassDesign.spacingXS)
                 }
             }

@@ -247,7 +247,7 @@ final class RecorderKeyContainerView: NSView, FocusedKeyEventOwner {
             button.trailingAnchor.constraint(equalTo: trailingAnchor),
             button.topAnchor.constraint(equalTo: topAnchor),
             button.bottomAnchor.constraint(equalTo: bottomAnchor),
-            heightAnchor.constraint(greaterThanOrEqualToConstant: 28),
+            heightAnchor.constraint(greaterThanOrEqualToConstant: SpotiglassDesign.Layout.shortcutFieldMinHeight),
         ])
     }
 

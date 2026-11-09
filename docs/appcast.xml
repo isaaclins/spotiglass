@@ -3,15 +3,17 @@
     <channel>
         <title>Spotiglass</title>
         <item>
-            <title>0.8.3</title>
-            <pubDate>Mon, 09 Nov 2026 00:58:16 +0100</pubDate>
-            <sparkle:version>14</sparkle:version>
-            <sparkle:shortVersionString>0.8.3</sparkle:shortVersionString>
+            <title>0.8.4</title>
+            <pubDate>Mon, 09 Nov 2026 01:58:45 +0100</pubDate>
+            <sparkle:version>15</sparkle:version>
+            <sparkle:shortVersionString>0.8.4</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[• The lyrics button in the player bar is centred again.
-• Apple Music covers in Recently played are sharp instead of blurry.
+            <description sparkle:format="plain-text"><![CDATA[• Spacing and alignment now follow one grid, so elements in the app line up.
+• The Reconnect button no longer shows up in the player bar when you use Apple Music.
+• Updates now install by themselves, and the app checks for them every few hours.
+• Playlists with explicit songs play on a Mac set to allow only clean music, including Your top tracks.
 ]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.3/Spotiglass-0.8.3.zip" length="12145395" type="application/octet-stream" sparkle:edSignature="MiqnSAEJ4lXLtFjHFuN0n1iI6WRsUQc/qN3GD4Gstti170zuKAeoFZjzyHYs/txe2dioikdWKxzocWfu9zjoBQ=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.4/Spotiglass-0.8.4.zip" length="12186022" type="application/octet-stream" sparkle:edSignature="2gyY2eDsHmSiSb1Hzb8aayooHEBDVGPQKNrM4bsw2XHZd8MtFNSuu1P8ys33QlqCpS2h7q126i3HKIQKtoLoCg=="/>
         </item>
     </channel>
 </rss>

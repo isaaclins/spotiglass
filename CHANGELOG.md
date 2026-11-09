@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.8.4] - 2026-11-09
+
+### Fixed
+
+- Spacing and alignment now follow one grid, so elements in the app line up.
+- The Reconnect button no longer shows up in the player bar when you use Apple Music.
+- Updates now install by themselves, and the app checks for them every few hours.
+- Playlists with explicit songs play on a Mac set to allow only clean music, including Your top tracks.
+
 ## [0.8.3] - 2026-11-09
 
 ### Fixed

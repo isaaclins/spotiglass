@@ -14,10 +14,15 @@ struct NavigationToolbarChrome: NSViewRepresentable {
     func makeNSView(context: Context) -> NSStackView {
         let stack = NSStackView()
         stack.orientation = .horizontal
-        stack.spacing = 10
+        stack.spacing = SpotiglassDesign.spacingXS
         stack.alignment = .centerY
         stack.distribution = .fill
-        stack.edgeInsets = NSEdgeInsets(top: 4, left: 10, bottom: 4, right: 8)
+        stack.edgeInsets = NSEdgeInsets(
+            top: SpotiglassDesign.spacingXXS,
+            left: SpotiglassDesign.spacingXS,
+            bottom: SpotiglassDesign.spacingXXS,
+            right: SpotiglassDesign.spacingXS
+        )
 
         let back = NSButton()
         back.bezelStyle = .shadowlessSquare
@@ -35,8 +40,8 @@ struct NavigationToolbarChrome: NSViewRepresentable {
         back.toolTip = backLabel
         back.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            back.widthAnchor.constraint(equalToConstant: 32),
-            back.heightAnchor.constraint(equalToConstant: 32)
+            back.widthAnchor.constraint(equalToConstant: SpotiglassDesign.Layout.toolbarButtonSize),
+            back.heightAnchor.constraint(equalToConstant: SpotiglassDesign.Layout.toolbarButtonSize)
         ])
 
         let hosting = NSHostingView(

@@ -13,7 +13,7 @@ struct ImmersiveLyricsMainLayout: View {
     let lyricsTextSize: LyricsTextMetrics
     /// Height of the narrow header, measured: a long title or artist line wraps and makes it
     /// taller than its 64 pt cover.
-    @State private var compactHeaderHeight: CGFloat = 64
+    @State private var compactHeaderHeight = SpotiglassDesign.Layout.lyricsCompactArtworkSize
 
     /// Hand to the lyrics column so tapping a synced line seeks playback to
     /// that line's timestamp. The async hop is wrapped in a `Task` so the
@@ -42,7 +42,7 @@ struct ImmersiveLyricsMainLayout: View {
                             navigateToAlbum: navigateToAlbum,
                             currentTrack: currentTrack
                         )
-                        .frame(width: min(320, geo.size.width * 0.36), alignment: .leading)
+                        .frame(width: min(SpotiglassDesign.Layout.lyricsSideColumnMaxWidth, geo.size.width * 0.36), alignment: .leading)
                         ImmersiveLyricsLyricsPhaseColumn(
                             lyricsModel: lyricsModel,
                             currentTrack: currentTrack,
@@ -75,7 +75,7 @@ struct ImmersiveLyricsMainLayout: View {
                             reduceMotion: reduceMotion,
                             usesLyricsScrollEdgeFade: usesLyricsScrollEdgeFade,
                             lyricsTextSize: lyricsTextSize,
-                            maxHeight: max(160, usableHeight - compactHeaderHeight - SpotiglassDesign.spacingM),
+                            maxHeight: max(SpotiglassDesign.Layout.lyricsColumnMinHeight, usableHeight - compactHeaderHeight - SpotiglassDesign.spacingM),
                             onSeek: seekHandler
                         )
                         .frame(maxHeight: .infinity, alignment: .top)

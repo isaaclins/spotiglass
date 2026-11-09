@@ -384,6 +384,7 @@
 		TST0000000000000000009101 /* TestOnlyConvenienceAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010129 /* TestOnlyConvenienceAPI.swift */; };
 		TST000000000000000000C1 /* PlaybackProgressAnchorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000000C0 /* PlaybackProgressAnchorTests.swift */; };
 		TST000000000000000000C2 /* PlaylistBrowserPrefetchAllTracksTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */; };
+		TST0000000000000000000130 /* LayoutGridTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010130 /* LayoutGridTests.swift */; };
 		TST00000000000000000800F0 /* CrossServicePlaybackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000800F1 /* CrossServicePlaybackTests.swift */; };
 		SRC0000000000000000080B00 /* PlaybackPositionUpdateScopeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC0000000000000000080B01 /* PlaybackPositionUpdateScopeTests.swift */; };
 		TST00000000000000000800D0 /* ScrubberViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000800D1 /* ScrubberViewTests.swift */; };
@@ -736,6 +737,7 @@
 		TST0000000000000000010129 /* TestOnlyConvenienceAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestOnlyConvenienceAPI.swift; sourceTree = "<group>"; };
 		TST000000000000000000C0 /* PlaybackProgressAnchorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackProgressAnchorTests.swift; sourceTree = "<group>"; };
 		TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistBrowserPrefetchAllTracksTests.swift; sourceTree = "<group>"; };
+		TST0000000000000000010130 /* LayoutGridTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutGridTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000800F1 /* CrossServicePlaybackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrossServicePlaybackTests.swift; sourceTree = "<group>"; };
 		SRC0000000000000000080B01 /* PlaybackPositionUpdateScopeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackPositionUpdateScopeTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000800D1 /* ScrubberViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrubberViewTests.swift; sourceTree = "<group>"; };
@@ -1079,6 +1081,7 @@
 				TST00000000000000000064 /* PlaylistBrowserNavigationTests.swift */,
 				TST00000000000000000065 /* PlaylistBrowserArtistFallbackTests.swift */,
 				TST000000000000000000C3 /* PlaylistBrowserPrefetchAllTracksTests.swift */,
+				TST0000000000000000010130 /* LayoutGridTests.swift */,
 				TST00000000000000000800F1 /* CrossServicePlaybackTests.swift */,
 				SRC0000000000000000080B01 /* PlaybackPositionUpdateScopeTests.swift */,
 				TST00000000000000000800D1 /* ScrubberViewTests.swift */,
@@ -1880,6 +1883,7 @@
 				TST00000000000000000014 /* PlaylistBrowserNavigationTests.swift in Sources */,
 				TST00000000000000000015 /* PlaylistBrowserArtistFallbackTests.swift in Sources */,
 				TST000000000000000000C2 /* PlaylistBrowserPrefetchAllTracksTests.swift in Sources */,
+				TST0000000000000000000130 /* LayoutGridTests.swift in Sources */,
 				TST00000000000000000800F0 /* CrossServicePlaybackTests.swift in Sources */,
 				SRC0000000000000000080B00 /* PlaybackPositionUpdateScopeTests.swift in Sources */,
 				TST00000000000000000800D0 /* ScrubberViewTests.swift in Sources */,
@@ -2037,7 +2041,7 @@
 				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
-				CURRENT_PROJECT_VERSION = 14;
+				CURRENT_PROJECT_VERSION = 15;
 				DEVELOPMENT_TEAM = BHAF4L4726;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -2058,7 +2062,7 @@
 				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
-				CURRENT_PROJECT_VERSION = 14;
+				CURRENT_PROJECT_VERSION = 15;
 				DEVELOPMENT_TEAM = BHAF4L4726;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -2205,7 +2209,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 14;
+				CURRENT_PROJECT_VERSION = 15;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = BHAF4L4726;
@@ -2224,7 +2228,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 0.8.3;
+				MARKETING_VERSION = 0.8.4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.isaaclins.spotiglass;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -2241,7 +2245,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 14;
+				CURRENT_PROJECT_VERSION = 15;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = BHAF4L4726;
@@ -2260,7 +2264,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 0.8.3;
+				MARKETING_VERSION = 0.8.4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.isaaclins.spotiglass;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -2273,7 +2277,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 14;
+				CURRENT_PROJECT_VERSION = 15;
 				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -2282,7 +2286,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 0.8.3;
+				MARKETING_VERSION = 0.8.4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.isaaclins.spotiglass.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
@@ -2295,7 +2299,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 14;
+				CURRENT_PROJECT_VERSION = 15;
 				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -2304,7 +2308,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 0.8.3;
+				MARKETING_VERSION = 0.8.4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.isaaclins.spotiglass.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;

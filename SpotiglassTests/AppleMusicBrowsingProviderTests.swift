@@ -1363,10 +1363,10 @@ final class AppleMusicArtworkSizeTests: XCTestCase {
         let surfaces: [(String, CGFloat)] = [
             ("track row", TrackRowMetrics.artworkSize),
             ("player bar", PlaybackTransportLayoutPolicy.nowPlayingArtworkSize),
-            ("Home shortcut", 56),
+            ("Home shortcut", SpotiglassDesign.Layout.quickAccessTileHeight),
             ("Home card", HomeMediaCardView.artworkSize),
             ("detail header", SpotiglassDesign.detailHeaderArtworkSize),
-            ("Lyrics cover", 220)
+            ("Lyrics cover", SpotiglassDesign.Layout.lyricsArtworkSize)
         ]
         for (surface, points) in surfaces {
             let pixels = try requestedPixels(ArtworkRequest.url(mapped, points: points, scale: 2))

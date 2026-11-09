@@ -15,13 +15,13 @@ struct ImmersiveLyricsLeftColumnView: View {
         if let track = currentTrack {
             if isCompact {
                 HStack(alignment: .center, spacing: SpotiglassDesign.spacingM) {
-                    ArtworkView(url: track.albumArtURL, size: 64)
+                    ArtworkView(url: track.albumArtURL, size: SpotiglassDesign.Layout.lyricsCompactArtworkSize)
                         .shadow(color: .black.opacity(0.45), radius: 12, y: 6)
                     trackDetails(track, titleFont: .headline)
                 }
             } else {
                 VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
-                    ArtworkView(url: track.albumArtURL, size: 220)
+                    ArtworkView(url: track.albumArtURL, size: SpotiglassDesign.Layout.lyricsArtworkSize)
                         .shadow(color: .black.opacity(0.45), radius: 28, y: 14)
 
                     trackDetails(track, titleFont: .title2.weight(.bold))

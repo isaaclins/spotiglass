@@ -314,7 +314,7 @@ struct PlaylistBrowserView: View {
                     Button {
                         isConfirmingDisconnect = true
                     } label: {
-                        Label(SpotiglassL10n.string("browser.disconnect"), systemImage: "xmark.circle")
+                        Label(SpotiglassL10n.string("browser.disconnect"), systemImage: "rectangle.portrait.and.arrow.right")
                     }
                     .help(SpotiglassL10n.string("browser.disconnect"))
                     .accessibilityHint(Self.disconnectHint(switchingTo: disconnectSwitchesTo))

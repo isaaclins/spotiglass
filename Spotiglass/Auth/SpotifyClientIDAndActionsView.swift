@@ -69,7 +69,7 @@ struct SpotifyClientIDAndActionsView: View {
     private var clientIDField: some View {
         TextField(SpotiglassL10n.string("auth.clientID.label"), text: $viewModel.clientID)
             .textFieldStyle(.roundedBorder)
-            .frame(maxWidth: layout == .welcome ? 420 : .infinity)
+            .frame(maxWidth: layout == .welcome ? SpotiglassDesign.Layout.paragraphMaxWidth : .infinity)
             .disabled(viewModel.state == .signingIn)
             .focused($isClientIDFocused)
             .accessibilityLabel(SpotiglassL10n.string("auth.clientID.label"))
