@@ -206,9 +206,9 @@ struct PlaylistBrowserMainDetailColumn: View {
                 if let locked = error.lockedPlaylist {
                     FollowedPlaylistLockedView(info: locked, playbackViewModel: playbackViewModel)
                 } else {
-                    // An artist that failed to load is asked again from here (#465).
+                    // The page that failed is asked again from here (#465).
                     ErrorStateView(error: error) {
-                        Task { await viewModel.unifiedRefreshMainSurface() }
+                        Task { await viewModel.retryFailedDetail() }
                     }
                 }
             }

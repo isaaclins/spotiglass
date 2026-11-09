@@ -322,6 +322,49 @@ final class PlaylistBrowserConcurrencyTests: XCTestCase {
         XCTAssertEqual(detail.albums.map(\.id), ["alb-1"])
     }
 
+    /// An album opened from Home that failed to load shows the same error view with Retry.
+    /// Home stays selected in the sidebar, and Retry must load the album again instead of
+    /// reloading Home (#465).
+    func testFailedAlbumPageRetriesTheSameAlbum() async {
+        var attempts = 0
+        let albumTrack = MusicTrack(
+            id: "alb-track-1",
+            name: "Album Track 1",
+            artists: ["Malcolm Todd"],
+            albumArtworkURL: nil,
+            durationMilliseconds: 180_000,
+            isExplicit: false,
+            isPlayable: true,
+            linkedFromID: nil,
+            uri: "spotify:track:alb-track-1"
+        )
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
+            trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "track-one")])]],
+            albumTracksHandler: { _, _, _ in
+                attempts += 1
+                if attempts == 1 { throw URLError(.networkConnectionLost) }
+                return [albumTrack]
+            }
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+        await viewModel.load()
+        XCTAssertEqual(viewModel.sidebarSelection, .home)
+        await viewModel.selectAlbum(id: "album-123", displayTitle: "Sweet Boy", displaySubtitle: "Malcolm Todd", artworkURL: nil)
+        guard case .error = viewModel.detailState else {
+            return XCTFail("Expected an error state, got \(viewModel.detailState)")
+        }
+
+        await viewModel.retryFailedDetail()
+
+        XCTAssertEqual(attempts, 2)
+        guard case let .loaded(.playlist(detail)) = viewModel.detailState else {
+            return XCTFail("Retry must load the album again, got \(viewModel.detailState)")
+        }
+        XCTAssertEqual(detail.playlist.id, "album-123")
+        XCTAssertEqual(detail.tracks.map(\.spotifyTrackID), ["alb-track-1"])
+    }
+
     func testSignOutClearsBrowsingState() async {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],

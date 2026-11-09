@@ -44,6 +44,26 @@ extension PlaylistBrowserViewModel {
         }
     }
 
+    /// Retry on a page that failed to load: the artist or album it was opened for loads again.
+    /// An album opened from Home or Search keeps that sidebar row selected, so Refresh would
+    /// reload Home or the search instead of the album (#465).
+    func retryFailedDetail() async {
+        switch currentNavigationTarget {
+        case let .artist(id):
+            await selectArtist(id: id, forceRefresh: true, origin: .backStackReplay, displayName: nil)
+        case let .album(id, title, subtitle, artworkURL):
+            await selectAlbum(
+                id: id,
+                displayTitle: title,
+                displaySubtitle: subtitle,
+                artworkURL: artworkURL,
+                origin: .backStackReplay
+            )
+        case .sidebar, nil:
+            await unifiedRefreshMainSurface()
+        }
+    }
+
     /// Single refresh entry for toolbar, ⌘R, the View menu and the palette.
     func performUnifiedRefresh(queueRefresh: () async -> Void) async {
         // The lyrics cover the page, so Refresh would reload something you can't see. Every
