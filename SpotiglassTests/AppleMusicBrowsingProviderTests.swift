@@ -438,6 +438,25 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         XCTAssertEqual(ids, [])
     }
 
+    /// A listing that read the answer before a reset doesn't store its result over the next
+    /// account's, even when both answers look the same.
+    func testAListingFromBeforeAResetDoesNotStoreItsResult() async {
+        let source = MockAppleMusicSource()
+        source.playlistCovers = [AppleMusicPlaylistCover(name: "Road", globalID: nil, isGenerated: true)]
+        let covers = AppleMusicGeneratedCoverCache()
+        await covers.refresh(using: source).value
+        let before = await covers.answer()
+
+        await covers.reset()
+        await covers.refresh(using: source).value
+        let now = await covers.answer()
+        await covers.store(["new"], forAnswer: now.version)
+        await covers.store(["old"], forAnswer: before.version)
+
+        let ids = await covers.playlistIDs
+        XCTAssertEqual(ids, ["new"])
+    }
+
     /// An API that can't be reached keeps the last answer, and one that never answered keeps
     /// every cover.
     func testAnUnreachableAPIKeepsTheLastAnswer() async throws {

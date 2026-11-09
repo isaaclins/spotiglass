@@ -188,13 +188,13 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         let answer = coverLookup == nil ? nil : await generatedCovers.answer()
         if let answer { await appliedCoverAnswer.record(answer.version) }
         let generated: Set<String>
-        if let covers = answer?.covers {
+        if let answer, let covers = answer.covers {
             let identities = playlists.map { ($0.id.rawValue, $0.name, AppleMusicItemMapping.globalID(of: $0)) }
             generated = AppleMusicPlaylistCover.generatedPlaylistIDs(identities, covers: covers)
             // Catalog search returns a shared playlist under its catalog ID (`pl.u-…`), so that
             // ID is kept too, or the gradient would come back in Search and in pins made there.
             let generatedCatalogIDs = identities.compactMap { generated.contains($0.0) ? $0.2 : nil }
-            await generatedCovers.store(generated.union(generatedCatalogIDs), from: covers)
+            await generatedCovers.store(generated.union(generatedCatalogIDs), forAnswer: answer.version)
         } else {
             // The API hasn't answered yet (slow, offline): Apple's covers stay until it does,
             // and the browser lists again then (`missedCoverAnswer`).
@@ -750,9 +750,10 @@ actor AppleMusicGeneratedCoverCache {
         (covers, answerVersion)
     }
 
-    /// Keeps a listing's result for search, unless a newer answer arrived meanwhile.
-    func store(_ ids: Set<String>, from answer: [AppleMusicPlaylistCover]) {
-        guard answer == covers else { return }
+    /// Keeps a listing's result for search, unless a newer answer arrived meanwhile or the
+    /// cache was reset (the same covers can come from another account).
+    func store(_ ids: Set<String>, forAnswer version: Int) {
+        guard version == answerVersion else { return }
         playlistIDs = ids
     }
 
