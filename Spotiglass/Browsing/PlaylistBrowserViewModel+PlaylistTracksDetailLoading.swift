@@ -141,7 +141,12 @@ extension PlaylistBrowserViewModel {
     /// cost more in total, and more for each step than the one before. A list already showing
     /// the start of these rows gets the rest the same way; any other list on screen is replaced
     /// at once, as cutting it back would make it jump.
-    func showPlaylistRows(_ detail: PlaylistDetailViewModel, refreshing: Bool = false, session: Int) async {
+    /// `isComplete`: `detail` holds every row of the list, not the first page of a read still
+    /// running.
+    func showPlaylistRows(_ detail: PlaylistDetailViewModel, refreshing: Bool = false, isComplete: Bool = true, session: Int) async {
+        if isComplete {
+            completeRowsOnScreen = (session, detail.playlist.id, detail.tracks)
+        }
         let state: (PlaylistDetailViewModel) -> BrowsingLoadState<BrowsingDetailContent> = { shown in
             refreshing ? .refreshing(.playlist(shown)) : .loaded(.playlist(shown))
         }

@@ -61,23 +61,31 @@ extension PlaylistBrowserViewModel {
         await showPlaylistRows(
             PlaylistDetailViewModel(playlist: row, tracks: TrackRowViewModel.numberedPlaylistRows(first.tracks)),
             refreshing: true,
+            isComplete: false,
             session: session
         )
     }
 
-    /// The detail to play from. While Liked Songs show only the first page of a read that is
-    /// still running (#442), playing waits for that read: the queue gets every song, not just
-    /// the first page, and nothing would add the rest later. Everything else plays as shown.
+    /// The detail to play from, given the rows a view showed. Those can be only the start of
+    /// the list (#442): a long list's first screen, or Liked Songs' first page while the rest is
+    /// read. Playing from them would queue just that start, and nothing adds the rest later, so
+    /// this waits for a Liked Songs read still running and otherwise extends the rows to the
+    /// complete list they begin. Rows that aren't the start of it play as shown.
     func detailForPlayback(_ detail: PlaylistDetailViewModel) async -> PlaylistDetailViewModel {
-        guard detail.playlist.id == SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID,
-              likedSongsFirstPageSession == detailSession else { return detail }
-        if let read = likedSongsRevalidationTask, let full = try? await read.value, !full.tracks.isEmpty {
+        let session = detailSession
+        if detail.playlist.id == SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID,
+           likedSongsFirstPageSession == session,
+           let read = likedSongsRevalidationTask,
+           let full = try? await read.value, !full.tracks.isEmpty {
             return PlaylistDetailViewModel(playlist: detail.playlist, tracks: TrackRowViewModel.numberedPlaylistRows(full.tracks))
         }
-        if case let .playlist(shown)? = detailState.currentValue, shown.playlist.id == detail.playlist.id {
-            return shown
-        }
-        return detail
+        guard session == detailSession,
+              let complete = completeRowsOnScreen,
+              complete.session == session,
+              complete.playlistID == detail.playlist.id,
+              detail.tracks.count < complete.tracks.count,
+              complete.tracks.starts(with: detail.tracks) else { return detail }
+        return PlaylistDetailViewModel(playlist: detail.playlist, tracks: complete.tracks)
     }
 
     private func setLikedSongsDetailState(from tracks: [MusicPlaylistTrackItem], session: Int) async -> Bool {
@@ -119,6 +127,9 @@ extension PlaylistBrowserViewModel {
             } : nil
             let result = try await likedSongsRevalidationResult(firstPage: firstPage)
             guard mutationGeneration == likedSongsMutationGeneration else { return }
+            // Known now, though the rows go on screen only after the owner lookup below: playing
+            // from the first page meanwhile gets every song.
+            completeRowsOnScreen = (session, SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID, TrackRowViewModel.numberedPlaylistRows(result.tracks))
             try? cache.saveTracks(
                 result.tracks,
                 playlistID: SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID,

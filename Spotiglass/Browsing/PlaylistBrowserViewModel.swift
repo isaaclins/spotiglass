@@ -140,6 +140,9 @@ final class PlaylistBrowserViewModel: ObservableObject {
     /// The detail session in which Liked Songs showed the first page of a read still running
     /// (#442); playing from them then waits for the rest (`detailForPlayback`).
     var likedSongsFirstPageSession: Int?
+    /// The complete rows of the list last put on screen, while the screen may still show only
+    /// their start (a long list's first screen, #442); playing from those rows plays these.
+    var completeRowsOnScreen: (session: Int, playlistID: String, tracks: [TrackRowViewModel])?
     /// Prevents a pre-mutation response from repopulating the virtual cache.
     var likedSongsMutationGeneration = 0
     var lastLikedSongsRevalidationAt: Date?
@@ -250,6 +253,7 @@ final class PlaylistBrowserViewModel: ObservableObject {
         likedSongsRevalidationTask = nil
         likedSongsRevalidationTaskGeneration = nil
         likedSongsFirstPageSession = nil
+        completeRowsOnScreen = nil
         likedSongsMutationGeneration += 1
         lastLikedSongsRevalidationAt = nil
         savedTrackStates = [:]
