@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.9] - 2026-11-09
+
+### Fixed
+
+- ⌘S now shows and hides the sidebar.
+
 ## [0.8.8] - 2026-11-09
 
 ### Fixed
