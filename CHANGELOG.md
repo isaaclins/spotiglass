@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.5] - 2026-11-09
+
+### Fixed
+
+- Play, pause and track changes are smoother, because only the rows and the player bar that change get redrawn.
+
 ## [0.8.4] - 2026-11-09
 
 ### Fixed
