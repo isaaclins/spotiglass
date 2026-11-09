@@ -116,9 +116,9 @@ struct ImmersiveBlurredArtwork: View {
     }
 
     /// The URL the loader downloads for `url`. A `musicKit://` cover can't be downloaded, also
-    /// when MusicKit no longer knows it; loading nothing drops the last song's cover, so it
-    /// can't linger behind this one.
-    // Internal so tests can check that a library cover never keeps the last song's backdrop.
+    /// when MusicKit no longer knows it, so it isn't tried; loading nothing drops the last song's
+    /// cover.
+    // Internal so tests can check that a library cover is never handed to the downloader.
     static func downloadURL(for url: URL) -> URL? {
         AppleMusicArtworkRegistry.needsMusicKit(url) ? nil : url
     }

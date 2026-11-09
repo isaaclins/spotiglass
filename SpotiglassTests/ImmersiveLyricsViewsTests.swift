@@ -359,6 +359,8 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
 
     /// Going from a catalog song to a library song MusicKit doesn't know, in the same backdrop
     /// (as when the next song starts), must not keep the catalog song's cover behind the lyrics.
+    /// `main` already behaved this way (the failing download cleared the cover); this guards it now
+    /// that such a cover is never downloaded.
     func testNextSongWithAnUnknownLibraryCoverClearsTheBackdrop() throws {
         let registry = AppleMusicArtworkRegistry()
         let catalog = try XCTUnwrap(URL(string: "https://example.com/600x600bb.jpg"))
@@ -430,10 +432,9 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
         _ = ViewTestHost.host(view, size: CGSize(width: 360, height: 280))
     }
 
-    /// A library cover MusicKit doesn't know (e.g. after its registry entry was evicted) can't be
-    /// downloaded either. Going from a catalog song to such a song must leave the backdrop black,
-    /// not keep blurring the previous song's cover.
-    func testUnknownLibraryCoverDropsThePreviousSongsBackdrop() async throws {
+    /// A library cover MusicKit doesn't know (e.g. after its registry entry was evicted) is never
+    /// handed to the downloader, which can't fetch it, nor drawn by MusicKit: the backdrop is black.
+    func testUnknownLibraryCoverIsNeitherDownloadedNorDrawn() async throws {
         let registry = AppleMusicArtworkRegistry()
         let unknown = try XCTUnwrap(URL(string: "musicKit://artwork/transient/600x600?id=GONE"))
         XCTAssertNil(ImmersiveBlurredArtwork.musicKitArtwork(for: unknown, registry: registry))
