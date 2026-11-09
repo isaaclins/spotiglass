@@ -71,8 +71,10 @@ extension PlaylistBrowserViewModel {
         // Carrying over the previous surface (for example Home) as a refreshing
         // placeholder would make a revalidation failure surface unrelated content
         // wrapped in a stale-cache banner instead of a terminal error.
-        detailState = .loading
+        // Asking the provider for earlier songs above can wait, and another surface may have
+        // taken over meanwhile: setting `.loading` then would cover it for good.
         guard session == detailSession else { return }
+        detailState = .loading
         await revalidatePlaylistTracks(playlist: playlist, playlistRow: playlistRow, session: session)
     }
 
@@ -154,15 +156,22 @@ extension PlaylistBrowserViewModel {
             detailState = state(detail)
             return
         }
-        let firstScreen = state(PlaylistDetailViewModel(
-            playlist: detail.playlist,
-            tracks: Array(detail.tracks.prefix(Self.firstScreenRowCount))
-        ))
-        detailState = firstScreen
+        let firstScreenRows = Array(detail.tracks.prefix(Self.firstScreenRowCount))
+        detailState = state(PlaylistDetailViewModel(playlist: detail.playlist, tracks: firstScreenRows))
         try? await Task.sleep(for: Self.firstScreenDrawTime)
-        // Another surface, or a newer read of this one, took over meanwhile.
-        guard session == detailSession, detailState == firstScreen else { return }
-        detailState = state(detail)
+        // Another surface, or a newer read of this one, took over meanwhile. A new header for
+        // the same rows (a count or a name that arrived) is kept, with the rest added below.
+        guard session == detailSession,
+              case let .playlist(shown)? = detailState.currentValue,
+              shown.playlist.id == detail.playlist.id,
+              shown.tracks == firstScreenRows else { return }
+        let full = BrowsingDetailContent.playlist(PlaylistDetailViewModel(playlist: shown.playlist, tracks: detail.tracks))
+        switch detailState {
+        case .loaded: detailState = .loaded(full)
+        case .refreshing: detailState = .refreshing(full)
+        case let .staleCache(_, error): detailState = .staleCache(full, error)
+        default: return
+        }
     }
 
     /// The header row with the sidebar's count when a newer one arrived while the tracks

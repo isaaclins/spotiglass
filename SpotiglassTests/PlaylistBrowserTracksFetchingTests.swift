@@ -440,6 +440,62 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         XCTAssertEqual(detail.tracks.map(\.id), tracks.map(\.id))
     }
 
+    /// A count or a name that arrives while the first screen of rows draws rewrites the header.
+    /// The rest of the rows must still follow, under the new header.
+    func testANewHeaderWhileTheFirstScreenDrawsKeepsTheRestComing() async {
+        let (playlist, tracks) = bigPlaylist(count: 100)
+        let api = MockBrowsingAPI(playlistResults: [.success([playlist])], trackResults: ["big": [.success(tracks)]])
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledSpotifyBrowsingCache())
+        await viewModel.load()
+        let counted = PlaylistRowViewModel(MusicPlaylistSummary(
+            id: "big", name: "My music mix", ownerID: "owner-id", ownerName: "Owner",
+            imageURL: nil, trackCount: 100, snapshotID: playlist.snapshotID
+        ))
+        var rewritten = false
+        let observation = viewModel.$detailState.sink { state in
+            guard !rewritten, case let .loaded(.playlist(shown)) = state,
+                  shown.tracks.count == PlaylistBrowserViewModel.firstScreenRowCount else { return }
+            rewritten = true
+            // What a count update does to the detail on screen.
+            DispatchQueue.main.async {
+                viewModel.detailState = .loaded(.playlist(PlaylistDetailViewModel(playlist: counted, tracks: shown.tracks)))
+            }
+        }
+
+        await viewModel.selectPlaylist(id: "big")
+        observation.cancel()
+
+        XCTAssertTrue(rewritten)
+        guard case let .loaded(.playlist(detail)) = viewModel.detailState else {
+            return XCTFail("Expected the playlist, got \(viewModel.detailState)")
+        }
+        XCTAssertEqual(detail.tracks.map(\.id), tracks.map(\.id), "every row, not the first screen only")
+        XCTAssertEqual(detail.playlist, counted, "the newer header stays")
+    }
+
+    /// Asking for a playlist's earlier songs can wait. Another playlist opened meanwhile must not
+    /// be covered by the first one's loading state once that answer comes back empty.
+    func testASlowLookupOfEarlierSongsDoesNotCoverTheNextPlaylist() async {
+        let first = PlaylistBrowsingTestFixtures.playlist(id: "a", name: "A")
+        let second = PlaylistBrowsingTestFixtures.playlist(id: "b", name: "B")
+        let secondTracks = [PlaylistBrowsingTestFixtures.track(id: "b1")]
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([first, second])],
+            trackResults: ["a": [.success([PlaylistBrowsingTestFixtures.track(id: "a1")])], "b": [.success(secondTracks)]]
+        )
+        api.lastReadDelayNanoseconds = ["a": 200_000_000]
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledSpotifyBrowsingCache())
+        await viewModel.load()
+
+        let opening = Task { await viewModel.selectPlaylist(id: "a") }
+        try? await Task.sleep(for: .milliseconds(20))
+        await viewModel.selectPlaylist(id: "b")
+        await opening.value
+
+        XCTAssertEqual(PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).map(\.id), ["b1"],
+                       "got \(viewModel.detailState)")
+    }
+
     /// Liked Songs read every page (13 for 956 Apple Music songs) before showing a row.
     func testLikedSongsShowTheirFirstPageWhileTheRestIsRead() async {
         let first = (0..<200).map { PlaylistBrowsingTestFixtures.track(id: "l\($0)") }

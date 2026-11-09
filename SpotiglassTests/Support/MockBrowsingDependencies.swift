@@ -93,6 +93,7 @@ final class MockBrowsingAPI: MusicBrowsingProvider {
         var artistAlbumsPageCallCount = 0
         var playlistTracksInvocationCountByID: [String: Int] = [:]
         var lastReadTracksByID: [String: [MusicPlaylistTrackItem]] = [:]
+        var lastReadDelayNanoseconds: [String: UInt64] = [:]
         var updatePlaylistCalls: [(playlistID: String, name: String)] = []
         var addTracksCalls: [(playlistID: String, uris: [String])] = []
         var removeTracksCalls: [(playlistID: String, items: [MusicPlaylistTrackRemoval], snapshotID: String?)] = []
@@ -277,8 +278,18 @@ final class MockBrowsingAPI: MusicBrowsingProvider {
         set { locked { $0.lastReadTracksByID = newValue } }
     }
 
+    /// How long `lastReadPlaylistTracks` takes, by playlist ID.
+    var lastReadDelayNanoseconds: [String: UInt64] {
+        get { locked { $0.lastReadDelayNanoseconds } }
+        set { locked { $0.lastReadDelayNanoseconds = newValue } }
+    }
+
     func lastReadPlaylistTracks(playlistID: String) async -> [MusicPlaylistTrackItem]? {
-        locked { $0.lastReadTracksByID[playlistID] }
+        if let delay = locked({ $0.lastReadDelayNanoseconds[playlistID] }) {
+            // Like MusicKit's reads, the wait doesn't end when the caller's task is cancelled.
+            await Task.detached { try? await Task.sleep(nanoseconds: delay) }.value
+        }
+        return locked { $0.lastReadTracksByID[playlistID] }
     }
 
     func currentUserProfile() async throws -> MusicUserProfile {
