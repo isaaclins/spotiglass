@@ -221,7 +221,7 @@ struct PlaylistBrowserMainDetailColumn: View {
             onTrackEnteredViewportApproximation: { detailLastVisibleTrackID = $0 },
             playURI: { uri in
                 Task {
-                    let playing = await viewModel.detailForPlayback(detail)
+                    guard let playing = await viewModel.detailForPlayback(detail) else { return }
                     await playbackViewModel.playFromPlaylist(
                         clickedURI: uri,
                         playableURIs: playing.tracks.compactMap(\.playableURI),
@@ -242,14 +242,16 @@ struct PlaylistBrowserMainDetailColumn: View {
             },
             onRequestLibraryContinuation: onRequestLibraryContinuation,
             playHeaderAction: {
+                guard let playing = await viewModel.detailForPlayback(detail) else { return }
                 await DetailHeaderPlayback.play(
-                    target: DetailHeaderPlayback.target(for: await viewModel.detailForPlayback(detail)),
+                    target: DetailHeaderPlayback.target(for: playing),
                     using: playbackViewModel
                 )
             },
             shuffleHeaderAction: {
+                guard let playing = await viewModel.detailForPlayback(detail) else { return }
                 await DetailHeaderPlayback.shuffleAndPlay(
-                    target: DetailHeaderPlayback.target(for: await viewModel.detailForPlayback(detail)),
+                    target: DetailHeaderPlayback.target(for: playing),
                     using: playbackViewModel
                 )
             },

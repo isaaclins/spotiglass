@@ -538,9 +538,11 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         let played = await playing.value
         await opening.value
 
-        XCTAssertEqual(played.tracks.map(\.id), all.map(\.id), "every song, not the first page")
-        XCTAssertEqual(DetailHeaderPlayback.target(for: played),
-                       .tracks(uris: played.tracks.compactMap(\.playableURI), playlistID: SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID))
+        XCTAssertEqual(played?.tracks.map(\.id), all.map(\.id), "every song, not the first page")
+        if let played {
+            XCTAssertEqual(DetailHeaderPlayback.target(for: played),
+                           .tracks(uris: played.tracks.compactMap(\.playableURI), playlistID: SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID))
+        }
     }
 
     /// The read can be done while its rows wait for the owner lookup before going on screen.
@@ -567,7 +569,7 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         let played = await viewModel.detailForPlayback(firstPage)
         await opening.value
 
-        XCTAssertEqual(played.tracks.map(\.id), all.map(\.id))
+        XCTAssertEqual(played?.tracks.map(\.id), all.map(\.id))
     }
 
     /// A long list shows its first screen of rows for a moment before the rest. Playing from
@@ -591,7 +593,7 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         guard let firstScreen else { return XCTFail("Expected a first screen of rows") }
         let played = await viewModel.detailForPlayback(firstScreen)
 
-        XCTAssertEqual(played.tracks.map(\.id), tracks.map(\.id))
+        XCTAssertEqual(played?.tracks.map(\.id), tracks.map(\.id))
     }
 
     /// Rows that aren't the start of the list on screen (a list changed since) play as shown.
@@ -607,6 +609,60 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         let played = await viewModel.detailForPlayback(other)
 
         XCTAssertEqual(played, other)
+    }
+
+    /// A play from the first page waits for the rest. Opening another surface or asking for
+    /// another play meanwhile wins: the waiting play mustn't replace it when the read finishes.
+    func testAPlayWaitingForLikedSongsGivesWayToANewerChoice() async {
+        let first = (0..<200).map { PlaylistBrowsingTestFixtures.track(id: "l\($0)") }
+        let all = (0..<956).map { PlaylistBrowsingTestFixtures.track(id: "l\($0)") }
+        let api = FirstPageSavedTracksAPI(firstPage: first, all: all)
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledSpotifyBrowsingCache())
+
+        let opening = Task { await viewModel.selectSidebar(.likedSongs) }
+        await api.waitUntilRestIsBeingRead()
+        for _ in 0..<50 where PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count < 200 {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        guard case let .playlist(firstPage)? = viewModel.detailState.currentValue else {
+            return XCTFail("Expected the first page, got \(viewModel.detailState)")
+        }
+        let earlier = Task { await viewModel.detailForPlayback(firstPage) }
+        try? await Task.sleep(for: .milliseconds(20))
+        let newer = Task { await viewModel.detailForPlayback(firstPage) }
+        try? await Task.sleep(for: .milliseconds(20))
+        api.finishReading()
+
+        let earlierResult = await earlier.value
+        let newerResult = await newer.value
+        await opening.value
+        XCTAssertNil(earlierResult, "a newer play came after it")
+        XCTAssertEqual(newerResult?.tracks.count, 956)
+    }
+
+    func testAPlayWaitingForLikedSongsGivesWayToAnotherSurface() async {
+        let first = (0..<200).map { PlaylistBrowsingTestFixtures.track(id: "l\($0)") }
+        let all = (0..<956).map { PlaylistBrowsingTestFixtures.track(id: "l\($0)") }
+        let api = FirstPageSavedTracksAPI(firstPage: first, all: all)
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledSpotifyBrowsingCache())
+
+        let opening = Task { await viewModel.selectSidebar(.likedSongs) }
+        await api.waitUntilRestIsBeingRead()
+        for _ in 0..<50 where PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count < 200 {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        guard case let .playlist(firstPage)? = viewModel.detailState.currentValue else {
+            return XCTFail("Expected the first page, got \(viewModel.detailState)")
+        }
+        let waiting = Task { await viewModel.detailForPlayback(firstPage) }
+        try? await Task.sleep(for: .milliseconds(20))
+        // Leaving Liked Songs before the read finishes.
+        await viewModel.selectSidebar(nil)
+        api.finishReading()
+
+        let result = await waiting.value
+        await opening.value
+        XCTAssertNil(result)
     }
 
     func testMemoryCacheKeepsTrackListsBoundedLeastRecentlyUsedFirst() throws {

@@ -143,6 +143,8 @@ final class PlaylistBrowserViewModel: ObservableObject {
     /// The complete rows of the list last put on screen, while the screen may still show only
     /// their start (a long list's first screen, #442); playing from those rows plays these.
     var completeRowsOnScreen: (session: Int, playlistID: String, tracks: [TrackRowViewModel])?
+    /// Counts `detailForPlayback` calls, so one that waited knows a newer play came after it.
+    var playbackRequestGeneration = 0
     /// Prevents a pre-mutation response from repopulating the virtual cache.
     var likedSongsMutationGeneration = 0
     var lastLikedSongsRevalidationAt: Date?

@@ -70,13 +70,18 @@ extension PlaylistBrowserViewModel {
     /// the list (#442): a long list's first screen, or Liked Songs' first page while the rest is
     /// read. Playing from them would queue just that start, and nothing adds the rest later, so
     /// this waits for a Liked Songs read still running and otherwise extends the rows to the
-    /// complete list they begin. Rows that aren't the start of it play as shown.
-    func detailForPlayback(_ detail: PlaylistDetailViewModel) async -> PlaylistDetailViewModel {
+    /// complete list they begin. Rows that aren't the start of it play as shown. `nil` when,
+    /// while it waited, another surface opened or a newer play was asked for: this play then
+    /// mustn't replace that one.
+    func detailForPlayback(_ detail: PlaylistDetailViewModel) async -> PlaylistDetailViewModel? {
+        playbackRequestGeneration += 1
+        let request = playbackRequestGeneration
         let session = detailSession
         if detail.playlist.id == SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID,
            likedSongsFirstPageSession == session,
            let read = likedSongsRevalidationTask,
            let full = try? await read.value, !full.tracks.isEmpty {
+            guard session == detailSession, request == playbackRequestGeneration else { return nil }
             return PlaylistDetailViewModel(playlist: detail.playlist, tracks: TrackRowViewModel.numberedPlaylistRows(full.tracks))
         }
         guard session == detailSession,
