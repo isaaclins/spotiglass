@@ -420,7 +420,7 @@ extension QueueViewModel {
                 canRetry: true,
                 diagnosticDetails: SpotifyRateLimitDisplay.rawRetryDiagnostic(seconds: retryAfter)
             )
-        case .network, .server, .notFound, .failed:
+        case .network, .server, .notFound, .explicitContentRestricted, .failed:
             return BrowsingDisplayError(
                 title: SpotiglassL10n.string("error.queue.updateFailed.title"),
                 message: String(format: SpotiglassL10n.string("error.queue.updateFailed.message"), error.detail),
@@ -447,6 +447,12 @@ extension QueueViewModel {
             return BrowsingDisplayError(
                 title: SpotiglassL10n.string("error.queue.updateFailed.title"),
                 message: SpotiglassL10n.string("error.playback.appleMusic.notPlayable"),
+                canRetry: false
+            )
+        case .explicitContentRestricted:
+            return BrowsingDisplayError(
+                title: SpotiglassL10n.string("error.playback.appleMusic.explicit.title"),
+                message: SpotiglassL10n.string("error.playback.appleMusic.explicit.message"),
                 canRetry: false
             )
         case .rateLimited, .network, .server, .failed:

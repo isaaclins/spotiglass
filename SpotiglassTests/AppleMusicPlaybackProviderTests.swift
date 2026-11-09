@@ -1,3 +1,4 @@
+import MusicKit
 import XCTest
 @testable import Spotiglass
 
@@ -539,6 +540,121 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         XCTAssertFalse(displayError.message.contains("Spotify"))
     }
 
+    // MARK: - Songs this Mac won't play (#429)
+
+    /// The first songs of "Your top tracks" as they came from MusicKit when #429 was reported.
+    /// On a Mac that only allows clean music, MusicKit refused the explicit one with
+    /// `MPMusicPlayerControllerErrorDomain` code 6 and the whole list failed with "try again".
+    private static func topTracks() throws -> [(uri: String, entry: MusicPlayer.Queue.Entry)] {
+        try [
+            AppleMusicFixtures.song(id: "1712562731", title: "Slowww"),
+            AppleMusicFixtures.song(id: "1772940995", title: "Poesia Acústica #12 Pra Sempre", explicit: true),
+            AppleMusicFixtures.song(id: "1689834069", title: "Te Peço Pra Ficar"),
+            AppleMusicFixtures.song(id: "1880570626", title: "7:44", explicit: true),
+        ].map { (AppleMusicItemMapping.track($0).uri, MusicPlayer.Queue.Entry($0)) }
+    }
+
+    func testAMacThatOnlyAllowsCleanMusicPlaysTheCleanSongsOfAList() throws {
+        let songs = try Self.topTracks()
+        let kept = try MusicKitApplicationPlayer.leavingOutBlocked(
+            songs, startURI: "applemusic:song:1712562731", explicitBlocked: true
+        )
+        XCTAssertEqual(kept.map(\.uri), ["applemusic:song:1712562731", "applemusic:song:1689834069"])
+        // A list started from its header leaves them out too.
+        XCTAssertEqual(try MusicKitApplicationPlayer.leavingOutBlocked(songs, startURI: nil, explicitBlocked: true).count, 2)
+        // Without the restriction nothing changes.
+        XCTAssertEqual(
+            try MusicKitApplicationPlayer.leavingOutBlocked(songs, startURI: nil, explicitBlocked: false).map(\.uri),
+            songs.map(\.uri)
+        )
+    }
+
+    func testAnExplicitSongOnAMacThatOnlyAllowsCleanMusicSaysWhy() throws {
+        let songs = try Self.topTracks()
+        XCTAssertThrowsError(try MusicKitApplicationPlayer.leavingOutBlocked(
+            songs, startURI: "applemusic:song:1772940995", explicitBlocked: true
+        )) { error in
+            XCTAssertEqual((error as? MusicPlaybackError)?.reason, .explicitContentRestricted)
+        }
+        // A list of only explicit songs (an album) has nothing to play.
+        XCTAssertThrowsError(try MusicKitApplicationPlayer.leavingOutBlocked(
+            songs.filter { $0.uri.hasSuffix("0995") || $0.uri.hasSuffix("0626") }, startURI: nil, explicitBlocked: true
+        )) { error in
+            XCTAssertEqual((error as? MusicPlaybackError)?.reason, .explicitContentRestricted)
+        }
+
+        let display = PlaybackSessionViewModel.displayError(
+            for: MusicPlaybackError(service: .appleMusic, reason: .explicitContentRestricted)
+        )
+        XCTAssertEqual(display.title, SpotiglassL10n.string("error.playback.appleMusic.explicit.title"))
+        XCTAssertEqual(display.message, SpotiglassL10n.string("error.playback.appleMusic.explicit.message"))
+        XCTAssertNil(display.recoveryAction, "Reconnecting doesn't change what this Mac allows")
+    }
+
+    /// Songs added with Add to queue before the Mac started blocking explicit music come along
+    /// into the next queue; the explicit ones would stop it there, so they are dropped quietly.
+    func testSongsAddedBeforeTheRestrictionLeaveOutTheExplicitOnes() throws {
+        let added = try Self.topTracks()
+        XCTAssertEqual(
+            MusicKitApplicationPlayer.droppingBlocked(added, explicitBlocked: true).map(\.uri),
+            ["applemusic:song:1712562731", "applemusic:song:1689834069"]
+        )
+        // Only explicit ones added: nothing comes along, and the new queue still plays.
+        XCTAssertTrue(MusicKitApplicationPlayer.droppingBlocked(
+            added.filter { $0.uri.hasSuffix("0995") || $0.uri.hasSuffix("0626") }, explicitBlocked: true
+        ).isEmpty)
+        XCTAssertEqual(MusicKitApplicationPlayer.droppingBlocked(added, explicitBlocked: false).count, added.count)
+    }
+
+    /// What Screen Time ("Music: Clean") and a restrictions profile set, and the same keys saved
+    /// as ordinary preferences, which don't stop MusicKit from playing anything.
+    func testOnlyAnEnforcedRestrictionBlocksExplicitSongs() {
+        func lookup(_ values: [String: (Any, Bool)]) -> AppleMusicContentRestrictions.Lookup {
+            { key, _ in values[key].map { ($0.0, $0.1) } ?? (nil, false) }
+        }
+        XCTAssertTrue(AppleMusicContentRestrictions.isExplicitMusicBlocked(
+            lookup: lookup(["restrictExplicit": (true, true)])
+        ), "Screen Time's Clean")
+        XCTAssertTrue(AppleMusicContentRestrictions.isExplicitMusicBlocked(
+            lookup: lookup(["allowExplicitContent": (false, true)])
+        ), "A restrictions profile")
+        XCTAssertFalse(AppleMusicContentRestrictions.isExplicitMusicBlocked(
+            lookup: lookup(["restrictExplicit": (true, false), "allowExplicitContent": (false, false)])
+        ), "Saved but not enforced")
+        XCTAssertFalse(AppleMusicContentRestrictions.isExplicitMusicBlocked(
+            lookup: lookup(["restrictExplicit": (false, true), "allowExplicitContent": (true, true)])
+        ), "Enforced, but explicit allowed")
+        XCTAssertFalse(AppleMusicContentRestrictions.isExplicitMusicBlocked(lookup: lookup([:])))
+    }
+
+    /// The error MusicKit gave for the explicit top track. Trying again gives the same answer,
+    /// so the message says the song can't play instead of "try again in a moment".
+    func testMusicKitRefusingASongSaysItCantPlay() async {
+        let refused = NSError(
+            domain: "MPMusicPlayerControllerErrorDomain",
+            code: 6,
+            userInfo: [NSDebugDescriptionErrorKey: "Failed to prepare to play"]
+        )
+        XCTAssertEqual(MusicKitApplicationPlayer.playerError(refused).reason, .notFound)
+        XCTAssertEqual(MusicKitApplicationPlayer.playerError(NSError(domain: "Other", code: 6)).reason, .failed)
+
+        let player = ScriptedAppleMusicPlayer()
+        player.failure = MusicKitApplicationPlayer.playerError(refused)
+        let provider = AppleMusicPlaybackProvider(player: player)
+        let session = PlaybackSessionViewModel(provider: provider)
+        session.deviceID = AppleMusicPlaybackProvider.deviceID
+        session.setActivePlaybackDeviceID(AppleMusicPlaybackProvider.deviceID)
+        session.setConnectionState(.ready(deviceID: AppleMusicPlaybackProvider.deviceID))
+
+        await session.playFromPlaylist(clickedURI: Self.uris[1], playableURIs: Self.uris)
+
+        guard case let .error(displayError) = session.connectionState else {
+            return XCTFail("Expected an error, got \(session.connectionState)")
+        }
+        XCTAssertEqual(displayError.message, SpotiglassL10n.string("error.playback.appleMusic.notPlayable"))
+        XCTAssertNil(displayError.recoveryAction)
+    }
+
     // MARK: - Measured MusicKit lag
 
     /// Replays the lag measured on a Mac mini M4 (macOS 27, 2026-11-06): how long
@@ -895,6 +1011,7 @@ final class ScriptedAppleMusicPlayer: AppleMusicPlayerControlling {
     func isAuthorized() -> Bool { authorized }
 
     func play(_ request: AppleMusicQueueRequest, isCurrent: @escaping @MainActor () -> Bool) async throws {
+        if let failure = failure as? MusicPlaybackError { throw failure }
         if let failure { throw MusicPlaybackError(service: .appleMusic, reason: .failed, detail: "\(failure)") }
         guard case let .items(uris, start) = request else { throw MusicPlaybackError(service: .appleMusic, reason: .notFound) }
         await lookup("play \(start ?? uris.first ?? "")")
