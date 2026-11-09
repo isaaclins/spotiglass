@@ -396,6 +396,50 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
         XCTAssertEqual(PlaylistBrowsingTestFixtures.playlistTracks(viewModel.detailState).count, 796)
     }
 
+    /// An album opened from a playlist keeps the sidebar on the playlist. Opening that playlist
+    /// from the palette while the album still loads must open the playlist, not be taken for the
+    /// sidebar's echo of a load already under way.
+    func testOpeningThePlaylistWhileAnAlbumFromItLoadsOpensThePlaylist() async {
+        let (playlist, tracks) = bigPlaylist(count: 37)
+        let albumTrack = MusicTrack(
+            id: "alb-track-1",
+            name: "Album Track 1",
+            artists: ["Artist Name"],
+            albumArtworkURL: nil,
+            durationMilliseconds: 180_000,
+            isExplicit: false,
+            isPlayable: true,
+            linkedFromID: nil,
+            uri: "spotify:track:alb-track-1"
+        )
+        let albumReads = ReadCounter()
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([playlist])],
+            trackResults: ["big": [.success(tracks), .success(tracks)]],
+            albumTracksHandler: { _, _, _ in
+                albumReads.increment()
+                try await Task.sleep(for: .milliseconds(200))
+                return [albumTrack]
+            }
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: DisabledSpotifyBrowsingCache())
+        await viewModel.load()
+        await viewModel.selectPlaylist(id: "big")
+
+        let album = Task {
+            await viewModel.selectAlbum(id: "album-123", displayTitle: "Album Name", displaySubtitle: "Artist Name", artworkURL: nil)
+        }
+        while albumReads.count == 0 { await Task.yield() }
+        await viewModel.selectPlaylist(id: "big")
+        await album.value
+
+        guard case let .loaded(.playlist(detail)) = viewModel.detailState else {
+            return XCTFail("Expected the playlist, got \(viewModel.detailState)")
+        }
+        XCTAssertEqual(detail.playlist.id, "big")
+        XCTAssertEqual(detail.tracks.map(\.id), tracks.map(\.id))
+    }
+
     /// Liked Songs read every page (13 for 956 Apple Music songs) before showing a row.
     func testLikedSongsShowTheirFirstPageWhileTheRestIsRead() async {
         let first = (0..<200).map { PlaylistBrowsingTestFixtures.track(id: "l\($0)") }
