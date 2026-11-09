@@ -395,6 +395,9 @@ struct LyricsOverlayLayer: View {
         }
         .animation(.easeOut(duration: 0.22), value: lyricsOverlay.isPresented)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // The lines scroll unclipped for the edge fade; in a short window they would draw over
+        // the player bar right below the column (#438).
+        .clipped()
         .ignoresSafeArea(.container, edges: .top)
         .allowsHitTesting(immersiveLyricsReady)
     }

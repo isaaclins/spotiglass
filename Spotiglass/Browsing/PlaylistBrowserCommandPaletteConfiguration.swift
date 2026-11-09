@@ -148,13 +148,18 @@ enum PlaylistBrowserCommandPaletteConfiguration {
             manager.seekBy = nil
             manager.playURI = nil
         }
+        // Going somewhere from the palette shows that page, so it closes the lyrics over the
+        // main column, also when the page is the one already under them (#438).
         manager.openPlaylist = { [weak viewModel = dependencies.viewModel] playlistID in
+            lyricsPresented.wrappedValue = false
             await viewModel?.selectPlaylist(id: playlistID, origin: .reset)
         }
         manager.openArtist = { [weak viewModel = dependencies.viewModel] artistID in
+            lyricsPresented.wrappedValue = false
             await viewModel?.selectArtist(id: artistID, origin: .reset, displayName: nil)
         }
         manager.openAlbum = { [weak viewModel = dependencies.viewModel] id, title, subtitle, artworkURL in
+            lyricsPresented.wrappedValue = false
             await viewModel?.selectAlbum(
                 id: id,
                 displayTitle: title,
@@ -176,6 +181,7 @@ enum PlaylistBrowserCommandPaletteConfiguration {
         }
         manager.openSearch = { [weak viewModel = dependencies.viewModel] in
             guard let viewModel else { return }
+            lyricsPresented.wrappedValue = false
             Task { @MainActor in
                 await viewModel.selectSidebar(.search)
             }
@@ -184,6 +190,7 @@ enum PlaylistBrowserCommandPaletteConfiguration {
         // the browsable surface instead of competing with it.
         manager.viewModel.showAllResults = { [weak viewModel = dependencies.viewModel] query, category in
             guard let viewModel else { return }
+            lyricsPresented.wrappedValue = false
             viewModel.catalogSearch.applyHandoff(query: query, paletteCategory: category)
             Task { @MainActor in
                 await viewModel.selectSidebar(.search)

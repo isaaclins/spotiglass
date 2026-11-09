@@ -12,8 +12,8 @@ struct ImmersiveLyricsView: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var isLyricsListFocused: Bool
-    /// Focus goes to the lyrics once per opening; a later song must not take it back from
-    /// wherever the user moved it.
+    /// Focus goes to each lyrics list once; a later song must not take it back from wherever
+    /// the user moved it (``LyricsKeyboardFocusProbe``).
     @State private var hasPlacedInitialFocus = false
     @Environment(\.lyricsKeyboardFocus) private var keyboardFocus
 
@@ -53,7 +53,12 @@ struct ImmersiveLyricsView: View {
         .accessibilityElement(children: .contain)
         .environment(\.lyricsListFocus, $isLyricsListFocused)
         .onAppear { placeInitialFocusIfReady() }
-        .onChange(of: lyricsModel.phase) { _, _ in placeInitialFocusIfReady() }
+        .onChange(of: lyricsModel.phase) { _, phase in
+            // A new song loads its lyrics in place of the list, which takes the keyboard with
+            // it; the next list gets it back unless the user moved it elsewhere meanwhile.
+            if !Self.showsLyricsList(phase) { hasPlacedInitialFocus = false }
+            placeInitialFocusIfReady()
+        }
         .task(id: currentTrack?.uri) {
             guard let track = currentTrack else {
                 onDismiss()
