@@ -348,6 +348,27 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
         _ = ViewTestHost.host(view, size: CGSize(width: 360, height: 280))
     }
 
+    /// A library cover MusicKit doesn't know (e.g. after its registry entry was evicted) can't be
+    /// downloaded either. Going from a catalog song to such a song must leave the backdrop black,
+    /// not keep blurring the previous song's cover.
+    func testUnknownLibraryCoverDropsThePreviousSongsBackdrop() async throws {
+        let registry = AppleMusicArtworkRegistry()
+        let unknown = try XCTUnwrap(URL(string: "musicKit://artwork/transient/600x600?id=GONE"))
+        XCTAssertNil(ImmersiveBlurredArtwork.musicKitArtwork(for: unknown, registry: registry))
+        XCTAssertNil(ImmersiveBlurredArtwork.downloadURL(for: unknown))
+
+        let catalog = try XCTUnwrap(URL(string: "https://example.com/600x600bb.jpg"))
+        XCTAssertEqual(ImmersiveBlurredArtwork.downloadURL(for: catalog), catalog)
+
+        let loader = ArtworkImageLoader(
+            imageProvider: { _ in NSImage(size: NSSize(width: 64, height: 64)) }
+        )
+        await loader.load(for: ImmersiveBlurredArtwork.downloadURL(for: catalog))
+        XCTAssertNotNil(loader.image)
+        await loader.load(for: ImmersiveBlurredArtwork.downloadURL(for: unknown))
+        XCTAssertNil(loader.image, "the previous song's cover should not stay behind a library song")
+    }
+
     /// Writes into a directory of its own rather than the user's real artwork
     /// cache. Sharing that directory with the app and with every other test made
     /// this fail whenever something else trimmed or cleared the cache mid-run

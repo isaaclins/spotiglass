@@ -74,39 +74,24 @@ struct ImmersiveBlurredArtwork: View {
                     // Drawn at the same small size a downloaded cover is downscaled to, then
                     // scaled to the tile, so the blur costs what it does for any other cover.
                     // MusicKit draws nothing for a cover it can't load; black shows through.
-                    ZStack {
-                        Color.black
+                    Color.black
+                    blurredTile(
                         ArtworkImage(
                             musicKitArtwork,
                             width: Self.blurSourceMaxEdge,
                             height: Self.blurSourceMaxEdge
                         )
-                        .scaleEffect(blurredTileSize / Self.blurSourceMaxEdge)
-                        .frame(width: blurredTileSize, height: blurredTileSize)
-                        .compositingGroup()
-                        .blur(radius: blurRadius)
-                        .scaleEffect(Self.coverScaleForBlurredBackdrop(
-                            tile: blurredTileSize,
-                            blurRadius: blurRadius,
-                            target: size
-                        ))
-                    }
+                        .scaleEffect(blurredTileSize / Self.blurSourceMaxEdge),
+                        filling: size
+                    )
                 } else if let image = artworkLoader.image {
-                    // Blur is computed on a fixed tile, then scaled up to **aspect-fill** the window.
-                    // Without this, a ~1024pt tile centered in an ultrawide/tall window leaves black gutters;
-                    // scaling mirrors “stretching” the artwork into the sides instead of empty black.
-                    Image(nsImage: image)
-                        .resizable()
-                        .interpolation(.medium)
-                        .scaledToFill()
-                        .frame(width: blurredTileSize, height: blurredTileSize)
-                        .compositingGroup()
-                        .blur(radius: blurRadius)
-                        .scaleEffect(Self.coverScaleForBlurredBackdrop(
-                            tile: blurredTileSize,
-                            blurRadius: blurRadius,
-                            target: size
-                        ))
+                    blurredTile(
+                        Image(nsImage: image)
+                            .resizable()
+                            .interpolation(.medium)
+                            .scaledToFill(),
+                        filling: size
+                    )
                 } else {
                     Color.black
                 }
@@ -115,9 +100,31 @@ struct ImmersiveBlurredArtwork: View {
             .clipped()
         }
         .task(id: url.absoluteString) {
-            guard musicKitArtwork == nil else { return }
-            await artworkLoader.load(for: url)
+            await artworkLoader.load(for: Self.downloadURL(for: url))
         }
+    }
+
+    /// The URL the loader downloads for `url`. A `musicKit://` cover can't be downloaded, also
+    /// when MusicKit no longer knows it; loading nothing drops the last song's cover, so it
+    /// can't linger behind this one.
+    // Internal so tests can check that a library cover never keeps the last song's backdrop.
+    static func downloadURL(for url: URL) -> URL? {
+        AppleMusicArtworkRegistry.needsMusicKit(url) ? nil : url
+    }
+
+    /// Blur is computed on a fixed tile, then scaled up to **aspect-fill** the window.
+    /// Without this, a ~1024pt tile centered in an ultrawide/tall window leaves black gutters;
+    /// scaling mirrors “stretching” the artwork into the sides instead of empty black.
+    private func blurredTile(_ cover: some View, filling target: CGSize) -> some View {
+        cover
+            .frame(width: blurredTileSize, height: blurredTileSize)
+            .compositingGroup()
+            .blur(radius: blurRadius)
+            .scaleEffect(Self.coverScaleForBlurredBackdrop(
+                tile: blurredTileSize,
+                blurRadius: blurRadius,
+                target: target
+            ))
     }
 
     /// The MusicKit artwork to draw for `url`, or nil when `url` is a plain cover to download.
