@@ -353,4 +353,183 @@ final class LyricsPopOutTests: XCTestCase {
         XCTAssertEqual(text(.ready(.instrumental), at: 0), SpotiglassL10n.string("lyrics.instrumental"))
 
     }
+
+    // MARK: The window as it runs
+
+    private let lyricsLRC = """
+    [00:00.00]First line
+    [00:30.00]Second line
+    """
+
+    /// A playing Spotify player with an artist, its mocks, and a lyrics model that answers from
+    /// `lyricsLRC` instead of LRCLIB.
+    private func playingWithLyrics() -> (PlaybackSessionViewModel, MockPlaybackAPI, MockWebPlaybackCommander, ImmersiveLyricsViewModel) {
+        _ = NSApplication.shared
+        let api = MockPlaybackAPI()
+        let commander = MockWebPlaybackCommander()
+        let host = SpotiglassPlaybackHost(provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: commander))
+        let playback = host.playbackViewModel
+        playback.deviceID = "device-1"
+        playback.hasTransferredPlaybackToCurrentDevice = true
+        playback.setTransportStateKnown(true)
+        playback.setConnectionState(.playing(PlaybackNowPlaying(
+            name: "Midnight City", artists: ["M83"], albumName: nil, albumID: nil, albumArtURL: nil,
+            durationMilliseconds: 240_000, positionMilliseconds: 5_000, uri: "spotify:track:popout-\(UUID().uuidString)"
+        )))
+        let lines = LrcLineParser.parseSyncedLines(lyricsLRC)
+        let lyrics = ImmersiveLyricsViewModel(fetchLyrics: { _ in .synced(lines) })
+        return (playback, api, commander, lyrics)
+    }
+
+    /// Hosts the pop-out's content the way the app does and lets it settle. The content adopts
+    /// its window as the pop-out (the configurator in its background).
+    private func hostPopOut(_ view: some View, size: CGSize) throws -> NSWindow {
+        let settings = try ViewTestHost.makeSettingsStore()
+        let controller = ViewTestHost.host(view.environmentObject(settings), size: size)
+        let window = try XCTUnwrap(controller.view.window)
+        // The size under test, as a user dragged it: not the content's smallest fitting size.
+        controller.sizingOptions = []
+        window.setContentSize(size)
+        for _ in 0..<20 where !LyricsPopOutWindow.isPopOut(window) {
+            AppKitTestSupport.pumpRunLoop(for: 0.05)
+        }
+        controller.view.layoutSubtreeIfNeeded()
+        controller.view.displayIfNeeded()
+        AppKitTestSupport.pumpRunLoop(for: 0.1)
+        XCTAssertEqual(controller.view.frame.size, size)
+        return window
+    }
+
+    private func waitUntilReady(_ lyrics: ImmersiveLyricsViewModel) {
+        for _ in 0..<40 {
+            if case .ready = lyrics.phase { return }
+            AppKitTestSupport.pumpRunLoop(for: 0.05)
+        }
+    }
+
+    /// At every size the content loads the playing song's lyrics and makes its window the pinned
+    /// pop-out: above other windows, with its frame saved under the pop-out's name.
+    func testAtEverySizeTheWindowLoadsTheSongsLyricsAndBecomesThePinnedPopOut() throws {
+        let (_, keymap) = makeManager()
+        defer { ViewTestHost.tearDownAll() }
+        for size in [
+            LyricsPopOutWindow.defaultSize,
+            CGSize(width: 360, height: LyricsPopOutWindow.minimumSize.height),
+            LyricsPopOutWindow.minimumSize,
+        ] {
+            let (playback, _, _, lyrics) = playingWithLyrics()
+            let window = try hostPopOut(
+                LyricsPopOutView(player: playback, keymapStore: keymap, makeLyricsModel: { lyrics }),
+                size: size
+            )
+            waitUntilReady(lyrics)
+            guard case let .ready(.synced(lines)) = lyrics.phase else {
+                return XCTFail("lyrics never loaded at \(size): \(lyrics.phase)")
+            }
+            XCTAssertEqual(lines.map(\.words), ["First line", "Second line"])
+            XCTAssertTrue(LyricsPopOutWindow.isPopOut(window), "\(size)")
+            XCTAssertEqual(window.level, .floating, "pinned by default at \(size)")
+            XCTAssertEqual(window.frameAutosaveName, LyricsPopOutWindow.frameAutosaveName)
+            // What the strip says at this moment of the song.
+            XCTAssertEqual(
+                LyricsPopOutStripText.lyric(phase: lyrics.phase, trackDurationMs: 240_000, positionMs: 5_000),
+                "First line"
+            )
+            // AppKit gives a frame autosave name to one window at a time; the app has one pop-out
+            // window, the test makes one per size, so each hands the name back.
+            window.setFrameAutosaveName("")
+            ViewTestHost.tearDownAll()
+        }
+    }
+
+    /// A real Space key press in the hosted pop-out reaches its player through the window's own
+    /// key monitor, with no main window or palette in the app.
+    func testSpacePressedInTheHostedPopOutPausesItsPlayer() async throws {
+        let (_, keymap) = makeManager()
+        let (playback, _, commander, lyrics) = playingWithLyrics()
+        defer { ViewTestHost.tearDownAll() }
+        let window = try hostPopOut(
+            LyricsPopOutView(player: playback, keymapStore: keymap, makeLyricsModel: { lyrics }),
+            size: LyricsPopOutWindow.defaultSize
+        )
+        XCTAssertTrue(LyricsPopOutWindow.isPopOut(window))
+
+        NSApp.postEvent(keyDown(keyCode: 49, characters: " ", window: window), atStart: false)
+        for _ in 0..<40 where toggles(commander) == 0 {
+            AppKitTestSupport.pumpRunLoop(for: 0.05)
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertEqual(toggles(commander), 1, "Space in the pop-out pauses what it shows")
+    }
+
+    /// With no service signed in the window has no player to follow and shows its empty state;
+    /// signed in to Spotify it follows Spotify's app-wide player.
+    func testTheWindowFollowsTheOnScreenServicesPlayerOrShowsNothingPlaying() throws {
+        let (_, keymap) = makeManager()
+        let (spotify, _) = playingSpotify()
+        let hosts = SpotiglassPlaybackHosts(spotify: spotify) {
+            SpotiglassPlaybackHost(provider: AppleMusicPlaybackProvider(player: ScriptedAppleMusicPlayer()))
+        }
+        defer { ViewTestHost.tearDownAll() }
+        let lines = LrcLineParser.parseSyncedLines(lyricsLRC)
+        var made: [ImmersiveLyricsViewModel] = []
+        let makeLyrics: @MainActor () -> ImmersiveLyricsViewModel = {
+            let model = ImmersiveLyricsViewModel(fetchLyrics: { _ in .synced(lines) })
+            made.append(model)
+            return model
+        }
+
+        let signedOut = MusicServiceStore(storage: InMemoryMusicServiceSelectionStorage(services: [], active: nil))
+        let empty = try hostPopOut(
+            LyricsPopOutRoot(playbackHosts: hosts, serviceStore: signedOut, keymapStore: keymap, makeLyricsModel: makeLyrics),
+            size: LyricsPopOutWindow.defaultSize
+        )
+        XCTAssertTrue(LyricsPopOutWindow.isPopOut(empty))
+        XCTAssertTrue(made.isEmpty, "no player, so no lyrics are loaded")
+
+        let spotifyOnScreen = MusicServiceStore(
+            storage: InMemoryMusicServiceSelectionStorage(services: [.spotify], active: .spotify)
+        )
+        _ = try hostPopOut(
+            LyricsPopOutRoot(playbackHosts: hosts, serviceStore: spotifyOnScreen, keymapStore: keymap, makeLyricsModel: makeLyrics),
+            size: LyricsPopOutWindow.defaultSize
+        )
+        let lyrics = try XCTUnwrap(made.first)
+        waitUntilReady(lyrics)
+        guard case .ready = lyrics.phase else { return XCTFail("\(lyrics.phase)") }
+        XCTAssertEqual(spotify.playbackViewModel.currentLyricTrack?.name, "Midnight City")
+    }
+
+    /// Next and Previous from the pop-out reach the player, the same as the bar's buttons.
+    func testNextAndPreviousFromThePopOutReachThePlayer() async throws {
+        let (playback, api, _, _) = playingWithLyrics()
+        XCTAssertTrue(LyricsPopOutTransport.canRun(CommandPaletteCommandID.nextTrack, on: playback))
+        LyricsPopOutTransport.run(CommandPaletteCommandID.nextTrack, on: playback)
+        for _ in 0..<40 where !api.actions.contains(where: { $0.hasPrefix("next") }) {
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        XCTAssertTrue(api.actions.contains { $0.hasPrefix("next") }, "\(api.actions)")
+
+        // A fresh player: right after a skip the player holds further skips for a moment.
+        let (fresh, freshAPI, _, _) = playingWithLyrics()
+        XCTAssertTrue(LyricsPopOutTransport.canRun(CommandPaletteCommandID.previousTrack, on: fresh))
+        LyricsPopOutTransport.run(CommandPaletteCommandID.previousTrack, on: fresh)
+        for _ in 0..<40 where !freshAPI.actions.contains(where: { $0.hasPrefix("previous") }) {
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        XCTAssertTrue(freshAPI.actions.contains { $0.hasPrefix("previous") }, "\(freshAPI.actions)")
+        XCTAssertFalse(LyricsPopOutTransport.canRun(CommandPaletteCommandID.openSearch, on: playback))
+    }
+
+    /// Paused, or between progress anchors, the lyrics hold the player's last known position.
+    func testTheLyricsPositionHoldsStillWhenThereIsNoProgressToFollow() {
+        let song = PlaybackNowPlaying(
+            name: "Midnight City", artists: ["M83"], albumName: nil, albumID: nil, albumArtURL: nil,
+            durationMilliseconds: 240_000, positionMilliseconds: 42_000, uri: "spotify:track:1"
+        )
+        XCTAssertEqual(LyricsPositionReader<EmptyView>.staticPositionMs(anchor: nil, connectionState: .playing(song)), 42_000)
+        XCTAssertEqual(LyricsPositionReader<EmptyView>.staticPositionMs(anchor: nil, connectionState: .paused(song)), 42_000)
+        XCTAssertEqual(LyricsPositionReader<EmptyView>.staticPositionMs(anchor: nil, connectionState: .paused(nil)), 0)
+        XCTAssertEqual(LyricsPositionReader<EmptyView>.staticPositionMs(anchor: nil, connectionState: .disconnected), 0)
+    }
 }

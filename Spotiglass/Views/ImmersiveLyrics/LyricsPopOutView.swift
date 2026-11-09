@@ -61,13 +61,19 @@ struct LyricsPopOutRoot: View {
     @ObservedObject var serviceStore: MusicServiceStore
     /// Space, Next and Previous as bound in Settings › Keyboard.
     let keymapStore: CommandPaletteKeymapStore
+    /// Where the window's lyrics come from: LRCLIB through the app-wide cache, or a stand-in in tests.
+    var makeLyricsModel: @MainActor () -> ImmersiveLyricsViewModel = { ImmersiveLyricsViewModel() }
 
     var body: some View {
         Group {
             if let service = serviceStore.active {
-                LyricsPopOutPlayerResolver(onScreenPlayer: player(for: service), keymapStore: keymapStore)
+                LyricsPopOutPlayerResolver(
+                    onScreenPlayer: player(for: service),
+                    keymapStore: keymapStore,
+                    makeLyricsModel: makeLyricsModel
+                )
             } else {
-                LyricsPopOutView(player: nil, keymapStore: keymapStore)
+                LyricsPopOutView(player: nil, keymapStore: keymapStore, makeLyricsModel: makeLyricsModel)
             }
         }
         // If every main window is closed, the Spotify player's page moves in here instead of
@@ -94,10 +100,11 @@ struct LyricsPopOutRoot: View {
 private struct LyricsPopOutPlayerResolver: View {
     @ObservedObject var onScreenPlayer: PlaybackSessionViewModel
     let keymapStore: CommandPaletteKeymapStore
+    let makeLyricsModel: @MainActor () -> ImmersiveLyricsViewModel
 
     var body: some View {
         let player = onScreenPlayer.audiblePlayer
-        LyricsPopOutView(player: player, keymapStore: keymapStore)
+        LyricsPopOutView(player: player, keymapStore: keymapStore, makeLyricsModel: makeLyricsModel)
             .id(ObjectIdentifier(player))
     }
 }
@@ -105,10 +112,11 @@ private struct LyricsPopOutPlayerResolver: View {
 struct LyricsPopOutView: View {
     let player: PlaybackSessionViewModel?
     let keymapStore: CommandPaletteKeymapStore
+    var makeLyricsModel: @MainActor () -> ImmersiveLyricsViewModel = { ImmersiveLyricsViewModel() }
 
     var body: some View {
         if let player {
-            LyricsPopOutPlayerView(playbackViewModel: player)
+            LyricsPopOutPlayerView(playbackViewModel: player, lyricsModel: makeLyricsModel())
                 .background {
                     LyricsPopOutKeyMonitor(keymapStore: keymapStore, player: player)
                         .frame(width: 0, height: 0)
@@ -125,10 +133,16 @@ private struct LyricsPopOutPlayerView: View {
     @ObservedObject var playbackViewModel: PlaybackSessionViewModel
     /// Its own phase, but the fetched lyrics are shared: the lyrics cache and in-flight requests
     /// are app-wide, so the main lyrics view and this window never fetch the same song twice.
-    @StateObject private var lyricsModel = ImmersiveLyricsViewModel()
+    @StateObject private var lyricsModel: ImmersiveLyricsViewModel
     @EnvironmentObject private var settingsStore: SpotiglassSettingsStore
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    init(playbackViewModel: PlaybackSessionViewModel, lyricsModel: @autoclosure @escaping () -> ImmersiveLyricsViewModel) {
+        self.playbackViewModel = playbackViewModel
+        // Made once for the life of this view, like any `@StateObject`.
+        _lyricsModel = StateObject(wrappedValue: lyricsModel())
+    }
 
     private var track: PlaybackNowPlaying? {
         playbackViewModel.currentLyricTrack
