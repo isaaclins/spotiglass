@@ -616,4 +616,118 @@ final class LyricsPopOutTests: XCTestCase {
         XCTAssertEqual(LyricsPositionReader<EmptyView>.staticPositionMs(anchor: nil, connectionState: .paused(nil)), 0)
         XCTAssertEqual(LyricsPositionReader<EmptyView>.staticPositionMs(anchor: nil, connectionState: .disconnected), 0)
     }
+
+    // MARK: What it shows for what plays
+
+    /// A podcast episode or a local file plays but has no lyrics: the window shows it (title,
+    /// artwork, controls) and says there are no lyrics, never "Nothing playing".
+    func testSomethingWithoutLyricsIsShownAsPlayingNotAsNothing() {
+        func item(_ uri: String?) -> PlaybackNowPlaying {
+            PlaybackNowPlaying(
+                name: "The Daily", artists: ["NYT"], albumName: nil, albumID: nil, albumArtURL: nil,
+                durationMilliseconds: 1_800_000, positionMilliseconds: 60_000, uri: uri
+            )
+        }
+        let episode = item("spotify:episode:4rOoJ6Egrf8K2IrywzwOMk")
+        XCTAssertEqual(LyricsPopOutContent.of(.playing(episode)), .noLyrics(episode))
+        XCTAssertEqual(LyricsPopOutContent.of(.paused(item(nil))), .noLyrics(item(nil)))
+        let song = item("spotify:track:1")
+        XCTAssertEqual(LyricsPopOutContent.of(.playing(song)), .lyrics(song))
+        XCTAssertEqual(LyricsPopOutContent.of(.paused(nil)), .nothingPlaying)
+        XCTAssertEqual(LyricsPopOutContent.of(.disconnected), .nothingPlaying)
+        XCTAssertEqual(LyricsPopOutContent.of(.playing(episode)).track, episode)
+    }
+
+    /// Hosted with an episode playing, the window never looks lyrics up for it.
+    func testTheWindowLooksUpNoLyricsForAnEpisode() throws {
+        let (_, keymap) = makeManager()
+        let (playback, _, _, _) = playingWithLyrics()
+        playback.setConnectionState(.playing(PlaybackNowPlaying(
+            name: "The Daily", artists: ["NYT"], albumName: nil, albumID: nil, albumArtURL: nil,
+            durationMilliseconds: 1_800_000, positionMilliseconds: 60_000, uri: "spotify:episode:1"
+        )))
+        var lookups = 0
+        let lyrics = ImmersiveLyricsViewModel(fetchLyrics: { _ in
+            lookups += 1
+            return .instrumental
+        })
+        defer { ViewTestHost.tearDownAll() }
+        for size in [LyricsPopOutWindow.defaultSize, LyricsPopOutWindow.minimumSize] {
+            _ = try hostPopOut(
+                LyricsPopOutView(player: playback, keymapStore: keymap, makeLyricsModel: { lyrics }),
+                size: size
+            )
+            AppKitTestSupport.pumpRunLoop(for: 0.2)
+        }
+        XCTAssertEqual(lookups, 0)
+        XCTAssertEqual(lyrics.phase, .idle)
+    }
+
+    /// With Apple Music on screen and Spotify's song the one you hear, the window follows Spotify's
+    /// song: it looks up lyrics for what you hear, like the player bar's controls act on it.
+    func testWithTheOtherServicePlayingTheWindowFollowsWhatYouHear() throws {
+        let (_, keymap) = makeManager()
+        let (spotify, _) = playingSpotify()
+        // A song of its own: the lyrics cache is app-wide, and other tests already loaded track 1.
+        spotify.playbackViewModel.setConnectionState(.playing(PlaybackNowPlaying(
+            name: "Midnight City", artists: ["M83"], albumName: nil, albumID: nil, albumArtURL: nil,
+            durationMilliseconds: 240_000, positionMilliseconds: 1_000, uri: "spotify:track:follow-\(UUID().uuidString)"
+        )))
+        let hosts = SpotiglassPlaybackHosts(spotify: spotify) {
+            SpotiglassPlaybackHost(provider: AppleMusicPlaybackProvider(player: ScriptedAppleMusicPlayer()))
+        }
+        hosts.gate(activeService: .appleMusic)
+        let appleMusic = hosts.appleMusic.playbackViewModel
+        appleMusic.handle(.ready(deviceID: AppleMusicPlaybackProvider.deviceID))
+        for _ in 0..<20 where !appleMusic.isOtherServicePlaying {
+            AppKitTestSupport.pumpRunLoop(for: 0.05)
+        }
+        XCTAssertTrue(appleMusic.audiblePlayer === spotify.playbackViewModel)
+
+        var looked: [String] = []
+        let lines = LrcLineParser.parseSyncedLines(lyricsLRC)
+        let services = MusicServiceStore(
+            storage: InMemoryMusicServiceSelectionStorage(services: [.spotify, .appleMusic], active: .appleMusic)
+        )
+        defer { ViewTestHost.tearDownAll() }
+        _ = try hostPopOut(
+            LyricsPopOutRoot(
+                playbackHosts: hosts,
+                serviceStore: services,
+                keymapStore: keymap,
+                makeLyricsModel: {
+                    ImmersiveLyricsViewModel(fetchLyrics: { track in
+                        looked.append(track.name)
+                        return .synced(lines)
+                    })
+                }
+            ),
+            size: LyricsPopOutWindow.defaultSize
+        )
+        for _ in 0..<40 where looked.isEmpty {
+            AppKitTestSupport.pumpRunLoop(for: 0.05)
+        }
+        XCTAssertEqual(looked, ["Midnight City"])
+    }
+
+    /// A main window in the Dock comes back on a Dock click instead of a second one being made.
+    func testADockClickBringsBackAMinimisedMainWindow() {
+        final class MinimizedWindow: OffscreenTestWindow {
+            override var isMiniaturized: Bool { true }
+        }
+        let popOut = makeWindow()
+        LyricsPopOutWindow.adopt(popOut)
+        defer { AppKitTestSupport.closeWindowSafely(popOut) }
+        let minimized = MinimizedWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 200, height: 120),
+            styleMask: [.titled, .closable, .miniaturizable],
+            backing: .buffered,
+            defer: false
+        )
+        minimized.isReleasedWhenClosed = false
+        defer { AppKitTestSupport.closeWindowSafely(minimized) }
+        XCTAssertTrue(SpotiglassApplicationDelegate.minimizedMainWindow([popOut, minimized]) === minimized)
+        XCTAssertNil(SpotiglassApplicationDelegate.minimizedMainWindow([popOut]))
+    }
 }
+

@@ -144,18 +144,37 @@ private struct LyricsPopOutPlayerView: View {
         _lyricsModel = StateObject(wrappedValue: lyricsModel())
     }
 
+    private var content: LyricsPopOutContent {
+        .of(playbackViewModel.connectionState)
+    }
+
+    /// What plays, shown in the header whether or not it has lyrics.
     private var track: PlaybackNowPlaying? {
-        playbackViewModel.currentLyricTrack
+        content.track
+    }
+
+    /// What plays when it can have lyrics: a song, not a podcast episode or a local file.
+    private var lyricTrack: PlaybackNowPlaying? {
+        if case let .lyrics(track) = content { track } else { nil }
     }
 
     var body: some View {
-        LyricsPopOutChrome(track: track, controls: AnyView(controls)) { layout in
-            if track == nil {
+        LyricsPopOutChrome(
+            track: track,
+            notice: playbackViewModel.refusedPlayPause,
+            controls: AnyView(controls)
+        ) { layout in
+            switch content {
+            case .nothingPlaying:
                 LyricsPopOutEmptyState()
-            } else if layout == .full {
-                fullLyrics
-            } else {
-                EmptyView()
+            case .noLyrics:
+                if layout == .full {
+                    LyricsPopOutEmptyState(message: SpotiglassL10n.string("lyrics.error.noLyrics"))
+                }
+            case .lyrics:
+                if layout == .full {
+                    fullLyrics
+                }
             }
         } stripLine: {
             if let track {
@@ -164,16 +183,18 @@ private struct LyricsPopOutPlayerView: View {
                     offsetMs: settingsStore.settings.appearance.lyricsOffsetMilliseconds
                 ) { positionMs in
                     LyricsPopOutStripLine(
-                        phase: lyricsModel.phase,
+                        // Without lyrics there's no line to show, whatever the last song left.
+                        phase: lyricTrack == nil ? .idle : lyricsModel.phase,
                         track: track,
+                        notice: playbackViewModel.refusedPlayPause,
                         positionMs: positionMs
                     )
                 }
             }
         }
-        .task(id: track?.uri) {
-            guard let track else { return }
-            await lyricsModel.load(track: track)
+        .task(id: lyricTrack?.uri) {
+            guard let lyricTrack else { return }
+            await lyricsModel.load(track: lyricTrack)
         }
     }
 
@@ -185,7 +206,7 @@ private struct LyricsPopOutPlayerView: View {
             ) { positionMs in
                 ImmersiveLyricsLyricsPhaseColumn(
                     lyricsModel: lyricsModel,
-                    currentTrack: track,
+                    currentTrack: lyricTrack,
                     positionMs: positionMs,
                     reduceMotion: reduceMotion,
                     usesLyricsScrollEdgeFade: !reduceTransparency && !reduceMotion,
@@ -210,17 +231,22 @@ private struct LyricsPopOutPlayerView: View {
 /// Background, header and pin, shared by every state of the window.
 private struct LyricsPopOutChrome<Body: View, StripLine: View>: View {
     let track: PlaybackNowPlaying?
+    /// A refused play / pause (#437): its title replaces the artist line for a moment, as on the
+    /// player bar, with the reason on hover.
+    let notice: PlaybackDisplayError?
     let controls: AnyView?
     let content: (LyricsPopOutLayout) -> Body
     let stripLine: () -> StripLine
 
     init(
         track: PlaybackNowPlaying?,
+        notice: PlaybackDisplayError?,
         controls: AnyView?,
         @ViewBuilder content: @escaping (LyricsPopOutLayout) -> Body,
         @ViewBuilder stripLine: @escaping () -> StripLine
     ) {
         self.track = track
+        self.notice = notice
         self.controls = controls
         self.content = content
         self.stripLine = stripLine
@@ -290,8 +316,9 @@ private struct LyricsPopOutChrome<Body: View, StripLine: View>: View {
                 } else {
                     LyricsPopOutTitleBlock(
                         title: track?.name ?? SpotiglassL10n.string("lyrics.popOut.nothingPlaying"),
-                        subtitle: track?.artistText
+                        subtitle: notice?.title ?? track?.artistText
                     )
+                    .help(notice?.message ?? "")
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -335,7 +362,7 @@ extension LyricsPopOutChrome where StripLine == EmptyView {
         track: PlaybackNowPlaying?,
         @ViewBuilder content: @escaping (LyricsPopOutLayout) -> Body
     ) {
-        self.init(track: track, controls: nil, content: content, stripLine: { EmptyView() })
+        self.init(track: track, notice: nil, controls: nil, content: content, stripLine: { EmptyView() })
     }
 }
 
@@ -457,6 +484,7 @@ private struct LyricsPopOutTitleBlock: View {
 private struct LyricsPopOutStripLine: View {
     let phase: ImmersiveLyricsViewModel.Phase
     let track: PlaybackNowPlaying
+    let notice: PlaybackDisplayError?
     let positionMs: Int
 
     var body: some View {
@@ -467,8 +495,9 @@ private struct LyricsPopOutStripLine: View {
         )
         LyricsPopOutTitleBlock(
             title: lyric ?? track.name,
-            subtitle: lyric == nil ? track.artistText : "\(track.name) · \(track.artistText)"
+            subtitle: notice?.title ?? (lyric == nil ? track.artistText : "\(track.name) · \(track.artistText)")
         )
+        .help(notice?.message ?? "")
         .contentTransition(.opacity)
         .animation(.smooth(duration: 0.25), value: lyric)
     }
@@ -508,12 +537,35 @@ enum LyricsPopOutStripText {
 }
 
 private struct LyricsPopOutEmptyState: View {
+    var message = SpotiglassL10n.string("lyrics.popOut.nothingPlaying.message")
+
     var body: some View {
-        Text(SpotiglassL10n.string("lyrics.popOut.nothingPlaying.message"))
+        Text(message)
             .font(.body)
             .foregroundStyle(.white.opacity(0.72))
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             .multilineTextAlignment(.center)
             .padding(.bottom, SpotiglassDesign.spacingL)
+    }
+}
+
+/// What the window has to show for the player's state.
+enum LyricsPopOutContent: Equatable {
+    case nothingPlaying
+    /// Something plays that has no lyrics to look up: a podcast episode, a local file.
+    case noLyrics(PlaybackNowPlaying)
+    case lyrics(PlaybackNowPlaying)
+
+    static func of(_ state: PlaybackConnectionState) -> Self {
+        if let track = state.currentLyricTrack { return .lyrics(track) }
+        if let track = state.currentTrack { return .noLyrics(track) }
+        return .nothingPlaying
+    }
+
+    var track: PlaybackNowPlaying? {
+        switch self {
+        case .nothingPlaying: nil
+        case let .noLyrics(track), let .lyrics(track): track
+        }
     }
 }

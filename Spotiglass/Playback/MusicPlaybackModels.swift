@@ -98,17 +98,20 @@ extension PlaybackConnectionState {
 
     /// The currently playing or paused music track, if lyrics can be loaded for it.
     var currentLyricTrack: PlaybackNowPlaying? {
-        let nowPlaying: PlaybackNowPlaying?
+        guard let nowPlaying = currentTrack, nowPlaying.lyricsTrackKey != nil else { return nil }
+        return nowPlaying
+    }
+
+    /// What is playing or paused, lyrics or not (a podcast episode, a local file).
+    var currentTrack: PlaybackNowPlaying? {
         switch self {
         case let .playing(track):
-            nowPlaying = track
+            track
         case let .paused(track):
-            nowPlaying = track
+            track
         case .disconnected, .connecting, .ready, .transferring, .unavailable, .error:
-            nowPlaying = nil
+            nil
         }
-        guard let nowPlaying, nowPlaying.lyricsTrackKey != nil else { return nil }
-        return nowPlaying
     }
 }
 

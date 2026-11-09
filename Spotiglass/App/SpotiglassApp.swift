@@ -322,8 +322,23 @@ final class SpotiglassApplicationDelegate: NSObject, NSApplicationDelegate {
     @MainActor
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         guard Self.onlyThePopOutIsOpen(sender.windows) else { return true }
-        Self.performNewWindow(in: sender.mainMenu)
+        // A main window in the Dock comes back, as with any app; only with none is a new one made.
+        if let minimized = Self.minimizedMainWindow(sender.windows) {
+            minimized.deminiaturize(nil)
+        } else {
+            Self.performNewWindow(in: sender.mainMenu)
+        }
         return false
+    }
+
+    /// A main window minimised to the Dock, if there is one. (A minimised window can't become
+    /// main, so it is told apart by being a titled window that isn't a panel or the pop-out.)
+    @MainActor
+    static func minimizedMainWindow(_ windows: [NSWindow]) -> NSWindow? {
+        windows.first {
+            $0.isMiniaturized && $0.styleMask.contains(.titled) && !($0 is NSPanel)
+                && !LyricsPopOutWindow.isPopOut($0)
+        }
     }
 
     /// True when the pop-out is the only window that could be a main window: no main window and
