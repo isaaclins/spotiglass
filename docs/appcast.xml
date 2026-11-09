@@ -3,14 +3,14 @@
     <channel>
         <title>Spotiglass</title>
         <item>
-            <title>0.8.6</title>
-            <pubDate>Mon, 09 Nov 2026 02:31:19 +0100</pubDate>
-            <sparkle:version>17</sparkle:version>
-            <sparkle:shortVersionString>0.8.6</sparkle:shortVersionString>
+            <title>0.8.7</title>
+            <pubDate>Mon, 09 Nov 2026 02:47:21 +0100</pubDate>
+            <sparkle:version>18</sparkle:version>
+            <sparkle:shortVersionString>0.8.7</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[• The sidebar now looks consistent, with matching rows, headers and tiles.
+            <description sparkle:format="plain-text"><![CDATA[• The lyrics backdrop now shows album art for songs from your Apple Music library, instead of staying black.
 ]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.6/Spotiglass-0.8.6.zip" length="12343700" type="application/octet-stream" sparkle:edSignature="pl6hSjBbzfz4UIvFGqIhnDGLoPlc2htFsrkiMwAYvJG2SaDNZrWOl0EsG8UrReRolNdw6k1/ZXEqqluPtcKyCw=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.7/Spotiglass-0.8.7.zip" length="12356214" type="application/octet-stream" sparkle:edSignature="yimMs/mijqQjKdx8RrQ3JI36gW4gMpvlHsoulra+1e638l1O2kg2nmHhvn0uogO/EM1+xk5JuGlSR68EUbHRAA=="/>
         </item>
     </channel>
 </rss>

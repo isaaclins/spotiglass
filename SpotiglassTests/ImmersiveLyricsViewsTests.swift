@@ -1,3 +1,4 @@
+import MusicKit
 import SwiftUI
 import ViewInspector
 import XCTest
@@ -306,6 +307,159 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
         XCTAssertEqual(downscaled.size.height, 288, accuracy: 0.001)
     }
 
+    /// Apple Music library songs map their cover to a `musicKit://` URL, which no download can
+    /// fetch. The backdrop downloaded it anyway and stayed black behind the lyrics (#448).
+    func testLibraryCoverGivesTheBackdropAnImage() throws {
+        let registry = AppleMusicArtworkRegistry()
+        let library = try AppleMusicFixtures.decode(
+            Artwork.self,
+            #"{"url":"musicKit://artwork/transient/{w}x{h}?id=LYRICS","width":600,"height":600}"#
+        )
+        let url = try XCTUnwrap(AppleMusicItemMapping.artworkURL(library, size: 120, registry: registry))
+        XCTAssertTrue(AppleMusicArtworkRegistry.needsMusicKit(url))
+
+        XCTAssertEqual(
+            ImmersiveBlurredArtwork.musicKitArtwork(for: url, registry: registry),
+            library,
+            "a library cover should be drawn by MusicKit behind the lyrics, not downloaded and left black"
+        )
+
+        // MusicKit draws nothing for a made-up artwork, so a red stand-in plays MusicKit's part.
+        // On today's code the cover goes to the downloader, which can't fetch it: all black.
+        let drawn = DrawnCovers()
+        let view = ImmersiveBlurredArtwork(url: url, registry: registry) { artwork, edge in
+            XCTAssertEqual(artwork, library)
+            return AnyView(StandInCover(edge: edge, drawn: drawn))
+        }
+        // A Retina screen: MusicKit would ask for twice the edge unless the backdrop stops it.
+        .environment(\.displayScale, 2)
+        let center = try centerPixel(of: view, size: CGSize(width: 360, height: 280))
+        XCTAssertGreaterThan(center.redComponent, 0.9, "the backdrop should show the blurred library cover, not black")
+        XCTAssertGreaterThan(center.redComponent - center.greenComponent, 0.6, "the cover's own colour, not grey")
+        // Same 576 px source a downloaded cover is downscaled to, so the blur costs the same.
+        XCTAssertEqual(drawn.pixelEdges.last, 576)
+
+        // A wide window: the small library cover is scaled up to fill it exactly like a
+        // downloaded cover, not left as a 576 pt square in the middle with black around it.
+        let downloaded = ImmersiveBlurredArtwork(
+            url: try XCTUnwrap(URL(string: "https://example.com/600x600bb.jpg")),
+            initialImage: StandInCover.red,
+            registry: registry
+        )
+        let wide = CGSize(width: 2_400, height: 900)
+        for point in [CGPoint(x: 8, y: 8), CGPoint(x: 240, y: 450), CGPoint(x: 2_160, y: 120)] {
+            // Red as seen over black: the downloaded cover's faded edge is see-through, the
+            // library one sits on black.
+            let library = try pixel(of: view, size: wide, at: point).redOverBlack
+            let reference = try pixel(of: downloaded, size: wide, at: point).redOverBlack
+            XCTAssertEqual(library, reference, accuracy: 0.05, "the library cover should fill the window at \(point)")
+        }
+        XCTAssertGreaterThan(try pixel(of: view, size: wide, at: CGPoint(x: 240, y: 450)).redComponent, 0.5)
+    }
+
+    /// Going from a catalog song to a library song MusicKit doesn't know, in the same backdrop
+    /// (as when the next song starts), must not keep the catalog song's cover behind the lyrics.
+    /// `main` already behaved this way (the failing download cleared the cover); this guards it now
+    /// that such a cover is never downloaded.
+    func testNextSongWithAnUnknownLibraryCoverClearsTheBackdrop() throws {
+        let registry = AppleMusicArtworkRegistry()
+        let catalog = try XCTUnwrap(URL(string: "https://example.com/600x600bb.jpg"))
+        let unknown = try XCTUnwrap(URL(string: "musicKit://artwork/transient/600x600?id=GONE"))
+        let red = NSImage(size: NSSize(width: 64, height: 64), flipped: false) { rect in
+            NSColor.red.setFill()
+            rect.fill()
+            return true
+        }
+
+        let host = NSHostingView(rootView: AnyView(
+            ImmersiveBlurredArtwork(url: catalog, initialImage: red, registry: registry)
+        ))
+        host.frame = NSRect(x: 0, y: 0, width: 360, height: 280)
+        host.layoutSubtreeIfNeeded()
+        AppKitTestSupport.pumpRunLoop(for: 0.1)
+        XCTAssertGreaterThan(try centerPixel(of: host).redComponent, 0.5, "the catalog cover should show first")
+
+        host.rootView = AnyView(ImmersiveBlurredArtwork(url: unknown, registry: registry))
+        host.layoutSubtreeIfNeeded()
+        AppKitTestSupport.pumpRunLoop(for: 0.3)
+        let center = try centerPixel(of: host)
+        XCTAssertLessThan(
+            center.redComponent + center.greenComponent + center.blueComponent,
+            0.05,
+            "the previous song's cover should not stay behind a library song"
+        )
+    }
+
+    private func centerPixel(of host: NSView) throws -> NSColor {
+        let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+        host.cacheDisplay(in: host.bounds, to: bitmap)
+        let color = try XCTUnwrap(bitmap.colorAt(x: bitmap.pixelsWide / 2, y: bitmap.pixelsHigh / 2))
+        return try XCTUnwrap(color.usingColorSpace(.sRGB))
+    }
+
+    /// The colour at the middle of `view` rendered at `size`, 1x.
+    private func centerPixel(of view: some View, size: CGSize) throws -> NSColor {
+        try pixel(of: view, size: size, at: CGPoint(x: size.width / 2, y: size.height / 2))
+    }
+
+    /// The colour at `point` (in points from the top left) of `view` rendered at `size`, 1x.
+    private func pixel(of view: some View, size: CGSize, at point: CGPoint) throws -> NSColor {
+        let renderer = ImageRenderer(content: view.frame(width: size.width, height: size.height))
+        renderer.scale = 1
+        let cgImage = try XCTUnwrap(renderer.cgImage, "the backdrop should render")
+        let bitmap = NSBitmapImageRep(cgImage: cgImage)
+        let color = try XCTUnwrap(bitmap.colorAt(x: Int(point.x), y: Int(point.y)))
+        return try XCTUnwrap(color.usingColorSpace(.sRGB))
+    }
+
+    /// Catalog covers stay plain https and keep going through the downloader.
+    func testCatalogCoverIsStillDownloaded() throws {
+        let registry = AppleMusicArtworkRegistry()
+        let catalog = try AppleMusicFixtures.decode(
+            Artwork.self,
+            #"{"url":"https://example.com/{w}x{h}bb.jpg","width":600,"height":600}"#
+        )
+        let url = try XCTUnwrap(AppleMusicItemMapping.artworkURL(catalog, size: 120, registry: registry))
+
+        let view = ImmersiveBlurredArtwork(
+            url: url,
+            initialImage: NSImage(size: NSSize(width: 64, height: 64)),
+            registry: registry
+        )
+        XCTAssertNil(view.musicKitArtwork)
+        // Same small source as before: the 576 px edge rounds up to Apple's 600 px size.
+        XCTAssertEqual(view.url.absoluteString, "https://example.com/600x600bb.jpg")
+        _ = ViewTestHost.host(view, size: CGSize(width: 360, height: 280))
+    }
+
+    /// A library cover MusicKit doesn't know (e.g. after its registry entry was evicted) is never
+    /// handed to the downloader, which can't fetch it, nor drawn by MusicKit: the backdrop is black.
+    func testUnknownLibraryCoverIsNeitherDownloadedNorDrawn() async throws {
+        let registry = AppleMusicArtworkRegistry()
+        let unknown = try XCTUnwrap(URL(string: "musicKit://artwork/transient/600x600?id=GONE"))
+        XCTAssertNil(ImmersiveBlurredArtwork.musicKitArtwork(for: unknown, registry: registry))
+        XCTAssertNil(ImmersiveBlurredArtwork.downloadURL(for: unknown))
+
+        let catalog = try XCTUnwrap(URL(string: "https://example.com/600x600bb.jpg"))
+        XCTAssertEqual(ImmersiveBlurredArtwork.downloadURL(for: catalog), catalog)
+
+        let loader = ArtworkImageLoader(
+            imageProvider: { _ in NSImage(size: NSSize(width: 64, height: 64)) }
+        )
+        await loader.load(for: ImmersiveBlurredArtwork.downloadURL(for: catalog))
+        XCTAssertNotNil(loader.image)
+        await loader.load(for: ImmersiveBlurredArtwork.downloadURL(for: unknown))
+        XCTAssertNil(loader.image, "the previous song's cover should not stay behind a library song")
+
+        // And nothing stands in for MusicKit: the backdrop is plain black.
+        let view = ImmersiveBlurredArtwork(url: unknown, registry: registry) { _, _ in
+            XCTFail("MusicKit doesn't know this cover, so nothing should ask it to draw")
+            return AnyView(Color.red)
+        }
+        let center = try centerPixel(of: view, size: CGSize(width: 360, height: 280))
+        XCTAssertLessThan(center.redComponent + center.greenComponent + center.blueComponent, 0.05)
+    }
+
     /// Writes into a directory of its own rather than the user's real artwork
     /// cache. Sharing that directory with the app and with every other test made
     /// this fail whenever something else trimmed or cleared the cache mid-run
@@ -568,4 +722,34 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
             uri: "spotify:track:\(spotifyID)"
         )
     }
+}
+
+/// The pixel edges a stand-in cover was drawn at.
+@MainActor
+private final class DrawnCovers {
+    var pixelEdges: [CGFloat] = []
+}
+
+/// Plays MusicKit's `ArtworkImage` in tests: solid red, and it notes the pixel edge it would ask
+/// MusicKit for (points times the screen scale, as `ArtworkImage` does).
+private struct StandInCover: View {
+    let edge: CGFloat
+    let drawn: DrawnCovers
+    @Environment(\.displayScale) private var displayScale
+
+    static let red = NSImage(size: NSSize(width: 64, height: 64), flipped: false) { rect in
+        NSColor(srgbRed: 1, green: 0, blue: 0, alpha: 1).setFill()
+        rect.fill()
+        return true
+    }
+
+    var body: some View {
+        drawn.pixelEdges.append(edge * displayScale)
+        // An image, like the one `ArtworkImage` draws (a plain colour blurs differently at the edges).
+        return Image(nsImage: Self.red).resizable().frame(width: edge, height: edge)
+    }
+}
+
+private extension NSColor {
+    var redOverBlack: CGFloat { redComponent * alphaComponent }
 }
