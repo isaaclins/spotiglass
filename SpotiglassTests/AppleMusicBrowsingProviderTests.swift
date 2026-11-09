@@ -326,7 +326,9 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         let source = MockAppleMusicSource()
         source.playlists = [try AppleMusicFixtures.playlist(id: "-1", name: "Road")]
         source.playlistCovers = [AppleMusicPlaylistCover(name: "Road", globalID: nil, isGenerated: true)]
-        let provider = AppleMusicBrowsingProvider(source: source, coverLookupTimeout: .milliseconds(50))
+        // Long enough that an instant answer always wins on a busy CI runner; the slow listing
+        // below waits this long.
+        let provider = AppleMusicBrowsingProvider(source: source, coverLookupTimeout: .seconds(1))
 
         let first = try await provider.currentUserPlaylists(limit: 50)
         XCTAssertNil(first.first?.imageURL)
@@ -349,17 +351,21 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
     }
 
     /// Library playlists in search results are the same playlists as in the sidebar, so they
-    /// get the same placeholder.
+    /// get the same placeholder. The Search page and the command palette search through a
+    /// provider of their own (`catalogProvider`), which never lists the library, so the two share
+    /// one cache, as `AppleMusicBrowserRoot` wires them.
     func testSearchShowsLibraryPlaylistsWithTheSidebarsPlaceholder() async throws {
         let source = MockAppleMusicSource()
         let road = try AppleMusicFixtures.playlist(id: "-1", name: "Road")
         source.playlists = [road]
         source.playlistCovers = [AppleMusicPlaylistCover(name: "Road", globalID: nil, isGenerated: true)]
         source.librarySearchItems = AppleMusicSearchItems(playlists: [road])
-        let provider = AppleMusicBrowsingProvider(source: source)
-        _ = try await provider.currentUserPlaylists(limit: 50)
+        let covers = AppleMusicGeneratedCoverCache()
+        let sidebar = AppleMusicBrowsingProvider(source: source, generatedCovers: covers)
+        let search = AppleMusicBrowsingProvider(source: source, generatedCovers: covers)
+        _ = try await sidebar.currentUserPlaylists(limit: 50)
 
-        let results = try await provider.search(query: "road", limit: 10)
+        let results = try await search.search(query: "road", limit: 10)
 
         XCTAssertEqual(results.playlists.map(\.name), ["Road"])
         XCTAssertNil(results.playlists.first?.imageURL)

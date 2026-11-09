@@ -128,8 +128,10 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
     let trackCountCache: AppleMusicPlaylistTrackCountCache
     let editor: AppleMusicLibraryEditor
     /// Library playlists whose cover Apple generated, from the last listing, so search results
-    /// show them with the same placeholder as the sidebar (#444).
-    let generatedCovers = AppleMusicGeneratedCoverCache()
+    /// show them with the same placeholder as the sidebar (#444). The app passes `.shared`: the
+    /// Search page and the command palette search through a provider of their own, which never
+    /// lists the library itself.
+    let generatedCovers: AppleMusicGeneratedCoverCache
     /// How long a listing waits for the covers before it shows the playlists without that check.
     let coverLookupTimeout: Duration
 
@@ -138,12 +140,14 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         artistAlbumsCache: AppleMusicArtistAlbumsCache = AppleMusicArtistAlbumsCache(),
         trackCountCache: AppleMusicPlaylistTrackCountCache = AppleMusicPlaylistTrackCountCache(),
         editor: AppleMusicLibraryEditor = AppleMusicLibraryEditor(),
+        generatedCovers: AppleMusicGeneratedCoverCache = AppleMusicGeneratedCoverCache(),
         coverLookupTimeout: Duration = .seconds(3)
     ) {
         self.source = source
         self.artistAlbumsCache = artistAlbumsCache
         self.trackCountCache = trackCountCache
         self.editor = editor
+        self.generatedCovers = generatedCovers
         self.coverLookupTimeout = coverLookupTimeout
     }
 
@@ -658,6 +662,9 @@ private final class FirstAnswer<Value: Sendable>: @unchecked Sendable {
 
 /// The library playlists the last listing found with a generated cover (#444).
 actor AppleMusicGeneratedCoverCache {
+    /// The app's one cache, shared by the sidebar's provider and the one Search uses.
+    static let shared = AppleMusicGeneratedCoverCache()
+
     private(set) var playlistIDs: Set<String> = []
 
     func store(_ ids: Set<String>) {

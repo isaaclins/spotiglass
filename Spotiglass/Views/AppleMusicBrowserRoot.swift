@@ -95,7 +95,7 @@ struct AppleMusicBrowserRoot: View {
         PlaylistBrowserView(
             viewModel: viewModel,
             playbackHost: playbackHost,
-            catalogProvider: AppleMusicBrowsingProvider(),
+            catalogProvider: AppleMusicBrowsingProvider(generatedCovers: .shared),
             commandPaletteManager: commandPaletteManager,
             // No Disconnect: access is a system permission, turned off in System Settings,
             // and signing out of Apple Music lives in Settings › Account (#373).
@@ -167,7 +167,7 @@ struct AppleMusicBrowserRoot: View {
     /// URLs are only valid while MusicKit's session lives, so a stored copy would go blank.
     /// Spotify's own cache is never shared with this browser.
     static func makeViewModel() -> PlaylistBrowserViewModel {
-        PlaylistBrowserViewModel(api: AppleMusicBrowsingProvider(), cache: DisabledSpotifyBrowsingCache())
+        PlaylistBrowserViewModel(api: AppleMusicBrowsingProvider(generatedCovers: .shared), cache: DisabledSpotifyBrowsingCache())
     }
 }
 
