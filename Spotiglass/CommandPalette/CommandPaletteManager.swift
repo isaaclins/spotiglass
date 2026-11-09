@@ -367,8 +367,8 @@ final class CommandPaletteManager: ObservableObject {
             return true
         }
         // ⌃⌘S is the system's Show/Hide Sidebar chord, kept next to the rebindable one (#436).
-        // With Settings in front it is Settings' chord, signed in or not.
-        if filtered.isEmpty, toggleSidebar != nil || isAnotherWindowInFront,
+        // With Settings in front it is Settings' chord, answered by Settings itself.
+        if filtered.isEmpty, toggleSidebar != nil, !isAnotherWindowInFront,
            CommandPaletteSidebarShortcut.isSystemChord(event),
            !CommandPaletteSidebarShortcut.isTypingKeyPress(event) {
             execute(commandID: CommandPaletteCommandID.toggleSidebar)

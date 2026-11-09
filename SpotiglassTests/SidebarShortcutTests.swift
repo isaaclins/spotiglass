@@ -306,15 +306,16 @@ extension SidebarShortcutTests {
 
         manager.frontWindow = { settingsWindow }
         XCTAssertTrue(manager.handleKeyEvent(commandS))
-        XCTAssertTrue(manager.handleKeyEvent(controlCommandS))
+        XCTAssertFalse(manager.handleKeyEvent(controlCommandS), "Settings answers its own ⌃⌘S")
         manager.execute(commandID: CommandPaletteCommandID.toggleSidebar)
         XCTAssertEqual(toggles(), 0)
-        XCTAssertEqual(systemToggles, 3)
+        XCTAssertEqual(systemToggles, 2)
 
         manager.frontWindow = { browserWindow }
         XCTAssertTrue(manager.handleKeyEvent(commandS))
-        XCTAssertEqual(toggles(), 1)
-        XCTAssertEqual(systemToggles, 3)
+        XCTAssertTrue(manager.handleKeyEvent(controlCommandS))
+        XCTAssertEqual(toggles(), 2)
+        XCTAssertEqual(systemToggles, 2)
     }
 
     /// Signed out there is no browser sidebar, but Settings still has its own: ⌃⌘S and the
@@ -331,8 +332,9 @@ extension SidebarShortcutTests {
         manager.frontWindow = { browserWindow }
         XCTAssertFalse(manager.handleKeyEvent(controlCommandS), "nothing to toggle in a signed-out main window")
         manager.frontWindow = { settingsWindow }
-        XCTAssertTrue(manager.handleKeyEvent(controlCommandS))
-        XCTAssertEqual(systemToggles, 1)
+        XCTAssertFalse(manager.handleKeyEvent(controlCommandS), "Settings answers its own ⌃⌘S")
+        manager.execute(commandID: CommandPaletteCommandID.toggleSidebar)
+        XCTAssertEqual(systemToggles, 1, "the View menu item reaches Settings' sidebar")
         XCTAssertEqual(toggles(), 0)
 
         let scene = SpotiglassSceneHost(commandPaletteManager: manager)
@@ -363,5 +365,36 @@ extension SidebarShortcutTests {
         registry.activate(scene)
         XCTAssertFalse(commands.isSidebarItemEnabled)
         XCTAssertEqual(commands.sidebarItemTitle, SpotiglassL10n.string("menu.view.hideSidebar"))
+    }
+
+    /// Settings answers ⌃⌘S itself, so it works with every main window closed. It leaves the
+    /// chord alone in other windows, while a shortcut is being recorded and while typing.
+    func testSettingsAnswersControlCommandSInItsOwnWindow() {
+        let coordinator = SidebarSystemChordMonitor.Coordinator()
+        var systemToggles = 0
+        coordinator.sendSystemSidebarToggle = { systemToggles += 1 }
+        let anchor = NSView(frame: .zero)
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 180, height: 22))
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: 200, height: 60))
+        container.addSubview(anchor)
+        container.addSubview(field)
+        let settingsWindow = makeWindow(content: container)
+        let otherWindow = makeWindow(content: NSView())
+        coordinator.view = anchor
+
+        let inSettings = keyDown("s", keyCode: 1, modifiers: [.control, .command], window: settingsWindow)
+        XCTAssertTrue(coordinator.handle(inSettings))
+        XCTAssertEqual(systemToggles, 1)
+
+        XCTAssertFalse(coordinator.handle(keyDown("s", keyCode: 1, modifiers: [.command], window: settingsWindow)))
+        XCTAssertFalse(coordinator.handle(keyDown("s", keyCode: 1, modifiers: [.control, .command], window: otherWindow)))
+
+        coordinator.isRecordingHotkey = true
+        XCTAssertFalse(coordinator.handle(inSettings), "Settings › Keyboard is recording ⌃⌘S as a binding")
+        coordinator.isRecordingHotkey = false
+
+        XCTAssertTrue(AppKitTestSupport.makeFirstResponder(field, in: settingsWindow))
+        XCTAssertFalse(coordinator.handle(inSettings), "typing in Settings' search field")
+        XCTAssertEqual(systemToggles, 1)
     }
 }

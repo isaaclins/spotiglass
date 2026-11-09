@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 
 /// The keyboard rules of Show/Hide Sidebar beyond its rebindable keymap chord (#436).
 ///
@@ -23,5 +24,69 @@ enum CommandPaletteSidebarShortcut {
     static func isTypingKeyPress(_ event: NSEvent?) -> Bool {
         guard let event, event.type == .keyDown else { return false }
         return event.window?.firstResponder is NSTextView
+    }
+}
+
+/// ⌃⌘S for Settings' own sidebar. Main windows answer the chord in their key monitor, but
+/// Settings has none, and once the system menu item was replaced nothing else did: with every
+/// main window closed, ⌃⌘S reached nothing (#436). This answers it only in its own window.
+struct SidebarSystemChordMonitor: NSViewRepresentable {
+    /// Settings › Keyboard records ⌃⌘S as a binding then, so the chord must reach the recorder.
+    var isRecordingHotkey: Bool
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        context.coordinator.view = view
+        context.coordinator.start()
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        context.coordinator.isRecordingHotkey = isRecordingHotkey
+    }
+
+    static func dismantleNSView(_ nsView: NSView, coordinator: Coordinator) {
+        coordinator.stop()
+    }
+
+    @MainActor
+    final class Coordinator {
+        weak var view: NSView?
+        var isRecordingHotkey = false
+        /// The system Show/Hide Sidebar action; a seam for tests.
+        var sendSystemSidebarToggle: () -> Void = {
+            NSApp.sendAction(#selector(NSSplitViewController.toggleSidebar(_:)), to: nil, from: nil)
+        }
+        private var monitor: Any?
+
+        func start() {
+            guard monitor == nil else { return }
+            monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                let handled = MainActor.assumeIsolated { self?.handle(event) ?? false }
+                return handled ? nil : event
+            }
+        }
+
+        func stop() {
+            if let monitor {
+                NSEvent.removeMonitor(monitor)
+            }
+            monitor = nil
+        }
+
+        /// True when the key press was ⌃⌘S in this view's window and it toggled the sidebar.
+        func handle(_ event: NSEvent) -> Bool {
+            guard !isRecordingHotkey, !event.isARepeat,
+                  let window = view?.window, event.window === window,
+                  CommandPaletteSidebarShortcut.isSystemChord(event),
+                  !CommandPaletteSidebarShortcut.isTypingKeyPress(event)
+            else { return false }
+            sendSystemSidebarToggle()
+            return true
+        }
     }
 }
