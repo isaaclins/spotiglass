@@ -1,3 +1,4 @@
+import SwiftUI
 import XCTest
 @testable import Spotiglass
 
@@ -45,6 +46,7 @@ final class LayoutGridTests: XCTestCase {
         ("trackNumberColumnWidth", SpotiglassDesign.Layout.trackNumberColumnWidth),
         ("durationColumnWidth", SpotiglassDesign.Layout.durationColumnWidth),
         ("sidebarRowArtworkSize", SpotiglassDesign.Layout.sidebarRowArtworkSize),
+        ("sidebarRowHeight", SpotiglassDesign.Layout.sidebarRowHeight),
         ("smallArtworkSize", SpotiglassDesign.Layout.smallArtworkSize),
         ("thumbnailSize", SpotiglassDesign.Layout.thumbnailSize),
         ("compactRowArtworkSize", SpotiglassDesign.Layout.compactRowArtworkSize),
@@ -505,5 +507,59 @@ final class LayoutGridTests: XCTestCase {
             previewDepth = (opened > 0 || depth > 0) && newDepth <= 0 ? nil : newDepth
         }
         return kept
+    }
+}
+
+/// Every sidebar row on one height and tile size (#444).
+///
+/// Search and Home were slim system labels (about 16 pt of content), playlists and pins rows
+/// around a 48 pt cover, so the sidebar read as two lists glued together.
+@MainActor
+final class SidebarRowLayoutTests: XCTestCase {
+    private func height(of view: some View) -> CGFloat {
+        let host = NSHostingView(rootView: view.frame(width: 280))
+        host.layoutSubtreeIfNeeded()
+        return host.fittingSize.height
+    }
+
+    private let playlist = PlaylistRowViewModel(MusicPlaylistSummary(
+        id: "p.1", name: "Night Drive", ownerID: "me", ownerName: "Me",
+        imageURL: nil, trackCount: 8, snapshotID: "s1"
+    ))
+
+    func testEverySidebarRowHasTheSameHeight() {
+        let likedSongs = PlaylistRowViewModel(MusicPlaylistSummary(
+            id: SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID, name: "Liked Songs", ownerID: "me",
+            ownerName: "Me", imageURL: nil, trackCount: 120, snapshotID: "s2"
+        ))
+        let pin = PinnedItem.playlist(MusicPlaylistSummary(
+            id: "p.2", name: "Deep Focus", ownerID: "me", ownerName: "Me",
+            imageURL: nil, trackCount: 13, snapshotID: "s3"
+        ))
+        var stalePin = PinnedItem.playlist(MusicPlaylistSummary(
+            id: "p.3", name: "A playlist with a name long enough to be cut", ownerID: "me", ownerName: "Me",
+            imageURL: nil, trackCount: 13, snapshotID: "s4"
+        ))
+        stalePin.isStale = true
+        // The row's height is a floor, so a row whose content outgrows it measures taller here.
+        let rows: [(String, CGFloat)] = [
+            ("Search", height(of: SidebarDestinationRow(titleKey: "browser.search", systemImage: "magnifyingglass"))),
+            ("Home", height(of: LibraryHomeSidebarRow())),
+            ("pin", height(of: PinnedRowView(item: pin, onUnpin: {}))),
+            ("unavailable pin", height(of: PinnedRowView(item: stalePin, onUnpin: {}))),
+            ("Liked Songs", height(of: PlaylistListRow(playlist: likedSongs))),
+            ("playlist", height(of: PlaylistListRow(playlist: playlist))),
+            ("playing playlist", height(of: PlaylistListRow(playlist: playlist, isActive: true, isPlaying: true, isPinned: true))),
+        ]
+        for (name, rowHeight) in rows {
+            XCTAssertEqual(rowHeight, SpotiglassDesign.Layout.sidebarRowHeight, "\(name) row")
+        }
+    }
+
+    func testSidebarRowsAreOneTileAndAGridStepAboveAndBelow() {
+        XCTAssertEqual(
+            SpotiglassDesign.Layout.sidebarRowHeight,
+            SpotiglassDesign.Layout.sidebarRowArtworkSize + 2 * SpotiglassDesign.spacingXXS
+        )
     }
 }

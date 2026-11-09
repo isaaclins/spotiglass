@@ -3,14 +3,14 @@
     <channel>
         <title>Spotiglass</title>
         <item>
-            <title>0.8.5</title>
-            <pubDate>Mon, 09 Nov 2026 02:11:15 +0100</pubDate>
-            <sparkle:version>16</sparkle:version>
-            <sparkle:shortVersionString>0.8.5</sparkle:shortVersionString>
+            <title>0.8.6</title>
+            <pubDate>Mon, 09 Nov 2026 02:31:19 +0100</pubDate>
+            <sparkle:version>17</sparkle:version>
+            <sparkle:shortVersionString>0.8.6</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[• Play, pause and track changes are smoother, because only the rows and the player bar that change get redrawn.
+            <description sparkle:format="plain-text"><![CDATA[• The sidebar now looks consistent, with matching rows, headers and tiles.
 ]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.5/Spotiglass-0.8.5.zip" length="12241666" type="application/octet-stream" sparkle:edSignature="YvRw4E7dHucqhldenHNGWS+8c6th1g2Nbq2Lp3sbNpdjDwg7+M0wivQd0EcSxuVlJozsI8ziGHda2+CeyS/UDg=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.6/Spotiglass-0.8.6.zip" length="12343700" type="application/octet-stream" sparkle:edSignature="pl6hSjBbzfz4UIvFGqIhnDGLoPlc2htFsrkiMwAYvJG2SaDNZrWOl0EsG8UrReRolNdw6k1/ZXEqqluPtcKyCw=="/>
         </item>
     </channel>
 </rss>
