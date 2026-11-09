@@ -250,7 +250,9 @@ struct CommandPaletteSettingsView: View {
         }
     }
 
-    /// On every row, enabled only while there is a shortcut to clear.
+    /// On every row, enabled only while there is a shortcut to clear. While there
+    /// is nothing to clear it only holds the column: no tooltip, and VoiceOver
+    /// skips it instead of reading a dead "Clear shortcut" on every row.
     private func clearShortcutButton(spec: CommandPaletteCommandSpec) -> some View {
         let canClear = !spec.isDestructive && keymapStore.primaryShortcut(for: spec.commandID) != nil
         return Button {
@@ -276,8 +278,9 @@ struct CommandPaletteSettingsView: View {
         }
         .buttonStyle(.plain)
         .disabled(!canClear)
-        .help(SpotiglassL10n.string("palette.settings.clearShortcut"))
+        .help(canClear ? SpotiglassL10n.string("palette.settings.clearShortcut") : "")
         .accessibilityLabel(SpotiglassL10n.string("a11y.palette.clearShortcut"))
+        .accessibilityHidden(!canClear)
     }
 
     private func displayTitle(for commandID: String) -> String {
