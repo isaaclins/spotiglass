@@ -338,6 +338,23 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
         XCTAssertGreaterThan(center.redComponent - center.greenComponent, 0.6, "the cover's own colour, not grey")
         // Same 576 px source a downloaded cover is downscaled to, so the blur costs the same.
         XCTAssertEqual(drawn.pixelEdges.last, 576)
+
+        // A wide window: the small library cover is scaled up to fill it exactly like a
+        // downloaded cover, not left as a 576 pt square in the middle with black around it.
+        let downloaded = ImmersiveBlurredArtwork(
+            url: try XCTUnwrap(URL(string: "https://example.com/600x600bb.jpg")),
+            initialImage: StandInCover.red,
+            registry: registry
+        )
+        let wide = CGSize(width: 2_400, height: 900)
+        for point in [CGPoint(x: 8, y: 8), CGPoint(x: 240, y: 450), CGPoint(x: 2_160, y: 120)] {
+            // Red as seen over black: the downloaded cover's faded edge is see-through, the
+            // library one sits on black.
+            let library = try pixel(of: view, size: wide, at: point).redOverBlack
+            let reference = try pixel(of: downloaded, size: wide, at: point).redOverBlack
+            XCTAssertEqual(library, reference, accuracy: 0.05, "the library cover should fill the window at \(point)")
+        }
+        XCTAssertGreaterThan(try pixel(of: view, size: wide, at: CGPoint(x: 240, y: 450)).redComponent, 0.5)
     }
 
     /// Going from a catalog song to a library song MusicKit doesn't know, in the same backdrop
@@ -380,11 +397,16 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
 
     /// The colour at the middle of `view` rendered at `size`, 1x.
     private func centerPixel(of view: some View, size: CGSize) throws -> NSColor {
+        try pixel(of: view, size: size, at: CGPoint(x: size.width / 2, y: size.height / 2))
+    }
+
+    /// The colour at `point` (in points from the top left) of `view` rendered at `size`, 1x.
+    private func pixel(of view: some View, size: CGSize, at point: CGPoint) throws -> NSColor {
         let renderer = ImageRenderer(content: view.frame(width: size.width, height: size.height))
         renderer.scale = 1
         let cgImage = try XCTUnwrap(renderer.cgImage, "the backdrop should render")
         let bitmap = NSBitmapImageRep(cgImage: cgImage)
-        let color = try XCTUnwrap(bitmap.colorAt(x: bitmap.pixelsWide / 2, y: bitmap.pixelsHigh / 2))
+        let color = try XCTUnwrap(bitmap.colorAt(x: Int(point.x), y: Int(point.y)))
         return try XCTUnwrap(color.usingColorSpace(.sRGB))
     }
 
@@ -714,8 +736,19 @@ private struct StandInCover: View {
     let drawn: DrawnCovers
     @Environment(\.displayScale) private var displayScale
 
+    static let red = NSImage(size: NSSize(width: 64, height: 64), flipped: false) { rect in
+        NSColor(srgbRed: 1, green: 0, blue: 0, alpha: 1).setFill()
+        rect.fill()
+        return true
+    }
+
     var body: some View {
         drawn.pixelEdges.append(edge * displayScale)
-        return Color(red: 1, green: 0, blue: 0).frame(width: edge, height: edge)
+        // An image, like the one `ArtworkImage` draws (a plain colour blurs differently at the edges).
+        return Image(nsImage: Self.red).resizable().frame(width: edge, height: edge)
     }
+}
+
+private extension NSColor {
+    var redOverBlack: CGFloat { redComponent * alphaComponent }
 }
