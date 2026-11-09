@@ -220,13 +220,15 @@ struct PlaylistBrowserMainDetailColumn: View {
             pendingScrollRestoreTrackID: $pendingPlaylistListScrollRestoreID,
             onTrackEnteredViewportApproximation: { detailLastVisibleTrackID = $0 },
             playURI: { uri in
-                let playableURIs = detail.tracks.compactMap(\.playableURI)
-                let playlistID = detail.playlist.id
                 Task {
+                    guard let playing = await viewModel.detailForPlayback(
+                        detail,
+                        playbackCommands: { playbackViewModel.playbackCommandCount }
+                    ) else { return }
                     await playbackViewModel.playFromPlaylist(
                         clickedURI: uri,
-                        playableURIs: playableURIs,
-                        playlistID: playlistID
+                        playableURIs: playing.tracks.compactMap(\.playableURI),
+                        playlistID: playing.playlist.id
                     )
                 }
             },
@@ -243,14 +245,22 @@ struct PlaylistBrowserMainDetailColumn: View {
             },
             onRequestLibraryContinuation: onRequestLibraryContinuation,
             playHeaderAction: {
+                guard let playing = await viewModel.detailForPlayback(
+                    detail,
+                    playbackCommands: { playbackViewModel.playbackCommandCount }
+                ) else { return }
                 await DetailHeaderPlayback.play(
-                    target: headerPlaybackTarget,
+                    target: DetailHeaderPlayback.target(for: playing),
                     using: playbackViewModel
                 )
             },
             shuffleHeaderAction: {
+                guard let playing = await viewModel.detailForPlayback(
+                    detail,
+                    playbackCommands: { playbackViewModel.playbackCommandCount }
+                ) else { return }
                 await DetailHeaderPlayback.shuffleAndPlay(
-                    target: headerPlaybackTarget,
+                    target: DetailHeaderPlayback.target(for: playing),
                     using: playbackViewModel
                 )
             },

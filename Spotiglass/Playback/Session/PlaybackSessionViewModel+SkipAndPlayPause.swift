@@ -9,6 +9,7 @@ extension PlaybackSessionViewModel {
     /// Returns the send, or `nil` when there is nothing to toggle.
     @discardableResult
     func requestTogglePlayPause() -> Task<Void, Never>? {
+        playbackCommandCount &+= 1
         guard let request = beginPlayPauseRequest() else { return nil }
         let previous = playPauseCommandTail
         let send = Task { @MainActor [weak self] in
@@ -496,10 +497,12 @@ extension PlaybackSessionViewModel {
     }
 
     func previous() async {
+        playbackCommandCount &+= 1
         await dispatchSkipCommand(.previous)
     }
 
     func next() async {
+        playbackCommandCount &+= 1
         await dispatchSkipCommand(.next)
     }
 

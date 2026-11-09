@@ -277,6 +277,9 @@ extension PlaylistBrowserViewModel {
         let ids = (playlistState.currentValue ?? [])
             .map(\.id)
             .filter { $0 != SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID }
+        // The removed songs left every playlist they were in, so kept track lists are out of
+        // date too (#442).
+        for id in ids { invalidateTracksCache(playlistID: id) }
         guard !ids.isEmpty else { return }
         playlistTrackCountStandIns = Set(ids)
         startPlaylistTrackCountRun(ids)

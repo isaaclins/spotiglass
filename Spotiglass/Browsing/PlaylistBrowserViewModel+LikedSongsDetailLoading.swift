@@ -37,7 +37,69 @@ extension PlaylistBrowserViewModel {
         // placeholder would make a revalidation failure surface unrelated content
         // wrapped in a stale-cache banner instead of a terminal error.
         detailState = .loading
-        await revalidateLikedSongs(session: session)
+        await revalidateLikedSongs(session: session, showsFirstPage: true)
+    }
+
+    /// Shows the first page of a Liked Songs read that is still running, while nothing is on
+    /// screen yet: reading a thousand Apple Music library songs takes about a second (#442).
+    /// The full read replaces it; rows are only added below, so nothing moves.
+    private func showLikedSongsFirstPage(_ first: MusicSavedTracksResult, session: Int, generation: Int) async {
+        guard !first.tracks.isEmpty, session == detailSession,
+              generation == likedSongsMutationGeneration,
+              case .loading = detailState else { return }
+        // The same owner line as the full list, so the header doesn't change above the rows.
+        let profile = try? await api.currentUserProfile()
+        guard session == detailSession, generation == likedSongsMutationGeneration,
+              case .loading = detailState else { return }
+        let row = PlaylistRowViewModel(
+            likedSongsOwnerName: profile?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines),
+            // Only a total the service reported; a partial read's own length isn't one.
+            totalTrackCount: first.totalAvailable > first.tracks.count ? first.totalAvailable : nil,
+            artworkURL: firstLikedSongsArtwork(from: first.tracks)
+        )
+        likedSongsFirstPageSession = session
+        await showPlaylistRows(
+            PlaylistDetailViewModel(playlist: row, tracks: TrackRowViewModel.numberedPlaylistRows(first.tracks)),
+            refreshing: true,
+            isComplete: false,
+            session: session
+        )
+    }
+
+    /// The detail to play from, given the rows a view showed. Those can be only the start of
+    /// the list (#442): a long list's first screen, or Liked Songs' first page while the rest is
+    /// read. Playing from them would queue just that start, and nothing adds the rest later, so
+    /// this waits for a Liked Songs read still running and otherwise extends the rows to the
+    /// complete list they begin. Rows that aren't the start of it play as shown.
+    ///
+    /// `nil` when, while it waited, another surface opened, another play from here was asked
+    /// for, or `playbackCommands` (the player's count of the user's commands from anywhere)
+    /// moved: this play then mustn't replace that choice.
+    func detailForPlayback(
+        _ detail: PlaylistDetailViewModel,
+        playbackCommands: () -> UInt64 = { 0 }
+    ) async -> PlaylistDetailViewModel? {
+        playbackRequestGeneration += 1
+        let request = playbackRequestGeneration
+        let session = detailSession
+        let commands = playbackCommands()
+        if detail.playlist.id == SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID,
+           likedSongsFirstPageSession == session,
+           let read = likedSongsRevalidationTask {
+            let full = try? await read.value
+            guard session == detailSession,
+                  request == playbackRequestGeneration,
+                  playbackCommands() == commands else { return nil }
+            if let full, !full.tracks.isEmpty {
+                return PlaylistDetailViewModel(playlist: detail.playlist, tracks: TrackRowViewModel.numberedPlaylistRows(full.tracks))
+            }
+        }
+        guard let complete = completeRowsOnScreen,
+              complete.session == session,
+              complete.playlistID == detail.playlist.id,
+              detail.tracks.count < complete.tracks.count,
+              complete.tracks.starts(with: detail.tracks) else { return detail }
+        return PlaylistDetailViewModel(playlist: detail.playlist, tracks: complete.tracks)
     }
 
     private func setLikedSongsDetailState(from tracks: [MusicPlaylistTrackItem], session: Int) async -> Bool {
@@ -54,8 +116,8 @@ extension PlaylistBrowserViewModel {
             totalTrackCount: tracks.count,
             artworkURL: firstLikedSongsArtwork(from: tracks)
         )
-        detailState = .loaded(.playlist(PlaylistDetailViewModel(playlist: row, tracks: TrackRowViewModel.numberedPlaylistRows(tracks))))
-        return true
+        await showPlaylistRows(PlaylistDetailViewModel(playlist: row, tracks: TrackRowViewModel.numberedPlaylistRows(tracks)), session: session)
+        return session == detailSession
     }
 
     private func firstLikedSongsArtwork(from tracks: [MusicPlaylistTrackItem]) -> URL? {
@@ -66,11 +128,22 @@ extension PlaylistBrowserViewModel {
         return nil
     }
 
-    func revalidateLikedSongs(session: Int) async {
+    /// `showsFirstPage`: nothing is on screen yet, so the read's first page is shown as soon as
+    /// it arrives.
+    func revalidateLikedSongs(session: Int, showsFirstPage: Bool = false) async {
         let mutationGeneration = likedSongsMutationGeneration
         do {
-            let result = try await likedSongsRevalidationResult()
+            let firstPage: (@Sendable (MusicSavedTracksResult) async -> Void)? = showsFirstPage ? { [weak self] first in
+                // Not awaited: the read goes on while the rows draw.
+                Task { @MainActor in
+                    await self?.showLikedSongsFirstPage(first, session: session, generation: mutationGeneration)
+                }
+            } : nil
+            let result = try await likedSongsRevalidationResult(firstPage: firstPage)
             guard mutationGeneration == likedSongsMutationGeneration else { return }
+            // Known now, though the rows go on screen only after the owner lookup below: playing
+            // from the first page meanwhile gets every song.
+            completeRowsOnScreen = (session, SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID, TrackRowViewModel.numberedPlaylistRows(result.tracks))
             try? cache.saveTracks(
                 result.tracks,
                 playlistID: SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID,
@@ -96,7 +169,10 @@ extension PlaylistBrowserViewModel {
             if result.tracks.isEmpty {
                 detailState = .empty(SpotiglassL10n.string("browser.empty.noLikedSongs"))
             } else {
-                detailState = .loaded(.playlist(PlaylistDetailViewModel(playlist: row, tracks: TrackRowViewModel.numberedPlaylistRows(result.tracks))))
+                await showPlaylistRows(
+                    PlaylistDetailViewModel(playlist: row, tracks: TrackRowViewModel.numberedPlaylistRows(result.tracks)),
+                    session: session
+                )
             }
         } catch is CancellationError {
             return
@@ -122,13 +198,18 @@ extension PlaylistBrowserViewModel {
         return now().timeIntervalSince(lastRevalidation) < likedSongsAutoRefreshMinInterval
     }
 
-    private func likedSongsRevalidationResult() async throws -> MusicSavedTracksResult {
+    private func likedSongsRevalidationResult(
+        firstPage: (@Sendable (MusicSavedTracksResult) async -> Void)? = nil
+    ) async throws -> MusicSavedTracksResult {
         if let inFlight = likedSongsRevalidationTask {
             return try await inFlight.value
         }
         let generation = likedSongsMutationGeneration
         let task = Task { [api] in
-            try await api.currentUserSavedTracks(limit: 50, maxPages: nil)
+            if let firstPage {
+                return try await api.currentUserSavedTracks(limit: 50, maxPages: nil, firstPage: firstPage)
+            }
+            return try await api.currentUserSavedTracks(limit: 50, maxPages: nil)
         }
         likedSongsRevalidationTask = task
         likedSongsRevalidationTaskGeneration = generation

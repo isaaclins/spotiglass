@@ -272,7 +272,20 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
                 // Songs removed from the library that it still lists are left out, so what is
                 // kept is the count the library will have once it caught up.
                 counts = countsLeavingOutRemovedSongs(library)
-                await trackCountCache.store(counts, from: start)
+                await trackCountCache.store(counts, tracks: library, from: start)
+                // Opening one of them shows its kept tracks; what the rows need for edits is
+                // worked out now, in the background, so neither the counts nor the open wait.
+                // At most what the registry keeps, in a fixed order: a bigger library would push
+                // out the first ones before they're used, and work them all out again next time.
+                let references = editor.songReferences
+                Task.detached(priority: .utility) {
+                    var budget = AppleMusicSongReferenceRegistry.maxIdentities
+                    for id in library.keys.sorted() where budget > 0 {
+                        let tracks = library[id, default: []].prefix(budget)
+                        references.prepareIdentities(of: Array(tracks))
+                        budget -= tracks.count
+                    }
+                }
             }
         }
         // The library can take hours to show an add or remove made from Spotiglass, so those
@@ -288,7 +301,7 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
 
     func playlistTracks(playlistID: String, limit: Int, maxPages: Int) async throws -> [MusicPlaylistTrackItem] {
         let total = max(1, limit) * max(1, maxPages)
-        guard let tracks = try await source.playlistTracks(playlistID: playlistID, limit: total) else {
+        guard let tracks = try await readPlaylistTracks(playlistID: playlistID, limit: total) else {
             // A playlist created from Spotiglass moments ago is only in the cloud library yet.
             if let pending = try await pendingPlaylistTracks(playlistID: playlistID) {
                 return AppleMusicItemMapping.playlistItems(pending)
@@ -302,7 +315,51 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         return AppleMusicItemMapping.playlistItems(applyingPendingEdits(toPlaylistTracks: tracks, playlistID: playlistID))
     }
 
+    /// A library playlist's tracks from the last read while it provably hasn't changed since
+    /// (same `lastModifiedDate`), else from MusicKit. A read of a library playlist is kept for
+    /// `lastReadPlaylistTracks`. Other playlists are always read.
+    private func readPlaylistTracks(playlistID: String, limit: Int) async throws -> [Track]? {
+        guard MusicKitContentSource.isLibraryPlaylistID(playlistID) else {
+            return try await source.playlistTracks(playlistID: playlistID, limit: limit)
+        }
+        let version = (try? await source.libraryPlaylist(id: playlistID))?.lastModifiedDate
+        if let version, let kept = await trackCountCache.tracks(playlistID: playlistID, version: version), kept.count <= limit {
+            return kept
+        }
+        let start = await trackCountCache.startLookup([playlistID])
+        let tracks = try await source.playlistTracks(playlistID: playlistID, limit: limit)
+        // A list cut at `limit` isn't kept: a later read may ask for more.
+        if let tracks, tracks.count < limit {
+            await trackCountCache.storeTracks(tracks, playlistID: playlistID, version: version, from: start)
+        }
+        return tracks
+    }
+
+    /// The songs counting or an earlier open last read for a library playlist (#442). The
+    /// library gives no modification date to tell whether it changed since, so the browser
+    /// shows these at once and replaces them with `playlistTracks` when that differs.
+    func lastReadPlaylistTracks(playlistID: String) async -> [MusicPlaylistTrackItem]? {
+        guard let tracks = await trackCountCache.lastReadTracks(playlistID: playlistID), !tracks.isEmpty else { return nil }
+        return AppleMusicItemMapping.playlistItems(applyingPendingEdits(toPlaylistTracks: tracks, playlistID: playlistID))
+    }
+
     func currentUserSavedTracks(limit: Int, maxPages: Int?) async throws -> MusicSavedTracksResult {
+        try await savedTracks(limit: limit, maxPages: maxPages, firstPage: nil)
+    }
+
+    func currentUserSavedTracks(
+        limit: Int,
+        maxPages: Int?,
+        firstPage: @escaping @Sendable (MusicSavedTracksResult) async -> Void
+    ) async throws -> MusicSavedTracksResult {
+        try await savedTracks(limit: limit, maxPages: maxPages, firstPage: firstPage)
+    }
+
+    private func savedTracks(
+        limit: Int,
+        maxPages: Int?,
+        firstPage: (@Sendable (MusicSavedTracksResult) async -> Void)?
+    ) async throws -> MusicSavedTracksResult {
         let pageSize = max(limit, Self.librarySongsPageSize)
         let cap = maxPages.map { min(Self.maxLibrarySongs, max(1, $0) * max(1, limit)) } ?? Self.maxLibrarySongs
         var songs: [Song] = []
@@ -316,6 +373,11 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
             // aren't liked (#401).
             songs.append(contentsOf: page.filter(source.isInLibrary))
             if page.count < requested { break }
+            if read == page.count, let firstPage {
+                // More pages follow: hand over what is read so far.
+                let shown = applyingPendingEdits(toLibrarySongs: songs, isComplete: false)
+                await firstPage(MusicSavedTracksResult(tracks: AppleMusicItemMapping.playlistItems(shown), totalAvailable: shown.count))
+            }
         }
         let tracks = applyingPendingEdits(toLibrarySongs: songs, isComplete: read < cap)
         return MusicSavedTracksResult(
@@ -808,15 +870,24 @@ actor AppleMusicAppliedCoverAnswer {
     }
 }
 
-/// Track counts of library playlists, keyed by playlist ID, for `AppleMusicBrowsingProvider`.
+/// Track counts of library playlists, and the tracks they were counted from, keyed by playlist
+/// ID, for `AppleMusicBrowsingProvider`.
 ///
-/// A count is used again only while the playlist's `lastModifiedDate` is the one it was counted
-/// at and for `maxAge`, so an edit made in Music or on another device shows up on a later
-/// refresh. Bounded twice: playlists no longer in the library are dropped on every listing, and
-/// never more than `maxPlaylists` entries are kept.
+/// MusicKit reads a playlist's tracks all at once, about a second for 800 songs, so opening a
+/// big playlist used to wait that long every time (#442). Counting already reads every
+/// playlist's tracks right after the sidebar shows; they are kept here. Opening a playlist shows
+/// them at once and reads it again in the background, or skips that read while its
+/// `lastModifiedDate` is unchanged (MusicKit on macOS gives library playlists none).
+///
+/// A count or a track list is used again only while the playlist's `lastModifiedDate` is the one
+/// it was read at and for `maxAge`, so an edit made in Music or on another device shows up on a
+/// later refresh. Bounded: playlists no longer in the library are dropped on every listing, never
+/// more than `maxPlaylists` counts and `maxTracks` tracks are kept.
 actor AppleMusicPlaylistTrackCountCache {
     static let maxPlaylists = AppleMusicBrowsingProvider.maxLibraryPlaylists
     static let maxAge: TimeInterval = 10 * 60
+    /// Tracks kept over all playlists; the least recently read playlists go first.
+    static let maxTracks = 20_000
 
     private struct Entry {
         let count: Int
@@ -825,7 +896,17 @@ actor AppleMusicPlaylistTrackCountCache {
         let storedAt: Date
     }
 
+    private struct TrackList {
+        let tracks: [Track]
+        /// The playlist's `lastModifiedDate` when its tracks were read. MusicKit on macOS gives
+        /// library playlists none (checked on a real library, 2026-11-09), so mostly `nil`.
+        let version: Date?
+        var usedAt: Date
+        let storedAt: Date
+    }
+
     private var entries: [String: Entry] = [:]
+    private var trackLists: [String: TrackList] = [:]
     /// The latest `lastModifiedDate` a listing reported per playlist.
     private var versions: [String: Date?] = [:]
     /// How often each playlist was edited from Spotiglass, for `store(_:from:)`.
@@ -833,9 +914,11 @@ actor AppleMusicPlaylistTrackCountCache {
     /// How often songs were removed from the library, for `store(_:from:)`.
     private var libraryRemovals = 0
     private let now: @Sendable () -> Date
+    private let maxTracks: Int
 
-    init(now: @escaping @Sendable () -> Date = Date.init) {
+    init(now: @escaping @Sendable () -> Date = Date.init, maxTracks: Int = AppleMusicPlaylistTrackCountCache.maxTracks) {
         self.now = now
+        self.maxTracks = maxTracks
     }
 
     /// The still valid counts for a fresh listing (playlist ID to `lastModifiedDate`). Playlists
@@ -848,7 +931,54 @@ actor AppleMusicPlaylistTrackCountCache {
             guard let listed = listing[id] else { return false }
             return entry.version == listed && current.timeIntervalSince(entry.storedAt) < Self.maxAge
         }
+        trackLists = trackLists.filter { id, list in
+            guard let listed = listing[id] else { return false }
+            return list.version == listed && current.timeIntervalSince(list.storedAt) < Self.maxAge
+        }
         return entries.mapValues(\.count)
+    }
+
+    /// The tracks last read for a playlist, while it is still at `version` (its current
+    /// `lastModifiedDate`) and they are younger than `maxAge`.
+    func tracks(playlistID id: String, version: Date) -> [Track]? {
+        tracks(playlistID: id, maxAge: Self.maxAge) { $0 == version }
+    }
+
+    /// The tracks last read for a playlist, however old and whether or not it changed since: to
+    /// show at once while a fresh read runs, which replaces them. An age limit here made the
+    /// first open of a playlist wait for the whole read again 10 minutes after launch (#442).
+    func lastReadTracks(playlistID id: String) -> [Track]? {
+        tracks(playlistID: id, maxAge: nil) { _ in true }
+    }
+
+    private func tracks(playlistID id: String, maxAge: TimeInterval?, matching isCurrent: (Date?) -> Bool) -> [Track]? {
+        guard var list = trackLists[id] else { return nil }
+        let current = now()
+        guard isCurrent(list.version), maxAge.map({ current.timeIntervalSince(list.storedAt) < $0 }) ?? true else {
+            trackLists[id] = nil
+            return nil
+        }
+        list.usedAt = current
+        trackLists[id] = list
+        return list.tracks
+    }
+
+    /// Keeps the tracks a read of one playlist found at `version`, unless the playlist was
+    /// edited, or songs were removed from the library, since the read started.
+    func storeTracks(_ tracks: [Track], playlistID id: String, version: Date?, from start: LookupStart) {
+        guard start.libraryRemovals == libraryRemovals, (edits[id] ?? 0) == (start.edits[id] ?? 0) else { return }
+        keep(tracks, playlistID: id, version: version)
+    }
+
+    private func keep(_ tracks: [Track], playlistID id: String, version: Date?) {
+        let current = now()
+        trackLists[id] = TrackList(tracks: tracks, version: version, usedAt: current, storedAt: current)
+        var total = trackLists.values.reduce(0) { $0 + $1.tracks.count }
+        while total > maxTracks, trackLists.count > 1,
+              let oldest = trackLists.filter({ $0.key != id }).min(by: { $0.value.usedAt < $1.value.usedAt }) {
+            total -= oldest.value.tracks.count
+            trackLists[oldest.key] = nil
+        }
     }
 
     /// What a lookup started from: each playlist's listed version and how often it was edited.
@@ -863,6 +993,7 @@ actor AppleMusicPlaylistTrackCountCache {
     func forget(_ playlistIDs: [String]) {
         for id in playlistIDs {
             entries[id] = nil
+            trackLists[id] = nil
             edits[id, default: 0] += 1
         }
     }
@@ -871,6 +1002,7 @@ actor AppleMusicPlaylistTrackCountCache {
     /// they were in.
     func forgetAll() {
         entries = [:]
+        trackLists = [:]
         libraryRemovals += 1
     }
 
@@ -882,10 +1014,10 @@ actor AppleMusicPlaylistTrackCountCache {
         )
     }
 
-    /// Keeps the counts a lookup read, except for playlists edited or listed with a newer
-    /// version since it started, or all of them after a removal from the library: those counts
-    /// may be from before the change.
-    func store(_ counts: [String: Int], from start: LookupStart) {
+    /// Keeps the counts a lookup read, and the tracks it counted, except for playlists edited or
+    /// listed with a newer version since it started, or all of them after a removal from the
+    /// library: those may be from before the change.
+    func store(_ counts: [String: Int], tracks: [String: [Track]] = [:], from start: LookupStart) {
         guard start.libraryRemovals == libraryRemovals else { return }
         let storedAt = now()
         for (id, count) in counts {
@@ -893,6 +1025,12 @@ actor AppleMusicPlaylistTrackCountCache {
                   (versions[id] ?? nil) == version,
                   (edits[id] ?? 0) == start.edits[id] else { continue }
             entries[id] = Entry(count: count, version: version, storedAt: storedAt)
+        }
+        for (id, list) in tracks {
+            guard let version = start.versions[id],
+                  (versions[id] ?? nil) == version,
+                  (edits[id] ?? 0) == start.edits[id] else { continue }
+            keep(list, playlistID: id, version: version)
         }
         while entries.count > Self.maxPlaylists,
               let oldest = entries.min(by: { $0.value.storedAt < $1.value.storedAt })?.key {

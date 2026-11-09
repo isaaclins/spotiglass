@@ -205,6 +205,23 @@ final class PlaylistBrowserLibraryEditsTests: XCTestCase {
         XCTAssertEqual(viewModel.savedTrackState(for: "699902614"), false)
     }
 
+    /// A song removed from the library leaves every playlist it was in. A playlist's kept track
+    /// list must go too, or reopening it shows the removed song (#442).
+    func testRemovingASongFromTheLibraryDropsKeptPlaylistTracks() async throws {
+        let api = LibraryEditsMockAPI(edits: .all)
+        api.playlists = [playlist("pl1", "Mine")]
+        let cache = MemoryBrowsingCache()
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: cache)
+        await viewModel.load()
+        let kept = [MusicPlaylistTrackItem(id: "1-699902614", content: .track(AppleMusicLibraryEditorTests.track(id: "699902614", name: "Computer Love")))]
+        try cache.saveTracks(kept, playlistID: "pl1", snapshotID: "applemusic", cachedAt: Date())
+
+        await viewModel.unfavoriteRows([row("699902614", position: 1)], confirmed: true)
+
+        XCTAssertEqual(api.calls, ["removeSavedTracks(699902614)"])
+        XCTAssertNil(try cache.loadTracksIgnoringAge(playlistID: "pl1", snapshotID: "applemusic"))
+    }
+
     func testCancelledUnlikeRemovesNothing() async {
         let api = LibraryEditsMockAPI(edits: .all)
         let viewModel = await makeViewModel(api)

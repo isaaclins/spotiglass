@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.12] - 2026-11-09
+
+### Fixed
+
+- Big Apple Music playlists and Liked Songs now open without a long wait.
+
 ## [0.8.11] - 2026-11-09
 
 ### Fixed
