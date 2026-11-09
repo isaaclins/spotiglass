@@ -357,6 +357,31 @@ final class BrowserChromeViewsTests: XCTestCase {
         XCTAssertEqual(NavigationToolbarChrome(viewModel: viewModel).destinationDescription, "Go back to Bonobo")
     }
 
+    /// Going back to an artist whose page failed to load replays them without
+    /// a name. The title and the next back must still say the name the link
+    /// showed, not "Artist".
+    func testGoingBackToAnArtistThatFailedToLoadKeepsTheirName() async throws {
+        struct Offline: Error {}
+        let api = MockBrowsingAPI(
+            playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
+            trackResults: [:],
+            artistAlbumsHandler: { _, _, _ in throw Offline() }
+        )
+        let viewModel = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
+        await viewModel.load()
+        await viewModel.selectSidebar(.search)
+        await viewModel.selectArtist(id: "artist-bonobo", origin: .extend, displayName: "Bonobo")
+        XCTAssertNil(viewModel.cachedArtistSnapshots["artist-bonobo"])
+        await viewModel.selectSidebar(.home)
+
+        XCTAssertEqual(NavigationToolbarChrome(viewModel: viewModel).destinationDescription, "Go back to Bonobo")
+        await viewModel.navigateBack()
+        XCTAssertEqual(BrowserToolbarPresentation.windowTitle(for: viewModel.breadcrumbPath), "Bonobo")
+
+        await viewModel.selectArtist(id: "artist-tycho", origin: .extend, displayName: "Tycho")
+        XCTAssertEqual(NavigationToolbarChrome(viewModel: viewModel).destinationDescription, "Go back to Bonobo")
+    }
+
     /// Every app language names the destination, not just English.
     func testBackDestinationIsLocalized() async throws {
         let api = MockBrowsingAPI(

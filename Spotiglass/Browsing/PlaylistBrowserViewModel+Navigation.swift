@@ -280,6 +280,11 @@ extension PlaylistBrowserViewModel {
         if let cached = cachedArtistSnapshots[id] {
             return cached.snapshot.artistDetail.name
         }
+        // Going back to an artist whose page never loaded still knows the name
+        // the link showed, so the title and the next back don't say "Artist".
+        if let remembered = backNavigationArtistNames[id] {
+            return remembered
+        }
         return SpotiglassL10n.string("browser.breadcrumb.artistFallback")
     }
 
