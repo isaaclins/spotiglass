@@ -348,12 +348,10 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         let covers = AppleMusicGeneratedCoverCache()
         let provider = AppleMusicBrowsingProvider(source: source, generatedCovers: covers, coverLookupTimeout: .seconds(60))
 
-        let missed = expectation(forNotification: AppleMusicGeneratedCoverCache.answerChangedNotification, object: covers)
-        missed.isInverted = true
         let first = try await provider.currentUserPlaylists(limit: 50)
         XCTAssertNil(first.first?.imageURL, "waited for the first answer")
-        // It applied the answer itself, so no second listing is asked for.
-        await fulfillment(of: [missed], timeout: 0.3)
+        let firstMissed = await provider.missedCoverAnswer()
+        XCTAssertFalse(firstMissed, "it applied the answer itself, so no second listing is needed")
 
         let gate = TrackCountGate()
         source.playlistCoversGate = gate
@@ -365,8 +363,12 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
 
         gate.open()
         await covers.refresh(using: source).value
+        let secondMissed = await provider.missedCoverAnswer()
+        XCTAssertTrue(secondMissed, "the slow lookup's answer came after the listing")
         let third = try await provider.currentUserPlaylists(limit: 50)
         XCTAssertNotNil(third.first?.imageURL, "the slow lookup's answer, now the user picked a cover")
+        let thirdMissed = await provider.missedCoverAnswer()
+        XCTAssertFalse(thirdMissed)
     }
 
     /// A library too big to read before the timeout still gets the placeholder: the lookup that
@@ -383,28 +385,34 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         let first = try await provider.currentUserPlaylists(limit: 50)
         XCTAssertNotNil(first.first?.imageURL, "no answer yet: Apple's cover stays")
 
-        // The sidebar lists once per launch, so the late answer asks for a new listing.
-        let relist = expectation(forNotification: AppleMusicGeneratedCoverCache.answerChangedNotification, object: covers)
-        gate.open()
-        await fulfillment(of: [relist], timeout: 5)
-        let next = try await provider.currentUserPlaylists(limit: 50)
-        XCTAssertNil(next.first?.imageURL)
-    }
-
-    /// A listing that fails still ends, so a later answer is still announced.
-    func testAFailedListingDoesNotSilenceALaterAnswer() async throws {
-        let source = MockAppleMusicSource()
-        source.libraryPlaylistsError = URLError(.cannotConnectToHost)
-        source.playlistCovers = [AppleMusicPlaylistCover(name: "Road", globalID: nil, isGenerated: true)]
-        let gate = TrackCountGate()
-        source.playlistCoversGate = gate
-        let covers = AppleMusicGeneratedCoverCache()
-        let provider = AppleMusicBrowsingProvider(source: source, generatedCovers: covers)
-        _ = try? await provider.currentUserPlaylists(limit: 50)
-
+        // The sidebar lists once per launch, so the late answer is announced and the provider
+        // reports the listing on screen as missing it.
         let announced = expectation(forNotification: AppleMusicGeneratedCoverCache.answerChangedNotification, object: covers)
         gate.open()
         await fulfillment(of: [announced], timeout: 5)
+        let missed = await provider.missedCoverAnswer()
+        XCTAssertTrue(missed)
+        let next = try await provider.currentUserPlaylists(limit: 50)
+        XCTAssertNil(next.first?.imageURL)
+        let stillMissed = await provider.missedCoverAnswer()
+        XCTAssertFalse(stillMissed)
+    }
+
+    /// The same covers in another order are no new answer, or every listing would ask for the
+    /// next one.
+    func testTheSameCoversInAnotherOrderAreNoNewAnswer() async {
+        let source = MockAppleMusicSource()
+        let road = AppleMusicPlaylistCover(name: "Road", globalID: nil, isGenerated: true)
+        let mix = AppleMusicPlaylistCover(name: "Mix", globalID: nil, isGenerated: false)
+        source.playlistCovers = [road, mix]
+        let covers = AppleMusicGeneratedCoverCache()
+        await covers.refresh(using: source).value
+        let before = await covers.answerVersion
+
+        source.playlistCovers = [mix, road]
+        await covers.refresh(using: source).value
+        let after = await covers.answerVersion
+        XCTAssertEqual(after, before)
     }
 
     /// Losing Apple Music access forgets the answer, and a lookup started before doesn't bring
@@ -1504,11 +1512,8 @@ private final class MockAppleMusicSource: AppleMusicContentSource, @unchecked Se
         lock.withLock { recordedCalls.append(call) }
     }
 
-    var libraryPlaylistsError: Error?
-
     func libraryPlaylists(limit: Int, offset: Int) async throws -> [Playlist] {
         record("libraryPlaylists(\(limit),\(offset))")
-        if let libraryPlaylistsError { throw libraryPlaylistsError }
         guard offset < playlists.count else { return [] }
         return Array(playlists[offset..<min(playlists.count, offset + limit)])
     }

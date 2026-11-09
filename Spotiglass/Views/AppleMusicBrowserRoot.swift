@@ -110,13 +110,25 @@ struct AppleMusicBrowserRoot: View {
             sidebarHeader: sidebarHeader
         )
         .id(MusicService.appleMusic)
+        // The covers' answer can come after the sidebar was listed (a slow API, a big library),
+        // also while another service is on screen: list again then, so Apple's generated covers
+        // give way to the placeholder (#444).
+        .task { await relistIfCoverAnswerMissed() }
         .onReceive(
             NotificationCenter.default.publisher(for: AppleMusicGeneratedCoverCache.answerChangedNotification)
         ) { notification in
-            // The covers' answer came after the sidebar was listed (a slow API, a big library):
-            // list it again so Apple's generated covers give way to the placeholder (#444).
             guard (notification.object as AnyObject?) === AppleMusicGeneratedCoverCache.shared else { return }
-            Task { await viewModel.refreshPlaylists(trigger: .automatic) }
+            Task { await relistIfCoverAnswerMissed() }
+        }
+    }
+
+    private func relistIfCoverAnswerMissed() async {
+        guard let provider = viewModel.api as? AppleMusicBrowsingProvider else { return }
+        // Twice at most: a refresh joins a listing already in flight, which may have read the
+        // answer before this one arrived.
+        for _ in 0..<2 {
+            guard await provider.missedCoverAnswer() else { return }
+            await viewModel.refreshPlaylists(trigger: .automatic)
         }
     }
 
