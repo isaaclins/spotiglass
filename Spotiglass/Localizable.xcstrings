@@ -14615,6 +14615,78 @@
         }
       }
     },
+    "playback.refused.pause": {
+      "comment": "Player bar line, shown for a few seconds in place of the artist when the service refused a pause press. The reason shows on hover.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't pause"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo pausar"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konnte nicht pausieren"
+          }
+        }
+      }
+    },
+    "playback.refused.play": {
+      "comment": "Player bar line, shown for a few seconds in place of the artist when the service refused a play press. The reason shows on hover.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't play"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo reproducir"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konnte nicht abspielen"
+          }
+        }
+      }
+    },
+    "error.playback.spotify.failed": {
+      "comment": "Player bar line, shown for a few seconds in place of the artist when Spotify refused a play or pause press.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify couldn't do that. Try again in a moment."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify no pudo hacerlo. Vuelve a intentarlo en un momento."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotify konnte das nicht ausführen. Versuche es gleich erneut."
+          }
+        }
+      }
+    },
     "appleMusic.permission.message": {
       "extractionState": "manual",
       "localizations": {

@@ -84,7 +84,7 @@ final class PlaybackSessionViewModel: ObservableObject {
     /// The other service's player started something: pause what plays here, if anything.
     func pauseForHandover() {
         guard PlaylistBrowserPlaybackHelpers.isCurrentlyPlaying(connectionState: connectionState) else { return }
-        Task { await togglePlayPause() }
+        requestTogglePlayPause()
     }
 
     /// The player the transport bar, Space, the Playback menu and the palette control (#396):
@@ -631,10 +631,59 @@ final class PlaybackSessionViewModel: ObservableObject {
         case missingDeviceRetryTransfer = "missing_device_retry_transfer"
     }
 
-    /// True while a toggle command is in flight until the bridge ACK or timeout (avoids overlapping SDK toggles).
-    var togglePlayPauseAwaitingBridgeAck = false
-    var togglePlayPauseAckTimeoutTask: Task<Void, Never>?
-    static let togglePlayPauseAckTimeout: Duration = .seconds(3)
+    /// Play / pause presses in order: each command waits for the one before it (#437).
+    var playPauseCommandTail: Task<Void, Never>?
+    /// Bumped by every play / pause press; only the latest press's refusal changes the screen.
+    var playPauseRequestSerial: UInt64 = 0
+    /// The states the presses still waiting for Spotify's page asked it to report (`true`
+    /// playing), oldest first, until the page has reported them in that order or
+    /// ``pushedPlayStateExpectationTimeout`` passes since the last press. Until then its reports
+    /// are not shown: an older one would flip the press back, and the one for an earlier press
+    /// in a quick pause, play would flicker.
+    var pushedPlayStateExpectations: [PushedPlayStateExpectation] = []
+    var pushedPlayStateExpectationTask: Task<Void, Never>?
+    var pushedPlayStateExpectationTimeout: Duration = .seconds(3)
+    /// The latest report the page sent while presses waited for it, shown when the wait ends
+    /// without the page reporting the last press: it is then the page's own last word.
+    var heldBackPageReport: MusicPlaybackEventEnvelope?
+    /// The press whose command Spotify's page is running. The page runs a command after the
+    /// script that starts it has returned, so the next press waits for the page to report this
+    /// one finished or failed (or ``inAppCommandAckTimeout``): two at once can land in either
+    /// order, and a failure couldn't be told apart from the next press of the same kind.
+    var inAppCommandInFlight: PlayPauseRequest?
+    var inAppCommandAckWaiters: [CheckedContinuation<Void, Never>] = []
+    var inAppCommandAckTimeoutTask: Task<Void, Never>?
+    var inAppCommandAckTimeout: Duration = .seconds(3)
+    /// Presses the page didn't answer in time, newest last: its answer may still come, and a
+    /// late refusal must still put the controls back.
+    var inAppCommandsUnanswered: [PlayPauseRequest] = []
+    /// The last play / pause state Spotify's page reported, shown or not: what its player has
+    /// when it refuses a press.
+    var pageReportedPlayState: PlaybackConnectionState?
+    /// For a player whose state is read: the state its player last confirmed, from before the
+    /// first press still on its way. A refused press goes back to this, not to the screen of
+    /// an earlier press that may have been refused too.
+    var playPauseConfirmedState: PlaybackConnectionState?
+    var playPauseRequestsInFlight = 0
+    /// Presses up to this serial that haven't gone out yet never do: a play started after them
+    /// is the latest thing asked for, and they would otherwise reach the new item.
+    var playPauseSupersededThrough: UInt64 = 0
+    /// How long a press waits for the one before it to finish. A play that never returns (a
+    /// stream that doesn't start) mustn't hold every press after it.
+    var playPauseQueueWait: Duration = .seconds(3)
+    /// For a player whose state is read: the latest press sent to it.
+    var lastSentReadPress: PlayPauseRequest?
+    /// For Spotify's page: the latest press sent to it.
+    var lastSentInAppPress: PlayPauseRequest?
+    /// Until then, a read that disagrees with the last pause or resume doesn't use up the
+    /// settle window: the service can report the old state for a few seconds (#437).
+    var playPauseReadHoldUntil: ContinuousClock.Instant?
+    static let playPauseReadHoldDuration: Duration = .seconds(5)
+    /// A play / pause the player refused, shown in the bar for a moment while the controls show
+    /// the state from before the press again (#437).
+    @PublishedWhenChanged var refusedPlayPause: PlaybackDisplayError?
+    var refusedPlayPauseClearTask: Task<Void, Never>?
+    static let refusedPlayPauseDisplayDuration: Duration = .seconds(5)
 
     private static let playbackVolumeUserDefaultsKey = "spotiglass.playbackVolume"
     /// Matches the default passed to `Spotify.Player({ volume: … })` in the embedded host HTML.
@@ -855,7 +904,11 @@ final class PlaybackSessionViewModel: ObservableObject {
         playbackHostAutoResumeTask?.cancel()
         connectDevicesRefreshTask?.cancel()
         inflightTransferTask?.cancel()
-        togglePlayPauseAckTimeoutTask?.cancel()
+        pushedPlayStateExpectationTask?.cancel()
+        inAppCommandAckTimeoutTask?.cancel()
+        inAppCommandAckWaiters.forEach { $0.resume() }
+        refusedPlayPauseClearTask?.cancel()
+        playPauseCommandTail?.cancel()
         transportPollTask?.cancel()
         shuffleSyncTask?.cancel()
         repeatSyncTask?.cancel()

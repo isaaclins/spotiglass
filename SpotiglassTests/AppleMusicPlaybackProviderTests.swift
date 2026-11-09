@@ -30,6 +30,15 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         XCTAssertFalse(session.supportsDeviceTransfer)
     }
 
+    /// A press that knows the state it wants pauses or plays, whatever the player shows (#437).
+    func testSetInAppPlayerPlayingPausesAndResumes() async throws {
+        let player = ScriptedAppleMusicPlayer()
+        let provider = AppleMusicPlaybackProvider(player: player)
+        try await provider.setInAppPlayerPlaying(false, commandID: nil)
+        try await provider.setInAppPlayerPlaying(true, commandID: nil)
+        XCTAssertEqual(player.commands.filter { $0 == "pause" || $0 == "resume" }, ["pause", "resume"])
+    }
+
     func testConnectWithoutAppleMusicAccessFailsWithAnAppleMusicError() async {
         let player = ScriptedAppleMusicPlayer()
         player.authorized = false

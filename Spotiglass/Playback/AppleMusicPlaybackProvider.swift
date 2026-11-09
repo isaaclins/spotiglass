@@ -215,11 +215,19 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
 
     /// The session uses explicit pause / resume for a player without pushed state; this is
     /// only reached by callers that toggle directly.
-    func togglePlayPause() async throws {
+    func togglePlayPause(commandID: UInt64?) async throws {
         if player.readState().status == .playing {
             player.pause()
         } else {
             try await perform { try await player.resume() }
+        }
+    }
+
+    func setInAppPlayerPlaying(_ playing: Bool, commandID: UInt64?) async throws {
+        if playing {
+            try await perform { try await player.resume() }
+        } else {
+            player.pause()
         }
     }
 
