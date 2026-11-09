@@ -2,6 +2,21 @@ import AppKit
 import Combine
 import SwiftUI
 
+/// Every main window the app has shown, so AppKit-level code (a Dock click) can tell them apart
+/// from Settings, the pop-out lyrics window or Sparkle's windows (#439).
+@MainActor
+enum SpotiglassMainWindows {
+    private static let windows = NSHashTable<NSWindow>.weakObjects()
+
+    static func add(_ window: NSWindow) {
+        windows.add(window)
+    }
+
+    static func contains(_ window: NSWindow) -> Bool {
+        windows.contains(window)
+    }
+}
+
 /// The transient controllers belong to one main-window scene together. Keeping
 /// them in this scene host prevents one `WindowGroup` root from replacing or
 /// tearing down another root's palette or lyrics state.
@@ -449,6 +464,7 @@ struct RootView: View {
                     SceneHostActivationView(
                         activate: { window in
                             sceneHost.window = window
+                            SpotiglassMainWindows.add(window)
                             sceneRegistry.activate(sceneHost)
                         },
                         resignKey: { sceneRegistry.mainWindowResignedKey() }

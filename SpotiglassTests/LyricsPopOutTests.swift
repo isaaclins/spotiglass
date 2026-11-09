@@ -633,9 +633,77 @@ final class LyricsPopOutTests: XCTestCase {
         XCTAssertEqual(LyricsPopOutContent.of(.paused(item(nil))), .noLyrics(item(nil)))
         let song = item("spotify:track:1")
         XCTAssertEqual(LyricsPopOutContent.of(.playing(song)), .lyrics(song))
-        XCTAssertEqual(LyricsPopOutContent.of(.paused(nil)), .nothingPlaying)
-        XCTAssertEqual(LyricsPopOutContent.of(.disconnected), .nothingPlaying)
         XCTAssertEqual(LyricsPopOutContent.of(.playing(episode)).track, episode)
+    }
+
+    /// With no song to name, the window says what the player bar says, never "Nothing playing":
+    /// a refused pause that ends in an error shows the error, and only an idle player gets the
+    /// hint to play something.
+    func testWithNoSongTheWindowSaysWhatThePlayerBarSays() {
+        let expired = PlaybackDisplayError(title: "Spotify sign-in expired", message: "Sign in again to keep playing.", recoveryAction: nil)
+        XCTAssertEqual(
+            LyricsPopOutContent.of(.error(expired)),
+            .status(title: "Spotify sign-in expired", subtitle: "Sign in again to keep playing.", invitesPlay: false)
+        )
+        guard case let .status(title, subtitle, invitesPlay) = LyricsPopOutContent.of(.unavailable("Apple Music needs a subscription."), service: .appleMusic) else {
+            return XCTFail("an unavailable player shows its reason")
+        }
+        XCTAssertEqual(subtitle, "Apple Music needs a subscription.")
+        XCTAssertNotEqual(title, SpotiglassL10n.string("lyrics.popOut.nothingPlaying"))
+        XCTAssertFalse(invitesPlay)
+
+        for idle: PlaybackConnectionState in [.ready(deviceID: "device-1"), .paused(nil)] {
+            guard case let .status(_, _, invitesPlay) = LyricsPopOutContent.of(idle) else { return XCTFail("\(idle)") }
+            XCTAssertTrue(invitesPlay, "\(idle)")
+        }
+        guard case let .status(_, _, connectingInvites) = LyricsPopOutContent.of(.connecting) else { return XCTFail() }
+        XCTAssertFalse(connectingInvites)
+        XCTAssertNil(LyricsPopOutContent.of(.disconnected).track)
+        // The bar's own lines come from the same place.
+        XCTAssertEqual(
+            PlaybackControlsView.statusLines(for: .error(expired), playerPushesState: true, service: .spotify)?.subtitle,
+            "Sign in again to keep playing."
+        )
+        let song = PlaybackNowPlaying(
+            name: "Midnight City", artists: ["M83"], albumName: nil, albumID: nil, albumArtURL: nil,
+            durationMilliseconds: 240_000, positionMilliseconds: 1_000, uri: "spotify:track:1"
+        )
+        XCTAssertNil(PlaybackControlsView.statusLines(for: .paused(song), playerPushesState: true, service: .spotify))
+    }
+
+    /// A refused play / pause puts its title under the line for a moment, as on the player bar.
+    func testARefusedPressShowsUnderTheStripLine() {
+        let song = PlaybackNowPlaying(
+            name: "Midnight City", artists: ["M83"], albumName: nil, albumID: nil, albumArtURL: nil,
+            durationMilliseconds: 240_000, positionMilliseconds: 1_000, uri: "spotify:track:1"
+        )
+        let refused = PlaybackDisplayError(title: "Couldn't pause", message: "Spotify didn't answer.", recoveryAction: nil)
+        XCTAssertEqual(LyricsPopOutStripText.subtitle(track: song, lyric: "First line", notice: refused), "Couldn't pause")
+        XCTAssertEqual(LyricsPopOutStripText.subtitle(track: song, lyric: "First line", notice: nil), "Midnight City · M83")
+        XCTAssertEqual(LyricsPopOutStripText.subtitle(track: song, lyric: nil, notice: nil), "M83")
+    }
+
+    /// The window never creates Apple Music's player: with Apple Music on screen and its player
+    /// not made yet, it has nothing to follow.
+    func testTheWindowNeverCreatesTheAppleMusicPlayer() throws {
+        let (_, keymap) = makeManager()
+        let (spotify, _) = playingSpotify()
+        var created = 0
+        let hosts = SpotiglassPlaybackHosts(spotify: spotify) {
+            created += 1
+            return SpotiglassPlaybackHost(provider: AppleMusicPlaybackProvider(player: ScriptedAppleMusicPlayer()))
+        }
+        let services = MusicServiceStore(
+            storage: InMemoryMusicServiceSelectionStorage(services: [.spotify, .appleMusic], active: .appleMusic)
+        )
+        defer { ViewTestHost.tearDownAll() }
+        _ = try hostPopOut(
+            LyricsPopOutRoot(playbackHosts: hosts, serviceStore: services, keymapStore: keymap),
+            size: LyricsPopOutWindow.defaultSize
+        )
+        AppKitTestSupport.pumpRunLoop(for: 0.2)
+        XCTAssertEqual(created, 0)
+        XCTAssertNil(hosts.appleMusicIfCreated)
     }
 
     /// Hosted with an episode playing, the window never looks lyrics up for it.
@@ -715,19 +783,37 @@ final class LyricsPopOutTests: XCTestCase {
         final class MinimizedWindow: OffscreenTestWindow {
             override var isMiniaturized: Bool { true }
         }
+        func minimizedWindow() -> MinimizedWindow {
+            let window = MinimizedWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 200, height: 120),
+                styleMask: [.titled, .closable, .miniaturizable],
+                backing: .buffered,
+                defer: false
+            )
+            window.isReleasedWhenClosed = false
+            return window
+        }
         let popOut = makeWindow()
         LyricsPopOutWindow.adopt(popOut)
+        popOut.setIsVisible(true)
         defer { AppKitTestSupport.closeWindowSafely(popOut) }
-        let minimized = MinimizedWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 200, height: 120),
-            styleMask: [.titled, .closable, .miniaturizable],
-            backing: .buffered,
-            defer: false
-        )
-        minimized.isReleasedWhenClosed = false
-        defer { AppKitTestSupport.closeWindowSafely(minimized) }
-        XCTAssertTrue(SpotiglassApplicationDelegate.minimizedMainWindow([popOut, minimized]) === minimized)
-        XCTAssertNil(SpotiglassApplicationDelegate.minimizedMainWindow([popOut]))
+        // Settings, minimised: not a main window, so it never comes back in place of one.
+        let settings = minimizedWindow()
+        defer { AppKitTestSupport.closeWindowSafely(settings) }
+        XCTAssertNil(SpotiglassApplicationDelegate.minimizedMainWindow([popOut, settings]))
+        XCTAssertEqual(SpotiglassApplicationDelegate.reopenAction(for: [popOut, settings]), .newWindow)
+
+        let main = minimizedWindow()
+        SpotiglassMainWindows.add(main)
+        defer { AppKitTestSupport.closeWindowSafely(main) }
+        XCTAssertTrue(SpotiglassApplicationDelegate.minimizedMainWindow([popOut, settings, main]) === main)
+        XCTAssertEqual(SpotiglassApplicationDelegate.reopenAction(for: [popOut, settings, main]), .restore(main))
+
+        // A main window on screen: the system handles the click, as without the pop-out.
+        let open = makeWindow()
+        open.setIsVisible(true)
+        defer { AppKitTestSupport.closeWindowSafely(open) }
+        XCTAssertEqual(SpotiglassApplicationDelegate.reopenAction(for: [popOut, open]), .system)
     }
 }
 

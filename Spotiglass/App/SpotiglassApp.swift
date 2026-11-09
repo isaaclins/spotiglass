@@ -321,24 +321,37 @@ final class SpotiglassApplicationDelegate: NSObject, NSApplicationDelegate {
     /// (#439): open a main window the way File › New Window does.
     @MainActor
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        guard Self.onlyThePopOutIsOpen(sender.windows) else { return true }
-        // A main window in the Dock comes back, as with any app; only with none is a new one made.
-        if let minimized = Self.minimizedMainWindow(sender.windows) {
-            minimized.deminiaturize(nil)
-        } else {
+        switch Self.reopenAction(for: sender.windows) {
+        case .system:
+            return true
+        case let .restore(window):
+            window.deminiaturize(nil)
+        case .newWindow:
             Self.performNewWindow(in: sender.mainMenu)
         }
         return false
     }
 
-    /// A main window minimised to the Dock, if there is one. (A minimised window can't become
-    /// main, so it is told apart by being a titled window that isn't a panel or the pop-out.)
+    enum ReopenAction: Equatable {
+        /// A main window or Settings is open: the system handles the click as before.
+        case system
+        /// Only the pop-out is open and a main window waits in the Dock: it comes back.
+        case restore(NSWindow)
+        /// Only the pop-out is open: a new main window, like File › New Window.
+        case newWindow
+    }
+
+    @MainActor
+    static func reopenAction(for windows: [NSWindow]) -> ReopenAction {
+        guard onlyThePopOutIsOpen(windows) else { return .system }
+        if let minimized = minimizedMainWindow(windows) { return .restore(minimized) }
+        return .newWindow
+    }
+
+    /// A main window minimised to the Dock, if there is one; never Settings or another window.
     @MainActor
     static func minimizedMainWindow(_ windows: [NSWindow]) -> NSWindow? {
-        windows.first {
-            $0.isMiniaturized && $0.styleMask.contains(.titled) && !($0 is NSPanel)
-                && !LyricsPopOutWindow.isPopOut($0)
-        }
+        windows.first { $0.isMiniaturized && SpotiglassMainWindows.contains($0) }
     }
 
     /// True when the pop-out is the only window that could be a main window: no main window and

@@ -37,9 +37,13 @@ enum LyricsPopOutWindow {
     /// saved frame before it first shows.
     static func adopt(_ newWindow: NSWindow) {
         guard window !== newWindow else { return }
+        let previous = window
         window = newWindow
         newWindow.isMovableByWindowBackground = true
         guard savesFrame else { return }
+        // AppKit lets one window at a time save under a name: a window that replaces an earlier
+        // one still alive takes the name over, or it would silently stop saving its frame.
+        previous?.setFrameAutosaveName("")
         newWindow.setFrameUsingName(frameAutosaveName)
         newWindow.setFrameAutosaveName(frameAutosaveName)
     }
