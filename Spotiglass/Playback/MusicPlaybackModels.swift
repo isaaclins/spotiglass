@@ -126,6 +126,10 @@ struct PlaybackDisplayError: Error, Equatable, Identifiable {
     let title: String
     let message: String
     let recoveryAction: PlaybackRecoveryAction?
+    /// One command failed and the player itself is fine: a player with no connection to
+    /// restore goes back to what it plays after a moment (#430). Missing access or a missing
+    /// subscription is not momentary: that message stays until it's fixed.
+    var isMomentary = false
 
     static func == (lhs: PlaybackDisplayError, rhs: PlaybackDisplayError) -> Bool {
         lhs.title == rhs.title && lhs.message == rhs.message && lhs.recoveryAction == rhs.recoveryAction
