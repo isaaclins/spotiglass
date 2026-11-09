@@ -21,6 +21,9 @@ struct MusicPlaybackError: Error, Equatable, LocalizedError {
         case server
         /// The item can't be found or played.
         case notFound
+        /// The item is explicit and this Mac only allows clean music (Screen Time's Content &
+        /// Privacy, or a profile from whoever manages the Mac).
+        case explicitContentRestricted
         /// Anything else. The detail is for diagnostics.
         case failed
     }

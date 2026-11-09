@@ -14500,6 +14500,52 @@
         }
       }
     },
+    "error.playback.appleMusic.explicit.message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Change it in Screen Time > Content & Privacy."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cámbialo en Tiempo de uso > Contenido y privacidad."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ändern unter Bildschirmzeit > Inhalt & Datenschutz."
+          }
+        }
+      }
+    },
+    "error.playback.appleMusic.explicit.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This Mac blocks explicit songs"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este Mac bloquea canciones explícitas"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Mac sperrt explizite Titel"
+          }
+        }
+      }
+    },
     "error.playback.appleMusic.failed": {
       "extractionState": "manual",
       "localizations": {
