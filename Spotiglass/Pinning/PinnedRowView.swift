@@ -110,8 +110,10 @@ private struct CachedCircularArtwork: View {
     /// The pin's ID, so an Apple Music library cover saved last session still resolves.
     var artworkKey: String? = nil
     @StateObject private var artworkLoader = ArtworkImageLoader()
+    @Environment(\.displayScale) private var displayScale
 
     var body: some View {
+        let requestURL = ArtworkRequest.url(url, points: diameter, scale: displayScale, itemKey: artworkKey)
         Group {
             if let image = artworkLoader.image {
                 Image(nsImage: image)
@@ -122,8 +124,8 @@ private struct CachedCircularArtwork: View {
             }
         }
         .frame(width: diameter, height: diameter)
-        .task(id: url.absoluteString) {
-            await artworkLoader.load(for: url)
+        .task(id: requestURL.absoluteString) {
+            await artworkLoader.load(for: requestURL, artwork: url)
         }
     }
 }
@@ -209,7 +211,7 @@ struct PinnedItemDragPill: View {
             .clipShape(Circle())
             .overlay { Circle().strokeBorder(SpotiglassDesign.artworkBorderColor(colorScheme: colorScheme), lineWidth: 1) }
         case .playlist, .album, .track:
-            DragPreviewArtwork(url: item.artworkURL, size: artworkSize)
+            DragPreviewArtwork(url: item.artworkURL, size: artworkSize, artworkKey: item.id)
         }
     }
 
@@ -230,7 +232,11 @@ private struct DragPreviewArtwork: View {
     @Environment(\.colorScheme) private var colorScheme
     @StateObject private var artworkLoader: ArtworkImageLoader
 
-    init(url: URL?, size: CGFloat) {
+    init(url: URL?, size: CGFloat, artworkKey: String? = nil) {
+        // The same sized URL the pin row draws, so the preview finds its cover in the cache.
+        let url = url.map {
+            ArtworkRequest.url($0, points: size, scale: NSScreen.main?.backingScaleFactor ?? 2, itemKey: artworkKey)
+        }
         self.url = url
         self.size = size
         let initialImage = url.flatMap { ArtworkImageStore.cachedImageIfAvailable(for: $0) }

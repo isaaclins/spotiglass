@@ -14500,6 +14500,52 @@
         }
       }
     },
+    "error.playback.appleMusic.explicit.message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Change it in Screen Time > Content & Privacy."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cámbialo en Tiempo de uso > Contenido y privacidad."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ändern unter Bildschirmzeit > Inhalt & Datenschutz."
+          }
+        }
+      }
+    },
+    "error.playback.appleMusic.explicit.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This Mac blocks explicit songs"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este Mac bloquea canciones explícitas"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Mac sperrt explizite Titel"
+          }
+        }
+      }
+    },
     "error.playback.appleMusic.failed": {
       "extractionState": "manual",
       "localizations": {
@@ -16341,6 +16387,116 @@
           "stringUnit": {
             "state": "translated",
             "value": "Leertaste"
+          }
+        }
+      }
+    },
+    "settings.updates.header": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updates"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updates"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actualizaciones"
+          }
+        }
+      }
+    },
+    "settings.updates.installAutomatically": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updates automatisch installieren"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Install updates automatically"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Instalar actualizaciones automáticamente"
+          }
+        }
+      }
+    },
+    "settings.updates.footer.automatic": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass sucht alle paar Stunden nach einer neuen Version, lädt sie im Hintergrund und installiert sie beim nächsten Beenden der App."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass checks for a new version every few hours, downloads it in the background and installs it the next time you quit the app."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass busca una versión nueva cada pocas horas, la descarga en segundo plano y la instala la próxima vez que cierres la app."
+          }
+        }
+      }
+    },
+    "settings.updates.footer.manual": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass sucht nicht von selbst nach neuen Versionen. Mit „Nach Updates suchen…“ suchst du sofort."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass doesn't look for new versions by itself. Use Check for Updates… to look now."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass no busca versiones nuevas por sí sola. Usa «Buscar actualizaciones…» para buscar ahora."
+          }
+        }
+      }
+    },
+    "settings.updates.footer.prompt": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass sucht alle paar Stunden nach einer neuen Version und fragt dich, bevor sie installiert wird."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass checks for a new version every few hours and asks you before it installs one."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spotiglass busca una versión nueva cada pocas horas y te pregunta antes de instalarla."
           }
         }
       }

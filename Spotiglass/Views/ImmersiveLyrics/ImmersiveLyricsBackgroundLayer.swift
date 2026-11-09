@@ -44,14 +44,18 @@ struct ImmersiveBlurredArtwork: View {
     private let blurRadius: CGFloat = 24
     @StateObject private var artworkLoader: ArtworkImageLoader
 
+    /// The edge the cover is downscaled to before blurring; it is fetched at about this size.
+    private static let blurSourceMaxEdge: CGFloat = 576
+
     init(url: URL, initialImage: NSImage? = nil) {
+        let url = ArtworkRequest.url(url, points: Self.blurSourceMaxEdge, scale: 1)
         self.url = url
         _artworkLoader = StateObject(
             wrappedValue: ArtworkImageLoader(
                 initialImage: initialImage,
                 initialURL: initialImage == nil ? nil : url,
                 imageTransformer: { image in
-                    Self.downscaledForBlur(image, maxEdge: 576)
+                    Self.downscaledForBlur(image, maxEdge: Self.blurSourceMaxEdge)
                 }
             )
         )

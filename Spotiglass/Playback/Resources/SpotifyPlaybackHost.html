@@ -57,6 +57,17 @@
         });
       };
 
+      // The SDK doesn't promise any order for album images, so pick the largest: the same cover
+      // fills the 220 pt Lyrics artwork and the album header (#426).
+      function largestImageURL(album) {
+        const images = album && Array.isArray(album.images) ? album.images.filter(image => image && image.url) : [];
+        if (!images.length) {
+          return null;
+        }
+        const edge = image => Number(image.width || image.height || 0);
+        return images.reduce((best, image) => (edge(image) > edge(best) ? image : best)).url;
+      }
+
       function mapNextTrack(t) {
         const albumName = t.album && t.album.name ? String(t.album.name) : null;
         const albumURI = t.album && t.album.uri ? String(t.album.uri) : null;
@@ -65,7 +76,7 @@
           artists: (t.artists || []).map(artist => artist.name).filter(Boolean),
           albumName: albumName && albumName.length ? albumName : null,
           albumURI: albumURI && albumURI.length ? albumURI : null,
-          albumArtURL: t.album && t.album.images && t.album.images[0] ? t.album.images[0].url : null,
+          albumArtURL: largestImageURL(t.album),
           durationMilliseconds: Number(t.duration_ms || 0),
           positionMilliseconds: 0,
           uri: t.uri || null
@@ -91,7 +102,7 @@
             artists: (track.artists || []).map(artist => artist.name).filter(Boolean),
             albumName: albumName && albumName.length ? albumName : null,
             albumURI: albumURI && albumURI.length ? albumURI : null,
-            albumArtURL: track.album && track.album.images && track.album.images[0] ? track.album.images[0].url : null,
+            albumArtURL: largestImageURL(track.album),
             durationMilliseconds: Number(state.duration || 0),
             positionMilliseconds: Number(state.position || 0),
             uri: track.uri || null

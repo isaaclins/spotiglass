@@ -933,7 +933,7 @@ final class PlaybackSessionViewModel: ObservableObject {
                 message: String(format: SpotiglassL10n.string("error.playback.rateLimited.message"), clause),
                 recoveryAction: .retryTransfer
             )
-        case .network, .server, .notFound, .failed:
+        case .network, .server, .notFound, .explicitContentRestricted, .failed:
             return PlaybackDisplayError(
                 title: SpotiglassL10n.string("error.playback.commandFailed.title"),
                 message: String(format: SpotiglassL10n.string("error.playback.commandFailed.message"), error.detail),
@@ -962,6 +962,12 @@ final class PlaybackSessionViewModel: ObservableObject {
             return PlaybackDisplayError(
                 title: SpotiglassL10n.string("error.playback.commandFailed.title"),
                 message: SpotiglassL10n.string("error.playback.appleMusic.notPlayable"),
+                recoveryAction: nil
+            )
+        case .explicitContentRestricted:
+            return PlaybackDisplayError(
+                title: SpotiglassL10n.string("error.playback.appleMusic.explicit.title"),
+                message: SpotiglassL10n.string("error.playback.appleMusic.explicit.message"),
                 recoveryAction: nil
             )
         case .rateLimited, .network, .server, .failed:

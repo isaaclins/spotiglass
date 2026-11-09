@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.3] - 2026-11-09
+
+### Fixed
+
+- The lyrics button in the player bar is centred again.
+- Apple Music covers in Recently played are sharp instead of blurry.
+
 ## [0.8.2] - 2026-11-09
 
 ### Fixed

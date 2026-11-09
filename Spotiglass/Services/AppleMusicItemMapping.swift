@@ -12,8 +12,9 @@ enum AppleMusicItemMapping {
     /// a playlist's tracks by this constant and relies on its age instead.
     static let playlistSnapshotID = "applemusic"
 
-    /// Pixel sizes requested from Apple's artwork templates. Track rows and palette rows show
-    /// artwork at 40 to 56 pt, cards and detail headers up to roughly 240 pt; both at 2x.
+    /// Pixel sizes the mapped URLs carry. Views ask for the size they draw through
+    /// `AppleMusicArtworkRegistry.sizedURL`, so a track's row-sized URL still gets a sharp
+    /// cover on a Home card or in Lyrics (#426).
     enum ArtworkSize {
         static let row = 120
         static let cover = 600
@@ -41,12 +42,11 @@ enum AppleMusicItemMapping {
         registry: AppleMusicArtworkRegistry = .shared
     ) -> URL? {
         guard let artwork, let url = artwork.url(width: size, height: size) else { return nil }
-        if AppleMusicArtworkRegistry.needsMusicKit(url) {
-            let key = pinKind.flatMap { kind in
-                itemID.map { PinnedItem.id(forKind: kind, spotifyID: $0.rawValue) }
-            }
-            registry.register(artwork, for: url, itemKey: key)
+        // Catalog artwork is registered too, so views can ask for the size they draw (#426).
+        let key = pinKind.flatMap { kind in
+            itemID.map { PinnedItem.id(forKind: kind, spotifyID: $0.rawValue) }
         }
+        registry.register(artwork, for: url, itemKey: key)
         return url
     }
 
