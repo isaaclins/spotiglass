@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import ViewInspector
 import XCTest
@@ -55,6 +56,53 @@ final class CommandPaletteViewsBatchTests: XCTestCase {
         )
         ViewTestHost.host(tabs, size: CGSize(width: 760, height: 560))
         XCTAssertNoThrow(try tabs.inspect().find(text: "Shortcuts"))
+    }
+
+    /// Bound and unbound rows used to end on different lines: an unbound row had
+    /// no clear button, so its trailing-aligned field sat further right (#428).
+    func testKeyboardRowsKeepOneShortcutColumnWhetherBoundOrNot() throws {
+        let (_, keymap, _) = try makeHarness()
+        try keymap.clearBinding(commandID: CommandPaletteCommandID.nextTrack)
+        XCTAssertNil(keymap.primaryShortcut(for: CommandPaletteCommandID.nextTrack))
+        let controller = ViewTestHost.host(
+            CommandPaletteSettingsView(keymapStore: keymap, presentation: .standalone),
+            size: CGSize(width: 760, height: 1_400)
+        )
+
+        let fields = recorderFields(in: controller.view)
+        let bindable = CommandPaletteCommandCatalog.editable.filter { !$0.isDestructive }
+        XCTAssertEqual(fields.count, bindable.count, "one recorder per bindable command")
+        let frames = fields.map { $0.convert($0.bounds, to: nil) }
+        for frame in frames {
+            XCTAssertEqual(frame.width, SpotiglassDesign.Layout.shortcutFieldWidth, accuracy: 0.5)
+            XCTAssertEqual(frame.minX, frames[0].minX, accuracy: 0.5, "a shortcut field left the column")
+        }
+    }
+
+    /// The field has one width for every row, so it has to fit the longest
+    /// state in every language the app ships, or German would clip.
+    func testShortcutFieldFitsEveryStateInEveryLanguage() {
+        for language in ["en", "de", "es"] {
+            let locale = Locale(identifier: language)
+            let recording = SpotiglassL10n.string("palette.hotkeyRecorder.recording", locale: locale)
+            let states = [
+                SpotiglassL10n.string("palette.hotkeyRecorder.clickToRecord", locale: locale),
+                "\(recording)  ⌃ ⌥ ⇧ ⌘",
+                SpotiglassL10n.string("palette.settings.notBindable", locale: locale),
+            ]
+            for state in states {
+                let button = NSButton(title: state, target: nil, action: nil)
+                button.bezelStyle = .rounded
+                XCTAssertLessThanOrEqual(
+                    button.fittingSize.width, SpotiglassDesign.Layout.shortcutFieldWidth,
+                    "\(language): \"\(state)\" doesn't fit the shortcut field"
+                )
+            }
+        }
+    }
+
+    private func recorderFields(in view: NSView) -> [RecorderKeyContainerView] {
+        (view as? RecorderKeyContainerView).map { [$0] } ?? view.subviews.flatMap { recorderFields(in: $0) }
     }
 
     func testSettingsViewSurfacesCrossContextDuplicate() throws {

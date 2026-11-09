@@ -238,7 +238,10 @@ enum SpotiglassDesign {
         /// Width of a small sheet (save preset, rename).
         static let sheetWidth: CGFloat = 380
         /// Smallest a shortcut field gets, so assigned and empty fields read as one control.
-        static let shortcutFieldMinWidth: CGFloat = 132
+        /// Width of every shortcut field in Settings > Keyboard, bound or not.
+        /// Fits the longest state in every language ("Zum Aufzeichnen klicken",
+        /// or recording with all four modifiers held), so no row grows.
+        static let shortcutFieldWidth: CGFloat = 176
         static let shortcutFieldMinHeight: CGFloat = 28
         /// Smallest height of a multi-line text editor in Settings.
         static let textEditorMinHeight: CGFloat = 200

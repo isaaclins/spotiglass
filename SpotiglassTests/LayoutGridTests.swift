@@ -77,7 +77,7 @@ final class LayoutGridTests: XCTestCase {
         ("equalizerBandMinWidth", SpotiglassDesign.Layout.equalizerBandMinWidth),
         ("equalizerSliderHeight", SpotiglassDesign.Layout.equalizerSliderHeight),
         ("sheetWidth", SpotiglassDesign.Layout.sheetWidth),
-        ("shortcutFieldMinWidth", SpotiglassDesign.Layout.shortcutFieldMinWidth),
+        ("shortcutFieldWidth", SpotiglassDesign.Layout.shortcutFieldWidth),
         ("shortcutFieldMinHeight", SpotiglassDesign.Layout.shortcutFieldMinHeight),
         ("toolbarButtonSize", SpotiglassDesign.Layout.toolbarButtonSize),
         ("textEditorMinHeight", SpotiglassDesign.Layout.textEditorMinHeight),
