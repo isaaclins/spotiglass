@@ -1,10 +1,6 @@
 import SwiftUI
 
 struct ImmersiveLyricsView: View {
-    private enum FocusTarget: Hashable {
-        case close
-    }
-
     @ObservedObject var playbackViewModel: PlaybackSessionViewModel
     @ObservedObject var queueViewModel: QueueViewModel
     @ObservedObject var lyricsModel: ImmersiveLyricsViewModel
@@ -15,9 +11,11 @@ struct ImmersiveLyricsView: View {
     @EnvironmentObject private var settingsStore: SpotiglassSettingsStore
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @FocusState private var focusedControl: FocusTarget?
-    @AccessibilityFocusState private var accessibilityFocusedControl: FocusTarget?
-    @Namespace private var focusNamespace
+    @FocusState private var isLyricsListFocused: Bool
+    /// Focus goes to each lyrics list once; a later song must not take it back from wherever
+    /// the user moved it (``LyricsKeyboardFocusProbe``).
+    @State private var hasPlacedInitialFocus = false
+    @Environment(\.lyricsKeyboardFocus) private var keyboardFocus
 
     /// Soft fade at scroll top/bottom; off when legibility or calm motion is preferred.
     private var usesLyricsScrollEdgeFade: Bool {
@@ -50,31 +48,16 @@ struct ImmersiveLyricsView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .overlay(alignment: .topTrailing) {
-            Button(action: onDismiss) {
-                Label(
-                    SpotiglassL10n.string("browser.closeLyrics"),
-                    systemImage: "xmark.circle"
-                )
-            }
-            .buttonStyle(.borderless)
-            .padding(.top, ImmersiveLyricsLayout.minimumTopClearance - SpotiglassDesign.spacingXS)
-            .padding(.trailing, SpotiglassDesign.spacingL)
-            .focused($focusedControl, equals: .close)
-            .accessibilityFocused($accessibilityFocusedControl, equals: .close)
-            .accessibilityDefaultFocus($accessibilityFocusedControl, .close)
-            .accessibilityHint(SpotiglassL10n.string("browser.closeLyrics.hint"))
-            .accessibilitySortPriority(100)
-        }
-        .focusScope(focusNamespace)
-        .defaultFocus($focusedControl, .close)
-        // A modal trait tells VoiceOver that this surface owns navigation;
-        // RootView separately hides the browser tree so the sidebar and
-        // playback controls cannot remain in the accessibility hierarchy.
+        // The lyrics fill the main column only: the sidebar, the toolbar (with Close lyrics) and
+        // the player bar stay usable next to them, so this is not a modal surface (#438).
         .accessibilityElement(children: .contain)
-        .accessibilityAddTraits(.isModal)
-        .onAppear {
-            scheduleInitialFocus()
+        .environment(\.lyricsListFocus, $isLyricsListFocused)
+        .onAppear { placeInitialFocusIfReady() }
+        .onChange(of: lyricsModel.phase) { _, phase in
+            // A new song loads its lyrics in place of the list, which takes the keyboard with
+            // it; the next list gets it back unless the user moved it elsewhere meanwhile.
+            if !Self.showsLyricsList(phase) { hasPlacedInitialFocus = false }
+            placeInitialFocusIfReady()
         }
         .task(id: currentTrack?.uri) {
             guard let track = currentTrack else {
@@ -89,18 +72,43 @@ struct ImmersiveLyricsView: View {
         .onExitCommand(perform: onDismiss)
     }
 
-    /// macOS can ignore a focus request made during the first appearance pass;
-    /// the second main-queue pass makes opening lyrics deterministic without
-    /// stealing focus again after the user starts navigating the overlay.
-    private func scheduleInitialFocus() {
-        DispatchQueue.main.async {
-            focusedControl = .close
-            accessibilityFocusedControl = .close
-            DispatchQueue.main.async {
-                focusedControl = .close
-                accessibilityFocusedControl = .close
-            }
+    /// The lyrics list exists only once lyrics are ready (not while loading or for an
+    /// instrumental), so focus is placed when it first appears. A request made while the
+    /// lyrics are still being laid out is dropped, so it is repeated for a moment until the
+    /// list has the keyboard, unless the user has moved it somewhere else meanwhile.
+    private func placeInitialFocusIfReady() {
+        guard !hasPlacedInitialFocus, Self.showsLyricsList(lyricsModel.phase) else { return }
+        hasPlacedInitialFocus = true
+        let probe = keyboardFocus
+        Task { @MainActor in
+            await Self.requestListFocus(
+                isFocused: { isLyricsListFocused },
+                // The lyrics can take seconds to load; by then you may be typing in the
+                // sidebar or the queue, and the keyboard stays there.
+                movedAway: { probe?.userMovedFocusAway == true },
+                focus: { isLyricsListFocused = true }
+            )
         }
+    }
+
+    /// A focus request made while the list is still being laid out is dropped, so it is
+    /// repeated for a moment until the list has the keyboard or the user put it elsewhere.
+    static func requestListFocus(
+        isFocused: () -> Bool,
+        movedAway: () -> Bool,
+        focus: () -> Void
+    ) async {
+        for delay in [0, 150, 400, 800] {
+            try? await Task.sleep(for: .milliseconds(delay))
+            if isFocused() || movedAway() { return }
+            focus()
+        }
+    }
+
+    static func showsLyricsList(_ phase: ImmersiveLyricsViewModel.Phase) -> Bool {
+        guard case let .ready(lyrics) = phase else { return false }
+        if case .instrumental = lyrics { return false }
+        return true
     }
 
     private var currentTrack: PlaybackNowPlaying? {

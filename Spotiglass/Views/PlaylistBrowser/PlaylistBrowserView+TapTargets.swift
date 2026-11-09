@@ -1,7 +1,11 @@
 import SwiftUI
 
 extension PlaylistBrowserView {
+    /// Artist and album links in the player bar and the queue stay usable next to the lyrics.
+    /// Following one closes the lyrics first, even when it leads to the page already under
+    /// them (#438).
     func openArtistFromTapTarget(_ target: ArtistTapTarget, origin: BrowserNavigationOrigin = .extend) {
+        lyricsOverlay.dismiss()
         Task {
             await PlaylistBrowserTapTargetNavigation.openArtist(
                 target,
@@ -22,6 +26,7 @@ extension PlaylistBrowserView {
         artworkURL: URL?,
         origin: BrowserNavigationOrigin = .extend
     ) {
+        lyricsOverlay.dismiss()
         Task {
             await PlaylistBrowserTapTargetNavigation.openAlbum(
                 album,

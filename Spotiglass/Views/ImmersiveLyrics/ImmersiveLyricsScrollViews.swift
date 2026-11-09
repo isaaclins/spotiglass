@@ -105,6 +105,36 @@ enum ImmersiveLyricsReadyContentModel: Equatable {
     }
 }
 
+// MARK: - Keyboard focus
+
+private struct LyricsListFocusKey: EnvironmentKey {
+    static let defaultValue: FocusState<Bool>.Binding? = nil
+}
+
+extension EnvironmentValues {
+    /// Where ``ImmersiveLyricsView`` puts keyboard focus when the lyrics open: the lyrics list
+    /// itself, so the arrow and page keys scroll it and VoiceOver starts at the lyrics (#438).
+    var lyricsListFocus: FocusState<Bool>.Binding? {
+        get { self[LyricsListFocusKey.self] }
+        set { self[LyricsListFocusKey.self] = newValue }
+    }
+}
+
+private struct LyricsListFocusModifier: ViewModifier {
+    let focus: FocusState<Bool>.Binding?
+
+    func body(content: Content) -> some View {
+        if let focus {
+            content
+                .focusable()
+                .focused(focus)
+                .focusEffectDisabled()
+        } else {
+            content
+        }
+    }
+}
+
 // MARK: - Auto-center controller
 
 /// Drives teleprompter-style auto-centering for the immersive lyrics scroll view.
@@ -159,10 +189,12 @@ struct ImmersiveLyricsScrollCore<ID: Hashable, Content: View>: View {
 
     @State private var controller = LyricsAutoCenterController()
     @State private var scrolledID: ID?
+    @Environment(\.lyricsListFocus) private var listFocus
 
     var body: some View {
         ZStack(alignment: .bottom) {
             scrollView
+                .modifier(LyricsListFocusModifier(focus: listFocus))
                 .scrollPosition(id: $scrolledID, anchor: .center)
                 .scrollClipDisabled()
                 .onScrollPhaseChange { _, newPhase in
