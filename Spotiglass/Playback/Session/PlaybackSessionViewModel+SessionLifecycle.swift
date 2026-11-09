@@ -220,6 +220,10 @@ extension PlaybackSessionViewModel {
         activeInflightTransferSerial = nil
         clearPushedPlayStateExpectation()
         clearRefusedPlayPause()
+        pageReportedPlayState = nil
+        latestInAppPlayPauseRequest = nil
+        playPauseConfirmedState = nil
+        playPauseReadHoldUntil = nil
         guard ownsPlaybackHostGeneration(generation) else { return }
         do {
             try await provider.disconnectPlayer(generation: hostGeneration)

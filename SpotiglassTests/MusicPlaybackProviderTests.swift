@@ -981,4 +981,170 @@ final class PlayPauseFollowsThePressTests: XCTestCase {
         XCTAssertEqual(session.refusedPlayPause?.title, SpotiglassL10n.string("playback.refused.pause"))
         XCTAssertEqual(session.refusedPlayPause?.message, SpotiglassL10n.string("error.playback.spotify.failed"))
     }
+
+    // MARK: - Late reports, refusals of more than one press
+
+    /// Pause then play, and both refused (Spotify on a phone that's gone offline): the music
+    /// never stopped, so the controls end playing, not on the first press's pause.
+    func testTwoRefusedPressesGoBackToWhatThePlayerHas() async {
+        let (provider, session) = playingReadPlayer()
+        provider.holdsCommands = true
+        provider.refusal = MusicPlaybackError(service: .appleMusic, reason: .failed, detail: "offline")
+
+        let pause = session.requestTogglePlayPause()
+        await Self.settle { provider.waitingCommandCount == 1 }
+        let play = session.requestTogglePlayPause()
+        XCTAssertTrue(Self.isPlaying(session))
+
+        provider.releaseCommands()
+        await pause?.value
+        await Self.settle { provider.waitingCommandCount == 1 }
+        provider.releaseCommands()
+        await play?.value
+
+        XCTAssertEqual(provider.commands, ["pause local", "resume local"])
+        XCTAssertEqual(session.connectionState, .playing(Self.song), "the controls ended on a pause that never happened")
+        XCTAssertEqual(session.refusedPlayPause?.title, SpotiglassL10n.string("playback.refused.play"))
+    }
+
+    /// Pause accepted, play refused: the player has the pause, so the controls go back to it.
+    func testARefusedSecondPressGoesBackToTheFirstOne() async {
+        let (provider, session) = playingReadPlayer()
+        provider.holdsCommands = true
+
+        let pause = session.requestTogglePlayPause()
+        await Self.settle { provider.waitingCommandCount == 1 }
+        let play = session.requestTogglePlayPause()
+        provider.releaseCommands()
+        await pause?.value
+        await Self.settle { provider.waitingCommandCount == 1 }
+        provider.refusal = MusicPlaybackError(service: .appleMusic, reason: .failed, detail: "busy")
+        provider.releaseCommands()
+        await play?.value
+
+        XCTAssertTrue(Self.isPaused(session))
+        XCTAssertEqual(session.refusedPlayPause?.title, SpotiglassL10n.string("playback.refused.play"))
+    }
+
+    /// A service that keeps reporting the old state for several reads (Spotify's Web API right
+    /// after a pause on a phone): none of them flips the pause back, however many there are.
+    func testSeveralLateReadsDontUndoAPause() async {
+        let (provider, session) = playingReadPlayer()
+
+        await session.requestTogglePlayPause()?.value
+        for read in 1...4 {
+            await session.syncTransportFromSpotify()
+            XCTAssertTrue(Self.isPaused(session), "late read \(read) flipped the pause back")
+        }
+        provider.state = Self.snapshot(isPlaying: false)
+        await session.syncTransportFromSpotify()
+        XCTAssertTrue(Self.isPaused(session))
+        XCTAssertNil(session.playPauseReadHoldUntil, "a read that agrees ends the wait")
+    }
+
+    /// The wait for a slow service has an end: after it, a read that still disagrees is
+    /// believed (the music was started again elsewhere).
+    func testLateReadsAreBelievedAfterTheWait() async {
+        let clock = SteppedPlaybackClock()
+        let provider = ReadOnlyStatePlaybackProvider()
+        provider.state = Self.snapshot(isPlaying: true)
+        let session = PlaybackSessionViewModel(provider: provider, clock: clock)
+        session.deviceID = "local"
+        session.setActivePlaybackDeviceID("local")
+        session.setConnectionState(.playing(Self.song))
+
+        await session.requestTogglePlayPause()?.value
+        await session.syncTransportFromSpotify()
+        XCTAssertTrue(Self.isPaused(session))
+
+        clock.advance(by: PlaybackSessionViewModel.playPauseReadHoldDuration + .milliseconds(1))
+        for _ in 1...3 { await session.syncTransportFromSpotify() }
+        XCTAssertTrue(Self.isPlaying(session), "the controls never caught up with the player")
+    }
+
+    /// Spotify in the app, pause then play: its page may first send a report from before both
+    /// presses, then the pause, then the play. Only the last one may show: the pause in between
+    /// would flicker.
+    func testSpotifyReportsForEarlierPressesDontFlicker() {
+        let (_, session) = playingSpotify()
+        var shown: [Bool] = []
+        let watch = session.connectionStatePublisher.dropFirst().sink { state in
+            shown.append(PlaylistBrowserPlaybackHelpers.isCurrentlyPlaying(connectionState: state))
+        }
+        defer { watch.cancel() }
+
+        session.requestTogglePlayPause()
+        session.requestTogglePlayPause()
+        session.handle(.stateChanged(Self.song, isPaused: false, nextTracks: []))
+        session.handle(.stateChanged(Self.song, isPaused: true, nextTracks: []))
+        XCTAssertTrue(Self.isPlaying(session), "the report for the first press flickered on screen")
+        session.handle(.stateChanged(Self.song, isPaused: false, nextTracks: []))
+
+        let flips = shown.reduce(into: [Bool]()) { flips, playing in
+            if flips.last != playing { flips.append(playing) }
+        }
+        XCTAssertEqual(flips, [false, true])
+        // The page has reported both presses: its reports count again.
+        session.handle(.stateChanged(Self.song, isPaused: true, nextTracks: []))
+        XCTAssertTrue(Self.isPaused(session))
+    }
+
+    /// Spotify's page refusing the pause (its promise rejected): the controls go back to what
+    /// the page last reported and the bar says so, instead of an error over the whole bar.
+    func testSpotifyPageRefusingAPauseGoesBack() {
+        let (_, session) = playingSpotify()
+
+        session.requestTogglePlayPause()
+        XCTAssertTrue(Self.isPaused(session))
+        session.handle(.playerCommandFailed(command: "pause", message: "Spotify pause failed: offline"))
+
+        XCTAssertTrue(Self.isPlaying(session), "the controls kept showing a pause that didn't happen")
+        XCTAssertEqual(session.refusedPlayPause?.title, SpotiglassL10n.string("playback.refused.pause"))
+        XCTAssertEqual(session.refusedPlayPause?.message, SpotiglassL10n.string("error.playback.spotify.failed"))
+    }
+
+    /// Pause then play, and the page refuses the pause after it has run the play: the play
+    /// decides, so nothing on screen changes.
+    func testSpotifyPageRefusingAnEarlierPressChangesNothing() {
+        let (_, session) = playingSpotify()
+
+        session.requestTogglePlayPause()
+        session.requestTogglePlayPause()
+        session.handle(.playerCommandFailed(command: "pause", message: "Spotify pause failed: offline"))
+
+        XCTAssertTrue(Self.isPlaying(session))
+        XCTAssertNil(session.refusedPlayPause)
+    }
+
+    /// Any other command the page fails still shows the error, as before.
+    func testSpotifyPageFailingAnotherCommandShowsTheError() {
+        let (_, session) = playingSpotify()
+        session.handle(.playerCommandFailed(command: "seek", message: "Spotify seek failed: offline"))
+        guard case let .error(error) = session.connectionState else {
+            return XCTFail("Expected the playback error, got \(session.connectionState)")
+        }
+        XCTAssertEqual(error.message, "Spotify seek failed: offline")
+    }
+}
+
+/// A clock the test moves on by hand.
+private final class SteppedPlaybackClock: PlaybackClock, @unchecked Sendable {
+    private let lock = NSLock()
+    private var current = ContinuousClock().now
+
+    var now: ContinuousClock.Instant {
+        lock.lock()
+        defer { lock.unlock() }
+        return current
+    }
+
+    func advance(by duration: Duration) {
+        lock.lock()
+        current = current.advanced(by: duration)
+        lock.unlock()
+    }
+
+    func sleep(until deadline: ContinuousClock.Instant, tolerance: Duration?) async throws {
+        try await Task.sleep(for: .seconds(3_600))
+    }
 }

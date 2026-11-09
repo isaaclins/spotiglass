@@ -84,6 +84,11 @@ enum SpotifyPlaybackBridgeParser {
                 throw PlaybackBridgeMessageError.missingPayload("command")
             }
             return .playerCommandFinished(command: command)
+        case "player_command_failed":
+            guard let command = payload["command"] as? String, !command.isEmpty else {
+                throw PlaybackBridgeMessageError.missingPayload("command")
+            }
+            return .playerCommandFailed(command: command, message: message(from: payload))
         case "initialization_error":
             return .initializationError(message(from: payload))
         case "authentication_error":

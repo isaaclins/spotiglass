@@ -119,14 +119,14 @@
               .then(() => post('player_command_finished', { command: name }))
               .catch(error => {
                 const message = error && error.message ? error.message : String(error);
-                post('playback_error', { message: `Spotify ${name} failed: ${message}` });
+                post('player_command_failed', { command: name, message: `Spotify ${name} failed: ${message}` });
               });
           } else {
             post('player_command_finished', { command: name });
           }
         } catch (error) {
           const message = error && error.message ? error.message : String(error);
-          post('playback_error', { message: `Spotify ${name} threw: ${message}` });
+          post('player_command_failed', { command: name, message: `Spotify ${name} threw: ${message}` });
         }
       }
 

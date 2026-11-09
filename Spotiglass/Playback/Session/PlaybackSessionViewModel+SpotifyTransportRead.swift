@@ -54,6 +54,8 @@ extension PlaybackSessionViewModel {
                 let volumeMutationVersionAtRequest = volumeMutationVersion
                 let snapshot = try await provider.fetchPlaybackState()
                 guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
+                // Checked before the read is applied: applying it can end the expectation.
+                let readHoldsSettle = snapshot.map { playPauseReadHoldsSettle($0) } ?? false
                 if let snapshot {
                     latestPlayerSnapshot = snapshot
                     setTransportStateKnown(true)
@@ -81,7 +83,10 @@ extension PlaybackSessionViewModel {
                 }
                 transportTransientErrorCount = 0
                 transportRateLimitedUntil = nil
-                if localMutationSettleTicksRemaining > 0 {
+                // A read still showing the state from before a pause or resume doesn't end the
+                // window; it stays open on its last tick until a read agrees or the hold ends.
+                if localMutationSettleTicksRemaining > 1
+                    || (localMutationSettleTicksRemaining == 1 && !readHoldsSettle) {
                     localMutationSettleTicksRemaining -= 1
                     // A play still waiting to start keeps its expectation past
                     // the settle window; `clearPendingPlay()` ends it then.

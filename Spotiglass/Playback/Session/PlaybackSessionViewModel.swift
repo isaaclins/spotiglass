@@ -603,12 +603,28 @@ final class PlaybackSessionViewModel: ObservableObject {
     var playPauseCommandTail: Task<Void, Never>?
     /// Bumped by every play / pause press; only the latest press's refusal changes the screen.
     var playPauseRequestSerial: UInt64 = 0
-    /// What the last press asked Spotify's page to report (`true` playing), until a report
-    /// agrees or ``pushedPlayStateExpectationTimeout`` passes. Reports that disagree are older
-    /// than the press and are not shown.
-    var pushedPlayStateExpectation: Bool?
+    /// The states the presses still waiting for Spotify's page asked it to report (`true`
+    /// playing), oldest first, until the page has reported them in that order or
+    /// ``pushedPlayStateExpectationTimeout`` passes since the last press. Until then its reports
+    /// are not shown: an older one would flip the press back, and the one for an earlier press
+    /// in a quick pause, play would flicker.
+    var pushedPlayStateExpectations: [Bool] = []
     var pushedPlayStateExpectationTask: Task<Void, Never>?
     static let pushedPlayStateExpectationTimeout: Duration = .seconds(3)
+    /// The last play / pause state Spotify's page reported, shown or not: what its player has
+    /// when it refuses a press.
+    var pageReportedPlayState: PlaybackConnectionState?
+    /// The latest press sent to Spotify's page, to tell whether a refusal it reports is that one.
+    var latestInAppPlayPauseRequest: PlayPauseRequest?
+    /// For a player whose state is read: the state its player last confirmed, from before the
+    /// first press still on its way. A refused press goes back to this, not to the screen of
+    /// an earlier press that may have been refused too.
+    var playPauseConfirmedState: PlaybackConnectionState?
+    var playPauseRequestsInFlight = 0
+    /// Until then, a read that disagrees with the last pause or resume doesn't use up the
+    /// settle window: the service can report the old state for a few seconds (#437).
+    var playPauseReadHoldUntil: ContinuousClock.Instant?
+    static let playPauseReadHoldDuration: Duration = .seconds(5)
     /// A play / pause the player refused, shown in the bar for a moment while the controls show
     /// the state from before the press again (#437).
     @PublishedWhenChanged var refusedPlayPause: PlaybackDisplayError?
