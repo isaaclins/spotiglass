@@ -120,20 +120,23 @@ struct MusicKitContentSource: AppleMusicContentSource {
 
     func playlistTracks(playlistID: String, limit: Int) async throws -> [Track]? {
         let id = MusicItemID(playlistID)
-        let playlist: Playlist?
         if let libraryPlaylist = try await libraryPlaylist(id: playlistID) {
-            playlist = libraryPlaylist
-        } else if Self.isLibraryPlaylistID(playlistID) {
+            let detailed = try await libraryPlaylist.with([.tracks])
+            return try await Self.collect(detailed.tracks, limit: limit)
+        }
+        if Self.isLibraryPlaylistID(playlistID) {
             // A library playlist this Mac doesn't list yet (created moments ago). The catalog
             // answers its ID with an error, which took over the whole page (#395).
             return nil
-        } else {
-            playlist = try await MusicCatalogResourceRequest<Playlist>(matching: \.id, equalTo: id)
-                .response().items.first
         }
-        guard let playlist else { return nil }
-        let detailed = try await playlist.with([.tracks])
-        return try await Self.collect(detailed.tracks, limit: limit)
+        let catalog = try await MusicCatalogResourceRequest<Playlist>(matching: \.id, equalTo: id)
+            .response().items.first
+        guard let detailed = try await catalog?.with([.tracks]) else { return nil }
+        return try await collectCatalog(
+            detailed.tracks,
+            limit: limit,
+            relationship: AppleMusicCatalogRelationship(kind: "playlists", id: playlistID, name: "tracks")
+        )
     }
 
     /// Library playlists are `p.…` (cloud library) or a persistent ID; catalog ones are `pl.…`.
@@ -200,14 +203,59 @@ struct MusicKitContentSource: AppleMusicContentSource {
         return try await catalog?.with([.albums])
     }
 
-    /// `with([.tracks])` loads only the relationship's first batch; the rest needs `nextBatch()`.
+    /// `with([.tracks])` loads only the relationship's first batch; the rest is read the way
+    /// its kind of album allows (see `collectCatalog`).
     func tracks(of album: Album, limit: Int) async throws -> [Track] {
-        try await Self.collect(album.tracks, limit: limit)
+        guard Self.needsMore(album.tracks, limit: limit), !(try await isLibraryAlbum(album.id)) else {
+            return try await Self.collect(album.tracks, limit: limit)
+        }
+        return try await collectCatalog(
+            album.tracks,
+            limit: limit,
+            relationship: AppleMusicCatalogRelationship(kind: "albums", id: album.id.rawValue, name: "tracks")
+        )
     }
 
     /// Like album tracks, an artist's albums arrive one batch at a time.
     func albums(of artist: Artist, limit: Int) async throws -> [Album] {
-        try await Self.collect(artist.albums, limit: limit)
+        guard Self.needsMore(artist.albums, limit: limit), !(try await isLibraryArtist(artist.id)) else {
+            return try await Self.collect(artist.albums, limit: limit)
+        }
+        return try await collectCatalog(
+            artist.albums,
+            limit: limit,
+            relationship: AppleMusicCatalogRelationship(kind: "artists", id: artist.id.rawValue, name: "albums")
+        )
+    }
+
+    /// Whether a relationship has more to read than its first batch.
+    private static func needsMore<Item>(_ collection: MusicItemCollection<Item>?, limit: Int) -> Bool {
+        guard let collection else { return false }
+        return collection.hasNextBatch && collection.count < limit
+    }
+
+    /// Whether this item came from the library: `album(id:)` and `artist(id:)` look there first,
+    /// under the same ID.
+    private func isLibraryAlbum(_ id: MusicItemID) async throws -> Bool {
+        var request = MusicLibraryRequest<Album>()
+        request.filter(matching: \.id, equalTo: id)
+        return try await !request.response().items.isEmpty
+    }
+
+    private func isLibraryArtist(_ id: MusicItemID) async throws -> Bool {
+        var request = MusicLibraryRequest<Artist>()
+        request.filter(matching: \.id, equalTo: id)
+        return try await !request.response().items.isEmpty
+    }
+
+    private func collectCatalog<Item: MusicItem & Decodable>(
+        _ firstBatch: MusicItemCollection<Item>?,
+        limit: Int,
+        relationship: AppleMusicCatalogRelationship
+    ) async throws -> [Item] {
+        try await AppleMusicCatalogPages.collect(firstBatch, limit: limit, relationship: relationship) {
+            try await storefrontCountryCode()
+        }
     }
 
     func artistTopSongs(artistID: String) async throws -> [Song] {
@@ -294,6 +342,93 @@ struct MusicKitContentSource: AppleMusicContentSource {
             batch = next
         }
         return Array(items.prefix(limit))
+    }
+}
+
+/// One relationship of a catalog item, e.g. the albums of an artist.
+struct AppleMusicCatalogRelationship: Equatable {
+    /// The API's resource type: `artists`, `albums`, `playlists`.
+    let kind: String
+    let id: String
+    let name: String
+
+    func path(storefront: String) -> String {
+        "/v1/catalog/\(storefront)/\(kind)/\(AppleMusicCloudRequests.pathComponent(id))/\(name)"
+            + "?limit=\(AppleMusicCatalogPages.pageSize)"
+    }
+}
+
+/// Reads a catalog relationship from the Apple Music API page by page, following each page's
+/// `next` path, so MusicKit never has to load a next batch (#465).
+enum AppleMusicCatalogPages {
+    /// The API's largest page for an artist's albums.
+    static let pageSize = 100
+
+    private struct Next: Decodable {
+        let next: String?
+    }
+
+    /// A catalog relationship past its first batch, read from the Apple Music API by offset.
+    ///
+    /// MusicKit can't follow a catalog relationship's batches: asking for the next one stops the
+    /// whole app inside MusicKit ("Loading next batch of catalog resource collection of a non
+    /// decodable music item type is not supported", macOS 27). An artist with more than 25 albums
+    /// closed Spotiglass while its page loaded (#465). Library relationships page normally.
+    static func collect<Item: MusicItem & Decodable>(
+        _ firstBatch: MusicItemCollection<Item>?,
+        limit: Int,
+        relationship: AppleMusicCatalogRelationship,
+        storefront: () async throws -> String = { try await MusicDataRequest.currentCountryCode },
+        fetch: (String) async throws -> Data = Self.fetch
+    ) async throws -> [Item] {
+        guard let firstBatch, firstBatch.hasNextBatch, firstBatch.count < limit else {
+            return Array((firstBatch ?? []).prefix(limit))
+        }
+        let path = relationship.path(storefront: try await storefront())
+        return try await items(Item.self, from: path, limit: limit, fetch: fetch)
+    }
+
+    /// One API page. Its error stays MusicKit's or the network's, so a failed read shows as
+    /// a failed read, not as a library change Apple Music refused.
+    static func fetch(_ path: String) async throws -> Data {
+        let request = AppleMusicCloudRequests.get(path)
+        do {
+            return try await MusicDataRequest(urlRequest: request).response().data
+        } catch {
+            if !(error is CancellationError) {
+                SpotiglassLog.error(.api, "Apple Music GET \(request.url?.path ?? "") failed: \(error)")
+            }
+            throw error
+        }
+    }
+
+    static func items<Item: MusicItem & Decodable>(
+        _ type: Item.Type,
+        from firstPath: String,
+        limit: Int,
+        fetch: (String) async throws -> Data
+    ) async throws -> [Item] {
+        var items: [Item] = []
+        var seenPaths: Set<String> = []
+        var next: String? = firstPath
+        while let path = next, items.count < limit, seenPaths.insert(path).inserted {
+            try Task.checkCancellation()
+            let data = try await fetch(path)
+            let page = try JSONDecoder().decode(MusicItemCollection<Item>.self, from: data)
+            guard !page.isEmpty else { break }
+            items.append(contentsOf: page)
+            next = try JSONDecoder().decode(Next.self, from: data).next.map(withPageSize)
+        }
+        return Array(items.prefix(limit))
+    }
+
+    /// The API's `next` path keeps the offset but not the page size, which falls back to 25.
+    static func withPageSize(_ path: String) -> String {
+        guard var components = URLComponents(string: path) else { return path }
+        var query = (components.queryItems ?? []).filter { $0.name != "limit" }
+        query.append(URLQueryItem(name: "limit", value: String(pageSize)))
+        components.queryItems = query
+        return components.string ?? path
     }
 }
 

@@ -206,7 +206,11 @@ struct PlaylistBrowserMainDetailColumn: View {
                 if let locked = error.lockedPlaylist {
                     FollowedPlaylistLockedView(info: locked, playbackViewModel: playbackViewModel)
                 } else {
-                    ErrorStateView(error: error)
+                    // The page that failed is asked again from here (#465), when asking
+                    // again can help: not for "Sign in again" or "Access denied".
+                    ErrorStateView(error: error, retry: error.canRetry ? {
+                        Task { await viewModel.retryFailedDetail() }
+                    } : nil)
                 }
             }
         }

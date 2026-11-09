@@ -49,11 +49,17 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
             resolved = try await Self.resolveEntries(uris, lookingUpFirst: start)
             startURI = start
         case let .album(id):
-            guard let album = try await Self.album(id: id) else { throw Self.notFound(id) }
-            resolved = try await Self.entries(for: Self.tracks(of: album))
+            // The browser's reads, which follow long catalog albums and playlists without
+            // MusicKit's batches (#465).
+            let source = MusicKitContentSource()
+            guard let album = try await Self.mapped({ try await source.album(id: id) }) else { throw Self.notFound(id) }
+            resolved = try await Self.entries(for: Self.mapped { try await source.tracks(of: album, limit: Self.contextTrackLimit) })
         case let .playlist(id):
-            guard let playlist = try await Self.playlist(id: id) else { throw Self.notFound(id) }
-            resolved = try await Self.entries(for: Self.tracks(of: playlist))
+            let source = MusicKitContentSource()
+            guard let tracks = try await Self.mapped({
+                try await source.playlistTracks(playlistID: id, limit: Self.contextTrackLimit)
+            }) else { throw Self.notFound(id) }
+            resolved = Self.entries(for: tracks)
         case let .artist(id):
             resolved = Self.entries(for: try await Self.artistSongs(id: id))
         }
@@ -366,28 +372,6 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         songs.map { (AppleMusicItemMapping.track($0).uri, MusicPlayer.Queue.Entry($0)) }
     }
 
-    private static func tracks(of album: Album) async throws -> [Track] {
-        let detailed = try await mapped { try await album.with([.tracks]) }
-        return try await collect(detailed.tracks)
-    }
-
-    private static func tracks(of playlist: Playlist) async throws -> [Track] {
-        let detailed = try await mapped { try await playlist.with([.tracks]) }
-        return try await collect(detailed.tracks)
-    }
-
-    /// Follows MusicKit batches up to ``contextTrackLimit`` items.
-    private static func collect(_ collection: MusicItemCollection<Track>?) async throws -> [Track] {
-        guard var batch = collection else { return [] }
-        var items = Array(batch)
-        while items.count < contextTrackLimit, batch.hasNextBatch {
-            guard let next = try await mapped({ try await batch.nextBatch() }) else { break }
-            items.append(contentsOf: next)
-            batch = next
-        }
-        return Array(items.prefix(contextTrackLimit))
-    }
-
     // MARK: - Lookups
 
     /// Songs for `uris`, in the given order: the item the row was built from when the
@@ -430,26 +414,6 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         if let song = try await mapped({ try await request.response().items.first }) { return song }
         return try await mapped {
             try await MusicCatalogResourceRequest<Song>(matching: \.id, equalTo: itemID).response().items.first
-        }
-    }
-
-    private static func album(id: String) async throws -> Album? {
-        let itemID = MusicItemID(id)
-        var request = MusicLibraryRequest<Album>()
-        request.filter(matching: \.id, equalTo: itemID)
-        if let album = try await mapped({ try await request.response().items.first }) { return album }
-        return try await mapped {
-            try await MusicCatalogResourceRequest<Album>(matching: \.id, equalTo: itemID).response().items.first
-        }
-    }
-
-    private static func playlist(id: String) async throws -> Playlist? {
-        let itemID = MusicItemID(id)
-        var request = MusicLibraryRequest<Playlist>()
-        request.filter(matching: \.id, equalTo: itemID)
-        if let playlist = try await mapped({ try await request.response().items.first }) { return playlist }
-        return try await mapped {
-            try await MusicCatalogResourceRequest<Playlist>(matching: \.id, equalTo: itemID).response().items.first
         }
     }
 
