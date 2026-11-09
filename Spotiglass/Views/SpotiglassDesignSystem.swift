@@ -221,7 +221,6 @@ enum SpotiglassDesign {
         /// Widest a centered panel (welcome, sign-in) gets.
         static let panelMaxWidth: CGFloat = 560
 
-
         /// Width of the library prefetch progress bar in the toolbar.
         static let toolbarProgressWidth: CGFloat = 72
 
