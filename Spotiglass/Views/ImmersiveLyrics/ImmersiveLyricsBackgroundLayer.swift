@@ -89,6 +89,9 @@ struct ImmersiveBlurredArtwork: View {
                     Color.black
                     blurredTile(
                         musicKitCover(musicKitArtwork, Self.blurSourceMaxEdge)
+                            // MusicKit multiplies the size by the screen scale; at 1 it asks
+                            // for 576 px on a Retina screen too, not 1152.
+                            .environment(\.displayScale, 1)
                             .scaleEffect(blurredTileSize / Self.blurSourceMaxEdge),
                         filling: size
                     )

@@ -326,17 +326,56 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
 
         // MusicKit draws nothing for a made-up artwork, so a red stand-in plays MusicKit's part.
         // On today's code the cover goes to the downloader, which can't fetch it: all black.
-        var drawnEdges: [CGFloat] = []
+        let drawn = DrawnCovers()
         let view = ImmersiveBlurredArtwork(url: url, registry: registry) { artwork, edge in
             XCTAssertEqual(artwork, library)
-            drawnEdges.append(edge)
-            return AnyView(Color(red: 1, green: 0, blue: 0))
+            return AnyView(StandInCover(edge: edge, drawn: drawn))
         }
+        // A Retina screen: MusicKit would ask for twice the edge unless the backdrop stops it.
+        .environment(\.displayScale, 2)
         let center = try centerPixel(of: view, size: CGSize(width: 360, height: 280))
         XCTAssertGreaterThan(center.redComponent, 0.9, "the backdrop should show the blurred library cover, not black")
         XCTAssertGreaterThan(center.redComponent - center.greenComponent, 0.6, "the cover's own colour, not grey")
-        // Same small source edge a downloaded cover is downscaled to, so the blur costs the same.
-        XCTAssertEqual(drawnEdges.last, 576)
+        // Same 576 px source a downloaded cover is downscaled to, so the blur costs the same.
+        XCTAssertEqual(drawn.pixelEdges.last, 576)
+    }
+
+    /// Going from a catalog song to a library song MusicKit doesn't know, in the same backdrop
+    /// (as when the next song starts), must not keep the catalog song's cover behind the lyrics.
+    func testNextSongWithAnUnknownLibraryCoverClearsTheBackdrop() throws {
+        let registry = AppleMusicArtworkRegistry()
+        let catalog = try XCTUnwrap(URL(string: "https://example.com/600x600bb.jpg"))
+        let unknown = try XCTUnwrap(URL(string: "musicKit://artwork/transient/600x600?id=GONE"))
+        let red = NSImage(size: NSSize(width: 64, height: 64), flipped: false) { rect in
+            NSColor.red.setFill()
+            rect.fill()
+            return true
+        }
+
+        let host = NSHostingView(rootView: AnyView(
+            ImmersiveBlurredArtwork(url: catalog, initialImage: red, registry: registry)
+        ))
+        host.frame = NSRect(x: 0, y: 0, width: 360, height: 280)
+        host.layoutSubtreeIfNeeded()
+        AppKitTestSupport.pumpRunLoop(for: 0.1)
+        XCTAssertGreaterThan(try centerPixel(of: host).redComponent, 0.5, "the catalog cover should show first")
+
+        host.rootView = AnyView(ImmersiveBlurredArtwork(url: unknown, registry: registry))
+        host.layoutSubtreeIfNeeded()
+        AppKitTestSupport.pumpRunLoop(for: 0.3)
+        let center = try centerPixel(of: host)
+        XCTAssertLessThan(
+            center.redComponent + center.greenComponent + center.blueComponent,
+            0.05,
+            "the previous song's cover should not stay behind a library song"
+        )
+    }
+
+    private func centerPixel(of host: NSView) throws -> NSColor {
+        let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+        host.cacheDisplay(in: host.bounds, to: bitmap)
+        let color = try XCTUnwrap(bitmap.colorAt(x: bitmap.pixelsWide / 2, y: bitmap.pixelsHigh / 2))
+        return try XCTUnwrap(color.usingColorSpace(.sRGB))
     }
 
     /// The colour at the middle of `view` rendered at `size`, 1x.
@@ -659,5 +698,24 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
             positionMilliseconds: 12_000,
             uri: "spotify:track:\(spotifyID)"
         )
+    }
+}
+
+/// The pixel edges a stand-in cover was drawn at.
+@MainActor
+private final class DrawnCovers {
+    var pixelEdges: [CGFloat] = []
+}
+
+/// Plays MusicKit's `ArtworkImage` in tests: solid red, and it notes the pixel edge it would ask
+/// MusicKit for (points times the screen scale, as `ArtworkImage` does).
+private struct StandInCover: View {
+    let edge: CGFloat
+    let drawn: DrawnCovers
+    @Environment(\.displayScale) private var displayScale
+
+    var body: some View {
+        drawn.pixelEdges.append(edge * displayScale)
+        return Color(red: 1, green: 0, blue: 0).frame(width: edge, height: edge)
     }
 }
