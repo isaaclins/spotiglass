@@ -92,6 +92,7 @@ struct SpotiglassApp: App {
         )
         // Signing out of a service stops its player, even with no window open (#396).
         playbackHosts.follow(addedServices: services.$services)
+        playbackHosts.followSpotifySession(authVM.$state)
         _playbackHosts = StateObject(wrappedValue: playbackHosts)
         SpotiglassL10n.settingsStore = store
     }
@@ -209,9 +210,7 @@ struct SpotiglassApp: App {
             CommandGroup(after: .appInfo) {
                 CheckForUpdatesView(updater: sparkleUpdater.updater)
                 Button(SpotiglassL10n.string("app.menu.openPalette", locale: settingsStore.appLocale)) {
-                    sceneRegistry.activeScene?.commandPaletteManager.execute(
-                        commandID: CommandPaletteCommandID.openPalette
-                    )
+                    sceneRegistry.activeScene?.performMenuCommand(CommandPaletteCommandID.openPalette)
                 }
                 // Derived from the keymap like every other menu item, so a
                 // rebind moves the chord instead of leaving Command-K alive as
@@ -265,7 +264,7 @@ struct SpotiglassApp: App {
             SpotiglassL10n.string("lyrics.popOut.windowTitle", locale: settingsStore.appLocale),
             id: LyricsPopOutWindow.sceneID
         ) {
-            LyricsPopOutRoot(playbackHosts: playbackHosts, serviceStore: serviceStore)
+            LyricsPopOutRoot(playbackHosts: playbackHosts, serviceStore: serviceStore, keymapStore: keymapStore)
                 .environmentObject(settingsStore)
                 .environment(\.locale, settingsStore.appLocale)
                 .environment(\.spotiglassLocale, settingsStore.appLocale)

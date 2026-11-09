@@ -9,6 +9,9 @@ import SwiftUI
 final class SpotiglassSceneHost: ObservableObject {
     let commandPaletteManager: CommandPaletteManager
     let lyricsOverlayController: LyricsOverlayController
+    /// The main window this scene lives in, so a menu command chosen in the pop-out lyrics window
+    /// can bring it forward (#439).
+    weak var window: NSWindow?
     /// Each service's browser state, kept while another service is on screen, so switching back
     /// shows that library instantly at the place it was left (#373). Dropped when the service's
     /// session ends.
@@ -37,6 +40,16 @@ final class SpotiglassSceneHost: ObservableObject {
     func resetTransientState() {
         commandPaletteManager.detach()
         lyricsOverlayController.detach()
+    }
+
+    /// Runs a menu command in this scene. Chosen while the pop-out lyrics window has focus, a
+    /// command that changes this window brings it forward first, so nothing changes out of sight
+    /// behind the pop-out (#439).
+    func performMenuCommand(_ commandID: String, keyWindow: NSWindow? = NSApp.keyWindow) {
+        if LyricsPopOutWindow.bringsMainWindowForward(for: commandID, keyWindow: keyWindow) {
+            window?.makeKeyAndOrderFront(nil)
+        }
+        commandPaletteManager.execute(commandID: commandID)
     }
 
     func browserViewModel(
@@ -132,7 +145,7 @@ final class SpotiglassSceneRegistry: ObservableObject {
 /// A zero-sized AppKit probe makes menu routing follow the key main window,
 /// rather than only the last window that happened to appear.
 private struct SceneHostActivationView: NSViewRepresentable {
-    let activate: () -> Void
+    let activate: (NSWindow) -> Void
 
     func makeNSView(context: Context) -> SceneHostActivationProbeView {
         SceneHostActivationProbeView(activate: activate)
@@ -145,11 +158,11 @@ private struct SceneHostActivationView: NSViewRepresentable {
 }
 
 private final class SceneHostActivationProbeView: NSView {
-    var activate: () -> Void
+    var activate: (NSWindow) -> Void
     private weak var observedWindow: NSWindow?
     private var keyWindowObserver: NSObjectProtocol?
 
-    init(activate: @escaping () -> Void) {
+    init(activate: @escaping (NSWindow) -> Void) {
         self.activate = activate
         super.init(frame: .zero)
     }
@@ -171,14 +184,15 @@ private final class SceneHostActivationProbeView: NSView {
 
         observedWindow = window
         if window.isKeyWindow {
-            activate()
+            activate(window)
         }
         keyWindowObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didBecomeKeyNotification,
             object: window,
             queue: .main
-        ) { [weak self] _ in
-            self?.activate()
+        ) { [weak self, weak window] _ in
+            guard let window else { return }
+            self?.activate(window)
         }
     }
 
@@ -345,10 +359,7 @@ struct RootView: View {
     }
 
     private var isSpotifySignedIn: Bool {
-        switch spotifyState {
-        case .signedIn, .refreshing(.some): true
-        case .signedOut, .signingIn, .failed, .refreshing(.none): false
-        }
+        spotifyState.hasSpotifySession
     }
 
     /// Spotify's state as the window shows it: a session that is being signed out already lost its
@@ -418,7 +429,8 @@ struct RootView: View {
             }
             .background {
                 if let sceneRegistry {
-                    SceneHostActivationView {
+                    SceneHostActivationView { window in
+                        sceneHost.window = window
                         sceneRegistry.activate(sceneHost)
                     }
                     .frame(width: 0, height: 0)
@@ -465,9 +477,6 @@ struct RootView: View {
                 case .signedOut, .signingIn, .failed, .refreshing(.none):
                     sceneHost.discardBrowserViewModel(for: .spotify)
                     serviceStore.lastPinnedUserID[.spotify] = nil
-                    if sceneRegistry == nil || sceneRegistry?.activeScene === sceneHost {
-                        Task { await playbackHosts.spotify.playbackViewModel.disconnect() }
-                    }
                     // Another service on screen keeps its browser, palette and pins.
                     guard serviceStore.active == .spotify else { return }
                     resetTransientStateForAuthLoss()

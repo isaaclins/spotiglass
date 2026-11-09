@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 import XCTest
 @testable import Spotiglass
@@ -45,6 +46,28 @@ final class LyricsPopOutTests: XCTestCase {
             isARepeat: false,
             keyCode: keyCode
         )!
+    }
+
+    /// A Spotify player that is playing, as the app-wide host holds it.
+    private func playingSpotify() -> (SpotiglassPlaybackHost, MockWebPlaybackCommander) {
+        _ = NSApplication.shared
+        let commander = MockWebPlaybackCommander()
+        let host = SpotiglassPlaybackHost(
+            provider: SpotifyPlaybackProvider(playbackAPI: MockPlaybackAPI(), webCommander: commander)
+        )
+        let playback = host.playbackViewModel
+        playback.deviceID = "device-1"
+        playback.hasTransferredPlaybackToCurrentDevice = true
+        playback.setTransportStateKnown(true)
+        playback.setConnectionState(.playing(PlaybackNowPlaying(
+            name: "Midnight City", artists: [], albumName: nil, albumID: nil, albumArtURL: nil,
+            durationMilliseconds: 240_000, positionMilliseconds: 1_000, uri: "spotify:track:1"
+        )))
+        return (host, commander)
+    }
+
+    private func toggles(_ commander: MockWebPlaybackCommander) -> Int {
+        commander.commands.filter { $0.command == .togglePlay }.count
     }
 
     // MARK: Opening it
@@ -131,20 +154,115 @@ final class LyricsPopOutTests: XCTestCase {
         XCTAssertFalse(manager.viewModel.isPresented)
     }
 
-    func testThePopOutRunsOnlyItsTransportKeys() {
+    /// The main windows' key handling leaves the pop-out alone entirely, Space included: the
+    /// pop-out answers its own keys, so they work with no main window open.
+    func testMainWindowKeyHandlingIgnoresEveryKeyInThePopOut() {
         let (manager, _) = makeManager()
-        let toggled = expectation(description: "Space plays or pauses")
-        manager.togglePlayback = { toggled.fulfill() }
+        var toggled = 0
+        manager.togglePlayback = { toggled += 1 }
         let popOut = makeWindow()
         LyricsPopOutWindow.adopt(popOut)
         defer { AppKitTestSupport.closeWindowSafely(popOut) }
 
-        XCTAssertTrue(manager.handleKeyEvent(keyDown(keyCode: 49, characters: " ", window: popOut)))
-        wait(for: [toggled], timeout: 1)
-
+        XCTAssertFalse(manager.handleKeyEvent(keyDown(keyCode: 49, characters: " ", window: popOut)))
         // ⌘K would open the palette in the main window, out of sight behind this one.
         XCTAssertFalse(manager.handleKeyEvent(keyDown(keyCode: 40, characters: "k", modifiers: [.command], window: popOut)))
+        XCTAssertEqual(toggled, 0)
         XCTAssertFalse(manager.viewModel.isPresented)
+    }
+
+    /// Space in the pop-out plays or pauses the player it shows, through its own key monitor and
+    /// with no main window or palette manager involved. Escape and ⌘K mean nothing there.
+    func testThePopOutAnswersItsOwnTransportKeysWithoutAMainWindow() async throws {
+        let (_, keymap) = makeManager()
+        let (spotify, commander) = playingSpotify()
+        let popOut = makeWindow()
+        LyricsPopOutWindow.adopt(popOut)
+        defer { AppKitTestSupport.closeWindowSafely(popOut) }
+        let monitor = LyricsPopOutKeyMonitor.Coordinator(keymapStore: keymap, player: spotify.playbackViewModel)
+
+        XCTAssertFalse(monitor.handle(keyDown(keyCode: 53, characters: "\u{1b}", window: popOut)))
+        XCTAssertFalse(monitor.handle(keyDown(keyCode: 40, characters: "k", modifiers: [.command], window: popOut)))
+        XCTAssertTrue(monitor.handle(keyDown(keyCode: 49, characters: " ", window: popOut)))
+        for _ in 0..<20 where toggles(commander) == 0 {
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        XCTAssertEqual(toggles(commander), 1, "Space pauses what the pop-out shows")
+
+        // The same key in another window is not the pop-out's to answer.
+        let main = makeWindow()
+        defer { AppKitTestSupport.closeWindowSafely(main) }
+        XCTAssertFalse(monitor.handle(keyDown(keyCode: 49, characters: " ", window: main)))
+    }
+
+    /// A menu command chosen while the pop-out has focus: the music commands act in place, every
+    /// other one brings the main window forward first instead of changing it out of sight.
+    func testMenuCommandsFromThePopOutBringTheMainWindowForward() {
+        let popOut = makeWindow()
+        LyricsPopOutWindow.adopt(popOut)
+        defer { AppKitTestSupport.closeWindowSafely(popOut) }
+        let main = makeWindow()
+        defer { AppKitTestSupport.closeWindowSafely(main) }
+
+        for commandID in [
+            CommandPaletteCommandID.openPalette,
+            CommandPaletteCommandID.openSearch,
+            CommandPaletteCommandID.toggleQueue,
+            CommandPaletteCommandID.toggleLyrics,
+            CommandPaletteCommandID.navigateBack,
+        ] {
+            XCTAssertTrue(LyricsPopOutWindow.bringsMainWindowForward(for: commandID, keyWindow: popOut), commandID)
+            XCTAssertFalse(LyricsPopOutWindow.bringsMainWindowForward(for: commandID, keyWindow: main), commandID)
+        }
+        for commandID in [
+            CommandPaletteCommandID.togglePlayback,
+            CommandPaletteCommandID.nextTrack,
+            CommandPaletteCommandID.previousTrack,
+            CommandPaletteCommandID.popOutLyrics,
+        ] {
+            XCTAssertFalse(LyricsPopOutWindow.bringsMainWindowForward(for: commandID, keyWindow: popOut), commandID)
+        }
+
+        // The scene still runs the command.
+        let (manager, _) = makeManager()
+        let scene = SpotiglassSceneHost(commandPaletteManager: manager)
+        scene.window = main
+        var searched = 0
+        manager.openSearch = { searched += 1 }
+        scene.performMenuCommand(CommandPaletteCommandID.openSearch, keyWindow: popOut)
+        XCTAssertEqual(searched, 1)
+        XCTAssertTrue(main.isVisible)
+    }
+
+    // MARK: Playback without a main window
+
+    /// With every main window closed the pop-out keeps Spotify's page alive, so signing out of
+    /// Spotify (from Settings) must stop its player without a main window to notice.
+    func testSpotifySignOutStopsItsPlayerWithNoMainWindow() async throws {
+        let (spotify, _) = playingSpotify()
+        let hosts = SpotiglassPlaybackHosts(spotify: spotify) {
+            SpotiglassPlaybackHost(provider: AppleMusicPlaybackProvider(player: ScriptedAppleMusicPlayer()))
+        }
+        let session = AuthenticatedSession(
+            accessToken: "token",
+            tokenType: "Bearer",
+            scope: "streaming",
+            expiresAt: Date(timeIntervalSinceNow: 3_600)
+        )
+        let states = CurrentValueSubject<AppConnectionState, Never>(.signedIn(session))
+        hosts.followSpotifySession(states)
+
+        // A token refresh keeps the session: the music plays on.
+        states.send(.refreshing(session))
+        states.send(.signedIn(session))
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertTrue(spotify.playbackViewModel.connectionState.hasReadyDevice)
+
+        states.send(.signedOut)
+        for _ in 0..<20 where spotify.playbackViewModel.connectionState != .disconnected {
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        XCTAssertEqual(spotify.playbackViewModel.connectionState, .disconnected)
     }
 
     // MARK: The window
@@ -181,21 +299,28 @@ final class LyricsPopOutTests: XCTestCase {
 
     // MARK: The strip's line
 
-    func testStripShowsTheLineBeingSungAndFallsBackToTheTitle() {
-        let lines = [
-            SyncedLyricLine(id: 0, startTimeMs: 0, words: "First line"),
-            SyncedLyricLine(id: 1, startTimeMs: 5_000, words: " "),
-            SyncedLyricLine(id: 2, startTimeMs: 9_000, words: "Third line"),
-        ]
+    /// Real LRC text through the parser: the title shows during the intro, then each line as it is
+    /// sung. A blank timestamp line is dropped by the parser, so the line before it stays up, the
+    /// same as in the lyrics view.
+    func testStripShowsTheLineBeingSungAndTheTitleDuringTheIntro() {
+        let lines = LrcLineParser.parseSyncedLines("""
+        [00:20.00]First line
+        [00:25.00]
+        [00:30.00]Third line
+        """)
         func text(_ phase: ImmersiveLyricsViewModel.Phase, at ms: Int) -> String {
-            LyricsPopOutStripText.text(phase: phase, trackName: "Song", trackDurationMs: 60_000, positionMs: ms)
+            // The strip shows the title whenever there is no line to show.
+            LyricsPopOutStripText.lyric(phase: phase, trackDurationMs: 60_000, positionMs: ms) ?? "Song"
         }
-        XCTAssertEqual(text(.ready(.synced(lines)), at: 1_000), "First line")
-        XCTAssertEqual(text(.ready(.synced(lines)), at: 10_000), "Third line")
-        // A gap in the singing shows the title instead of an empty row.
-        XCTAssertEqual(text(.ready(.synced(lines)), at: 6_000), "Song")
+        XCTAssertEqual(text(.ready(.synced(lines)), at: 5_000), "Song")
+        XCTAssertEqual(text(.ready(.synced(lines)), at: 20_000), "First line")
+        XCTAssertEqual(text(.ready(.synced(lines)), at: 26_000), "First line")
+        XCTAssertEqual(text(.ready(.synced(lines)), at: 31_000), "Third line")
+        XCTAssertEqual(text(.ready(.unsyncedPlain(["One", "Two"])), at: 45_000), "Two")
+        XCTAssertEqual(text(.ready(.synced([])), at: 0), "Song")
         XCTAssertEqual(text(.loading, at: 0), "Song")
         XCTAssertEqual(text(.failed("No lyrics"), at: 0), "Song")
         XCTAssertEqual(text(.ready(.instrumental), at: 0), SpotiglassL10n.string("lyrics.instrumental"))
+
     }
 }

@@ -10,6 +10,14 @@ enum AppConnectionState: Equatable {
     case refreshing(AuthenticatedSession?)
     case failed(AuthDisplayError)
 
+    /// Whether a Spotify session is live: signed in, or refreshing one that exists.
+    var hasSpotifySession: Bool {
+        switch self {
+        case .signedIn, .refreshing(.some): true
+        case .signedOut, .signingIn, .failed, .refreshing(.none): false
+        }
+    }
+
     var title: String {
         switch self {
         case .signedOut:

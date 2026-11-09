@@ -182,11 +182,7 @@ final class MusicServiceStore: ObservableObject {
         // it back in the menu.
         var wasSignedIn = false
         spotifySignInObservation = states.sink { [weak self] state in
-            let isSignedIn: Bool
-            switch state {
-            case .signedIn, .refreshing(.some): isSignedIn = true
-            case .signedOut, .signingIn, .failed, .refreshing(.none): isSignedIn = false
-            }
+            let isSignedIn = state.hasSpotifySession
             defer { wasSignedIn = isSignedIn }
             guard isSignedIn, !wasSignedIn else { return }
             self?.completeAddition(of: .spotify)

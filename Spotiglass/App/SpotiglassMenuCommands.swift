@@ -347,7 +347,7 @@ struct SpotiglassMenuCommands: Commands {
     }
 
     private func run(_ commandID: String) {
-        activeCommandPaletteManager?.execute(commandID: commandID)
+        sceneRegistry.activeScene?.performMenuCommand(commandID)
     }
 
     private func keymapShortcut(for commandID: String) -> KeyboardShortcut? {

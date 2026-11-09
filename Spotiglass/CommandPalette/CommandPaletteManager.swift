@@ -246,20 +246,12 @@ final class CommandPaletteManager: ObservableObject {
         .store(in: &playbackReadinessCancellables)
     }
 
-    /// The only commands a key press in the pop-out lyrics window runs (#439): its transport
-    /// controls. Everything else here (Escape, the palette, the browser's commands) belongs to
-    /// the main window and must not act on it from a window that shows none of it.
-    static let popOutWindowCommandIDs: Set<String> = [
-        CommandPaletteCommandID.togglePlayback,
-        CommandPaletteCommandID.nextTrack,
-        CommandPaletteCommandID.previousTrack,
-    ]
-
     func handleKeyEvent(_ event: NSEvent) -> Bool {
+        // The pop-out lyrics window answers its own transport keys (#439), even with no main
+        // window open. Everything here (Escape, the palette, the browser's commands) belongs to a
+        // main window and must not act on it from a window that shows none of it.
+        guard !LyricsPopOutWindow.isPopOut(event.window) else { return false }
         guard isCurrentScene() else { return false }
-        if LyricsPopOutWindow.isPopOut(event.window) {
-            return handlePopOutWindowKeyEvent(event)
-        }
 
         // Escape keeps the existing dismissal priority: close the command
         // palette first, then the lyrics modal. It is intentionally handled
@@ -363,20 +355,6 @@ final class CommandPaletteManager: ObservableObject {
             guard executed.insert(binding.command).inserted else { continue }
             execute(commandID: binding.command, args: binding.args)
         }
-        return true
-    }
-
-    private func handlePopOutWindowKeyEvent(_ event: NSEvent) -> Bool {
-        guard !isRecordingHotkey, !event.isARepeat else { return false }
-        let context: CommandPaletteContext = isSignedIn ? .signedIn : .signedOut
-        let matched = keymapStore.commandBindings(for: event, context: context)
-            .filter { Self.popOutWindowCommandIDs.contains($0.command) }
-            .filter { binding in
-                binding.command != CommandPaletteCommandID.togglePlayback
-                    || (playbackTogglePrerequisite?() ?? true)
-            }
-        guard let binding = matched.first else { return false }
-        execute(commandID: binding.command, args: binding.args)
         return true
     }
 

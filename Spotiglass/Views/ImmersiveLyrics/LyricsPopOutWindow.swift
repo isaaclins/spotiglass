@@ -40,6 +40,32 @@ enum LyricsPopOutWindow {
         newWindow.setFrameAutosaveName(frameAutosaveName)
     }
 
+    /// Menu commands that act right where you are when the pop-out has focus: they control the
+    /// music it shows. Every other menu command belongs to a main window, so that window comes
+    /// forward first instead of changing out of sight behind the pop-out.
+    static let commandIDsRunInPlace: Set<String> = [
+        CommandPaletteCommandID.togglePlayback,
+        CommandPaletteCommandID.nextTrack,
+        CommandPaletteCommandID.previousTrack,
+        CommandPaletteCommandID.cycleRepeat,
+        CommandPaletteCommandID.seekForward,
+        CommandPaletteCommandID.seekBackward,
+        CommandPaletteCommandID.popOutLyrics,
+    ]
+
+    /// Whether a menu command chosen while the pop-out has focus first needs a main window in front.
+    static func bringsMainWindowForward(for commandID: String, keyWindow: NSWindow?) -> Bool {
+        isPopOut(keyWindow) && !commandIDsRunInPlace.contains(commandID)
+    }
+
+    /// The keys the pop-out answers itself (Play/Pause, Next, Previous, as bound in Settings ›
+    /// Keyboard). It needs no main window for them: they work with every main window closed.
+    static let keyCommandIDs: Set<String> = [
+        CommandPaletteCommandID.togglePlayback,
+        CommandPaletteCommandID.nextTrack,
+        CommandPaletteCommandID.previousTrack,
+    ]
+
     /// Pinned, the window floats above other apps' windows and also shows over a full-screen app,
     /// like Picture in Picture. Unpinned, it is an ordinary window again.
     static func apply(isPinned: Bool, to window: NSWindow) {
@@ -110,6 +136,109 @@ struct LyricsPopOutWindowConfigurator: NSViewRepresentable {
         private func applyToWindow() {
             guard let window else { return }
             LyricsPopOutWindow.apply(isPinned: isPinned, to: window)
+        }
+    }
+}
+
+/// What the pop-out's Previous, Play/Pause and Next do and when they can, for its buttons and its
+/// keys alike: the same rules as the player bar's.
+@MainActor
+enum LyricsPopOutTransport {
+    static func canRun(_ commandID: String, on player: PlaybackSessionViewModel) -> Bool {
+        switch commandID {
+        case CommandPaletteCommandID.togglePlayback:
+            player.isPlaybackToggleReady
+        case CommandPaletteCommandID.previousTrack:
+            player.connectionState.hasReadyDevice && !player.isSkipCommandPending
+        case CommandPaletteCommandID.nextTrack:
+            player.connectionState.hasReadyDevice
+                && !player.isSkipCommandPending
+                && !player.isNextCommandLockedOut
+        default:
+            false
+        }
+    }
+
+    static func run(_ commandID: String, on player: PlaybackSessionViewModel) {
+        guard canRun(commandID, on: player) else { return }
+        switch commandID {
+        case CommandPaletteCommandID.togglePlayback:
+            Task { await player.togglePlayPause() }
+        case CommandPaletteCommandID.previousTrack:
+            Task { await player.previous() }
+        case CommandPaletteCommandID.nextTrack:
+            Task { await player.next() }
+        default:
+            break
+        }
+    }
+
+    /// The pop-out command a key press in the pop-out stands for, if any.
+    static func commandID(for event: NSEvent, keymapStore: CommandPaletteKeymapStore) -> String? {
+        guard event.type == .keyDown, !event.isARepeat, LyricsPopOutWindow.isPopOut(event.window) else { return nil }
+        return keymapStore.commandBindings(for: event, context: .signedIn)
+            .map(\.command)
+            .first(where: LyricsPopOutWindow.keyCommandIDs.contains)
+    }
+}
+
+/// Answers the pop-out's own transport keys. Main windows' key handling leaves the pop-out alone,
+/// so these keys keep working when every main window is closed.
+struct LyricsPopOutKeyMonitor: NSViewRepresentable {
+    let keymapStore: CommandPaletteKeymapStore
+    let player: PlaybackSessionViewModel
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(keymapStore: keymapStore, player: player)
+    }
+
+    func makeNSView(context: Context) -> NSView {
+        context.coordinator.start()
+        return NSView(frame: .zero)
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        context.coordinator.keymapStore = keymapStore
+        context.coordinator.player = player
+    }
+
+    static func dismantleNSView(_ nsView: NSView, coordinator: Coordinator) {
+        coordinator.stop()
+    }
+
+    @MainActor
+    final class Coordinator {
+        var keymapStore: CommandPaletteKeymapStore
+        var player: PlaybackSessionViewModel
+        private var monitor: Any?
+
+        init(keymapStore: CommandPaletteKeymapStore, player: PlaybackSessionViewModel) {
+            self.keymapStore = keymapStore
+            self.player = player
+        }
+
+        func start() {
+            guard monitor == nil else { return }
+            monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                guard let self else { return event }
+                return MainActor.assumeIsolated { self.handle(event) } ? nil : event
+            }
+        }
+
+        func stop() {
+            if let monitor {
+                NSEvent.removeMonitor(monitor)
+            }
+            monitor = nil
+        }
+
+        /// True when the key was the pop-out's and it acted on it.
+        func handle(_ event: NSEvent) -> Bool {
+            guard let commandID = LyricsPopOutTransport.commandID(for: event, keymapStore: keymapStore),
+                  LyricsPopOutTransport.canRun(commandID, on: player)
+            else { return false }
+            LyricsPopOutTransport.run(commandID, on: player)
+            return true
         }
     }
 }

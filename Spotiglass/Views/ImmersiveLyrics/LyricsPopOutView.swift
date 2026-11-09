@@ -59,13 +59,15 @@ struct LyricsPositionReader<Content: View>: View {
 struct LyricsPopOutRoot: View {
     let playbackHosts: SpotiglassPlaybackHosts
     @ObservedObject var serviceStore: MusicServiceStore
+    /// Space, Next and Previous as bound in Settings › Keyboard.
+    let keymapStore: CommandPaletteKeymapStore
 
     var body: some View {
         Group {
             if let service = serviceStore.active {
-                LyricsPopOutPlayerResolver(onScreenPlayer: player(for: service))
+                LyricsPopOutPlayerResolver(onScreenPlayer: player(for: service), keymapStore: keymapStore)
             } else {
-                LyricsPopOutView(player: nil)
+                LyricsPopOutView(player: nil, keymapStore: keymapStore)
             }
         }
         // If every main window is closed, the Spotify player's page moves in here instead of
@@ -91,20 +93,26 @@ struct LyricsPopOutRoot: View {
 /// or the other service's while that one plays and this one doesn't (#396).
 private struct LyricsPopOutPlayerResolver: View {
     @ObservedObject var onScreenPlayer: PlaybackSessionViewModel
+    let keymapStore: CommandPaletteKeymapStore
 
     var body: some View {
         let player = onScreenPlayer.audiblePlayer
-        LyricsPopOutView(player: player)
+        LyricsPopOutView(player: player, keymapStore: keymapStore)
             .id(ObjectIdentifier(player))
     }
 }
 
 struct LyricsPopOutView: View {
     let player: PlaybackSessionViewModel?
+    let keymapStore: CommandPaletteKeymapStore
 
     var body: some View {
         if let player {
             LyricsPopOutPlayerView(playbackViewModel: player)
+                .background {
+                    LyricsPopOutKeyMonitor(keymapStore: keymapStore, player: player)
+                        .frame(width: 0, height: 0)
+                }
         } else {
             LyricsPopOutChrome(track: nil) { _ in
                 LyricsPopOutEmptyState()
@@ -136,15 +144,17 @@ private struct LyricsPopOutPlayerView: View {
                 EmptyView()
             }
         } stripLine: {
-            LyricsPositionReader(
-                playbackViewModel: playbackViewModel,
-                offsetMs: settingsStore.settings.appearance.lyricsOffsetMilliseconds
-            ) { positionMs in
-                LyricsPopOutStripLine(
-                    phase: lyricsModel.phase,
-                    track: track,
-                    positionMs: positionMs
-                )
+            if let track {
+                LyricsPositionReader(
+                    playbackViewModel: playbackViewModel,
+                    offsetMs: settingsStore.settings.appearance.lyricsOffsetMilliseconds
+                ) { positionMs in
+                    LyricsPopOutStripLine(
+                        phase: lyricsModel.phase,
+                        track: track,
+                        positionMs: positionMs
+                    )
+                }
             }
         }
         .task(id: track?.uri) {
@@ -217,6 +227,8 @@ private struct LyricsPopOutChrome<Body: View, StripLine: View>: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 }
             }
+            // The strip's one row sits in the middle of the room under the window buttons.
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: layout == .full ? .topLeading : .leading)
             .padding(.top, Self.titleBarClearance)
             .padding(.horizontal, SpotiglassDesign.spacingM)
             .padding(.bottom, layout == .full ? 0 : SpotiglassDesign.spacingS)
@@ -232,11 +244,13 @@ private struct LyricsPopOutChrome<Body: View, StripLine: View>: View {
         // The lyrics surface is always light text on the dimmed artwork, in light and dark mode
         // alike, so its controls render for a dark background.
         .environment(\.colorScheme, .dark)
-        .ignoresSafeArea()
+        // The minimum is the whole window, title bar included: applied inside the safe area, the
+        // hidden title bar's height was added on top and the strip couldn't get below 116 pt.
         .frame(
             minWidth: LyricsPopOutWindow.minimumSize.width,
             minHeight: LyricsPopOutWindow.minimumSize.height
         )
+        .ignoresSafeArea()
         .background {
             LyricsPopOutWindowConfigurator(isPinned: isPinned)
                 .frame(width: 0, height: 0)
@@ -256,20 +270,14 @@ private struct LyricsPopOutChrome<Body: View, StripLine: View>: View {
             )
             .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: SpotiglassDesign.spacingHalf) {
+            Group {
                 if layout == .strip, track != nil {
                     stripLine()
                 } else {
-                    Text(track?.name ?? SpotiglassL10n.string("lyrics.popOut.nothingPlaying"))
-                        .font(.headline)
-                        .foregroundStyle(.white)
-                        .lineLimit(1)
-                }
-                if let track {
-                    Text(layout == .strip ? "\(track.name) · \(track.artistText)" : track.artistText)
-                        .font(.subheadline)
-                        .foregroundStyle(.white.opacity(0.72))
-                        .lineLimit(1)
+                    LyricsPopOutTitleBlock(
+                        title: track?.name ?? SpotiglassL10n.string("lyrics.popOut.nothingPlaying"),
+                        subtitle: track?.artistText
+                    )
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -333,8 +341,12 @@ private struct LyricsPopOutTransportControls: View {
     @ObservedObject var playbackViewModel: PlaybackSessionViewModel
     @Environment(\.lyricsPopOutShowsSkipButtons) private var showsSkipButtons
 
-    private var hasReadyDevice: Bool {
-        playbackViewModel.connectionState.hasReadyDevice
+    private func canRun(_ commandID: String) -> Bool {
+        LyricsPopOutTransport.canRun(commandID, on: playbackViewModel)
+    }
+
+    private func run(_ commandID: String) {
+        LyricsPopOutTransport.run(commandID, on: playbackViewModel)
     }
 
     private var isPlaying: Bool {
@@ -356,8 +368,8 @@ private struct LyricsPopOutTransportControls: View {
                         appleMusic: "playback.controls.previous.appleMusic.hint",
                         service: service
                     ),
-                    isEnabled: hasReadyDevice && !playbackViewModel.isSkipCommandPending,
-                    action: { Task { await playbackViewModel.previous() } }
+                    isEnabled: canRun(CommandPaletteCommandID.previousTrack),
+                    action: { run(CommandPaletteCommandID.previousTrack) }
                 ) {
                     Image(systemName: "backward.fill")
                 }
@@ -371,8 +383,8 @@ private struct LyricsPopOutTransportControls: View {
                     appleMusic: "playback.controls.playPause.appleMusic.hint",
                     service: service
                 ),
-                isEnabled: playbackViewModel.isPlaybackToggleReady,
-                action: { Task { await playbackViewModel.togglePlayPause() } }
+                isEnabled: canRun(CommandPaletteCommandID.togglePlayback),
+                action: { run(CommandPaletteCommandID.togglePlayback) }
             ) {
                 Image(systemName: isPlaying ? "pause.fill" : "play.fill")
                     .font(.title3)
@@ -389,10 +401,8 @@ private struct LyricsPopOutTransportControls: View {
                         appleMusic: "playback.controls.next.appleMusic.hint",
                         service: service
                     ),
-                    isEnabled: hasReadyDevice
-                        && !playbackViewModel.isSkipCommandPending
-                        && !playbackViewModel.isNextCommandLockedOut,
-                    action: { Task { await playbackViewModel.next() } }
+                    isEnabled: canRun(CommandPaletteCommandID.nextTrack),
+                    action: { run(CommandPaletteCommandID.nextTrack) }
                 ) {
                     Image(systemName: "forward.fill")
                 }
@@ -407,53 +417,79 @@ private struct LyricsPopOutTransportControls: View {
     }
 }
 
-/// The strip's one line: the lyric being sung, or the song title until lyrics are there.
-private struct LyricsPopOutStripLine: View {
-    let phase: ImmersiveLyricsViewModel.Phase
-    let track: PlaybackNowPlaying?
-    let positionMs: Int
+/// Title over artist: the header of the full window, and the strip while no line is being sung.
+private struct LyricsPopOutTitleBlock: View {
+    let title: String
+    let subtitle: String?
 
     var body: some View {
-        Text(Self.text(phase: phase, track: track, positionMs: positionMs))
-            .font(.headline)
-            .foregroundStyle(.white)
-            .lineLimit(1)
-            .contentTransition(.opacity)
-            .animation(.smooth(duration: 0.25), value: Self.text(phase: phase, track: track, positionMs: positionMs))
-    }
-
-    static func text(
-        phase: ImmersiveLyricsViewModel.Phase,
-        track: PlaybackNowPlaying?,
-        positionMs: Int
-    ) -> String {
-        LyricsPopOutStripText.text(phase: phase, trackName: track?.name, trackDurationMs: track?.durationMilliseconds, positionMs: positionMs)
+        VStack(alignment: .leading, spacing: SpotiglassDesign.spacingHalf) {
+            Text(title)
+                .font(.headline)
+                .foregroundStyle(.white)
+                .lineLimit(1)
+            if let subtitle {
+                Text(subtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.72))
+                    .lineLimit(1)
+            }
+        }
     }
 }
 
-/// What the strip says, kept apart from the view so it can be tested.
+/// The strip's text: the line being sung over "title · artist", or, with no line to show, the
+/// usual title over artist (never the title twice).
+private struct LyricsPopOutStripLine: View {
+    let phase: ImmersiveLyricsViewModel.Phase
+    let track: PlaybackNowPlaying
+    let positionMs: Int
+
+    var body: some View {
+        let lyric = LyricsPopOutStripText.lyric(
+            phase: phase,
+            trackDurationMs: track.durationMilliseconds,
+            positionMs: positionMs
+        )
+        LyricsPopOutTitleBlock(
+            title: lyric ?? track.name,
+            subtitle: lyric == nil ? track.artistText : "\(track.name) · \(track.artistText)"
+        )
+        .contentTransition(.opacity)
+        .animation(.smooth(duration: 0.25), value: lyric)
+    }
+}
+
+/// What the strip says, kept apart from the view so it can be tested. It runs on every frame while
+/// music plays, so it finds the one line it needs instead of laying out the whole song.
 enum LyricsPopOutStripText {
-    static func text(
+    /// The line to show for this moment, or nil when there is none (loading, no lyrics, an intro).
+    static func lyric(
         phase: ImmersiveLyricsViewModel.Phase,
-        trackName: String?,
         trackDurationMs: Int?,
         positionMs: Int
-    ) -> String {
-        let fallback = trackName ?? SpotiglassL10n.string("lyrics.popOut.nothingPlaying")
-        guard case let .ready(lyrics) = phase else { return fallback }
-        switch ImmersiveLyricsReadyContentModel.renderModel(
-            for: lyrics,
-            positionMs: positionMs,
-            trackDurationMs: trackDurationMs
-        ) {
+    ) -> String? {
+        guard case let .ready(lyrics) = phase else { return nil }
+        let line: String
+        switch lyrics {
         case .instrumental:
             return SpotiglassL10n.string("lyrics.instrumental")
-        case let .timed(model), let .plain(model):
-            let line = model.lines.first(where: \.isActive)?.text
-                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            // A blank timed line is a pause in the singing: show the title, not an empty row.
-            return line.isEmpty ? fallback : line
+        case let .synced(lines):
+            // Before the first line is sung (an intro), the title shows, not a line still to come.
+            guard let first = lines.first, positionMs >= first.startTimeMs else { return nil }
+            line = lines[LrcLineParser.activeTimedLineIndex(positionMs: positionMs, lines: lines)].words
+        case let .unsyncedPlain(lines):
+            guard !lines.isEmpty else { return nil }
+            line = lines[
+                LrcLineParser.activePlainLineIndex(
+                    positionMs: positionMs,
+                    durationMs: trackDurationMs ?? 1,
+                    lineCount: lines.count
+                )
+            ]
         }
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }
 
