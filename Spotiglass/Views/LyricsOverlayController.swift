@@ -174,10 +174,18 @@ final class LyricsOverlayFocusContainerView<Content: View>: NSView, FocusedKeyEv
         return !matchesGlobalCommandBinding(event)
     }
 
-    /// The local monitor has yielded to this focused owner. Do not let AppKit's
-    /// default key-view traversal escape the overlay when this container itself
-    /// is the first responder.
-    override func keyDown(with event: NSEvent) {}
+    /// The local monitor has yielded to this focused owner, so other keys stop here. Tab and
+    /// Shift-Tab move on to the sidebar, the queue and the player bar, which stay usable next
+    /// to the lyrics (#438); without a lyrics list (loading, instrumental, no lyrics) this
+    /// container is all that has the keyboard.
+    override func keyDown(with event: NSEvent) {
+        guard event.keyCode == 48, let window else { return }
+        if event.modifierFlags.contains(.shift) {
+            window.selectPreviousKeyView(self)
+        } else {
+            window.selectNextKeyView(self)
+        }
+    }
 
     /// AppKit offers key equivalents to every view in the window, not only the focused one,
     /// and before the menu bar. The lyrics only claim plain keys, and only while the keyboard

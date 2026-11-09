@@ -246,6 +246,15 @@ final class CommandPaletteManager: ObservableObject {
         .store(in: &playbackReadinessCancellables)
     }
 
+    /// Whether Escape is meant for what has the keyboard: a text field being edited, or a
+    /// sheet or prompt in front of the window.
+    static func escapeBelongsToFocusedControl(_ event: NSEvent) -> Bool {
+        guard let window = event.window else { return false }
+        if window.sheetParent != nil || window.attachedSheet != nil { return true }
+        if window is NSPanel { return true }
+        return window.firstResponder is NSText
+    }
+
     func handleKeyEvent(_ event: NSEvent) -> Bool {
         guard isCurrentScene() else { return false }
 
@@ -258,7 +267,10 @@ final class CommandPaletteManager: ObservableObject {
                 viewModel.hide()
                 return true
             }
-            if dismissLyricsOverlayIfPresented?() == true {
+            // The sidebar and the queue stay usable next to the lyrics (#438): Escape in a
+            // text field there (a playlist rename) or in a prompt over the window cancels
+            // that, not the lyrics.
+            if !Self.escapeBelongsToFocusedControl(event), dismissLyricsOverlayIfPresented?() == true {
                 return true
             }
         }

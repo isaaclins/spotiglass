@@ -1,8 +1,6 @@
 import SwiftUI
 
 struct ImmersiveLyricsMainLayout: View {
-    /// Room the compact header (64 pt cover plus spacing) takes above the lyrics.
-    static let compactHeaderHeight: CGFloat = 64 + SpotiglassDesign.spacingM
     @ObservedObject var playbackViewModel: PlaybackSessionViewModel
     @ObservedObject var queueViewModel: QueueViewModel
     @ObservedObject var lyricsModel: ImmersiveLyricsViewModel
@@ -13,6 +11,9 @@ struct ImmersiveLyricsMainLayout: View {
     let reduceMotion: Bool
     let usesLyricsScrollEdgeFade: Bool
     let lyricsTextSize: LyricsTextMetrics
+    /// Height of the narrow header, measured: a long title or artist line wraps and makes it
+    /// taller than its 64 pt cover.
+    @State private var compactHeaderHeight: CGFloat = 64
 
     /// Hand to the lyrics column so tapping a synced line seeks playback to
     /// that line's timestamp. The async hop is wrapped in a `Task` so the
@@ -66,6 +67,7 @@ struct ImmersiveLyricsMainLayout: View {
                             currentTrack: currentTrack,
                             isCompact: true
                         )
+                        .onGeometryChange(for: CGFloat.self, of: \.size.height) { compactHeaderHeight = $0 }
                         ImmersiveLyricsLyricsPhaseColumn(
                             lyricsModel: lyricsModel,
                             currentTrack: currentTrack,
@@ -73,7 +75,7 @@ struct ImmersiveLyricsMainLayout: View {
                             reduceMotion: reduceMotion,
                             usesLyricsScrollEdgeFade: usesLyricsScrollEdgeFade,
                             lyricsTextSize: lyricsTextSize,
-                            maxHeight: max(160, usableHeight - Self.compactHeaderHeight),
+                            maxHeight: max(160, usableHeight - compactHeaderHeight - SpotiglassDesign.spacingM),
                             onSeek: seekHandler
                         )
                         .frame(maxHeight: .infinity, alignment: .top)

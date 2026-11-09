@@ -255,6 +255,56 @@ final class LyricsOverlayControllerTests: XCTestCase {
         XCTAssertTrue(window.firstResponder === previousResponder, "closing the lyrics did not give focus back")
     }
 
+    /// #438: lyrics that finish loading after the user clicked into the sidebar must not take
+    /// the keyboard from there.
+    func testListFocusIsNotTakenBackAfterTheUserMovedIt() async {
+        var focusRequests = 0
+        await ImmersiveLyricsView.requestListFocus(
+            isFocused: { false },
+            movedAway: { true },
+            focus: { focusRequests += 1 }
+        )
+        XCTAssertEqual(focusRequests, 0, "the lyrics took the keyboard back from the sidebar")
+    }
+
+    /// #438: without a lyrics list (loading, instrumental, no lyrics) the container has the
+    /// keyboard, and Tab must move on to the sidebar, the queue and the player bar next to it.
+    func testTabLeavesTheLyricsContainer() {
+        let root = NSView(frame: NSRect(x: 0, y: 0, width: 320, height: 240))
+        let sidebar = LyricsTestFirstResponderView(frame: NSRect(x: 0, y: 0, width: 100, height: 32))
+        root.addSubview(sidebar)
+        let focusContainer = LyricsOverlayFocusContainerView(
+            content: Text("Loading"),
+            isActive: false,
+            keymapStore: CommandPaletteKeymapStore(fileURL: makeCommandPaletteTestsTempSettingsURL())
+        )
+        focusContainer.frame = NSRect(x: 120, y: 0, width: 200, height: 240)
+        root.addSubview(focusContainer)
+        focusContainer.nextKeyView = sidebar
+        sidebar.nextKeyView = focusContainer
+        let window = OffscreenTestWindow(
+            contentRect: root.bounds,
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        window.isReleasedWhenClosed = false
+        window.contentView = root
+        defer {
+            focusContainer.deactivate()
+            AppKitTestSupport.closeWindowSafely(window)
+        }
+
+        focusContainer.setActive(true)
+        AppKitTestSupport.pumpRunLoop()
+        XCTAssertTrue(window.firstResponder === focusContainer)
+        focusContainer.keyDown(with: keyDown(keyCode: 48, characters: "\t", windowNumber: window.windowNumber))
+        XCTAssertTrue(
+            window.firstResponder === sidebar,
+            "Tab stayed in the lyrics: \(String(describing: window.firstResponder))"
+        )
+    }
+
     func testLyricsFocusContainerRepresentableLifecycle() {
         let wrapper = LyricsOverlayFocusContainer(
             content: Text("Lyrics"),
@@ -332,7 +382,7 @@ private final class LyricsTestFirstResponderView: NSView {
 
 final class FocusProbeBox { var focused = false }
 
-/// The real lyrics list with the focus request `ImmersiveLyricsView` makes on opening.
+/// The real lyrics list with the real focus request `ImmersiveLyricsView` makes on opening.
 private struct FocusProbeLyrics: View {
     let box: FocusProbeBox
     @FocusState private var focused: Bool
@@ -344,11 +394,11 @@ private struct FocusProbeLyrics: View {
         .environment(\.lyricsListFocus, $focused)
         .onChange(of: focused) { _, new in box.focused = new }
         .task {
-            for delay in [0, 150, 400, 800] {
-                try? await Task.sleep(for: .milliseconds(delay))
-                if focused { return }
-                focused = true
-            }
+            await ImmersiveLyricsView.requestListFocus(
+                isFocused: { focused },
+                movedAway: { false },
+                focus: { focused = true }
+            )
         }
     }
 }

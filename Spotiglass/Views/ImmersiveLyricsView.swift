@@ -74,14 +74,29 @@ struct ImmersiveLyricsView: View {
     private func placeInitialFocusIfReady() {
         guard !hasPlacedInitialFocus, Self.showsLyricsList(lyricsModel.phase) else { return }
         hasPlacedInitialFocus = true
+        let probe = keyboardFocus
         Task { @MainActor in
-            for delay in [0, 150, 400, 800] {
-                try? await Task.sleep(for: .milliseconds(delay))
-                // The lyrics can take seconds to load; by then you may be typing in the sidebar
-                // or the queue, and the keyboard stays there.
-                if isLyricsListFocused || keyboardFocus?.userMovedFocusAway == true { return }
-                isLyricsListFocused = true
-            }
+            await Self.requestListFocus(
+                isFocused: { isLyricsListFocused },
+                // The lyrics can take seconds to load; by then you may be typing in the
+                // sidebar or the queue, and the keyboard stays there.
+                movedAway: { probe?.userMovedFocusAway == true },
+                focus: { isLyricsListFocused = true }
+            )
+        }
+    }
+
+    /// A focus request made while the list is still being laid out is dropped, so it is
+    /// repeated for a moment until the list has the keyboard or the user put it elsewhere.
+    static func requestListFocus(
+        isFocused: () -> Bool,
+        movedAway: () -> Bool,
+        focus: () -> Void
+    ) async {
+        for delay in [0, 150, 400, 800] {
+            try? await Task.sleep(for: .milliseconds(delay))
+            if isFocused() || movedAway() { return }
+            focus()
         }
     }
 
