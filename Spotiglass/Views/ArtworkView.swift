@@ -7,6 +7,7 @@ struct ArtworkView: View {
     let size: CGFloat
     /// The item's pin ID, for Apple Music library covers saved with an expired URL.
     var artworkKey: String? = nil
+    var cornerRadius: CGFloat = SpotiglassDesign.cornerS
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -18,9 +19,9 @@ struct ArtworkView: View {
             }
         }
         .frame(width: size, height: size)
-        .clipShape(RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                 .strokeBorder(SpotiglassDesign.artworkBorderColor(colorScheme: colorScheme), lineWidth: 1)
         }
     }
@@ -92,7 +93,8 @@ struct ArtworkPlaceholderContent: View {
     private static let progressIndicatorMinimumSize: CGFloat = 44
 
     var body: some View {
-        RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
+        // Square: the artwork view around it clips it to its own corner radius.
+        Rectangle()
             .fill(.secondary.opacity(0.16))
             .overlay {
                 if state == .loading, size >= Self.progressIndicatorMinimumSize, !reduceMotion {

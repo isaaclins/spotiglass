@@ -24,47 +24,22 @@ struct PlaylistListRow: View {
         #if DEBUG
         let _ = ViewBodyTally.record("PlaylistListRow:\(playlist.id)")
         #endif
-        HStack(spacing: SpotiglassDesign.spacingS) {
-            Group {
-                if isLikedSongsRow {
-                    LikedSongsArtwork(size: artworkSize, isEmphasized: isListSelected)
-                } else {
-                    ArtworkView(url: playlist.artworkURL, size: artworkSize)
-                }
+        SidebarRow(subtitle: playlist.ownerTracksLine(currentUserID: currentUserSpotifyID, locale: spotiglassLocale)) {
+            if isLikedSongsRow {
+                LikedSongsArtwork(size: artworkSize, isEmphasized: isListSelected, cornerRadius: SpotiglassDesign.cornerXS)
+            } else {
+                // A playlist without a cover of its own gets the calm placeholder (#444).
+                ArtworkView(url: playlist.artworkURL, size: artworkSize, cornerRadius: SpotiglassDesign.cornerXS)
             }
-            .overlay(alignment: .bottomTrailing) {
-                if isActive {
-                    PlayingArtworkBadge(isPlaying: isPlaying)
-                }
+        } title: {
+            if let titleOverride {
+                titleOverride
+            } else {
+                Text(playlist.localizedTitle(locale: spotiglassLocale))
             }
-            .overlay(alignment: .topTrailing) {
-                if isPinned {
-                    PinnedBadge(scale: .compact)
-                }
-            }
-
-            VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXXS) {
-                if let titleOverride {
-                    titleOverride
-                } else {
-                    Text(playlist.localizedTitle(locale: spotiglassLocale))
-                        .font(.headline)
-                        .lineLimit(1)
-                }
-
-                // A count still loading (or unknown) leaves the line blank but keeps its height,
-                // so rows don't jump when the count arrives.
-                Text(playlist.ownerTracksLine(
-                    currentUserID: currentUserSpotifyID,
-                    locale: spotiglassLocale
-                ).nonEmptyLine)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
+        } accessory: {
+            SidebarRowStatus(isPinned: isPinned, isNowPlaying: isActive, isPlaying: isPlaying)
         }
-        .padding(.vertical, SpotiglassDesign.spacingXXS)
-        .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
             PlaylistOwnerDisplay.accessibilityLabel(
