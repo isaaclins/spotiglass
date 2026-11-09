@@ -144,7 +144,7 @@ extension PlaybackSessionViewModel {
             }
             // A report without a track (the player going away) always goes through.
             guard nowPlaying == nil || acceptsPushedPlayState(isPlaying: !isPaused) else {
-                heldBackPageReport = event
+                heldBackPageReport = MusicPlaybackEventEnvelope(event: event, hostGeneration: playbackHostGeneration)
                 SpotiglassLog.info(.playback, "Ignoring SDK state_changed isPaused=\(isPaused) older than the last play/pause")
                 return
             }

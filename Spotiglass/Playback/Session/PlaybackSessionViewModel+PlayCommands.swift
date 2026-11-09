@@ -192,8 +192,10 @@ extension PlaybackSessionViewModel {
         kind: PendingPlayTransition.Kind
     ) {
         clearPendingPlay()
-        // A new play replaces whatever a skip moved past.
+        // A new play replaces whatever a skip moved past, and what a play / pause press waited
+        // for: the new item's reports must show at once (#437).
         skipLeftItemURI = nil
+        clearPushedPlayStateExpectation()
         let hostGeneration = playbackHostGeneration
         let deadline = clock.now.advanced(by: pendingPlayURITimeout)
         pendingPlayTransition = PendingPlayTransition(

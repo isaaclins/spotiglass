@@ -1213,6 +1213,57 @@ final class PlayPauseFollowsThePressTests: XCTestCase {
         XCTAssertEqual(Self.playPauseCommands(commander), [.pause, .resume])
     }
 
+    /// The page answers a pause only after the 3 s wait, and it's a refusal: the controls still
+    /// go back and the bar says so, instead of showing a pause that never happened.
+    func testSpotifyPageRefusingAPauseLateStillGoesBack() async {
+        let (_, session) = playingSpotify()
+        session.inAppCommandAckTimeout = .milliseconds(20)
+
+        await session.requestTogglePlayPause()?.value
+        try? await Task.sleep(for: .milliseconds(150))
+        XCTAssertNil(session.inAppCommandInFlight, "the wait for the page ended")
+        session.handle(.playerCommandFailed(command: "pause", message: "Spotify pause failed: offline"))
+
+        XCTAssertTrue(Self.isPlaying(session), "the late refusal was dropped and the pause stayed on screen")
+        XCTAssertEqual(session.refusedPlayPause?.title, SpotiglassL10n.string("playback.refused.pause"))
+    }
+
+    /// Pause, then another song at once: the new song's report shows right away, not after the
+    /// wait for the pause's report.
+    func testSpotifyANewSongRightAfterAPauseShowsAtOnce() async {
+        let (_, session) = playingSpotify()
+
+        session.requestTogglePlayPause()
+        XCTAssertTrue(Self.isPaused(session))
+        await session.play(uri: "spotify:track:other")
+        let other = PlaybackNowPlaying(
+            name: "Other", artists: ["Artist"], albumName: nil, albumID: nil, albumArtURL: nil,
+            durationMilliseconds: 180_000, positionMilliseconds: 0, uri: "spotify:track:other"
+        )
+        session.handle(.stateChanged(other, isPaused: false, nextTracks: []))
+
+        XCTAssertEqual(session.currentNowPlaying?.name, "Other")
+        XCTAssertTrue(Self.isPlaying(session), "the new song waited for the pause's report")
+    }
+
+    /// A report held back while a press waited belongs to the page that sent it: after a
+    /// reconnect starts a new page, it is never shown.
+    func testSpotifyAHeldBackReportFromAReplacedPageIsDropped() async {
+        let (_, session) = playingSpotify()
+        session.pushedPlayStateExpectationTimeout = .milliseconds(20)
+
+        session.requestTogglePlayPause()
+        session.handle(.stateChanged(Self.song, isPaused: false, nextTracks: []))
+        XCTAssertNotNil(session.heldBackPageReport)
+        _ = session.beginPlaybackHostLifecycle()
+        XCTAssertNil(session.heldBackPageReport)
+        XCTAssertTrue(session.pushedPlayStateExpectations.isEmpty)
+
+        let state = session.connectionState
+        try? await Task.sleep(for: .milliseconds(150))
+        XCTAssertEqual(session.connectionState, state, "the old page's report was shown after the reconnect")
+    }
+
     /// The wait for the page ends without the page reporting the last press: its latest report
     /// is then shown, so the bar doesn't keep a song the page has moved on from.
     func testSpotifyShowsThePagesLastReportWhenTheWaitEnds() async {

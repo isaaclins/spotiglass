@@ -261,18 +261,28 @@ extension PlaybackSessionViewModel {
         refusedPlayPause = nil
     }
 
-    /// Spotify's page failed to run the press it is running.
+    /// Spotify's page failed to run the press it is running, or one it answered too late for.
     func handleInAppPlayPauseFailure(command: String, message: String) {
         SpotiglassLog.error(.playback, "Spotify playback SDK \(command) failed: \(message)")
-        guard let request = inAppCommandInFlight, request.inAppCommand == command else { return }
-        finishInAppCommand()
+        let request: PlayPauseRequest
+        if let inFlight = inAppCommandInFlight, inFlight.inAppCommand == command {
+            request = inFlight
+            finishInAppCommand()
+        } else if let index = inAppCommandsUnanswered.firstIndex(where: { $0.inAppCommand == command }) {
+            request = inAppCommandsUnanswered.remove(at: index)
+        } else {
+            return
+        }
         inAppPressFailed(request, error: MusicPlaybackError(service: .spotify, reason: .failed, detail: message))
     }
 
     /// Spotify's page finished a command: the next press may go out.
     func handleInAppCommandFinished(_ command: String) {
-        guard inAppCommandInFlight?.inAppCommand == command else { return }
-        finishInAppCommand()
+        if inAppCommandInFlight?.inAppCommand == command {
+            finishInAppCommand()
+        } else if let index = inAppCommandsUnanswered.firstIndex(where: { $0.inAppCommand == command }) {
+            inAppCommandsUnanswered.remove(at: index)
+        }
     }
 
     /// The latest press refused: the controls go back to what the page last reported and the
@@ -299,8 +309,21 @@ extension PlaybackSessionViewModel {
             try? await Task.sleep(for: self.inAppCommandAckTimeout)
             guard !Task.isCancelled, self.inAppCommandInFlight?.serial == request.serial else { return }
             SpotiglassLog.info(.playback, "Spotify playback SDK didn't answer \(request.inAppCommand); sending the next press")
+            self.inAppCommandsUnanswered.append(request)
+            if self.inAppCommandsUnanswered.count > Self.inAppCommandsUnansweredLimit {
+                self.inAppCommandsUnanswered.removeFirst()
+            }
             self.finishInAppCommand()
         }
+    }
+
+    static let inAppCommandsUnansweredLimit = 4
+
+    /// A new player page, or a new play: nothing the page owed earlier presses counts any more.
+    func forgetInAppPlayPauseWaits() {
+        clearPushedPlayStateExpectation()
+        finishInAppCommand()
+        inAppCommandsUnanswered.removeAll()
     }
 
     func finishInAppCommand() {
@@ -332,8 +355,9 @@ extension PlaybackSessionViewModel {
             // The page never reported the last press: its latest report is its own last word.
             let held = self.heldBackPageReport
             self.clearPushedPlayStateExpectation()
+            // With the generation it came with: a report from a page since replaced is dropped.
             if let held {
-                self.handle(MusicPlaybackEventEnvelope(event: held, hostGeneration: self.playbackHostGeneration))
+                self.handle(held)
             }
         }
     }

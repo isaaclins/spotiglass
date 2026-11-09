@@ -645,7 +645,7 @@ final class PlaybackSessionViewModel: ObservableObject {
     var pushedPlayStateExpectationTimeout: Duration = .seconds(3)
     /// The latest report the page sent while presses waited for it, shown when the wait ends
     /// without the page reporting the last press: it is then the page's own last word.
-    var heldBackPageReport: MusicPlaybackEvent?
+    var heldBackPageReport: MusicPlaybackEventEnvelope?
     /// The press whose command Spotify's page is running. The page runs a command after the
     /// script that starts it has returned, so the next press waits for the page to report this
     /// one finished or failed (or ``inAppCommandAckTimeout``): two at once can land in either
@@ -654,6 +654,9 @@ final class PlaybackSessionViewModel: ObservableObject {
     var inAppCommandAckWaiters: [CheckedContinuation<Void, Never>] = []
     var inAppCommandAckTimeoutTask: Task<Void, Never>?
     var inAppCommandAckTimeout: Duration = .seconds(3)
+    /// Presses the page didn't answer in time, newest last: its answer may still come, and a
+    /// late refusal must still put the controls back.
+    var inAppCommandsUnanswered: [PlayPauseRequest] = []
     /// The last play / pause state Spotify's page reported, shown or not: what its player has
     /// when it refuses a press.
     var pageReportedPlayState: PlaybackConnectionState?
