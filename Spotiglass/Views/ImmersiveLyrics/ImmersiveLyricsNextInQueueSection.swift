@@ -47,8 +47,8 @@ struct ImmersiveLyricsQueueUpcomingRowView: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: SpotiglassDesign.spacingS) {
-            ArtworkView(url: item.albumArtURL, size: 36)
-            VStack(alignment: .leading, spacing: 4) {
+            ArtworkView(url: item.albumArtURL, size: SpotiglassDesign.Layout.compactRowArtworkSize)
+            VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXXS) {
                 Text(item.name)
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.white.opacity(0.92))
@@ -70,7 +70,7 @@ struct ImmersiveLyricsQueueUpcomingSubtitleView: View {
     let navigateToAlbum: (AlbumTapTarget, String, URL?) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXXS) {
             if item.artistTapTargets.isEmpty {
                 Text(item.subtitle)
                     .font(.caption)

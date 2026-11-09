@@ -18,15 +18,15 @@ struct ImmersiveLyricsLyricsPhaseColumn: View {
             switch lyricsModel.phase {
             case .idle:
                 Color.clear
-                    .frame(maxWidth: .infinity, minHeight: 160)
+                    .frame(maxWidth: .infinity, minHeight: SpotiglassDesign.Layout.lyricsStatusMinHeight)
             case .loading:
                 ProgressView(SpotiglassL10n.string("lyrics.loading"))
                     .controlSize(.large)
                     .tint(.white)
                     .foregroundStyle(.white.opacity(0.85))
-                    .frame(maxWidth: .infinity, minHeight: 160, alignment: .center)
+                    .frame(maxWidth: .infinity, minHeight: SpotiglassDesign.Layout.lyricsStatusMinHeight, alignment: .center)
             case let .failed(message):
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
                     Text(message)
                         .font(.body)
                         .foregroundStyle(.white.opacity(0.9))
@@ -74,7 +74,7 @@ struct ImmersiveLyricsReadyContentView: View {
             Text(SpotiglassL10n.string("lyrics.instrumental"))
                 .font(.title3.weight(.medium))
                 .foregroundStyle(.white.opacity(0.85))
-                .frame(maxWidth: .infinity, minHeight: 120, alignment: .leading)
+                .frame(maxWidth: .infinity, minHeight: SpotiglassDesign.Layout.lyricsInstrumentalMinHeight, alignment: .leading)
         case let .timed(renderModel):
             ImmersiveLyricsTimedLyricsScrollView(
                 renderModel: renderModel,

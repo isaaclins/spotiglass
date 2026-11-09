@@ -73,11 +73,13 @@ struct TrackListView: View {
                 ForEach(tracks) { track in
                     rowBuilder(track)
                         .frame(height: TrackListRow.listRowHeight)
+                        // With the list's own inset the row's edge lands on the
+                        // page margin, under the header's artwork and titles.
                         .listRowInsets(EdgeInsets(
                             top: 0,
-                            leading: SpotiglassDesign.spacingXS,
+                            leading: SpotiglassDesign.Layout.insetListContentInset,
                             bottom: 0,
-                            trailing: SpotiglassDesign.spacingXS
+                            trailing: SpotiglassDesign.Layout.insetListContentInset
                         ))
                         .tag(track.id)
                         // Row lifecycle is what tells us where the list is. Deriving

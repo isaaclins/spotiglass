@@ -137,26 +137,26 @@ struct ArtistDetailContent: View {
     }
 
     private var listHeader: some View {
-        VStack(alignment: .leading, spacing: SpotiglassDesign.spacingL) {
+        VStack(alignment: .leading, spacing: SpotiglassDesign.Layout.sectionSpacing) {
             header
             if !detail.tracks.isEmpty {
                 Text(SpotiglassL10n.string("browser.tracks"))
                     .font(.title3.weight(.semibold))
-                    .padding(.horizontal, SpotiglassDesign.spacingL)
+                    .padding(.horizontal, SpotiglassDesign.Layout.insetListContentInset)
             }
         }
         .padding(.vertical, SpotiglassDesign.spacingM)
     }
 
     private var listFooter: some View {
-        VStack(alignment: .leading, spacing: SpotiglassDesign.spacingL) {
+        VStack(alignment: .leading, spacing: SpotiglassDesign.Layout.sectionSpacing) {
             albumStrip(title: SpotiglassL10n.string("browser.albums"), albums: detail.albums, group: .album)
             albumStrip(title: SpotiglassL10n.string("browser.singles"), albums: detail.singles, group: .single)
             albumStrip(title: SpotiglassL10n.string("browser.compilations"), albums: detail.compilations, group: .compilation)
             albumStrip(title: SpotiglassL10n.string("browser.appearsOn"), albums: detail.appearsOn, group: .appearsOn)
             if detail.canLoadMoreAlbums || detail.isLoadingMoreAlbums {
                 loadMoreButton
-                    .padding(.horizontal, SpotiglassDesign.spacingL)
+                    .padding(.horizontal, SpotiglassDesign.Layout.insetListContentInset)
             }
             if hasNothingToShow {
                 // Every section above is guarded and albumStrip returns
@@ -218,7 +218,7 @@ struct ArtistDetailContent: View {
 
             Spacer()
         }
-        .padding(.horizontal, SpotiglassDesign.spacingL)
+        .padding(.horizontal, SpotiglassDesign.Layout.insetListContentInset)
         .draggable(PinnedItemTransfer(item: .artist(detail.artist))) {
             PinnedItemDragPill(item: .artist(detail.artist))
         }
@@ -271,10 +271,10 @@ struct ArtistDetailContent: View {
         if albums.isEmpty {
             EmptyView()
         } else {
-            VStack(alignment: .leading, spacing: SpotiglassDesign.spacingS) {
+            VStack(alignment: .leading, spacing: SpotiglassDesign.Layout.sectionTitleSpacing) {
                 Text(title)
                     .font(.title3.weight(.semibold))
-                    .padding(.horizontal, SpotiglassDesign.spacingL)
+                    .padding(.horizontal, SpotiglassDesign.Layout.insetListContentInset)
 
                 // Keep the shelf discoverable and settle it on whole release cards,
                 // matching the resolved Home shelf behavior (#232).
@@ -285,7 +285,7 @@ struct ArtistDetailContent: View {
                         }
                     }
                     .scrollTargetLayout()
-                    .padding(.horizontal, SpotiglassDesign.spacingL)
+                    .padding(.horizontal, SpotiglassDesign.Layout.insetListContentInset)
                     .padding(.bottom, SpotiglassDesign.spacingS)
                 }
                 .scrollTargetBehavior(.viewAligned)
@@ -344,7 +344,7 @@ struct ArtistDetailContent: View {
 
     private func albumCard(_ album: ArtistAlbumRowViewModel, showPinGlyph: Bool) -> some View {
         VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXS) {
-            ArtworkView(url: album.artworkURL, size: 132)
+            ArtworkView(url: album.artworkURL, size: SpotiglassDesign.Layout.cardWidth)
                 .clipShape(RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous))
                 .overlay(alignment: .topTrailing) {
                     if showPinGlyph {
@@ -355,7 +355,7 @@ struct ArtistDetailContent: View {
             Text(album.title)
                 .font(.subheadline.weight(.medium))
                 .lineLimit(2)
-                .frame(width: 132, alignment: .leading)
+                .frame(width: SpotiglassDesign.Layout.cardWidth, alignment: .leading)
 
             if let year = album.yearText {
                 Text(year)
@@ -367,7 +367,7 @@ struct ArtistDetailContent: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
-        .frame(width: 132)
+        .frame(width: SpotiglassDesign.Layout.cardWidth)
     }
 
     private var loadMoreButton: some View {

@@ -52,7 +52,7 @@ struct CommandPalettePrefetchProgressHeader: View {
                 ProgressView(value: Double(progress.completed + progress.skipped + progress.failed),
                              total: Double(progress.total))
                     .progressViewStyle(.linear)
-                    .frame(maxWidth: 140)
+                    .frame(maxWidth: SpotiglassDesign.Layout.paletteProgressMaxWidth)
             }
             Spacer(minLength: 0)
             if progress.phase == .running {
@@ -99,11 +99,11 @@ struct CommandPaletteResultsBodyView: View {
                     Spacer()
                 }
                 .frame(maxWidth: .infinity)
-                .frame(height: 360)
+                .frame(height: SpotiglassDesign.Layout.paletteResultsHeight)
             } else {
                 Spacer()
                     .frame(maxWidth: .infinity)
-                    .frame(height: 360)
+                    .frame(height: SpotiglassDesign.Layout.paletteResultsHeight)
             }
         } else {
             CommandPaletteSectionedListView(
@@ -140,6 +140,6 @@ struct CommandPaletteSearchingPlaceholderView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 360)
+        .frame(height: SpotiglassDesign.Layout.paletteResultsHeight)
     }
 }

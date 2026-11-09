@@ -96,11 +96,12 @@ final class ListDetailViewsTests: XCTestCase {
     /// that define it live in one place instead of drifting apart (#140).
     func testTrackRowGeometryIsSharedAndConsistent() {
         // The documented row height is derived from these, so they must agree.
+        // Since #428 there is no headroom: the artwork sits on the row's centre line.
         XCTAssertEqual(
             TrackListRow.listRowHeight,
-            TrackRowMetrics.artworkSize + TrackRowMetrics.verticalPadding * 2 + 4,
+            TrackRowMetrics.artworkSize + TrackRowMetrics.verticalPadding * 2,
             accuracy: 0.001,
-            "listRowHeight is artwork plus vertical padding plus headroom"
+            "listRowHeight is artwork plus vertical padding"
         )
         XCTAssertEqual(TrackRowMetrics.titleLineLimit, 1)
         XCTAssertEqual(TrackRowMetrics.artworkSize, 40)

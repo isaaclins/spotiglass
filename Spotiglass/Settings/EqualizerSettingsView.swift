@@ -259,7 +259,7 @@ struct EqualizerSettingsView: View {
                     .tag(Optional<String>.none)
             }
             .labelsHidden()
-            .frame(maxWidth: 240)
+            .frame(maxWidth: SpotiglassDesign.Layout.pickerMaxWidth)
 
             Button(SpotiglassL10n.string("settings.eq.preset.save")) {
                 pendingSavePresetName = ""
@@ -301,7 +301,7 @@ struct EqualizerSettingsView: View {
                     .font(.system(.caption, design: .monospaced))
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
-                    .frame(width: 64, alignment: .trailing)
+                    .frame(width: SpotiglassDesign.Layout.gainLabelWidth, alignment: .trailing)
             }
         }
     }
@@ -497,7 +497,7 @@ private struct EqualizerBandColumn: View {
                 .font(.system(.caption2, design: .monospaced))
                 .foregroundStyle(gain == 0 ? .secondary : .primary)
                 .fixedSize()
-                .frame(minHeight: 14)
+                .frame(minHeight: SpotiglassDesign.Layout.iconSize)
 
             // The fader sizes itself; pinning it again here meant two places had
             // to be kept in agreement.
@@ -508,7 +508,7 @@ private struct EqualizerBandColumn: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
         }
-        .frame(minWidth: 52)
+        .frame(minWidth: SpotiglassDesign.Layout.equalizerBandMinWidth)
     }
 
     // Carries the same "dB" unit and one-decimal precision as the Preamp readout
@@ -600,7 +600,7 @@ private struct CenterOriginGainFader: View {
                     }
             )
         }
-        .frame(width: 28, height: 200)
+        .frame(width: SpotiglassDesign.Layout.iconButtonSize, height: SpotiglassDesign.Layout.equalizerSliderHeight)
         // Replacing Slider with a custom drag surface removed macOS key-view
         // focus. Opt back into keyboard traversal and handle repeats here while
         // leaving the drag gesture and VoiceOver action below intact (#263).
@@ -666,6 +666,6 @@ private struct SavePresetSheet: View {
             }
         }
         .padding(SpotiglassDesign.spacingL)
-        .frame(width: 380)
+        .frame(width: SpotiglassDesign.Layout.sheetWidth)
     }
 }

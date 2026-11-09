@@ -206,10 +206,10 @@ struct ImmersiveLyricsScrollCore<ID: Hashable, Content: View>: View {
         return .asymmetric(
             insertion: .scale(scale: 0.85, anchor: .bottom)
                 .combined(with: .opacity)
-                .combined(with: .offset(y: 12)),
+                .combined(with: .offset(y: SpotiglassDesign.spacingS)),
             removal: .scale(scale: 0.9, anchor: .bottom)
                 .combined(with: .opacity)
-                .combined(with: .offset(y: 6))
+                .combined(with: .offset(y: SpotiglassDesign.spacingXS))
         )
     }
 
