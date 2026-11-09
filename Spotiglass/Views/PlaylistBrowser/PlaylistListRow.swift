@@ -21,6 +21,9 @@ struct PlaylistListRow: View {
     @Environment(\.spotiglassLocale) private var spotiglassLocale
 
     var body: some View {
+        #if DEBUG
+        let _ = ViewBodyTally.record("PlaylistListRow:\(playlist.id)")
+        #endif
         HStack(spacing: SpotiglassDesign.spacingS) {
             Group {
                 if isLikedSongsRow {

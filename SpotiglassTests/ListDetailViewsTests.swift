@@ -611,8 +611,7 @@ final class ListDetailViewsTests: XCTestCase {
             pendingScrollRestoreTrackID: Binding(get: { restoreID }, set: { restoreID = $0 }),
             onTrackEnteredViewportApproximation: { _ in },
             playURI: { _ in },
-            currentPlaybackURI: nil,
-            isPlaying: false,
+            playback: .nothingPlaying,
             togglePlayPause: {},
             hasPlaybackDevice: true,
             addToQueue: { _ in },
@@ -639,8 +638,7 @@ final class ListDetailViewsTests: XCTestCase {
             pendingScrollRestoreTrackID: Binding(get: { restoreID }, set: { restoreID = $0 }),
             onTrackEnteredViewportApproximation: { _ in },
             playURI: { _ in },
-            currentPlaybackURI: nil,
-            isPlaying: false,
+            playback: .nothingPlaying,
             togglePlayPause: {},
             hasPlaybackDevice: false,
             addToQueue: { _ in },
@@ -664,8 +662,7 @@ final class ListDetailViewsTests: XCTestCase {
             pendingScrollRestoreTrackID: Binding(get: { restoreID }, set: { restoreID = $0 }),
             onTrackEnteredViewportApproximation: { _ in },
             playURI: { _ in },
-            currentPlaybackURI: nil,
-            isPlaying: false,
+            playback: .nothingPlaying,
             togglePlayPause: {},
             hasPlaybackDevice: false,
             addToQueue: { _ in },
@@ -918,8 +915,7 @@ private extension ListDetailViewsTests {
             playTrack: { _ in },
             openAlbum: { _ in },
             playAlbumContext: { _ in },
-            currentPlaybackURI: nil,
-            isPlaying: false,
+            playback: .nothingPlaying,
             togglePlayPause: {},
             hasPlaybackDevice: true,
             addToQueue: { _ in },
@@ -933,7 +929,7 @@ private extension ListDetailViewsTests {
         selection: Binding<Set<String>>,
         pendingScrollRestoreTrackID: Binding<String?>,
         onFirstVisibleTrackChanged: @escaping (String) -> Void
-    ) -> TrackListView {
+    ) -> TrackListView<TrackListRow> {
         TrackListView(
             tracks: tracks,
             selection: selection,

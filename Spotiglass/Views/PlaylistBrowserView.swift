@@ -3,9 +3,17 @@ import SwiftUI
 
 struct PlaylistBrowserView: View {
     @StateObject var viewModel: PlaylistBrowserViewModel
-    @ObservedObject var playbackViewModel: PlaybackSessionViewModel
-    @StateObject var queueViewModel: QueueViewModel
-    @StateObject var lyricsViewModel = ImmersiveLyricsViewModel()
+    /// Not observed, and neither are the queue and the lyrics: observing them re-ran this whole
+    /// body, and with it the sidebar, the detail column and every visible row, on each
+    /// play/pause and each new track (#422). The bar and ``BrowserPlaybackReactions`` observe the
+    /// player; the rows read their own playing state.
+    let playbackViewModel: PlaybackSessionViewModel
+    @StateObject private var queueViewModelHolder: UnobservedStateObject<QueueViewModel>
+    @StateObject private var lyricsViewModelHolder = UnobservedStateObject(ImmersiveLyricsViewModel())
+    var queueViewModel: QueueViewModel { queueViewModelHolder.object }
+    var lyricsViewModel: ImmersiveLyricsViewModel { lyricsViewModelHolder.object }
+    /// The player's device, kept here because Play, Shuffle and Add to Queue depend on it.
+    @State var playbackDeviceID: String?
     @EnvironmentObject var pinnedStore: PinnedItemsStore
     @EnvironmentObject var lyricsOverlay: LyricsOverlayController
     @Environment(\.spotiglassLocale) private var spotiglassLocale
@@ -49,7 +57,8 @@ struct PlaylistBrowserView: View {
     /// enough for all three columns, so the sidebar stayed collapsed; it comes back once they
     /// fit, or at the next widening after the queue closed (``BrowserWidthCommitPolicy/sidebarOnWidening(_:sidebarCollapsed:heldForQueue:isQueueVisible:isNarrow:)``).
     @State var isSidebarHeldForQueue = false
-    @ObservedObject var commandPaletteManager: CommandPaletteManager
+    /// Only written to, so not observed (#422).
+    let commandPaletteManager: CommandPaletteManager
     /// Catalog search and profile lookups for the command palette, Search view
     /// and tap targets. Separate from the view model's provider so palette
     /// searches never share its request state.
@@ -99,9 +108,10 @@ struct PlaylistBrowserView: View {
         )
 
         _viewModel = StateObject(wrappedValue: viewModel)
-        _playbackViewModel = ObservedObject(wrappedValue: playbackViewModel)
-        _queueViewModel = StateObject(wrappedValue: queueViewModel)
-        _commandPaletteManager = ObservedObject(wrappedValue: commandPaletteManager)
+        self.playbackViewModel = playbackViewModel
+        _queueViewModelHolder = StateObject(wrappedValue: UnobservedStateObject(queueViewModel))
+        _playbackDeviceID = State(initialValue: playbackViewModel.deviceID)
+        self.commandPaletteManager = commandPaletteManager
         self.catalogProvider = catalogProvider
         self.signOut = signOut
         self.playbackMode = playbackMode
@@ -174,8 +184,6 @@ struct PlaylistBrowserView: View {
                         queueViewModel: queueViewModel,
                         pendingPlaylistListScrollRestoreID: $pendingPlaylistListScrollRestoreID,
                         detailLastVisibleTrackID: $detailLastVisibleTrackID,
-                        currentPlaybackURI: currentPlaybackURI,
-                        isCurrentlyPlaying: isCurrentlyPlaying,
                         hasPlaybackDevice: hasPlaybackDevice,
                         onRequestCreatePlaylist: requestCreatePlaylist,
                         onRequestLibraryContinuation: requestLibraryContinuation
@@ -193,16 +201,12 @@ struct PlaylistBrowserView: View {
             }
             switch playbackMode {
             case .live:
-                // The bar shows and controls the music you hear (#396): the other service's
-                // player while it plays and nothing plays here.
-                let transport = playbackViewModel.audiblePlayer
-                PlaybackControlsView(
-                    viewModel: transport,
+                BrowserTransportBar(
+                    playbackViewModel: playbackViewModel,
                     isLyricsPresented: isLyricsPresentedBinding,
                     openArtist: { target in
                         openArtistFromTapTarget(target)
-                    },
-                    otherService: transport === playbackViewModel ? nil : transport.service
+                    }
                 )
             case let .unavailable(message):
                 PlaybackUnavailableBar(message: message)
@@ -222,31 +226,13 @@ struct PlaylistBrowserView: View {
         .onGeometryChange(for: CGFloat.self, of: \.size.width) { _, newWidth in
             commitBrowserContentWidthIfNeeded(newWidth)
         }
-        .task(id: lyricsPrefetchTrack?.uri) {
-            guard let track = lyricsPrefetchTrack, track.lyricsTrackKey != nil else { return }
-            await Task(priority: .userInitiated) {
-                await lyricsViewModel.preload(track: track)
-            }.value
-        }
-        .task(id: lyricsHalfwayNextPreloadTaskID) {
-            guard let current = lyricsPrefetchTrack,
-                  current.durationMilliseconds > 0,
-                  current.lyricsTrackKey != nil
-            else { return }
-            let halfMs = current.durationMilliseconds / 2
-            let waitMs = max(0, halfMs - current.positionMilliseconds)
-            if waitMs > 0 {
-                try? await Task.sleep(nanoseconds: UInt64(waitMs) * 1_000_000)
-            }
-            guard !Task.isCancelled else { return }
-            await Task(priority: .userInitiated) {
-                await queueViewModel.prefetchQueueForLyricsOverlay()
-                guard let nextPlayback = queueViewModel.upcomingItems.first?.playbackNowPlayingForLyricsPrefetch(),
-                      let nextID = nextPlayback.lyricsTrackKey
-                else { return }
-                guard nextID != current.lyricsTrackKey else { return }
-                await lyricsViewModel.preload(track: nextPlayback)
-            }.value
+        .background {
+            BrowserPlaybackReactions(
+                playbackViewModel: playbackViewModel,
+                queueViewModel: queueViewModel,
+                lyricsViewModel: lyricsViewModel,
+                commandPaletteManager: commandPaletteManager
+            )
         }
         .background(.background)
         // An empty title left the window untitled: blank in the Window menu, in
@@ -387,14 +373,12 @@ struct PlaylistBrowserView: View {
         .onChange(of: viewModel.selectedDetailTrackIDs) { _, _ in
             syncTrackSelectionMenuState()
         }
-        .onChange(of: playbackViewModel.deviceID) { _, _ in
+        // `$deviceID` announces the new id before storing it: keep the value it delivers.
+        .onReceive(playbackViewModel.$deviceID) { deviceID in
+            if playbackDeviceID != deviceID { playbackDeviceID = deviceID }
+        }
+        .onChange(of: playbackDeviceID) { _, _ in
             syncTrackSelectionMenuState()
-        }
-        .onChange(of: playbackViewModel.connectionState) { _, _ in
-            commandPaletteManager.setPlaybackTransportMutability(playbackViewModel.isTransportMutationReady)
-        }
-        .onChange(of: playbackViewModel.isTransportStateKnown) { _, _ in
-            commandPaletteManager.setPlaybackTransportMutability(playbackViewModel.isTransportMutationReady)
         }
         .onChange(of: pinnedStore.items) { _, _ in
             // Auth teardown detaches this scene before clearing account-bound
@@ -408,6 +392,9 @@ struct PlaylistBrowserView: View {
     }
 
     var body: some View {
+        #if DEBUG
+        let _ = ViewBodyTally.record("PlaylistBrowserView")
+        #endif
         browserCommandBindings
         .onChange(of: isQueueVisible) { _, visible in
             queueViewModel.setPanelVisible(visible)
@@ -442,15 +429,6 @@ struct PlaylistBrowserView: View {
         .onChange(of: lyricsOverlay.isPresented) { _, _ in
             syncUnifiedRefreshRoutingToViewModel()
         }
-        .onChange(of: playbackViewModel.sdkNextTracks) { _, _ in
-            queueViewModel.handleSdkQueueSnapshotChanged()
-        }
-        .onChange(of: playbackViewModel.repeatMode) { _, _ in
-            queueViewModel.syncFromPlaybackSession()
-        }
-        .onChange(of: queueRelevantPlaybackKey) { _, _ in
-            queueViewModel.handlePlaybackStateChange()
-        }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             queueViewModel.setAppActive(true)
         }
@@ -481,5 +459,109 @@ struct PlaylistBrowserView: View {
         }
         .modifier(PlaylistDeletionConfirmation(viewModel: viewModel))
         .modifier(LibraryRemovalConfirmation(viewModel: viewModel))
+    }
+}
+
+/// The player bar. It observes the player, so a play/pause re-renders the bar, not the browser
+/// around it (#422).
+private struct BrowserTransportBar: View {
+    @ObservedObject var playbackViewModel: PlaybackSessionViewModel
+    let isLyricsPresented: Binding<Bool>
+    let openArtist: (ArtistTapTarget) -> Void
+
+    var body: some View {
+        // The bar shows and controls the music you hear (#396): the other service's player
+        // while it plays and nothing plays here.
+        let transport = playbackViewModel.audiblePlayer
+        PlaybackControlsView(
+            viewModel: transport,
+            isLyricsPresented: isLyricsPresented,
+            openArtist: openArtist,
+            otherService: transport === playbackViewModel ? nil : transport.service
+        )
+    }
+}
+
+/// What the browser does when the player changes: refresh the queue, preload lyrics, update the
+/// menus. A view of its own that draws nothing and observes the player and the queue, so a
+/// play/pause or a new track runs this small body instead of the whole browser's (#422).
+private struct BrowserPlaybackReactions: View {
+    @ObservedObject var playbackViewModel: PlaybackSessionViewModel
+    @ObservedObject var queueViewModel: QueueViewModel
+    let lyricsViewModel: ImmersiveLyricsViewModel
+    let commandPaletteManager: CommandPaletteManager
+
+    /// Now playing track used to prefetch LRCLIB lyrics before the lyrics overlay opens (only while transport is playing).
+    private var lyricsPrefetchTrack: PlaybackNowPlaying? {
+        PlaylistBrowserPlaybackHelpers.lyricsPrefetchTrack(connectionState: playbackViewModel.connectionState)
+    }
+
+    /// Stable per playing track; used to schedule halfway next-track lyrics prefetch.
+    private var lyricsHalfwayNextPreloadTaskID: String? {
+        PlaylistBrowserPlaybackHelpers.lyricsHalfwayNextPreloadTaskID(
+            prefetchTrack: lyricsPrefetchTrack,
+            nextQueueURI: queueViewModel.upcomingItems.first?.uri
+        )
+    }
+
+    /// Playback identity without scrubber position ticks (avoids re-running queue hooks every progress frame).
+    private var queueRelevantPlaybackKey: String {
+        PlaylistBrowserPlaybackHelpers.queueRelevantPlaybackKey(connectionState: playbackViewModel.connectionState)
+    }
+
+    var body: some View {
+        Color.clear
+            .accessibilityHidden(true)
+            .task(id: lyricsPrefetchTrack?.uri) {
+                guard let track = lyricsPrefetchTrack, track.lyricsTrackKey != nil else { return }
+                await Task(priority: .userInitiated) {
+                    await lyricsViewModel.preload(track: track)
+                }.value
+            }
+            .task(id: lyricsHalfwayNextPreloadTaskID) {
+                guard let current = lyricsPrefetchTrack,
+                      current.durationMilliseconds > 0,
+                      current.lyricsTrackKey != nil
+                else { return }
+                let halfMs = current.durationMilliseconds / 2
+                let waitMs = max(0, halfMs - current.positionMilliseconds)
+                if waitMs > 0 {
+                    try? await Task.sleep(nanoseconds: UInt64(waitMs) * 1_000_000)
+                }
+                guard !Task.isCancelled else { return }
+                await Task(priority: .userInitiated) {
+                    await queueViewModel.prefetchQueueForLyricsOverlay()
+                    guard let nextPlayback = queueViewModel.upcomingItems.first?.playbackNowPlayingForLyricsPrefetch(),
+                          let nextID = nextPlayback.lyricsTrackKey
+                    else { return }
+                    guard nextID != current.lyricsTrackKey else { return }
+                    await lyricsViewModel.preload(track: nextPlayback)
+                }.value
+            }
+            .onChange(of: playbackViewModel.connectionState) { _, _ in
+                commandPaletteManager.setPlaybackTransportMutability(playbackViewModel.isTransportMutationReady)
+            }
+            .onChange(of: playbackViewModel.isTransportStateKnown) { _, _ in
+                commandPaletteManager.setPlaybackTransportMutability(playbackViewModel.isTransportMutationReady)
+            }
+            .onChange(of: playbackViewModel.sdkNextTracks) { _, _ in
+                queueViewModel.handleSdkQueueSnapshotChanged()
+            }
+            .onChange(of: playbackViewModel.repeatMode) { _, _ in
+                queueViewModel.syncFromPlaybackSession()
+            }
+            .onChange(of: queueRelevantPlaybackKey) { _, _ in
+                queueViewModel.handlePlaybackStateChange()
+            }
+    }
+}
+
+/// Keeps an object for the life of a view, as `@StateObject` does, without re-rendering the view
+/// when the object changes. For objects a view only calls into or hands to other views (#422).
+final class UnobservedStateObject<Object: AnyObject>: ObservableObject {
+    let object: Object
+
+    init(_ object: Object) {
+        self.object = object
     }
 }
