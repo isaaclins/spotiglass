@@ -3,16 +3,16 @@ import SwiftUI
 enum ImmersiveLyricsLayout {
     /// Full-window overlays often report `safeAreaInsets.top == 0`; still clear title bar + unified toolbar.
     static let minimumTopClearance: CGFloat = 52
-    static let lyricsInnerTopPadding: CGFloat = 8
-    static let lyricsInnerBottomPadding: CGFloat = 36
+    static let lyricsInnerTopPadding: CGFloat = SpotiglassDesign.spacingXS
+    static let lyricsInnerBottomPadding: CGFloat = SpotiglassDesign.spacingXL + SpotiglassDesign.spacingXXS
 
     /// Idle window after the user stops scrolling before auto-centering re-engages.
     static let autoCenterResumeDelay: Duration = .seconds(2)
 
-    static let resumePillBottomInset: CGFloat = 18
+    static let resumePillBottomInset: CGFloat = SpotiglassDesign.spacingM
     static let resumePillCornerRadius: CGFloat = 999
-    static let resumePillHorizontalPadding: CGFloat = 14
-    static let resumePillVerticalPadding: CGFloat = 8
+    static let resumePillHorizontalPadding: CGFloat = SpotiglassDesign.spacingS
+    static let resumePillVerticalPadding: CGFloat = SpotiglassDesign.spacingXS
 
     static let scrollEdgeFadeGradient = LinearGradient(
         stops: [

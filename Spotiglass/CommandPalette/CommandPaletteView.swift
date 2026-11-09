@@ -42,7 +42,7 @@ struct CommandPaletteView: View {
                     }
                     CommandPaletteFooterView(viewModel: viewModel, paletteGlass: paletteGlass)
                 }
-                .frame(maxWidth: 760)
+                .frame(maxWidth: SpotiglassDesign.Layout.paletteMaxWidth)
                 .frame(maxWidth: .infinity)
                 .padding(SpotiglassDesign.spacingXL)
                 .animation(

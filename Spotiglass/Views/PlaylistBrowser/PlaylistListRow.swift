@@ -17,8 +17,7 @@ struct PlaylistListRow: View {
         playlist.id == SpotiglassSidebarLibrary.likedSongsVirtualPlaylistID
     }
 
-    private let artworkSize: CGFloat = 46
-    @Environment(\.colorScheme) private var colorScheme
+    private let artworkSize = SpotiglassDesign.Layout.sidebarRowArtworkSize
     @Environment(\.spotiglassLocale) private var spotiglassLocale
 
     var body: some View {
@@ -32,14 +31,7 @@ struct PlaylistListRow: View {
             }
             .overlay(alignment: .bottomTrailing) {
                 if isActive {
-                    PlayingWaveformIcon(isPlaying: isPlaying)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 3)
-                        .background(
-                            RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                .fill(SpotiglassDesign.mediaBadgeBackgroundColor(colorScheme: colorScheme))
-                        )
-                        .padding(3)
+                    PlayingArtworkBadge(isPlaying: isPlaying)
                 }
             }
             .overlay(alignment: .topTrailing) {
@@ -48,7 +40,7 @@ struct PlaylistListRow: View {
                 }
             }
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXXS) {
                 if let titleOverride {
                     titleOverride
                 } else {
@@ -68,7 +60,7 @@ struct PlaylistListRow: View {
                     .lineLimit(1)
             }
         }
-        .padding(.vertical, SpotiglassDesign.spacingXS)
+        .padding(.vertical, SpotiglassDesign.spacingXXS)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel(

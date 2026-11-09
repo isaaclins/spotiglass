@@ -58,7 +58,7 @@ struct ImmersiveLyricsView: View {
                 )
             }
             .buttonStyle(.borderless)
-            .padding(.top, ImmersiveLyricsLayout.minimumTopClearance - 8)
+            .padding(.top, ImmersiveLyricsLayout.minimumTopClearance - SpotiglassDesign.spacingXS)
             .padding(.trailing, SpotiglassDesign.spacingL)
             .focused($focusedControl, equals: .close)
             .accessibilityFocused($accessibilityFocusedControl, equals: .close)

@@ -21,7 +21,7 @@ struct FollowedPlaylistLockedView: View {
             Text(SpotiglassL10n.string("error.browsing.followedPlaylistLocked.message"))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: 360)
+                .frame(maxWidth: SpotiglassDesign.Layout.messageMaxWidth)
 
             HStack(spacing: SpotiglassDesign.spacingM) {
                 Button {

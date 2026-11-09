@@ -31,7 +31,7 @@ struct CommandPaletteSettingsView: View {
                     content
                 }
                 .padding(SpotiglassDesign.spacingL)
-                .frame(minWidth: 720, minHeight: 520, alignment: .topLeading)
+                .frame(minWidth: SpotiglassDesign.Layout.standaloneSettingsMinWidth, minHeight: SpotiglassDesign.Layout.standaloneSettingsMinHeight, alignment: .topLeading)
             case .settingsTabs:
                 // Grouped Form to match the other settings panes. It also supplies
                 // this pane's scrolling: the settings shell deliberately has no
@@ -102,15 +102,15 @@ struct CommandPaletteSettingsView: View {
     }
 
     private func keybindingRow(spec: CommandPaletteCommandSpec) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: SpotiglassDesign.spacingXXS) {
             HStack(alignment: .center, spacing: SpotiglassDesign.spacingM) {
                 Image(systemName: spec.iconSystemName)
                     .font(SpotiglassDesign.Typography.commandPaletteIcon)
                     .symbolRenderingMode(.hierarchical)
                     .foregroundStyle(.secondary)
-                    .frame(width: 28, alignment: .center)
+                    .frame(width: SpotiglassDesign.Layout.iconButtonSize, alignment: .center)
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: SpotiglassDesign.spacingHalf) {
                     Text(spec.title)
                         .font(.subheadline.weight(.semibold))
                     Text(spec.subtitle)
@@ -119,81 +119,13 @@ struct CommandPaletteSettingsView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                if spec.isDestructive {
-                    // Destructive commands can't be bound to a single keypress; they
-                    // run from the Command Palette only, where intent is explicit.
-                    Label(
-                        SpotiglassL10n.string("palette.settings.notBindable"),
-                        systemImage: "lock.fill"
-                    )
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .help(SpotiglassL10n.string("palette.settings.notBindable.hint"))
-                } else {
-                    HStack(spacing: SpotiglassDesign.spacingXS) {
-                        HotkeyRecorderField(
-                            commandID: spec.commandID,
-                            keymapStore: keymapStore,
-                            onRecordingChange: { active in
-                                onRecordingChange(active)
-                                recordingCommandID = active ? spec.commandID : nil
-                                if active {
-                                    pendingConflictByCommand[spec.commandID] = nil
-                                    captureErrorByCommand[spec.commandID] = nil
-                                }
-                            },
-                            onCaptureConflict: { shortcut, otherID in
-                                captureErrorByCommand[spec.commandID] = nil
-                                pendingConflictByCommand[spec.commandID] = PendingHotkeyConflict(
-                                    shortcut: shortcut,
-                                    otherCommandID: otherID
-                                )
-                            },
-                            onCaptureFailure: { message in
-                                pendingConflictByCommand[spec.commandID] = nil
-                                captureErrorByCommand[spec.commandID] = message
-                            },
-                            onApplied: {
-                                pendingConflictByCommand[spec.commandID] = nil
-                                captureErrorByCommand[spec.commandID] = nil
-                            }
-                        )
-                        // Consistent field width so assigned (chip) and unassigned
-                        // ("Click to record") states read as one control, not two.
-                        .frame(minWidth: 132, alignment: .trailing)
-                        .fixedSize(horizontal: true, vertical: false)
-
-                        if keymapStore.primaryShortcut(for: spec.commandID) != nil {
-                            Button {
-                                pendingConflictByCommand[spec.commandID] = nil
-                                captureErrorByCommand[spec.commandID] = nil
-                                do {
-                                    try keymapStore.clearBinding(commandID: spec.commandID)
-                                } catch {
-                                    keymapStore.lastError = CommandPaletteKeymapErrorPresenter.message(
-                                        for: error,
-                                        source: keymapStore.fileURL.path,
-                                        operation: "clear shortcut"
-                                    )
-                                }
-                            } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .symbolRenderingMode(.hierarchical)
-                                    .font(SpotiglassDesign.Typography.commandPaletteClearShortcut)
-                                    .foregroundStyle(.secondary)
-                                    .frame(width: 28, height: 28)
-                                    .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .help(SpotiglassL10n.string("palette.settings.clearShortcut"))
-                            .accessibilityLabel(SpotiglassL10n.string("a11y.palette.clearShortcut"))
-                            .transition(.opacity.combined(with: .scale(scale: 0.7)))
-                        }
-                    }
-                    .animation(
-                        .spring(response: 0.3, dampingFraction: 0.82),
-                        value: keymapStore.primaryShortcut(for: spec.commandID) != nil
-                    )
+                // One shortcut column for every row: a field of one width and a
+                // clear button beside it, whether the command is bound, unbound or
+                // can't be bound, so the trailing edge never moves (#428).
+                HStack(spacing: SpotiglassDesign.spacingXS) {
+                    shortcutField(spec: spec)
+                        .frame(width: SpotiglassDesign.Layout.shortcutFieldWidth)
+                    clearShortcutButton(spec: spec)
                 }
             }
 
@@ -201,7 +133,7 @@ struct CommandPaletteSettingsView: View {
                 Text(SpotiglassL10n.string("palette.settings.recordingHint"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .padding(.leading, 28 + SpotiglassDesign.spacingM)
+                    .padding(.leading, SpotiglassDesign.Layout.iconButtonSize + SpotiglassDesign.spacingM)
                     .transition(.opacity)
             }
 
@@ -210,7 +142,7 @@ struct CommandPaletteSettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.orange)
                     .fixedSize(horizontal: false, vertical: true)
-                    .padding(.leading, 28 + SpotiglassDesign.spacingM)
+                    .padding(.leading, SpotiglassDesign.Layout.iconButtonSize + SpotiglassDesign.spacingM)
                     .transition(.opacity)
             }
 
@@ -243,7 +175,7 @@ struct CommandPaletteSettingsView: View {
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
                 }
-                .padding(.leading, 28 + SpotiglassDesign.spacingM)
+                .padding(.leading, SpotiglassDesign.Layout.iconButtonSize + SpotiglassDesign.spacingM)
                 .transition(
                     .asymmetric(
                         insertion: .move(edge: .top).combined(with: .opacity),
@@ -260,15 +192,95 @@ struct CommandPaletteSettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                    .padding(.leading, 28 + SpotiglassDesign.spacingM)
+                    .padding(.leading, SpotiglassDesign.Layout.iconButtonSize + SpotiglassDesign.spacingM)
                     .transition(.opacity)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, SpotiglassDesign.spacingXXS)
         .animation(
             .spring(response: 0.34, dampingFraction: 0.86),
             value: pendingConflictByCommand[spec.commandID] != nil
         )
+    }
+
+    @ViewBuilder
+    private func shortcutField(spec: CommandPaletteCommandSpec) -> some View {
+        if spec.isDestructive {
+            // Destructive commands can't be bound to a single keypress; they run
+            // from the Command Palette only, where intent is explicit. Shown as the
+            // same field, unavailable, so the column reads the same on every row.
+            Button {} label: {
+                Label(SpotiglassL10n.string("palette.settings.notBindable"), systemImage: "lock.fill")
+                    .frame(maxWidth: .infinity)
+            }
+            .disabled(true)
+            .frame(minHeight: SpotiglassDesign.Layout.shortcutFieldMinHeight)
+            .contentShape(Rectangle())
+            .help(SpotiglassL10n.string("palette.settings.notBindable.hint"))
+            .accessibilityElement(children: .combine)
+            .accessibilityHint(SpotiglassL10n.string("palette.settings.notBindable.hint"))
+        } else {
+            HotkeyRecorderField(
+                commandID: spec.commandID,
+                keymapStore: keymapStore,
+                onRecordingChange: { active in
+                    onRecordingChange(active)
+                    recordingCommandID = active ? spec.commandID : nil
+                    if active {
+                        pendingConflictByCommand[spec.commandID] = nil
+                        captureErrorByCommand[spec.commandID] = nil
+                    }
+                },
+                onCaptureConflict: { shortcut, otherID in
+                    captureErrorByCommand[spec.commandID] = nil
+                    pendingConflictByCommand[spec.commandID] = PendingHotkeyConflict(
+                        shortcut: shortcut,
+                        otherCommandID: otherID
+                    )
+                },
+                onCaptureFailure: { message in
+                    pendingConflictByCommand[spec.commandID] = nil
+                    captureErrorByCommand[spec.commandID] = message
+                },
+                onApplied: {
+                    pendingConflictByCommand[spec.commandID] = nil
+                    captureErrorByCommand[spec.commandID] = nil
+                }
+            )
+        }
+    }
+
+    /// On every row, enabled only while there is a shortcut to clear. While there
+    /// is nothing to clear it only holds the column: no tooltip, and VoiceOver
+    /// skips it instead of reading a dead "Clear shortcut" on every row.
+    private func clearShortcutButton(spec: CommandPaletteCommandSpec) -> some View {
+        let canClear = !spec.isDestructive && keymapStore.primaryShortcut(for: spec.commandID) != nil
+        return Button {
+            pendingConflictByCommand[spec.commandID] = nil
+            captureErrorByCommand[spec.commandID] = nil
+            do {
+                try keymapStore.clearBinding(commandID: spec.commandID)
+            } catch {
+                keymapStore.lastError = CommandPaletteKeymapErrorPresenter.message(
+                    for: error,
+                    source: keymapStore.fileURL.path,
+                    operation: "clear shortcut"
+                )
+            }
+        } label: {
+            Image(systemName: "xmark.circle.fill")
+                .symbolRenderingMode(.hierarchical)
+                .font(SpotiglassDesign.Typography.commandPaletteClearShortcut)
+                .foregroundStyle(.secondary)
+                .opacity(canClear ? 1 : 0.35)
+                .frame(width: SpotiglassDesign.Layout.iconButtonSize, height: SpotiglassDesign.Layout.iconButtonSize)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!canClear)
+        .help(canClear ? SpotiglassL10n.string("palette.settings.clearShortcut") : "")
+        .accessibilityLabel(SpotiglassL10n.string("a11y.palette.clearShortcut"))
+        .accessibilityHidden(!canClear)
     }
 
     private func displayTitle(for commandID: String) -> String {
@@ -314,8 +326,8 @@ struct CommandPaletteSettingsView: View {
 
             TextEditor(text: $keymapStore.editorText)
                 .font(.system(.body, design: .monospaced))
-                .frame(minHeight: 200)
-                .padding(6)
+                .frame(minHeight: SpotiglassDesign.Layout.textEditorMinHeight)
+                .padding(SpotiglassDesign.spacingXS)
                 .background(.background, in: RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
