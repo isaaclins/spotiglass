@@ -23,6 +23,8 @@ struct EmptyStateView: View {
 
 struct ErrorStateView: View {
     let error: BrowsingDisplayError
+    /// Loads what failed again; without it the view only explains the failure.
+    var retry: (() -> Void)?
     @State private var isShowingDiagnosticAlert = false
 
     var body: some View {
@@ -39,6 +41,10 @@ struct ErrorStateView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: SpotiglassDesign.Layout.messageMaxWidth)
+
+            if let retry {
+                Button(SpotiglassL10n.string("browser.retry"), action: retry)
+            }
 
             // The details are a request line, a status, a header dump and a raw
             // JSON body. That is for a bug report, not for someone who wanted a

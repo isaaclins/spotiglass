@@ -2,7 +2,14 @@ import Foundation
 
 extension PlaylistBrowserViewModel {
     func loadMoreArtistAlbums() async {
-        guard case let .loaded(.artist(detail)) = detailState,
+        // A page that failed before leaves the artist on screen with its error; Load More
+        // there asks for that page again (#465).
+        let shown: BrowsingDetailContent?
+        switch detailState {
+        case let .loaded(content), let .staleCache(content, _): shown = content
+        default: shown = nil
+        }
+        guard case let .artist(detail)? = shown,
               var paging = currentArtistAlbumsPaging,
               paging.artistID == detail.artist.id,
               !paging.isLoading,
@@ -28,7 +35,6 @@ extension PlaylistBrowserViewModel {
             if paging.seenNextURLs.contains(nextURL.absoluteString) {
                 paging.nextURL = nil
             } else {
-                paging.seenNextURLs.insert(nextURL.absoluteString)
                 let page = try await api.artistAlbumsPage(
                     id: paging.artistID,
                     includeGroups: paging.includeGroups,
@@ -38,6 +44,9 @@ extension PlaylistBrowserViewModel {
                     cacheMode: .bypassCache
                 )
                 guard ownsArtistPagination(session: session, artistID: artistID) else { return }
+                // Marked as read only once it was: a page that failed is asked again on the
+                // next Load More instead of ending the list there (#465).
+                paging.seenNextURLs.insert(nextURL.absoluteString)
                 paging.albums = Self.dedupeAlbums(paging.albums + page.items)
                 paging.nextURL = page.next
                 paging.nextOffset += paging.limit

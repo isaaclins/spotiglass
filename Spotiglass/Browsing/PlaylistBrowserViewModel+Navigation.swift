@@ -9,7 +9,14 @@ extension PlaylistBrowserViewModel {
                 return vm.artist.id
             }
             return nil
-        case .loading, .empty, .error:
+        case .error:
+            // A failed artist page has no artist to read the ID from; Retry and Refresh load
+            // the one it was opened for (#465).
+            if case let .artist(id) = currentNavigationTarget {
+                return id
+            }
+            return nil
+        case .loading, .empty:
             return nil
         }
     }
