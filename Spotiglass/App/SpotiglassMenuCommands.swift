@@ -64,6 +64,25 @@ struct SpotiglassMenuCommands: Commands {
         isSignedIn && (activeCommandPaletteManager?.canTogglePlayback ?? false)
     }
 
+    /// Refresh reloads the page you're on; while the lyrics cover it there's nothing to reload (#438).
+    var isRefreshEnabled: Bool {
+        isSignedIn && !isLyricsPresented
+    }
+
+    /// Back and the track-selection commands act on the page under the lyrics, which you
+    /// can't see while they are open; the toolbar hides Back for the same reason (#438).
+    var isBackEnabled: Bool {
+        isSignedIn && canNavigateBack && !isLyricsPresented
+    }
+
+    var isTrackSelectionEnqueueEnabled: Bool {
+        isSignedIn && hasPlayback && canEnqueueTrackSelection && !isLyricsPresented
+    }
+
+    var isTrackSelectionPinEnabled: Bool {
+        isSignedIn && trackSelectionPinState != .unavailable && !isLyricsPresented
+    }
+
     var isLyricsToggleEnabled: Bool {
         isSignedIn && (activeCommandPaletteManager?.canToggleLyrics ?? false)
     }
@@ -148,7 +167,7 @@ struct SpotiglassMenuCommands: Commands {
                 run(CommandPaletteCommandID.navigateBack)
             }
             .keyboardShortcut("[", modifiers: .command)
-            .disabled(!isSignedIn || !canNavigateBack)
+            .disabled(!isBackEnabled)
 
             Divider()
 
@@ -176,7 +195,7 @@ struct SpotiglassMenuCommands: Commands {
                 run(CommandPaletteCommandID.refreshPlaylists)
             }
             .keyboardShortcut(keymapShortcut(for: CommandPaletteCommandID.refreshPlaylists))
-            .disabled(!isSignedIn)
+            .disabled(!isRefreshEnabled)
         }
 
         CommandMenu(SpotiglassL10n.string("menu.playback.title", locale: currentLocale)) {
@@ -242,13 +261,13 @@ struct SpotiglassMenuCommands: Commands {
                 run(CommandPaletteCommandID.enqueueTrackSelection)
             }
             .keyboardShortcut("e", modifiers: [.option, .command])
-            .disabled(!isSignedIn || !hasPlayback || !canEnqueueTrackSelection)
+            .disabled(!isTrackSelectionEnqueueEnabled)
 
             Button(pinItemTitle) {
                 run(CommandPaletteCommandID.pinTrackSelection)
             }
             .keyboardShortcut("p", modifiers: [.option, .command])
-            .disabled(!isSignedIn || trackSelectionPinState == .unavailable)
+            .disabled(!isTrackSelectionPinEnabled)
 
             Divider()
 

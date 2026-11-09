@@ -95,22 +95,33 @@ final class PlaylistBrowserMainSurfaceRefreshTests: XCTestCase {
         XCTAssertEqual(vm.detailSession, sessionBefore, "A pinned row owns no reloadable detail.")
     }
 
-    func testPerformUnifiedRefreshWithLyricsPresentedRefreshesTheMainSurface() async {
+    /// #438: with the lyrics open, Refresh (toolbar, ⌘R, View menu, palette: all end here)
+    /// reloaded the playlist hidden under them. It does nothing now, for the page and the queue.
+    func testPerformUnifiedRefreshWithLyricsPresentedDoesNothing() async {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
             trackResults: ["one": [.success([PlaylistBrowsingTestFixtures.track(id: "t1")])]]
         )
         let vm = PlaylistBrowserViewModel(api: api, cache: MockBrowsingCache())
         await vm.load()
+        vm.sidebarSelection = .playlist("one")
+        await vm.unifiedRefreshMainSurface()
+        let sessionBefore = vm.detailSession
         vm.refreshRoutingLyricsPresented = true
-        // Lyrics take priority over the queue panel, even when it is focused.
         vm.refreshRoutingQueuePanelVisible = true
         vm.refreshRoutingQueuePanelFocused = true
         var queueRefreshed = false
 
         await vm.performUnifiedRefresh(queueRefresh: { queueRefreshed = true })
 
-        XCTAssertFalse(queueRefreshed, "With lyrics presented the refresh belongs to the main surface.")
+        XCTAssertFalse(queueRefreshed, "Refresh reloaded the queue while the lyrics were open.")
+        XCTAssertEqual(vm.detailSession, sessionBefore, "Refresh reloaded the page under the lyrics.")
+
+        // Closing the lyrics brings Refresh back.
+        vm.refreshRoutingLyricsPresented = false
+        vm.refreshRoutingQueuePanelFocused = false
+        await vm.performUnifiedRefresh(queueRefresh: { queueRefreshed = true })
+        XCTAssertGreaterThan(vm.detailSession, sessionBefore, "Refresh stayed off after the lyrics closed.")
     }
 
     func testPerformUnifiedRefreshWithoutQueueFocusRefreshesTheMainSurface() async {

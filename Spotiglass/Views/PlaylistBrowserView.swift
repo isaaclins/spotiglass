@@ -132,9 +132,13 @@ struct PlaylistBrowserView: View {
         return SpotiglassL10n.format("browser.disconnect.hint.switch", next.displayName)
     }
 
-    /// Where you are, falling back to the app name at the root.
+    /// Where you are, falling back to the app name at the root. With the lyrics open that is
+    /// the lyrics, not the page underneath them (#438).
     private var windowTitle: String {
-        BrowserToolbarPresentation.windowTitle(
+        if lyricsOverlay.isPresented {
+            return SpotiglassL10n.string("playback.controls.lyrics")
+        }
+        return BrowserToolbarPresentation.windowTitle(
             for: viewModel.breadcrumbPath,
             locale: spotiglassLocale
         )
@@ -197,6 +201,18 @@ struct PlaylistBrowserView: View {
                         onRequestCreatePlaylist: requestCreatePlaylist,
                         onRequestLibraryContinuation: requestLibraryContinuation
                     )
+                    // The page is covered while the lyrics are open: VoiceOver, Tab and the
+                    // page's own shortcuts must not reach rows you can't see.
+                    .disabled(lyricsOverlay.isPresented)
+                    .accessibilityHidden(lyricsOverlay.isPresented)
+                    // Lyrics take the place of the page in this column only, so the sidebar,
+                    // the queue and the player bar below stay as on every other screen (#438).
+                    .overlay {
+                        LyricsOverlayLayer(
+                            lyricsOverlay: lyricsOverlay,
+                            keymapStore: commandPaletteManager.keymapStore
+                        )
+                    }
                 } queueColumn: {
                     QueuePanelColumn(
                         browserViewModel: viewModel,
@@ -260,48 +276,47 @@ struct PlaylistBrowserView: View {
             }
             // At the root there is no trail and nothing to go back to, so the
             // item would render as an empty capsule beside the window title.
-            if viewModel.canNavigateBack || !viewModel.breadcrumbPath.isEmpty {
+            // The trail belongs to the page under the lyrics, so it leaves with that page (#438).
+            if !lyricsOverlay.isPresented, viewModel.canNavigateBack || !viewModel.breadcrumbPath.isEmpty {
                 ToolbarItem(placement: .navigation) {
                     NavigationToolbarChrome(viewModel: viewModel)
                 }
             }
-            if lyricsOverlay.isPresented {
-                ToolbarItemGroup(placement: .automatic) {
+            // With the lyrics open the bar keeps what still applies (the queue panel stays next
+            // to them) and trades Refresh and Disconnect for closing the lyrics: Refresh would
+            // reload a page that isn't showing (#438).
+            ToolbarItemGroup(placement: .automatic) {
+                Button {
+                    isQueueVisible.toggle()
+                } label: {
+                    Label(SpotiglassL10n.string("browser.queue"), systemImage: "list.bullet.indent")
+                }
+                .help(
+                    isQueueVisible
+                        ? SpotiglassL10n.string("tooltip.toolbar.queue.hide")
+                        : SpotiglassL10n.string("tooltip.toolbar.queue.show")
+                )
+                .accessibilityHint(SpotiglassL10n.string("browser.queue.hint"))
+
+                if lyricsOverlay.isPresented {
                     Button {
                         lyricsOverlay.dismiss()
                     } label: {
-                        Label(SpotiglassL10n.string("browser.closeLyrics"), systemImage: "xmark.circle")
+                        Label(SpotiglassL10n.string("browser.closeLyrics"), systemImage: "xmark")
                     }
                     .help(SpotiglassL10n.string("browser.closeLyrics"))
                     .accessibilityHint(SpotiglassL10n.string("browser.closeLyrics.hint"))
-                }
-                ToolbarItem(placement: .primaryAction) {
-                    unifiedRefreshToolbarButton
-                }
-            } else {
-                ToolbarItemGroup(placement: .automatic) {
+                } else if canDisconnect {
                     Button {
-                        isQueueVisible.toggle()
+                        isConfirmingDisconnect = true
                     } label: {
-                        Label(SpotiglassL10n.string("browser.queue"), systemImage: "list.bullet.indent")
+                        Label(SpotiglassL10n.string("browser.disconnect"), systemImage: "rectangle.portrait.and.arrow.right")
                     }
-                    .help(
-                        isQueueVisible
-                            ? SpotiglassL10n.string("tooltip.toolbar.queue.hide")
-                            : SpotiglassL10n.string("tooltip.toolbar.queue.show")
-                    )
-                    .accessibilityHint(SpotiglassL10n.string("browser.queue.hint"))
-
-                    if canDisconnect {
-                        Button {
-                            isConfirmingDisconnect = true
-                        } label: {
-                            Label(SpotiglassL10n.string("browser.disconnect"), systemImage: "rectangle.portrait.and.arrow.right")
-                        }
-                        .help(SpotiglassL10n.string("browser.disconnect"))
-                        .accessibilityHint(Self.disconnectHint(switchingTo: disconnectSwitchesTo))
-                    }
+                    .help(SpotiglassL10n.string("browser.disconnect"))
+                    .accessibilityHint(Self.disconnectHint(switchingTo: disconnectSwitchesTo))
                 }
+            }
+            if !lyricsOverlay.isPresented {
                 ToolbarItem(placement: .primaryAction) {
                     unifiedRefreshToolbarButton
                 }
@@ -446,6 +461,12 @@ struct PlaylistBrowserView: View {
         .onChange(of: lyricsOverlay.isPresented) { _, _ in
             syncUnifiedRefreshRoutingToViewModel()
         }
+        // The sidebar, the queue and the player bar stay usable next to the lyrics, so you can
+        // go somewhere else while they are open (a sidebar row, an artist link, Back). The new
+        // page would load out of sight under the lyrics, so going there closes them (#438).
+        .onChange(of: LyricsCoveredPage(viewModel)) { oldPage, newPage in
+            if lyricsOverlay.isPresented, newPage.isAnotherPage(than: oldPage) { lyricsOverlay.dismiss() }
+        }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             queueViewModel.setAppActive(true)
         }
@@ -476,6 +497,46 @@ struct PlaylistBrowserView: View {
         }
         .modifier(PlaylistDeletionConfirmation(viewModel: viewModel))
         .modifier(LibraryRemovalConfirmation(viewModel: viewModel))
+    }
+}
+
+/// Which page sits under the lyrics: the sidebar row and the trail pushed on top of it, by id.
+/// Titles and covers are left out, so a rename or a sharper cover doesn't count as going
+/// somewhere else.
+struct LyricsCoveredPage: Equatable {
+    let selection: SidebarSelection?
+    let trail: [String]
+
+    @MainActor
+    init(_ viewModel: PlaylistBrowserViewModel) {
+        selection = viewModel.sidebarSelection
+        trail = viewModel.breadcrumbPath.map { crumb in
+            switch crumb.kind {
+            case .search: "search"
+            case .likedSongs: "likedSongs"
+            case let .playlist(id): "playlist:\(id)"
+            case let .artist(id): "artist:\(id)"
+            case let .album(id, _, _, _): "album:\(id)"
+            }
+        }
+    }
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.selection == rhs.selection && lhs.trail == rhs.trail
+    }
+
+    /// A pinned row is selected only for a moment: a pinned song plays and the previous row is
+    /// selected again, so that round trip stays on the page. A pinned playlist, album or
+    /// artist opens its page, which changes the trail.
+    func isAnotherPage(than old: Self) -> Bool {
+        if trail != old.trail { return true }
+        guard selection != old.selection else { return false }
+        return !Self.isPinnedRow(selection) && !Self.isPinnedRow(old.selection)
+    }
+
+    private static func isPinnedRow(_ selection: SidebarSelection?) -> Bool {
+        if case .pinnedItem = selection { return true }
+        return false
     }
 }
 
