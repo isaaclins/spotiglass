@@ -288,29 +288,52 @@ final class BrowserChromeViewsTests: XCTestCase {
         XCTAssertEqual(chrome.destinationDescription, "Go back to Malcolm Todd")
     }
 
-    /// Artist links in track rows pass only the artist's ID. Back has to name
-    /// the artist from the row on screen even when their page never loaded.
-    func testBackNamesAnArtistOpenedFromATrackRow() async throws {
+    /// An artist link in a track row hands over the name that row shows, not
+    /// one looked up elsewhere: with the same artist in two rows, one of them
+    /// with Spotify's "Unknown artist" placeholder, clicking Bonobo in the other
+    /// row must make back say Bonobo, even when the page never loaded.
+    func testBackNamesTheArtistAsTheClickedRowShowsThem() async throws {
+        func item(_ id: String, artistName: String) -> MusicPlaylistTrackItem {
+            MusicPlaylistTrackItem(
+                id: id,
+                content: .track(MusicTrack(
+                    id: id,
+                    name: "Track \(id)",
+                    artists: [artistName],
+                    artistRefs: [MusicArtistRef(id: "artist-bonobo", name: artistName)],
+                    albumArtworkURL: nil,
+                    durationMilliseconds: 237_000,
+                    isExplicit: false,
+                    isPlayable: true,
+                    linkedFromID: nil,
+                    uri: "spotify:track:\(id)"
+                ))
+            )
+        }
+        let items = [item("first", artistName: "Unknown artist"), item("kerala", artistName: "Bonobo")]
+        let rows = TrackRowViewModel.numberedPlaylistRows(items)
+
+        var clicked: MusicArtistRef?
+        let row = TrackListRow(
+            trackNumber: 2,
+            track: rows[1],
+            playURI: { _ in },
+            togglePlayPause: {},
+            isCurrent: false,
+            isPlaying: false,
+            openArtist: { clicked = $0 }
+        )
+        .environmentObject(PinnedItemsStore(cache: InMemoryPinnedItemsCache()))
+        ViewTestHost.host(row, size: CGSize(width: 520, height: 48))
+        try row.inspect().find(button: "Bonobo").tap()
+        let artist = try XCTUnwrap(clicked)
+        XCTAssertEqual(artist, MusicArtistRef(id: "artist-bonobo", name: "Bonobo"))
+
         let entered = LibraryEditsGate()
         let release = LibraryEditsGate()
-        let row = MusicPlaylistTrackItem(
-            id: "kerala",
-            content: .track(MusicTrack(
-                id: "kerala",
-                name: "Kerala",
-                artists: ["Bonobo"],
-                artistRefs: [MusicArtistRef(id: "artist-bonobo", name: "Bonobo")],
-                albumArtworkURL: nil,
-                durationMilliseconds: 237_000,
-                isExplicit: false,
-                isPlayable: true,
-                linkedFromID: nil,
-                uri: "spotify:track:kerala"
-            ))
-        )
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "one", name: "One")])],
-            trackResults: ["one": [.success([row])]],
+            trackResults: ["one": [.success(items)]],
             artistAlbumsHandler: { _, _, _ in
                 entered.open()
                 await release.wait()
@@ -322,7 +345,7 @@ final class BrowserChromeViewsTests: XCTestCase {
         await viewModel.selectSidebar(.playlist("one"))
 
         let opening = Task { @MainActor in
-            await viewModel.selectArtist(id: "artist-bonobo", origin: .extend, displayName: nil)
+            await viewModel.selectArtist(id: artist.id, origin: .extend, displayName: artist.name)
         }
         await entered.wait()
         XCTAssertEqual(BrowserToolbarPresentation.windowTitle(for: viewModel.breadcrumbPath), "Bonobo")
@@ -331,8 +354,7 @@ final class BrowserChromeViewsTests: XCTestCase {
         await opening.value
 
         XCTAssertNil(viewModel.cachedArtistSnapshots["artist-bonobo"])
-        let chrome = NavigationToolbarChrome(viewModel: viewModel)
-        XCTAssertEqual(chrome.destinationDescription, "Go back to Bonobo")
+        XCTAssertEqual(NavigationToolbarChrome(viewModel: viewModel).destinationDescription, "Go back to Bonobo")
     }
 
     /// Every app language names the destination, not just English.

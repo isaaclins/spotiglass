@@ -238,8 +238,8 @@ struct PlaylistBrowserMainDetailColumn: View {
             addToQueue: { uri in
                 await queueViewModel.addToQueue(uri: uri)
             },
-            openArtist: { artistID in
-                Task { await viewModel.selectArtist(id: artistID, origin: .extend, displayName: nil) }
+            openArtist: { artist in
+                Task { await viewModel.selectArtist(id: artist.id, origin: .extend, displayName: artist.name) }
             },
             onRequestLibraryContinuation: onRequestLibraryContinuation,
             playHeaderAction: {
@@ -296,8 +296,8 @@ struct PlaylistBrowserMainDetailColumn: View {
             addToQueue: { uri in
                 await queueViewModel.addToQueue(uri: uri)
             },
-            openArtist: { artistID in
-                Task { await viewModel.selectArtist(id: artistID, origin: .extend, displayName: nil) }
+            openArtist: { artist in
+                Task { await viewModel.selectArtist(id: artist.id, origin: .extend, displayName: artist.name) }
             },
             loadMoreAlbums: {
                 Task { await viewModel.loadMoreArtistAlbums() }

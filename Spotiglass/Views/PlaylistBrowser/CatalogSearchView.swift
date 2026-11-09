@@ -243,9 +243,8 @@ struct CatalogSearchView: View {
                         },
                         isCurrent: mark.isCurrent,
                         isPlaying: mark.isPlaying,
-                        openArtist: { artistID in
-                            let name = track.artistRefs.first { $0.id == artistID }?.name
-                            Task { await viewModel.selectArtist(id: artistID, origin: .extend, displayName: name) }
+                        openArtist: { artist in
+                            Task { await viewModel.selectArtist(id: artist.id, origin: .extend, displayName: artist.name) }
                         },
                         trackOpsMenuItems: {
                             AnyView(TrackOpsMenuItems(
