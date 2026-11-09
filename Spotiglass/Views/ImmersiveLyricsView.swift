@@ -67,14 +67,16 @@ struct ImmersiveLyricsView: View {
     }
 
     /// The lyrics list exists only once lyrics are ready (not while loading or for an
-    /// instrumental), so focus is placed when it first appears. macOS can ignore a focus request
-    /// made during the appearance pass; the second main-queue pass makes it stick.
+    /// instrumental), so focus is placed when it first appears. A request made while the
+    /// lyrics are still being laid out is dropped, so it is repeated for a moment until the
+    /// list has the keyboard.
     private func placeInitialFocusIfReady() {
         guard !hasPlacedInitialFocus, Self.showsLyricsList(lyricsModel.phase) else { return }
         hasPlacedInitialFocus = true
-        DispatchQueue.main.async {
-            isLyricsListFocused = true
-            DispatchQueue.main.async {
+        Task { @MainActor in
+            for delay in [0, 150, 400, 800] {
+                try? await Task.sleep(for: .milliseconds(delay))
+                if isLyricsListFocused { return }
                 isLyricsListFocused = true
             }
         }

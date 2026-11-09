@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct ImmersiveLyricsMainLayout: View {
+    /// Room the compact header (64 pt cover plus spacing) takes above the lyrics.
+    static let compactHeaderHeight: CGFloat = 64 + SpotiglassDesign.spacingM
     @ObservedObject var playbackViewModel: PlaybackSessionViewModel
     @ObservedObject var queueViewModel: QueueViewModel
     @ObservedObject var lyricsModel: ImmersiveLyricsViewModel
@@ -53,13 +55,16 @@ struct ImmersiveLyricsMainLayout: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 } else {
+                    // Narrow: the lyrics now share the window with the sidebar and the player
+                    // bar, so a small header keeps the lyrics in view (#438).
                     VStack(alignment: .leading, spacing: SpotiglassDesign.spacingM) {
                         ImmersiveLyricsLeftColumnView(
                             playbackViewModel: playbackViewModel,
                             queueViewModel: queueViewModel,
                             navigateToArtist: navigateToArtist,
                             navigateToAlbum: navigateToAlbum,
-                            currentTrack: currentTrack
+                            currentTrack: currentTrack,
+                            isCompact: true
                         )
                         ImmersiveLyricsLyricsPhaseColumn(
                             lyricsModel: lyricsModel,
@@ -68,8 +73,10 @@ struct ImmersiveLyricsMainLayout: View {
                             reduceMotion: reduceMotion,
                             usesLyricsScrollEdgeFade: usesLyricsScrollEdgeFade,
                             lyricsTextSize: lyricsTextSize,
-                            maxHeight: max(200, usableHeight * 0.5)
+                            maxHeight: max(160, usableHeight - Self.compactHeaderHeight),
+                            onSeek: seekHandler
                         )
+                        .frame(maxHeight: .infinity, alignment: .top)
                     }
                 }
             }

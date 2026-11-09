@@ -147,6 +147,48 @@ final class LyricsOverlayControllerTests: XCTestCase {
         )
     }
 
+    /// #438: opening the lyrics left the keyboard on the invisible container around them, so
+    /// the arrow and page keys did nothing until Tab was pressed. The lyrics list now takes
+    /// focus once it is laid out. Hosts the real list (`ImmersiveLyricsScrollCore`) with the
+    /// same focus request `ImmersiveLyricsView` makes, in the real focus container.
+    func testOpeningTheLyricsPutsFocusOnTheLyricsList() throws {
+        let box = FocusProbeBox()
+        let root = NSView(frame: NSRect(x: 0, y: 0, width: 320, height: 240))
+        let previousResponder = LyricsTestFirstResponderView(frame: NSRect(x: 0, y: 0, width: 100, height: 32))
+        root.addSubview(previousResponder)
+        let focusContainer = LyricsOverlayFocusContainerView(
+            content: FocusProbeLyrics(box: box),
+            isActive: false,
+            keymapStore: CommandPaletteKeymapStore(fileURL: makeCommandPaletteTestsTempSettingsURL())
+        )
+        focusContainer.frame = root.bounds
+        root.addSubview(focusContainer)
+        let window = OffscreenTestWindow(
+            contentRect: root.bounds,
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        window.isReleasedWhenClosed = false
+        window.contentView = root
+        defer {
+            focusContainer.deactivate()
+            AppKitTestSupport.closeWindowSafely(window)
+        }
+
+        XCTAssertTrue(AppKitTestSupport.makeFirstResponder(previousResponder, in: window))
+        focusContainer.setActive(true)
+        AppKitTestSupport.pumpRunLoop(for: 1.2)
+
+        XCTAssertTrue(box.focused, "the lyrics list does not have the keyboard after opening")
+        let responder = try XCTUnwrap(window.firstResponder as? NSView, "nothing has the keyboard")
+        XCTAssertTrue(responder.isDescendant(of: focusContainer), "focus is outside the lyrics: \(responder)")
+
+        focusContainer.setActive(false)
+        AppKitTestSupport.pumpRunLoop()
+        XCTAssertTrue(window.firstResponder === previousResponder, "closing the lyrics did not give focus back")
+    }
+
     func testLyricsFocusContainerRepresentableLifecycle() {
         let wrapper = LyricsOverlayFocusContainer(
             content: Text("Lyrics"),
@@ -220,4 +262,27 @@ final class LyricsOverlayControllerTests: XCTestCase {
 @MainActor
 private final class LyricsTestFirstResponderView: NSView {
     override var acceptsFirstResponder: Bool { true }
+}
+
+final class FocusProbeBox { var focused = false }
+
+/// The real lyrics list with the focus request `ImmersiveLyricsView` makes on opening.
+private struct FocusProbeLyrics: View {
+    let box: FocusProbeBox
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        ImmersiveLyricsScrollCore(activeID: 0, reduceMotion: true, usesLyricsScrollEdgeFade: false) { _ in
+            VStack { ForEach(0..<40) { Text("Line \($0)").id($0) } }
+        }
+        .environment(\.lyricsListFocus, $focused)
+        .onChange(of: focused) { _, new in box.focused = new }
+        .task {
+            for delay in [0, 150, 400, 800] {
+                try? await Task.sleep(for: .milliseconds(delay))
+                if focused { return }
+                focused = true
+            }
+        }
+    }
 }

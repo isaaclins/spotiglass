@@ -209,13 +209,15 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
         playback.handle(.stateChanged(track, isPaused: true, nextTracks: []))
 
         for mode in [MusicRepeatMode.off, .context, .track] {
+            for isCompact in [false, true] {
             playback.repeatMode = mode
             let column = ImmersiveLyricsLeftColumnView(
                 playbackViewModel: playback,
                 queueViewModel: queue,
                 navigateToArtist: { _ in },
                 navigateToAlbum: { _, _, _ in },
-                currentTrack: track
+                currentTrack: track,
+                isCompact: isCompact
             )
             ViewTestHost.host(column, size: CGSize(width: 320, height: 640))
             XCTAssertNoThrow(try column.inspect().find(text: "Title"), "the title is missing")
@@ -227,8 +229,9 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
             let repeatSymbols = symbols.filter { $0.contains("infinity") || $0.contains("repeat") }
             XCTAssertEqual(
                 repeatSymbols, [],
-                "a repeat button is back next to the title with repeat \(mode)"
+                "a repeat button is back next to the title with repeat \(mode), compact \(isCompact)"
             )
+            }
         }
     }
 
