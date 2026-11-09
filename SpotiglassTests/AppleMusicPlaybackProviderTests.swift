@@ -726,24 +726,31 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
     /// bar shows the message, then reads the player again and gives the song and its
     /// controls back by itself.
     func testAppleMusicBarComesBackToThePlayingSongAfterACommandFails() async throws {
-        let (player, session) = try await Self.playingSession(passingErrorRecoveryDelay: .milliseconds(20))
-        try await Self.read(session, player, at: 30)
-        XCTAssertTrue(Self.isPlaying(session))
+        // A refused Next, and a Next to songs this Mac blocks (only clean music allowed, #429).
+        let failures: [(MusicPlaybackError.Reason, String)] = [
+            (.failed, "error.playback.appleMusic.failed"),
+            (.explicitContentRestricted, "error.playback.appleMusic.explicit.message"),
+        ]
+        for (reason, messageKey) in failures {
+            let (player, session) = try await Self.playingSession(passingErrorRecoveryDelay: .milliseconds(20))
+            try await Self.read(session, player, at: 30)
+            XCTAssertTrue(Self.isPlaying(session))
 
-        player.skipFailure = MusicPlaybackError(service: .appleMusic, reason: .failed, detail: "MPMusicPlayerControllerErrorDomain 6")
-        await session.next()
-        guard case let .error(failed) = session.connectionState else {
-            return XCTFail("Expected the failed Next to show, got \(session.connectionState)")
+            player.skipFailure = MusicPlaybackError(service: .appleMusic, reason: reason, detail: "MPMusicPlayerControllerErrorDomain 6")
+            await session.next()
+            guard case let .error(failed) = session.connectionState else {
+                return XCTFail("Expected the failed Next to show, got \(session.connectionState)")
+            }
+            XCTAssertNil(failed.recoveryAction)
+            XCTAssertEqual(failed.message, SpotiglassL10n.string(messageKey))
+            XCTAssertFalse(session.isTransportMutationReady, "the error is on screen for a moment")
+
+            player.advance(by: 1)
+            await session.passingErrorRecoveryTask?.value
+            XCTAssertTrue(Self.isPlaying(session), "\(reason): the bar stayed on the error: \(session.connectionState)")
+            XCTAssertEqual(session.currentNowPlaying?.uri, Self.uris[0])
+            XCTAssertTrue(session.isTransportMutationReady, "\(reason): Play, Previous and Next work again")
         }
-        XCTAssertNil(failed.recoveryAction)
-        XCTAssertEqual(failed.message, SpotiglassL10n.string("error.playback.appleMusic.failed"))
-        XCTAssertFalse(session.isTransportMutationReady, "the error is on screen for a moment")
-
-        player.advance(by: 1)
-        await session.passingErrorRecoveryTask?.value
-        XCTAssertTrue(Self.isPlaying(session), "the bar stayed on the error: \(session.connectionState)")
-        XCTAssertEqual(session.currentNowPlaying?.uri, Self.uris[0])
-        XCTAssertTrue(session.isTransportMutationReady, "Play, Previous and Next work again")
     }
 
     /// A song that can't play, double-clicked while the bar still shows the failed Next,

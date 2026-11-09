@@ -990,7 +990,9 @@ final class PlaybackSessionViewModel: ObservableObject {
             return PlaybackDisplayError(
                 title: SpotiglassL10n.string("error.playback.appleMusic.explicit.title"),
                 message: SpotiglassL10n.string("error.playback.appleMusic.explicit.message"),
-                recoveryAction: nil
+                recoveryAction: nil,
+                // Only the songs asked for are blocked; the player and what it plays are fine.
+                isMomentary: true
             )
         case .rateLimited, .network, .server, .failed:
             return PlaybackDisplayError(
