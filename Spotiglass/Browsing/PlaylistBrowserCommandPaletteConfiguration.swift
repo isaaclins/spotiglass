@@ -155,9 +155,9 @@ enum PlaylistBrowserCommandPaletteConfiguration {
             lyricsPresented.wrappedValue = false
             await viewModel?.selectPlaylist(id: playlistID, origin: .reset)
         }
-        manager.openArtist = { [weak viewModel = dependencies.viewModel] artistID in
+        manager.openArtist = { [weak viewModel = dependencies.viewModel] artistID, artistName in
             lyricsPresented.wrappedValue = false
-            await viewModel?.selectArtist(id: artistID, origin: .reset, displayName: nil)
+            await viewModel?.selectArtist(id: artistID, origin: .reset, displayName: artistName)
         }
         manager.openAlbum = { [weak viewModel = dependencies.viewModel] id, title, subtitle, artworkURL in
             lyricsPresented.wrappedValue = false
@@ -282,10 +282,10 @@ enum PlaylistBrowserCommandPaletteConfiguration {
                     args: ["playlistID": .string(playlistID)]
                 )
             },
-            openArtist: { artistID in
+            openArtist: { artistID, artistName in
                 commandPaletteManager.execute(
                     commandID: CommandPaletteCommandID.openArtist,
-                    args: ["artistID": .string(artistID)]
+                    args: ["artistID": .string(artistID), "artistName": .string(artistName)]
                 )
             },
             openAlbum: { albumID, title, subtitle, artworkURL in

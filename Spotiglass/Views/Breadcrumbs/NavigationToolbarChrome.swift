@@ -1,104 +1,48 @@
-import AppKit
 import SwiftUI
 
-/// Hosts back + breadcrumbs in **plain AppKit controls** (`NSButton.isBordered = false`) inside one
-/// `NSToolbarItem`, avoiding SwiftUI toolbar control chrome (capsule / pill grouping) on macOS.
-struct NavigationToolbarChrome: NSViewRepresentable {
+/// The browser's back button, as a plain toolbar button so macOS draws it the
+/// way Finder, Music and System Settings draw theirs: a chevron in the
+/// system's own toolbar chrome, sized and aligned with the window title.
+///
+/// It used to be a hand-made AppKit stack with the app name as a tiny text
+/// crumb beside the chevron, which read as "back to Spotiglass" (#443). The
+/// button now names nothing on screen and says where it goes in its tooltip
+/// and to VoiceOver. Like Finder, Music and System Settings there is no
+/// breadcrumb row: the title names where you are, Home is in the sidebar.
+struct NavigationToolbarChrome: View {
     @ObservedObject var viewModel: PlaylistBrowserViewModel
     @Environment(\.spotiglassLocale) private var spotiglassLocale
 
-    func makeCoordinator() -> Coordinator {
-        Coordinator(viewModel: viewModel)
+    var body: some View {
+        Button {
+            Task { await viewModel.navigateBack() }
+        } label: {
+            // The title is what VoiceOver reads for a toolbar button (an
+            // accessibilityLabel modifier is ignored there), so the label
+            // itself names the destination, not just "Back".
+            Label(destinationDescription, systemImage: "chevron.left")
+        }
+        .labelStyle(.iconOnly)
+        .disabled(!viewModel.canNavigateBack)
+        .help(destinationDescription)
     }
 
-    func makeNSView(context: Context) -> NSStackView {
-        let stack = NSStackView()
-        stack.orientation = .horizontal
-        stack.spacing = SpotiglassDesign.spacingXS
-        stack.alignment = .centerY
-        stack.distribution = .fill
-        stack.edgeInsets = NSEdgeInsets(
-            top: SpotiglassDesign.spacingXXS,
-            left: SpotiglassDesign.spacingXS,
-            bottom: SpotiglassDesign.spacingXXS,
-            right: SpotiglassDesign.spacingXS
-        )
-
-        let back = NSButton()
-        back.bezelStyle = .shadowlessSquare
-        back.isBordered = false
-        // Keep the focus ring. Removing it hid the only indication that the
-        // control had keyboard focus, which is the whole point of Tab (#127).
-        back.focusRingType = .default
-        let backSymbol = NSImage.SymbolConfiguration(pointSize: 15, weight: .semibold)
-        let backLabel = SpotiglassL10n.string("breadcrumb.back", locale: spotiglassLocale)
-        back.image = NSImage(systemSymbolName: "chevron.left", accessibilityDescription: backLabel)?
-            .withSymbolConfiguration(backSymbol)
-        back.imagePosition = .imageOnly
-        back.target = context.coordinator
-        back.action = #selector(Coordinator.didTapBack)
-        back.toolTip = backLabel
-        back.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            back.widthAnchor.constraint(equalToConstant: SpotiglassDesign.Layout.toolbarButtonSize),
-            back.heightAnchor.constraint(equalToConstant: SpotiglassDesign.Layout.toolbarButtonSize)
-        ])
-
-        let hosting = NSHostingView(
-            rootView: BreadcrumbToolbarView(viewModel: viewModel, locale: spotiglassLocale)
-        )
-        hosting.translatesAutoresizingMaskIntoConstraints = false
-
-        stack.wantsLayer = true
-        stack.layer?.isOpaque = false
-        stack.layer?.backgroundColor = NSColor.clear.cgColor
-
-        hosting.wantsLayer = true
-        hosting.layer?.isOpaque = false
-        hosting.layer?.backgroundColor = NSColor.clear.cgColor
-
-        stack.addArrangedSubview(back)
-        stack.addArrangedSubview(hosting)
-
-        context.coordinator.backButton = back
-        context.coordinator.breadcrumbHostingView = hosting
-
-        return stack
+    /// "Go back to Home", "Go back to Malcolm Todd": the place a click opens.
+    var destinationDescription: String {
+        Self.destinationDescription(for: viewModel, locale: spotiglassLocale)
     }
 
-    func updateNSView(_ nsView: NSStackView, context: Context) {
-        context.coordinator.viewModel = viewModel
-        context.coordinator.backButton?.isHidden = !viewModel.canNavigateBack
-        context.coordinator.updateBackButton(locale: spotiglassLocale)
-        context.coordinator.breadcrumbHostingView?.rootView = BreadcrumbToolbarView(
-            viewModel: viewModel,
-            locale: spotiglassLocale
+    static func destinationDescription(
+        for viewModel: PlaylistBrowserViewModel,
+        locale: Locale
+    ) -> String {
+        guard let destination = viewModel.backDestination else {
+            return SpotiglassL10n.string("breadcrumb.back", locale: locale)
+        }
+        return SpotiglassL10n.format(
+            "tooltip.breadcrumb.jump",
+            locale: locale,
+            viewModel.displayName(for: destination, locale: locale)
         )
-    }
-
-    final class Coordinator {
-        var viewModel: PlaylistBrowserViewModel
-        weak var backButton: NSButton?
-        weak var breadcrumbHostingView: NSHostingView<BreadcrumbToolbarView>?
-
-        init(viewModel: PlaylistBrowserViewModel) {
-            self.viewModel = viewModel
-        }
-
-        func updateBackButton(locale: Locale) {
-            let backLabel = SpotiglassL10n.string("breadcrumb.back", locale: locale)
-            let backSymbol = NSImage.SymbolConfiguration(pointSize: 15, weight: .semibold)
-            backButton?.image = NSImage(
-                systemSymbolName: "chevron.left",
-                accessibilityDescription: backLabel
-            )?.withSymbolConfiguration(backSymbol)
-            backButton?.toolTip = backLabel
-        }
-
-        @objc func didTapBack() {
-            Task { @MainActor in
-                await viewModel.navigateBack()
-            }
-        }
     }
 }

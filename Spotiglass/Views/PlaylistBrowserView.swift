@@ -263,8 +263,7 @@ struct PlaylistBrowserView: View {
         // An empty title left the window untitled: blank in the Window menu, in
         // Mission Control and to assistive tech, while the Settings window was
         // correctly named (#161). The title is the current location rather than
-        // the app name, because the breadcrumb's home crumb already says
-        // "Spotiglass" and repeating it in the titlebar reads as a mistake.
+        // the app name; the back button names the place before it (#443).
         .navigationTitle(windowTitle)
         .toolbar {
             if let progress = viewModel.prefetchAllPlaylistsProgress {
@@ -274,10 +273,10 @@ struct PlaylistBrowserView: View {
                     }
                 }
             }
-            // At the root there is no trail and nothing to go back to, so the
-            // item would render as an empty capsule beside the window title.
-            // The trail belongs to the page under the lyrics, so it leaves with that page (#438).
-            if !lyricsOverlay.isPresented, viewModel.canNavigateBack || !viewModel.breadcrumbPath.isEmpty {
+            // Only once there is somewhere to go back to, like Music: at the
+            // root a dimmed chevron would sit beside the title doing nothing.
+            // Back belongs to the page under the lyrics, so it leaves with that page (#438).
+            if !lyricsOverlay.isPresented, viewModel.canNavigateBack {
                 ToolbarItem(placement: .navigation) {
                     NavigationToolbarChrome(viewModel: viewModel)
                 }

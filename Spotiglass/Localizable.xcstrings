@@ -1779,52 +1779,6 @@
         }
       }
     },
-    "breadcrumb.hint": {
-      "extractionState": "stale",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Zeigt diesen Ort im Browser an."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shows this location in the browser."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Muestra esta ubicación en el explorador."
-          }
-        }
-      }
-    },
-    "breadcrumb.home.hint": {
-      "extractionState": "stale",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kehrt zur Mediathek-Startseite zurück."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Returns to library home."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vuelve al inicio de la biblioteca."
-          }
-        }
-      }
-    },
     "browser.addToQueue": {
       "extractionState": "stale",
       "localizations": {
@@ -14013,29 +13967,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Teclado"
-          }
-        }
-      }
-    },
-    "tooltip.breadcrumb.home": {
-      "extractionState": "stale",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Zurück zu Start"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Go back to Home"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Volver a Inicio"
           }
         }
       }

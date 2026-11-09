@@ -47,7 +47,7 @@ struct PlaylistDetailContent: View {
     let togglePlayPause: () -> Void
     let hasPlaybackDevice: Bool
     let addToQueue: (String) async -> Void
-    let openArtist: (String) -> Void
+    let openArtist: (MusicArtistRef) -> Void
     /// Starts a continuation from the selected row through the browser's queue
     /// orchestration.
     var onRequestLibraryContinuation: ((TrackRowViewModel) -> Void)? = nil
@@ -82,7 +82,7 @@ struct PlaylistDetailContent: View {
         togglePlayPause: @escaping () -> Void,
         hasPlaybackDevice: Bool,
         addToQueue: @escaping (String) async -> Void,
-        openArtist: @escaping (String) -> Void,
+        openArtist: @escaping (MusicArtistRef) -> Void,
         onRequestLibraryContinuation: ((TrackRowViewModel) -> Void)? = nil,
         playHeaderAction: @escaping () async -> Void = {},
         shuffleHeaderAction: @escaping () async -> Void = {},
@@ -177,7 +177,7 @@ struct PlaylistDetailContent: View {
                                         },
                                         onRequestLibraryContinuation: onRequestLibraryContinuation,
                                         openArtist: { target in
-                                            if let id = target.id { openArtist(id) }
+                                            if let id = target.id { openArtist(MusicArtistRef(id: id, name: target.name)) }
                                         },
                                         addToQueue: addToQueue,
                                         hasPlaybackDevice: hasPlaybackDevice,

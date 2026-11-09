@@ -105,6 +105,49 @@ final class PlaylistBrowserLibraryEditsTests: XCTestCase {
         XCTAssertEqual(viewModel.trackMutationToast, SpotiglassL10n.format("playlist.mutation.deletedPlaylist", "Spotiglass test"))
     }
 
+    /// A deleted playlist leaves the back history: back names the place
+    /// before it and opens that, not "Playlist" and an unavailable page.
+    func testBackSkipsADeletedPlaylist() async {
+        let api = LibraryEditsMockAPI(edits: .all)
+        let doomed = playlist("-1", "Spotiglass test")
+        api.playlists = [doomed, playlist("-2", "Italian")]
+        let viewModel = await makeViewModel(api)
+        await viewModel.selectSidebar(.playlist("-2"))
+        await viewModel.selectSidebar(.playlist("-1"))
+
+        await viewModel.deletePlaylist(doomed)
+
+        XCTAssertEqual(viewModel.sidebarSelection, .home)
+        XCTAssertFalse(viewModel.backNavigationStack.contains(.sidebar(.playlist("-1"))))
+        XCTAssertEqual(viewModel.backDestination, .sidebar(.playlist("-2")))
+        XCTAssertEqual(viewModel.backDestination.map { viewModel.displayName(for: $0) }, "Italian")
+
+        await viewModel.navigateBack()
+        XCTAssertEqual(viewModel.sidebarSelection, .playlist("-2"))
+    }
+
+    /// Deleting a playlist while an artist opened from it is showing: back goes
+    /// to the place before the playlist, and the title follows instead of
+    /// keeping the deleted playlist's name.
+    func testDeletingThePlaylistBehindTheCurrentPageLeavesTheTitleToo() async {
+        let api = LibraryEditsMockAPI(edits: .all)
+        let doomed = playlist("-1", "Spotiglass test")
+        api.playlists = [doomed, playlist("-2", "Italian")]
+        let viewModel = await makeViewModel(api)
+        await viewModel.selectSidebar(.home)
+        await viewModel.selectSidebar(.playlist("-1"))
+        await viewModel.selectArtist(id: "artist-bonobo", origin: .extend, displayName: "Bonobo")
+
+        await viewModel.deletePlaylist(doomed)
+
+        XCTAssertEqual(viewModel.backDestination, .sidebar(.home))
+        XCTAssertFalse(viewModel.breadcrumbPath.contains { $0.kind == .playlist(id: "-1") })
+        await viewModel.navigateBack()
+        XCTAssertEqual(viewModel.sidebarSelection, .home)
+        XCTAssertNotEqual(BrowserToolbarPresentation.windowTitle(for: viewModel.breadcrumbPath), "Spotiglass test")
+        XCTAssertEqual(BrowserToolbarPresentation.windowTitle(for: viewModel.breadcrumbPath), AppMetadata.displayName)
+    }
+
     func testAFailedDeletionKeepsThePlaylist() async {
         let api = LibraryEditsMockAPI(edits: .all)
         let doomed = playlist("-1", "Spotiglass test")
