@@ -608,14 +608,23 @@ final class PlaybackSessionViewModel: ObservableObject {
     /// ``pushedPlayStateExpectationTimeout`` passes since the last press. Until then its reports
     /// are not shown: an older one would flip the press back, and the one for an earlier press
     /// in a quick pause, play would flicker.
-    var pushedPlayStateExpectations: [Bool] = []
+    var pushedPlayStateExpectations: [PushedPlayStateExpectation] = []
     var pushedPlayStateExpectationTask: Task<Void, Never>?
-    static let pushedPlayStateExpectationTimeout: Duration = .seconds(3)
+    var pushedPlayStateExpectationTimeout: Duration = .seconds(3)
+    /// The latest report the page sent while presses waited for it, shown when the wait ends
+    /// without the page reporting the last press: it is then the page's own last word.
+    var heldBackPageReport: MusicPlaybackEvent?
+    /// The press whose command Spotify's page is running. The page runs a command after the
+    /// script that starts it has returned, so the next press waits for the page to report this
+    /// one finished or failed (or ``inAppCommandAckTimeout``): two at once can land in either
+    /// order, and a failure couldn't be told apart from the next press of the same kind.
+    var inAppCommandInFlight: PlayPauseRequest?
+    var inAppCommandAckWaiters: [CheckedContinuation<Void, Never>] = []
+    var inAppCommandAckTimeoutTask: Task<Void, Never>?
+    var inAppCommandAckTimeout: Duration = .seconds(3)
     /// The last play / pause state Spotify's page reported, shown or not: what its player has
     /// when it refuses a press.
     var pageReportedPlayState: PlaybackConnectionState?
-    /// The latest press sent to Spotify's page, to tell whether a refusal it reports is that one.
-    var latestInAppPlayPauseRequest: PlayPauseRequest?
     /// For a player whose state is read: the state its player last confirmed, from before the
     /// first press still on its way. A refused press goes back to this, not to the screen of
     /// an earlier press that may have been refused too.
@@ -849,6 +858,8 @@ final class PlaybackSessionViewModel: ObservableObject {
         connectDevicesRefreshTask?.cancel()
         inflightTransferTask?.cancel()
         pushedPlayStateExpectationTask?.cancel()
+        inAppCommandAckTimeoutTask?.cancel()
+        inAppCommandAckWaiters.forEach { $0.resume() }
         refusedPlayPauseClearTask?.cancel()
         playPauseCommandTail?.cancel()
         transportPollTask?.cancel()

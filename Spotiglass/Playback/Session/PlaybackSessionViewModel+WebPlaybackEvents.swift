@@ -144,6 +144,7 @@ extension PlaybackSessionViewModel {
             }
             // A report without a track (the player going away) always goes through.
             guard nowPlaying == nil || acceptsPushedPlayState(isPlaying: !isPaused) else {
+                heldBackPageReport = event
                 SpotiglassLog.info(.playback, "Ignoring SDK state_changed isPaused=\(isPaused) older than the last play/pause")
                 return
             }
@@ -161,8 +162,8 @@ extension PlaybackSessionViewModel {
                 hasTransferredPlaybackToCurrentDevice = true
             }
             setConnectionState(isPaused ? .paused(effectiveNowPlaying) : .playing(effectiveNowPlaying ?? fallbackNowPlaying()))
-        case .playerCommandFinished:
-            break
+        case let .playerCommandFinished(command):
+            handleInAppCommandFinished(command)
         case let .playerCommandFailed(command, message):
             // A refused pause or play goes back instead of replacing the bar with an error (#437).
             if Self.isPlayPauseCommand(command) {
@@ -213,6 +214,7 @@ extension PlaybackSessionViewModel {
             cancelPlaybackHostConnectTimeout()
             SpotiglassLog.error(.playback, "Spotify playback SDK playback error: \(message)")
             clearPushedPlayStateExpectation()
+            finishInAppCommand()
             setConnectionState(.error(PlaybackDisplayError(
                 title: SpotiglassL10n.string("error.playback.error.title"),
                 message: message,

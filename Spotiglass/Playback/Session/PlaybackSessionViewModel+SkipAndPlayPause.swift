@@ -90,7 +90,7 @@ extension PlaybackSessionViewModel {
                 // Spotify's page reports the new state a moment later, and may first report the
                 // old one: until it has reported this press (or the wait ends) its reports keep
                 // the state shown.
-                expectPushedPlayState(isPlaying: !shouldPause)
+                expectPushedPlayState(serial: playPauseRequestSerial, isPlaying: !shouldPause)
             }
         } else {
             showPlayPause(shouldPause: shouldPause)
@@ -111,9 +111,6 @@ extension PlaybackSessionViewModel {
             stateAfter: connectionState,
             deviceID: commandDeviceID
         )
-        if usesInAppPlayer {
-            latestInAppPlayPauseRequest = request
-        }
         return request
     }
 
@@ -143,16 +140,21 @@ extension PlaybackSessionViewModel {
         defer { playPauseRequestsInFlight = max(0, playPauseRequestsInFlight - 1) }
         guard ownsPlaybackHostGeneration(request.generation), !Task.isCancelled else { return }
         if request.usesInAppPlayer {
+            // The page is still running the press before: a quick pause, play would otherwise
+            // run both at once in Spotify's player, and the pause could land last.
+            await waitForInAppCommandToFinish()
+            guard ownsPlaybackHostGeneration(request.generation), !Task.isCancelled else { return }
+            beginInAppCommand(request)
             do {
-                // Pause then play sent as two toggles can both flip the old state when the
-                // page hasn't applied the first yet; the page answers before the player has.
+                // The state asked for, not a toggle: a toggle flips whatever the player has.
                 if request.sendsRequestedState {
                     try await provider.setInAppPlayerPlaying(!request.shouldPause)
                 } else {
                     try await provider.togglePlayPause()
                 }
             } catch {
-                refusePlayPause(request, error: error)
+                finishInAppCommand()
+                inAppPressFailed(request, error: error)
             }
             return
         }
@@ -259,29 +261,80 @@ extension PlaybackSessionViewModel {
         refusedPlayPause = nil
     }
 
-    /// Spotify's page failed to run a command. When it is the latest press's pause, resume or
-    /// toggle, that press was refused: the controls go back to what the page last reported and
-    /// the bar says so. A failure of an earlier press changes nothing on screen: the latest
-    /// press decides, and the page's reports show what happened.
+    /// Spotify's page failed to run the press it is running.
     func handleInAppPlayPauseFailure(command: String, message: String) {
         SpotiglassLog.error(.playback, "Spotify playback SDK \(command) failed: \(message)")
-        guard let request = latestInAppPlayPauseRequest,
-              request.serial == playPauseRequestSerial,
-              request.inAppCommand == command else { return }
-        refusePlayPause(request, error: MusicPlaybackError(service: .spotify, reason: .failed, detail: message))
+        guard let request = inAppCommandInFlight, request.inAppCommand == command else { return }
+        finishInAppCommand()
+        inAppPressFailed(request, error: MusicPlaybackError(service: .spotify, reason: .failed, detail: message))
+    }
+
+    /// Spotify's page finished a command: the next press may go out.
+    func handleInAppCommandFinished(_ command: String) {
+        guard inAppCommandInFlight?.inAppCommand == command else { return }
+        finishInAppCommand()
+    }
+
+    /// The latest press refused: the controls go back to what the page last reported and the
+    /// bar says so. An earlier one: nothing on screen changes (the latest press decides), but
+    /// the page won't report its state, so it no longer waits for that report.
+    private func inAppPressFailed(_ request: PlayPauseRequest, error: Error) {
+        guard request.serial != playPauseRequestSerial else {
+            refusePlayPause(request, error: error)
+            return
+        }
+        pushedPlayStateExpectations.removeAll { $0.serial == request.serial }
+    }
+
+    private func waitForInAppCommandToFinish() async {
+        guard inAppCommandInFlight != nil else { return }
+        await withCheckedContinuation { inAppCommandAckWaiters.append($0) }
+    }
+
+    private func beginInAppCommand(_ request: PlayPauseRequest) {
+        inAppCommandInFlight = request
+        inAppCommandAckTimeoutTask?.cancel()
+        inAppCommandAckTimeoutTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            try? await Task.sleep(for: self.inAppCommandAckTimeout)
+            guard !Task.isCancelled, self.inAppCommandInFlight?.serial == request.serial else { return }
+            SpotiglassLog.info(.playback, "Spotify playback SDK didn't answer \(request.inAppCommand); sending the next press")
+            self.finishInAppCommand()
+        }
+    }
+
+    func finishInAppCommand() {
+        inAppCommandInFlight = nil
+        inAppCommandAckTimeoutTask?.cancel()
+        inAppCommandAckTimeoutTask = nil
+        let waiters = inAppCommandAckWaiters
+        inAppCommandAckWaiters.removeAll()
+        waiters.forEach { $0.resume() }
     }
 
     static func isPlayPauseCommand(_ command: String) -> Bool {
         [PlaybackBridgeCommand.pause, .resume, .togglePlay].map(\.rawValue).contains(command)
     }
 
-    private func expectPushedPlayState(isPlaying: Bool) {
-        pushedPlayStateExpectations.append(isPlaying)
+    /// The state one press asked Spotify's page to report (`isPlaying`).
+    struct PushedPlayStateExpectation {
+        let serial: UInt64
+        let isPlaying: Bool
+    }
+
+    private func expectPushedPlayState(serial: UInt64, isPlaying: Bool) {
+        pushedPlayStateExpectations.append(PushedPlayStateExpectation(serial: serial, isPlaying: isPlaying))
         pushedPlayStateExpectationTask?.cancel()
         pushedPlayStateExpectationTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: Self.pushedPlayStateExpectationTimeout)
+            guard let self else { return }
+            try? await Task.sleep(for: self.pushedPlayStateExpectationTimeout)
             guard !Task.isCancelled else { return }
-            self?.pushedPlayStateExpectations = []
+            // The page never reported the last press: its latest report is its own last word.
+            let held = self.heldBackPageReport
+            self.clearPushedPlayStateExpectation()
+            if let held {
+                self.handle(MusicPlaybackEventEnvelope(event: held, hostGeneration: self.playbackHostGeneration))
+            }
         }
     }
 
@@ -289,6 +342,7 @@ extension PlaybackSessionViewModel {
         pushedPlayStateExpectationTask?.cancel()
         pushedPlayStateExpectationTask = nil
         pushedPlayStateExpectations = []
+        heldBackPageReport = nil
     }
 
     /// Whether a state Spotify's page reports may be shown. While presses wait for the page,
@@ -297,7 +351,7 @@ extension PlaybackSessionViewModel {
     /// off without being shown, and only the one for the last press is shown and ends the wait.
     func acceptsPushedPlayState(isPlaying: Bool) -> Bool {
         guard let next = pushedPlayStateExpectations.first else { return true }
-        guard next == isPlaying else { return false }
+        guard next.isPlaying == isPlaying else { return false }
         pushedPlayStateExpectations.removeFirst()
         guard pushedPlayStateExpectations.isEmpty else { return false }
         clearPushedPlayStateExpectation()
@@ -308,8 +362,10 @@ extension PlaybackSessionViewModel {
     /// a pause or resume. A read that still shows the old state mustn't, for up to
     /// ``playPauseReadHoldDuration`` after the press, so slow reads can't run the window out and
     /// flip the press back. A read that agrees ends the hold.
-    func playPauseReadHoldsSettle(_ snapshot: MusicPlaybackSnapshot) -> Bool {
+    /// A read sent before the latest press can't end the hold either: agreeing with it is luck.
+    func playPauseReadHoldsSettle(_ snapshot: MusicPlaybackSnapshot, predatesPress: Bool) -> Bool {
         guard let until = playPauseReadHoldUntil else { return false }
+        if predatesPress, clock.now < until { return true }
         guard clock.now < until,
               let localCommandExpectsPlaying,
               snapshot.isPlaying != localCommandExpectsPlaying else {

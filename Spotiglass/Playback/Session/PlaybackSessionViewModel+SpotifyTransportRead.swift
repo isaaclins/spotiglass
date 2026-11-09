@@ -52,10 +52,13 @@ extension PlaybackSessionViewModel {
 
             do {
                 let volumeMutationVersionAtRequest = volumeMutationVersion
+                let pressSerialAtRequest = playPauseRequestSerial
                 let snapshot = try await provider.fetchPlaybackState()
                 guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
                 // Checked before the read is applied: applying it can end the expectation.
-                let readHoldsSettle = snapshot.map { playPauseReadHoldsSettle($0) } ?? false
+                let readHoldsSettle = snapshot.map {
+                    playPauseReadHoldsSettle($0, predatesPress: playPauseRequestSerial != pressSerialAtRequest)
+                } ?? false
                 if let snapshot {
                     latestPlayerSnapshot = snapshot
                     setTransportStateKnown(true)

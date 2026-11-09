@@ -915,6 +915,7 @@ final class PlayPauseFollowsThePressTests: XCTestCase {
         let (commander, session) = playingSpotify()
 
         await session.togglePlayPause()
+        session.handle(.playerCommandFinished(command: "pause"))
         await session.togglePlayPause()
         // Pause then resume, not two toggles: the page answers before Spotify's player has
         // applied the first, so a second toggle could flip the old state and stay paused.
@@ -980,6 +981,48 @@ final class PlayPauseFollowsThePressTests: XCTestCase {
         XCTAssertTrue(Self.isPlaying(session), "the refused pause went back")
         XCTAssertEqual(session.refusedPlayPause?.title, SpotiglassL10n.string("playback.refused.pause"))
         XCTAssertEqual(session.refusedPlayPause?.message, SpotiglassL10n.string("error.playback.spotify.failed"))
+    }
+
+    /// Spotify on a phone: a read sent before a quick pause, play comes back after them saying
+    /// "playing". That agrees with the play only by luck, so the reads that follow (the Web API
+    /// catching up with the pause) still mustn't flip the controls to paused.
+    func testSpotifyOnAnotherDeviceAReadSentBeforeThePressesDoesntEndTheWait() async {
+        let phone = MusicPlaybackDevice(deviceID: "phone-device", isActive: true, isRestricted: false, name: "Phone", type: "smartphone")
+        let api = MockPlaybackAPI()
+        let session = PlaybackSessionViewModel(
+            provider: SpotifyPlaybackProvider(playbackAPI: api, webCommander: MockWebPlaybackCommander())
+        )
+        session.deviceID = "local-device"
+        session.setConnectionState(.ready(deviceID: "local-device"))
+        api.snapshotResponses = [Self.snapshot(isPlaying: true, device: phone)]
+        await session.syncTransportFromSpotify()
+        XCTAssertTrue(Self.isPlaying(session))
+
+        let gate = ReadGate()
+        api.onFetchPlayerSnapshot = { await gate.hold() }
+        api.snapshotResponses = [Self.snapshot(isPlaying: true, device: phone)]
+        let earlyRead = Task { await session.syncTransportFromSpotify() }
+        await Self.settle { gate.isHolding }
+        api.onFetchPlayerSnapshot = nil
+
+        await session.requestTogglePlayPause()?.value
+        await session.requestTogglePlayPause()?.value
+        XCTAssertEqual(api.actions.filter { $0.hasPrefix("pause:") || $0.hasPrefix("resume:") }, ["pause:phone-device", "resume:phone-device"])
+        // The early read comes back saying "playing"; every read after it shows the Web API
+        // catching up with the pause.
+        api.snapshotResponses = [Self.snapshot(isPlaying: true, device: phone)]
+            + Array(repeating: Self.snapshot(isPlaying: false, device: phone), count: 8)
+        gate.release()
+        await earlyRead.value
+        XCTAssertTrue(Self.isPlaying(session))
+
+        for read in 1...4 {
+            await session.syncTransportFromSpotify()
+            XCTAssertTrue(Self.isPlaying(session), "late read \(read) of the pause flipped the play back")
+        }
+        api.snapshotResponses = [Self.snapshot(isPlaying: true, device: phone)]
+        await session.syncTransportFromSpotify()
+        XCTAssertTrue(Self.isPlaying(session))
     }
 
     // MARK: - Late reports, refusals of more than one press
@@ -1091,10 +1134,10 @@ final class PlayPauseFollowsThePressTests: XCTestCase {
 
     /// Spotify's page refusing the pause (its promise rejected): the controls go back to what
     /// the page last reported and the bar says so, instead of an error over the whole bar.
-    func testSpotifyPageRefusingAPauseGoesBack() {
+    func testSpotifyPageRefusingAPauseGoesBack() async {
         let (_, session) = playingSpotify()
 
-        session.requestTogglePlayPause()
+        await session.requestTogglePlayPause()?.value
         XCTAssertTrue(Self.isPaused(session))
         session.handle(.playerCommandFailed(command: "pause", message: "Spotify pause failed: offline"))
 
@@ -1103,17 +1146,90 @@ final class PlayPauseFollowsThePressTests: XCTestCase {
         XCTAssertEqual(session.refusedPlayPause?.message, SpotiglassL10n.string("error.playback.spotify.failed"))
     }
 
-    /// Pause then play, and the page refuses the pause after it has run the play: the play
-    /// decides, so nothing on screen changes.
-    func testSpotifyPageRefusingAnEarlierPressChangesNothing() {
-        let (_, session) = playingSpotify()
+    /// Pause then play, and the page refuses the pause: the play decides, so nothing on screen
+    /// changes, the play goes out, and its report is shown (the page never reports the pause).
+    func testSpotifyPageRefusingAnEarlierPressChangesNothing() async {
+        let (commander, session) = playingSpotify()
 
-        session.requestTogglePlayPause()
-        session.requestTogglePlayPause()
+        await session.requestTogglePlayPause()?.value
+        let play = session.requestTogglePlayPause()
         session.handle(.playerCommandFailed(command: "pause", message: "Spotify pause failed: offline"))
+        await play?.value
 
+        XCTAssertEqual(Self.playPauseCommands(commander), [.pause, .resume])
         XCTAssertTrue(Self.isPlaying(session))
         XCTAssertNil(session.refusedPlayPause)
+        // The next song starts: its report shows, instead of waiting for the refused pause's.
+        let next = PlaybackNowPlaying(
+            name: "Next", artists: ["Artist"], albumName: nil, albumID: nil, albumArtURL: nil,
+            durationMilliseconds: 180_000, positionMilliseconds: 0, uri: "spotify:track:next"
+        )
+        session.handle(.stateChanged(next, isPaused: false, nextTracks: []))
+        XCTAssertEqual(session.currentNowPlaying?.name, "Next")
+    }
+
+    /// Pause, play, pause, and the page refuses the first pause while the others wait: that is
+    /// not the last pause's refusal, which goes out and decides.
+    func testSpotifyPageRefusingTheFirstOfTwoPausesIsNotTheLastOnes() async {
+        let (commander, session) = playingSpotify()
+
+        await session.requestTogglePlayPause()?.value
+        let play = session.requestTogglePlayPause()
+        let pause = session.requestTogglePlayPause()
+        XCTAssertTrue(Self.isPaused(session))
+        session.handle(.playerCommandFailed(command: "pause", message: "Spotify pause failed: offline"))
+        await Self.settle { Self.playPauseCommands(commander).count == 2 }
+        session.handle(.playerCommandFinished(command: "resume"))
+        await play?.value
+        await pause?.value
+
+        XCTAssertEqual(Self.playPauseCommands(commander), [.pause, .resume, .pause])
+        XCTAssertTrue(Self.isPaused(session), "the first pause's refusal undid the last pause")
+        XCTAssertNil(session.refusedPlayPause)
+    }
+
+    /// Spotify's page runs a command after the script that starts it returns: a quick pause,
+    /// play must not both run at once in its player, where the pause could land last.
+    func testSpotifyPlayWaitsUntilThePageHasRunThePause() async {
+        let (commander, session) = playingSpotify()
+
+        await session.requestTogglePlayPause()?.value
+        let play = session.requestTogglePlayPause()
+        await Self.settle()
+        XCTAssertEqual(Self.playPauseCommands(commander), [.pause], "the play went out while the page still ran the pause")
+
+        session.handle(.playerCommandFinished(command: "pause"))
+        await play?.value
+        XCTAssertEqual(Self.playPauseCommands(commander), [.pause, .resume])
+    }
+
+    /// A page that never answers doesn't hold the next press for ever.
+    func testSpotifyPlayGoesOutWhenThePageNeverAnswers() async {
+        let (commander, session) = playingSpotify()
+        session.inAppCommandAckTimeout = .milliseconds(20)
+
+        await session.requestTogglePlayPause()?.value
+        await session.requestTogglePlayPause()?.value
+        XCTAssertEqual(Self.playPauseCommands(commander), [.pause, .resume])
+    }
+
+    /// The wait for the page ends without the page reporting the last press: its latest report
+    /// is then shown, so the bar doesn't keep a song the page has moved on from.
+    func testSpotifyShowsThePagesLastReportWhenTheWaitEnds() async {
+        let (_, session) = playingSpotify()
+        session.pushedPlayStateExpectationTimeout = .milliseconds(20)
+
+        session.requestTogglePlayPause()
+        let next = PlaybackNowPlaying(
+            name: "Next", artists: ["Artist"], albumName: nil, albumID: nil, albumArtURL: nil,
+            durationMilliseconds: 180_000, positionMilliseconds: 0, uri: "spotify:track:next"
+        )
+        session.handle(.stateChanged(next, isPaused: false, nextTracks: []))
+        XCTAssertNotEqual(session.currentNowPlaying?.name, "Next")
+
+        try? await Task.sleep(for: .milliseconds(200))
+        XCTAssertEqual(session.currentNowPlaying?.name, "Next")
+        XCTAssertTrue(Self.isPlaying(session))
     }
 
     /// Any other command the page fails still shows the error, as before.
@@ -1146,5 +1262,21 @@ private final class SteppedPlaybackClock: PlaybackClock, @unchecked Sendable {
 
     func sleep(until deadline: ContinuousClock.Instant, tolerance: Duration?) async throws {
         try await Task.sleep(for: .seconds(3_600))
+    }
+}
+
+/// Holds a read until the test lets it go.
+@MainActor
+private final class ReadGate {
+    private var continuation: CheckedContinuation<Void, Never>?
+    var isHolding: Bool { continuation != nil }
+
+    func hold() async {
+        await withCheckedContinuation { continuation = $0 }
+    }
+
+    func release() {
+        continuation?.resume()
+        continuation = nil
     }
 }
