@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.6] - 2026-11-09
+
+### Fixed
+
+- The sidebar now looks consistent, with matching rows, headers and tiles.
+
 ## [0.8.5] - 2026-11-09
 
 ### Fixed
