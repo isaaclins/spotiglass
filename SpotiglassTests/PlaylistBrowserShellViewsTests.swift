@@ -254,12 +254,10 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
     }
 
 
-    /// #438: the lyrics used to cover the whole window, player bar included, so while they were
-    /// open there was no play/pause, skip or scrubber. The lyrics now take the main column only.
-    /// This hosts the real browser with the lyrics open and checks that the lyrics are there,
-    /// that the player bar's buttons sit outside them and that a click on the bar reaches the
-    /// bar, not the lyrics.
-    func testLyricsLeaveThePlayerBarVisibleAndUsable() async throws {
+    /// The real browser, hosted, on a playlist page with the lyrics open over it.
+    private func hostBrowserWithLyricsOpen() async throws -> (
+        root: NSView, browser: PlaylistBrowserViewModel, lyricsOverlay: LyricsOverlayController
+    ) {
         let api = MockBrowsingAPI(
             playlistResults: [.success([PlaylistBrowsingTestFixtures.playlist(id: "p1", name: "Focus")])],
             trackResults: ["p1": [.success([PlaylistBrowsingTestFixtures.track(id: "t1")])]]
@@ -309,6 +307,18 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
         root.layoutSubtreeIfNeeded()
         AppKitTestSupport.pumpRunLoop(for: 0.6)
         root.layoutSubtreeIfNeeded()
+        return (root, browserVM, lyricsOverlay)
+    }
+
+    /// #438: the lyrics used to cover the whole window, player bar included, so while they were
+    /// open there was no play/pause, skip or scrubber. The lyrics now take the main column only.
+    /// This hosts the real browser with the lyrics open and checks that the lyrics are there,
+    /// that the player bar's buttons sit outside them and that a click on the bar reaches the
+    /// bar, not the lyrics.
+    func testLyricsLeaveThePlayerBarVisibleAndUsable() async throws {
+        let hosted = try await hostBrowserWithLyricsOpen()
+        let root = hosted.root
+        let lyricsOverlay = hosted.lyricsOverlay
         XCTAssertTrue(lyricsOverlay.isPresented, "the lyrics closed by themselves")
         let lyricsSurface = try XCTUnwrap(
             Self.firstView(in: root) { String(describing: type(of: $0)).hasPrefix("LyricsOverlayFocusContainerView") },
@@ -339,6 +349,46 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
         let clickPoint = container.convert(NSPoint(x: barFrame.midX, y: barFrame.midY), from: nil)
         let hit = try XCTUnwrap(root.hitTest(clickPoint), "nothing answers a click on the player bar")
         XCTAssertFalse(hit.isDescendant(of: lyricsSurface), "a click on the player bar lands in the lyrics")
+    }
+
+    /// #438: with the sidebar, the queue and the player bar usable next to the lyrics, picking
+    /// another page there loaded it out of sight under the lyrics, which stayed open. Going
+    /// somewhere else closes them; a change that stays on the same page does not.
+    func testGoingToAnotherPageClosesTheLyrics() async throws {
+        let hosted = try await hostBrowserWithLyricsOpen()
+        XCTAssertTrue(hosted.lyricsOverlay.isPresented)
+
+        // Same page, same trail: the lyrics stay.
+        hosted.browser.sidebarSelection = hosted.browser.sidebarSelection
+        AppKitTestSupport.pumpRunLoop(for: 0.2)
+        XCTAssertTrue(hosted.lyricsOverlay.isPresented, "the lyrics closed without going anywhere")
+
+        let elsewhere: SidebarSelection = hosted.browser.sidebarSelection == .likedSongs ? .home : .likedSongs
+        await hosted.browser.selectSidebar(elsewhere)
+        AppKitTestSupport.pumpRunLoop(for: 0.3)
+        XCTAssertFalse(hosted.lyricsOverlay.isPresented, "\(elsewhere) loaded under the lyrics, which stayed open")
+    }
+
+    func testCoveredPageIgnoresTitlesAndCovers() {
+        let browser = PlaylistBrowserViewModel(
+            api: MockBrowsingAPI(playlistResults: [], trackResults: [:]),
+            cache: MockBrowsingCache()
+        )
+        browser.breadcrumbPath = [Self.albumCrumb(artwork: nil)]
+        let before = LyricsCoveredPage(browser)
+        browser.breadcrumbPath = [Self.albumCrumb(artwork: URL(string: "https://example.com/large.jpg"))]
+        XCTAssertEqual(LyricsCoveredPage(browser), before, "a sharper cover counted as another page")
+        browser.breadcrumbPath = [Self.albumCrumb(artwork: nil), Self.albumCrumb(id: "a2", artwork: nil)]
+        XCTAssertNotEqual(LyricsCoveredPage(browser), before)
+    }
+
+    private static func albumCrumb(id: String = "a1", artwork: URL?) -> BrowserBreadcrumb {
+        BrowserBreadcrumb(
+            id: UUID(),
+            label: "Album",
+            systemImage: "square.stack",
+            kind: .album(id: id, title: "Album", subtitle: "Artist", artworkURL: artwork)
+        )
     }
 
     private static let lyricsTrack = PlaybackNowPlaying(

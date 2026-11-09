@@ -183,6 +183,9 @@ struct PlaylistBrowserView: View {
                         onRequestCreatePlaylist: requestCreatePlaylist,
                         onRequestLibraryContinuation: requestLibraryContinuation
                     )
+                    // The page is covered while the lyrics are open: VoiceOver and Tab must not
+                    // land on rows you can't see.
+                    .accessibilityHidden(lyricsOverlay.isPresented)
                     // Lyrics take the place of the page in this column only, so the sidebar,
                     // the queue and the player bar below stay as on every other screen (#438).
                     .overlay {
@@ -452,6 +455,12 @@ struct PlaylistBrowserView: View {
         .onChange(of: lyricsOverlay.isPresented) { _, _ in
             syncUnifiedRefreshRoutingToViewModel()
         }
+        // The sidebar, the queue and the player bar stay usable next to the lyrics, so you can
+        // go somewhere else while they are open (a sidebar row, an artist link, Back). The new
+        // page would load out of sight under the lyrics, so going there closes them (#438).
+        .onChange(of: LyricsCoveredPage(viewModel)) { _, _ in
+            if lyricsOverlay.isPresented { lyricsOverlay.dismiss() }
+        }
         .onChange(of: playbackViewModel.sdkNextTracks) { _, _ in
             queueViewModel.handleSdkQueueSnapshotChanged()
         }
@@ -491,5 +500,31 @@ struct PlaylistBrowserView: View {
         }
         .modifier(PlaylistDeletionConfirmation(viewModel: viewModel))
         .modifier(LibraryRemovalConfirmation(viewModel: viewModel))
+    }
+}
+
+/// Which page sits under the lyrics: the sidebar row and the trail pushed on top of it, by id.
+/// Titles and covers are left out, so a rename or a sharper cover doesn't count as going
+/// somewhere else.
+struct LyricsCoveredPage: Equatable {
+    let selection: SidebarSelection?
+    let trail: [String]
+
+    @MainActor
+    init(_ viewModel: PlaylistBrowserViewModel) {
+        selection = viewModel.sidebarSelection
+        trail = viewModel.breadcrumbPath.map { crumb in
+            switch crumb.kind {
+            case .search: "search"
+            case .likedSongs: "likedSongs"
+            case let .playlist(id): "playlist:\(id)"
+            case let .artist(id): "artist:\(id)"
+            case let .album(id, _, _, _): "album:\(id)"
+            }
+        }
+    }
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.selection == rhs.selection && lhs.trail == rhs.trail
     }
 }
