@@ -79,6 +79,9 @@ struct ImmersiveLyricsView: View {
             }
             .padding(.top, ImmersiveLyricsLayout.minimumTopClearance - SpotiglassDesign.spacingXS)
             .padding(.trailing, SpotiglassDesign.spacingL)
+            // They sit on the dimmed artwork in light mode too: drawn for light mode they were
+            // near-black on near-black.
+            .environment(\.colorScheme, .dark)
         }
         .focusScope(focusNamespace)
         .defaultFocus($focusedControl, .close)

@@ -244,13 +244,13 @@ private struct LyricsPopOutChrome<Body: View, StripLine: View>: View {
         // The lyrics surface is always light text on the dimmed artwork, in light and dark mode
         // alike, so its controls render for a dark background.
         .environment(\.colorScheme, .dark)
-        // The minimum is the whole window, title bar included: applied inside the safe area, the
-        // hidden title bar's height was added on top and the strip couldn't get below 116 pt.
+        .ignoresSafeArea()
+        // SwiftUI adds the hidden title bar's height to the content's minimum, so the content asks
+        // for the window's minimum less that bar; otherwise the strip couldn't get below 116 pt.
         .frame(
             minWidth: LyricsPopOutWindow.minimumSize.width,
-            minHeight: LyricsPopOutWindow.minimumSize.height
+            minHeight: LyricsPopOutWindow.minimumSize.height - Self.titleBarClearance
         )
-        .ignoresSafeArea()
         .background {
             LyricsPopOutWindowConfigurator(isPinned: isPinned)
                 .frame(width: 0, height: 0)
