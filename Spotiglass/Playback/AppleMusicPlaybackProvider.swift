@@ -223,6 +223,14 @@ final class AppleMusicPlaybackProvider: MusicPlaybackProvider {
         }
     }
 
+    func setInAppPlayerPlaying(_ playing: Bool) async throws {
+        if playing {
+            try await perform { try await player.resume() }
+        } else {
+            player.pause()
+        }
+    }
+
     func setVolume(_ volume: Double, generation: PlaybackHostGeneration) async throws {}
 
     // MARK: - Reads

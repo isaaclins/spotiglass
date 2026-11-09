@@ -114,6 +114,10 @@ protocol MusicPlaybackProvider: AnyObject {
     /// Toggles the in-app player. With ``MusicPlaybackCapabilities/pushesPlayerState``
     /// the provider confirms with a `playerCommandFinished` event.
     func togglePlayPause() async throws
+    /// Pauses (`false`) or plays (`true`) the in-app player. A press that knows the state it
+    /// wants sends this rather than a toggle: the player may not have applied the press before
+    /// it, and a second toggle then flips the old state (#437).
+    func setInAppPlayerPlaying(_ playing: Bool) async throws
     /// Sets the in-app player's volume, 0...1.
     func setVolume(_ volume: Double, generation: PlaybackHostGeneration) async throws
     /// Tells the in-app player that the service accepted a play command for `uri`

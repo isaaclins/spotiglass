@@ -46,6 +46,8 @@ final class MusicPlaybackProviderTests: XCTestCase {
         provider.loadPlayer(generation: generation)
         try await provider.connectPlayer(generation: generation)
         try await provider.togglePlayPause()
+        try await provider.setInAppPlayerPlaying(false)
+        try await provider.setInAppPlayerPlaying(true)
         try await provider.setVolume(0.25, generation: generation)
         try await provider.didStartLocalPlayback(uri: "spotify:track:1")
         try await provider.disconnectPlayer(generation: generation)
@@ -53,10 +55,10 @@ final class MusicPlaybackProviderTests: XCTestCase {
         XCTAssertEqual(commander.loadedHostGenerations, [generation])
         XCTAssertEqual(
             commander.commands.map(\.command),
-            [.connect, .togglePlay, .setVolume, .playURI, .disconnect]
+            [.connect, .togglePlay, .pause, .resume, .setVolume, .playURI, .disconnect]
         )
-        XCTAssertEqual(commander.commands[2].payload["volume"] as? Double, 0.25)
-        XCTAssertEqual(commander.commands[3].payload["uri"] as? String, "spotify:track:1")
+        XCTAssertEqual(commander.commands[4].payload["volume"] as? Double, 0.25)
+        XCTAssertEqual(commander.commands[5].payload["uri"] as? String, "spotify:track:1")
         XCTAssertTrue(api.actions.isEmpty, "in-app player commands must not reach the Web API")
     }
 
@@ -701,6 +703,7 @@ final class ReadOnlyStatePlaybackProvider: MusicPlaybackProvider {
     func setRepeat(mode: MusicRepeatMode, deviceID: String) async throws { commands.append("repeat \(mode) on \(deviceID)") }
     func enqueue(uri: String, deviceID: String) async throws { commands.append("enqueue \(uri) on \(deviceID)") }
     func togglePlayPause() async throws { commands.append("togglePlayPause") }
+    func setInAppPlayerPlaying(_ playing: Bool) async throws { commands.append(playing ? "inAppPlay" : "inAppPause") }
     func setVolume(_ volume: Double, generation: PlaybackHostGeneration) async throws { commands.append("volume \(volume)") }
 
     func fetchPlaybackState() async throws -> MusicPlaybackSnapshot? {
@@ -886,11 +889,15 @@ final class PlayPauseFollowsThePressTests: XCTestCase {
         return (commander, session)
     }
 
+    private static func playPauseCommands(_ commander: MockWebPlaybackCommander) -> [PlaybackBridgeCommand] {
+        commander.commands.map(\.command).filter { [.togglePlay, .pause, .resume].contains($0) }
+    }
+
     func testSpotifyShowsThePressBeforeItsPageReportsIt() async {
         let (commander, session) = playingSpotify()
 
         await session.togglePlayPause()
-        XCTAssertEqual(commander.commands.filter { $0.command == .togglePlay }.count, 1)
+        XCTAssertEqual(Self.playPauseCommands(commander), [.pause], "the press sends the state it asked for")
         XCTAssertTrue(Self.isPaused(session), "the controls waited for Spotify's page")
 
         session.handle(.stateChanged(Self.song, isPaused: false, nextTracks: []))
@@ -908,7 +915,9 @@ final class PlayPauseFollowsThePressTests: XCTestCase {
 
         await session.togglePlayPause()
         await session.togglePlayPause()
-        XCTAssertEqual(commander.commands.filter { $0.command == .togglePlay }.count, 2, "the second press was dropped")
+        // Pause then resume, not two toggles: the page answers before Spotify's player has
+        // applied the first, so a second toggle could flip the old state and stay paused.
+        XCTAssertEqual(Self.playPauseCommands(commander), [.pause, .resume], "the second press was dropped")
         XCTAssertTrue(Self.isPlaying(session))
 
         // The page reports the pause late, then the play.

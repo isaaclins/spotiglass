@@ -97,6 +97,10 @@ final class SpotifyPlaybackProvider: MusicPlaybackProvider, MusicPlaybackDeviceT
         try await webCommander.send(.togglePlay, payload: [:])
     }
 
+    func setInAppPlayerPlaying(_ playing: Bool) async throws {
+        try await webCommander.send(playing ? .resume : .pause, payload: [:])
+    }
+
     func setVolume(_ volume: Double, generation: PlaybackHostGeneration) async throws {
         try await webCommander.send(.setVolume, payload: ["volume": volume], generation: generation)
     }

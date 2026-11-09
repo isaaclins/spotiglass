@@ -26,17 +26,20 @@ extension PlaybackSessionViewModel {
         let serial: UInt64
         let generation: PlaybackHostGeneration
         let shouldPause: Bool
-        /// Through the in-app player's own toggle (Spotify's Web Playback SDK) instead of an
-        /// explicit pause / resume for a device whose state is read.
-        let usesPlayerToggle: Bool
+        /// Through the in-app player (Spotify's Web Playback SDK) instead of an explicit
+        /// pause / resume for a device whose state is read.
+        let usesInAppPlayer: Bool
+        /// The in-app player showed an item, so the press sends the state it asked for. Without
+        /// one there is nothing to read the state from, and the press goes out as a toggle.
+        let sendsRequestedState: Bool
         let stateBefore: PlaybackConnectionState
         let deviceID: String?
     }
 
     private func beginPlayPauseRequest() -> PlayPauseRequest? {
         let shouldPause: Bool
-        let usesPlayerToggle = !isPlayerStateRead
-        if usesPlayerToggle {
+        let usesInAppPlayer = !isPlayerStateRead
+        if usesInAppPlayer {
             // Spotify's page toggles whatever it has; with nothing on screen to flip (still
             // connecting, or ready with the account's last item) the toggle goes out as is.
             shouldPause = PlaylistBrowserPlaybackHelpers.isCurrentlyPlaying(connectionState: connectionState)
@@ -70,13 +73,14 @@ extension PlaybackSessionViewModel {
             serial: playPauseRequestSerial,
             generation: playbackHostGeneration,
             shouldPause: shouldPause,
-            usesPlayerToggle: usesPlayerToggle,
+            usesInAppPlayer: usesInAppPlayer,
+            sendsRequestedState: !usesInAppPlayer || Self.isShowingAnItem(connectionState),
             stateBefore: connectionState,
             deviceID: commandDeviceID
         )
         clearRefusedPlayPause()
-        if usesPlayerToggle {
-            guard Self.isShowingAnItem(connectionState) else { return request }
+        if usesInAppPlayer {
+            guard request.sendsRequestedState else { return request }
             showPlayPause(shouldPause: shouldPause)
             // Spotify's page reports the new state a moment later, and may first report the
             // old one: until it agrees (or the wait ends) its reports keep the state shown.
@@ -116,9 +120,15 @@ extension PlaybackSessionViewModel {
 
     private func sendPlayPause(_ request: PlayPauseRequest) async {
         guard ownsPlaybackHostGeneration(request.generation), !Task.isCancelled else { return }
-        if request.usesPlayerToggle {
+        if request.usesInAppPlayer {
             do {
-                try await provider.togglePlayPause()
+                // Pause then play sent as two toggles can both flip the old state when the
+                // page hasn't applied the first yet; the page answers before the player has.
+                if request.sendsRequestedState {
+                    try await provider.setInAppPlayerPlaying(!request.shouldPause)
+                } else {
+                    try await provider.togglePlayPause()
+                }
             } catch {
                 refusePlayPause(request, error: error)
             }
