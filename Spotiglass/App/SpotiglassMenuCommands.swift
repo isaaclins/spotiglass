@@ -141,7 +141,25 @@ struct SpotiglassMenuCommands: Commands {
             .disabled(!isSignedIn)
         }
 
-        CommandGroup(after: .sidebar) {
+        CommandGroup(replacing: .sidebar) {
+            // Replaces the system Show/Hide Sidebar item, which only had ⌃⌘S and only reached
+            // the sidebar while focus sat inside it (#436). This one follows the keymap (⌘S by
+            // default) and toggles the browser's own sidebar state, so it works with lyrics or
+            // the queue focused too. ⌃⌘S keeps working through the key monitor.
+            Button(sidebarItemTitle) {
+                // A text field has no use for ⌘S, and the sidebar must not move while typing.
+                guard !CommandPaletteSidebarShortcut.isTypingKeyPress(NSApp.currentEvent) else { return }
+                if let manager = activeCommandPaletteManager {
+                    manager.execute(commandID: CommandPaletteCommandID.toggleSidebar)
+                } else {
+                    NSApp.sendAction(#selector(NSSplitViewController.toggleSidebar(_:)), to: nil, from: nil)
+                }
+            }
+            .keyboardShortcut(keymapShortcut(for: CommandPaletteCommandID.toggleSidebar))
+            .disabled(!isSidebarItemEnabled)
+
+            Divider()
+
             // ⌘[ is the Mac key equivalent for Back. It is hardcoded rather than
             // read from the keymap because `navigateBack` is menu-bar only and
             // therefore cannot be rebound to shadow it.
@@ -306,6 +324,21 @@ struct SpotiglassMenuCommands: Commands {
 
     private static func open(_ url: URL) {
         NSWorkspace.shared.open(url)
+    }
+
+    /// With another window in front (Settings) the item is that window's, so its title can't
+    /// name the browser's sidebar state, and it works signed out too, as the system item did.
+    var sidebarItemTitle: String {
+        guard sceneRegistry.isMainWindowInFront else {
+            return SpotiglassL10n.string("palette.command.view.sidebar.toggle.title", locale: locale)
+        }
+        return (activeCommandPaletteManager?.isSidebarVisible ?? true)
+            ? SpotiglassL10n.string("menu.view.hideSidebar", locale: locale)
+            : SpotiglassL10n.string("menu.view.showSidebar", locale: locale)
+    }
+
+    var isSidebarItemEnabled: Bool {
+        isSignedIn || !sceneRegistry.isMainWindowInFront
     }
 
     private var queueItemTitle: String {

@@ -33,6 +33,8 @@ palette.command.service.switch.appleMusic.subtitle
 palette.command.service.switch.appleMusic.title
 palette.command.service.switch.spotify.subtitle
 palette.command.service.switch.spotify.title
+palette.command.view.sidebar.toggle.subtitle
+palette.command.view.sidebar.toggle.title
 
 # Runtime-selected AppearanceSettingsView lookup.
 settings.appearance.lyricsOffset.value.earlier
