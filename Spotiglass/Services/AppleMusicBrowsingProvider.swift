@@ -275,9 +275,16 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
                 await trackCountCache.store(counts, tracks: library, from: start)
                 // Opening one of them shows its kept tracks; what the rows need for edits is
                 // worked out now, in the background, so neither the counts nor the open wait.
+                // At most what the registry keeps, in a fixed order: a bigger library would push
+                // out the first ones before they're used, and work them all out again next time.
                 let references = editor.songReferences
                 Task.detached(priority: .utility) {
-                    for tracks in library.values { references.prepareIdentities(of: tracks) }
+                    var budget = AppleMusicSongReferenceRegistry.maxIdentities
+                    for id in library.keys.sorted() where budget > 0 {
+                        let tracks = library[id, default: []].prefix(budget)
+                        references.prepareIdentities(of: Array(tracks))
+                        budget -= tracks.count
+                    }
                 }
             }
         }
@@ -934,19 +941,20 @@ actor AppleMusicPlaylistTrackCountCache {
     /// The tracks last read for a playlist, while it is still at `version` (its current
     /// `lastModifiedDate`) and they are younger than `maxAge`.
     func tracks(playlistID id: String, version: Date) -> [Track]? {
-        tracks(playlistID: id) { $0 == version }
+        tracks(playlistID: id, maxAge: Self.maxAge) { $0 == version }
     }
 
-    /// The tracks last read for a playlist, younger than `maxAge`, whether or not it changed
-    /// since: to show at once while a fresh read runs.
+    /// The tracks last read for a playlist, however old and whether or not it changed since: to
+    /// show at once while a fresh read runs, which replaces them. An age limit here made the
+    /// first open of a playlist wait for the whole read again 10 minutes after launch (#442).
     func lastReadTracks(playlistID id: String) -> [Track]? {
-        tracks(playlistID: id) { _ in true }
+        tracks(playlistID: id, maxAge: nil) { _ in true }
     }
 
-    private func tracks(playlistID id: String, matching isCurrent: (Date?) -> Bool) -> [Track]? {
+    private func tracks(playlistID id: String, maxAge: TimeInterval?, matching isCurrent: (Date?) -> Bool) -> [Track]? {
         guard var list = trackLists[id] else { return nil }
         let current = now()
-        guard isCurrent(list.version), current.timeIntervalSince(list.storedAt) < Self.maxAge else {
+        guard isCurrent(list.version), maxAge.map({ current.timeIntervalSince(list.storedAt) < $0 }) ?? true else {
             trackLists[id] = nil
             return nil
         }

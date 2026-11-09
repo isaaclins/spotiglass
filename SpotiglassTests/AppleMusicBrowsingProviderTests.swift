@@ -671,6 +671,28 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         XCTAssertEqual(afterwards?.count, 797, "the next open starts from the newer read")
     }
 
+    /// The counted songs are only shown until a fresh read replaces them, so they stay usable
+    /// however long ago the app launched: an age limit made a first open 10 minutes after
+    /// launch wait for the whole read again.
+    func testTheCountedSongsAreStillShownFirstLongAfterLaunch() async throws {
+        let source = MockAppleMusicSource()
+        source.playlists = [try AppleMusicFixtures.playlist(id: "p.1", name: "My music mix")]
+        source.trackCountsByPlaylistID = ["p.1": 796]
+        source.playlistTracksByID = ["p.1": try songs(0..<796)]
+        let clock = TrackCountTestClock()
+        let provider = AppleMusicBrowsingProvider(
+            source: source,
+            trackCountCache: AppleMusicPlaylistTrackCountCache(now: { clock.now })
+        )
+        _ = try await provider.currentUserPlaylists(limit: 50)
+        _ = await provider.playlistTrackCounts(playlistIDs: ["p.1"])
+
+        clock.now = clock.now.addingTimeInterval(15 * 60)
+        let shownFirst = await provider.lastReadPlaylistTracks(playlistID: "p.1")
+
+        XCTAssertEqual(shownFirst?.count, 796)
+    }
+
     func testAPlaylistWithoutAModificationDateIsAlwaysRead() async throws {
         let source = MockAppleMusicSource()
         source.playlists = [try AppleMusicFixtures.playlist(id: "p.1", name: "Road")]
