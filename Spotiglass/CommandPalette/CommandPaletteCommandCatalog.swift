@@ -120,6 +120,13 @@ enum CommandPaletteCommandCatalog {
             defaultKeystroke: "alt-cmd-l"
         ),
         spec(
+            commandID: CommandPaletteCommandID.popOutLyrics,
+            iconSystemName: "pip.enter",
+            defaultWhen: .signedIn,
+            // Show Lyrics' chord plus Shift: the same lyrics, in their own window.
+            defaultKeystroke: "shift-alt-cmd-l"
+        ),
+        spec(
             commandID: CommandPaletteCommandID.toggleSidebar,
             iconSystemName: "sidebar.left",
             defaultWhen: .signedIn,
@@ -184,6 +191,7 @@ enum CommandPaletteCommandCatalog {
         CommandPaletteCommandID.previousTrack,
         CommandPaletteCommandID.toggleQueue,
         CommandPaletteCommandID.toggleLyrics,
+        CommandPaletteCommandID.popOutLyrics,
         CommandPaletteCommandID.toggleSidebar,
         CommandPaletteCommandID.openSettings,
         CommandPaletteCommandID.pinSelected,

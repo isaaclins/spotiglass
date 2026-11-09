@@ -36,6 +36,8 @@ enum CommandPaletteCommandID {
     static let filterByArtist = "search.filterByArtist"
     static let toggleQueue = "queue.toggle"
     static let toggleLyrics = "lyrics.toggle"
+    /// Opens the small lyrics window that can stay above other apps (#439), or brings it forward.
+    static let popOutLyrics = "lyrics.popOut"
     /// Shows or hides the playlist sidebar. Default ⌘S; the system's ⌃⌘S also
     /// works (see ``CommandPaletteSidebarShortcut``), because the View menu item
     /// it replaces carried that chord (#436).

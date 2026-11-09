@@ -298,6 +298,14 @@ struct PlaylistBrowserView: View {
                 .accessibilityHint(SpotiglassL10n.string("browser.queue.hint"))
 
                 if lyricsOverlay.isPresented {
+                    // Moves the lyrics into the small window that can stay above other apps (#439).
+                    Button {
+                        commandPaletteManager.execute(commandID: CommandPaletteCommandID.popOutLyrics)
+                    } label: {
+                        Label(SpotiglassL10n.string("lyrics.popOut.button"), systemImage: "pip.enter")
+                    }
+                    .help(SpotiglassL10n.string("lyrics.popOut.button.help"))
+
                     Button {
                         lyricsOverlay.dismiss()
                     } label: {

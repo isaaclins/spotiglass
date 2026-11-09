@@ -942,23 +942,54 @@ struct PlaybackControlsView: View {
     }
 
     private var title: String {
-        switch viewModel.connectionState {
+        if let status = Self.statusLines(for: viewModel.connectionState, playerPushesState: viewModel.playerPushesState, service: shownService) {
+            return status.title
+        }
+        return viewModel.connectionState.currentTrack?.name ?? ""
+    }
+
+    /// The bar's two lines while no song is there to name them: connecting, nothing loaded, an
+    /// error. `nil` while a song plays or is paused. The pop-out lyrics window shows the same (#439).
+    static func statusLines(
+        for state: PlaybackConnectionState,
+        playerPushesState: Bool,
+        service: MusicService
+    ) -> (title: String, subtitle: String)? {
+        switch state {
+        case .playing, .paused(.some):
+            nil
+        case .paused(.none):
+            (
+                SpotiglassL10n.string("playback.controls.state.paused.title"),
+                SpotiglassL10n.string("playback.controls.state.paused.subtitle")
+            )
         case .disconnected:
-            SpotiglassL10n.string("playback.controls.state.disconnected.title")
+            (
+                SpotiglassL10n.string("playback.controls.state.disconnected.title"),
+                serviceString("playback.controls.state.disconnected.subtitle", appleMusic: "playback.controls.state.disconnected.subtitle.appleMusic", service: service)
+            )
         case .connecting:
-            Self.serviceString("playback.controls.state.connecting.title", appleMusic: "playback.controls.state.connecting.title.appleMusic", service: shownService)
+            (
+                serviceString("playback.controls.state.connecting.title", appleMusic: "playback.controls.state.connecting.title.appleMusic", service: service),
+                serviceString("playback.controls.state.connecting.subtitle", appleMusic: "playback.controls.state.connecting.subtitle.appleMusic", service: service)
+            )
         case .ready:
-            SpotiglassL10n.string("playback.controls.state.ready.title")
+            (
+                SpotiglassL10n.string("playback.controls.state.ready.title"),
+                // MusicKit's player has nothing to resume, so its Play is off until a track is chosen (#396).
+                playerPushesState
+                    ? SpotiglassL10n.string("playback.controls.state.ready.subtitle")
+                    : SpotiglassL10n.string("playback.controls.state.ready.subtitle.appleMusic")
+            )
         case .transferring:
-            SpotiglassL10n.string("playback.controls.state.transferring.title")
-        case let .playing(nowPlaying):
-            nowPlaying.name
-        case let .paused(nowPlaying):
-            nowPlaying?.name ?? SpotiglassL10n.string("playback.controls.state.paused.title")
-        case .unavailable:
-            SpotiglassL10n.string("playback.controls.state.unavailable.title")
+            (
+                SpotiglassL10n.string("playback.controls.state.transferring.title"),
+                SpotiglassL10n.string("playback.controls.state.transferring.subtitle")
+            )
+        case let .unavailable(message):
+            (SpotiglassL10n.string("playback.controls.state.unavailable.title"), message)
         case let .error(error):
-            error.title
+            (error.title, error.message)
         }
     }
 
@@ -984,27 +1015,10 @@ struct PlaybackControlsView: View {
         if let refused = viewModel.refusedPlayPause {
             return refused.title
         }
-        return switch viewModel.connectionState {
-        case .disconnected:
-            Self.serviceString("playback.controls.state.disconnected.subtitle", appleMusic: "playback.controls.state.disconnected.subtitle.appleMusic", service: shownService)
-        case .connecting:
-            Self.serviceString("playback.controls.state.connecting.subtitle", appleMusic: "playback.controls.state.connecting.subtitle.appleMusic", service: shownService)
-        case .ready:
-            // MusicKit's player has nothing to resume, so its Play is off until a track is chosen (#396).
-            viewModel.playerPushesState
-                ? SpotiglassL10n.string("playback.controls.state.ready.subtitle")
-                : SpotiglassL10n.string("playback.controls.state.ready.subtitle.appleMusic")
-        case .transferring:
-            SpotiglassL10n.string("playback.controls.state.transferring.subtitle")
-        case let .playing(nowPlaying):
-            nowPlaying.artistText
-        case let .paused(nowPlaying):
-            nowPlaying?.artistText ?? SpotiglassL10n.string("playback.controls.state.paused.subtitle")
-        case let .unavailable(message):
-            message
-        case let .error(error):
-            error.message
+        if let status = Self.statusLines(for: viewModel.connectionState, playerPushesState: viewModel.playerPushesState, service: shownService) {
+            return status.subtitle
         }
+        return viewModel.connectionState.currentTrack?.artistText ?? ""
     }
 
     private var artistTapTargets: [ArtistTapTarget] {
@@ -1068,12 +1082,7 @@ struct PlaybackControlsView: View {
     }
 
     private var hasReadyDevice: Bool {
-        switch viewModel.connectionState {
-        case .ready, .transferring, .playing, .paused:
-            true
-        case .disconnected, .connecting, .unavailable, .error:
-            false
-        }
+        viewModel.connectionState.hasReadyDevice
     }
 
     private var stateIcon: String {
@@ -1124,7 +1133,8 @@ struct PlaybackControlsView: View {
 /// SwiftUI's macOS 26 button bridge does not publish its accessibility label
 /// for ordinary hosted buttons. Keep the visual SwiftUI content and put a
 /// transparent native button beside it so AppKit gets a real AXButton (#334).
-private struct PlaybackTransportButton<Content: View>: View {
+/// The pop-out lyrics window uses it too (#439).
+struct PlaybackTransportButton<Content: View>: View {
     let accessibilityLabel: String
     let accessibilityHint: String
     let size: CGSize

@@ -3,6 +3,8 @@ palette.command.app.openSettings.subtitle
 palette.command.app.openSettings.title
 palette.command.app.signOut.subtitle
 palette.command.app.signOut.title
+palette.command.lyrics.popOut.subtitle
+palette.command.lyrics.popOut.title
 palette.command.lyrics.toggle.subtitle
 palette.command.lyrics.toggle.title
 palette.command.navigation.search.open.subtitle

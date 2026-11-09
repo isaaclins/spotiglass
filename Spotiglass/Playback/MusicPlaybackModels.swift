@@ -85,19 +85,33 @@ extension PlaybackConnectionState {
         }
     }
 
+    /// Whether a player is there to take Previous and Next: the player bar and the pop-out lyrics
+    /// window enable their skip buttons by it.
+    var hasReadyDevice: Bool {
+        switch self {
+        case .ready, .transferring, .playing, .paused:
+            true
+        case .disconnected, .connecting, .unavailable, .error:
+            false
+        }
+    }
+
     /// The currently playing or paused music track, if lyrics can be loaded for it.
     var currentLyricTrack: PlaybackNowPlaying? {
-        let nowPlaying: PlaybackNowPlaying?
+        guard let nowPlaying = currentTrack, nowPlaying.lyricsTrackKey != nil else { return nil }
+        return nowPlaying
+    }
+
+    /// What is playing or paused, lyrics or not (a podcast episode, a local file).
+    var currentTrack: PlaybackNowPlaying? {
         switch self {
         case let .playing(track):
-            nowPlaying = track
+            track
         case let .paused(track):
-            nowPlaying = track
+            track
         case .disconnected, .connecting, .ready, .transferring, .unavailable, .error:
-            nowPlaying = nil
+            nil
         }
-        guard let nowPlaying, nowPlaying.lyricsTrackKey != nil else { return nil }
-        return nowPlaying
     }
 }
 

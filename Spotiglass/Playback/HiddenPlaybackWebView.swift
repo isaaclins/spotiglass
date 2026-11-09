@@ -100,6 +100,9 @@ final class SpotiglassPlaybackHosts: ObservableObject {
     let spotify: SpotiglassPlaybackHost
     private let makeAppleMusic: () -> SpotiglassPlaybackHost
     private(set) var appleMusicIfCreated: SpotiglassPlaybackHost?
+    /// Fires once Apple Music's player exists, for views that follow it without creating it (the
+    /// pop-out lyrics window, #439). Sent on the next turn: the player is often made mid-render.
+    let appleMusicCreated = PassthroughSubject<Void, Never>()
     private var addedServices: [MusicService]?
     private var cancellables: Set<AnyCancellable> = []
 
@@ -114,6 +117,7 @@ final class SpotiglassPlaybackHosts: ObservableObject {
         link(spotify.playbackViewModel, created.playbackViewModel)
         link(created.playbackViewModel, spotify.playbackViewModel)
         appleMusicIfCreated = created
+        DispatchQueue.main.async { [weak self] in self?.appleMusicCreated.send() }
         return created
     }
 
@@ -133,10 +137,27 @@ final class SpotiglassPlaybackHosts: ObservableObject {
             .store(in: &cancellables)
     }
 
+    /// Spotify's session ending (signing out, a lapsed session) stops Spotify's player, for the
+    /// whole app: with every main window closed, the pop-out lyrics window keeps its page alive
+    /// (#439), and nothing else would stop music the app no longer has a session for.
+    func followSpotifySession<States: Publisher>(_ states: States)
+    where States.Output == AppConnectionState, States.Failure == Never {
+        states
+            .map(\.hasSpotifySession)
+            .removeDuplicates()
+            .dropFirst()
+            .filter { !$0 }
+            .sink { [weak self] _ in
+                guard let player = self?.spotify.playbackViewModel else { return }
+                Task { await player.disconnect() }
+            }
+            .store(in: &cancellables)
+    }
+
     /// Signing out of Apple Music removes it, and its player stops with it (#396): nothing keeps
     /// playing that the window offers no way to control, and adding it again starts fresh.
-    /// Spotify's player already disconnects with Spotify's sign-out, which every removal of
-    /// Spotify goes through, so it is left to that path.
+    /// Spotify's player stops when its session ends (``followSpotifySession(_:)``), which every
+    /// removal of Spotify goes through.
     func servicesChanged(to services: [MusicService]) {
         defer { addedServices = services }
         guard let previous = addedServices,

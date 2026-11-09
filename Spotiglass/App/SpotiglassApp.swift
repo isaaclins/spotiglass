@@ -92,6 +92,7 @@ struct SpotiglassApp: App {
         )
         // Signing out of a service stops its player, even with no window open (#396).
         playbackHosts.follow(addedServices: services.$services)
+        playbackHosts.followSpotifySession(authVM.$state)
         _playbackHosts = StateObject(wrappedValue: playbackHosts)
         SpotiglassL10n.settingsStore = store
     }
@@ -209,10 +210,10 @@ struct SpotiglassApp: App {
             CommandGroup(after: .appInfo) {
                 CheckForUpdatesView(updater: sparkleUpdater.updater)
                 Button(SpotiglassL10n.string("app.menu.openPalette", locale: settingsStore.appLocale)) {
-                    sceneRegistry.activeScene?.commandPaletteManager.execute(
-                        commandID: CommandPaletteCommandID.openPalette
-                    )
+                    sceneRegistry.activeScene?.performMenuCommand(CommandPaletteCommandID.openPalette)
                 }
+                // The palette belongs to a main window: with none open it has nowhere to show (#439).
+                .disabled(sceneRegistry.activeScene == nil)
                 // Derived from the keymap like every other menu item, so a
                 // rebind moves the chord instead of leaving Command-K alive as
                 // a second, undisclosed trigger (#131).
@@ -259,6 +260,26 @@ struct SpotiglassApp: App {
             }
         }
 
+        // One window, not a group: opening it again brings it forward (#439). It shows the
+        // app-scoped players, so closing it never stops the music.
+        Window(
+            SpotiglassL10n.string("lyrics.popOut.windowTitle", locale: settingsStore.appLocale),
+            id: LyricsPopOutWindow.sceneID
+        ) {
+            LyricsPopOutRoot(playbackHosts: playbackHosts, serviceStore: serviceStore, keymapStore: keymapStore)
+                .environmentObject(settingsStore)
+                .environment(\.locale, settingsStore.appLocale)
+                .environment(\.spotiglassLocale, settingsStore.appLocale)
+                .id(settingsStore.settings.appearance.language.rawValue)
+        }
+        .windowStyle(.hiddenTitleBar)
+        .windowResizability(.contentMinSize)
+        .defaultSize(LyricsPopOutWindow.defaultSize)
+        // Its size and place are remembered by the window itself; it opens when asked, never
+        // by itself at launch.
+        .restorationBehavior(.disabled)
+        .defaultLaunchBehavior(.suppressed)
+
         Settings {
             SpotiglassSettingsView(
                 keymapStore: keymapStore,
@@ -293,5 +314,69 @@ final class SpotiglassApplicationDelegate: NSObject, NSApplicationDelegate {
     func applicationWillFinishLaunching(_ notification: Notification) {
         guard AppMetadata.isRunningUnitTests else { return }
         NSApp.setActivationPolicy(.prohibited)
+    }
+
+    /// Clicking the Dock icon with no main window open brings one back. The pop-out lyrics window
+    /// counts as a visible window, so with only it open the system would bring nothing back
+    /// (#439): open a main window the way File › New Window does.
+    @MainActor
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        switch Self.reopenAction(for: sender.windows) {
+        case .system:
+            return true
+        case let .restore(window):
+            window.deminiaturize(nil)
+        case .newWindow:
+            Self.performNewWindow(in: sender.mainMenu)
+        }
+        return false
+    }
+
+    enum ReopenAction: Equatable {
+        /// A main window or Settings is open: the system handles the click as before.
+        case system
+        /// Only the pop-out is open and a main window waits in the Dock: it comes back.
+        case restore(NSWindow)
+        /// Only the pop-out is open: a new main window, like File › New Window.
+        case newWindow
+    }
+
+    @MainActor
+    static func reopenAction(for windows: [NSWindow]) -> ReopenAction {
+        guard onlyThePopOutIsOpen(windows) else { return .system }
+        if let minimized = minimizedMainWindow(windows) { return .restore(minimized) }
+        return .newWindow
+    }
+
+    /// A main window minimised to the Dock, if there is one; never Settings or another window.
+    @MainActor
+    static func minimizedMainWindow(_ windows: [NSWindow]) -> NSWindow? {
+        windows.first { $0.isMiniaturized && SpotiglassMainWindows.contains($0) }
+    }
+
+    /// True when the pop-out is the only window that could be a main window: no main window and
+    /// no Settings, just the pop-out (menus, tooltips and panels don't count).
+    @MainActor
+    static func onlyThePopOutIsOpen(_ windows: [NSWindow]) -> Bool {
+        let visible = windows.filter { $0.isVisible && $0.canBecomeMain }
+        return !visible.isEmpty && visible.allSatisfy { LyricsPopOutWindow.isPopOut($0) }
+    }
+
+    /// Runs File › New Window (⌘N), the item SwiftUI adds for the main windows.
+    @MainActor
+    @discardableResult
+    static func performNewWindow(in mainMenu: NSMenu?) -> Bool {
+        func find(in menu: NSMenu) -> (NSMenu, Int)? {
+            for (index, item) in menu.items.enumerated() {
+                if item.keyEquivalent == "n", item.keyEquivalentModifierMask == [.command], item.isEnabled {
+                    return (menu, index)
+                }
+                if let submenu = item.submenu, let found = find(in: submenu) { return found }
+            }
+            return nil
+        }
+        guard let mainMenu, let (menu, index) = find(in: mainMenu) else { return false }
+        menu.performActionForItem(at: index)
+        return true
     }
 }

@@ -2,6 +2,21 @@ import AppKit
 import Combine
 import SwiftUI
 
+/// Every main window the app has shown, so AppKit-level code (a Dock click) can tell them apart
+/// from Settings, the pop-out lyrics window or Sparkle's windows (#439).
+@MainActor
+enum SpotiglassMainWindows {
+    private static let windows = NSHashTable<NSWindow>.weakObjects()
+
+    static func add(_ window: NSWindow) {
+        windows.add(window)
+    }
+
+    static func contains(_ window: NSWindow) -> Bool {
+        windows.contains(window)
+    }
+}
+
 /// The transient controllers belong to one main-window scene together. Keeping
 /// them in this scene host prevents one `WindowGroup` root from replacing or
 /// tearing down another root's palette or lyrics state.
@@ -40,6 +55,16 @@ final class SpotiglassSceneHost: ObservableObject {
     func resetTransientState() {
         commandPaletteManager.detach()
         lyricsOverlayController.detach()
+    }
+
+    /// Runs a menu command in this scene. Chosen while the pop-out lyrics window has focus, a
+    /// command that changes this window brings it forward first, so nothing changes out of sight
+    /// behind the pop-out (#439).
+    func performMenuCommand(_ commandID: String, keyWindow: NSWindow? = NSApp.keyWindow) {
+        if LyricsPopOutWindow.bringsMainWindowForward(for: commandID, keyWindow: keyWindow) {
+            window?.makeKeyAndOrderFront(nil)
+        }
+        commandPaletteManager.execute(commandID: commandID)
     }
 
     func browserViewModel(
@@ -188,6 +213,9 @@ private final class SceneHostActivationProbeView: NSView {
         guard let window else { return }
 
         observedWindow = window
+        // Recorded as soon as it has a window, key or not: one restored minimised at launch
+        // never becomes key, and a Dock click must still find it (#439).
+        SpotiglassMainWindows.add(window)
         if window.isKeyWindow {
             activate(window)
         }
@@ -243,6 +271,7 @@ struct RootView: View {
     /// Apple Music permission state, shared app-wide with the menu bar and Settings.
     @ObservedObject private var appleMusicSession: AppleMusicSession
     @Environment(\.openSettings) private var openSettingsAction
+    @Environment(\.openWindow) private var openWindowAction
 
     private var commandPaletteManager: CommandPaletteManager {
         sceneHost.commandPaletteManager
@@ -339,6 +368,19 @@ struct RootView: View {
         }
     }
 
+    /// Opens the pop-out lyrics window, or brings the one that is open forward (#439). The lyrics
+    /// move there: this window's lyrics view closes.
+    private var popOutLyricsAction: () -> Void {
+        let openWindow = openWindowAction
+        let lyricsOverlay = lyricsOverlayController
+        return {
+            if LyricsPopOutWindow.popOutClosesLyricsView(keyWindow: NSApp.keyWindow) {
+                lyricsOverlay.dismiss()
+            }
+            openWindow(id: LyricsPopOutWindow.sceneID)
+        }
+    }
+
     /// "Add a service…" and the welcome screen: show that service's sign-in.
     private var addServiceAction: (MusicService) -> Void {
         let serviceStore = self.serviceStore
@@ -358,14 +400,12 @@ struct RootView: View {
             openSettingsAction()
         }
         commandPaletteManager.switchService = switchServiceAction
+        commandPaletteManager.popOutLyrics = popOutLyricsAction
         commandPaletteManager.switchableServices = serviceStore.switchTargets
     }
 
     private var isSpotifySignedIn: Bool {
-        switch spotifyState {
-        case .signedIn, .refreshing(.some): true
-        case .signedOut, .signingIn, .failed, .refreshing(.none): false
-        }
+        spotifyState.hasSpotifySession
     }
 
     /// Spotify's state as the window shows it: a session that is being signed out already lost its
@@ -476,9 +516,6 @@ struct RootView: View {
                 case .signedOut, .signingIn, .failed, .refreshing(.none):
                     sceneHost.discardBrowserViewModel(for: .spotify)
                     serviceStore.lastPinnedUserID[.spotify] = nil
-                    if sceneRegistry == nil || sceneRegistry?.activeScene === sceneHost {
-                        Task { await playbackHosts.spotify.playbackViewModel.disconnect() }
-                    }
                     // Another service on screen keeps its browser, palette and pins.
                     guard serviceStore.active == .spotify else { return }
                     resetTransientStateForAuthLoss()

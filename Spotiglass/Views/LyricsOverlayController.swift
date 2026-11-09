@@ -49,6 +49,7 @@ struct LyricsOverlayFocusContainer<Content: View>: NSViewRepresentable {
 private enum LyricsOverlayGlobalCommands {
     static let commandIDs: Set<String> = [
         CommandPaletteCommandID.toggleLyrics,
+        CommandPaletteCommandID.popOutLyrics,
         CommandPaletteCommandID.togglePlayback,
         CommandPaletteCommandID.nextTrack,
         CommandPaletteCommandID.previousTrack,

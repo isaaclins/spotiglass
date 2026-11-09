@@ -88,6 +88,9 @@ final class CommandPaletteManager: ObservableObject {
     var filterByArtist: ((String) -> Void)?
     var toggleQueue: (() -> Void)?
     var toggleLyrics: (() -> Void)?
+    /// Opens the pop-out lyrics window (#439). App-wide like ``switchService``: the window
+    /// follows whatever plays, so ``detach()`` keeps it.
+    var popOutLyrics: (() -> Void)?
     /// Shows or hides the browser's playlist sidebar (#436).
     var toggleSidebar: (() -> Void)?
     /// Bulk-warms the on-disk track cache for every library playlist + Liked
@@ -283,6 +286,10 @@ final class CommandPaletteManager: ObservableObject {
     }
 
     func handleKeyEvent(_ event: NSEvent) -> Bool {
+        // The pop-out lyrics window answers its own transport keys (#439), even with no main
+        // window open. Everything here (Escape, the palette, the browser's commands) belongs to a
+        // main window and must not act on it from a window that shows none of it.
+        guard !LyricsPopOutWindow.isPopOut(event.window) else { return false }
         guard isCurrentScene() else { return false }
 
         // Escape keeps the existing dismissal priority: close the command
@@ -374,6 +381,9 @@ final class CommandPaletteManager: ObservableObject {
             }
             if binding.command == CommandPaletteCommandID.toggleLyrics {
                 return canToggleLyrics
+            }
+            if binding.command == CommandPaletteCommandID.popOutLyrics {
+                return popOutLyrics != nil
             }
             if let service = MusicService(switchCommandID: binding.command) {
                 return switchService != nil && switchableServices.contains(service)
@@ -484,6 +494,9 @@ final class CommandPaletteManager: ObservableObject {
         case CommandPaletteCommandID.toggleLyrics:
             guard canToggleLyrics else { return }
             toggleLyrics?()
+        case CommandPaletteCommandID.popOutLyrics:
+            viewModel.hide()
+            popOutLyrics?()
         case CommandPaletteCommandID.toggleSidebar:
             // Like the system item it replaces, Show/Hide Sidebar acts on the window in front:
             // with Settings in front it collapses Settings' own sidebar, not the browser's
@@ -588,6 +601,7 @@ final class CommandPaletteManager: ObservableObject {
             guard !spec.requiresSignInForPalette || isSignedIn else { return nil }
             guard spec.commandID != CommandPaletteCommandID.togglePlayback || canTogglePlayback else { return nil }
             guard spec.commandID != CommandPaletteCommandID.toggleLyrics || canToggleLyrics else { return nil }
+            guard spec.commandID != CommandPaletteCommandID.popOutLyrics || popOutLyrics != nil else { return nil }
             guard spec.commandID != CommandPaletteCommandID.refreshPlaylists || isLyricsPresented?() != true else {
                 return nil
             }
@@ -646,6 +660,8 @@ final class CommandPaletteManager: ObservableObject {
             ["queue", "up next", "panel"]
         case CommandPaletteCommandID.toggleLyrics:
             ["lyrics", "immersive", "karaoke", "overlay"]
+        case CommandPaletteCommandID.popOutLyrics:
+            ["lyrics", "pop out", "window", "mini player", "miniplayer", "float", "on top", "pin"]
         case CommandPaletteCommandID.toggleSidebar:
             ["sidebar", "library", "playlists", "show", "hide"]
         case CommandPaletteCommandID.signOut:
