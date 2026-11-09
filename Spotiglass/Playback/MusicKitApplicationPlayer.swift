@@ -62,19 +62,22 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         // The row that was clicked must play; if it couldn't be found, say so instead of
         // quietly starting another song.
         if let startURI, !resolved.contains(where: { $0.uri == startURI }) { throw Self.notFound(startURI) }
+        let explicitBlocked = AppleMusicContentRestrictions.isExplicitMusicBlocked()
+        let queueable = try Self.leavingOutBlocked(resolved, startURI: startURI, explicitBlocked: explicitBlocked)
         // No row was picked (an album, playlist or artist from its header): with shuffle on it
         // starts at a random song, like Spotify. Shuffle only reorders what comes after the
         // song that plays first, so that song moves to the front and every other one stays
         // ahead of it.
         let ordered = startURI == nil && shuffleWanted
-            ? Self.movingToFront(resolved, index: Int.random(in: resolved.indices))
-            : resolved
+            ? Self.movingToFront(queueable, index: Int.random(in: queueable.indices))
+            : queueable
         let startIndex = ordered.firstIndex { $0.uri == startURI } ?? 0
         // Songs added with Add to queue that haven't played yet stay queued, right after the
         // new first song, like Spotify's queue. With shuffle off they go into the new queue
         // as it is set; with shuffle on MusicKit reshuffles a new queue, so they are inserted
         // after that instead, or they'd end up anywhere in it.
-        let carried = carriedAddedSongs()
+        // Songs added before the Mac started blocking explicit music are left out too.
+        let carried = Self.droppingBlocked(carriedAddedSongs(), explicitBlocked: explicitBlocked)
         let carriedInQueue = shuffleWanted ? [] : carried
         var queued = ordered
         queued.insert(contentsOf: carriedInQueue, at: startIndex + 1)
@@ -196,6 +199,7 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
 
     func enqueue(uri: String, isCurrent: @escaping @MainActor () -> Bool) async throws {
         guard let resolved = try await Self.resolveEntries([uri]).first else { throw Self.notFound(uri) }
+        _ = try Self.leavingOutBlocked([resolved], startURI: uri, explicitBlocked: AppleMusicContentRestrictions.isExplicitMusicBlocked())
         // Signed out during the lookup: the queue belongs to the session that ended.
         guard isCurrent() else { throw CancellationError() }
         let rememberedKeys = remember(uri, for: resolved.entry)
@@ -468,6 +472,53 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         return Array((detailed.topSongs ?? []).prefix(artistSongLimit))
     }
 
+    // MARK: - Restrictions
+
+    /// `items` without the songs this Mac won't play. A Mac that only allows clean music (Screen
+    /// Time's Content & Privacy, or a profile from whoever manages it) makes MusicKit refuse to
+    /// start an explicit song with "Failed to prepare to play" (#429), so they are left out and
+    /// the rest of a list plays. The picked song being one of them, or every song of a list,
+    /// fails with the reason instead.
+    static func leavingOutBlocked(
+        _ items: [(uri: String, entry: MusicPlayer.Queue.Entry)],
+        startURI: String?,
+        explicitBlocked: Bool
+    ) throws -> [(uri: String, entry: MusicPlayer.Queue.Entry)] {
+        let kept = droppingBlocked(items, explicitBlocked: explicitBlocked)
+        if let startURI, items.contains(where: { $0.uri == startURI }), !kept.contains(where: { $0.uri == startURI }) {
+            throw explicitRestricted(startURI)
+        }
+        if kept.isEmpty, let first = items.first { throw explicitRestricted(first.uri) }
+        return kept
+    }
+
+    /// `items` without the songs this Mac won't play, never failing: for songs that only come
+    /// along (added with Add to queue before the restriction was turned on).
+    static func droppingBlocked(
+        _ items: [(uri: String, entry: MusicPlayer.Queue.Entry)],
+        explicitBlocked: Bool
+    ) -> [(uri: String, entry: MusicPlayer.Queue.Entry)] {
+        guard explicitBlocked else { return items }
+        return items.filter { !isExplicit($0.entry) }
+    }
+
+    private static func isExplicit(_ entry: MusicPlayer.Queue.Entry) -> Bool {
+        switch entry.item {
+        case let .song(song): song.contentRating == .explicit
+        case let .musicVideo(video): video.contentRating == .explicit
+        case nil: false
+        @unknown default: false
+        }
+    }
+
+    private static func explicitRestricted(_ uri: String) -> MusicPlaybackError {
+        MusicPlaybackError(
+            service: .appleMusic,
+            reason: .explicitContentRestricted,
+            detail: "\(uri) is explicit and this Mac only allows clean music"
+        )
+    }
+
     // MARK: - Errors
 
     private func requireSubscription() async throws {
@@ -499,7 +550,46 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         } catch let error as URLError {
             throw MusicPlaybackError(service: .appleMusic, reason: .network(error.localizedDescription), detail: String(describing: error))
         } catch {
-            throw MusicPlaybackError(service: .appleMusic, reason: .failed, detail: String(describing: error))
+            throw playerError(error)
         }
+    }
+
+    /// The error domain of MusicKit's player. Its code 6, "Failed to prepare to play", means the
+    /// player refused the song itself (not available here, or restricted): trying again gives
+    /// the same answer, so it reads as "can't play this" rather than "try again".
+    static let playerErrorDomain = "MPMusicPlayerControllerErrorDomain"
+    static let prepareToPlayFailedCode = 6
+
+    static func playerError(_ error: Error) -> MusicPlaybackError {
+        let nsError = error as NSError
+        let reason: MusicPlaybackError.Reason = nsError.domain == playerErrorDomain && nsError.code == prepareToPlayFailedCode
+            ? .notFound
+            : .failed
+        return MusicPlaybackError(service: .appleMusic, reason: reason, detail: String(describing: error))
+    }
+}
+
+/// Whether this Mac only allows clean music. Screen Time's Content & Privacy ("Music, Podcasts,
+/// Fitness: Clean") writes `restrictExplicit` into the managed `com.apple.iTunes` preferences;
+/// a restrictions profile from whoever manages the Mac sets `allowExplicitContent` to false.
+/// Only enforced (managed) values count: the same keys saved as ordinary preferences, say left
+/// over from an old iTunes, don't stop MusicKit from playing anything.
+enum AppleMusicContentRestrictions {
+    /// A preference's value and whether Screen Time or a profile enforces it.
+    typealias Lookup = @Sendable (_ key: String, _ domain: String) -> (value: Any?, isForced: Bool)
+
+    static func isExplicitMusicBlocked(lookup: Lookup = live) -> Bool {
+        let restrict = lookup("restrictExplicit", "com.apple.iTunes")
+        if restrict.isForced, restrict.value as? Bool == true { return true }
+        let allow = lookup("allowExplicitContent", "com.apple.applicationaccess")
+        return allow.isForced && allow.value as? Bool == false
+    }
+
+    /// Read fresh on every call: the restriction can change while the app runs.
+    static let live: Lookup = { key, domain in
+        let domain = domain as CFString
+        let key = key as CFString
+        CFPreferencesAppSynchronize(domain)
+        return (CFPreferencesCopyAppValue(key, domain), CFPreferencesAppValueIsForced(key, domain))
     }
 }

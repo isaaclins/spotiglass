@@ -452,20 +452,6 @@ struct PlaybackControlsView: View {
                         .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
                         .contentTransition(.opacity)
                         .animation(.smooth(duration: 0.28), value: title)
-                    if showsLyricsButton {
-                        PlaybackTransportButton(
-                            accessibilityLabel: SpotiglassL10n.string("playback.controls.lyrics"),
-                            accessibilityHint: SpotiglassL10n.string("playback.controls.lyrics.hint"),
-                            size: CGSize(width: 22, height: 22),
-                            action: { isLyricsPresented = true }
-                        ) {
-                            Image(systemName: "music.note.list")
-                                .font(.body.weight(.medium))
-                                .foregroundStyle(.secondary)
-                        }
-                        .frame(width: 22, height: 22)
-                        .help(SpotiglassL10n.string("tooltip.playback.lyrics"))
-                    }
                     if let otherService {
                         Text(SpotiglassL10n.format("playback.controls.otherService.label", otherService.displayName))
                             .font(.caption)
@@ -494,6 +480,24 @@ struct PlaybackControlsView: View {
                 } else {
                     artistLine
                 }
+            }
+
+            // A sibling of the title and artist block, not part of the title's
+            // row: there it sat on the title's baseline, above the centre line
+            // every other part of the bar shares (#427).
+            if showsLyricsButton {
+                PlaybackTransportButton(
+                    accessibilityLabel: SpotiglassL10n.string("playback.controls.lyrics"),
+                    accessibilityHint: SpotiglassL10n.string("playback.controls.lyrics.hint"),
+                    size: CGSize(width: 22, height: 22),
+                    action: { isLyricsPresented = true }
+                ) {
+                    Image(systemName: "music.note.list")
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(.secondary)
+                }
+                .frame(width: 22, height: 22)
+                .help(SpotiglassL10n.string("tooltip.playback.lyrics"))
             }
         }
         // Keep the summary as an accessibility container, not a replacement
@@ -851,15 +855,18 @@ struct PlaybackControlsView: View {
     private var recoveryLeadingControl: some View {
         switch viewModel.connectionState {
         case .disconnected, .unavailable:
-            PlaybackTransportButton(
-                accessibilityLabel: SpotiglassL10n.string("playback.controls.reconnect.label"),
-                accessibilityHint: Self.serviceString("playback.controls.reconnect.hint", appleMusic: "playback.controls.reconnect.appleMusic.hint", service: shownService),
-                size: CGSize(width: 170, height: 28),
-                action: { viewModel.start() }
-            ) {
-                Label(SpotiglassL10n.string("playback.controls.reconnect"), systemImage: "dot.radiowaves.left.and.right")
+            // Apple Music's player is this Mac: there is no connection to restore (#430).
+            if viewModel.canReconnectPlayer {
+                PlaybackTransportButton(
+                    accessibilityLabel: SpotiglassL10n.string("playback.controls.reconnect.label"),
+                    accessibilityHint: SpotiglassL10n.string("playback.controls.reconnect.hint"),
+                    size: CGSize(width: 170, height: 28),
+                    action: { viewModel.start() }
+                ) {
+                    Label(SpotiglassL10n.string("playback.controls.reconnect"), systemImage: "dot.radiowaves.left.and.right")
+                }
+                .frame(width: 170, height: 28)
             }
-            .frame(width: 170, height: 28)
         case .connecting:
             ProgressView()
                 .controlSize(.small)
@@ -869,7 +876,7 @@ struct PlaybackControlsView: View {
             case .reconnect:
                 PlaybackTransportButton(
                     accessibilityLabel: SpotiglassL10n.string("playback.controls.reconnect.label"),
-                    accessibilityHint: Self.serviceString("playback.controls.reconnect.sdk.hint", appleMusic: "playback.controls.reconnect.appleMusic.hint", service: shownService),
+                    accessibilityHint: SpotiglassL10n.string("playback.controls.reconnect.sdk.hint"),
                     size: CGSize(width: 170, height: 28),
                     action: { viewModel.start() }
                 ) {
@@ -953,7 +960,7 @@ struct PlaybackControlsView: View {
     private var subtitle: String {
         switch viewModel.connectionState {
         case .disconnected:
-            SpotiglassL10n.string("playback.controls.state.disconnected.subtitle")
+            Self.serviceString("playback.controls.state.disconnected.subtitle", appleMusic: "playback.controls.state.disconnected.subtitle.appleMusic", service: shownService)
         case .connecting:
             Self.serviceString("playback.controls.state.connecting.subtitle", appleMusic: "playback.controls.state.connecting.subtitle.appleMusic", service: shownService)
         case .ready:
@@ -1016,8 +1023,8 @@ struct PlaybackControlsView: View {
     /// crossfade rather than a hard cut when the playback state transitions.
     private var recoveryControlKey: String {
         switch viewModel.connectionState {
-        case .disconnected: "disconnected"
-        case .unavailable: "unavailable"
+        case .disconnected: viewModel.canReconnectPlayer ? "disconnected" : "transport"
+        case .unavailable: viewModel.canReconnectPlayer ? "unavailable" : "transport"
         case .connecting: "connecting"
         case let .error(error):
             switch error.recoveryAction {

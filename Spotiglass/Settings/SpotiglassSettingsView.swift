@@ -1,3 +1,4 @@
+import Sparkle
 import SwiftUI
 
 /// Settings routes are backed by editable local state. Playback is owned by
@@ -42,7 +43,7 @@ enum SpotiglassSettingsSection: String, CaseIterable, Identifiable {
         case .equalizer: ["equalizer", "eq", "bands", "preamp", "gain", "preset", "output", "device"]
         case .appearance:
             ["appearance", "language", "theme", "color", "scheme", "dark", "light", "lyrics", "text size", "command palette", "blur", "offset"]
-        case .account: ["account", "spotify", "apple music", "service", "client id", "token", "sign in", "sign out", "disconnect", "log", "diagnostics"]
+        case .account: ["account", "spotify", "apple music", "service", "client id", "token", "sign in", "sign out", "disconnect", "log", "diagnostics", "updates", "install automatically"]
         case .keyboard: ["keyboard", "shortcuts", "hotkey", "keymap", "bindings", "command palette"]
         }
     }
@@ -80,6 +81,8 @@ struct SpotiglassSettingsView: View {
     /// Settings › Account signs in and out of each service (#373).
     var serviceStore: MusicServiceStore? = nil
     var appleMusicSession: AppleMusicSession? = nil
+    /// Settings › Account › Updates turns automatic installs on and off (#435).
+    var updater: SPUUpdater? = nil
 
     @State private var section: SpotiglassSettingsSection? = .equalizer
     @State private var searchText: String = ""
@@ -279,7 +282,8 @@ struct SpotiglassSettingsView: View {
                             viewModel: authViewModel,
                             onSignOut: onSignOut,
                             serviceStore: serviceStore,
-                            appleMusicSession: appleMusicSession
+                            appleMusicSession: appleMusicSession,
+                            updater: updater
                         )
                     case .keyboard:
                         CommandPaletteSettingsView(

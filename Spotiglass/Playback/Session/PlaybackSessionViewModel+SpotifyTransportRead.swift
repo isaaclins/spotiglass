@@ -311,7 +311,7 @@ extension PlaybackSessionViewModel {
             transportTransientErrorCount = 0
         case .server, .network:
             transportTransientErrorCount = min(transportTransientErrorCount + 1, 4)
-        case .signInExpired, .missingPermission, .subscriptionRequired, .notFound, .failed:
+        case .signInExpired, .missingPermission, .subscriptionRequired, .notFound, .explicitContentRestricted, .failed:
             transportTransientErrorCount = 0
         }
     }
