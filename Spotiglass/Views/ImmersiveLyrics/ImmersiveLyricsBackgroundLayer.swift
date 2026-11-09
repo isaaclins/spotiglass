@@ -42,6 +42,10 @@ struct ImmersiveBlurredArtwork: View {
     /// Apple Music library covers (`musicKit://`) can't be downloaded; only MusicKit can draw
     /// them, so the backdrop draws those with `ArtworkImage` instead of the loader (#448).
     let musicKitArtwork: Artwork?
+    /// Draws a library cover at the given edge. MusicKit's `ArtworkImage` in the app; tests
+    /// pass a stand-in, because MusicKit draws nothing for a made-up artwork.
+    typealias MusicKitCover = (Artwork, CGFloat) -> AnyView
+    private let musicKitCover: MusicKitCover
 
     /// After optional downscale, this is the raster size SwiftUI blurs (not window size).
     private let blurredTileSize: CGFloat = 1_024
@@ -51,8 +55,16 @@ struct ImmersiveBlurredArtwork: View {
     /// The edge the cover is downscaled to before blurring; it is fetched at about this size.
     private static let blurSourceMaxEdge: CGFloat = 576
 
-    init(url: URL, initialImage: NSImage? = nil, registry: AppleMusicArtworkRegistry = .shared) {
+    init(
+        url: URL,
+        initialImage: NSImage? = nil,
+        registry: AppleMusicArtworkRegistry = .shared,
+        musicKitCover: @escaping MusicKitCover = { artwork, edge in
+            AnyView(ArtworkImage(artwork, width: edge, height: edge))
+        }
+    ) {
         musicKitArtwork = Self.musicKitArtwork(for: url, registry: registry)
+        self.musicKitCover = musicKitCover
         let url = ArtworkRequest.url(url, points: Self.blurSourceMaxEdge, scale: 1, registry: registry)
         self.url = url
         _artworkLoader = StateObject(
@@ -76,12 +88,8 @@ struct ImmersiveBlurredArtwork: View {
                     // MusicKit draws nothing for a cover it can't load; black shows through.
                     Color.black
                     blurredTile(
-                        ArtworkImage(
-                            musicKitArtwork,
-                            width: Self.blurSourceMaxEdge,
-                            height: Self.blurSourceMaxEdge
-                        )
-                        .scaleEffect(blurredTileSize / Self.blurSourceMaxEdge),
+                        musicKitCover(musicKitArtwork, Self.blurSourceMaxEdge)
+                            .scaleEffect(blurredTileSize / Self.blurSourceMaxEdge),
                         filling: size
                     )
                 } else if let image = artworkLoader.image {

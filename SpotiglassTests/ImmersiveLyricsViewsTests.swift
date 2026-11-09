@@ -318,14 +318,35 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
         let url = try XCTUnwrap(AppleMusicItemMapping.artworkURL(library, size: 120, registry: registry))
         XCTAssertTrue(AppleMusicArtworkRegistry.needsMusicKit(url))
 
-        let view = ImmersiveBlurredArtwork(url: url, registry: registry)
         XCTAssertEqual(
-            view.musicKitArtwork,
+            ImmersiveBlurredArtwork.musicKitArtwork(for: url, registry: registry),
             library,
             "a library cover should be drawn by MusicKit behind the lyrics, not downloaded and left black"
         )
-        // Hosting renders the MusicKit branch (ViewInspector can't walk into GeometryReader here).
-        _ = ViewTestHost.host(view, size: CGSize(width: 360, height: 280))
+
+        // MusicKit draws nothing for a made-up artwork, so a red stand-in plays MusicKit's part.
+        // On today's code the cover goes to the downloader, which can't fetch it: all black.
+        var drawnEdges: [CGFloat] = []
+        let view = ImmersiveBlurredArtwork(url: url, registry: registry) { artwork, edge in
+            XCTAssertEqual(artwork, library)
+            drawnEdges.append(edge)
+            return AnyView(Color(red: 1, green: 0, blue: 0))
+        }
+        let center = try centerPixel(of: view, size: CGSize(width: 360, height: 280))
+        XCTAssertGreaterThan(center.redComponent, 0.9, "the backdrop should show the blurred library cover, not black")
+        XCTAssertGreaterThan(center.redComponent - center.greenComponent, 0.6, "the cover's own colour, not grey")
+        // Same small source edge a downloaded cover is downscaled to, so the blur costs the same.
+        XCTAssertEqual(drawnEdges.last, 576)
+    }
+
+    /// The colour at the middle of `view` rendered at `size`, 1x.
+    private func centerPixel(of view: some View, size: CGSize) throws -> NSColor {
+        let renderer = ImageRenderer(content: view.frame(width: size.width, height: size.height))
+        renderer.scale = 1
+        let cgImage = try XCTUnwrap(renderer.cgImage, "the backdrop should render")
+        let bitmap = NSBitmapImageRep(cgImage: cgImage)
+        let color = try XCTUnwrap(bitmap.colorAt(x: bitmap.pixelsWide / 2, y: bitmap.pixelsHigh / 2))
+        return try XCTUnwrap(color.usingColorSpace(.sRGB))
     }
 
     /// Catalog covers stay plain https and keep going through the downloader.
@@ -367,6 +388,14 @@ final class ImmersiveLyricsViewsTests: XCTestCase {
         XCTAssertNotNil(loader.image)
         await loader.load(for: ImmersiveBlurredArtwork.downloadURL(for: unknown))
         XCTAssertNil(loader.image, "the previous song's cover should not stay behind a library song")
+
+        // And nothing stands in for MusicKit: the backdrop is plain black.
+        let view = ImmersiveBlurredArtwork(url: unknown, registry: registry) { _, _ in
+            XCTFail("MusicKit doesn't know this cover, so nothing should ask it to draw")
+            return AnyView(Color.red)
+        }
+        let center = try centerPixel(of: view, size: CGSize(width: 360, height: 280))
+        XCTAssertLessThan(center.redComponent + center.greenComponent + center.blueComponent, 0.05)
     }
 
     /// Writes into a directory of its own rather than the user's real artwork
