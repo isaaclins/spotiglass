@@ -616,9 +616,11 @@ final class PlaybackHandoverTests: XCTestCase {
         return (host, commander)
     }
 
-    /// Spotify's in-app player pauses through its own toggle (the Web Playback SDK).
-    private func toggles(_ commander: MockWebPlaybackCommander) -> Int {
-        commander.commands.filter { $0.command == .togglePlay }.count
+    /// Spotify's in-app player (the Web Playback SDK) is asked to pause, not toggled: a toggle
+    /// could flip a state the page hasn't applied yet (#437).
+    private func pauses(_ commander: MockWebPlaybackCommander) -> Int {
+        XCTAssertFalse(commander.commands.contains { $0.command == .togglePlay }, "Spotify was toggled, not paused")
+        return commander.commands.filter { $0.command == .pause }.count
     }
 
     func testStartingMusicInAppleMusicPausesSpotify() async throws {
@@ -630,15 +632,15 @@ final class PlaybackHandoverTests: XCTestCase {
         // Switching to Apple Music alone keeps Spotify playing.
         let appleMusic = hosts.appleMusic
         hosts.gate(activeService: .appleMusic)
-        XCTAssertEqual(toggles(commander), 0)
+        XCTAssertEqual(pauses(commander), 0)
 
         appleMusic.playbackViewModel.handle(.ready(deviceID: AppleMusicPlaybackProvider.deviceID))
         await appleMusic.playbackViewModel.play(uri: "applemusic:song:1")
-        for _ in 0..<20 where toggles(commander) == 0 {
+        for _ in 0..<20 where pauses(commander) == 0 {
             try await Task.sleep(for: .milliseconds(25))
         }
 
-        XCTAssertEqual(toggles(commander), 1, "Spotify pauses once Apple Music starts something")
+        XCTAssertEqual(pauses(commander), 1, "Spotify pauses once Apple Music starts something")
     }
 
     /// Resuming is starting music too: Play on Apple Music's bar while Spotify plays pauses
@@ -657,11 +659,11 @@ final class PlaybackHandoverTests: XCTestCase {
         )))
 
         await appleMusic.togglePlayPause()
-        for _ in 0..<20 where toggles(commander) == 0 {
+        for _ in 0..<20 where pauses(commander) == 0 {
             try await Task.sleep(for: .milliseconds(25))
         }
 
-        XCTAssertEqual(toggles(commander), 1, "Spotify pauses once Apple Music resumes")
+        XCTAssertEqual(pauses(commander), 1, "Spotify pauses once Apple Music resumes")
     }
 
     /// A Spotify-only setup never creates Apple Music's player, so it never reaches MusicKit.

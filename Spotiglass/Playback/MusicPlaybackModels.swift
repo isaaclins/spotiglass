@@ -469,7 +469,10 @@ enum MusicPlaybackEvent: Equatable {
     case notReady(deviceID: String)
     case stateChanged(PlaybackNowPlaying?, isPaused: Bool, nextTracks: [PlaybackNowPlaying])
     /// A player command finished (Spotify: the SDK's `runPlayerCommand` name, e.g. `togglePlay`).
-    case playerCommandFinished(command: String)
+    /// `id` is the play / pause press it answers, when the command carried one.
+    case playerCommandFinished(command: String, id: UInt64? = nil)
+    /// A player command failed (Spotify: the SDK's promise for `command` was rejected).
+    case playerCommandFailed(command: String, message: String, id: UInt64? = nil)
     case initializationError(String)
     case authenticationError(String)
     case accountError(String)

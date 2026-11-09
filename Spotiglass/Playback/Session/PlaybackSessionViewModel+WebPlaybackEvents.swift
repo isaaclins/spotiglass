@@ -139,6 +139,15 @@ extension PlaybackSessionViewModel {
             if suppressed {
                 return
             }
+            if let nowPlaying {
+                pageReportedPlayState = isPaused ? .paused(nowPlaying) : .playing(nowPlaying)
+            }
+            // A report without a track (the player going away) always goes through.
+            guard nowPlaying == nil || acceptsPushedPlayState(isPlaying: !isPaused) else {
+                heldBackPageReport = MusicPlaybackEventEnvelope(event: event, hostGeneration: playbackHostGeneration)
+                SpotiglassLog.info(.playback, "Ignoring SDK state_changed isPaused=\(isPaused) older than the last play/pause")
+                return
+            }
             cancelPlaybackHostConnectTimeout()
             let authoritativeState: PlaybackConnectionState = isPaused
                 ? .paused(nowPlaying)
@@ -153,13 +162,20 @@ extension PlaybackSessionViewModel {
                 hasTransferredPlaybackToCurrentDevice = true
             }
             setConnectionState(isPaused ? .paused(effectiveNowPlaying) : .playing(effectiveNowPlaying ?? fallbackNowPlaying()))
-        case let .playerCommandFinished(command):
-            if command == "togglePlay" {
-                clearTogglePlayPauseAckWait()
+        case let .playerCommandFinished(command, id):
+            handleInAppCommandFinished(command, id: id)
+        case let .playerCommandFailed(command, message, id):
+            // A refused pause or play goes back instead of replacing the bar with an error (#437).
+            if Self.isPlayPauseCommand(command) {
+                handleInAppPlayPauseFailure(command: command, message: message, id: id)
+            } else {
+                handleCurrentPlaybackEvent(.playbackError(message))
             }
         case let .initializationError(message):
             cancelPlaybackHostConnectTimeout()
             SpotiglassLog.error(.playback, "Spotify playback SDK initialization failed: \(message)")
+            // Its error says what to do; a report held back for a press mustn't replace it (#437).
+            clearPushedPlayStateExpectation()
             setConnectionState(.error(PlaybackDisplayError(
                 title: SpotiglassL10n.string("error.playback.couldNotStart.title"),
                 message: message,
@@ -183,6 +199,8 @@ extension PlaybackSessionViewModel {
         case let .authenticationError(message):
             cancelPlaybackHostConnectTimeout()
             SpotiglassLog.error(.playback, "Spotify playback SDK authentication failed: \(message)")
+            // Its error says what to do; a report held back for a press mustn't replace it (#437).
+            clearPushedPlayStateExpectation()
             setConnectionState(.error(PlaybackDisplayError(
                 title: SpotiglassL10n.string("error.playback.signInAgain.title"),
                 message: message,
@@ -191,6 +209,8 @@ extension PlaybackSessionViewModel {
         case let .accountError(message):
             cancelPlaybackHostConnectTimeout()
             SpotiglassLog.error(.playback, "Spotify playback SDK account error: \(message)")
+            // Its error says what to do; a report held back for a press mustn't replace it (#437).
+            clearPushedPlayStateExpectation()
             setConnectionState(.error(PlaybackDisplayError(
                 title: SpotiglassL10n.string("error.playback.premium.title"),
                 message: message,
@@ -199,7 +219,8 @@ extension PlaybackSessionViewModel {
         case let .playbackError(message):
             cancelPlaybackHostConnectTimeout()
             SpotiglassLog.error(.playback, "Spotify playback SDK playback error: \(message)")
-            clearTogglePlayPauseAckWait()
+            clearPushedPlayStateExpectation()
+            finishInAppCommand()
             setConnectionState(.error(PlaybackDisplayError(
                 title: SpotiglassL10n.string("error.playback.error.title"),
                 message: message,

@@ -2,104 +2,497 @@ import Foundation
 
 @MainActor
 extension PlaybackSessionViewModel {
-    func togglePlayPause() async {
-        // Resuming is starting music too: the other service's player pauses first (#373).
-        if !PlaylistBrowserPlaybackHelpers.isCurrentlyPlaying(connectionState: connectionState) {
-            onWillStartPlayback?()
+    /// Play / pause from the bar, Space, the Playback menu, the palette or a row (#437): shows
+    /// the requested state right away, then sends it after the commands before it. Before, the
+    /// controls showed it only once the command came back or the player reported it. Called
+    /// synchronously from the controls, so the change is on screen before any task runs.
+    /// Returns the send, or `nil` when there is nothing to toggle.
+    @discardableResult
+    func requestTogglePlayPause() -> Task<Void, Never>? {
+        guard let request = beginPlayPauseRequest() else { return nil }
+        let previous = playPauseCommandTail
+        let send = Task { @MainActor [weak self] in
+            // One after another: a quick pause then play must reach the player in that order,
+            // even when the first one waits for the player (up to ``playPauseQueueWait``).
+            await self?.waitForPreviousPress(previous)
+            await self?.sendPlayPause(request)
         }
-        if isPlayerStateRead {
-            await toggleRemotePlayback()
-            return
-        }
-        guard !togglePlayPauseAwaitingBridgeAck else { return }
-        togglePlayPauseAwaitingBridgeAck = true
-        scheduleTogglePlayPauseAckTimeout()
-        do {
-            try await provider.togglePlayPause()
-        } catch {
-            clearTogglePlayPauseAckWait()
-            setConnectionState(.error(Self.displayError(for: error)))
+        playPauseCommandTail = send
+        return send
+    }
+
+    private func waitForPreviousPress(_ previous: Task<Void, Never>?) async {
+        guard let previous else { return }
+        let limit = playPauseQueueWait
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            let once = ResumeOnce(continuation)
+            once.timeout = Task { @MainActor in
+                try? await Task.sleep(for: limit)
+                once.resume()
+            }
+            Task { @MainActor in
+                await previous.value
+                once.resume()
+            }
         }
     }
 
-    /// Uses explicit pause / resume commands when the playing player's state is
-    /// only read (``isPlayerStateRead``): a remote Connect device, which the
-    /// embedded Web Playback SDK cannot control, or an in-app player without
-    /// state events. Silently returning here would make the transport a dead
-    /// button.
-    private func toggleRemotePlayback() async {
-        guard Self.isPlaybackTransportReady(for: connectionState),
-              let commandDeviceID else { return }
-        let generation = playbackHostGeneration
-        guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
+    /// Resumes a continuation once, whichever of two tasks gets there first.
+    @MainActor
+    private final class ResumeOnce {
+        private var continuation: CheckedContinuation<Void, Never>?
+        var timeout: Task<Void, Never>?
 
-        let shouldPause: Bool
-        if !provider.capabilities.contains(.pushesPlayerState),
-           let localCommandExpectsPlaying {
-            // A player without pushed state may not have confirmed the last
-            // pause, resume or play yet (a new item can still show `.ready`
-            // or the previous `.paused` item). Toggle what was asked for.
-            shouldPause = localCommandExpectsPlaying
-        } else {
-            switch connectionState {
-            case .playing:
-                shouldPause = true
-            case .paused:
-                shouldPause = false
-            case .ready, .transferring:
-                shouldPause = latestPlayerSnapshot?.isPlaying == true
-            case .disconnected, .connecting, .unavailable, .error:
-                return
-            }
+        init(_ continuation: CheckedContinuation<Void, Never>) {
+            self.continuation = continuation
         }
-        let action = shouldPause ? "pause" : "resume"
-        SpotiglassLog.info(
-            .playback,
-            "togglePlayPause remote action=\(action) deviceID=\(commandDeviceID)"
-        )
 
-        do {
-            try await performPrioritizedControlCommand {
-                if shouldPause {
-                    try await provider.pause(deviceID: commandDeviceID)
-                } else {
-                    try await provider.resume(deviceID: commandDeviceID)
+        func resume() {
+            timeout?.cancel()
+            continuation?.resume()
+            continuation = nil
+        }
+    }
+
+    /// What one press asked for, and what to go back to when the player refuses it.
+    struct PlayPauseRequest {
+        let serial: UInt64
+        let generation: PlaybackHostGeneration
+        let shouldPause: Bool
+        /// Through the in-app player (Spotify's Web Playback SDK) instead of an explicit
+        /// pause / resume for a device whose state is read.
+        let usesInAppPlayer: Bool
+        /// The in-app player showed an item, so the press sends the state it asked for. Without
+        /// one there is nothing to read the state from, and the press goes out as a toggle.
+        let sendsRequestedState: Bool
+        let stateBefore: PlaybackConnectionState
+        /// What the press put on screen: what the player has once it accepts the press.
+        let stateAfter: PlaybackConnectionState
+        let deviceID: String?
+
+        /// The command Spotify's page runs for this press (its `runPlayerCommand` name).
+        var inAppCommand: String {
+            guard sendsRequestedState else { return PlaybackBridgeCommand.togglePlay.rawValue }
+            return shouldPause ? PlaybackBridgeCommand.pause.rawValue : PlaybackBridgeCommand.resume.rawValue
+        }
+    }
+
+    private func beginPlayPauseRequest() -> PlayPauseRequest? {
+        let shouldPause: Bool
+        let usesInAppPlayer = !isPlayerStateRead
+        if usesInAppPlayer {
+            // Spotify's page toggles whatever it has; with nothing on screen to flip (still
+            // connecting, or ready with the account's last item) the toggle goes out as is.
+            shouldPause = PlaylistBrowserPlaybackHelpers.isCurrentlyPlaying(connectionState: connectionState)
+        } else {
+            guard Self.isPlaybackTransportReady(for: connectionState), commandDeviceID != nil else { return nil }
+            if !provider.capabilities.contains(.pushesPlayerState),
+               let localCommandExpectsPlaying {
+                // A player without pushed state may not have confirmed the last pause, resume
+                // or play yet (a new item can still show `.ready` or the previous `.paused`
+                // item). Toggle what was asked for.
+                shouldPause = localCommandExpectsPlaying
+            } else {
+                switch connectionState {
+                case .playing:
+                    shouldPause = true
+                case .paused:
+                    shouldPause = false
+                case .ready, .transferring:
+                    shouldPause = latestPlayerSnapshot?.isPlaying == true
+                case .disconnected, .connecting, .unavailable, .error:
+                    return nil
                 }
             }
-            guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
+        }
+        // Resuming is starting music too: the other service's player pauses first (#373).
+        if !shouldPause {
+            onWillStartPlayback?()
+        }
+        playPauseRequestSerial &+= 1
+        let stateBefore = connectionState
+        let sendsRequestedState = !usesInAppPlayer || Self.isShowingAnItem(connectionState)
+        if !usesInAppPlayer, playPauseRequestsInFlight == 0 {
+            playPauseConfirmedState = stateBefore
+        }
+        playPauseRequestsInFlight += 1
+        clearRefusedPlayPause()
+        if usesInAppPlayer {
+            if sendsRequestedState {
+                showPlayPause(shouldPause: shouldPause)
+                // Spotify's page reports the new state a moment later, and may first report the
+                // old one: until it has reported this press (or the wait ends) its reports keep
+                // the state shown.
+                expectPushedPlayState(serial: playPauseRequestSerial, isPlaying: !shouldPause)
+            }
+        } else {
+            showPlayPause(shouldPause: shouldPause)
+            // Reads taken before the player has the command must not undo it either.
+            playPauseReadHoldUntil = clock.now.advanced(by: Self.playPauseReadHoldDuration)
+            noteLocalPlaybackMutation(
+                shouldSyncTransportImmediately: false,
+                playExpectation: shouldPause ? .paused : .playing
+            )
+        }
+        let request = PlayPauseRequest(
+            serial: playPauseRequestSerial,
+            generation: playbackHostGeneration,
+            shouldPause: shouldPause,
+            usesInAppPlayer: usesInAppPlayer,
+            sendsRequestedState: sendsRequestedState,
+            stateBefore: stateBefore,
+            stateAfter: connectionState,
+            deviceID: commandDeviceID
+        )
+        return request
+    }
 
-            let nowPlaying = currentNowPlaying ?? latestPlayerSnapshot?.playbackNowPlaying
-            let optimisticNowPlaying = nowPlaying.map { nowPlaying in
-                let position = progressAnchor?.interpolatedPositionMs(at: Date())
-                    ?? nowPlaying.positionMilliseconds
-                return nowPlaying.with(positionMilliseconds: position)
+    private static func isShowingAnItem(_ state: PlaybackConnectionState) -> Bool {
+        switch state {
+        case .playing, .paused(.some): true
+        case .paused(.none), .disconnected, .connecting, .ready, .transferring, .unavailable, .error: false
+        }
+    }
+
+    /// Shows playing or paused for the item on screen, at its current position.
+    private func showPlayPause(shouldPause: Bool) {
+        let nowPlaying = currentNowPlaying ?? latestPlayerSnapshot?.playbackNowPlaying
+        let optimisticNowPlaying = nowPlaying.map { nowPlaying in
+            let position = progressAnchor?.interpolatedPositionMs(at: Date())
+                ?? nowPlaying.positionMilliseconds
+            return nowPlaying.with(positionMilliseconds: position)
+        }
+        if shouldPause {
+            setConnectionState(.paused(optimisticNowPlaying))
+        } else {
+            setConnectionState(.playing(optimisticNowPlaying ?? fallbackNowPlaying()))
+        }
+    }
+
+    private func sendPlayPause(_ request: PlayPauseRequest) async {
+        defer {
+            // A replaced player page started counting again (``forgetInAppPlayPauseWaits()``).
+            if ownsPlaybackHostGeneration(request.generation) {
+                playPauseRequestsInFlight = max(0, playPauseRequestsInFlight - 1)
             }
-            if shouldPause {
-                setConnectionState(.paused(optimisticNowPlaying))
-            } else {
-                setConnectionState(.playing(optimisticNowPlaying ?? fallbackNowPlaying()))
+        }
+        guard ownsPlaybackHostGeneration(request.generation), !Task.isCancelled,
+              request.serial > playPauseSupersededThrough else { return }
+        if request.usesInAppPlayer {
+            // The page is still running the press before: a quick pause, play would otherwise
+            // run both at once in Spotify's player, and the pause could land last.
+            await waitForInAppCommandToFinish()
+            guard ownsPlaybackHostGeneration(request.generation), !Task.isCancelled,
+                  request.serial > playPauseSupersededThrough else { return }
+            beginInAppCommand(request)
+            lastSentInAppPress = request
+            do {
+                // The state asked for, not a toggle: a toggle flips whatever the player has.
+                if request.sendsRequestedState {
+                    try await provider.setInAppPlayerPlaying(!request.shouldPause, commandID: request.serial)
+                } else {
+                    try await provider.togglePlayPause(commandID: request.serial)
+                }
+            } catch {
+                finishInAppCommand()
+                inAppPressFailed(request, error: error)
             }
-            noteLocalPlaybackMutation(playExpectation: shouldPause ? .paused : .playing)
+            return
+        }
+        guard let deviceID = request.deviceID else { return }
+        let action = request.shouldPause ? "pause" : "resume"
+        SpotiglassLog.info(.playback, "togglePlayPause remote action=\(action) deviceID=\(deviceID)")
+        lastSentReadPress = request
+        do {
+            try await sendReadPlayerCommand(request, deviceID: deviceID)
+            guard ownsPlaybackHostGeneration(request.generation), !Task.isCancelled,
+                  request.serial > playPauseSupersededThrough else { return }
+            playPauseConfirmedState = request.stateAfter
+            await reassertLaterPress(after: request)
+            guard request.serial == playPauseRequestSerial else { return }
+            // The player has it now: read it at the settle cadence until it agrees.
+            noteLocalPlaybackMutation(playExpectation: request.shouldPause ? .paused : .playing)
         } catch {
-            guard ownsPlaybackHostGeneration(generation), !Task.isCancelled else { return }
-            setConnectionState(.error(Self.displayError(for: error)))
+            refusePlayPause(request, error: error)
         }
     }
 
-    private func scheduleTogglePlayPauseAckTimeout() {
-        togglePlayPauseAckTimeoutTask?.cancel()
-        togglePlayPauseAckTimeoutTask = Task { [weak self] in
-            try? await Task.sleep(for: Self.togglePlayPauseAckTimeout)
-            await MainActor.run {
-                self?.clearTogglePlayPauseAckWait()
+    /// The player refused a press. A later press already decided what is shown. Otherwise the
+    /// controls go back to what the player has and the bar says why; a refusal that needs you
+    /// to act (sign in again, allow access, Premium) shows that error as before. What the player
+    /// has is what it last confirmed: for Spotify's page its last report, for a player whose
+    /// state is read the state from before the first press still on its way, moved on by every
+    /// press it accepted since (an earlier press of a quick pause, play may have been refused
+    /// too).
+    private func refusePlayPause(_ request: PlayPauseRequest, error: Error) {
+        guard ownsPlaybackHostGeneration(request.generation), !Task.isCancelled else { return }
+        // A later press, or a play started after it, decides what is shown.
+        guard request.serial == playPauseRequestSerial,
+              request.serial > playPauseSupersededThrough else { return }
+        SpotiglassLog.error(.playback, "togglePlayPause refused: \(error.localizedDescription)")
+        // An error that says what to do (sign in again, Premium) came meanwhile: it stays.
+        if case .error = connectionState { return }
+        let displayError = Self.displayError(for: error)
+        localCommandExpectsPlaying = nil
+        clearPushedPlayStateExpectation()
+        guard Self.playPauseRefusalGoesBack(error) else {
+            setConnectionState(.error(displayError))
+            return
+        }
+        let playerState = request.usesInAppPlayer ? pageReportedPlayState : playPauseConfirmedState
+        setConnectionState(playerState ?? request.stateBefore)
+        showRefusedPlayPause(refusedPlayPauseLine(for: error, displayError: displayError, shouldPause: request.shouldPause))
+    }
+
+    private func sendReadPlayerCommand(_ request: PlayPauseRequest, deviceID: String) async throws {
+        try await performPrioritizedControlCommand {
+            if request.shouldPause {
+                try await provider.pause(deviceID: deviceID)
+            } else {
+                try await provider.resume(deviceID: deviceID)
             }
         }
     }
 
-    func clearTogglePlayPauseAckWait() {
-        togglePlayPauseAckTimeoutTask?.cancel()
-        togglePlayPauseAckTimeoutTask = nil
-        togglePlayPauseAwaitingBridgeAck = false
+    /// A press finished after a later, opposite one was already sent (the later one stopped
+    /// waiting for it after ``playPauseQueueWait``, e.g. a play that took long to start): its
+    /// effect may have landed last, so the latest press is sent again.
+    private func reassertLaterPress(after request: PlayPauseRequest) async {
+        guard let later = lastSentReadPress,
+              later.serial > request.serial,
+              later.shouldPause != request.shouldPause,
+              later.serial == playPauseRequestSerial,
+              later.serial > playPauseSupersededThrough,
+              let deviceID = later.deviceID else { return }
+        SpotiglassLog.info(.playback, "togglePlayPause sending the latest press again after an earlier one finished late")
+        try? await sendReadPlayerCommand(later, deviceID: deviceID)
+    }
+
+    /// The bar's line for a refused press, in place of the artist: "Couldn't pause" as the
+    /// title (the line fits about two dozen characters), the reason as a sentence on hover.
+    /// Spotify's display error carries the raw error detail for diagnostics
+    /// (`server(statusCode: 503 …)`), which must not end up there; Apple Music's and a rate
+    /// limit's are already sentences.
+    private func refusedPlayPauseLine(
+        for error: Error,
+        displayError: PlaybackDisplayError,
+        shouldPause: Bool
+    ) -> PlaybackDisplayError {
+        let playbackError = MusicPlaybackError.from(error)
+        let reason: String
+        switch (playbackError?.service, playbackError?.reason) {
+        case (.appleMusic?, _), (.spotify?, .rateLimited?):
+            reason = displayError.message
+        default:
+            reason = service == .appleMusic
+                ? SpotiglassL10n.string("error.playback.appleMusic.failed")
+                : SpotiglassL10n.string("error.playback.spotify.failed")
+        }
+        return PlaybackDisplayError(
+            title: SpotiglassL10n.string(shouldPause ? "playback.refused.pause" : "playback.refused.play"),
+            message: reason,
+            recoveryAction: nil
+        )
+    }
+
+    /// Whether a refused play / pause just goes back: everything except what only you can fix.
+    static func playPauseRefusalGoesBack(_ error: Error) -> Bool {
+        if error is CancellationError { return true }
+        guard let reason = MusicPlaybackError.from(error)?.reason else { return true }
+        switch reason {
+        case .signInExpired, .missingPermission, .subscriptionRequired:
+            return false
+        case .rateLimited, .network, .server, .notFound, .explicitContentRestricted, .failed:
+            return true
+        }
+    }
+
+    private func showRefusedPlayPause(_ error: PlaybackDisplayError) {
+        refusedPlayPauseClearTask?.cancel()
+        refusedPlayPause = error
+        refusedPlayPauseClearTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            try? await self.clock.sleep(
+                until: self.clock.now.advanced(by: Self.refusedPlayPauseDisplayDuration),
+                tolerance: nil
+            )
+            guard !Task.isCancelled else { return }
+            self.refusedPlayPause = nil
+        }
+    }
+
+    func clearRefusedPlayPause() {
+        refusedPlayPauseClearTask?.cancel()
+        refusedPlayPauseClearTask = nil
+        refusedPlayPause = nil
+    }
+
+    /// Spotify's page failed to run the press it is running, or one it answered too late for.
+    func handleInAppPlayPauseFailure(command: String, message: String, id: UInt64?) {
+        SpotiglassLog.error(.playback, "Spotify playback SDK \(command) failed: \(message)")
+        guard let request = takeAnsweredInAppPress(command: command, id: id) else { return }
+        inAppPressFailed(request, error: MusicPlaybackError(service: .spotify, reason: .failed, detail: message))
+    }
+
+    /// Spotify's page finished a command: the next press may go out.
+    ///
+    /// The player has the press now: until the page reports, that is what a refusal of the next
+    /// press goes back to. A press answered after the wait for it ended may have landed after a
+    /// later, opposite press: the latest press is then sent again, so the last press wins.
+    func handleInAppCommandFinished(_ command: String, id: UInt64?) {
+        let wasRunning = inAppCommandInFlight
+        guard let request = takeAnsweredInAppPress(command: command, id: id),
+              ownsPlaybackHostGeneration(request.generation),
+              request.serial > playPauseSupersededThrough,
+              request.sendsRequestedState else { return }
+        pageReportedPlayState = request.stateAfter
+        guard request.serial != wasRunning?.serial,
+              let later = lastSentInAppPress,
+              later.serial > request.serial,
+              later.shouldPause != request.shouldPause,
+              later.serial == playPauseRequestSerial,
+              later.serial > playPauseSupersededThrough,
+              later.sendsRequestedState else { return }
+        SpotiglassLog.info(.playback, "Spotify playback SDK answered \(request.inAppCommand) late; sending the latest press again")
+        pageReportedPlayState = later.stateAfter
+        Task { @MainActor [weak self] in
+            try? await self?.provider.setInAppPlayerPlaying(!later.shouldPause, commandID: later.serial)
+        }
+    }
+
+    /// The press an answer from the page is for: by the press's id, which the page sends back
+    /// (two presses of the same kind can be out when one was answered too late), or by the
+    /// command's name for an answer without one. The running press's answer lets the next go.
+    private func takeAnsweredInAppPress(command: String, id: UInt64?) -> PlayPauseRequest? {
+        func answers(_ request: PlayPauseRequest) -> Bool {
+            id.map { request.serial == $0 } ?? (request.inAppCommand == command)
+        }
+        if let inFlight = inAppCommandInFlight, answers(inFlight) {
+            finishInAppCommand()
+            return inFlight
+        }
+        guard let index = inAppCommandsUnanswered.firstIndex(where: answers) else { return nil }
+        return inAppCommandsUnanswered.remove(at: index)
+    }
+
+    /// The latest press refused: the controls go back to what the page last reported and the
+    /// bar says so. An earlier one: nothing on screen changes (the latest press decides), but
+    /// the page won't report its state, so it no longer waits for that report.
+    private func inAppPressFailed(_ request: PlayPauseRequest, error: Error) {
+        guard request.serial != playPauseRequestSerial else {
+            refusePlayPause(request, error: error)
+            return
+        }
+        pushedPlayStateExpectations.removeAll { $0.serial == request.serial }
+    }
+
+    private func waitForInAppCommandToFinish() async {
+        guard inAppCommandInFlight != nil else { return }
+        await withCheckedContinuation { inAppCommandAckWaiters.append($0) }
+    }
+
+    private func beginInAppCommand(_ request: PlayPauseRequest) {
+        inAppCommandInFlight = request
+        inAppCommandAckTimeoutTask?.cancel()
+        inAppCommandAckTimeoutTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            try? await Task.sleep(for: self.inAppCommandAckTimeout)
+            guard !Task.isCancelled, self.inAppCommandInFlight?.serial == request.serial else { return }
+            SpotiglassLog.info(.playback, "Spotify playback SDK didn't answer \(request.inAppCommand); sending the next press")
+            self.inAppCommandsUnanswered.append(request)
+            if self.inAppCommandsUnanswered.count > Self.inAppCommandsUnansweredLimit {
+                self.inAppCommandsUnanswered.removeFirst()
+            }
+            self.finishInAppCommand()
+        }
+    }
+
+    static let inAppCommandsUnansweredLimit = 4
+
+    /// A new player page: nothing the old one owed earlier presses counts any more, and a new
+    /// press doesn't queue behind one still stuck on the old page (its result is fenced by the
+    /// generation anyway).
+    func forgetInAppPlayPauseWaits() {
+        clearPushedPlayStateExpectation()
+        finishInAppCommand()
+        inAppCommandsUnanswered.removeAll()
+        playPauseCommandTail = nil
+        playPauseRequestsInFlight = 0
+    }
+
+    func finishInAppCommand() {
+        inAppCommandInFlight = nil
+        inAppCommandAckTimeoutTask?.cancel()
+        inAppCommandAckTimeoutTask = nil
+        let waiters = inAppCommandAckWaiters
+        inAppCommandAckWaiters.removeAll()
+        waiters.forEach { $0.resume() }
+    }
+
+    static func isPlayPauseCommand(_ command: String) -> Bool {
+        [PlaybackBridgeCommand.pause, .resume, .togglePlay].map(\.rawValue).contains(command)
+    }
+
+    /// The state one press asked Spotify's page to report (`isPlaying`).
+    struct PushedPlayStateExpectation {
+        let serial: UInt64
+        let isPlaying: Bool
+    }
+
+    private func expectPushedPlayState(serial: UInt64, isPlaying: Bool) {
+        pushedPlayStateExpectations.append(PushedPlayStateExpectation(serial: serial, isPlaying: isPlaying))
+        pushedPlayStateExpectationTask?.cancel()
+        pushedPlayStateExpectationTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            try? await Task.sleep(for: self.pushedPlayStateExpectationTimeout)
+            guard !Task.isCancelled else { return }
+            // The page never reported the last press: its latest report is its own last word.
+            let held = self.heldBackPageReport
+            self.clearPushedPlayStateExpectation()
+            // With the generation it came with: a report from a page since replaced is dropped.
+            // An error since then (sign in again, Premium) stays: it says what to do.
+            if case .error = self.connectionState { return }
+            if let held {
+                self.handle(held)
+            }
+        }
+    }
+
+    func clearPushedPlayStateExpectation() {
+        pushedPlayStateExpectationTask?.cancel()
+        pushedPlayStateExpectationTask = nil
+        pushedPlayStateExpectations = []
+        heldBackPageReport = nil
+    }
+
+    /// Whether a state Spotify's page reports may be shown. While presses wait for the page,
+    /// it must report them in the order they were made: a report that isn't the next one is
+    /// older (or the page skipped it) and is left out, the one for an earlier press is taken
+    /// off without being shown, and only the one for the last press is shown and ends the wait.
+    func acceptsPushedPlayState(isPlaying: Bool) -> Bool {
+        guard let next = pushedPlayStateExpectations.first else { return true }
+        guard next.isPlaying == isPlaying else { return false }
+        pushedPlayStateExpectations.removeFirst()
+        guard pushedPlayStateExpectations.isEmpty else { return false }
+        clearPushedPlayStateExpectation()
+        return true
+    }
+
+    /// For a player whose state is read: whether this read must not end the settle window after
+    /// a pause or resume. A read that still shows the old state mustn't, for up to
+    /// ``playPauseReadHoldDuration`` after the press, so slow reads can't run the window out and
+    /// flip the press back. A read that agrees ends the hold.
+    /// A read sent before the latest press can't end the hold either: agreeing with it is luck.
+    func playPauseReadHoldsSettle(_ snapshot: MusicPlaybackSnapshot, predatesPress: Bool) -> Bool {
+        guard let until = playPauseReadHoldUntil else { return false }
+        if predatesPress, clock.now < until { return true }
+        guard clock.now < until,
+              let localCommandExpectsPlaying,
+              snapshot.isPlaying != localCommandExpectsPlaying else {
+            playPauseReadHoldUntil = nil
+            return false
+        }
+        return true
     }
 
     func previous() async {

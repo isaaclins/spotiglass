@@ -57,7 +57,8 @@ final class CommandPaletteManager: ObservableObject {
     var selectNextPlaylist: (() async -> Void)?
     var selectPreviousPlaylist: (() async -> Void)?
     var connectPlayback: (() -> Void)?
-    var togglePlayback: (() async -> Void)?
+    /// Synchronous, so the controls show the new state before any task runs (#437).
+    var togglePlayback: (() -> Void)?
     var nextTrack: (() async -> Void)?
     var previousTrack: (() async -> Void)?
     var disconnectPlayback: (() async -> Void)?
@@ -436,7 +437,7 @@ final class CommandPaletteManager: ObservableObject {
             connectPlayback?()
         case CommandPaletteCommandID.togglePlayback:
             guard playbackTogglePrerequisite?() ?? true else { return }
-            Task { await togglePlayback?() }
+            togglePlayback?()
         case CommandPaletteCommandID.nextTrack:
             Task { await nextTrack?() }
         case CommandPaletteCommandID.previousTrack:
