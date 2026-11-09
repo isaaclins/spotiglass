@@ -8,6 +8,9 @@ extension PlaylistBrowserViewModel {
         displayName: String? = nil
     ) async {
         clearTrackSelection()
+        // Links in track rows only carry the artist's ID; the row on screen
+        // has the name, so the title and back can say it before the page loads.
+        let displayName = displayName ?? nameOfArtistOnScreen(id: id)
         registerNavigationTransition(to: .artist(id))
         rememberArtistNameForBack(displayName, artistID: id)
         applyBreadcrumbForArtist(
@@ -94,5 +97,22 @@ extension PlaylistBrowserViewModel {
             guard session == detailSession else { return }
             detailState = .error(Self.displayError(for: error))
         }
+    }
+
+    /// The artist's name as a track on the current page or Home's top tracks
+    /// shows it, for links that only pass the artist's ID.
+    func nameOfArtistOnScreen(id: String) -> String? {
+        let pageTracks: [TrackRowViewModel]
+        switch detailState.currentValue {
+        case let .playlist(detail):
+            pageTracks = detail.tracks
+        case let .artist(detail):
+            if detail.artist.id == id { return detail.artist.name }
+            pageTracks = detail.tracks
+        case .home, .search, nil:
+            pageTracks = []
+        }
+        let refs = pageTracks.lazy.flatMap(\.artistRefs) + homeTopTrackData.lazy.flatMap(\.artistRefs)
+        return refs.first { $0.id == id && !$0.name.isEmpty }?.name
     }
 }

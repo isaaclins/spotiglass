@@ -8,7 +8,7 @@ struct PlaylistBrowserPaletteSearchEnvironment {
     var unpin: (String) -> Void
     var playURI: (String) -> Void
     var openPlaylist: (String) -> Void
-    var openArtist: (String) -> Void
+    var openArtist: (_ id: String, _ name: String) -> Void
     var openAlbum: (String, String, String, URL?) -> Void
     var addToQueue: (String) async -> Void
 }
@@ -111,7 +111,7 @@ enum PlaylistBrowserPaletteSearchBuilder {
                 keepsPaletteOpen: false,
                 pinAction: pinPair.pin,
                 unpinAction: pinPair.unpin,
-                action: { environment.openArtist(artist.id) }
+                action: { environment.openArtist(artist.id, artist.name) }
             )
         }
 
