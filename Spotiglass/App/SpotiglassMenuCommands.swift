@@ -36,6 +36,12 @@ struct SpotiglassMenuCommands: Commands {
         sceneRegistry.activeScene?.commandPaletteManager
     }
 
+    /// Every item acts on a main window. With all of them closed (only the pop-out lyrics window
+    /// or Settings open) there is nothing to act on, so the items dim instead of doing nothing (#439).
+    var isAvailable: Bool {
+        isSignedIn && sceneRegistry.activeScene != nil
+    }
+
     /// Back dims when the active browser's navigation stack is empty.
     private var canNavigateBack: Bool {
         activeCommandPaletteManager?.canNavigateBack ?? false
@@ -61,30 +67,30 @@ struct SpotiglassMenuCommands: Commands {
     var hasPlayback = true
 
     var isPlaybackToggleEnabled: Bool {
-        isSignedIn && (activeCommandPaletteManager?.canTogglePlayback ?? false)
+        isAvailable && (activeCommandPaletteManager?.canTogglePlayback ?? false)
     }
 
     /// Refresh reloads the page you're on; while the lyrics cover it there's nothing to reload (#438).
     var isRefreshEnabled: Bool {
-        isSignedIn && !isLyricsPresented
+        isAvailable && !isLyricsPresented
     }
 
     /// Back and the track-selection commands act on the page under the lyrics, which you
     /// can't see while they are open; the toolbar hides Back for the same reason (#438).
     var isBackEnabled: Bool {
-        isSignedIn && canNavigateBack && !isLyricsPresented
+        isAvailable && canNavigateBack && !isLyricsPresented
     }
 
     var isTrackSelectionEnqueueEnabled: Bool {
-        isSignedIn && hasPlayback && canEnqueueTrackSelection && !isLyricsPresented
+        isAvailable && hasPlayback && canEnqueueTrackSelection && !isLyricsPresented
     }
 
     var isTrackSelectionPinEnabled: Bool {
-        isSignedIn && trackSelectionPinState != .unavailable && !isLyricsPresented
+        isAvailable && trackSelectionPinState != .unavailable && !isLyricsPresented
     }
 
     var isLyricsToggleEnabled: Bool {
-        isSignedIn && (activeCommandPaletteManager?.canToggleLyrics ?? false)
+        isAvailable && (activeCommandPaletteManager?.canToggleLyrics ?? false)
     }
 
     /// The live transport state is mirrored by the active scene's manager so
@@ -98,12 +104,12 @@ struct SpotiglassMenuCommands: Commands {
     }
 
     var isPlaybackTransportMutationEnabled: Bool {
-        isSignedIn && (activeCommandPaletteManager?.canMutatePlaybackTransport ?? false)
+        isAvailable && (activeCommandPaletteManager?.canMutatePlaybackTransport ?? false)
     }
 
     /// Repeat follows the music you hear (#396), Shuffle the on-screen queue.
     var isRepeatMutationEnabled: Bool {
-        isSignedIn && (activeCommandPaletteManager?.canMutateRepeat ?? false)
+        isAvailable && (activeCommandPaletteManager?.canMutateRepeat ?? false)
     }
 
     var isPrefetchInFlight: Bool {
@@ -129,7 +135,7 @@ struct SpotiglassMenuCommands: Commands {
                 Button(SpotiglassL10n.string("menu.app.signOut", locale: currentLocale)) {
                     run(CommandPaletteCommandID.signOut)
                 }
-                .disabled(!isSignedIn)
+                .disabled(!isAvailable)
             }
         }
 
@@ -138,7 +144,7 @@ struct SpotiglassMenuCommands: Commands {
                 run(CommandPaletteCommandID.prefetchAllPlaylists)
             }
             .keyboardShortcut(keymapShortcut(for: CommandPaletteCommandID.prefetchAllPlaylists))
-            .disabled(!isSignedIn)
+            .disabled(!isAvailable)
         }
 
         CommandGroup(after: .sidebar) {
@@ -157,13 +163,13 @@ struct SpotiglassMenuCommands: Commands {
                 run(CommandPaletteCommandID.openSearch)
             }
             .keyboardShortcut(keymapShortcut(for: CommandPaletteCommandID.openSearch))
-            .disabled(!isSignedIn)
+            .disabled(!isAvailable)
 
             Button(queueItemTitle) {
                 run(CommandPaletteCommandID.toggleQueue)
             }
             .keyboardShortcut(keymapShortcut(for: CommandPaletteCommandID.toggleQueue))
-            .disabled(!isSignedIn)
+            .disabled(!isAvailable)
 
             Button(lyricsItemTitle) {
                 run(CommandPaletteCommandID.toggleLyrics)
@@ -175,7 +181,7 @@ struct SpotiglassMenuCommands: Commands {
                 run(CommandPaletteCommandID.popOutLyrics)
             }
             .keyboardShortcut(keymapShortcut(for: CommandPaletteCommandID.popOutLyrics))
-            .disabled(!isSignedIn)
+            .disabled(!isAvailable)
 
             Divider()
 
@@ -201,13 +207,13 @@ struct SpotiglassMenuCommands: Commands {
                 run(CommandPaletteCommandID.nextTrack)
             }
             .keyboardShortcut(keymapShortcut(for: CommandPaletteCommandID.nextTrack))
-            .disabled(!isSignedIn || !hasPlayback)
+            .disabled(!isAvailable || !hasPlayback)
 
             Button(SpotiglassL10n.string("menu.playback.previous", locale: currentLocale)) {
                 run(CommandPaletteCommandID.previousTrack)
             }
             .keyboardShortcut(keymapShortcut(for: CommandPaletteCommandID.previousTrack))
-            .disabled(!isSignedIn || !hasPlayback)
+            .disabled(!isAvailable || !hasPlayback)
 
             Divider()
 
@@ -265,13 +271,13 @@ struct SpotiglassMenuCommands: Commands {
                 run(CommandPaletteCommandID.seekForward)
             }
             .keyboardShortcut(.rightArrow, modifiers: .command)
-            .disabled(!isSignedIn || !hasPlayback)
+            .disabled(!isAvailable || !hasPlayback)
 
             Button(SpotiglassL10n.string("menu.playback.seekBackward", locale: currentLocale)) {
                 run(CommandPaletteCommandID.seekBackward)
             }
             .keyboardShortcut(.leftArrow, modifiers: .command)
-            .disabled(!isSignedIn || !hasPlayback)
+            .disabled(!isAvailable || !hasPlayback)
 
             Divider()
 
@@ -279,7 +285,7 @@ struct SpotiglassMenuCommands: Commands {
                 run(CommandPaletteCommandID.connectPlayback)
             }
             .keyboardShortcut(keymapShortcut(for: CommandPaletteCommandID.connectPlayback))
-            .disabled(!isSignedIn || !hasPlayback)
+            .disabled(!isAvailable || !hasPlayback)
         }
 
         // The default Help menu ships an item that leads nowhere: the bundle

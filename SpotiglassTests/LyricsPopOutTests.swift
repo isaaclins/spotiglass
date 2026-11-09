@@ -234,6 +234,36 @@ final class LyricsPopOutTests: XCTestCase {
         XCTAssertTrue(main.isVisible)
     }
 
+    /// With every main window closed (only the pop-out open), the menu has no window to act on:
+    /// its items dim instead of doing nothing.
+    func testMenuItemsDimWithNoMainWindow() {
+        let (manager, keymap) = makeManager()
+        manager.setPlaybackToggleAvailability(true)
+        let registry = SpotiglassSceneRegistry()
+        let commands = SpotiglassMenuCommands(
+            sceneRegistry: registry,
+            keymapStore: keymap,
+            settingsStore: SpotiglassSettingsStore(fileURL: makeCommandPaletteTestsTempSettingsURL()),
+            serviceStore: MusicServiceStore(
+                storage: InMemoryMusicServiceSelectionStorage(services: [.spotify], active: .spotify)
+            ),
+            isSignedIn: true,
+            isQueueVisible: false
+        )
+        XCTAssertFalse(commands.isAvailable)
+        XCTAssertFalse(commands.isRefreshEnabled)
+        XCTAssertFalse(commands.isPlaybackToggleEnabled)
+
+        let scene = SpotiglassSceneHost(commandPaletteManager: manager)
+        registry.activate(scene)
+        XCTAssertTrue(commands.isAvailable)
+        XCTAssertTrue(commands.isRefreshEnabled)
+        XCTAssertTrue(commands.isPlaybackToggleEnabled)
+
+        registry.deactivate(scene)
+        XCTAssertFalse(commands.isAvailable)
+    }
+
     // MARK: Playback without a main window
 
     /// With every main window closed the pop-out keeps Spotify's page alive, so signing out of

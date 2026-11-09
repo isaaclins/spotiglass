@@ -212,6 +212,8 @@ struct SpotiglassApp: App {
                 Button(SpotiglassL10n.string("app.menu.openPalette", locale: settingsStore.appLocale)) {
                     sceneRegistry.activeScene?.performMenuCommand(CommandPaletteCommandID.openPalette)
                 }
+                // The palette belongs to a main window: with none open it has nowhere to show (#439).
+                .disabled(sceneRegistry.activeScene == nil)
                 // Derived from the keymap like every other menu item, so a
                 // rebind moves the chord instead of leaving Command-K alive as
                 // a second, undisclosed trigger (#131).

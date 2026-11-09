@@ -66,14 +66,18 @@ enum LyricsPopOutWindow {
         CommandPaletteCommandID.previousTrack,
     ]
 
-    /// Pinned, the window floats above other apps' windows and also shows over a full-screen app,
-    /// like Picture in Picture. Unpinned, it is an ordinary window again.
+    /// Pinned, the window floats above other apps' windows. It can also sit over Spotiglass's own
+    /// full-screen window. It does not follow you onto another app's full-screen Space: tried with
+    /// `.canJoinAllSpaces` too, a regular app window stays on its own desktop. Unpinned, it is an
+    /// ordinary window again.
+    static let pinnedCollectionBehavior: NSWindow.CollectionBehavior = [.fullScreenAuxiliary]
+
     static func apply(isPinned: Bool, to window: NSWindow) {
         window.level = isPinned ? .floating : .normal
         if isPinned {
-            window.collectionBehavior.insert(.fullScreenAuxiliary)
+            window.collectionBehavior.insert(pinnedCollectionBehavior)
         } else {
-            window.collectionBehavior.remove(.fullScreenAuxiliary)
+            window.collectionBehavior.remove(pinnedCollectionBehavior)
         }
     }
 }
