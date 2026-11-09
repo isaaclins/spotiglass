@@ -185,6 +185,7 @@ extension PlaybackSessionViewModel {
             guard ownsPlaybackHostGeneration(request.generation), !Task.isCancelled,
                   request.serial > playPauseSupersededThrough else { return }
             beginInAppCommand(request)
+            lastSentInAppPress = request
             do {
                 // The state asked for, not a toggle: a toggle flips whatever the player has.
                 if request.sendsRequestedState {
@@ -229,6 +230,8 @@ extension PlaybackSessionViewModel {
         guard request.serial == playPauseRequestSerial,
               request.serial > playPauseSupersededThrough else { return }
         SpotiglassLog.error(.playback, "togglePlayPause refused: \(error.localizedDescription)")
+        // An error that says what to do (sign in again, Premium) came meanwhile: it stays.
+        if case .error = connectionState { return }
         let displayError = Self.displayError(for: error)
         localCommandExpectsPlaying = nil
         clearPushedPlayStateExpectation()
@@ -332,8 +335,29 @@ extension PlaybackSessionViewModel {
     }
 
     /// Spotify's page finished a command: the next press may go out.
+    ///
+    /// The player has the press now: until the page reports, that is what a refusal of the next
+    /// press goes back to. A press answered after the wait for it ended may have landed after a
+    /// later, opposite press: the latest press is then sent again, so the last press wins.
     func handleInAppCommandFinished(_ command: String, id: UInt64?) {
-        _ = takeAnsweredInAppPress(command: command, id: id)
+        let wasRunning = inAppCommandInFlight
+        guard let request = takeAnsweredInAppPress(command: command, id: id),
+              ownsPlaybackHostGeneration(request.generation),
+              request.serial > playPauseSupersededThrough,
+              request.sendsRequestedState else { return }
+        pageReportedPlayState = request.stateAfter
+        guard request.serial != wasRunning?.serial,
+              let later = lastSentInAppPress,
+              later.serial > request.serial,
+              later.shouldPause != request.shouldPause,
+              later.serial == playPauseRequestSerial,
+              later.serial > playPauseSupersededThrough,
+              later.sendsRequestedState else { return }
+        SpotiglassLog.info(.playback, "Spotify playback SDK answered \(request.inAppCommand) late; sending the latest press again")
+        pageReportedPlayState = later.stateAfter
+        Task { @MainActor [weak self] in
+            try? await self?.provider.setInAppPlayerPlaying(!later.shouldPause, commandID: later.serial)
+        }
     }
 
     /// The press an answer from the page is for: by the press's id, which the page sends back

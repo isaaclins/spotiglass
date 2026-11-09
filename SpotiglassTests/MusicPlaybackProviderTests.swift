@@ -1378,6 +1378,53 @@ final class PlayPauseFollowsThePressTests: XCTestCase {
         }
     }
 
+    /// Pause takes longer than the wait in Spotify's player, the play goes out meanwhile and
+    /// finishes first, then the pause lands: the play is sent again, so the last press wins.
+    func testSpotifyALatePauseIsFollowedByThePlayAgain() async {
+        let (commander, session) = playingSpotify()
+        session.inAppCommandAckTimeout = .milliseconds(20)
+
+        await session.requestTogglePlayPause()?.value
+        let pause = session.playPauseRequestSerial
+        try? await Task.sleep(for: .milliseconds(150))
+        await session.requestTogglePlayPause()?.value
+        let play = session.playPauseRequestSerial
+        session.handle(.playerCommandFinished(command: "resume", id: play))
+        session.handle(.playerCommandFinished(command: "pause", id: pause))
+        await Self.settle { Self.playPauseCommands(commander).count == 3 }
+
+        XCTAssertEqual(Self.playPauseCommands(commander), [.pause, .resume, .resume], "the late pause had the last word")
+        XCTAssertTrue(Self.isPlaying(session))
+    }
+
+    /// Pause accepted by the page (its report still on the way), then play refused: the player
+    /// has the pause, so the controls go back to paused, not to the playing from before both.
+    func testSpotifyARefusedPlayAfterAnAcceptedPauseGoesBackToThePause() async {
+        let (_, session) = playingSpotify()
+
+        await session.requestTogglePlayPause()?.value
+        session.handle(.playerCommandFinished(command: "pause", id: session.playPauseRequestSerial))
+        await session.requestTogglePlayPause()?.value
+        session.handle(.playerCommandFailed(command: "resume", message: "Spotify resume failed: offline", id: session.playPauseRequestSerial))
+
+        XCTAssertTrue(Self.isPaused(session), "the controls went back to before the accepted pause")
+        XCTAssertEqual(session.refusedPlayPause?.title, SpotiglassL10n.string("playback.refused.play"))
+    }
+
+    /// A sign-in error, then the page refuses the press it was running: the sign-in error stays,
+    /// with its Sign In button.
+    func testSpotifyARefusalAfterASignInErrorKeepsTheError() async {
+        let (_, session) = playingSpotify()
+
+        await session.requestTogglePlayPause()?.value
+        session.handle(.authenticationError("token expired"))
+        session.handle(.playerCommandFailed(command: "pause", message: "Spotify pause failed: 401", id: session.playPauseRequestSerial))
+
+        guard case .error = session.connectionState else {
+            return XCTFail("the refusal replaced the sign-in error: \(session.connectionState)")
+        }
+    }
+
     /// The wait for the page ends without the page reporting the last press: its latest report
     /// is then shown, so the bar doesn't keep a song the page has moved on from.
     func testSpotifyShowsThePagesLastReportWhenTheWaitEnds() async {

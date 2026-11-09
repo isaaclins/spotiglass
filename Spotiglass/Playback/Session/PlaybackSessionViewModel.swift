@@ -673,6 +673,8 @@ final class PlaybackSessionViewModel: ObservableObject {
     var playPauseQueueWait: Duration = .seconds(3)
     /// For a player whose state is read: the latest press sent to it.
     var lastSentReadPress: PlayPauseRequest?
+    /// For Spotify's page: the latest press sent to it.
+    var lastSentInAppPress: PlayPauseRequest?
     /// Until then, a read that disagrees with the last pause or resume doesn't use up the
     /// settle window: the service can report the old state for a few seconds (#437).
     var playPauseReadHoldUntil: ContinuousClock.Instant?
