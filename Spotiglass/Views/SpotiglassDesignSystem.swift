@@ -149,8 +149,12 @@ enum SpotiglassDesign {
         static let trackNumberColumnWidth: CGFloat = 40
         /// Room for `m:ss` and `mm:ss` durations, so resizing doesn't reflow the trailing edge.
         static let durationColumnWidth: CGFloat = 48
-        /// Artwork of playlist and pinned rows in the sidebar.
-        static let sidebarRowArtworkSize: CGFloat = 48
+        /// The cover or symbol tile at the leading edge of every sidebar row: Search, Home,
+        /// pins, Liked Songs and playlists all use this one size (#444).
+        static let sidebarRowArtworkSize: CGFloat = 32
+        /// Height of every sidebar row: its tile plus a grid step above and below, which also
+        /// fits a title over a subtitle.
+        static let sidebarRowHeight: CGFloat = sidebarRowArtworkSize + 2 * spacingXXS
         /// Artwork of command palette results; rows without artwork reserve the same width.
         static let smallArtworkSize: CGFloat = 28
         /// Artwork of a pinned item's drag preview and other inline thumbnails.
@@ -306,6 +310,9 @@ enum SpotiglassDesign {
     /// Artwork size for the playlist, Liked Songs and artist detail headers.
     /// One value so equivalent headers cannot drift apart (#145).
     static let detailHeaderArtworkSize: CGFloat = 120
+    /// Small artwork in dense rows (the sidebar). `cornerS` on a 32 pt tile rounds it into an
+    /// app icon; covers that small read as covers with a quarter of that.
+    static let cornerXS: CGFloat = 4
     static let cornerS: CGFloat = 8
     static let cornerM: CGFloat = 14
     static let cornerL: CGFloat = 22
