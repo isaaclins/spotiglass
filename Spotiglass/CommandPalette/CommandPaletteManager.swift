@@ -223,16 +223,17 @@ final class CommandPaletteManager: ObservableObject {
                 playback.$activePlaybackDeviceID,
                 playback.$isTransportStateKnown
             ),
-            playback.$isOtherServicePlaying,
+            playback.$isOtherServiceHeard,
             playback.$isOtherServiceTransportMutationReady
         )
-        .sink { [weak self] state, isOtherServicePlaying, isOtherServiceTransportMutationReady in
+        .sink { [weak self] state, isOtherServiceHeard, isOtherServiceTransportMutationReady in
             let (connectionState, deviceID, activePlaybackDeviceID, isTransportStateKnown) = state
-            // While the other service's music is what you hear, Play/Pause pauses it (#396).
-            let pausesOtherService = isOtherServicePlaying
+            // While the other service's music is what you hear, Play/Pause pauses or resumes it
+            // (#396, #468).
+            let followsOtherService = isOtherServiceHeard
                 && !PlaylistBrowserPlaybackHelpers.isCurrentlyPlaying(connectionState: connectionState)
             self?.setPlaybackToggleAvailability(
-                pausesOtherService || PlaybackSessionViewModel.isPlaybackToggleReady(
+                followsOtherService || PlaybackSessionViewModel.isPlaybackToggleReady(
                     connectionState: connectionState,
                     deviceID: deviceID,
                     activePlaybackDeviceID: activePlaybackDeviceID,
@@ -246,7 +247,7 @@ final class CommandPaletteManager: ObservableObject {
                 commandDeviceID: activePlaybackDeviceID ?? deviceID
             )
             self?.setPlaybackTransportMutability(isTransportMutationReady)
-            let canMutateRepeat = pausesOtherService ? isOtherServiceTransportMutationReady : isTransportMutationReady
+            let canMutateRepeat = followsOtherService ? isOtherServiceTransportMutationReady : isTransportMutationReady
             if self?.canMutateRepeat != canMutateRepeat { self?.canMutateRepeat = canMutateRepeat }
         }
         .store(in: &playbackReadinessCancellables)
@@ -261,11 +262,11 @@ final class CommandPaletteManager: ObservableObject {
         Publishers.CombineLatest4(
             playback.$repeatMode,
             playback.$otherServiceRepeatMode,
-            playback.$isOtherServicePlaying,
+            playback.$isOtherServiceHeard,
             playback.connectionStatePublisher
         )
-        .map { mode, otherMode, isOtherServicePlaying, connectionState in
-            let followsOtherService = isOtherServicePlaying
+        .map { mode, otherMode, isOtherServiceHeard, connectionState in
+            let followsOtherService = isOtherServiceHeard
                 && !PlaylistBrowserPlaybackHelpers.isCurrentlyPlaying(connectionState: connectionState)
             return followsOtherService ? otherMode : mode
         }

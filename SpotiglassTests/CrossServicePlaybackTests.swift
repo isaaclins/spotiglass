@@ -318,7 +318,7 @@ final class CrossServicePlaybackTests: XCTestCase {
         hosts.gate(activeService: .spotify) // ⌃2
 
         let playback = spotify.playbackViewModel
-        XCTAssertTrue(playback.isOtherServicePlaying)
+        XCTAssertTrue(playback.isOtherServiceHeard)
         XCTAssertTrue(playback.audiblePlayer === appleMusic, "the bar shows what you hear")
 
         let manager = wirePalette(to: playback)
@@ -333,8 +333,131 @@ final class CrossServicePlaybackTests: XCTestCase {
         XCTAssertEqual(player.readState().status, .paused)
         XCTAssertEqual(appleMusic.connectionState.nowPlayingName, "Piranguera")
         XCTAssertFalse(PlaylistBrowserPlaybackHelpers.isCurrentlyPlaying(connectionState: appleMusic.connectionState))
-        XCTAssertFalse(playback.isOtherServicePlaying)
-        XCTAssertTrue(playback.audiblePlayer === playback, "with nothing playing the bar is Spotify's again")
+        XCTAssertTrue(playback.isOtherServiceHeard)
+        XCTAssertTrue(playback.audiblePlayer === appleMusic, "the bar stays on the song you paused (#468)")
+    }
+
+    /// The report (#468): Apple Music played, Spotify was on screen, and pausing moved the bar to
+    /// Spotify's paused song; Play then started Midnight City instead of resuming Piranguera.
+    func testPlayAfterPausingResumesTheSongYouPausedNotTheOnScreenServicesSong() async throws {
+        let (spotify, commander) = pausedSpotify()
+        let player = ScriptedAppleMusicPlayer()
+        let hosts = hosts(spotify: spotify, player: player)
+        hosts.gate(activeService: .appleMusic)
+        let appleMusic = try await playingAppleMusic(in: hosts, player: player)
+        hosts.gate(activeService: .spotify) // ⌃2
+        let playback = spotify.playbackViewModel
+        let manager = wirePalette(to: playback)
+
+        // Pause from the bar: it controls the player you hear.
+        _ = playback.audiblePlayer.requestTogglePlayPause()
+        await appleMusic.playPauseCommandTail?.value
+        player.advance(by: 1)
+        XCTAssertEqual(player.readState().status, .paused)
+
+        XCTAssertTrue(playback.audiblePlayer === appleMusic, "the bar stays on Piranguera")
+        XCTAssertEqual(playback.audiblePlayer.connectionState.nowPlayingName, "Piranguera")
+        XCTAssertTrue(manager.canTogglePlayback, "Play resumes what you paused")
+
+        // Play, as Space / Playback › Play would.
+        manager.togglePlayback?()
+        await appleMusic.playPauseCommandTail?.value
+        player.advance(by: 1)
+
+        XCTAssertEqual(toggles(commander), 0, "Midnight City stays paused")
+        XCTAssertEqual(player.commands.filter { $0 == "pause" }.count, 1)
+        XCTAssertEqual(player.readState().status, .playing, "Piranguera resumes")
+        XCTAssertEqual(appleMusic.connectionState.nowPlayingName, "Piranguera")
+        XCTAssertTrue(playback.audiblePlayer === appleMusic)
+    }
+
+    /// The mirror: Spotify played, Apple Music is on screen with its own paused song. After
+    /// Spotify pauses, the bar stays on Spotify's song, and Play resumes it, not Apple Music's.
+    func testAppleMusicsBarStaysOnSpotifysPausedSong() async throws {
+        let (spotify, commander) = pausedSpotify()
+        let player = ScriptedAppleMusicPlayer()
+        let hosts = hosts(spotify: spotify, player: player)
+        let appleMusic = hosts.appleMusic.playbackViewModel
+        appleMusic.handle(.ready(deviceID: AppleMusicPlaybackProvider.deviceID))
+        appleMusic.setConnectionState(.paused(Self.song("Piranguera", uri: "applemusic:song:piranguera")))
+        hosts.gate(activeService: .appleMusic)
+        let spotifyPlayer = spotify.playbackViewModel
+        spotifyPlayer.setConnectionState(.playing(Self.song("Midnight City", uri: "spotify:track:1")))
+        XCTAssertTrue(appleMusic.audiblePlayer === spotifyPlayer)
+
+        // Spotify's page reports the pause.
+        spotifyPlayer.setConnectionState(.paused(Self.song("Midnight City", uri: "spotify:track:1", positionMilliseconds: 60_000)))
+
+        XCTAssertTrue(appleMusic.audiblePlayer === spotifyPlayer, "the bar stays on Midnight City")
+        let manager = wirePalette(to: appleMusic)
+        manager.togglePlayback?()
+        for _ in 0..<40 where toggles(commander) == 0 {
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        XCTAssertEqual(toggles(commander), 1, "Play resumes Midnight City")
+        XCTAssertFalse(player.commands.contains("play"), "Piranguera stays paused")
+    }
+
+    /// From launch: Spotify played and paused before I opened Apple Music for the first time,
+    /// which is when its player is made. The bar stays on Spotify's paused song.
+    func testSpotifyPausedBeforeAppleMusicsPlayerExistsKeepsTheBar() async throws {
+        let (spotify, _) = pausedSpotify()
+        let player = ScriptedAppleMusicPlayer()
+        let hosts = hosts(spotify: spotify, player: player)
+        hosts.gate(activeService: .spotify)
+        let spotifyPlayer = spotify.playbackViewModel
+        spotifyPlayer.setConnectionState(.playing(Self.song("Midnight City", uri: "spotify:track:1")))
+        spotifyPlayer.setConnectionState(.paused(Self.song("Midnight City", uri: "spotify:track:1", positionMilliseconds: 60_000)))
+        XCTAssertNil(hosts.appleMusicIfCreated)
+
+        // ⌃2 to Apple Music for the first time.
+        let appleMusic = hosts.appleMusic.playbackViewModel
+        appleMusic.handle(.ready(deviceID: AppleMusicPlaybackProvider.deviceID))
+        hosts.gate(activeService: .appleMusic)
+
+        XCTAssertTrue(appleMusic.isOtherServiceHeard)
+        XCTAssertTrue(appleMusic.audiblePlayer === spotifyPlayer, "the bar stays on Midnight City")
+    }
+
+    /// A pause that leaves the other player with no song (its queue ran out, the page lost the
+    /// track) gives nothing to follow: the bar goes back to the on-screen service's paused song.
+    func testAppleMusicsBarComesBackWhenSpotifyPausesWithNoSong() async throws {
+        let (spotify, _) = pausedSpotify()
+        let player = ScriptedAppleMusicPlayer()
+        let hosts = hosts(spotify: spotify, player: player)
+        let appleMusic = hosts.appleMusic.playbackViewModel
+        appleMusic.handle(.ready(deviceID: AppleMusicPlaybackProvider.deviceID))
+        appleMusic.setConnectionState(.paused(Self.song("Piranguera", uri: "applemusic:song:piranguera")))
+        hosts.gate(activeService: .appleMusic)
+        let spotifyPlayer = spotify.playbackViewModel
+        spotifyPlayer.setConnectionState(.playing(Self.song("Midnight City", uri: "spotify:track:1")))
+        XCTAssertTrue(appleMusic.audiblePlayer === spotifyPlayer)
+
+        spotifyPlayer.setConnectionState(.paused(nil))
+
+        XCTAssertFalse(appleMusic.isOtherServiceHeard)
+        XCTAssertTrue(appleMusic.audiblePlayer === appleMusic, "the bar shows Piranguera, not an empty bar")
+    }
+
+    /// "Until I play something else": music started from the on-screen library takes the bar.
+    func testStartingMusicOnScreenMovesTheBarBackToThisService() async throws {
+        let (spotify, _) = pausedSpotify()
+        let player = ScriptedAppleMusicPlayer()
+        let hosts = hosts(spotify: spotify, player: player)
+        hosts.gate(activeService: .appleMusic)
+        let appleMusic = try await playingAppleMusic(in: hosts, player: player)
+        hosts.gate(activeService: .spotify)
+        appleMusic.setConnectionState(.paused(Self.song("Piranguera", uri: "applemusic:song:piranguera")))
+        let playback = spotify.playbackViewModel
+        XCTAssertTrue(playback.audiblePlayer === appleMusic)
+
+        // Starting Spotify music (a row, the header's Play) pauses Apple Music first.
+        playback.onWillStartPlayback?()
+        XCTAssertFalse(playback.isOtherServiceHeard)
+        XCTAssertTrue(playback.audiblePlayer === playback)
+        playback.setConnectionState(.playing(Self.song("Midnight City", uri: "spotify:track:1")))
+        XCTAssertTrue(playback.audiblePlayer === playback)
+        XCTAssertTrue(appleMusic.isOtherServiceHeard, "Apple Music's own bar follows Spotify now")
     }
 
     /// Playback › Repeat while the bar shows Apple Music playing and Spotify sits paused on
