@@ -211,8 +211,8 @@ enum PlaylistBrowserCommandPaletteConfiguration {
         } else {
             manager.toggleSidebar = nil
         }
-        // `CommandPaletteManager` disables this command whenever there is no
-        // current music track, so the callback itself can stay a pure toggle.
+        // `CommandPaletteManager` allows this command only with a song in the bar or the
+        // lyrics showing (`isLyricsToggleAllowed`), so the callback can stay a pure toggle.
         manager.toggleLyrics = {
             lyricsPresented.wrappedValue.toggle()
         }

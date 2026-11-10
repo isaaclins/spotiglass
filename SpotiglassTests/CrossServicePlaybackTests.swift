@@ -416,12 +416,21 @@ final class CrossServicePlaybackTests: XCTestCase {
 
     /// Starting a Spotify song while the lyrics show Apple Music's paused Piranguera: Spotify is
     /// the one you hear at once, but its song only comes when Spotify's page reports it. The
-    /// lyrics used to close in that moment. They wait for the song, like the bar, then show it.
-    /// A play that fails ends the wait, and the lyrics close.
+    /// lyrics used to close in that moment. They wait for the song, like the bar, then show it,
+    /// and Hide Lyrics keeps working meanwhile. A play that fails or gives up waiting ends the
+    /// wait, and the lyrics close.
     func testStartingASongOnScreenKeepsTheLyricsOpen() async throws {
-        for playFails in [false, true] {
+        enum Ending { case reported, fails, timesOut }
+        let runs: [(start: PlaybackConnectionState, ending: Ending)] = [
+            (.paused(nil), .reported),
+            (.ready(deviceID: "device-1"), .reported), // connected after launch, nothing loaded
+            (.paused(nil), .fails),
+            (.paused(nil), .timesOut),
+        ]
+        for (start, ending) in runs {
+            let label = "\(start), \(ending)"
             let api = MockPlaybackAPI()
-            if playFails { api.playErrors = [URLError(.notConnectedToInternet)] }
+            if ending == .fails { api.playErrors = [URLError(.notConnectedToInternet)] }
             let (spotify, _) = pausedSpotify(api: api)
             let player = ScriptedAppleMusicPlayer()
             let hosts = hosts(spotify: spotify, player: player)
@@ -435,11 +444,16 @@ final class CrossServicePlaybackTests: XCTestCase {
             await appleMusic.playPauseCommandTail?.value
             player.advance(by: 1)
             appleMusic.setConnectionState(.paused(piranguera))
-            playback.setConnectionState(.paused(nil))
-            XCTAssertTrue(playback.audiblePlayer === appleMusic)
+            playback.setConnectionState(start)
+            XCTAssertTrue(playback.audiblePlayer === appleMusic, label)
 
             var looked: [String] = []
             let lyricsOverlay = try hostLyricsOverlay(onScreenPlayer: playback) { looked.append($0) }
+            let manager = wirePalette(
+                to: playback,
+                lyricsPresented: Binding(get: { lyricsOverlay.isPresented }, set: { lyricsOverlay.setPresented($0) })
+            )
+            manager.bindPlaybackReadiness(to: playback)
             try await waitUntil { looked == ["Piranguera"] }
 
             // Play a Spotify song from the palette.
@@ -449,25 +463,35 @@ final class CrossServicePlaybackTests: XCTestCase {
                 if case .error = playback.connectionState { return true }
                 return playback.pendingPlayTransition != nil
             }
-            if playFails {
+            if ending == .fails {
                 await play.value
                 try await waitUntil { !lyricsOverlay.isPresented }
-                XCTAssertFalse(lyricsOverlay.isPresented, "the play failed: no song to show the lyrics of")
+                XCTAssertFalse(lyricsOverlay.isPresented, "the play failed: no song to show the lyrics of, \(label)")
                 ViewTestHost.tearDownAll()
                 continue
             }
-            XCTAssertTrue(playback.audiblePlayer === playback, "Spotify is the one you hear now, in the bar too")
+            XCTAssertTrue(playback.audiblePlayer === playback, "Spotify is the one you hear now, in the bar too, \(label)")
             try await Task.sleep(for: .milliseconds(200))
-            XCTAssertTrue(lyricsOverlay.isPresented, "the lyrics closed while Spotify's song was on its way")
-            XCTAssertEqual(lyricsOverlay.lyricsModel?.phase, .loading, "the lyrics wait for the song, like the bar")
+            XCTAssertTrue(lyricsOverlay.isPresented, "the lyrics closed while Spotify's song was on its way, \(label)")
+            XCTAssertEqual(lyricsOverlay.lyricsModel?.phase, .loading, "the lyrics wait for the song, like the bar, \(label)")
+            XCTAssertTrue(manager.isLyricsToggleAllowed, "Hide Lyrics doesn't work while the lyrics wait, \(label)")
             await play.value
+
+            if ending == .timesOut {
+                // What the session does when no report came in time (`pendingPlayURITimeout`).
+                playback.clearPendingPlay()
+                try await waitUntil { !lyricsOverlay.isPresented }
+                XCTAssertFalse(lyricsOverlay.isPresented, "the wait for the song never ended, \(label)")
+                ViewTestHost.tearDownAll()
+                continue
+            }
 
             // Spotify's page reports the song.
             playback.handle(.stateChanged(Self.song("Strobe", uri: strobeURI), isPaused: false, nextTracks: []))
             try await waitUntil { looked.last == "Strobe" }
-            XCTAssertEqual(looked, ["Piranguera", "Strobe"])
-            XCTAssertNil(playback.pendingPlayTransition, "the report is the song the play asked for")
-            XCTAssertTrue(lyricsOverlay.isPresented)
+            XCTAssertEqual(looked, ["Piranguera", "Strobe"], label)
+            XCTAssertNil(playback.pendingPlayTransition, "the report is the song the play asked for, \(label)")
+            XCTAssertTrue(lyricsOverlay.isPresented, label)
             ViewTestHost.tearDownAll()
         }
     }
@@ -663,7 +687,10 @@ final class CrossServicePlaybackTests: XCTestCase {
         XCTAssertEqual(spotify.playbackViewModel.service, .spotify)
     }
 
-    private func wirePalette(to playback: PlaybackSessionViewModel) -> CommandPaletteManager {
+    private func wirePalette(
+        to playback: PlaybackSessionViewModel,
+        lyricsPresented: Binding<Bool> = .constant(false)
+    ) -> CommandPaletteManager {
         let manager = CommandPaletteManager()
         PlaylistBrowserCommandPaletteConfiguration.apply(
             to: manager,
@@ -681,7 +708,7 @@ final class CrossServicePlaybackTests: XCTestCase {
                 syncUnifiedRefreshRouting: {}
             ),
             queueVisible: .constant(false),
-            lyricsPresented: .constant(false)
+            lyricsPresented: lyricsPresented
         )
         return manager
     }

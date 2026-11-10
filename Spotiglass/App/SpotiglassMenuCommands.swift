@@ -90,7 +90,8 @@ struct SpotiglassMenuCommands: Commands {
     }
 
     var isLyricsToggleEnabled: Bool {
-        isAvailable && (activeCommandPaletteManager?.canToggleLyrics ?? false)
+        // Hide Lyrics works whenever the lyrics show (#486).
+        isAvailable && (isLyricsPresented || (activeCommandPaletteManager?.canToggleLyrics ?? false))
     }
 
     /// The live transport state is mirrored by the active scene's manager so

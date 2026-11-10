@@ -188,6 +188,12 @@ final class CommandPaletteManager: ObservableObject {
         viewModel.refreshListedCommands()
     }
 
+    /// Show Lyrics needs a song in the bar; Hide Lyrics works whenever the lyrics show, also
+    /// while they wait for a song that is on its way (#486).
+    var isLyricsToggleAllowed: Bool {
+        canToggleLyrics || isLyricsPresented?() == true
+    }
+
     func setLyricsToggleAvailability(_ available: Bool) {
         guard canToggleLyrics != available else { return }
         canToggleLyrics = available
@@ -394,7 +400,7 @@ final class CommandPaletteManager: ObservableObject {
                 return playbackTogglePrerequisite?() ?? true
             }
             if binding.command == CommandPaletteCommandID.toggleLyrics {
-                return canToggleLyrics
+                return isLyricsToggleAllowed
             }
             if binding.command == CommandPaletteCommandID.popOutLyrics {
                 return popOutLyrics != nil
@@ -506,7 +512,7 @@ final class CommandPaletteManager: ObservableObject {
         case CommandPaletteCommandID.toggleQueue:
             toggleQueue?()
         case CommandPaletteCommandID.toggleLyrics:
-            guard canToggleLyrics else { return }
+            guard isLyricsToggleAllowed else { return }
             toggleLyrics?()
         case CommandPaletteCommandID.popOutLyrics:
             viewModel.hide()
@@ -614,7 +620,7 @@ final class CommandPaletteManager: ObservableObject {
         CommandPaletteCommandCatalog.editable.compactMap { spec in
             guard !spec.requiresSignInForPalette || isSignedIn else { return nil }
             guard spec.commandID != CommandPaletteCommandID.togglePlayback || canTogglePlayback else { return nil }
-            guard spec.commandID != CommandPaletteCommandID.toggleLyrics || canToggleLyrics else { return nil }
+            guard spec.commandID != CommandPaletteCommandID.toggleLyrics || isLyricsToggleAllowed else { return nil }
             guard spec.commandID != CommandPaletteCommandID.popOutLyrics || popOutLyrics != nil else { return nil }
             guard spec.commandID != CommandPaletteCommandID.refreshPlaylists || isLyricsPresented?() != true else {
                 return nil
