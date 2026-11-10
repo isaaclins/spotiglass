@@ -95,11 +95,18 @@ extension PlaybackConnectionState {
         }
     }
 
-    /// Whether Previous and Next have a song to skip from: one is playing or paused. With nothing
-    /// loaded (the bar says "Ready to play") they did nothing (#500), so the player bar, the
-    /// pop-out lyrics window, the palette and the Playback menu leave them off.
+    /// Whether Previous and Next have something to skip from: something is playing or paused.
+    /// With nothing loaded (the bar says "Ready to play") they did nothing (#500), so the player
+    /// bar, the pop-out lyrics window, the palette, its shortcuts and the Playback menu leave them
+    /// off. A pause without a readable item still counts: Spotify reports a podcast episode or a
+    /// local file paused on another device that way, and skipping works there.
     var hasTrackToSkipFrom: Bool {
-        currentTrack != nil
+        switch self {
+        case .playing, .paused:
+            true
+        case .disconnected, .connecting, .ready, .transferring, .unavailable, .error:
+            false
+        }
     }
 
     /// The currently playing or paused music track, if lyrics can be loaded for it.

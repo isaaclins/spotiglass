@@ -417,6 +417,11 @@ final class CommandPaletteManager: ObservableObject {
             if binding.command == CommandPaletteCommandID.toggleLyrics {
                 return isLyricsToggleAllowed
             }
+            // With nothing to skip from the shortcut would run and do nothing (#500).
+            if binding.command == CommandPaletteCommandID.nextTrack
+                || binding.command == CommandPaletteCommandID.previousTrack {
+                return canSkipTrack
+            }
             if binding.command == CommandPaletteCommandID.popOutLyrics {
                 return popOutLyrics != nil
             }
