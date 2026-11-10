@@ -559,16 +559,29 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         let artists = Self.merged(libraryItems.artists, catalogItems.artists, limit: limit, showsLibrary: showsLibrary, id: { $0.id.rawValue }) {
             $0.name.lowercased()
         }
-        let albums = Self.merged(libraryItems.albums, catalogItems.albums, limit: limit, showsLibrary: showsLibrary, id: { $0.id.rawValue }) {
+        let albumMatch: (Album) -> String = {
             "\($0.title)|\($0.artistName)|\($0.contentRating == .explicit)".lowercased()
         }
+        let albums = Self.merged(libraryItems.albums, catalogItems.albums, limit: limit, showsLibrary: showsLibrary, id: { $0.id.rawValue }, match: albumMatch)
+        // A saved album shows instead of its catalog copy, but only the copy comes with its
+        // artists (`catalogSearch` loads them), so the saved one takes their IDs for the links
+        // under its card (#478).
+        let catalogAlbumArtists = Dictionary(
+            catalogItems.albums.map { (albumMatch($0), AppleMusicItemMapping.album($0).artistRefs) },
+            uniquingKeysWith: { first, _ in first }
+        )
         let playlists = Self.merged(libraryItems.playlists, catalogItems.playlists, limit: limit, showsLibrary: showsLibrary, id: { $0.id.rawValue }) {
             $0.id.rawValue
         }
         return MusicSearchResults(
             tracks: tracks.map(AppleMusicItemMapping.track),
             artists: artists.map(AppleMusicItemMapping.artist),
-            albums: albums.map(AppleMusicItemMapping.album),
+            albums: albums.map { album in
+                let mapped = AppleMusicItemMapping.album(album)
+                guard mapped.artistRefs.isEmpty, let refs = catalogAlbumArtists[albumMatch(album)], !refs.isEmpty
+                else { return mapped }
+                return mapped.withArtistRefs(refs)
+            },
             playlists: playlists.map {
                 AppleMusicItemMapping.playlistSummary($0, fallbackOwnerName: libraryOwnerName)
             },

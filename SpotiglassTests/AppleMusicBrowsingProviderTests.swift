@@ -895,6 +895,28 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
 
     // MARK: - Search
 
+    /// A saved album shows instead of its catalog copy, and only the copy comes with its artists:
+    /// the card under it still links them (#478).
+    func testSavedSearchAlbumLinksTheArtistsOfItsCatalogCopy() async throws {
+        let source = MockAppleMusicSource()
+        source.librarySearchItems = AppleMusicSearchItems(
+            albums: [try AppleMusicFixtures.album(id: "l.a", title: "Migration")]
+        )
+        source.catalogSearchItems = AppleMusicSearchItems(
+            albums: [
+                try AppleMusicFixtures.album(id: "a", title: "Migration", artists: [("5201", "Bonobo")]),
+                try AppleMusicFixtures.album(id: "b", title: "Fragments", artists: [("5201", "Bonobo")]),
+            ]
+        )
+        let results = try await AppleMusicBrowsingProvider(source: source).search(query: "bonobo", limit: 10)
+
+        XCTAssertEqual(results.albums.map(\.id), ["l.a", "b"])
+        XCTAssertEqual(results.albums.map(\.artistRefs), [
+            [MusicArtistRef(id: "5201", name: "Bonobo")],
+            [MusicArtistRef(id: "5201", name: "Bonobo")],
+        ])
+    }
+
     func testSearchPutsLibraryMatchesFirstAndDropsCatalogDuplicates() async throws {
         let source = MockAppleMusicSource()
         source.librarySearchItems = AppleMusicSearchItems(
@@ -1660,7 +1682,8 @@ enum AppleMusicFixtures {
         trackCount: Int = 10,
         isSingle: Bool = false,
         isCompilation: Bool = false,
-        tracks: [(id: String, title: String)] = []
+        tracks: [(id: String, title: String)] = [],
+        artists: [(id: String, name: String)] = []
     ) throws -> Album {
         var resource: [String: Any] = [
             "id": id,
@@ -1685,6 +1708,13 @@ enum AppleMusicFixtures {
                                    "playParams": ["id": $0.id, "kind": "song"]] as [String: Any],
                 ] as [String: Any]
             }]]
+        }
+        if !artists.isEmpty {
+            var relationships = resource["relationships"] as? [String: Any] ?? [:]
+            relationships["artists"] = ["data": artists.map {
+                ["id": $0.id, "type": "artists", "attributes": ["name": $0.name]] as [String: Any]
+            }]
+            resource["relationships"] = relationships
         }
         return try decode(Album.self, try json(resource))
     }

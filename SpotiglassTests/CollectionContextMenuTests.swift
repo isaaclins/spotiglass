@@ -43,12 +43,13 @@ final class CollectionContextMenuTests: XCTestCase {
     /// "Oh yeah?" by Steve Lacy, as Spotify's recently played returns it.
     private func recentlyPlayedTrack(
         artists: [MusicArtistRef] = [MusicArtistRef(id: "steve", name: "Steve Lacy")],
+        names: [String]? = nil,
         uri: String = "spotify:track:t1"
     ) -> MusicTrack {
         MusicTrack(
             id: "t1",
             name: "Oh yeah?",
-            artists: artists.map(\.name),
+            artists: names ?? artists.map(\.name),
             artistRefs: artists,
             albumArtworkURL: nil,
             albumName: "Oh yeah?",
@@ -225,9 +226,39 @@ final class CollectionContextMenuTests: XCTestCase {
             imageURL: nil,
             uri: "spotify:album:a"
         ))
-        let view = HomeCardArtistCredits(subtitle: card.subtitle, artists: card.artistRefs, openArtist: { _ in })
+        let view = HomeCardArtistCredits(subtitle: card.subtitle, credits: card.artistCredits, openArtist: { _ in })
         XCTAssertNoThrow(try view.inspect().find(text: "Unknown Artist"))
         XCTAssertThrowsError(try view.inspect().find(button: "Unknown Artist"))
+    }
+
+    /// Spotify names every artist and gives IDs only for some (a local file's has none). The
+    /// one without an ID used to drop out of the line under the cover.
+    func testAnArtistWithoutAnIDStaysInTheLineAsPlainText() throws {
+        var opened: [MusicArtistRef] = []
+        let card = HomeMediaCard(recentlyPlayed: recentlyPlayedTrack(
+            artists: [MusicArtistRef(id: "steve", name: "Steve Lacy")],
+            names: ["Steve Lacy", "Local Friend"]
+        ))
+        let line = try XCTUnwrap(card).artistCredits
+        XCTAssertEqual(line, [.link(MusicArtistRef(id: "steve", name: "Steve Lacy")), .name("Local Friend")])
+
+        let view = HomeCardArtistCredits(subtitle: try XCTUnwrap(card).subtitle, credits: line, openArtist: { opened.append($0) })
+        try view.inspect().find(button: "Steve Lacy").tap()
+        XCTAssertEqual(opened.map(\.id), ["steve"])
+        XCTAssertNoThrow(try view.inspect().find(text: "Local Friend"))
+        XCTAssertThrowsError(try view.inspect().find(button: "Local Friend"))
+    }
+
+    /// Apple Music names all of a song's artists in one string and lists them apart by ID.
+    func testAppleMusicsJoinedArtistNameLinksEachArtist() {
+        let line = HomeArtistCredit.credits(
+            names: ["Steve Lacy & Faye Webster"],
+            refs: [MusicArtistRef(id: "1", name: "Steve Lacy"), MusicArtistRef(id: "2", name: "Faye Webster")]
+        )
+        XCTAssertEqual(line, [
+            .link(MusicArtistRef(id: "1", name: "Steve Lacy")),
+            .link(MusicArtistRef(id: "2", name: "Faye Webster")),
+        ])
     }
 
     // MARK: - Edit playlist name from Home

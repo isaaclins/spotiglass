@@ -16,7 +16,9 @@ struct HomeMediaCard: Equatable, Identifiable {
     let subtitle: String
     let artworkURL: URL?
     let destination: Destination
-    /// The artists in `subtitle`, each a link when the service gave its ID (#478).
+    /// The artists in `subtitle`, as the service named them.
+    let artistNames: [String]
+    /// The artists in `subtitle` the service gave an ID for, each a link (#478).
     let artistRefs: [MusicArtistRef]
     /// What the card's right-click menu acts on; `nil` (Liked Songs) has no menu, as elsewhere.
     let menuTarget: CollectionMenuTarget?
@@ -27,6 +29,7 @@ struct HomeMediaCard: Equatable, Identifiable {
         subtitle: String,
         artworkURL: URL?,
         destination: Destination,
+        artistNames: [String] = [],
         artistRefs: [MusicArtistRef] = [],
         menuTarget: CollectionMenuTarget? = nil
     ) {
@@ -35,6 +38,7 @@ struct HomeMediaCard: Equatable, Identifiable {
         self.subtitle = subtitle
         self.artworkURL = artworkURL
         self.destination = destination
+        self.artistNames = artistNames
         self.artistRefs = artistRefs
         self.menuTarget = menuTarget
     }
@@ -51,6 +55,7 @@ struct HomeMediaCard: Equatable, Identifiable {
             subtitle: subtitle,
             artworkURL: track.albumArtworkURL,
             destination: .album(id: albumID, title: title, subtitle: subtitle, artworkURL: track.albumArtworkURL),
+            artistNames: track.artists,
             artistRefs: track.artistRefs,
             menuTarget: .pinnable(.album(MusicAlbum(
                 id: albumID,
@@ -71,6 +76,7 @@ struct HomeMediaCard: Equatable, Identifiable {
             subtitle: subtitle,
             artworkURL: album.imageURL,
             destination: .album(id: album.id, title: album.name, subtitle: subtitle, artworkURL: album.imageURL),
+            artistNames: album.artists,
             artistRefs: album.artistRefs,
             menuTarget: .pinnable(.album(album))
         )
@@ -88,10 +94,35 @@ struct HomeMediaCard: Equatable, Identifiable {
         )
     }
 
+    /// The artist line under the card: each artist with an ID is a link, the rest plain names.
+    var artistCredits: [HomeArtistCredit] {
+        HomeArtistCredit.credits(names: artistNames, refs: artistRefs)
+    }
+
     /// The album's URI in the same service as one of its tracks (`spotify:` or `applemusic:`).
     static func albumURI(id: String, siblingURI: String) -> String {
         let scheme = siblingURI.split(separator: ":", maxSplits: 1).first.map(String.init) ?? "spotify"
         return "\(scheme):album:\(id)"
+    }
+}
+
+/// One artist under a card: a link when the service gave the artist's ID, else plain text.
+enum HomeArtistCredit: Equatable {
+    case link(MusicArtistRef)
+    case name(String)
+
+    static func credits(names: [String], refs: [MusicArtistRef]) -> [HomeArtistCredit] {
+        guard !refs.isEmpty else { return names.map(HomeArtistCredit.name) }
+        // Apple Music names every artist in one string ("A & B") and lists them apart by ID,
+        // so its IDs are the whole line.
+        guard names.count > 1 else { return refs.map(HomeArtistCredit.link) }
+        // Spotify names each artist; one without an ID (a local file's) stays as plain text
+        // instead of dropping out of the line.
+        var unmatched = refs
+        return names.map { name in
+            guard let index = unmatched.firstIndex(where: { $0.name == name }) else { return .name(name) }
+            return .link(unmatched.remove(at: index))
+        }
     }
 }
 

@@ -122,7 +122,7 @@ struct HomeMediaCardView: View {
             // VoiceOver and keyboard users reach the menu from the card's own button.
             .collectionAccessibilityActions(card.menuTarget, browserViewModel: browserViewModel)
 
-            HomeCardArtistCredits(subtitle: card.subtitle, artists: card.artistRefs, openArtist: openArtist)
+            HomeCardArtistCredits(subtitle: card.subtitle, credits: card.artistCredits, openArtist: openArtist)
         }
         .frame(width: Self.artworkSize, alignment: .leading)
         .contentShape(Rectangle())
@@ -131,15 +131,15 @@ struct HomeMediaCardView: View {
     }
 }
 
-/// The artist line under a card: one link per artist when their IDs are known, else the plain
-/// names the service gave.
+/// The artist line under a card: one link per artist whose ID the service gave, the other
+/// names as plain text.
 struct HomeCardArtistCredits: View {
     let subtitle: String
-    let artists: [MusicArtistRef]
+    let credits: [HomeArtistCredit]
     let openArtist: (MusicArtistRef) -> Void
 
     var body: some View {
-        if artists.isEmpty {
+        if !credits.contains(where: { if case .link = $0 { true } else { false } }) {
             Text(subtitle)
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -147,23 +147,32 @@ struct HomeCardArtistCredits: View {
                 .accessibilityHidden(true)
         } else {
             HStack(spacing: 0) {
-                ForEach(Array(artists.enumerated()), id: \.offset) { index, artist in
+                ForEach(Array(credits.enumerated()), id: \.offset) { index, credit in
                     if index > 0 {
                         Text(SpotiglassL10n.string("common.comma"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .accessibilityHidden(true)
                     }
-                    Button {
-                        openArtist(artist)
-                    } label: {
-                        Text(artist.name)
+                    switch credit {
+                    case let .link(artist):
+                        Button {
+                            openArtist(artist)
+                        } label: {
+                            Text(artist.name)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                        .buttonStyle(.spotiglassTextLink)
+                        .accessibilityLabel(SpotiglassL10n.format("playback.controls.openArtist", artist.name))
+                    case let .name(name):
+                        Text(name)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
+                            .accessibilityHidden(true)
                     }
-                    .buttonStyle(.spotiglassTextLink)
-                    .accessibilityLabel(SpotiglassL10n.format("playback.controls.openArtist", artist.name))
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

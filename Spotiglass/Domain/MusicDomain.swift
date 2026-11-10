@@ -225,6 +225,10 @@ struct MusicAlbum: Codable, Equatable, Identifiable {
         case id, name, artists, artistRefs, imageURL, uri
     }
 
+    func withArtistRefs(_ refs: [MusicArtistRef]) -> MusicAlbum {
+        MusicAlbum(id: id, name: name, artists: artists, artistRefs: refs, imageURL: imageURL, uri: uri)
+    }
+
     /// Albums cached before `artistRefs` existed decode with none.
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
