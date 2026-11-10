@@ -398,6 +398,27 @@ final class CrossServicePlaybackTests: XCTestCase {
         XCTAssertFalse(player.commands.contains("play"), "Piranguera stays paused")
     }
 
+    /// From launch: Spotify played and paused before I opened Apple Music for the first time,
+    /// which is when its player is made. The bar stays on Spotify's paused song.
+    func testSpotifyPausedBeforeAppleMusicsPlayerExistsKeepsTheBar() async throws {
+        let (spotify, _) = pausedSpotify()
+        let player = ScriptedAppleMusicPlayer()
+        let hosts = hosts(spotify: spotify, player: player)
+        hosts.gate(activeService: .spotify)
+        let spotifyPlayer = spotify.playbackViewModel
+        spotifyPlayer.setConnectionState(.playing(Self.song("Midnight City", uri: "spotify:track:1")))
+        spotifyPlayer.setConnectionState(.paused(Self.song("Midnight City", uri: "spotify:track:1", positionMilliseconds: 60_000)))
+        XCTAssertNil(hosts.appleMusicIfCreated)
+
+        // ⌃2 to Apple Music for the first time.
+        let appleMusic = hosts.appleMusic.playbackViewModel
+        appleMusic.handle(.ready(deviceID: AppleMusicPlaybackProvider.deviceID))
+        hosts.gate(activeService: .appleMusic)
+
+        XCTAssertTrue(appleMusic.isOtherServiceHeard)
+        XCTAssertTrue(appleMusic.audiblePlayer === spotifyPlayer, "the bar stays on Midnight City")
+    }
+
     /// A pause that leaves the other player with no song (its queue ran out, the page lost the
     /// track) gives nothing to follow: the bar goes back to the on-screen service's paused song.
     func testAppleMusicsBarComesBackWhenSpotifyPausesWithNoSong() async throws {
