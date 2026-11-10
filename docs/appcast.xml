@@ -3,14 +3,14 @@
     <channel>
         <title>Spotiglass</title>
         <item>
-            <title>0.8.24</title>
-            <pubDate>Wed, 11 Nov 2026 00:12:22 +0100</pubDate>
-            <sparkle:version>35</sparkle:version>
-            <sparkle:shortVersionString>0.8.24</sparkle:shortVersionString>
+            <title>0.8.25</title>
+            <pubDate>Wed, 11 Nov 2026 00:24:03 +0100</pubDate>
+            <sparkle:version>36</sparkle:version>
+            <sparkle:shortVersionString>0.8.25</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[• Album and playlist covers on Home and Search now open the right-click menu, and their artist names are clickable.
+            <description sparkle:format="plain-text"><![CDATA[• Pressing a top track in Apple Music now plays instead of failing and showing as Paused.
 ]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.24/Spotiglass-0.8.24.zip" length="13043823" type="application/octet-stream" sparkle:edSignature="HFlT/z97grIUEHgAQg2utT+bNU4BheA2I0Ac607wAtGoURAu7LidBvNRSMk7idOtDGkgJxMepBhQmYw1uc3DCw=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.25/Spotiglass-0.8.25.zip" length="13079689" type="application/octet-stream" sparkle:edSignature="ekB/eklSFLVLquBTw+5npKKiwRzSWe+xKi+Kf0X5RWJNYtQa8OdSWZDvP8//d7ypMqzPUc2FO8Y/ycPMQbz4Aw=="/>
         </item>
     </channel>
 </rss>

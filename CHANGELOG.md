@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.25] - 2026-11-11
+
+### Fixed
+
+- Pressing a top track in Apple Music now plays instead of failing and showing as Paused.
+
 ## [0.8.24] - 2026-11-11
 
 ### Fixed
