@@ -342,11 +342,14 @@ enum SpotiglassDesign {
         max(sidebarWidth, playlistSidebarMinWidth) + detailColumnMinWidth
     }
 
-    /// The widest the sidebar can be dragged in a browser this wide: what's left still holds the
-    /// detail column, and the queue when it's open, at their minimums. Without a limit a drag
-    /// pushed the split view past the window and cut off both sides (#459).
+    /// The widest the sidebar can be dragged in a browser this wide: the browser stays at least
+    /// ``playlistSidebarAndDetailMinWidth(sidebarWidth:)`` and, with the queue open,
+    /// ``dualSidebarComfortableMinWidth(sidebarWidth:)``. Without a limit a drag pushed the split
+    /// view past the window and cut off both sides (#459). A limit below the queue's breakpoint
+    /// would let a drag make the window narrow without crossing into it, and a narrower window
+    /// then closed neither the sidebar nor the queue.
     static func playlistSidebarMaxWidth(browserWidth: CGFloat, isQueueVisible: Bool) -> CGFloat {
-        let others = detailColumnMinWidth + (isQueueVisible ? queuePanelMinWidth : 0)
+        let others = detailColumnMinWidth + (isQueueVisible ? queuePanelMinWidth + dualSidebarSlack : 0)
         return max(playlistSidebarMinWidth, browserWidth - others)
     }
 
@@ -362,8 +365,10 @@ enum SpotiglassDesign {
     /// ``playlistSidebarAndDetailMinWidth(sidebarWidth:)``, #459), the queue's minimum and 40 pt
     /// of slack for dividers and rounding, so a wider sidebar or tuned minimums move it along.
     static func dualSidebarComfortableMinWidth(sidebarWidth: CGFloat) -> CGFloat {
-        playlistSidebarAndDetailMinWidth(sidebarWidth: sidebarWidth) + queuePanelMinWidth + 40
+        playlistSidebarAndDetailMinWidth(sidebarWidth: sidebarWidth) + queuePanelMinWidth + dualSidebarSlack
     }
+
+    private static let dualSidebarSlack: CGFloat = 40
 
     static func glassPanelBorderColor(
         contrast: ColorSchemeContrast,

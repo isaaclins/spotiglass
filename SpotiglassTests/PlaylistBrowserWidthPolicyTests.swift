@@ -36,12 +36,45 @@ final class PlaylistBrowserWidthPolicyTests: XCTestCase {
         )
         XCTAssertEqual(
             SpotiglassDesign.playlistSidebarMaxWidth(browserWidth: 1_200, isQueueVisible: true),
-            1_200 - SpotiglassDesign.detailColumnMinWidth - SpotiglassDesign.queuePanelMinWidth
+            1_200 - SpotiglassDesign.detailColumnMinWidth - SpotiglassDesign.queuePanelMinWidth - 40
         )
         XCTAssertEqual(
             SpotiglassDesign.playlistSidebarMaxWidth(browserWidth: 500, isQueueVisible: false),
             SpotiglassDesign.playlistSidebarMinWidth
         )
+    }
+
+    /// A sidebar dragged as wide as it goes leaves the browser above both breakpoints, so a
+    /// narrower window still crosses them. With the queue open the limit used to be 40 pt past
+    /// the width where the sidebar and the queue can both stay open: in a 1200 pt window a drag
+    /// to 560 made the window narrow without crossing into it, and shrinking the window then
+    /// closed neither of them.
+    func testADraggedSidebarStillLetsANarrowerWindowCrossTheBreakpoints() {
+        for browser: CGFloat in [700, 800, 1_000, 1_200, 1_600] {
+            for queue in [false, true] {
+                let sidebar = SpotiglassDesign.playlistSidebarMaxWidth(browserWidth: browser, isQueueVisible: queue)
+                let collapseAt = SpotiglassDesign.playlistSidebarAndDetailMinWidth(sidebarWidth: sidebar)
+                let narrowAt = SpotiglassDesign.dualSidebarComfortableMinWidth(sidebarWidth: sidebar)
+                XCTAssertGreaterThanOrEqual(browser, collapseAt, "\(browser) pt, queue \(queue)")
+                // Narrower than this the queue and the sidebar can't both be open at any width.
+                let roomForBoth = SpotiglassDesign.dualSidebarComfortableMinWidth(
+                    sidebarWidth: SpotiglassDesign.playlistSidebarMinWidth
+                )
+                guard queue, browser >= roomForBoth else { continue }
+                XCTAssertGreaterThanOrEqual(browser, narrowAt, "\(browser) pt with the queue")
+                let shrunk = BrowserWidthCommitPolicy.evaluate(
+                    BrowserWidthCommitPolicy.CommitInput(
+                        newWidth: browser - 10,
+                        committedWidth: browser,
+                        lastCommitTime: 10,
+                        now: 10.01,
+                        comfortableMinWidth: narrowAt,
+                        sidebarCollapseMinWidth: collapseAt
+                    )
+                )
+                XCTAssertTrue(shrunk.crossedIntoNarrow, "\(browser) pt with the queue")
+            }
+        }
     }
 
     /// The window from #459: the sidebar keeps its 320 pt while the window shrinks from 700 to
