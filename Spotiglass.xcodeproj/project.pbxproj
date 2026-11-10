@@ -414,6 +414,8 @@
 		TST0000000000000000000124 /* MenuKeyEquivalentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010124 /* MenuKeyEquivalentTests.swift */; };
 		TST0000000000000000000123 /* RealUserDefaultsIsolationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST0000000000000000010123 /* RealUserDefaultsIsolationTests.swift */; };
 		TST000000000000000000010D /* SettingsWindowChromeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST000000000000000001010D /* SettingsWindowChromeTests.swift */; };
+		1E8F1A21216125058FEFB9CC /* ShelfScrollBehavior.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FB8AE1396271802A8575D50 /* ShelfScrollBehavior.swift */; };
+		293E0B8E4EDD4E4E87C7C61F /* ShelfScrollBehaviorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F07B276904C45D5C8DAD1670 /* ShelfScrollBehaviorTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -775,6 +777,8 @@
 		TST0000000000000000010124 /* MenuKeyEquivalentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuKeyEquivalentTests.swift; sourceTree = "<group>"; };
 		TST0000000000000000010123 /* RealUserDefaultsIsolationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealUserDefaultsIsolationTests.swift; sourceTree = "<group>"; };
 		TST000000000000000001010D /* SettingsWindowChromeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowChromeTests.swift; sourceTree = "<group>"; };
+		8FB8AE1396271802A8575D50 /* ShelfScrollBehavior.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfScrollBehavior.swift; sourceTree = "<group>"; };
+		F07B276904C45D5C8DAD1670 /* ShelfScrollBehaviorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfScrollBehaviorTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000100D0 /* SpotifyPlaybackAPITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyPlaybackAPITests.swift; sourceTree = "<group>"; };
 		TST00000000000000000100D1 /* LoopbackOAuthCallbackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoopbackOAuthCallbackTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000100D2 /* SpotifyLocalCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyLocalCacheTests.swift; sourceTree = "<group>"; };
@@ -967,6 +971,7 @@
 				D40000000000000000000016 /* ArtistDetailView.swift */,
 				H80000000000000000000011 /* PlayingWaveformIcon.swift */,
 				A10000000000000000000012 /* RootView.swift */,
+				8FB8AE1396271802A8575D50 /* ShelfScrollBehavior.swift */,
 				SRC00000000000000000800C1 /* MusicServiceSwitcher.swift */,
 				SRC0000000000000000080035 /* AppleMusicBrowserRoot.swift */,
 				F60000000000000000000011 /* SpotiglassDesignSystem.swift */,
@@ -1123,6 +1128,7 @@
 				SBR436000000000000000004 /* SidebarShortcutTests.swift */,
 				TST0000000000000000010123 /* RealUserDefaultsIsolationTests.swift */,
 				TST000000000000000001010D /* SettingsWindowChromeTests.swift */,
+				F07B276904C45D5C8DAD1670 /* ShelfScrollBehaviorTests.swift */,
 				TST0000000000000000010122 /* EqualizerABRMSTests.swift */,
 				EQPOLICYTEST0000000000002 /* EqualizerDriverInstallPolicyTests.swift */,
 				TST0000000000000000010121 /* EqualizerHALPluginTests.swift */,
@@ -1877,6 +1883,7 @@
 				SRC000000000000000000001F /* PlaybackSeekStep.swift in Sources */,
 				J90000000000000000000101 /* SpotiglassSettingsView.swift in Sources */,
 				SRC0000000000000000000018 /* SettingsWindowChrome.swift in Sources */,
+				1E8F1A21216125058FEFB9CC /* ShelfScrollBehavior.swift in Sources */,
 				J90000000000000000000105 /* AppearanceSettingsView.swift in Sources */,
 				SRC0000000000000000000011 /* EqualizerSettingsView.swift in Sources */,
 				SRC0000000000000000000010 /* EqualizerPresets.swift in Sources */,
@@ -1938,6 +1945,7 @@
 				SBR436000000000000000003 /* SidebarShortcutTests.swift in Sources */,
 				TST0000000000000000000123 /* RealUserDefaultsIsolationTests.swift in Sources */,
 				TST000000000000000000010D /* SettingsWindowChromeTests.swift in Sources */,
+				293E0B8E4EDD4E4E87C7C61F /* ShelfScrollBehaviorTests.swift in Sources */,
 				TST0000000000000000000122 /* EqualizerABRMSTests.swift in Sources */,
 				EQPOLICYTEST0000000000001 /* EqualizerDriverInstallPolicyTests.swift in Sources */,
 				TST0000000000000000000121 /* EqualizerHALPluginTests.swift in Sources */,
@@ -2077,7 +2085,7 @@
 				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
-				CURRENT_PROJECT_VERSION = 25;
+				CURRENT_PROJECT_VERSION = 28;
 				DEVELOPMENT_TEAM = BHAF4L4726;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -2098,7 +2106,7 @@
 				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
-				CURRENT_PROJECT_VERSION = 25;
+				CURRENT_PROJECT_VERSION = 28;
 				DEVELOPMENT_TEAM = BHAF4L4726;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -2245,7 +2253,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 25;
+				CURRENT_PROJECT_VERSION = 28;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = BHAF4L4726;
@@ -2264,7 +2272,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 0.8.14;
+				MARKETING_VERSION = 0.8.17;
 				PRODUCT_BUNDLE_IDENTIFIER = com.isaaclins.spotiglass;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -2281,7 +2289,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 25;
+				CURRENT_PROJECT_VERSION = 28;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = BHAF4L4726;
@@ -2300,7 +2308,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 0.8.14;
+				MARKETING_VERSION = 0.8.17;
 				PRODUCT_BUNDLE_IDENTIFIER = com.isaaclins.spotiglass;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -2313,7 +2321,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 25;
+				CURRENT_PROJECT_VERSION = 28;
 				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -2322,7 +2330,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 0.8.14;
+				MARKETING_VERSION = 0.8.17;
 				PRODUCT_BUNDLE_IDENTIFIER = com.isaaclins.spotiglass.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
@@ -2335,7 +2343,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 25;
+				CURRENT_PROJECT_VERSION = 28;
 				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -2344,7 +2352,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 0.8.14;
+				MARKETING_VERSION = 0.8.17;
 				PRODUCT_BUNDLE_IDENTIFIER = com.isaaclins.spotiglass.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;

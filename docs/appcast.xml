@@ -3,14 +3,14 @@
     <channel>
         <title>Spotiglass</title>
         <item>
-            <title>0.8.14</title>
-            <pubDate>Mon, 09 Nov 2026 05:59:34 +0100</pubDate>
-            <sparkle:version>25</sparkle:version>
-            <sparkle:shortVersionString>0.8.14</sparkle:shortVersionString>
+            <title>0.8.17</title>
+            <pubDate>Tue, 10 Nov 2026 21:51:02 +0100</pubDate>
+            <sparkle:version>28</sparkle:version>
+            <sparkle:shortVersionString>0.8.17</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[• Lyrics can now pop out into a small window that stays on top of your other apps.
+            <description sparkle:format="plain-text"><![CDATA[• Shelves on Home and artist pages now scroll smoothly with a mouse wheel, including Shift-scrolling, instead of jumping.
 ]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.14/Spotiglass-0.8.14.zip" length="12777296" type="application/octet-stream" sparkle:edSignature="94w2GywbiOFisQzbOYjc+RhrxL8CvHJ8OVfklO12HrttflGNQgihavKynDnpC4TarosHPvnAABOaOI+PzucVAA=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.17/Spotiglass-0.8.17.zip" length="12817307" type="application/octet-stream" sparkle:edSignature="ZQL44tgngj4AuJHqCVZVxBsVu+1JUAcB3cWk24ZLMn8SdRhAkayhvz1MpdJSwsoVR1iHdLF/F7gNh0JV5dx6AQ=="/>
         </item>
     </channel>
 </rss>

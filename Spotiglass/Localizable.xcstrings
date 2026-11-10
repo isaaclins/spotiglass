@@ -5705,6 +5705,29 @@
         }
       }
     },
+    "home.greeting.night": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hallo, Nachteule"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hello, night owl"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buenas noches"
+          }
+        }
+      }
+    },
     "home.recentlyPlayed.empty": {
       "extractionState": "manual",
       "localizations": {

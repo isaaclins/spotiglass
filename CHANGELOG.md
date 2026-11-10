@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.8.17] - 2026-11-10
+
+### Fixed
+
+- Shelves on Home and artist pages now scroll smoothly with a mouse wheel, including Shift-scrolling, instead of jumping.
+
+## [0.8.16] - 2026-11-10
+
+### Fixed
+
+- Home has its own greeting after midnight, so it no longer says "Good evening" overnight.
+
+## [0.8.15] - 2026-11-10
+
+### Fixed
+
+- The player bar now stays on the song you paused, even when the other service is on screen.
+
 ## [0.8.14] - 2026-11-09
 
 ### Fixed

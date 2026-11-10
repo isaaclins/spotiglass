@@ -72,8 +72,9 @@ final class PlaybackSessionViewModel: ObservableObject {
 
     /// The other service's player (#396), linked by ``SpotiglassPlaybackHosts`` once both exist.
     weak var otherServicePlayer: PlaybackSessionViewModel?
-    /// Whether the other service's player is playing right now, kept by ``SpotiglassPlaybackHosts``.
-    @PublishedWhenChanged var isOtherServicePlaying = false
+    /// Whether the other service's music is what you hear, kept by ``SpotiglassPlaybackHosts``:
+    /// it plays, or it played last and sits paused on that song (#468), until music starts here.
+    @PublishedWhenChanged var isOtherServiceHeard = false
     /// The other service's repeat mode, kept by ``SpotiglassPlaybackHosts``: the Playback menu
     /// shows the repeat of the music you hear.
     @PublishedWhenChanged var otherServiceRepeatMode: MusicRepeatMode = .off
@@ -88,11 +89,12 @@ final class PlaybackSessionViewModel: ObservableObject {
     }
 
     /// The player the transport bar, Space, the Playback menu and the palette control (#396):
-    /// the one you hear. While the other service's music plays and nothing plays here, that is
-    /// the other service's player, so Play/Pause pauses what you hear instead of starting this
-    /// service's paused song. Otherwise it is this player.
+    /// the one you hear. While the other service's music plays, or was the last to play and is
+    /// paused (#468), and nothing plays here, that is the other service's player: Play/Pause
+    /// pauses and resumes what you hear instead of starting this service's paused song.
+    /// Otherwise it is this player.
     var audiblePlayer: PlaybackSessionViewModel {
-        guard isOtherServicePlaying,
+        guard isOtherServiceHeard,
               !PlaylistBrowserPlaybackHelpers.isCurrentlyPlaying(connectionState: connectionState),
               let otherServicePlayer
         else { return self }

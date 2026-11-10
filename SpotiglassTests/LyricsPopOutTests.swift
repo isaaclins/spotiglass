@@ -747,7 +747,7 @@ final class LyricsPopOutTests: XCTestCase {
         hosts.gate(activeService: .appleMusic)
         let appleMusic = hosts.appleMusic.playbackViewModel
         appleMusic.handle(.ready(deviceID: AppleMusicPlaybackProvider.deviceID))
-        for _ in 0..<20 where !appleMusic.isOtherServicePlaying {
+        for _ in 0..<20 where !appleMusic.isOtherServiceHeard {
             AppKitTestSupport.pumpRunLoop(for: 0.05)
         }
         XCTAssertTrue(appleMusic.audiblePlayer === spotify.playbackViewModel)
