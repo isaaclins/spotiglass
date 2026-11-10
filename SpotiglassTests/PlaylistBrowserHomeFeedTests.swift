@@ -217,14 +217,29 @@ final class PlaylistBrowserHomeFeedTests: XCTestCase {
     func testHomeGreetingClockStartsOverWhenTheTimeZoneOrClockChanges() {
         // Review of #479: Home opened in Zurich and carried to New York kept waking at Zurich's
         // change times, so it missed New York's midnight and kept saying "Good evening".
+        func calendar(_ zone: String) -> Calendar {
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = TimeZone(identifier: zone)!
+            return calendar
+        }
+        var systemCalendar = calendar("Europe/Zurich")
         let center = NotificationCenter()
-        let clock = HomeGreetingClock(notificationCenter: center)
+        let clock = HomeGreetingClock(notificationCenter: center, currentCalendar: { systemCalendar })
         XCTAssertEqual(clock.generation, 0)
+        XCTAssertEqual(clock.calendar.timeZone.identifier, "Europe/Zurich")
 
+        // 23:00 in New York is 05:00 in Zurich: still evening there, and its next change is New York's midnight.
+        let newYorkEvening = calendar("America/New_York").date(from: DateComponents(year: 2026, month: 11, day: 9, hour: 23))!
+        systemCalendar = calendar("America/New_York")
         center.post(name: .NSSystemTimeZoneDidChange, object: nil)
         RunLoop.main.run(until: Date().addingTimeInterval(0.05))
         XCTAssertEqual(clock.generation, 1)
-        XCTAssertEqual(clock.calendar.timeZone, TimeZone.current)
+        XCTAssertEqual(clock.calendar.timeZone.identifier, "America/New_York")
+        let next = PlaylistBrowserViewModel.nextHomeGreetingChange(after: newYorkEvening, calendar: clock.calendar)
+        XCTAssertEqual(next, newYorkEvening.addingTimeInterval(3600))
+        let vm = PlaylistBrowserViewModel(api: MockBrowsingAPI(playlistResults: [.success([])], trackResults: [:]), cache: MockBrowsingCache())
+        XCTAssertEqual(vm.homeGreeting(now: newYorkEvening, calendar: clock.calendar), "Good evening")
+        XCTAssertEqual(vm.homeGreeting(now: next, calendar: clock.calendar), "Hello, night owl")
 
         center.post(name: .NSSystemClockDidChange, object: nil)
         RunLoop.main.run(until: Date().addingTimeInterval(0.05))

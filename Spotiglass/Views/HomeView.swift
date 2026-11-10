@@ -233,10 +233,20 @@ private struct HomeGreetingHeader: View {
 @MainActor
 final class HomeGreetingClock: ObservableObject {
     @Published private(set) var generation = 0
-    private(set) var calendar = Calendar.current
+    private(set) var calendar: Calendar
+    private let currentCalendar: () -> Calendar
     private var cancellables = Set<AnyCancellable>()
 
-    init(notificationCenter: NotificationCenter = .default) {
+    /// `currentCalendar` reads the system's calendar again; tests pass their own.
+    init(
+        notificationCenter: NotificationCenter = .default,
+        currentCalendar: @escaping () -> Calendar = {
+            NSTimeZone.resetSystemTimeZone()
+            return Calendar.current
+        }
+    ) {
+        self.currentCalendar = currentCalendar
+        calendar = currentCalendar()
         Publishers.Merge(
             notificationCenter.publisher(for: .NSSystemTimeZoneDidChange),
             notificationCenter.publisher(for: .NSSystemClockDidChange)
@@ -247,8 +257,7 @@ final class HomeGreetingClock: ObservableObject {
     }
 
     private func reset() {
-        NSTimeZone.resetSystemTimeZone()
-        calendar = Calendar.current
+        calendar = currentCalendar()
         generation += 1
     }
 }
