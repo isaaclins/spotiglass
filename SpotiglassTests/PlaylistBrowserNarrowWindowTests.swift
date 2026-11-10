@@ -105,9 +105,14 @@ final class PlaylistBrowserNarrowWindowTests: XCTestCase {
 
         // Dragging the sidebar wider stops where the detail column still has its minimum: a
         // drag to 620 in an 800 pt window used to push both columns past the window's edges.
-        window.setContentSize(CGSize(width: 800, height: 600))
-        controller.view.layoutSubtreeIfNeeded()
-        AppKitTestSupport.pumpRunLoop(for: 0.6)
+        // The resize ends the way a fast live resize does: the last frame comes one frame after
+        // the one before it, inside the width throttle, and crosses nothing. The drag limit used
+        // to stay at the 850 pt that frame before it committed.
+        for (width, wait) in [(CGFloat(850), 0.016), (800, 0.6)] {
+            window.setContentSize(CGSize(width: width, height: 600))
+            controller.view.layoutSubtreeIfNeeded()
+            AppKitTestSupport.pumpRunLoop(for: wait)
+        }
         let split = try XCTUnwrap(Self.splitView(in: controller.view))
         split.setPosition(620, ofDividerAt: 0)
         controller.view.layoutSubtreeIfNeeded()

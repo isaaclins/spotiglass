@@ -24,6 +24,22 @@ extension PlaylistBrowserView {
         playlistSidebarWidth = width
     }
 
+    /// Once the throttle has passed, commits the newest width a skipped frame measured, so the
+    /// committed width always ends on the width the window really has. A run loop timer in the
+    /// common modes, so it also fires while a live resize keeps the run loop tracking events.
+    private func scheduleTrailingBrowserWidthCommit() {
+        let sampler = browserWidthSampler
+        guard sampler.trailingCommit == nil else { return }
+        let timer = Timer(timeInterval: 0.08, repeats: false) { _ in
+            MainActor.assumeIsolated {
+                sampler.trailingCommit = nil
+                commitBrowserContentWidthIfNeeded(sampler.latestWidth)
+            }
+        }
+        sampler.trailingCommit = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
     /// Coalesces high-frequency geometry callbacks during window resize so
     /// `NavigationSplitView` column constraints are not rewritten every frame.
     /// The committed width drives both the queue mutual-exclusion rule and the
@@ -43,7 +59,12 @@ extension PlaylistBrowserView {
                 )
             )
         )
-        guard result.shouldCommit else { return }
+        guard result.shouldCommit else {
+            scheduleTrailingBrowserWidthCommit()
+            return
+        }
+        browserWidthSampler.trailingCommit?.invalidate()
+        browserWidthSampler.trailingCommit = nil
         lastBrowserWidthCommitTime = result.lastCommitTime
         browserContentWidth = result.committedWidth
 
