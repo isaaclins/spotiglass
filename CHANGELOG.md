@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.24] - 2026-11-11
+
+### Fixed
+
+- Album and playlist covers on Home and Search now open the right-click menu, and their artist names are clickable.
+
 ## [0.8.23] - 2026-11-10
 
 ### Fixed

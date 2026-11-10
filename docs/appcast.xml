@@ -3,14 +3,14 @@
     <channel>
         <title>Spotiglass</title>
         <item>
-            <title>0.8.23</title>
-            <pubDate>Tue, 10 Nov 2026 23:53:48 +0100</pubDate>
-            <sparkle:version>34</sparkle:version>
-            <sparkle:shortVersionString>0.8.23</sparkle:shortVersionString>
+            <title>0.8.24</title>
+            <pubDate>Wed, 11 Nov 2026 00:12:22 +0100</pubDate>
+            <sparkle:version>35</sparkle:version>
+            <sparkle:shortVersionString>0.8.24</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[• Apple Music playlists without their own picture now show the cover from the Music app instead of a grey tile.
+            <description sparkle:format="plain-text"><![CDATA[• Album and playlist covers on Home and Search now open the right-click menu, and their artist names are clickable.
 ]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.23/Spotiglass-0.8.23.zip" length="12871175" type="application/octet-stream" sparkle:edSignature="i1C/i9Z9xe8i8bKOGxB2a20LSDo6xWxPFVJogjgyLNDSQjcf4jA1HpupzYHqQnb9QHs7L62HBm65zBjy5YXoDQ=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.24/Spotiglass-0.8.24.zip" length="13043823" type="application/octet-stream" sparkle:edSignature="HFlT/z97grIUEHgAQg2utT+bNU4BheA2I0Ac607wAtGoURAu7LidBvNRSMk7idOtDGkgJxMepBhQmYw1uc3DCw=="/>
         </item>
     </channel>
 </rss>
