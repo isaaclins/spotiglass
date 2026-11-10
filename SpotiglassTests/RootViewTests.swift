@@ -248,6 +248,173 @@ final class RootViewTests: XCTestCase {
         XCTAssertFalse(services.isAdded(.spotify))
         XCTAssertEqual(services.pendingAddition, .spotify)
     }
+
+    // MARK: - The palette is modal for VoiceOver (#501)
+
+    /// What VoiceOver can reach in `window`: every element under it as "role: text" lines, read
+    /// through the same Accessibility API that VoiceOver uses, so SwiftUI builds the tree exactly
+    /// as it does for an assistive app.
+    private func voiceOverReachableElements(in window: NSWindow) throws -> [String] {
+        let app = AXUIElementCreateApplication(getpid())
+        let windows = try XCTUnwrap(axAttribute(app, kAXWindowsAttribute) as? [AXUIElement])
+        let target = try XCTUnwrap(windows.first { element in
+            guard let value = axAttribute(element, kAXSizeAttribute) else { return false }
+            var size = CGSize.zero
+            // swiftlint:disable:next force_cast
+            AXValueGetValue(value as! AXValue, .cgSize, &size)
+            return size == window.frame.size
+        }, "The hosted window is not in the app's accessibility tree")
+
+        var lines: [String] = []
+        func walk(_ element: AXUIElement, depth: Int) {
+            guard depth < 80 else { return }
+            let role = axAttribute(element, kAXRoleAttribute) as? String ?? "?"
+            let texts = [kAXTitleAttribute, kAXDescriptionAttribute, kAXPlaceholderValueAttribute]
+                .compactMap { axAttribute(element, $0) as? String }
+                .filter { !$0.isEmpty }
+            lines.append("\(role): \(texts.joined(separator: " | "))")
+            for child in axAttribute(element, kAXChildrenAttribute) as? [AXUIElement] ?? [] {
+                walk(child, depth: depth + 1)
+            }
+        }
+        walk(target, depth: 0)
+        return lines
+    }
+
+    private func axAttribute(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success else { return nil }
+        return value
+    }
+
+    /// Waits for SwiftUI to publish the tree after a change, then reads it.
+    private func settledElements(in window: NSWindow, until done: ([String]) -> Bool) throws -> [String] {
+        var elements: [String] = []
+        for _ in 0 ..< 20 {
+            AppKitTestSupport.pumpRunLoop(for: 0.1)
+            elements = try voiceOverReachableElements(in: window)
+            if done(elements) { break }
+        }
+        return elements
+    }
+
+    /// Opens the palette over `root` and checks that VoiceOver reaches only the palette, then
+    /// closes it and checks the page comes back. With `typingInPage`, the page's text field is
+    /// being edited when the palette opens and must be again after esc.
+    private func assertPaletteIsModal(
+        over root: some View,
+        palette paletteOfWindow: () -> CommandPaletteManager?,
+        pageElement: String,
+        typingInPage: Bool = false,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        let controller = ViewTestHost.host(root, size: CGSize(width: 900, height: 640))
+        let window = try XCTUnwrap(controller.view.window)
+        AppKitTestSupport.activateAppIfNeeded()
+        window.makeKeyAndOrderFront(nil)
+        let palette = try XCTUnwrap(paletteOfWindow(), file: file, line: line)
+        let fieldPlaceholder = SpotiglassL10n.format(
+            "palette.searchPlaceholder.songs.all", MusicServiceSelection.current.displayName
+        )
+        let mentions = { (elements: [String], text: String) in elements.contains { $0.contains(text) } }
+
+        let before = try settledElements(in: window) { mentions($0, pageElement) }
+        XCTAssertTrue(mentions(before, pageElement), "The page should be reachable: \(before)", file: file, line: line)
+        var pageField: NSTextField?
+        if typingInPage {
+            let field = try XCTUnwrap(firstTextField(in: controller.view), "The page has no text field", file: file, line: line)
+            XCTAssertTrue(AppKitTestSupport.makeFirstResponder(field, in: window), file: file, line: line)
+            XCTAssertTrue(isEditing(field, in: window), "The page's field should be focused", file: file, line: line)
+            pageField = field
+        }
+        let pageFocus = window.firstResponder
+
+        palette.viewModel.show()
+        let open = try settledElements(in: window) { mentions($0, fieldPlaceholder) && !mentions($0, pageElement) }
+        XCTAssertTrue(mentions(open, fieldPlaceholder), "The palette's field should be reachable: \(open)", file: file, line: line)
+        XCTAssertFalse(
+            mentions(open, pageElement),
+            "VoiceOver still reaches the page behind the palette: \(open)",
+            file: file,
+            line: line
+        )
+
+        palette.viewModel.hide()
+        let after = try settledElements(in: window) { mentions($0, pageElement) && !mentions($0, fieldPlaceholder) }
+        XCTAssertTrue(mentions(after, pageElement), "The page should be back after esc: \(after)", file: file, line: line)
+        XCTAssertFalse(mentions(after, fieldPlaceholder), "The palette should be gone: \(after)", file: file, line: line)
+        if let pageField {
+            XCTAssertTrue(
+                isEditing(pageField, in: window),
+                "The page's field should have focus again, not \(String(describing: window.firstResponder))",
+                file: file,
+                line: line
+            )
+        } else {
+            XCTAssertTrue(window.firstResponder === pageFocus, "Focus should return to where it was", file: file, line: line)
+        }
+    }
+
+    private func firstTextField(in view: NSView) -> NSTextField? {
+        if let field = view as? NSTextField, field.isEditable { return field }
+        for subview in view.subviews {
+            if let field = firstTextField(in: subview) { return field }
+        }
+        return nil
+    }
+
+    /// A field being edited hands first responder to the window's field editor.
+    private func isEditing(_ field: NSTextField, in window: NSWindow) -> Bool {
+        window.firstResponder === field || (window.firstResponder as? NSTextView)?.delegate === field
+    }
+
+    func testPaletteHidesTheSpotifyPageFromVoiceOver() throws {
+        let auth = AuthViewModel(
+            settings: SpotifyAuthSettings(defaults: makeEphemeralDefaults()),
+            refreshTokenStore: MemoryOnlyRefreshTokenStore(),
+            initialState: .signedOut
+        )
+        auth.clientID = "test-client"
+        let palette = CommandPaletteManager()
+        try assertPaletteIsModal(
+            over: try makeRootView(auth: auth, palette: palette),
+            palette: { palette },
+            pageElement: SpotiglassL10n.string("auth.clientID.label"),
+            typingInPage: true
+        )
+    }
+
+    func testPaletteHidesTheAppleMusicPageFromVoiceOver() async throws {
+        let services = MusicServiceStore(storage: InMemoryMusicServiceSelectionStorage(
+            services: [.appleMusic], active: .appleMusic
+        ))
+        let session = AppleMusicSession(authorization: DeniedMusicAuthorization())
+        await session.refresh()
+        let settings = try ViewTestHost.makeSettingsStore()
+        let registry = SpotiglassSceneRegistry()
+        let root = RootView(
+            keymapStore: CommandPaletteKeymapStore(settingsStore: settings),
+            sceneRegistry: registry,
+            playbackHosts: .forTests(spotify: SpotiglassPlaybackHost(tokenProvider: MockPlaybackTokenProvider(
+                accessToken: "test", refreshedAccessToken: "test-refresh"
+            ))),
+            serviceStore: services,
+            appleMusicSession: session
+        )
+        .environmentObject(settings)
+        .environmentObject(AuthViewModel(
+            settings: SpotifyAuthSettings(defaults: makeEphemeralDefaults()),
+            refreshTokenStore: MemoryOnlyRefreshTokenStore(),
+            signOutDataCleaner: {}
+        ))
+        .environmentObject(PinnedItemsStore(cache: InMemoryPinnedItemsCache()))
+        try assertPaletteIsModal(
+            over: root,
+            palette: { registry.activeScene?.commandPaletteManager },
+            pageElement: SpotiglassL10n.string("appleMusic.permission.openSettings")
+        )
+    }
 }
 
 private struct DeniedMusicAuthorization: AppleMusicAuthorizing {

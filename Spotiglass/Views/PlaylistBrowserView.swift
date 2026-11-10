@@ -183,7 +183,7 @@ struct PlaylistBrowserView: View {
                     // At the sidebar's trailing edge, where the system toggle sat. SwiftUI keeps
                     // it in the toolbar while the sidebar is collapsed, like the system toggle.
                     ToolbarSpacer(.flexible)
-                    ToolbarItem(placement: .automatic) { sidebarToggleButton }
+                    ToolbarItem(placement: .automatic) { sidebarToggleButton.hiddenFromAccessibilityBehindPalette() }
                 }
                 .onGeometryChange(for: CGFloat.self, of: \.size.width) { _, width in
                     recordPlaylistSidebarWidth(width)
@@ -281,6 +281,7 @@ struct PlaylistBrowserView: View {
                     PlaylistBrowserPrefetchProgressToolbarItem(progress: progress) {
                         Task { await viewModel.toggleBulkPlaylistTrackPrefetch() }
                     }
+                    .hiddenFromAccessibilityBehindPalette()
                 }
             }
             // Only once there is somewhere to go back to, like Music: at the
@@ -289,6 +290,7 @@ struct PlaylistBrowserView: View {
             if !lyricsOverlay.isPresented, viewModel.canNavigateBack {
                 ToolbarItem(placement: .navigation) {
                     NavigationToolbarChrome(viewModel: viewModel)
+                        .hiddenFromAccessibilityBehindPalette()
                 }
             }
             // With the lyrics open the bar keeps what still applies (the queue panel stays next
@@ -306,6 +308,7 @@ struct PlaylistBrowserView: View {
                         : SpotiglassL10n.string("tooltip.toolbar.queue.show")
                 )
                 .accessibilityHint(SpotiglassL10n.string("browser.queue.hint"))
+                .hiddenFromAccessibilityBehindPalette()
 
                 if lyricsOverlay.isPresented {
                     // Moves the lyrics into the small window that can stay above other apps (#439).
@@ -315,6 +318,7 @@ struct PlaylistBrowserView: View {
                         Label(SpotiglassL10n.string("lyrics.popOut.button"), systemImage: "pip.enter")
                     }
                     .help(SpotiglassL10n.string("lyrics.popOut.button.help"))
+                    .hiddenFromAccessibilityBehindPalette()
 
                     Button {
                         lyricsOverlay.dismiss()
@@ -323,6 +327,7 @@ struct PlaylistBrowserView: View {
                     }
                     .help(SpotiglassL10n.string("browser.closeLyrics"))
                     .accessibilityHint(SpotiglassL10n.string("browser.closeLyrics.hint"))
+                    .hiddenFromAccessibilityBehindPalette()
                 } else if canDisconnect {
                     Button {
                         isConfirmingDisconnect = true
@@ -331,11 +336,13 @@ struct PlaylistBrowserView: View {
                     }
                     .help(SpotiglassL10n.string("browser.disconnect"))
                     .accessibilityHint(Self.disconnectHint(switchingTo: disconnectSwitchesTo))
+                    .hiddenFromAccessibilityBehindPalette()
                 }
             }
             if !lyricsOverlay.isPresented {
                 ToolbarItem(placement: .primaryAction) {
                     unifiedRefreshToolbarButton
+                        .hiddenFromAccessibilityBehindPalette()
                 }
             }
         }

@@ -11,6 +11,23 @@ extension EnvironmentValues {
     @Entry var isCommandPalettePresented = false
 }
 
+extension View {
+    /// Takes a toolbar item out of VoiceOver's reach while the palette is open. The toolbar lives
+    /// outside the window's content, so hiding the dimmed page alone left its buttons reachable
+    /// behind the palette (#501).
+    func hiddenFromAccessibilityBehindPalette() -> some View {
+        modifier(HiddenFromAccessibilityBehindPalette())
+    }
+}
+
+private struct HiddenFromAccessibilityBehindPalette: ViewModifier {
+    @Environment(\.isCommandPalettePresented) private var isCommandPalettePresented
+
+    func body(content: Content) -> some View {
+        content.accessibilityHidden(isCommandPalettePresented)
+    }
+}
+
 /// The command palette: one panel near the top of the window, like Spotlight, holding the
 /// field, the filters, the results and a footer with the key hints (#472).
 struct CommandPaletteView: View {
@@ -18,8 +35,6 @@ struct CommandPaletteView: View {
     @EnvironmentObject private var settingsStore: SpotiglassSettingsStore
 
     @FocusState private var focusedField: CommandPaletteSearchFocusField?
-    @State private var previousResponder: NSResponder?
-    @State private var previousWindow: NSWindow?
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     /// Height the palette can use; starts tall so the first frame sits at the full inset.
     @State private var availableHeight: CGFloat = .infinity
@@ -28,6 +43,17 @@ struct CommandPaletteView: View {
     /// `spacingS` as the window gets short, so the space gives way before the results do.
     static func topInset(forAvailableHeight height: CGFloat) -> CGFloat {
         min(SpotiglassDesign.Layout.paletteTopInset, max(SpotiglassDesign.spacingS, ((height - 300) / 4).rounded()))
+    }
+
+    /// What gets focus back when the palette closes. While a text field is being edited the
+    /// window's first responder is its shared field editor, and the palette's own field takes that
+    /// editor over, so handing it back focused nothing: esc on the Search page left its field
+    /// without focus (#501). The field the editor was serving is what comes back.
+    static func restorableResponder(_ responder: NSResponder?) -> NSResponder? {
+        if let editor = responder as? NSTextView, editor.isFieldEditor, let field = editor.delegate as? NSTextField {
+            return field
+        }
+        return responder
     }
 
     var body: some View {
@@ -57,14 +83,9 @@ struct CommandPaletteView: View {
             .padding(.horizontal, SpotiglassDesign.spacingXL)
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { availableHeight = $0 }
         }
+        // Reads focus from the palette's own window: the window that is key can be another one.
+        .background(CommandPaletteFocusReturn(viewModel: viewModel))
         .onAppear {
-            previousWindow = NSApp.keyWindow
-            previousResponder = NSApp.keyWindow?.firstResponder
-            viewModel.restoreFocus = { [weakWindow = previousWindow, weakResponder = previousResponder] in
-                if let window = weakWindow, let responder = weakResponder {
-                    window.makeFirstResponder(responder)
-                }
-            }
             scheduleSearchFieldFocus()
         }
         .onChange(of: viewModel.isLoading) { _, isLoading in
@@ -136,5 +157,41 @@ struct CommandPalettePanelView: View {
             return false
         }
         return true
+    }
+}
+
+/// Remembers what had focus in the palette's window as the palette appears, before its own field
+/// takes it, and hands it back when the palette closes (#501).
+private struct CommandPaletteFocusReturn: NSViewRepresentable {
+    let viewModel: CommandPaletteViewModel
+
+    func makeNSView(context: Context) -> FocusReturnView {
+        FocusReturnView(viewModel: viewModel)
+    }
+
+    func updateNSView(_ nsView: FocusReturnView, context: Context) {}
+
+    final class FocusReturnView: NSView {
+        private weak var viewModel: CommandPaletteViewModel?
+
+        init(viewModel: CommandPaletteViewModel) {
+            self.viewModel = viewModel
+            super.init(frame: .zero)
+        }
+
+        @available(*, unavailable)
+        required init?(coder: NSCoder) {
+            nil
+        }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            guard let window, let viewModel else { return }
+            let responder = CommandPaletteView.restorableResponder(window.firstResponder)
+            viewModel.restoreFocus = { [weak window, weak responder] in
+                guard let window, let responder else { return }
+                window.makeFirstResponder(responder)
+            }
+        }
     }
 }
