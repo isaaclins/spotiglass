@@ -2,8 +2,9 @@
 # Screenshot mode: run the real app against a local Spotify stand-in and capture its windows.
 # No Spotify account, Premium, Keychain item or audio driver is used. See docs/screenshots.md.
 #
-#   scripts/screenshots.sh start [--light] [--now-playing "Title"] [--with-apple-music]
+#   scripts/screenshots.sh start [--light] [--now-playing "Title"] [--with-apple-music] [--release]
 #                                                                     build, start mock, launch app
+#   scripts/screenshots.sh resize [rounds] [steps] [max-ms-per-step]  time resizes like a window manager
 #   scripts/screenshots.sh shot <name> [window-title]                 capture a window to $SHOTS_DIR/<name>.png
 #   scripts/screenshots.sh key <keycode> [cmd] [shift] [alt] [ctrl]    press a shortcut, e.g. `key 40 cmd` = ⌘K
 #   scripts/screenshots.sh appearance <light|dark>                    switch the macOS appearance live
@@ -79,12 +80,13 @@ SWIFT
 }
 
 start() {
-    local scheme="dark" now_playing="" apple_music=0
+    local scheme="dark" now_playing="" apple_music=0 configuration="Debug"
     while [ $# -gt 0 ]; do
         case "$1" in
             --light) scheme="light" ;;
             --now-playing) now_playing="$2"; shift ;;
             --with-apple-music) apple_music=1 ;;
+            --release) configuration="Release" ;;
             *) usage ;;
         esac
         shift
@@ -93,8 +95,15 @@ start() {
     [ "$apple_music" = 0 ] || claim_state
     mkdir -p "$WORK" "$SHOTS_DIR"
 
-    echo "==> building Debug app"
-    make build UNSIGNED=1 >"$WORK/build.log" 2>&1 || { tail -30 "$WORK/build.log"; exit 1; }
+    echo "==> building $configuration app"
+    if [ "$configuration" = "Release" ]; then
+        # Timings (see `resize`) are only meaningful in the build people run.
+        xcodebuild -project Spotiglass.xcodeproj -scheme Spotiglass -configuration Release \
+            -destination 'platform=macOS' -derivedDataPath build/DerivedData CODE_SIGNING_ALLOWED=NO build \
+            >"$WORK/build.log" 2>&1 || { tail -30 "$WORK/build.log"; exit 1; }
+    else
+        make build UNSIGNED=1 >"$WORK/build.log" 2>&1 || { tail -30 "$WORK/build.log"; exit 1; }
+    fi
 
     local bundle_id="$BUNDLE_ID"
     if [ "$apple_music" = 1 ]; then
@@ -107,7 +116,7 @@ start() {
     fi
     echo "==> staging $APP ($bundle_id)"
     rm -rf "$APP"
-    cp -R build/DerivedData/Build/Products/Debug/Spotiglass.app "$APP"
+    cp -R "build/DerivedData/Build/Products/$configuration/Spotiglass.app" "$APP"
     /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $bundle_id" "$APP/Contents/Info.plist"
     codesign --force --deep --sign - "$APP" >/dev/null 2>&1
 
@@ -207,6 +216,17 @@ SWIFT
     "$WORK/key" "$@"
 }
 
+# Times resizes of the app's window made from code, the way Hammerspoon, Rectangle or Magnet make
+# them (#473). Measure with `start --release`: a Debug build is several times slower.
+resize() {
+    local pid; pid="$(app_pid)"
+    [ -n "$pid" ] || { echo "screenshots: not running; run 'start' first" >&2; exit 1; }
+    if [ ! -x "$WORK/resize_timing" ]; then
+        swiftc -O scripts/screenshot-mode/resize_timing.swift -o "$WORK/resize_timing"
+    fi
+    "$WORK/resize_timing" "$pid" "$@"
+}
+
 # Switches the macOS appearance while the app runs, the way System Settings does, to check a live
 # theme change (the app follows it with Settings > Appearance > System). The first switch remembers
 # the appearance from before, and `stop` puts it back.
@@ -288,7 +308,7 @@ stop() {
         fi
     fi
     rm -rf "$FAKE_HOME" "$APP" "$WORK/windows.swift" "$WORK/key.swift" "$WORK/key" \
-        "$WORK/appearance.swift" "$WORK/appearance"
+        "$WORK/appearance.swift" "$WORK/appearance" "$WORK/resize_timing"
     [ "$restore_failed" = 0 ] || exit 1
     echo "stopped; screenshots stay in $SHOTS_DIR"
 }
@@ -298,6 +318,7 @@ case "${1:-}" in
     shot) shift; shot "$@" ;;
     windows) windows ;;
     key) shift; key "$@" ;;
+    resize) shift; resize "$@" ;;
     appearance) shift; appearance "$@" ;;
     stop) stop ;;
     *) usage ;;
