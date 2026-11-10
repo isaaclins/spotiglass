@@ -267,11 +267,11 @@ final class SpotifyAPIClientErrorsRefreshAndCacheTests: XCTestCase {
         // The timeouts only keep a broken client from hanging the suite; on the
         // happy path both signals arrive long before them.
         async let first = client.currentUserProfile()
-        let didStartRefresh = await refreshStarted.wait(timeout: .seconds(30))
-        XCTAssertTrue(didStartRefresh, "The first 401 should start a refresh.")
+        // The first 401 should start a refresh.
+        await refreshStarted.wait()
         async let second = client.currentUserProfile()
-        let didJoinRefresh = await refreshJoined.wait(timeout: .seconds(30))
-        XCTAssertTrue(didJoinRefresh, "The second 401 should join the refresh that is still running.")
+        // The second 401 should join the refresh that is still running.
+        await refreshJoined.wait()
         releaseRefresh.signal()
         let (a, b) = try await (first, second)
         let refreshCount = await tokenProvider.refreshCount

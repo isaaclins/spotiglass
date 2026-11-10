@@ -350,11 +350,8 @@ final class CatalogSearchViewTests: XCTestCase {
         XCTAssertEqual(palette.sections.last?.section, .showAll)
 
         await showAllRow?.action()
-        let didFinishSidebarSelection = await sidebarSelectionFinished.wait(timeout: .seconds(2))
-        XCTAssertTrue(
-            didFinishSidebarSelection,
-            "Catalog handoff should finish sidebar selection"
-        )
+        // Catalog handoff should finish sidebar selection
+        await sidebarSelectionFinished.wait()
 
         XCTAssertEqual(searchViewModel.query, "daft punk")
         XCTAssertEqual(searchViewModel.category, .artists)

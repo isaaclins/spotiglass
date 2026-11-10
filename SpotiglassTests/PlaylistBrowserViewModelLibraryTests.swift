@@ -697,8 +697,7 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
 
         await viewModel.load()
         async let first: Void = viewModel.selectSidebar(.likedSongs)
-        let didStartSavedTracks = await savedTracksStarted.wait(timeout: .seconds(1))
-        XCTAssertTrue(didStartSavedTracks)
+        await savedTracksStarted.wait()
         async let second: Void = viewModel.selectSidebar(.likedSongs)
         releaseSavedTracks.signal()
         _ = await (first, second)
@@ -725,8 +724,7 @@ final class PlaylistBrowserViewModelLibraryTests: XCTestCase {
             await releasePlaylists.wait()
         }
         async let first: Void = viewModel.unifiedRefreshMainSurface()
-        let didStartPlaylists = await playlistsStarted.wait(timeout: .seconds(1))
-        XCTAssertTrue(didStartPlaylists)
+        await playlistsStarted.wait()
         async let second: Void = viewModel.unifiedRefreshMainSurface()
         releasePlaylists.signal()
         _ = await (first, second)

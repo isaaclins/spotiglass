@@ -28,15 +28,13 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
         viewModel.autoResumeOnNextReady = true
         viewModel.handle(.ready(deviceID: "device-1"))
 
-        let didStart = await refreshStarted.wait(timeout: .seconds(1))
-        XCTAssertTrue(didStart)
+        await refreshStarted.wait()
         viewModel.handle(.ready(deviceID: "device-2"))
         XCTAssertEqual(viewModel.connectionState, .ready(deviceID: "device-2"))
 
         releaseRefresh.signal()
-        let didTransfer = await transferStarted.wait(timeout: .seconds(1))
+        await transferStarted.wait()
 
-        XCTAssertTrue(didTransfer)
         XCTAssertEqual(
             playbackAPI.actions.filter { $0.hasPrefix("transfer:") },
             ["transfer:device-2:false"]
@@ -69,8 +67,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
         viewModel.autoResumeOnNextReady = true
         viewModel.handle(.ready(deviceID: "new-spotiglass"))
 
-        let didStart = await refreshStarted.wait(timeout: .seconds(1))
-        XCTAssertTrue(didStart)
+        await refreshStarted.wait()
         await viewModel.disconnect()
         releaseRefresh.signal()
         let didTransfer = await transferStarted.wait(timeout: .milliseconds(100))
@@ -107,11 +104,8 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
         viewModel.autoResumeOnNextReady = true
         viewModel.handle(.ready(deviceID: "new-spotiglass"))
 
-        let didCompleteTransfer = await transferCompleted.wait(timeout: .seconds(1))
-        XCTAssertTrue(
-            didCompleteTransfer,
-            "startup auto-resume should complete its transfer"
-        )
+        // startup auto-resume should complete its transfer
+        await transferCompleted.wait()
         XCTAssertTrue(playbackAPI.actions.contains("transfer:new-spotiglass:true"))
         XCTAssertEqual(
             playbackAPI.actions.filter { $0 == "fetchPlayerSnapshot" }.count,
@@ -399,7 +393,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
         await viewModel.next()
         await viewModel.previous()
         await viewModel.seek(to: 12_000)
-        let didSeek = await seekSent.wait(timeout: .seconds(1))
+        await seekSent.wait()
         await viewModel.cycleRepeat()
         await viewModel.toggleShuffle()
         let queue = QueueViewModel(provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI), playbackSession: viewModel)
@@ -407,7 +401,6 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
         await viewModel.play(uri: "spotify:track:played")
         await viewModel.togglePlayPause()
 
-        XCTAssertTrue(didSeek)
         XCTAssertEqual(playbackAPI.actions.filter { $0.hasPrefix("next:") }, ["next:living-room"])
         XCTAssertEqual(playbackAPI.actions.filter { $0.hasPrefix("previous:") }, ["previous:living-room"])
         XCTAssertEqual(playbackAPI.actions.filter { $0.hasPrefix("seek:") }, ["seek:living-room:12000"])
@@ -822,8 +815,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
         let retryTask = Task {
             await viewModel.retryPlaybackTransfer()
         }
-        let didStart = await transferStarted.wait(timeout: .seconds(1))
-        XCTAssertTrue(didStart)
+        await transferStarted.wait()
 
         await viewModel.disconnect()
         releaseTransfer.signal()
@@ -847,8 +839,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
         let playTask = Task {
             await viewModel.play(uri: "spotify:track:1")
         }
-        let didStart = await transferStarted.wait(timeout: .seconds(1))
-        XCTAssertTrue(didStart)
+        await transferStarted.wait()
 
         await viewModel.disconnect()
         releaseTransfer.signal()
@@ -860,6 +851,22 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
     }
 
     func testDisconnectDuringInFlightTransferSuppressesLateCompletionWork() async {
+        await assertDisconnectDuringInFlightTransferSuppressesLateCompletionWork(mainActorStall: nil)
+    }
+
+    /// Replays #503: on a busy machine the transfer task reached the mock more than a
+    /// second after it was queued, so a 1 s "transfer started" window ran out and the
+    /// test failed although the code under test was right. Holding the main actor past
+    /// that window right as the transfer is queued reproduces the late start every time.
+    func testDisconnectDuringInFlightTransferSuppressesLateCompletionWorkWhenTheTransferStartsLate() async {
+        await assertDisconnectDuringInFlightTransferSuppressesLateCompletionWork(mainActorStall: 1.2)
+    }
+
+    private func assertDisconnectDuringInFlightTransferSuppressesLateCompletionWork(
+        mainActorStall: TimeInterval?,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async {
         let playbackAPI = MockPlaybackAPI()
         let transferStarted = AsyncSignal()
         let releaseTransfer = AsyncSignal()
@@ -879,21 +886,24 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
         let viewModel = PlaybackSessionViewModel(provider: SpotifyPlaybackProvider(playbackAPI: playbackAPI, webCommander: MockWebPlaybackCommander()))
         viewModel.handle(.ready(deviceID: "device-1"))
 
+        if let mainActorStall {
+            // Queued ahead of the transfer, so the transfer can't start until it ends.
+            Task { @MainActor in Thread.sleep(forTimeInterval: mainActorStall) }
+        }
         let transferTask = Task {
             await viewModel.transferPlayback(toConnectDevice: "target")
         }
-        let didStart = await transferStarted.wait(timeout: .seconds(1))
-        XCTAssertTrue(didStart)
+        await transferStarted.wait()
 
         await viewModel.disconnect()
         releaseTransfer.signal()
         await transferTask.value
         await Task.yield()
 
-        XCTAssertEqual(viewModel.connectionState, .disconnected)
-        XCTAssertNil(viewModel.activePlaybackDeviceID)
-        XCTAssertTrue(viewModel.connectDevices.isEmpty)
-        XCTAssertFalse(playbackAPI.actions.contains("fetchAvailableDevices"))
+        XCTAssertEqual(viewModel.connectionState, .disconnected, file: file, line: line)
+        XCTAssertNil(viewModel.activePlaybackDeviceID, file: file, line: line)
+        XCTAssertTrue(viewModel.connectDevices.isEmpty, file: file, line: line)
+        XCTAssertFalse(playbackAPI.actions.contains("fetchAvailableDevices"), file: file, line: line)
     }
 
     func testDisconnectCancelsQueuedTransferIntentAfterInFlightTransfer() async {
@@ -910,8 +920,7 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
         let firstTransfer = Task {
             await viewModel.transferPlayback(toConnectDevice: "target-a")
         }
-        let didStart = await transferStarted.wait(timeout: .seconds(1))
-        XCTAssertTrue(didStart)
+        await transferStarted.wait()
         let queuedTransfer = Task {
             await viewModel.transferPlayback(toConnectDevice: "target-b")
         }
@@ -938,11 +947,8 @@ final class PlaybackConnectDevicesAndTransferTests: XCTestCase {
         viewModel.handle(.ready(deviceID: "device-1"))
 
         async let first: Void = viewModel.play(uri: "spotify:track:1")
-        let didStartTransfer = await transferStarted.wait(timeout: .seconds(1))
-        XCTAssertTrue(
-            didStartTransfer,
-            "the first play should enter transfer before the second starts"
-        )
+        // the first play should enter transfer before the second starts
+        await transferStarted.wait()
         async let second: Void = viewModel.play(uri: "spotify:track:2")
         _ = await (first, second)
 

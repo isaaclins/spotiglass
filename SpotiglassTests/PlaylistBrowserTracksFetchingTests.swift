@@ -177,11 +177,8 @@ final class PlaylistBrowserTracksFetchingTests: XCTestCase {
             if playlistID == "b" { fetchBStarted.signal() }
         }
         let firstSwitch = Task { await viewModel.selectPlaylist(id: "b") }
-        let didStartFetchB = await fetchBStarted.wait(timeout: .seconds(1))
-        XCTAssertTrue(
-            didStartFetchB,
-            "the first playlist switch should start fetching playlist B"
-        )
+        // the first playlist switch should start fetching playlist B
+        await fetchBStarted.wait()
         await viewModel.selectPlaylist(id: "a")
         await firstSwitch.value
 

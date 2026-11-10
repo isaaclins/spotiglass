@@ -140,6 +140,9 @@ final class AsyncSignal: @unchecked Sendable {
         })
     }
 
+    /// Only for checking that something does NOT happen. To wait for something that
+    /// must happen, use `wait()`: a busy machine can take longer than any window, and
+    /// the per-test time limit already catches a signal that never comes (#503).
     func wait(timeout: Duration) async -> Bool {
         await withTaskGroup(of: Bool.self) { group in
             group.addTask {
