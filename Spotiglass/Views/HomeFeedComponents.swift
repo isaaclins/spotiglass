@@ -132,7 +132,7 @@ struct HomeMediaCardView: View {
             .collectionAccessibilityActions(card.menuTarget, browserViewModel: browserViewModel)
 
             if hasArtistLinks {
-                HomeCardArtistCredits(subtitle: card.subtitle, credits: card.artistCredits, openArtist: openArtist)
+                HomeCardArtistCredits(subtitle: card.subtitle, credits: card.artistCredits, openArtist: openArtist, openCard: action)
             }
         }
         .frame(width: Self.artworkSize, alignment: .leading)
@@ -148,6 +148,7 @@ struct HomeCardArtistCredits: View {
     let subtitle: String
     let credits: [HomeArtistCredit]
     let openArtist: (MusicArtistRef) -> Void
+    var openCard: () -> Void = {}
 
     var body: some View {
         if !credits.contains(where: { if case .link = $0 { true } else { false } }) {
@@ -163,30 +164,45 @@ struct HomeCardArtistCredits: View {
                         Text(SpotiglassL10n.string("common.comma"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                            .fixedSize()
                             .accessibilityHidden(true)
                     }
-                    switch credit {
-                    case let .link(artist):
-                        Button {
-                            openArtist(artist)
-                        } label: {
-                            Text(artist.name)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
-                        .buttonStyle(.spotiglassTextLink)
-                        .accessibilityLabel(SpotiglassL10n.format("playback.controls.openArtist", artist.name))
-                    case let .name(name):
-                        Text(name)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .accessibilityHidden(true)
-                    }
+                    // Earlier names keep their room, so a long line runs out at its end, the
+                    // way one string would, instead of cutting every name short.
+                    creditView(credit)
+                        .layoutPriority(Double(credits.count - index))
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    @ViewBuilder
+    private func creditView(_ credit: HomeArtistCredit) -> some View {
+        switch credit {
+        case let .link(artist):
+            Button {
+                openArtist(artist)
+            } label: {
+                Text(artist.name)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .buttonStyle(.spotiglassTextLink)
+            .accessibilityLabel(SpotiglassL10n.format("playback.controls.openArtist", artist.name))
+        case let .name(name):
+            // A name without an ID next to linked ones opens the card, like the
+            // line does when it has no links at all. VoiceOver reads it in the
+            // card's own label.
+            Button(action: openCard) {
+                Text(name)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .buttonStyle(.plain)
+            .accessibilityHidden(true)
         }
     }
 }

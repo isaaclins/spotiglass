@@ -272,11 +272,20 @@ final class CollectionContextMenuTests: XCTestCase {
         let line = try XCTUnwrap(card).artistCredits
         XCTAssertEqual(line, [.link(MusicArtistRef(id: "steve", name: "Steve Lacy")), .name("Local Friend")])
 
-        let view = HomeCardArtistCredits(subtitle: try XCTUnwrap(card).subtitle, credits: line, openArtist: { opened.append($0) })
+        var openedCard = false
+        let view = HomeCardArtistCredits(
+            subtitle: try XCTUnwrap(card).subtitle,
+            credits: line,
+            openArtist: { opened.append($0) },
+            openCard: { openedCard = true }
+        )
         try view.inspect().find(button: "Steve Lacy").tap()
         XCTAssertEqual(opened.map(\.id), ["steve"])
-        XCTAssertNoThrow(try view.inspect().find(text: "Local Friend"))
-        XCTAssertThrowsError(try view.inspect().find(button: "Local Friend"))
+        XCTAssertFalse(openedCard)
+        // The name without an ID opens the card, like a line without any links does.
+        try view.inspect().find(text: "Local Friend").find(ViewType.Button.self, relation: .parent).tap()
+        XCTAssertTrue(openedCard)
+        XCTAssertEqual(opened.map(\.id), ["steve"], "it opens no artist")
     }
 
     /// Apple Music names all of a song's artists in one string and lists them apart by ID.
