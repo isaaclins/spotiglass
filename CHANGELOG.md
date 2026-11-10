@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.16] - 2026-11-10
+
+### Fixed
+
+- Home has its own greeting after midnight, so it no longer says "Good evening" overnight.
+
 ## [0.8.15] - 2026-11-10
 
 ### Fixed

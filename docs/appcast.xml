@@ -3,14 +3,14 @@
     <channel>
         <title>Spotiglass</title>
         <item>
-            <title>0.8.15</title>
-            <pubDate>Tue, 10 Nov 2026 20:38:06 +0100</pubDate>
-            <sparkle:version>26</sparkle:version>
-            <sparkle:shortVersionString>0.8.15</sparkle:shortVersionString>
+            <title>0.8.16</title>
+            <pubDate>Tue, 10 Nov 2026 21:31:02 +0100</pubDate>
+            <sparkle:version>27</sparkle:version>
+            <sparkle:shortVersionString>0.8.16</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[• The player bar now stays on the song you paused, even when the other service is on screen.
+            <description sparkle:format="plain-text"><![CDATA[• Home has its own greeting after midnight, so it no longer says "Good evening" overnight.
 ]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.15/Spotiglass-0.8.15.zip" length="12783189" type="application/octet-stream" sparkle:edSignature="4gduXPk1XG8OXQBFDugIBilOLdi/6OnpknFN4pcMgFLgHE8+sOxy/YUUCVQzuC8IduXdVAF1biafw13WMhVjBQ=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.16/Spotiglass-0.8.16.zip" length="12808158" type="application/octet-stream" sparkle:edSignature="H/bgcyQ/x4oWcgQQDd8s3dtujMpSOWmpHANRZCDlFSenu5vecCya/AAlNFgIY30gKlUwlY3V/XOhojbqxbRADg=="/>
         </item>
     </channel>
 </rss>
