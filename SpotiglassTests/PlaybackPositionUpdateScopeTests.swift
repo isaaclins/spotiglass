@@ -188,10 +188,10 @@ final class ScrubberTickCostTests: XCTestCase {
         super.tearDown()
     }
 
-    private func playingAnchor(isAdvancing: Bool = true) -> PlaybackProgressAnchor {
+    private func playingAnchor(isAdvancing: Bool = true, at date: Date = Date()) -> PlaybackProgressAnchor {
         PlaybackProgressAnchor(
             positionMilliseconds: 60_000,
-            anchorDate: Date(),
+            anchorDate: date,
             durationMilliseconds: 240_000,
             isAdvancing: isAdvancing
         )
@@ -239,6 +239,9 @@ final class ScrubberTickCostTests: XCTestCase {
 
     func testTheTrackWakesOnlyWhilePlaying() throws {
         let view = ScrubberTrackCanvasView(frame: CGRect(x: 0, y: 0, width: 416, height: 18))
+        // A clock of its own, so a busy machine pausing the test can't make the first tick due.
+        let clock = Date().addingTimeInterval(3600)
+        view.now = { clock }
         let colors = ScrubberTrackDrawing.Colors(track: .gray, played: .blue, thumbFill: .white, thumbBorder: .black)
         func drawing(_ anchor: PlaybackProgressAnchor, dragFraction: Double? = nil) -> ScrubberTrackCanvasView.Drawing {
             .init(
@@ -250,7 +253,7 @@ final class ScrubberTickCostTests: XCTestCase {
                 colors: colors
             )
         }
-        view.drawing = drawing(playingAnchor())
+        view.drawing = drawing(playingAnchor(at: clock))
         XCTAssertNil(view.tickTimer, "nothing to wake outside a window")
 
         let window = VisibilityControlledWindow(
@@ -265,19 +268,19 @@ final class ScrubberTickCostTests: XCTestCase {
 
         // 400 pt for 4:00 moves 1.67 pt a second: 4 ticks a second keep each step under half a point.
         let timer = try XCTUnwrap(view.tickTimer)
-        let wait = timer.fireDate.timeIntervalSinceNow
+        let wait = timer.fireDate.timeIntervalSince(clock)
         XCTAssertGreaterThan(wait, 0)
         XCTAssertLessThanOrEqual(wait, 0.25 + 0.01)
 
-        view.drawing = drawing(playingAnchor(isAdvancing: false))
+        view.drawing = drawing(playingAnchor(isAdvancing: false, at: clock))
         XCTAssertNil(view.tickTimer, "paused: no wakeups")
 
-        view.drawing = drawing(playingAnchor())
+        view.drawing = drawing(playingAnchor(at: clock))
         XCTAssertNotNil(view.tickTimer)
-        view.drawing = drawing(playingAnchor(), dragFraction: 0.5)
+        view.drawing = drawing(playingAnchor(at: clock), dragFraction: 0.5)
         XCTAssertNil(view.tickTimer, "dragging: the pointer moves the thumb, not the clock")
 
-        view.drawing = drawing(playingAnchor())
+        view.drawing = drawing(playingAnchor(at: clock))
         // Minimized, hidden or covered: nobody sees the track move.
         window.reportsVisible = false
         XCTAssertNil(view.tickTimer, "a window nobody sees: no wakeups")
@@ -303,12 +306,7 @@ final class ScrubberTickCostTests: XCTestCase {
         windows.append(window)
         // Hours ahead of the real clock: the run loop never reaches these ticks by itself.
         var clock = Date().addingTimeInterval(3600)
-        let anchor = PlaybackProgressAnchor(
-            positionMilliseconds: 60_000,
-            anchorDate: clock,
-            durationMilliseconds: 240_000,
-            isAdvancing: true
-        )
+        let anchor = playingAnchor(at: clock)
         let view = TickCountingTrackView(frame: CGRect(x: 0, y: 0, width: 416, height: 18))
         view.now = { clock }
         view.drawing = .init(
