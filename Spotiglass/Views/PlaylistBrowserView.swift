@@ -32,9 +32,12 @@ struct PlaylistBrowserView: View {
     @State var newPlaylistName = ""
     @State var newPlaylistInitialRows: [TrackRowViewModel] = []
     /// Drives the narrow-window mutual-exclusion rule: when this drops below
-    /// ``SpotiglassDesign/dualSidebarComfortableMinWidth`` the playlist sidebar and queue panel can no
+    /// ``SpotiglassDesign/dualSidebarComfortableMinWidth(sidebarWidth:)`` the playlist sidebar and queue panel can no
     /// longer coexist (opening one closes the other; resizing wide→narrow auto-closes the LRU one).
     @State var browserContentWidth: CGFloat = 2000
+    /// The playlist sidebar's measured width; the collapse breakpoints are worked out from it,
+    /// not from its declared minimum (#459).
+    @State var playlistSidebarWidth: CGFloat = SpotiglassDesign.sidebarWidth
     @State var browserWidthSampler = BrowserWidthSampler()
     @State var lastBrowserWidthCommitTime: CFAbsoluteTime = 0
     /// Cached previous selection so pinned-track activations can revert the
@@ -49,7 +52,7 @@ struct PlaylistBrowserView: View {
     @State var libraryRowOrderSeededUserID: String?
     @State var unifiedRefreshFocus: UnifiedRefreshFocus = .mainContent
     /// Which side the user most recently OPENED (closed → open transition). Used to pick the loser
-    /// when the window shrinks below ``SpotiglassDesign/dualSidebarComfortableMinWidth`` with both
+    /// when the window shrinks below ``SpotiglassDesign/dualSidebarComfortableMinWidth(sidebarWidth:)`` with both
     /// sides still visible. Defaults to `.playlist` so the first narrow-resize tiebreaker closes the
     /// queue panel (the explicitly opt-in overlay) and keeps the primary nav sidebar.
     @State var lastOpenedSidebar: SidebarKind = .playlist
@@ -181,6 +184,9 @@ struct PlaylistBrowserView: View {
                     // it in the toolbar while the sidebar is collapsed, like the system toggle.
                     ToolbarSpacer(.flexible)
                     ToolbarItem(placement: .automatic) { sidebarToggleButton }
+                }
+                .onGeometryChange(for: CGFloat.self, of: \.size.width) { _, width in
+                    recordPlaylistSidebarWidth(width)
                 }
                 .navigationSplitViewColumnWidth(
                     min: SpotiglassDesign.playlistSidebarMinWidth,

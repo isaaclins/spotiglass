@@ -4,14 +4,24 @@ extension PlaylistBrowserView {
     /// True when the window is narrow enough that the playlist sidebar and queue panel must be
     /// mutually exclusive (opening one closes the other) so neither side ever clips off-screen.
     var isMutualExclusionWidth: Bool {
-        Self.mutualExclusionWidth(for: browserContentWidth)
+        Self.mutualExclusionWidth(for: browserContentWidth, sidebarWidth: playlistSidebarWidth)
     }
 
-    static func mutualExclusionWidth(for width: CGFloat) -> Bool {
+    static func mutualExclusionWidth(for width: CGFloat, sidebarWidth: CGFloat) -> Bool {
         BrowserWidthCommitPolicy.mutualExclusionWidth(
             for: width,
-            comfortableMinWidth: SpotiglassDesign.dualSidebarComfortableMinWidth
+            comfortableMinWidth: SpotiglassDesign.dualSidebarComfortableMinWidth(sidebarWidth: sidebarWidth)
         )
+    }
+
+    /// Keeps the width the sidebar really has, which decides when it no longer fits (#459). A
+    /// collapsed sidebar keeps the last one: that is the width it comes back at.
+    func recordPlaylistSidebarWidth(_ width: CGFloat) {
+        guard playlistColumnVisibility != .detailOnly,
+              width >= SpotiglassDesign.playlistSidebarMinWidth - 0.5,
+              abs(width - playlistSidebarWidth) >= 0.5
+        else { return }
+        playlistSidebarWidth = width
     }
 
     /// Coalesces high-frequency geometry callbacks during window resize so
@@ -27,8 +37,10 @@ extension PlaylistBrowserView {
                 committedWidth: browserContentWidth,
                 lastCommitTime: lastBrowserWidthCommitTime,
                 now: now,
-                comfortableMinWidth: SpotiglassDesign.dualSidebarComfortableMinWidth,
-                sidebarCollapseMinWidth: SpotiglassDesign.playlistSidebarAndDetailMinWidth
+                comfortableMinWidth: SpotiglassDesign.dualSidebarComfortableMinWidth(sidebarWidth: playlistSidebarWidth),
+                sidebarCollapseMinWidth: SpotiglassDesign.playlistSidebarAndDetailMinWidth(
+                    sidebarWidth: playlistSidebarWidth
+                )
             )
         )
         guard result.shouldCommit else { return }

@@ -11,9 +11,10 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
     }
 
     func testMutualExclusionWidthStaticHelper() {
-        let comfortable = SpotiglassDesign.dualSidebarComfortableMinWidth
-        XCTAssertTrue(PlaylistBrowserView.mutualExclusionWidth(for: comfortable - 100))
-        XCTAssertFalse(PlaylistBrowserView.mutualExclusionWidth(for: comfortable + 100))
+        let sidebar = SpotiglassDesign.sidebarWidth
+        let comfortable = SpotiglassDesign.dualSidebarComfortableMinWidth(sidebarWidth: sidebar)
+        XCTAssertTrue(PlaylistBrowserView.mutualExclusionWidth(for: comfortable - 100, sidebarWidth: sidebar))
+        XCTAssertFalse(PlaylistBrowserView.mutualExclusionWidth(for: comfortable + 100, sidebarWidth: sidebar))
     }
 
     func testBrowserScenesShareTheAppScopedPlaybackHost() {
@@ -177,7 +178,7 @@ final class PlaylistBrowserShellViewsTests: XCTestCase {
         controller.view.frame = CGRect(x: 0, y: 0, width: 400, height: 640)
         controller.view.layoutSubtreeIfNeeded()
         AppKitTestSupport.pumpRunLoop(for: 0.2)
-        XCTAssertTrue(PlaylistBrowserView.mutualExclusionWidth(for: 400))
+        XCTAssertTrue(PlaylistBrowserView.mutualExclusionWidth(for: 400, sidebarWidth: SpotiglassDesign.sidebarWidth))
     }
 
     func testLibraryHomeRowHosts() throws {

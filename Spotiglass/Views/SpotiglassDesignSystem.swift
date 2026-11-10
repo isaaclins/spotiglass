@@ -333,10 +333,14 @@ enum SpotiglassDesign {
     static let detailColumnMinWidth: CGFloat = 360
     static let queuePanelMinWidth: CGFloat = 280
 
-    /// Below this content width the playlist sidebar and detail column cannot
-    /// both honor their declared minimums, so the browser collapses the sidebar.
-    static let playlistSidebarAndDetailMinWidth: CGFloat =
-        playlistSidebarMinWidth + detailColumnMinWidth
+    /// Below this content width the playlist sidebar, at the width it really has, and the detail
+    /// column at its minimum don't both fit, so the browser collapses the sidebar. The split view
+    /// keeps the sidebar at its width while the window shrinks (320 pt unless you drag it) and
+    /// never squeezes it to its 280 pt minimum, so a breakpoint from the minimum left a band
+    /// where the window cut off both columns (#459). `sidebarWidth` is the measured width.
+    static func playlistSidebarAndDetailMinWidth(sidebarWidth: CGFloat) -> CGFloat {
+        max(sidebarWidth, playlistSidebarMinWidth) + detailColumnMinWidth
+    }
 
     static let queuePanelMaxWidth: CGFloat = 420
 
@@ -346,10 +350,12 @@ enum SpotiglassDesign {
     static let detailAndQueueMinWidth: CGFloat = detailColumnMinWidth + queuePanelMinWidth
 
     /// Below this width the playlist sidebar and queue panel are mutually exclusive (opening one closes the other),
-    /// so neither side ever clips off-screen. Computed from the natural mins above plus ~80pt of slack for dividers
-    /// and rounding, so future tuning of the column mins propagates automatically.
-    static let dualSidebarComfortableMinWidth: CGFloat =
-        playlistSidebarMinWidth + detailColumnMinWidth + queuePanelMinWidth + 80
+    /// so neither side ever clips off-screen. Computed from the sidebar's measured width (as
+    /// ``playlistSidebarAndDetailMinWidth(sidebarWidth:)``, #459), the queue's minimum and 40 pt
+    /// of slack for dividers and rounding, so a wider sidebar or tuned minimums move it along.
+    static func dualSidebarComfortableMinWidth(sidebarWidth: CGFloat) -> CGFloat {
+        playlistSidebarAndDetailMinWidth(sidebarWidth: sidebarWidth) + queuePanelMinWidth + 40
+    }
 
     static func glassPanelBorderColor(
         contrast: ColorSchemeContrast,
