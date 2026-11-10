@@ -270,7 +270,7 @@ struct SpotiglassSettingsView: View {
             // padding (#21, #22). The shell owns the header and the divider; the
             // pane owns its scrolling and its group insets.
             Group {
-                SettingsPaneContainer(settingsStore: settingsStore) {
+                SettingsPaneContainer {
                     switch section ?? .equalizer {
                     case .equalizer:
                         EqualizerSettingsView(
@@ -335,25 +335,29 @@ struct SpotiglassSettingsView: View {
 
 /// Gives every settings pane the same finite width proposal and leading
 /// alignment, so switching panes cannot change the window's content width.
-///
-/// It also rebuilds the pane when the language changes. Text views follow the new
-/// language by themselves, but the AppKit controls behind segmented and pop-up
-/// pickers keep the option titles they were created with, so the Appearance pane
-/// went on showing "Hell / Dunkel" after a switch to English (#460). The main and
-/// lyrics windows are rebuilt the same way.
-struct SettingsPaneContainer<Content: View>: View {
-    @ObservedObject var settingsStore: SpotiglassSettingsStore
+private struct SettingsPaneContainer<Content: View>: View {
     let content: Content
 
-    init(settingsStore: SpotiglassSettingsStore, @ViewBuilder content: () -> Content) {
-        self.settingsStore = settingsStore
+    init(@ViewBuilder content: () -> Content) {
         self.content = content()
     }
 
     var body: some View {
         content
             .frame(minWidth: 0, maxWidth: .infinity, alignment: .topLeading)
-            .id(settingsStore.settings.appearance.language)
+    }
+}
+
+extension View {
+    /// Rebuilds a segmented picker whose option titles are translated when the language
+    /// changes. SwiftUI updates its own text views by itself, but the AppKit segmented
+    /// control behind such a picker keeps the option titles it was created with, so
+    /// Appearance went on showing "Hell / Dunkel" after a switch to English (#460).
+    /// Only the picker is rebuilt, not the pane: rebuilding the pane would also take
+    /// keyboard focus off the language picker the user just changed and drop any sheet
+    /// open in it.
+    func rebuildsOnLanguageChange(_ language: AppLanguage) -> some View {
+        id(language)
     }
 }
 
