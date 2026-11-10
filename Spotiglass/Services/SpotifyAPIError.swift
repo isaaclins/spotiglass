@@ -128,6 +128,13 @@ enum SpotifyAPIError: Error, Equatable, LocalizedError {
         SpotiglassL10n.string(service == .appleMusic ? "error.playback.appleMusic.failed" : "error.playback.spotify.failed")
     }
 
+    /// Whether a `.network` sentence is one of the app's own for a request that reached Spotify
+    /// but got nothing usable back (a garbled or empty answer): that isn't "Network unavailable".
+    static func isUnusableAnswerMessage(_ message: String) -> Bool {
+        ["error.playback.spotify.failed", "error.generic.tryAgain", "error.spotify.unexpectedShape"]
+            .contains { SpotiglassL10n.string($0) == message }
+    }
+
     /// A transport failure in the app's language, saying what to check. `fallback` is the
     /// sentence for a code that isn't a connection problem (sign-in's "something went wrong");
     /// without one, it says Spotify couldn't do it: a garbled or empty answer isn't the network.

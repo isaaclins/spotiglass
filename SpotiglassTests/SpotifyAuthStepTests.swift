@@ -291,7 +291,10 @@ final class SpotifyAuthStepTests: XCTestCase {
             try store.saveRefreshToken("good-refresh-token")
             let viewModel = AuthViewModel(
                 settings: makeSettings(clientID: "client-id"),
-                tokenClient: SpotifyTokenClient(httpClient: ThrowingHTTPClient(error: URLError(code))),
+                // URLSession's own text, which main showed as is.
+                tokenClient: SpotifyTokenClient(httpClient: ThrowingHTTPClient(
+                    error: URLError(code, userInfo: [NSLocalizedDescriptionKey: "The server sent an answer that couldn’t be used."])
+                )),
                 refreshTokenStore: store,
                 signOutDataCleaner: {},
                 artworkCacheClearer: {}

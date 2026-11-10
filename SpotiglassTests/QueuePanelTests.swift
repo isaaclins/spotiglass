@@ -1204,6 +1204,40 @@ private final class QueueTestTokenProvider: PlaybackAccessTokenProviding {
     func refreshedPlaybackAccessToken() async throws -> String { "token" }
 }
 
+extension QueuePanelTests {
+    /// #470: a 403 without Spotify's own text showed a hard-coded English Premium sentence.
+    func testPremiumRefusalWithoutSpotifyTextFollowsTheAppLanguage() async throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("queue-forbidden-\(UUID().uuidString).json")
+        let store = SpotiglassSettingsStore(fileURL: url)
+        try store.mutate { $0.appearance.language = .german }
+        SpotiglassL10n.settingsStore = store
+        defer { SpotiglassL10n.settingsStore = nil }
+
+        let api = SpotifyPlaybackAPI(
+            baseURL: URL(string: "https://api.spotify.com")!,
+            tokenProvider: QueueTestTokenProvider(),
+            httpClient: ForbiddenQueueHTTPClient()
+        )
+        do {
+            _ = try await api.fetchQueue()
+            XCTFail("Expected a refusal")
+        } catch {
+            XCTAssertEqual(QueueViewModel.displayError(for: error)?.message, "Spotify hat den Zugriff verweigert.")
+            XCTAssertEqual(
+                PlaybackSessionViewModel.displayError(for: error).message,
+                "Zum Abspielen von Musik in Spotiglass ist Spotify Premium erforderlich."
+            )
+        }
+    }
+}
+
+private final class ForbiddenQueueHTTPClient: HTTPClient, @unchecked Sendable {
+    func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        (Data(), HTTPURLResponse(url: request.url!, statusCode: 403, httpVersion: nil, headerFields: nil)!)
+    }
+}
+
 private final class UnreadableQueueHTTPClient: HTTPClient, @unchecked Sendable {
     func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: ["Content-Type": "application/json"])!

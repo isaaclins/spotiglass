@@ -397,6 +397,39 @@ final class SpotifyAPIClientErrorsRefreshAndCacheTests: XCTestCase {
     }
 }
 
+extension SpotifyAPIClientErrorsRefreshAndCacheTests {
+    /// #470: an answer Spotify garbled reached the browser as "Network unavailable", pointing
+    /// at the connection, which worked.
+    @MainActor
+    func testGarbledAnswerIsNotCalledANetworkProblem() async throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("api-garbled-\(UUID().uuidString).json")
+        let store = SpotiglassSettingsStore(fileURL: url)
+        try store.mutate { $0.appearance.language = .german }
+        SpotiglassL10n.settingsStore = store
+        defer { SpotiglassL10n.settingsStore = nil }
+
+        let client = SpotifyAPIClient(
+            tokenProvider: StaticSpotifyAccessTokenProvider(token: "token"),
+            httpClient: BadServerResponseHTTPClient()
+        )
+        do {
+            _ = try await client.currentUserProfile()
+            XCTFail("Expected an error")
+        } catch {
+            let banner = PlaylistBrowserViewModel.displayError(for: error)
+            XCTAssertEqual(banner.title, "Etwas ist schiefgelaufen")
+            XCTAssertEqual(banner.message, "Spotify konnte das nicht ausführen. Versuche es gleich erneut.")
+        }
+    }
+}
+
+private final class BadServerResponseHTTPClient: HTTPClient {
+    func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        throw URLError(.badServerResponse, userInfo: [NSLocalizedDescriptionKey: "The server returned a bad response."])
+    }
+}
+
 private final class CannotConnectHTTPClient: HTTPClient {
     func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         throw URLError(.cannotConnectToHost, userInfo: [NSLocalizedDescriptionKey: "Could not connect to the server."])

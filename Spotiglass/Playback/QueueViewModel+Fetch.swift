@@ -60,6 +60,10 @@ extension QueueViewModel {
                 }
             } catch {
                 if requestGeneration == queueSessionGeneration, !isQueueSessionBoundary {
+                    // The banner reads in the app's language; the cause is kept here (#470).
+                    if !(error is CancellationError) {
+                        SpotiglassLog.error(.playback, "Queue refresh failed: \(String(describing: error))")
+                    }
                     if case let .rateLimited(retryAfter) = MusicPlaybackError.from(error)?.reason {
                         let fallback = max(1, min(defaultRateLimitCooldownSeconds, maxRateLimitCooldownSeconds))
                         let effectiveRetry = min(max(retryAfter ?? fallback, 1), maxRateLimitCooldownSeconds)
