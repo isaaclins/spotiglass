@@ -428,6 +428,10 @@ struct PlaylistBrowserView: View {
         .onChange(of: playbackDeviceID) { _, _ in
             syncTrackSelectionMenuState()
         }
+        .onReceive(viewModel.$playlistState) { state in
+            guard let playlists = state.currentValue else { return }
+            pinnedStore.fillMissingPlaylistArtwork(from: playlists)
+        }
         .onChange(of: pinnedStore.items) { _, _ in
             // Auth teardown detaches this scene before clearing account-bound
             // pins. Do not let that published clear rebind browser callbacks

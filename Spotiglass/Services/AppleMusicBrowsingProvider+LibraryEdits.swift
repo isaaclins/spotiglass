@@ -48,7 +48,7 @@ extension AppleMusicBrowsingProvider {
         let songIDs = trackURIs.compactMap(AppleMusicItemMapping.songID(fromURI:))
         guard songIDs.count == trackURIs.count else { throw AppleMusicLibraryEditError.notEditable }
         // Playlists that already have this name don't count as the library showing the new one.
-        let existing = (try? await libraryPlaylists(limit: 100, checksCovers: false)) ?? []
+        let existing = (try? await libraryPlaylists(limit: 100)) ?? []
         return try await editor.createPlaylist(
             name: name,
             ownerName: SpotiglassL10n.string("appleMusic.library.owner"),

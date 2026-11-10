@@ -120,13 +120,12 @@ enum AppleMusicItemMapping {
 
     /// `cachedTrackCount` stands in when MusicKit lists the playlist without its tracks, which
     /// library listings always do.
-    /// `hasGeneratedCover` drops the cover Apple generates for a playlist without one of its own
-    /// (a gradient with the name printed small), so the app's calm placeholder shows instead (#444).
+    /// The cover is the one the Music app shows, also the one Apple generates for a playlist
+    /// without a picture of its own (#477).
     static func playlistSummary(
         _ playlist: Playlist,
         fallbackOwnerName: String,
-        cachedTrackCount: Int? = nil,
-        hasGeneratedCover: Bool = false
+        cachedTrackCount: Int? = nil
     ) -> MusicPlaylistSummary {
         // Playlists the user made have no curator; Apple's own and shared ones name theirs.
         let curator = playlist.curatorName
@@ -140,22 +139,10 @@ enum AppleMusicItemMapping {
             name: name.isEmpty ? SpotiglassL10n.string("appleMusic.playlist.untitled") : playlist.name,
             ownerID: curator ?? AppleMusicBrowsingProvider.libraryUserID,
             ownerName: curator ?? fallbackOwnerName,
-            imageURL: hasGeneratedCover
-                ? nil
-                : artworkURL(playlist.artwork, size: ArtworkSize.cover, pinKind: .playlist, itemID: playlist.id),
+            imageURL: artworkURL(playlist.artwork, size: ArtworkSize.cover, pinKind: .playlist, itemID: playlist.id),
             trackCount: playlist.tracks?.count ?? cachedTrackCount,
             snapshotID: playlistSnapshotID
         )
-    }
-
-    /// The catalog ID a shared library playlist carries in its play parameters (`catalogId` from
-    /// the local library, `globalId` from the API), to match it with the API's cover (#444).
-    static func globalID(of playlist: Playlist) -> String? {
-        guard let parameters = playlist.playParameters,
-              let data = try? JSONEncoder().encode(parameters),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        else { return nil }
-        return (object["catalogId"] ?? object["globalId"]) as? String
     }
 
     static func album(_ album: Album) -> MusicAlbum {

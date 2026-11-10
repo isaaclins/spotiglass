@@ -16,6 +16,35 @@ private final class RecordingPinnedCache: PinnedItemsCache {
 
 @MainActor
 final class PinnedItemsStoreTests: XCTestCase {
+    /// Pins made while Apple Music playlists without a picture of their own were listed
+    /// without their cover (#444) saved no cover and kept the grey tile for good. The next
+    /// listing gives them the cover their playlist has, saved for the next launch, and leaves
+    /// every pin that already has one alone (#477).
+    func testPlaylistPinsSavedWithoutACoverGetTheirPlaylistsCover() {
+        let cache = RecordingPinnedCache()
+        let store = PinnedItemsStore(cache: cache)
+        store.bind(userID: "u1")
+        func summary(_ id: String, _ url: String?) -> MusicPlaylistSummary {
+            MusicPlaylistSummary(
+                id: id, name: id, ownerID: "me", ownerName: "You",
+                imageURL: url.flatMap(URL.init(string:)), trackCount: nil, snapshotID: "applemusic"
+            )
+        }
+        store.pin(.playlist(summary("road", nil)))
+        store.pin(.playlist(summary("mix", "https://example.com/old.jpg")))
+        store.pin(.playlist(summary("gone", nil)))
+        store.pin(.album(MusicAlbum(id: "road", name: "Road", artists: [], imageURL: nil, uri: "applemusic:album:road")))
+
+        store.fillMissingPlaylistArtwork(from: [
+            PlaylistRowViewModel(summary("road", "musicKit://artwork/road")),
+            PlaylistRowViewModel(summary("mix", "https://example.com/new.jpg")),
+        ])
+
+        let artwork = store.items.map(\.artworkURL?.absoluteString)
+        XCTAssertEqual(artwork, ["musicKit://artwork/road", "https://example.com/old.jpg", nil, nil])
+        XCTAssertEqual(cache.saved["u1"]?.map(\.artworkURL?.absoluteString), artwork)
+    }
+
     func testPinDedupesSameId() {
         let cache = RecordingPinnedCache()
         let store = PinnedItemsStore(cache: cache)

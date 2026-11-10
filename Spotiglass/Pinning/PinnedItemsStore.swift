@@ -132,6 +132,26 @@ final class PinnedItemsStore: ObservableObject {
         persist()
     }
 
+    /// Gives playlist pins saved without a cover the one their playlist has now. Apple Music
+    /// playlists without a picture of their own were once listed without Apple's generated
+    /// cover, so pins made then kept the placeholder for good (#477). A pin that has a cover
+    /// keeps it: only a missing one is filled in.
+    func fillMissingPlaylistArtwork(from playlists: [PlaylistRowViewModel]) {
+        let artworkByID = Dictionary(
+            playlists.compactMap { row in row.artworkURL.map { (row.id, $0) } },
+            uniquingKeysWith: { first, _ in first }
+        )
+        guard !artworkByID.isEmpty else { return }
+        var next = items
+        for index in next.indices where next[index].kind == .playlist && next[index].artworkURL == nil {
+            guard let id = next[index].spotifyID, let url = artworkByID[id] else { continue }
+            next[index].artworkURL = url
+        }
+        guard next != items else { return }
+        items = next
+        persist()
+    }
+
     /// Clears the in-memory list without touching disk. Used at sign-out so
     /// that signing back into the same account restores the pins, while
     /// signing into a different account swaps to that account's list cleanly.
