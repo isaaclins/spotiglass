@@ -94,7 +94,12 @@ final class ShelfScrollBehaviorTests: XCTestCase {
 
     // MARK: - A real shelf
 
-    func testShelfLaysOutAndScrollsWithTheBehavior() throws {
+    /// Only checks that a shelf with the behavior lays out and overflows, so it has
+    /// somewhere to scroll. Scrolling itself can't be replayed here: test windows sit
+    /// off every display, where SwiftUI never animates a scroll, so even a shelf with
+    /// no target behavior stays at 0. The wheel and swipe positions above come from
+    /// the app itself.
+    func testShelfWithTheBehaviorOverflowsSoItCanScroll() throws {
         let shelf = ScrollView(.horizontal) {
             HStack(spacing: SpotiglassDesign.spacingM) {
                 ForEach(0..<12, id: \.self) { _ in
