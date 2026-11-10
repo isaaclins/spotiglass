@@ -71,9 +71,10 @@ final class WindowResizeCostTests: XCTestCase {
 
         // Wide to narrow and back, all of it wider than the narrowest breakpoint, so no panel
         // opens or closes and nothing on screen changes but the layout.
-        let comfortable = SpotiglassDesign.dualSidebarComfortableMinWidth
+        let comfortable: CGFloat = SpotiglassDesign.dualSidebarComfortableMinWidth(sidebarWidth: SpotiglassDesign.sidebarWidth)
         let steps = 12
-        let widths = (1...steps).map { 1_400 - (1_400 - (comfortable + 40)) * CGFloat($0) / CGFloat(steps) }
+        let span: CGFloat = 1_400 - (comfortable + 40)
+        let widths: [CGFloat] = (1...steps).map { step in 1_400 - span * CGFloat(step) / CGFloat(steps) }
         ViewBodyTally.counts = [:]
         for (step, width) in (widths + widths.reversed()).enumerated() {
             resize(window, toWidth: width, height: 900 - CGFloat(step % steps) * 10)
