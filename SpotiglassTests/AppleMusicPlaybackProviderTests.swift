@@ -615,6 +615,149 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         XCTAssertEqual(MusicKitApplicationPlayer.droppingBlocked(added, explicitBlocked: false).count, added.count)
     }
 
+    // MARK: - Starts MusicKit refuses (#476)
+
+    /// The first songs of "Your top tracks" as MusicKit listed them when #476 was reported:
+    /// catalog songs with play parameters. "oh yeah?" is the one that failed.
+    private static func refusedTopTracks() throws -> [MusicPlayer.Queue.Entry] {
+        try [
+            AppleMusicFixtures.song(id: "1745213459", title: "ITTY BITTY", artist: "Mishaal Tamer", album: "ITTY BITTY - Single", durationMs: 143_000, explicit: true),
+            AppleMusicFixtures.song(id: "1783862517", title: "Loca Playa", artist: "Santax", album: "Loca Playa", durationMs: 174_000),
+            AppleMusicFixtures.song(id: "6773775282", title: "oh yeah?", artist: "Steve Lacy", album: "Oh yeah?", durationMs: 170_000, explicit: true),
+            AppleMusicFixtures.song(id: "1838552993", title: "Where's Your Head At", artist: "Eurotripp", album: "Where's Your Head At", durationMs: 186_000),
+        ].map { MusicPlayer.Queue.Entry($0) }
+    }
+
+    /// #476: one song pressed on its own (a search result, the palette, a single row). MusicKit
+    /// refused such a queue about half the time when it named the start song ("Prepare queue
+    /// failed with unexpected start item"), and the bar went to "Paused" at 0:00. A start that is
+    /// the first song isn't named, so it plays.
+    func testASongPressedOnItsOwnPlays() async throws {
+        let ohYeah = try Self.refusedTopTracks()[2]
+        let player = RefusingQueueStarter(refusesNamedStart: true)
+
+        let leftOut = try await AppleMusicQueueStart.start([ohYeah], at: 0, on: player, isCurrent: { true })
+
+        XCTAssertEqual(leftOut, 0)
+        XCTAssertEqual(player.currentEntry?.title, "oh yeah?")
+        XCTAssertTrue(player.isPlaying)
+        XCTAssertEqual(player.namedStarts, [nil], "the first song is never named as the start")
+    }
+
+    /// The same refusal with the pressed song further down a list: the start tries again with
+    /// the list from the pressed song on, which MusicKit takes, so the song plays.
+    func testAPressedRowPlaysWhenMusicKitRefusesTheNamedStart() async throws {
+        let songs = try Self.refusedTopTracks()
+        let player = RefusingQueueStarter(refusesNamedStart: true)
+
+        let leftOut = try await AppleMusicQueueStart.start(songs, at: 2, on: player, isCurrent: { true })
+
+        XCTAssertEqual(leftOut, 2)
+        XCTAssertEqual(player.currentEntry?.title, "oh yeah?")
+        XCTAssertEqual(player.entries.map(\.title), ["oh yeah?", "Where's Your Head At"])
+        XCTAssertTrue(player.isPlaying)
+        XCTAssertEqual(player.namedStarts, ["oh yeah?", nil])
+    }
+
+    /// A start MusicKit takes is set once, with the songs before the pressed one kept.
+    func testAPressedRowKeepsTheSongsBeforeItWhenMusicKitTakesIt() async throws {
+        let songs = try Self.refusedTopTracks()
+        let player = RefusingQueueStarter()
+
+        let leftOut = try await AppleMusicQueueStart.start(songs, at: 2, on: player, isCurrent: { true })
+
+        XCTAssertEqual(leftOut, 0)
+        XCTAssertEqual(player.entries.count, 4)
+        XCTAssertEqual(player.currentEntry?.title, "oh yeah?")
+        XCTAssertEqual(player.namedStarts, ["oh yeah?"])
+    }
+
+    /// A song MusicKit won't play at all, pressed while ITTY BITTY was playing. MusicKit took
+    /// the new queue, refused it, and was left on "oh yeah?" paused at 0:00. The start puts
+    /// ITTY BITTY back, where it was, still playing.
+    func testASongThatCantPlayGivesBackWhatWasPlaying() async throws {
+        let songs = try Self.refusedTopTracks()
+        let player = RefusingQueueStarter(refusing: ["6773775282"])
+        player.setQueue([songs[0], songs[1]], startingAt: nil)
+        try await player.play()
+        player.playbackTime = 42
+
+        do {
+            try await AppleMusicQueueStart.start(songs, at: 2, on: player, isCurrent: { true })
+            XCTFail("MusicKit refused the song")
+        } catch let refused as AppleMusicQueueStart.Refused {
+            XCTAssertEqual(refused.left, .previousQueue(leftOutBefore: 0))
+            XCTAssertEqual(MusicKitApplicationPlayer.playerError(refused.underlying).reason, .notFound)
+        }
+        XCTAssertEqual(player.currentEntry?.title, "ITTY BITTY")
+        XCTAssertEqual(player.entries.map(\.title), ["ITTY BITTY", "Loca Playa"])
+        XCTAssertTrue(player.isPlaying, "it was playing, so it plays on")
+        XCTAssertEqual(player.playbackTime, 42)
+    }
+
+    /// A paused song comes back paused at its position: loaded, not played. MusicKit also refuses
+    /// to name it as the start, so it comes back with the songs from it on.
+    func testASongThatCantPlayLeavesAPausedSongPaused() async throws {
+        let songs = try Self.refusedTopTracks()
+        let player = RefusingQueueStarter(refusing: ["6773775282"])
+        player.setQueue([songs[0], songs[1], songs[3]], startingAt: songs[1])
+        player.playbackTime = 95
+        player.refusesNamedStart = true
+
+        await XCTAssertThrowsRefused(
+            try await AppleMusicQueueStart.start([songs[2]], at: 0, on: player, isCurrent: { true }),
+            left: .previousQueue(leftOutBefore: 1)
+        )
+        XCTAssertEqual(player.currentEntry?.title, "Loca Playa")
+        XCTAssertEqual(player.entries.map(\.title), ["Loca Playa", "Where's Your Head At"])
+        XCTAssertFalse(player.isPlaying)
+        XCTAssertEqual(player.playbackTime, 95)
+        XCTAssertEqual(player.commands.filter { $0 == "play" }.count, 1, "only the refused start played")
+    }
+
+    /// The refused song was the first thing played: there is nothing to go back to, so the
+    /// player is stopped and the bar shows nothing loaded, never the song as "Paused".
+    func testASongThatCantPlayFirstLeavesNothingLoaded() async throws {
+        let songs = try Self.refusedTopTracks()
+        let player = RefusingQueueStarter(refusing: ["6773775282"])
+
+        await XCTAssertThrowsRefused(
+            try await AppleMusicQueueStart.start(songs, at: 2, on: player, isCurrent: { true }),
+            left: .nothing
+        )
+        XCTAssertEqual(player.commands.last, "stop")
+    }
+
+    /// A newer play that started while MusicKit was refusing this one owns the queue.
+    func testARefusedStartLeavesANewerPlayAlone() async throws {
+        let songs = try Self.refusedTopTracks()
+        let player = RefusingQueueStarter(refusing: ["6773775282"])
+        player.setQueue([songs[0]], startingAt: nil)
+
+        await XCTAssertThrowsRefused(
+            try await AppleMusicQueueStart.start(songs, at: 2, on: player, isCurrent: { false }),
+            left: .newerPlay
+        )
+        XCTAssertEqual(player.currentEntry?.title, "oh yeah?")
+        XCTAssertFalse(player.commands.contains("stop"))
+    }
+
+    private func XCTAssertThrowsRefused(
+        _ work: @autoclosure () async throws -> Int,
+        left: AppleMusicQueueStart.Left,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async {
+        do {
+            _ = try await work()
+            XCTFail("Expected MusicKit to refuse the start", file: file, line: line)
+        } catch let refused as AppleMusicQueueStart.Refused {
+            XCTAssertEqual(refused.left, left, file: file, line: line)
+        } catch {
+            XCTFail("Unexpected \(error)", file: file, line: line)
+        }
+    }
+
     /// What Screen Time ("Music: Clean") and a restrictions profile set, and the same keys saved
     /// as ordinary preferences, which don't stop MusicKit from playing anything.
     func testOnlyAnEnforcedRestrictionBlocksExplicitSongs() {
@@ -1311,5 +1454,65 @@ final class ScriptedAppleMusicPlayer: AppleMusicPlayerControlling {
             linkedFromID: nil,
             uri: uri
         )
+    }
+}
+
+/// MusicKit's player as measured for #476: a new queue is taken at once; a queue that names its
+/// start can be refused ("Prepare queue failed with unexpected start item"), and a song it won't
+/// play is refused ("Failed to prepare to play"). Either way the refused queue stays current,
+/// paused at 0:00.
+@MainActor
+final class RefusingQueueStarter: AppleMusicQueueStarting {
+    let refusedIDs: Set<String>
+    var refusesNamedStart: Bool
+    private(set) var entries: [MusicPlayer.Queue.Entry] = []
+    private(set) var currentEntry: MusicPlayer.Queue.Entry?
+    private(set) var isPlaying = false
+    private(set) var commands: [String] = []
+    /// The start each queue named, by title (nil: none named).
+    private(set) var namedStarts: [String?] = []
+    private var startIsNamed = false
+    var playbackTime: TimeInterval = 0
+
+    init(refusing ids: Set<String> = [], refusesNamedStart: Bool = false) {
+        refusedIDs = ids
+        self.refusesNamedStart = refusesNamedStart
+    }
+
+    func setQueue(_ entries: [MusicPlayer.Queue.Entry], startingAt entry: MusicPlayer.Queue.Entry?) {
+        commands.append("queue")
+        namedStarts.append(entry?.title)
+        self.entries = entries
+        currentEntry = entry ?? entries.first
+        startIsNamed = entry != nil
+        isPlaying = false
+        playbackTime = 0
+    }
+
+    func play() async throws {
+        commands.append("play")
+        try refuseIfNeeded()
+        isPlaying = currentEntry != nil
+    }
+
+    func prepareToPlay() async throws {
+        commands.append("prepare")
+        try refuseIfNeeded()
+    }
+
+    func stop() {
+        commands.append("stop")
+        isPlaying = false
+    }
+
+    private func refuseIfNeeded() throws {
+        if refusesNamedStart, startIsNamed {
+            isPlaying = false
+            throw NSError(domain: "MPMusicPlayerControllerErrorDomain", code: 6, userInfo: [NSDebugDescriptionErrorKey: "Prepare queue failed with unexpected start item"])
+        }
+        guard case let .song(song) = currentEntry?.item, refusedIDs.contains(song.id.rawValue) else { return }
+        isPlaying = false
+        playbackTime = 0
+        throw NSError(domain: "MPMusicPlayerControllerErrorDomain", code: 6, userInfo: [NSDebugDescriptionErrorKey: "Failed to prepare to play"])
     }
 }

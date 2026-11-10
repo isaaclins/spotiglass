@@ -19,6 +19,11 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
     static let artistSongLimit = 100
 
     private let player = ApplicationMusicPlayer.shared
+    private lazy var starter: any AppleMusicQueueStarting = MusicKitQueueStarter(player: player)
+    /// Set when MusicKit refused the first queue this session tried to play: it still holds that
+    /// queue, paused at its first song, but nothing ever played, so the bar shows nothing loaded
+    /// instead of that song as "Paused" (#476). The next play that starts clears it.
+    private var hidesRefusedQueue = false
     /// The row URI of each queued song. MusicKit hands queued entries back with new ids and
     /// with the song's catalog id instead of the library id the row was built with, so entries
     /// are matched on what they show: title, subtitle and length, then title and subtitle
@@ -87,6 +92,8 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         let carriedInQueue = shuffleWanted ? [] : carried
         var queued = ordered
         queued.insert(contentsOf: carriedInQueue, at: startIndex + 1)
+        let previousBook = book
+        let previousURIs = uriByEntryKey
         uriByEntryKey = [:]
         uriMapGeneration += 1
         for item in queued + (shuffleWanted ? carried : []) {
@@ -97,8 +104,37 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
             carryingAdded: carriedInQueue.count,
             after: startIndex
         )
-        player.queue = ApplicationMusicPlayer.Queue(queued.map(\.entry), startingAt: ordered[startIndex].entry)
-        try await Self.mapped { try await self.player.play() }
+        let leftOut: Int
+        do {
+            leftOut = try await AppleMusicQueueStart.start(queued.map(\.entry), at: startIndex, on: starter, isCurrent: isCurrent)
+        } catch let refused as AppleMusicQueueStart.Refused {
+            // MusicKit switched to the new queue before it refused to play it. What the player
+            // holds now is what the start put back (#476).
+            switch refused.left {
+            case let .previousQueue(leftOutBefore):
+                // Without the songs before the current one, the old positions no longer hold;
+                // the rows are then found by what the entries show.
+                book = leftOutBefore == 0 ? previousBook : AppleMusicQueueBook()
+                uriByEntryKey = previousURIs
+                applyModesToNewQueue()
+            case .nothing:
+                book = AppleMusicQueueBook()
+                uriByEntryKey = [:]
+                hidesRefusedQueue = true
+            case .newerPlay:
+                break
+            }
+            throw Self.mappedError(refused.underlying)
+        }
+        if leftOut > 0 {
+            // MusicKit only took the queue from the pressed song on.
+            book.replace(
+                with: queued.dropFirst(leftOut).map { AppleMusicQueueBook.Row(uri: $0.uri, title: $0.entry.title) },
+                carryingAdded: carriedInQueue.count,
+                after: startIndex - leftOut
+            )
+        }
+        hidesRefusedQueue = false
         // The player switches to a queue it was given only once it plays, so shuffle, repeat
         // and (with shuffle on) the carried songs go in now. A newer play that started in the
         // meantime owns the queue: leave it alone.
@@ -242,6 +278,15 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
     }
 
     func readState() -> AppleMusicPlayerState {
+        guard !hidesRefusedQueue else {
+            return AppleMusicPlayerState(
+                status: .stopped,
+                current: nil,
+                positionMilliseconds: 0,
+                shuffle: shuffleWanted,
+                repeatMode: Self.repeatMode(repeatWanted)
+            )
+        }
         let current = player.queue.currentEntry
         let currentIndex = current.flatMap { current in player.queue.entries.firstIndex { $0.id == current.id } }
         let status: AppleMusicPlayerState.Status
@@ -262,6 +307,7 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
     }
 
     func readUpcoming() -> [MusicTrack] {
+        guard !hidesRefusedQueue else { return [] }
         noteEntries()
         let entries = Array(player.queue.entries)
         guard let currentID = player.queue.currentEntry?.id,
@@ -500,21 +546,29 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
     private static func mapped<T>(_ work: () async throws -> T) async throws -> T {
         do {
             return try await work()
-        } catch let error as MusicPlaybackError {
-            throw error
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch let error as MusicTokenRequestError {
+        } catch {
+            throw mappedError(error)
+        }
+    }
+
+    /// A MusicKit failure as the ``MusicPlaybackError`` (or cancellation) the provider passes on.
+    private static func mappedError(_ error: Error) -> Error {
+        switch error {
+        case let error as MusicPlaybackError:
+            return error
+        case is CancellationError:
+            return CancellationError()
+        case let error as MusicTokenRequestError:
             switch error {
             case .permissionDenied, .userTokenRevoked, .userNotSignedIn:
-                throw MusicPlaybackError(service: .appleMusic, reason: .missingPermission, detail: String(describing: error))
+                return MusicPlaybackError(service: .appleMusic, reason: .missingPermission, detail: String(describing: error))
             default:
-                throw MusicPlaybackError(service: .appleMusic, reason: .failed, detail: String(describing: error))
+                return MusicPlaybackError(service: .appleMusic, reason: .failed, detail: String(describing: error))
             }
-        } catch let error as URLError {
-            throw MusicPlaybackError(service: .appleMusic, reason: .network(error.localizedDescription), detail: String(describing: error))
-        } catch {
-            throw playerError(error)
+        case let error as URLError:
+            return MusicPlaybackError(service: .appleMusic, reason: .network(error.localizedDescription), detail: String(describing: error))
+        default:
+            return playerError(error)
         }
     }
 
@@ -531,6 +585,169 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
             : .failed
         return MusicPlaybackError(service: .appleMusic, reason: reason, detail: String(describing: error))
     }
+}
+
+/// The part of MusicKit's player that starting a queue uses. ``MusicKitQueueStarter`` is the
+/// live one; tests use a player that refuses queues the way MusicKit does.
+@MainActor
+protocol AppleMusicQueueStarting: AnyObject {
+    var entries: [MusicPlayer.Queue.Entry] { get }
+    var currentEntry: MusicPlayer.Queue.Entry? { get }
+    var isPlaying: Bool { get }
+    var playbackTime: TimeInterval { get set }
+    /// `startingAt` nil starts at the first entry without naming it.
+    func setQueue(_ entries: [MusicPlayer.Queue.Entry], startingAt entry: MusicPlayer.Queue.Entry?)
+    func play() async throws
+    func prepareToPlay() async throws
+    func stop()
+}
+
+/// Starts a new queue at the pressed song, and puts back what was there when MusicKit refuses.
+///
+/// Two things MusicKit does on macOS (measured on macOS 27 for #476):
+/// - A queue that names the song to start at is refused about half the time when it is short
+///   (one or two songs: a search result, a single row), with `MPMusicPlayerControllerErrorDomain`
+///   6, "Prepare queue failed with unexpected start item". The same songs queued without naming
+///   a start (it then starts at the first) played every time. So the start is named only when
+///   the pressed song isn't first, and a refused start tries once more with the queue beginning
+///   at the pressed song.
+/// - MusicKit takes the new queue before it tries to play it. When it refuses, the refused song
+///   stays the current entry, paused at 0:00, and what was playing has stopped: the bar showed
+///   the song the user had just pressed play on as "Paused". So a start that is refused for good
+///   gives the old queue back, at the same song and position, playing if it was playing.
+@MainActor
+enum AppleMusicQueueStart {
+    /// What the player holds after a refused start.
+    enum Left: Equatable, Sendable {
+        /// The queue that was there before, at the same song. `leftOutBefore` is how many of its
+        /// songs before that one had to be left out for MusicKit to take it back.
+        case previousQueue(leftOutBefore: Int)
+        /// Nothing was there before; the refused queue is stopped.
+        case nothing
+        /// A newer play took over meanwhile and owns the queue: it was left alone.
+        case newerPlay
+    }
+
+    struct Refused: Error {
+        nonisolated(unsafe) let underlying: Error
+        let left: Left
+    }
+
+    /// Plays `entries` from `startIndex`. Returns how many entries before the start were left
+    /// out (0, or `startIndex` when MusicKit only took the queue from the pressed song on).
+    @discardableResult
+    static func start(
+        _ entries: [MusicPlayer.Queue.Entry],
+        at startIndex: Int,
+        on player: any AppleMusicQueueStarting,
+        isCurrent: @MainActor () -> Bool
+    ) async throws -> Int {
+        guard entries.indices.contains(startIndex) else {
+            throw MusicPlaybackError(service: .appleMusic, reason: .notFound, detail: "No song at queue position \(startIndex)")
+        }
+        let previousEntries = player.entries
+        let previousIndex = player.currentEntry.flatMap { current in previousEntries.firstIndex { $0.id == current.id } }
+        let wasPlaying = player.isPlaying
+        let previousTime = player.playbackTime
+        var refusal: Error
+        do {
+            try await queue(entries, at: startIndex, on: player, play: true)
+            return 0
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            refusal = error
+        }
+        guard isCurrent() else { throw Refused(underlying: refusal, left: .newerPlay) }
+        if startIndex > 0 {
+            do {
+                try await queue(fresh(Array(entries[startIndex...])), at: 0, on: player, play: true)
+                return startIndex
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                refusal = error
+            }
+            guard isCurrent() else { throw Refused(underlying: refusal, left: .newerPlay) }
+        }
+        guard let previousIndex else {
+            player.stop()
+            throw Refused(underlying: refusal, left: .nothing)
+        }
+        // The old song plays again only if it was playing; a paused one is loaded and stays
+        // paused. Either way it goes back to where it was.
+        var leftOut = 0
+        do {
+            try await queue(fresh(previousEntries), at: previousIndex, on: player, play: wasPlaying)
+        } catch {
+            leftOut = previousIndex
+            try? await queue(fresh(Array(previousEntries[previousIndex...])), at: 0, on: player, play: wasPlaying)
+        }
+        player.playbackTime = previousTime
+        throw Refused(underlying: refusal, left: .previousQueue(leftOutBefore: leftOut))
+    }
+
+    /// Sets the queue, naming the start only when it isn't the first entry, then plays it or
+    /// only loads it.
+    private static func queue(
+        _ entries: [MusicPlayer.Queue.Entry],
+        at index: Int,
+        on player: any AppleMusicQueueStarting,
+        play: Bool
+    ) async throws {
+        player.setQueue(entries, startingAt: index == 0 ? nil : entries[index])
+        if play {
+            try await player.play()
+        } else {
+            try await player.prepareToPlay()
+        }
+    }
+
+    /// New entries for the same items: MusicKit gives the entries of a queue it was handed new
+    /// ids, so the ones it already had can't name a start again.
+    static func fresh(_ entries: [MusicPlayer.Queue.Entry]) -> [MusicPlayer.Queue.Entry] {
+        entries.map { entry in
+            switch entry.item {
+            case let .song(song): MusicPlayer.Queue.Entry(song)
+            // The player never queues music videos on macOS (``resolveEntries``).
+            default: entry
+            }
+        }
+    }
+}
+
+/// ``AppleMusicQueueStarting`` on MusicKit's `ApplicationMusicPlayer`.
+@MainActor
+final class MusicKitQueueStarter: AppleMusicQueueStarting {
+    private let player: ApplicationMusicPlayer
+
+    init(player: ApplicationMusicPlayer) {
+        self.player = player
+    }
+
+    var entries: [MusicPlayer.Queue.Entry] { Array(player.queue.entries) }
+    var currentEntry: MusicPlayer.Queue.Entry? { player.queue.currentEntry }
+
+    var isPlaying: Bool {
+        switch player.state.playbackStatus {
+        case .playing, .seekingForward, .seekingBackward: true
+        default: false
+        }
+    }
+
+    var playbackTime: TimeInterval {
+        get { player.playbackTime }
+        set { player.playbackTime = newValue }
+    }
+
+    func setQueue(_ entries: [MusicPlayer.Queue.Entry], startingAt entry: MusicPlayer.Queue.Entry?) {
+        player.queue = entry.map { ApplicationMusicPlayer.Queue(entries, startingAt: $0) }
+            ?? ApplicationMusicPlayer.Queue(entries)
+    }
+
+    func play() async throws { try await player.play() }
+    func prepareToPlay() async throws { try await player.prepareToPlay() }
+    func stop() { player.stop() }
 }
 
 /// Whether this Mac only allows clean music. Screen Time's Content & Privacy ("Music, Podcasts,
