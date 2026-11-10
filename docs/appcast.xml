@@ -3,14 +3,16 @@
     <channel>
         <title>Spotiglass</title>
         <item>
-            <title>0.8.18</title>
-            <pubDate>Tue, 10 Nov 2026 22:28:45 +0100</pubDate>
-            <sparkle:version>29</sparkle:version>
-            <sparkle:shortVersionString>0.8.18</sparkle:shortVersionString>
+            <title>0.8.19</title>
+            <pubDate>Tue, 10 Nov 2026 23:01:02 +0100</pubDate>
+            <sparkle:version>30</sparkle:version>
+            <sparkle:shortVersionString>0.8.19</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[• Appearance option labels now switch to your new language right away when you change the app's language.
+            <description sparkle:format="plain-text"><![CDATA[• Command palette filters stay visible when the window is short.
+• The selected filter in the command palette keeps its label in narrow windows.
+• The search palette is now one clean panel near the top of the window.
 ]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.18/Spotiglass-0.8.18.zip" length="12821359" type="application/octet-stream" sparkle:edSignature="V6xu+IMmpS79pTd0/IdmNXlc1auS2yUbAwwbNR/8leBTY2zk/9JAi0lHLhHGBjNp5qFDFOVhmszueC4sVV0YDQ=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.19/Spotiglass-0.8.19.zip" length="12910779" type="application/octet-stream" sparkle:edSignature="QyApbg1iNSDciYalyU5U87+gWi4bVGsjDE7/XxW9+RmMgxGBvhRcFBk5AIsnR12n3qlrdNRf10qecHL6uTqPDA=="/>
         </item>
     </channel>
 </rss>

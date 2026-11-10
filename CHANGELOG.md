@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.19] - 2026-11-10
+
+### Fixed
+
+- Command palette filters stay visible when the window is short.
+- The selected filter in the command palette keeps its label in narrow windows.
+- The search palette is now one clean panel near the top of the window.
+
 ## [0.8.18] - 2026-11-10
 
 ### Fixed
