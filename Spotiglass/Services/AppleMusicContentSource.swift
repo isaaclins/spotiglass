@@ -78,8 +78,6 @@ protocol AppleMusicContentSource: Sendable {
     func librarySearch(term: String, limit: Int) async throws -> AppleMusicSearchItems
     /// Two-letter storefront country code, e.g. `ch`.
     func storefrontCountryCode() async throws -> String
-    /// What the Apple Music API says about each library playlist's cover (#444).
-    func libraryPlaylistCovers() async throws -> [AppleMusicPlaylistCover]
 }
 
 /// Live MusicKit requests. Library reads use `MusicLibraryRequest` (read-only on macOS),
@@ -308,25 +306,6 @@ struct MusicKitContentSource: AppleMusicContentSource {
 
     func storefrontCountryCode() async throws -> String {
         try await MusicDataRequest.currentCountryCode
-    }
-
-    /// Upper bound for pages of library playlists, 100 each; only stops a runaway.
-    static let maxPlaylistCoverPages = AppleMusicBrowsingProvider.maxLibraryPlaylists / 100
-
-    func libraryPlaylistCovers() async throws -> [AppleMusicPlaylistCover] {
-        var covers: [AppleMusicPlaylistCover] = []
-        var next: String? = AppleMusicCloudRequests.libraryPlaylistsPath
-        var pages = 0
-        while let path = next, pages < Self.maxPlaylistCoverPages {
-            try Task.checkCancellation()
-            let page = try AppleMusicPlaylistCover.page(
-                from: try await MusicDataRequestCloudLibrary.musicDataRequest(AppleMusicCloudRequests.get(path))
-            )
-            covers += page.covers
-            next = page.next
-            pages += 1
-        }
-        return covers
     }
 
     /// Follows MusicKit batches until `limit` items are collected or the collection ends.

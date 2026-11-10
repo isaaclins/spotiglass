@@ -16,6 +16,127 @@ private final class RecordingPinnedCache: PinnedItemsCache {
 
 @MainActor
 final class PinnedItemsStoreTests: XCTestCase {
+    /// Pins made while Apple Music playlists without a picture of their own were listed
+    /// without their cover (#444) saved no cover and kept the grey tile for good. The next
+    /// listing gives them the cover their playlist has, saved for the next launch, and leaves
+    /// every pin that already has one alone (#477).
+    func testPlaylistPinsSavedWithoutACoverGetTheirPlaylistsCover() {
+        let cache = RecordingPinnedCache()
+        let store = PinnedItemsStore(cache: cache)
+        store.bind(userID: "u1")
+        func summary(_ id: String, _ url: String?) -> MusicPlaylistSummary {
+            MusicPlaylistSummary(
+                id: id, name: id, ownerID: "me", ownerName: "You",
+                imageURL: url.flatMap(URL.init(string:)), trackCount: nil, snapshotID: "applemusic"
+            )
+        }
+        store.pin(.playlist(summary("road", nil)))
+        store.pin(.playlist(summary("mix", "https://example.com/old.jpg")))
+        store.pin(.playlist(summary("gone", nil)))
+        store.pin(.album(MusicAlbum(id: "road", name: "Road", artists: [], imageURL: nil, uri: "applemusic:album:road")))
+
+        store.fillMissingPlaylistArtwork(from: [
+            PlaylistRowViewModel(summary("road", "musicKit://artwork/road")),
+            PlaylistRowViewModel(summary("mix", "https://example.com/new.jpg")),
+        ])
+
+        let artwork = store.items.map(\.artworkURL?.absoluteString)
+        XCTAssertEqual(artwork, ["musicKit://artwork/road", "https://example.com/old.jpg", nil, nil])
+        XCTAssertEqual(cache.saved["u1"]?.map(\.artworkURL?.absoluteString), artwork)
+    }
+
+    /// A shared Apple Music playlist pinned from Search is saved under its catalog ID
+    /// (`pl.u-…`), which the library listing doesn't name its rows by: a search result that
+    /// finds it gives the pin back its cover (#477).
+    func testSharedPlaylistPinnedFromSearchGetsItsCoverFromASearchResult() {
+        let cache = RecordingPinnedCache()
+        let store = PinnedItemsStore(cache: cache)
+        store.bind(userID: "u1")
+        func summary(_ id: String, _ url: String?) -> MusicPlaylistSummary {
+            MusicPlaylistSummary(
+                id: id, name: "Shared", ownerID: "me", ownerName: "You",
+                imageURL: url.flatMap(URL.init(string:)), trackCount: nil, snapshotID: "applemusic"
+            )
+        }
+        store.pin(.playlist(summary("pl.u-ZmblDrrtVmXYkko", nil)))
+
+        store.fillMissingPlaylistArtwork(from: [PlaylistRowViewModel(summary("46595082274209082", "musicKit://artwork/shared"))])
+        XCTAssertNil(store.items.first?.artworkURL)
+
+        store.fillMissingPlaylistArtwork(from: [summary("pl.u-ZmblDrrtVmXYkko", "https://example.com/shared.jpg")])
+        XCTAssertEqual(store.items.first?.artworkURL?.absoluteString, "https://example.com/shared.jpg")
+        XCTAssertEqual(cache.saved["u1"]?.first?.artworkURL?.absoluteString, "https://example.com/shared.jpg")
+    }
+
+    /// The pins can come in after the list: the account is bound once its lookup answers, and a
+    /// service switch clears the pins and loads the other library's while its list is already
+    /// on screen and isn't listed again. Those pins get the covers from the list on hand (#477).
+    func testPinsLoadedAfterTheListGetTheirCoverFromIt() {
+        let cache = RecordingPinnedCache()
+        func summary(_ id: String, _ url: String?) -> MusicPlaylistSummary {
+            MusicPlaylistSummary(
+                id: id, name: id, ownerID: "me", ownerName: "You",
+                imageURL: url.flatMap(URL.init(string:)), trackCount: nil, snapshotID: "applemusic"
+            )
+        }
+        cache.saved["u1"] = [
+            .playlist(summary("road", nil)),
+            .playlist(summary("mix", "https://example.com/old.jpg")),
+        ]
+        let store = PinnedItemsStore(cache: cache)
+        store.fillMissingPlaylistArtwork(from: [
+            PlaylistRowViewModel(summary("road", "musicKit://artwork/road")),
+            PlaylistRowViewModel(summary("mix", "https://example.com/new.jpg")),
+        ])
+
+        store.bind(userID: "u1")
+        let expected: [String?] = ["musicKit://artwork/road", "https://example.com/old.jpg"]
+        XCTAssertEqual(store.items.map(\.artworkURL?.absoluteString), expected)
+        XCTAssertEqual(cache.saved["u1"]?.map(\.artworkURL?.absoluteString), expected)
+
+        // A service switch: the pins are cleared and loaded again, the list stays as it was.
+        store.clearForSignOut()
+        cache.saved["u1"] = [.playlist(summary("road", nil))]
+        store.bind(userID: "u1")
+        XCTAssertEqual(store.items.first?.artworkURL?.absoluteString, "musicKit://artwork/road")
+    }
+
+    /// A pin no list names by its ID (a shared playlist pinned from Search, under its catalog
+    /// ID) gets the cover the app knows for that pin from elsewhere (#477).
+    func testPlaylistPinWithoutACoverGetsTheCoverKnownForItsID() {
+        let cache = RecordingPinnedCache()
+        let store = PinnedItemsStore(cache: cache) { pinID in
+            pinID == "playlist:pl.u-ZmblDrrtVmXYkko" ? URL(string: "musicKit://artwork/shared") : nil
+        }
+        store.bind(userID: "u1")
+        store.pin(.playlist(MusicPlaylistSummary(
+            id: "pl.u-ZmblDrrtVmXYkko", name: "Shared", ownerID: "me", ownerName: "You",
+            imageURL: nil, trackCount: nil, snapshotID: "applemusic"
+        )))
+        store.pin(.album(MusicAlbum(id: "pl.u-ZmblDrrtVmXYkko", name: "Road", artists: [], imageURL: nil, uri: "applemusic:album:x")))
+
+        store.fillMissingPlaylistArtwork(from: [PlaylistRowViewModel(MusicPlaylistSummary(
+            id: "46595082274209082", name: "Shared", ownerID: "me", ownerName: "You",
+            imageURL: URL(string: "musicKit://artwork/library"), trackCount: nil, snapshotID: "applemusic"
+        ))])
+
+        XCTAssertEqual(store.items.map(\.artworkURL?.absoluteString), ["musicKit://artwork/shared", nil])
+        XCTAssertEqual(cache.saved["u1"]?.first?.artworkURL?.absoluteString, "musicKit://artwork/shared")
+
+        // That cover only draws while the playlist is in the library. Search's catalog cover
+        // loads on its own and takes its place; a later library cover doesn't undo that.
+        store.fillMissingPlaylistArtwork(from: [MusicPlaylistSummary(
+            id: "pl.u-ZmblDrrtVmXYkko", name: "Shared", ownerID: "me", ownerName: "You",
+            imageURL: URL(string: "https://example.com/shared.jpg"), trackCount: nil, snapshotID: "applemusic"
+        )])
+        store.fillMissingPlaylistArtwork(from: [MusicPlaylistSummary(
+            id: "pl.u-ZmblDrrtVmXYkko", name: "Shared", ownerID: "me", ownerName: "You",
+            imageURL: URL(string: "musicKit://artwork/other"), trackCount: nil, snapshotID: "applemusic"
+        )])
+        XCTAssertEqual(store.items.first?.artworkURL?.absoluteString, "https://example.com/shared.jpg")
+        XCTAssertEqual(cache.saved["u1"]?.first?.artworkURL?.absoluteString, "https://example.com/shared.jpg")
+    }
+
     func testPinDedupesSameId() {
         let cache = RecordingPinnedCache()
         let store = PinnedItemsStore(cache: cache)

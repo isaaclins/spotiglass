@@ -28,7 +28,8 @@ struct PlaylistListRow: View {
             if isLikedSongsRow {
                 LikedSongsArtwork(size: artworkSize, isEmphasized: isListSelected, cornerRadius: SpotiglassDesign.cornerXS)
             } else {
-                // A playlist without a cover of its own gets the calm placeholder (#444).
+                // The cover the Music app shows, Apple's generated ones included; the placeholder
+                // only when there is no artwork at all (#477).
                 ArtworkView(url: playlist.artworkURL, size: artworkSize, cornerRadius: SpotiglassDesign.cornerXS)
             }
         } title: {

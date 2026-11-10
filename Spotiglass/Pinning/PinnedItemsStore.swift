@@ -18,9 +18,20 @@ final class PinnedItemsStore: ObservableObject {
     private(set) var boundUserID: String?
     /// Invalidates profile lookups that started before a sign-out or reconnect.
     private(set) var bindingGeneration = 0
+    /// The covers of the playlists listed or found so far, by playlist ID, so pins that are
+    /// loaded after the list (the account is bound later, a service switch) get them too (#477).
+    private var knownPlaylistCovers: [String: URL] = [:]
+    /// Bounds `knownPlaylistCovers`: past it the map starts over from the next list.
+    static let maxKnownPlaylistCovers = 10_000
 
-    init(cache: PinnedItemsCache?) {
+    /// The cover the app knows for a pin ID from elsewhere, for a playlist pin saved without
+    /// one that no list names by its ID: a shared Apple Music playlist pinned from Search is
+    /// pinned under its catalog ID, which the library listing keeps its cover under (#477).
+    private let knownArtwork: (String) -> URL?
+
+    init(cache: PinnedItemsCache?, knownArtwork: @escaping (String) -> URL? = { _ in nil }) {
         self.cache = cache
+        self.knownArtwork = knownArtwork
     }
 
     /// Bind the store to a Spotify user ID. Loads that account's pinned list
@@ -38,8 +49,9 @@ final class PinnedItemsStore: ObservableObject {
         }
         if let loaded = try? cache.loadPinnedItems(userID: userID) {
             let migrated = PinnedItem.migrateLegacyTrackPins(loaded)
-            items = migrated
-            if migrated != loaded {
+            let filled = fillingMissingPlaylistArtwork(migrated, from: knownPlaylistCovers)
+            items = filled
+            if filled != loaded {
                 persist()
             }
         } else {
@@ -130,6 +142,54 @@ final class PinnedItemsStore: ObservableObject {
         guard let idx = items.firstIndex(where: { $0.id == id }), items[idx].isStale != stale else { return }
         items[idx].isStale = stale
         persist()
+    }
+
+    /// Gives playlist pins saved without a cover the one their playlist has now. Apple Music
+    /// playlists without a picture of their own were once listed without Apple's generated
+    /// cover, so pins made then kept the placeholder for good (#477). A pin that has a cover
+    /// keeps it, unless it's a `musicKit://` one and a cover that loads on its own is offered.
+    func fillMissingPlaylistArtwork(from playlists: [PlaylistRowViewModel]) {
+        fillMissingPlaylistArtwork(covers: playlists.map { ($0.id, $0.artworkURL) })
+    }
+
+    /// The same for playlists found by a search, which names a shared playlist by its catalog
+    /// ID, the one pins made from Search carry.
+    func fillMissingPlaylistArtwork(from playlists: [MusicPlaylistSummary]) {
+        fillMissingPlaylistArtwork(covers: playlists.map { ($0.id, $0.imageURL) })
+    }
+
+    private func fillMissingPlaylistArtwork(covers: [(id: String, url: URL?)]) {
+        let artworkByID = Dictionary(
+            covers.compactMap { cover in cover.url.map { (cover.id, $0) } },
+            uniquingKeysWith: { first, _ in first }
+        )
+        if knownPlaylistCovers.count + artworkByID.count > Self.maxKnownPlaylistCovers {
+            knownPlaylistCovers = [:]
+        }
+        knownPlaylistCovers.merge(artworkByID) { _, new in new }
+        let next = fillingMissingPlaylistArtwork(items, from: artworkByID)
+        guard next != items else { return }
+        items = next
+        persist()
+    }
+
+    private func fillingMissingPlaylistArtwork(_ items: [PinnedItem], from artworkByID: [String: URL]) -> [PinnedItem] {
+        var next = items
+        for index in next.indices where next[index].kind == .playlist {
+            guard let id = next[index].spotifyID else { continue }
+            if let saved = next[index].artworkURL {
+                // A `musicKit://` cover only draws while the library has the playlist. One a list
+                // offers that loads on its own (a shared playlist's catalog cover from Search)
+                // takes its place, so the pin keeps its cover if the playlist leaves the library.
+                guard AppleMusicArtworkRegistry.needsMusicKit(saved),
+                      let durable = artworkByID[id], !AppleMusicArtworkRegistry.needsMusicKit(durable)
+                else { continue }
+                next[index].artworkURL = durable
+            } else if let url = artworkByID[id] ?? knownArtwork(next[index].id) {
+                next[index].artworkURL = url
+            }
+        }
+        return next
     }
 
     /// Clears the in-memory list without touching disk. Used at sign-out so
