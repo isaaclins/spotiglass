@@ -895,6 +895,41 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         XCTAssertFalse(player.isPlaying)
     }
 
+    /// The same when MusicKit starts the song anyway once the stop went out: it is stopped
+    /// again, so nothing plays after a sign-out.
+    func testAStartMusicKitPlaysAfterAStopIsStoppedAgain() async throws {
+        let songs = try Self.refusedTopTracks()
+        let player = RefusingQueueStarter()
+        try await Self.playingP(player)
+        let starts = Starts(player: player)
+        player.holdsPlays = true
+
+        let x = Task { await Self.outcome { try await Self.press(starts, [songs[2]], rows: "X") } }
+        await player.waitForHeldPlays(1)
+        starts.stop()
+        player.releasePlay()
+
+        let xOutcome = await x.value
+        XCTAssertEqual(xOutcome, "plays, 0 left out")
+        XCTAssertFalse(player.isPlaying)
+        XCTAssertEqual(player.commands.suffix(3), ["play", "stop", "stop"], "the sign-out's stop, then the stop after MusicKit started it")
+    }
+
+    /// MusicKit keeps its queue after a stop (a sign-out). A refused press after that gives
+    /// back nothing, not the ended session's song.
+    func testARefusedPressAfterAStopGivesBackNothing() async throws {
+        let songs = try Self.refusedTopTracks()
+        let player = RefusingQueueStarter(refusing: ["6773775282"])
+        try await Self.playingP(player)
+        let starts = Starts(player: player)
+        starts.stop()
+
+        let outcome = await Self.outcome { try await Self.press(starts, [songs[2]], rows: "X", holding: "ended session") }
+
+        XCTAssertEqual(outcome, "nothing")
+        XCTAssertNotEqual(player.currentEntry?.title, "ITTY BITTY")
+    }
+
     /// A refused start can only put the old queue back from its current song on ([A, B, X, Y, C]
     /// with B playing and X, Y added comes back as [B, X, Y, C]). The added songs keep their
     /// place: a later add goes after them, and the next play still carries them.

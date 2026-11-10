@@ -141,7 +141,9 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
         // meanwhile (a newer play, or a stop) owns the player, its book and its rows: leave
         // them alone.
         guard starts.holdsQueue(started) else { return }
-        book = played(started.leftOut).book
+        // The book is still this queue's (an add may have finished meanwhile): it only moves up
+        // when MusicKit took the queue from the pressed song on.
+        book.dropFirst(started.leftOut)
         applyModesToNewQueue()
         if shuffleWanted, !carried.isEmpty {
             // Each goes right after the current song, so inserting the last first keeps the
@@ -661,6 +663,9 @@ final class AppleMusicQueueStarts<Rows> {
     private let player: any AppleMusicQueueStarting
     /// Bumped whenever the player's queue is replaced or the player is stopped.
     private var queueSerial = 0
+    /// The ``queueSerial`` of the last stop. A start that MusicKit plays after it stops again,
+    /// and what a stopped player holds (an ended session's queue) is nothing to give back.
+    private var stoppedAt: Int?
     /// What a refused start gives back, shared by the starts whose queue the player holds but
     /// hasn't played yet; `nil` once what the player holds played.
     private var pending: GiveBack?
@@ -699,7 +704,16 @@ final class AppleMusicQueueStarts<Rows> {
     func stop() {
         player.stop()
         queueSerial += 1
+        stoppedAt = queueSerial
         pending = nil
+    }
+
+    /// Another queue or a stop replaced the start that just heard back from MusicKit. After a
+    /// stop, what MusicKit started anyway is stopped again.
+    private func replaced(playing: Bool) {
+        if playing, stoppedAt == queueSerial {
+            player.stop()
+        }
     }
 
     /// Plays `entries` from `startIndex`. `currentRows` are the rows of what the player holds
@@ -762,7 +776,10 @@ final class AppleMusicQueueStarts<Rows> {
                 try stopRefused(refusal)
             }
         }
-        guard mine == queueSerial else { throw Refused(underlying: refusal, left: .replaced) }
+        guard mine == queueSerial else {
+            replaced(playing: giveBack.wasPlaying)
+            throw Refused(underlying: refusal, left: .replaced)
+        }
         player.playbackTime = giveBack.time
         pending = nil
         hidesRefusedQueue = false
@@ -780,6 +797,8 @@ final class AppleMusicQueueStarts<Rows> {
         if serial == queueSerial {
             pending = nil
             hidesRefusedQueue = false
+        } else if stoppedAt == queueSerial {
+            replaced(playing: true)
         } else {
             // A newer start replaced this queue while it was starting. This one played, so it
             // is what that start gives back if MusicKit refuses it.
@@ -792,10 +811,10 @@ final class AppleMusicQueueStarts<Rows> {
         return Started(leftOut: leftOut, queueSerial: serial)
     }
 
-    /// What the player holds now, as a give-back. A refused queue that is only hidden is
-    /// nothing to give back.
+    /// What the player holds now, as a give-back. A refused queue that is only hidden, or the
+    /// queue of a stopped player, is nothing to give back.
     private func giveBackNow(rows: Rows) -> GiveBack {
-        guard !hidesRefusedQueue else {
+        guard !hidesRefusedQueue, stoppedAt != queueSerial else {
             return GiveBack(entries: [], index: nil, wasPlaying: false, time: 0, rows: rows)
         }
         let entries = player.entries
