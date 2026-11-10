@@ -21,6 +21,14 @@ struct CommandPaletteView: View {
     @State private var previousResponder: NSResponder?
     @State private var previousWindow: NSWindow?
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+    /// Height the palette can use; starts tall so the first frame sits at the full inset.
+    @State private var availableHeight: CGFloat = .infinity
+
+    /// Space above the panel: an eighth of the height, at least `spacingL`, at most the
+    /// Spotlight-like top inset a tall window gets.
+    static func topInset(forAvailableHeight height: CGFloat) -> CGFloat {
+        min(SpotiglassDesign.Layout.paletteTopInset, max(SpotiglassDesign.spacingL, (height / 8).rounded()))
+    }
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -30,9 +38,11 @@ struct CommandPaletteView: View {
             )
 
             VStack(spacing: 0) {
-                // Grows up to the top inset in a tall window and gives way first in a short one.
+                // The space above follows the window's height only, never the panel's: when it
+                // depended on what was left over, a short window moved the panel down each time
+                // the results got shorter.
                 Color.clear
-                    .frame(minHeight: SpotiglassDesign.spacingL, maxHeight: SpotiglassDesign.Layout.paletteTopInset)
+                    .frame(height: Self.topInset(forAvailableHeight: availableHeight))
                     .allowsHitTesting(false)
                 CommandPalettePanelView(
                     viewModel: viewModel,
@@ -45,6 +55,7 @@ struct CommandPaletteView: View {
                     .allowsHitTesting(false)
             }
             .padding(.horizontal, SpotiglassDesign.spacingXL)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { availableHeight = $0 }
         }
         .onAppear {
             previousWindow = NSApp.keyWindow

@@ -127,6 +127,14 @@ final class CommandPalettePanelTests: XCTestCase {
 
         XCTAssertFalse(quickActionIDs().contains(CommandPaletteCommandID.toggleLyrics))
         XCTAssertTrue(quickActionIDs().contains(CommandPaletteCommandID.togglePlayback))
+
+        // One letter still shows the suggestions, so they have to keep up there too.
+        manager.viewModel.query = "d"
+        manager.viewModel.refresh()
+        await manager.viewModel.waitForSearchCompletion()
+        manager.setLyricsToggleAvailability(true)
+        await manager.viewModel.waitForSearchCompletion()
+        XCTAssertTrue(quickActionIDs().contains(CommandPaletteCommandID.toggleLyrics))
     }
 
     /// One letter is below the search minimum, so the list emptied and the panel collapsed
@@ -272,6 +280,60 @@ final class CommandPalettePanelTests: XCTestCase {
         }
     }
 
+    /// In a short window the space above the panel was whatever the panel left over, so the panel
+    /// moved down each time the results got shorter (one result sat 63 pt lower than the
+    /// suggestions at 900 × 450). Its top edge must not depend on what it shows.
+    func testThePanelKeepsItsPlaceWhenTheResultsChange() throws {
+        let store = try ViewTestHost.makeSettingsStore()
+        let size = CGSize(width: 900, height: 450)
+        func panelTop(rows: Int) throws -> Int {
+            let viewModel = CommandPaletteViewModel()
+            viewModel.show()
+            viewModel.query = "song"
+            viewModel.testingReplaceSections([(.tracks, (0 ..< rows).map(track))])
+            let host = NSHostingView(rootView: CommandPaletteView(viewModel: viewModel)
+                .environmentObject(store)
+                .background(Color.white)
+                .environment(\.colorScheme, .light))
+            host.frame = NSRect(origin: .zero, size: size)
+            host.layoutSubtreeIfNeeded()
+            AppKitTestSupport.pumpRunLoop(for: 0.2)
+            host.layoutSubtreeIfNeeded()
+            let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+            host.cacheDisplay(in: host.bounds, to: bitmap)
+            return try XCTUnwrap(Self.firstChangedRow(in: XCTUnwrap(bitmap.cgImage)))
+        }
+        XCTAssertEqual(try panelTop(rows: 1), try panelTop(rows: 30))
+    }
+
+    func testTheSpaceAboveThePanelFollowsTheWindowHeight() {
+        XCTAssertEqual(CommandPaletteView.topInset(forAvailableHeight: 1_000), SpotiglassDesign.Layout.paletteTopInset)
+        XCTAssertEqual(CommandPaletteView.topInset(forAvailableHeight: 400), 50)
+        XCTAssertEqual(CommandPaletteView.topInset(forAvailableHeight: 100), SpotiglassDesign.spacingL)
+    }
+
+    /// First row, down the middle column, clearly lighter than the dimmed backdrop at the top:
+    /// the panel's own edge (its shadow only ever darkens).
+    private static func firstChangedRow(in image: CGImage) -> Int? {
+        let width = image.width
+        let height = image.height
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        guard let context = CGContext(
+            data: &pixels, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        func pixel(_ row: Int) -> [Int] {
+            let start = (row * width + width / 2) * 4
+            return (0 ..< 4).map { Int(pixels[start + $0]) }
+        }
+        let reference = pixel(1)[0 ..< 3].reduce(0, +)
+        for row in 2 ..< height where pixel(row)[0 ..< 3].reduce(0, +) > reference + 30 {
+            return row
+        }
+        return nil
+    }
+
     /// In the smallest window the footer asked for more width than the panel has once a track
     /// offered ⇧↩ queue and ⌘↩ pin, so "esc close" was cut off at the panel's edge (German, and
     /// English too). It now drops the least needed hints and keeps a margin on the right.
@@ -321,6 +383,44 @@ final class CommandPalettePanelTests: XCTestCase {
             }
         }
         return nil
+    }
+
+    /// When the filters don't fit, the row scrolls. ⇥ changed the filter with focus in the field,
+    /// so nothing scrolled, and the selected chip could sit clipped past the edge.
+    func testTheSelectedFilterScrollsIntoView() throws {
+        let viewModel = CommandPaletteViewModel()
+        viewModel.show()
+        let row = CommandPaletteCategoryPillsRowView(viewModel: viewModel)
+            .environment(\.appearsActive, true)
+            .environment(\.colorScheme, .light)
+            .frame(width: 150)
+            .background(Color.white)
+        let controller = ViewTestHost.host(row, size: CGSize(width: 150, height: 60))
+        let last = try XCTUnwrap(viewModel.availableSearchCategories.last)
+        XCTAssertNotEqual(last, viewModel.searchCategoryFilter)
+
+        viewModel.selectCategory(last)
+        AppKitTestSupport.pumpRunLoop(for: 0.4)
+
+        let host = controller.view
+        let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+        host.cacheDisplay(in: host.bounds, to: bitmap)
+        XCTAssertGreaterThan(Self.accentPixelCount(in: try XCTUnwrap(bitmap.cgImage)), 40, "selected chip is out of view")
+    }
+
+    /// Pixels that are clearly the blue accent fill.
+    private static func accentPixelCount(in image: CGImage) -> Int {
+        let width = image.width
+        let height = image.height
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        guard let context = CGContext(
+            data: &pixels, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return 0 }
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        return stride(from: 0, to: pixels.count, by: 4).filter { index in
+            Int(pixels[index + 2]) - Int(pixels[index]) > 80
+        }.count
     }
 
     // MARK: - Selected filter (#469)

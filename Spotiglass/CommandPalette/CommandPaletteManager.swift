@@ -192,13 +192,11 @@ final class CommandPaletteManager: ObservableObject {
         refreshListedCommands()
     }
 
-    /// Commands show in `>` scope and, before anything is typed, as quick actions (#472): both
+    /// Commands show in `>` scope and, before a search starts, as quick actions (#472): both
     /// lists have to follow what the service can do right now.
     private func refreshListedCommands() {
         guard viewModel.isPresented else { return }
-        let showsCommands = viewModel.currentScope == .commands
-            || viewModel.strippedQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        guard showsCommands else { return }
+        guard viewModel.currentScope == .commands || viewModel.showsSuggestions else { return }
         viewModel.refresh()
     }
 

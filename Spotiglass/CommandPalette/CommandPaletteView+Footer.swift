@@ -86,8 +86,18 @@ struct CommandPaletteCategoryPillsRowView: View {
         // instead of squeezing a label away (#469).
         ViewThatFits(in: .horizontal) {
             pills
-            ScrollView(.horizontal, showsIndicators: false) {
-                pills
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    pills
+                }
+                // ⇥ changes the filter while focus stays in the field: follow it, so the selected
+                // chip never sits clipped past the edge.
+                .onChange(of: viewModel.searchCategoryFilter) { _, category in
+                    proxy.scrollTo(category, anchor: .center)
+                }
+                .onAppear {
+                    proxy.scrollTo(viewModel.searchCategoryFilter, anchor: .center)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -99,6 +109,7 @@ struct CommandPaletteCategoryPillsRowView: View {
         HStack(spacing: SpotiglassDesign.spacingXS) {
             ForEach(viewModel.availableSearchCategories, id: \.self) { category in
                 CommandPaletteCategoryPillView(category: category, viewModel: viewModel)
+                    .id(category)
             }
         }
         .fixedSize(horizontal: true, vertical: false)

@@ -170,11 +170,17 @@ final class CommandPaletteViewModel: ObservableObject {
         selectedIndex = previous.flatMap { id in visibleItems.firstIndex { $0.id == id } } ?? 0
     }
 
+    /// True while the songs scope shows suggestions instead of a search: the field is empty or
+    /// holds less than ``minimumPaletteSearchQueryCharacters``.
+    var showsSuggestions: Bool {
+        currentScope == .songs
+            && strippedQuery.trimmingCharacters(in: .whitespacesAndNewlines).count < Self.minimumPaletteSearchQueryCharacters
+    }
+
     func clearRecentSearches() {
         recentSearches.clear()
-        let trimmed = strippedQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard currentScope == .songs, trimmed.count < Self.minimumPaletteSearchQueryCharacters else { return }
-        showIdleSections(prefix: trimmed)
+        guard showsSuggestions else { return }
+        showIdleSections(prefix: strippedQuery.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
     /// Puts a recent search back into the field, keeping the selected filter.
