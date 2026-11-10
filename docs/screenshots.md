@@ -64,8 +64,8 @@ never reaches MusicKit.
 prints how long one resize and an animated one of `steps` steps took
 ([`resize_timing.swift`](../scripts/screenshot-mode/resize_timing.swift)). With `max-ms-per-step` it
 exits with an error when the median step is slower. It times the app's main window and stops with
-an error when a resize call fails or the window doesn't take the size (a full-screen window), so a
-run that resized nothing can't pass. Measure a Release build:
+an error when a resize call fails or the window doesn't take any one of the sizes it was given
+(checked after each resize, outside the timing), so a full-screen or clamped window can't pass. Measure a Release build:
 
 ```sh
 scripts/screenshots.sh start --release
