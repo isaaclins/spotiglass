@@ -448,6 +448,12 @@ struct AppleMusicQueueBook: Equatable {
         generation &+= 1
     }
 
+    /// The book went back to a queue it held before (a refused start gave that queue back): an
+    /// add planned before that is ignored, since MusicKit took it into another queue.
+    mutating func forgetPendingAdds() {
+        generation &+= 1
+    }
+
     /// `count` added songs now sit right after the current song from position `start` (put
     /// there after shuffle reordered a new queue).
     mutating func markAdded(start: Int, count: Int) {

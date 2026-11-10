@@ -975,6 +975,43 @@ final class AppleMusicPlaybackProviderTests: XCTestCase {
         XCTAssertFalse(starts.hidesRefusedQueue)
     }
 
+    /// I press a row further down a short list and pause while MusicKit works on it. MusicKit
+    /// refuses the named start and the retry plays the song: it is paused again, since pause
+    /// was the last thing I asked for.
+    func testAPauseBeforeTheRetryKeepsTheSongPaused() async throws {
+        let songs = try Self.refusedTopTracks()
+        let player = RefusingQueueStarter(refusesNamedStart: true)
+        let starts = Starts(player: player)
+        player.holdsPlays = true
+
+        let x = Task { await Self.outcome { try await Self.press(starts, songs, at: 2, rows: "X") } }
+        await player.waitForHeldPlays(1)
+        starts.paused()
+        player.releasePlay() // the named start refused
+        await player.waitForHeldPlays(1) // the retry from the pressed song
+        player.releasePlay()
+
+        let xOutcome = await x.value
+        XCTAssertEqual(xOutcome, "plays, 2 left out")
+        XCTAssertEqual(player.currentEntry?.title, "oh yeah?")
+        XCTAssertFalse(player.isPlaying)
+        XCTAssertEqual(player.commands.last, "pause")
+    }
+
+    /// A refused start gave back the queue the book held before. An add planned against that
+    /// queue before the press went into another queue in MusicKit, so it isn't recorded.
+    func testAnAddPlannedBeforeAGiveBackIsIgnored() {
+        var book = Book()
+        book.replace(with: ["a", "b", "c"].map { Self.row($0) })
+        let plan = book.planAdd(Self.row("z"), currentIndex: 0, entryCount: 3)
+
+        book.forgetPendingAdds()
+        book.finishAdd(plan)
+
+        XCTAssertNil(book.addedAhead(of: 0))
+        XCTAssertEqual(book.rowURI(at: 1, title: "b"), Self.row("b").uri)
+    }
+
     /// A refused start can only put the old queue back from its current song on ([A, B, X, Y, C]
     /// with B playing and X, Y added comes back as [B, X, Y, C]). The added songs keep their
     /// place: a later add goes after them, and the next play still carries them.
@@ -1767,6 +1804,11 @@ final class RefusingQueueStarter: AppleMusicQueueStarting {
             await withCheckedContinuation { held.append($0) }
         }
         try refusal.get()
+    }
+
+    func pause() {
+        commands.append("pause")
+        isPlaying = false
     }
 
     func stop() {

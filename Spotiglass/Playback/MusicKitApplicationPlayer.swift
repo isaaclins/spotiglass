@@ -125,6 +125,7 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
             case let .previousQueue(rows, leftOutBefore):
                 // Given back without the songs before the current one, every position moves up.
                 book = rows.book
+                book.forgetPendingAdds()
                 book.dropFirst(leftOutBefore)
                 uriByEntryKey = rows.uris
                 applyModesToNewQueue()
@@ -617,6 +618,7 @@ protocol AppleMusicQueueStarting: AnyObject {
     func setQueue(_ entries: [MusicPlayer.Queue.Entry], startingAt entry: MusicPlayer.Queue.Entry?)
     func play() async throws
     func prepareToPlay() async throws
+    func pause()
     func stop()
 }
 
@@ -691,6 +693,8 @@ final class AppleMusicQueueStarts<Rows> {
         var wasPlaying: Bool
         var time: TimeInterval
         var rows: Rows
+        /// I paused while the start waited: what it plays after that is paused again.
+        var pausedMeanwhile = false
 
         init(entries: [MusicPlayer.Queue.Entry], index: Int?, wasPlaying: Bool, time: TimeInterval, rows: Rows) {
             self.entries = entries
@@ -728,6 +732,7 @@ final class AppleMusicQueueStarts<Rows> {
     /// paused.
     func paused() {
         pending?.wasPlaying = false
+        pending?.pausedMeanwhile = true
     }
 
     /// Stops the player. A start still waiting for MusicKit then leaves the queue alone.
@@ -775,6 +780,7 @@ final class AppleMusicQueueStarts<Rows> {
             mine = setQueue(tail, at: 0)
             do {
                 try await player.play()
+                if giveBack.pausedMeanwhile, mine == queueSerial { player.pause() }
                 return played(tail, at: 0, leftOut: startIndex, serial: mine, giveBack: giveBack, rowsPlayed: rowsPlayed)
             } catch is CancellationError {
                 throw CancellationError()
@@ -792,11 +798,13 @@ final class AppleMusicQueueStarts<Rows> {
         guard let index = giveBack.index else { try stopRefused(refusal) }
         var mine = setQueue(Self.fresh(giveBack.entries), at: index)
         var leftOut = 0
+        // A pause while it loads turns `wasPlaying` off: it is paused again once loaded.
+        let loadsPlaying = giveBack.wasPlaying
         // Set before it plays too, so the song isn't heard from 0:00 first; set again once it
         // does, in case MusicKit only takes it then.
         player.playbackTime = giveBack.time
         do {
-            try await load(playing: giveBack.wasPlaying)
+            try await load(playing: loadsPlaying)
         } catch {
             guard mine == queueSerial else { throw Refused(underlying: refusal, left: .replaced) }
             guard index > 0 else { try stopRefused(refusal) }
@@ -804,7 +812,7 @@ final class AppleMusicQueueStarts<Rows> {
             leftOut = index
             player.playbackTime = giveBack.time
             do {
-                try await load(playing: giveBack.wasPlaying)
+                try await load(playing: loadsPlaying)
             } catch {
                 guard mine == queueSerial else { throw Refused(underlying: refusal, left: .replaced) }
                 try stopRefused(refusal)
@@ -815,6 +823,7 @@ final class AppleMusicQueueStarts<Rows> {
             throw Refused(underlying: refusal, left: .replaced)
         }
         player.playbackTime = giveBack.time
+        if loadsPlaying, !giveBack.wasPlaying { player.pause() }
         pending = nil
         hidesRefusedQueue = false
         throw Refused(underlying: refusal, left: .previousQueue(rows: giveBack.rows, leftOutBefore: leftOut))
@@ -928,6 +937,7 @@ final class MusicKitQueueStarter: AppleMusicQueueStarting {
 
     func play() async throws { try await player.play() }
     func prepareToPlay() async throws { try await player.prepareToPlay() }
+    func pause() { player.pause() }
     func stop() { player.stop() }
 }
 
