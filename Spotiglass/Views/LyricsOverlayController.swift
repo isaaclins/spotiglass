@@ -353,6 +353,18 @@ final class LyricsOverlayController: ObservableObject {
         isPresented = presented
     }
 
+    /// What the bar's Lyrics button and View › Show Lyrics toggle. `willOpen` runs when the
+    /// lyrics are about to open.
+    func presentedBinding(willOpen: @escaping () -> Void) -> Binding<Bool> {
+        Binding(
+            get: { self.isPresented },
+            set: { newValue in
+                if newValue, !self.isPresented, self.hasLyricsToShow { willOpen() }
+                self.setPresented(newValue)
+            }
+        )
+    }
+
     var hasLyricsToShow: Bool {
         guard let playbackViewModel else { return false }
         return playbackViewModel.audiblePlayer.currentLyricTrack != nil
