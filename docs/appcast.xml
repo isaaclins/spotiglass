@@ -3,14 +3,14 @@
     <channel>
         <title>Spotiglass</title>
         <item>
-            <title>0.8.14</title>
-            <pubDate>Mon, 09 Nov 2026 05:59:34 +0100</pubDate>
-            <sparkle:version>25</sparkle:version>
-            <sparkle:shortVersionString>0.8.14</sparkle:shortVersionString>
+            <title>0.8.15</title>
+            <pubDate>Tue, 10 Nov 2026 20:38:06 +0100</pubDate>
+            <sparkle:version>26</sparkle:version>
+            <sparkle:shortVersionString>0.8.15</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[• Lyrics can now pop out into a small window that stays on top of your other apps.
+            <description sparkle:format="plain-text"><![CDATA[• The player bar now stays on the song you paused, even when the other service is on screen.
 ]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.14/Spotiglass-0.8.14.zip" length="12777296" type="application/octet-stream" sparkle:edSignature="94w2GywbiOFisQzbOYjc+RhrxL8CvHJ8OVfklO12HrttflGNQgihavKynDnpC4TarosHPvnAABOaOI+PzucVAA=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.15/Spotiglass-0.8.15.zip" length="12783189" type="application/octet-stream" sparkle:edSignature="4gduXPk1XG8OXQBFDugIBilOLdi/6OnpknFN4pcMgFLgHE8+sOxy/YUUCVQzuC8IduXdVAF1biafw13WMhVjBQ=="/>
         </item>
     </channel>
 </rss>

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.15] - 2026-11-10
+
+### Fixed
+
+- The player bar now stays on the song you paused, even when the other service is on screen.
+
 ## [0.8.14] - 2026-11-09
 
 ### Fixed
