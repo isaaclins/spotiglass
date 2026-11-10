@@ -195,7 +195,7 @@ final class SpotiglassPlaybackHosts: ObservableObject {
             .map { state, lastHeard in
                 switch state {
                 case .playing: true
-                case .paused: lastHeard == otherService
+                case let .paused(song): song != nil && lastHeard == otherService
                 default: false
                 }
             }
