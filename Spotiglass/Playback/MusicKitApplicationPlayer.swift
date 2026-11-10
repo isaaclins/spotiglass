@@ -22,7 +22,8 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
     private lazy var starter: any AppleMusicQueueStarting = MusicKitQueueStarter(player: player)
     /// Set when MusicKit refused the first queue this session tried to play: it still holds that
     /// queue, paused at its first song, but nothing ever played, so the bar shows nothing loaded
-    /// instead of that song as "Paused" (#476). The next play that starts clears it.
+    /// instead of that song as "Paused" (#476). The next play that starts clears it, and so does
+    /// a resume or skip MusicKit takes: those go to that queue, and what then plays must show.
     private var hidesRefusedQueue = false
     /// The row URI of each queued song. MusicKit hands queued entries back with new ids and
     /// with the song's catalog id instead of the library id the row was built with, so entries
@@ -164,6 +165,7 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
 
     func resume() async throws {
         try await Self.mapped { try await self.player.play() }
+        hidesRefusedQueue = false
     }
 
     func stop() {
@@ -179,10 +181,12 @@ final class MusicKitApplicationPlayer: AppleMusicPlayerControlling {
 
     func skipToNext() async throws {
         try await Self.mapped { try await self.player.skipToNextEntry() }
+        hidesRefusedQueue = false
     }
 
     func skipToPrevious() async throws {
         try await Self.mapped { try await self.player.skipToPreviousEntry() }
+        hidesRefusedQueue = false
     }
 
     func setShuffle(_ enabled: Bool) {
@@ -676,13 +680,17 @@ enum AppleMusicQueueStart {
         }
         // The old song plays again only if it was playing; a paused one is loaded and stays
         // paused. Either way it goes back to where it was.
+        // Putting it back waits for MusicKit too: a play pressed meanwhile owns the queue, and
+        // must keep its song, its position and its rows.
         var leftOut = 0
         do {
             try await queue(fresh(previousEntries), at: previousIndex, on: player, play: wasPlaying)
         } catch {
+            guard isCurrent() else { throw Refused(underlying: refusal, left: .newerPlay) }
             leftOut = previousIndex
             try? await queue(fresh(Array(previousEntries[previousIndex...])), at: 0, on: player, play: wasPlaying)
         }
+        guard isCurrent() else { throw Refused(underlying: refusal, left: .newerPlay) }
         player.playbackTime = previousTime
         throw Refused(underlying: refusal, left: .previousQueue(leftOutBefore: leftOut))
     }
