@@ -508,6 +508,10 @@ final class CrossServicePlaybackTests: XCTestCase {
     ) throws -> LyricsOverlayController {
         let settings = try ViewTestHost.makeSettingsStore()
         let lyricsOverlay = LyricsOverlayController()
+        var willOpen = 0
+        lyricsOverlay.presentedBinding { willOpen += 1 }.wrappedValue = true
+        XCTAssertFalse(lyricsOverlay.isPresented, "the lyrics opened with no song to show")
+        XCTAssertEqual(willOpen, 0, "a refused open saved the playlist's scroll position")
         lyricsOverlay.attach(
             playback: playback,
             queue: QueueViewModel(provider: playback.provider, playbackSession: playback),
@@ -519,9 +523,9 @@ final class CrossServicePlaybackTests: XCTestCase {
             navigateToAlbum: { _, _, _ in }
         )
         // What the bar's Lyrics button and View › Show Lyrics toggle.
-        var willOpen = 0
         lyricsOverlay.presentedBinding { willOpen += 1 }.wrappedValue = true
-        XCTAssertEqual(willOpen, 1)
+        lyricsOverlay.presentedBinding { willOpen += 1 }.wrappedValue = true
+        XCTAssertEqual(willOpen, 1, "opening the lyrics again saved the playlist's scroll position again")
         XCTAssertTrue(lyricsOverlay.isPresented, "the lyrics didn't open for the song in the bar")
         ViewTestHost.host(
             LyricsOverlayLayer(lyricsOverlay: lyricsOverlay, keymapStore: CommandPaletteKeymapStore(settingsStore: settings))
