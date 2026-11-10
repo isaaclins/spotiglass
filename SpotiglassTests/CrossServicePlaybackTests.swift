@@ -397,23 +397,9 @@ final class CrossServicePlaybackTests: XCTestCase {
 
         // The Lyrics view in the main window loads the song in the bar.
         var looked: [String] = []
-        let settings = try ViewTestHost.makeSettingsStore()
+        let lyricsOverlay = try hostLyricsOverlay(onScreenPlayer: playback) { looked.append($0) }
         defer { ViewTestHost.tearDownAll() }
-        ViewTestHost.host(
-            LyricsOverlayPlayerResolver(
-                onScreenPlayer: playback,
-                queueViewModel: QueueViewModel(provider: playback.provider, playbackSession: playback),
-                lyricsModel: ImmersiveLyricsViewModel(fetchLyrics: { track in
-                    looked.append(track.name)
-                    return .instrumental
-                }),
-                navigateToArtist: { _ in },
-                navigateToAlbum: { _, _, _ in },
-                onDismiss: {}
-            )
-            .environmentObject(settings),
-            size: CGSize(width: 960, height: 640)
-        )
+        XCTAssertTrue(lyricsOverlay.hasLyricsToShow, "the bar's Lyrics button and Show Lyrics open the lyrics")
         for _ in 0..<80 where looked.isEmpty {
             try await Task.sleep(for: .milliseconds(25))
         }
@@ -424,6 +410,80 @@ final class CrossServicePlaybackTests: XCTestCase {
         playback.setConnectionState(.paused(nil))
         XCTAssertTrue(playback.audiblePlayer === appleMusic)
         XCTAssertTrue(manager.canToggleLyrics, "Show Lyrics opens Piranguera's lyrics")
+        XCTAssertTrue(lyricsOverlay.hasLyricsToShow, "the bar's Lyrics button opens Piranguera's lyrics")
+    }
+
+    /// Starting a Spotify song while the lyrics show Apple Music's paused Piranguera: Spotify is
+    /// the one you hear at once, but its song only comes when the play has gone through. The
+    /// lyrics stay open on Piranguera meanwhile, then show the new song; they used to close.
+    func testStartingASongOnScreenKeepsTheLyricsOpen() async throws {
+        let (spotify, _) = pausedSpotify()
+        let player = ScriptedAppleMusicPlayer()
+        let hosts = hosts(spotify: spotify, player: player)
+        hosts.gate(activeService: .appleMusic)
+        let appleMusic = try await playingAppleMusic(in: hosts, player: player)
+        hosts.gate(activeService: .spotify)
+        let playback = spotify.playbackViewModel
+        let piranguera = Self.song("Piranguera", uri: "applemusic:song:piranguera-\(UUID().uuidString)", positionMilliseconds: 25_000)
+        appleMusic.setConnectionState(.playing(piranguera))
+        _ = playback.audiblePlayer.requestTogglePlayPause()
+        await appleMusic.playPauseCommandTail?.value
+        player.advance(by: 1)
+        appleMusic.setConnectionState(.paused(piranguera))
+        playback.setConnectionState(.paused(nil))
+        XCTAssertTrue(playback.audiblePlayer === appleMusic)
+
+        var looked: [String] = []
+        let lyricsOverlay = try hostLyricsOverlay(onScreenPlayer: playback) { looked.append($0) }
+        defer { ViewTestHost.tearDownAll() }
+        try await waitUntil { looked == ["Piranguera"] }
+
+        // Play a Spotify song from the palette: nothing from Spotify's page yet.
+        await playback.play(uri: "spotify:track:strobe")
+        XCTAssertTrue(playback.audiblePlayer === playback, "Spotify is the one you hear now")
+        XCTAssertNotNil(playback.pendingPlayTransition, "its song hasn't come yet")
+        try await Task.sleep(for: .milliseconds(200))
+        XCTAssertTrue(lyricsOverlay.isPresented, "the lyrics closed while Spotify's song was on its way")
+        XCTAssertTrue(LyricsOverlayPlayerResolver.lyricsPlayer(onScreenPlayer: playback) === appleMusic)
+
+        let strobe = Self.song("Strobe", uri: "spotify:track:strobe-\(UUID().uuidString)")
+        playback.setConnectionState(.playing(strobe))
+        try await waitUntil { looked.last == "Strobe" }
+        XCTAssertTrue(lyricsOverlay.isPresented)
+        XCTAssertTrue(LyricsOverlayPlayerResolver.lyricsPlayer(onScreenPlayer: playback) === playback, "the lyrics follow Spotify's song, with its queue and links")
+    }
+
+    /// The lyrics view as the main window shows it: the overlay layer on the browser's
+    /// (on-screen) player, opened.
+    private func hostLyricsOverlay(
+        onScreenPlayer playback: PlaybackSessionViewModel,
+        lookedUp: @escaping (String) -> Void
+    ) throws -> LyricsOverlayController {
+        let settings = try ViewTestHost.makeSettingsStore()
+        let lyricsOverlay = LyricsOverlayController()
+        lyricsOverlay.attach(
+            playback: playback,
+            queue: QueueViewModel(provider: playback.provider, playbackSession: playback),
+            lyrics: ImmersiveLyricsViewModel(fetchLyrics: { track in
+                lookedUp(track.name)
+                return .instrumental
+            }),
+            navigateToArtist: { _ in },
+            navigateToAlbum: { _, _, _ in }
+        )
+        lyricsOverlay.isPresented = true
+        ViewTestHost.host(
+            LyricsOverlayLayer(lyricsOverlay: lyricsOverlay, keymapStore: CommandPaletteKeymapStore(settingsStore: settings))
+                .environmentObject(settings),
+            size: CGSize(width: 960, height: 640)
+        )
+        return lyricsOverlay
+    }
+
+    private func waitUntil(_ condition: () -> Bool) async throws {
+        for _ in 0..<80 where !condition() {
+            try await Task.sleep(for: .milliseconds(25))
+        }
     }
 
     /// The mirror: Spotify played, Apple Music is on screen with its own paused song. After
