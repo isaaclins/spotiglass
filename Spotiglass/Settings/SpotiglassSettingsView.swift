@@ -348,6 +348,19 @@ private struct SettingsPaneContainer<Content: View>: View {
     }
 }
 
+extension View {
+    /// Rebuilds a segmented picker whose option titles are translated when the language
+    /// changes. SwiftUI updates its own text views by itself, but the AppKit segmented
+    /// control behind such a picker keeps the option titles it was created with, so
+    /// Appearance went on showing "Hell / Dunkel" after a switch to English (#460).
+    /// Only the picker is rebuilt, not the pane: rebuilding the pane would also take
+    /// keyboard focus off the language picker the user just changed and drop any sheet
+    /// open in it.
+    func rebuildsOnLanguageChange(_ language: AppLanguage) -> some View {
+        id(language)
+    }
+}
+
 /// Sidebar row matching macOS Tahoe System Settings style: a tinted square
 /// icon tile, the section title, and an optional pill badge on the right.
 struct SettingsSidebarRow: View {

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.18] - 2026-11-10
+
+### Fixed
+
+- Appearance option labels now switch to your new language right away when you change the app's language.
+
 ## [0.8.17] - 2026-11-10
 
 ### Fixed

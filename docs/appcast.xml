@@ -3,14 +3,14 @@
     <channel>
         <title>Spotiglass</title>
         <item>
-            <title>0.8.17</title>
-            <pubDate>Tue, 10 Nov 2026 21:51:02 +0100</pubDate>
-            <sparkle:version>28</sparkle:version>
-            <sparkle:shortVersionString>0.8.17</sparkle:shortVersionString>
+            <title>0.8.18</title>
+            <pubDate>Tue, 10 Nov 2026 22:28:45 +0100</pubDate>
+            <sparkle:version>29</sparkle:version>
+            <sparkle:shortVersionString>0.8.18</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="plain-text"><![CDATA[• Shelves on Home and artist pages now scroll smoothly with a mouse wheel, including Shift-scrolling, instead of jumping.
+            <description sparkle:format="plain-text"><![CDATA[• Appearance option labels now switch to your new language right away when you change the app's language.
 ]]></description>
-            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.17/Spotiglass-0.8.17.zip" length="12817307" type="application/octet-stream" sparkle:edSignature="ZQL44tgngj4AuJHqCVZVxBsVu+1JUAcB3cWk24ZLMn8SdRhAkayhvz1MpdJSwsoVR1iHdLF/F7gNh0JV5dx6AQ=="/>
+            <enclosure url="https://github.com/isaaclins/spotiglass/releases/download/v0.8.18/Spotiglass-0.8.18.zip" length="12821359" type="application/octet-stream" sparkle:edSignature="V6xu+IMmpS79pTd0/IdmNXlc1auS2yUbAwwbNR/8leBTY2zk/9JAi0lHLhHGBjNp5qFDFOVhmszueC4sVV0YDQ=="/>
         </item>
     </channel>
 </rss>
