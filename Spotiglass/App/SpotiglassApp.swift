@@ -181,7 +181,8 @@ struct SpotiglassApp: App {
                 sceneRegistry: sceneRegistry,
                 playbackHosts: playbackHosts,
                 serviceStore: serviceStore,
-                appleMusicSession: appleMusicSession
+                appleMusicSession: appleMusicSession,
+                recentSearches: .userDefaults(.standard)
             )
                 .environmentObject(authViewModel)
                 .environmentObject(settingsStore)

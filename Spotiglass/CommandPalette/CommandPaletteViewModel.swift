@@ -33,6 +33,16 @@ final class CommandPaletteViewModel: ObservableObject {
     var cancelPrefetchAllPlaylists: (() -> Void)?
 
     var staticItemsProvider: () -> [CommandPaletteItem] = { [] }
+    /// Searches that led to a result, offered again before typing (#472).
+    var recentSearches: CommandPaletteRecentSearches = .inMemory()
+    /// Everyday commands offered before typing, in this order, when the host lists them.
+    static let quickActionCommandIDs = [
+        CommandPaletteCommandID.togglePlayback,
+        CommandPaletteCommandID.nextTrack,
+        CommandPaletteCommandID.toggleQueue,
+        CommandPaletteCommandID.toggleLyrics,
+        CommandPaletteCommandID.openSettings
+    ]
     /// Network-backed Spotify catalog search. Always invoked for the full multi-type
     /// result set (the category is a display-time filter, not a fetch parameter).
     var searchProvider: (String, CommandPaletteSearchCategory) async throws -> CommandPaletteSearchResults = { _, _ in
@@ -107,7 +117,7 @@ final class CommandPaletteViewModel: ObservableObject {
         query = ""
         searchCategoryFilter = availableSearchCategories.first ?? .all
         selectedIndex = 0
-        sections = []
+        sections = idleSections()
         errorText = nil
         isLoading = false
         lastSuccessfulSongSearchQuery = nil
@@ -115,6 +125,40 @@ final class CommandPaletteViewModel: ObservableObject {
         cachedResultsQuery = nil
         suppressLegacyPrefixQueryRefresh = false
         rateLimitCooldownUntil = .distantPast
+    }
+
+    /// What the palette offers before anything is typed: recent searches, then quick actions,
+    /// so opening it never shows an empty field alone (#472).
+    func idleSections() -> [(section: CommandPaletteSection, items: [CommandPaletteItem])] {
+        var built: [(section: CommandPaletteSection, items: [CommandPaletteItem])] = []
+        let recents = recentSearches.queries.map { recent in
+            CommandPaletteItem(
+                id: "palette.recent.\(recent)",
+                title: recent,
+                subtitle: nil,
+                iconSystemName: "clock.arrow.circlepath",
+                section: .recentSearches,
+                keywords: [recent],
+                keepsPaletteOpen: true
+            ) { [weak self] in
+                self?.runRecentSearch(recent)
+            }
+        }
+        if !recents.isEmpty {
+            built.append((.recentSearches, recents))
+        }
+        let commands = staticItemsProvider()
+        let quickActions = Self.quickActionCommandIDs.compactMap { id in commands.first { $0.id == id } }
+        if !quickActions.isEmpty {
+            built.append((.quickActions, quickActions))
+        }
+        return built
+    }
+
+    /// Puts a recent search back into the field, keeping the selected filter.
+    private func runRecentSearch(_ recent: String) {
+        query = recent
+        refresh()
     }
 
     func hide() {
@@ -222,10 +266,19 @@ final class CommandPaletteViewModel: ObservableObject {
         guard items.indices.contains(selectedIndex) else { return }
         let item = items[selectedIndex]
         guard item.canExecute?() ?? true else { return }
+        recordSearchIfNeeded(leadingTo: item)
         await item.action()
         if !item.keepsPaletteOpen {
             hide()
         }
+    }
+
+    /// A catalog search that led to a result (or to the Search page) becomes a recent search.
+    private func recordSearchIfNeeded(leadingTo item: CommandPaletteItem) {
+        guard currentScope == .songs, item.section != .recentSearches, item.section != .quickActions else { return }
+        let trimmed = strippedQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= Self.minimumPaletteSearchQueryCharacters else { return }
+        recentSearches.record(trimmed)
     }
 
     /// Runs the highlighted palette item's ``pinAction`` (if any) without
@@ -307,7 +360,7 @@ final class CommandPaletteViewModel: ObservableObject {
         case .songs:
             guard !trimmed.isEmpty else {
                 resetSongSearchCache()
-                sections = []
+                sections = idleSections()
                 errorText = nil
                 isLoading = false
                 selectedIndex = 0

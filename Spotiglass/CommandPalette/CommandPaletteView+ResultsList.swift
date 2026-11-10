@@ -7,78 +7,105 @@ struct CommandPaletteSectionedListView: View {
     let sections: [(section: CommandPaletteSection, items: [CommandPaletteItem])]
     let accessibilityReduceMotion: Bool
 
+    /// Height of the rows; starts at the cap so the first frame never collapses the list.
+    @State private var contentHeight = SpotiglassDesign.Layout.paletteResultsHeight
+
     /// When results reload but `selectedIndex` stays `0`, `onChange(of: selectedIndex)` does not fire — use this signature to scroll the first row back into view.
     private var paletteResultsScrollSignature: String {
         viewModel.visibleItems.map(\.id).joined(separator: "\u{1e}")
     }
 
-    var body: some View {
-        let sectionChunks: [(section: CommandPaletteSection, rows: [(flatIndex: Int, item: CommandPaletteItem)])] = {
-            var running = 0
-            return sections.map { entry in
-                let rows: [(flatIndex: Int, item: CommandPaletteItem)] = entry.items.map { item in
-                    let idx = running
-                    running += 1
-                    return (flatIndex: idx, item: item)
-                }
-                return (entry.section, rows)
-            }
-        }()
+    private typealias Row = (flatIndex: Int, item: CommandPaletteItem)
 
-        ScrollViewReader { proxy in
-            List {
-                ForEach(Array(sectionChunks.enumerated()), id: \.offset) { sectionIndex, chunk in
-                    Section {
-                        ForEach(chunk.rows, id: \.flatIndex) { row in
-                            CommandPaletteResultRowView(
-                                item: row.item,
-                                isSelected: row.flatIndex == viewModel.selectedIndex
-                            )
-                                .id(CommandPaletteRowScrollIDs.id(flatIndex: row.flatIndex))
-                                .listRowInsets(EdgeInsets(
-                                    top: SpotiglassDesign.spacingXXS,
-                                    leading: SpotiglassDesign.spacingS,
-                                    bottom: SpotiglassDesign.spacingXXS,
-                                    trailing: SpotiglassDesign.spacingS
-                                ))
-                                .listRowBackground(row.flatIndex == viewModel.selectedIndex ? Color.primary.opacity(0.12) : Color.clear)
-                                .contentShape(Rectangle())
-                                .onTapGesture {
-                                    viewModel.selectedIndex = row.flatIndex
-                                    Task { await viewModel.executeSelection() }
-                                }
-                        }
-                    } header: {
-                        HStack(spacing: SpotiglassDesign.spacingXS) {
-                            // Title case, no letter spacing. Tracking existed to
-                            // make shouted all-caps labels readable, and section
-                            // headers no longer render in all caps.
-                            Text(chunk.section.displayLabel)
-                                .font(.caption2.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                            Spacer()
-                        }
-                        .padding(.top, sectionIndex == 0 ? 0 : SpotiglassDesign.spacingXXS)
+    var body: some View {
+        var running = 0
+        let chunks: [(section: CommandPaletteSection, rows: [Row])] = sections.map { entry in
+            let rows: [Row] = entry.items.map { item in
+                defer { running += 1 }
+                return (flatIndex: running, item: item)
+            }
+            return (entry.section, rows)
+        }
+        // "Show all results" stays under the list, so a short window can't scroll it away (#462).
+        let scrolling = chunks.filter { $0.section != .showAll }
+        let pinned = chunks.first { $0.section == .showAll }?.rows ?? []
+
+        VStack(spacing: 0) {
+            if !scrolling.isEmpty {
+                ScrollViewReader { proxy in
+                    // As tall as its rows up to the cap, and shorter still when the window is:
+                    // the list scrolls instead of pushing the filters and the footer out (#462).
+                    ScrollView(.vertical) {
+                        sectionStack(scrolling)
+                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
+                    }
+                    .scrollBounceBehavior(.basedOnSize)
+                    .frame(maxHeight: min(contentHeight, SpotiglassDesign.Layout.paletteResultsHeight))
+                    .onChange(of: viewModel.selectedIndex) { _, newIndex in
+                        scrollPaletteSelectionToIndex(proxy: proxy, index: newIndex)
+                    }
+                    .onChange(of: paletteResultsScrollSignature) { _, _ in
+                        scrollPaletteSelectionToIndex(proxy: proxy, index: viewModel.selectedIndex)
+                    }
+                    .onAppear {
+                        scrollPaletteSelectionToIndex(proxy: proxy, index: viewModel.selectedIndex)
                     }
                 }
             }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
-            .frame(maxWidth: .infinity)
-            .frame(height: SpotiglassDesign.Layout.paletteResultsHeight)
-            // Arrow keys are handled by `CommandPaletteEventMonitor`; keep keyboard focus on the query field for typing.
-            .focusable(false)
-            .onChange(of: viewModel.selectedIndex) { _, newIndex in
-                scrollPaletteSelectionToIndex(proxy: proxy, index: newIndex)
-            }
-            .onChange(of: paletteResultsScrollSignature) { _, _ in
-                scrollPaletteSelectionToIndex(proxy: proxy, index: viewModel.selectedIndex)
-            }
-            .onAppear {
-                scrollPaletteSelectionToIndex(proxy: proxy, index: viewModel.selectedIndex)
+            if !pinned.isEmpty {
+                if !scrolling.isEmpty {
+                    Divider()
+                }
+                VStack(spacing: 0) {
+                    ForEach(pinned, id: \.flatIndex) { row in
+                        resultRow(row)
+                    }
+                }
+                .padding(SpotiglassDesign.spacingXS)
             }
         }
         .frame(maxWidth: .infinity)
+    }
+
+    private func sectionStack(_ chunks: [(section: CommandPaletteSection, rows: [Row])]) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(chunks.enumerated()), id: \.offset) { sectionIndex, chunk in
+                // Title case, no letter spacing: section headers no longer render in all caps.
+                Text(chunk.section.displayLabel)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, SpotiglassDesign.spacingS)
+                    .padding(.top, sectionIndex == 0 ? SpotiglassDesign.spacingXS : SpotiglassDesign.spacingS)
+                    .padding(.bottom, SpotiglassDesign.spacingXXS)
+                    .accessibilityAddTraits(.isHeader)
+                ForEach(chunk.rows, id: \.flatIndex) { row in
+                    resultRow(row)
+                }
+            }
+        }
+        .padding(SpotiglassDesign.spacingXS)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func resultRow(_ row: Row) -> some View {
+        let isSelected = row.flatIndex == viewModel.selectedIndex
+        return CommandPaletteResultRowView(item: row.item, isSelected: isSelected)
+            .padding(.horizontal, SpotiglassDesign.spacingS)
+            .padding(.vertical, SpotiglassDesign.spacingXXS)
+            .background {
+                RoundedRectangle(cornerRadius: SpotiglassDesign.cornerS, style: .continuous)
+                    .fill(isSelected ? Color.primary.opacity(0.10) : Color.clear)
+            }
+            .contentShape(Rectangle())
+            .id(CommandPaletteRowScrollIDs.id(flatIndex: row.flatIndex))
+            .onTapGesture {
+                viewModel.selectedIndex = row.flatIndex
+                Task { await viewModel.executeSelection() }
+            }
+            .accessibilityAction {
+                viewModel.selectedIndex = row.flatIndex
+                Task { await viewModel.executeSelection() }
+            }
     }
 
     /// Stable ids for ``ScrollViewReader`` / `scrollTo`; aligned with ``CommandPaletteViewModel/selectedIndex`` (flat ``visibleItems`` order).

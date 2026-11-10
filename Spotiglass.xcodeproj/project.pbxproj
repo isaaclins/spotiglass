@@ -373,6 +373,7 @@
 		TST00000000000000000022 /* PlaybackRecoveryAndPlaylistContextTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000072 /* PlaybackRecoveryAndPlaylistContextTests.swift */; };
 		TST00000000000000000023 /* PlaybackConnectDevicesAndTransferTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000073 /* PlaybackConnectDevicesAndTransferTests.swift */; };
 		TST00000000000000000024 /* CommandPaletteModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000074 /* CommandPaletteModelsTests.swift */; };
+		0DFDFAD6A4075C53A0EA5B10 /* CommandPalettePanelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C37D1016438D19E7F71F065F /* CommandPalettePanelTests.swift */; };
 		TST00000000000000000025 /* CommandPaletteKeymapStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000075 /* CommandPaletteKeymapStoreTests.swift */; };
 		TST00000000000000000026 /* CommandPaletteManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000076 /* CommandPaletteManagerTests.swift */; };
 		TST00000000000000000028 /* SpotifyAPIClientSearchAndHTTPTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000078 /* SpotifyAPIClientSearchAndHTTPTests.swift */; };
@@ -733,6 +734,7 @@
 		TST00000000000000000072 /* PlaybackRecoveryAndPlaylistContextTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackRecoveryAndPlaylistContextTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000073 /* PlaybackConnectDevicesAndTransferTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackConnectDevicesAndTransferTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000074 /* CommandPaletteModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteModelsTests.swift; sourceTree = "<group>"; };
+		C37D1016438D19E7F71F065F /* CommandPalettePanelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPalettePanelTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000075 /* CommandPaletteKeymapStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteKeymapStoreTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000076 /* CommandPaletteManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteManagerTests.swift; sourceTree = "<group>"; };
 		TST00000000000000000078 /* SpotifyAPIClientSearchAndHTTPTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyAPIClientSearchAndHTTPTests.swift; sourceTree = "<group>"; };
@@ -1217,6 +1219,7 @@
 				TST00000000000000000072 /* PlaybackRecoveryAndPlaylistContextTests.swift */,
 				TST00000000000000000073 /* PlaybackConnectDevicesAndTransferTests.swift */,
 				TST00000000000000000074 /* CommandPaletteModelsTests.swift */,
+				C37D1016438D19E7F71F065F /* CommandPalettePanelTests.swift */,
 				TST00000000000000000075 /* CommandPaletteKeymapStoreTests.swift */,
 				TST00000000000000000076 /* CommandPaletteManagerTests.swift */,
 				TST0000000000000000007E /* CommandPaletteScopeParsingTests.swift */,
@@ -2032,6 +2035,7 @@
 				TST00000000000000000022 /* PlaybackRecoveryAndPlaylistContextTests.swift in Sources */,
 				TST00000000000000000023 /* PlaybackConnectDevicesAndTransferTests.swift in Sources */,
 				TST00000000000000000024 /* CommandPaletteModelsTests.swift in Sources */,
+				0DFDFAD6A4075C53A0EA5B10 /* CommandPalettePanelTests.swift in Sources */,
 				TST00000000000000000025 /* CommandPaletteKeymapStoreTests.swift in Sources */,
 				TST00000000000000000026 /* CommandPaletteManagerTests.swift in Sources */,
 				TST00000000000000000033 /* CommandPaletteScopeParsingTests.swift in Sources */,

@@ -1,12 +1,12 @@
 import AppKit
 import SwiftUI
 
-// MARK: - Search card
+// MARK: - Search field
 
+/// The palette's query row: the scope icon and the field, at the top of the panel.
 struct CommandPaletteSearchCardView: View {
     @ObservedObject var viewModel: CommandPaletteViewModel
     var focusedField: FocusState<CommandPaletteSearchFocusField?>.Binding
-    var paletteGlass: Namespace.ID
 
     var body: some View {
         HStack(spacing: SpotiglassDesign.spacingS) {
@@ -18,6 +18,8 @@ struct CommandPaletteSearchCardView: View {
                 scope: viewModel.currentScope,
                 category: viewModel.searchCategoryFilter
             ))
+            .frame(width: SpotiglassDesign.Layout.smallArtworkSize)
+            .accessibilityHidden(true)
             TextField(
                 CommandPaletteScopePresentation.searchPlaceholder(
                     scope: viewModel.currentScope,
@@ -26,6 +28,7 @@ struct CommandPaletteSearchCardView: View {
                 text: $viewModel.query
             )
                 .textFieldStyle(.plain)
+                .font(.title3)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .focused(focusedField, equals: .query)
                 .onChange(of: viewModel.query) { _, _ in
@@ -41,10 +44,9 @@ struct CommandPaletteSearchCardView: View {
                     Task { await viewModel.executeSelection() }
                 }
         }
-        .padding(SpotiglassDesign.spacingM)
+        .padding(.horizontal, SpotiglassDesign.spacingM)
+        .padding(.vertical, SpotiglassDesign.spacingM)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: SpotiglassDesign.cornerM, style: .continuous))
-        .glassEffectID("palette.search", in: paletteGlass)
     }
 }
 

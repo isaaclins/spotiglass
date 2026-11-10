@@ -135,6 +135,10 @@ enum CommandPaletteSection: String {
     case albums = "Albums"
     /// Single-row footer section holding the "Show all results" handoff into the Search view.
     case showAll = "Show all"
+    /// Shown before typing: the last searches that led somewhere (#472).
+    case recentSearches = "Recent searches"
+    /// Shown before typing: a few everyday commands (#472).
+    case quickActions = "Quick actions"
 
     var displayLabel: String {
         switch self {
@@ -146,7 +150,50 @@ enum CommandPaletteSection: String {
         case .myPlaylists: SpotiglassL10n.string("palette.section.myPlaylists")
         case .albums: SpotiglassL10n.string("palette.section.albums")
         case .showAll: SpotiglassL10n.string("palette.section.showAll")
+        case .recentSearches: SpotiglassL10n.string("palette.section.recentSearches")
+        case .quickActions: SpotiglassL10n.string("palette.section.quickActions")
         }
+    }
+}
+
+/// The last few searches run from the palette, newest first, shown before typing (#472).
+/// The app keeps them in the user's defaults; previews and tests keep them in memory.
+final class CommandPaletteRecentSearches {
+    static let capacity = 5
+    static let defaultsKey = "palette.recentSearches"
+
+    private let load: () -> [String]
+    private let save: ([String]) -> Void
+
+    private init(load: @escaping () -> [String], save: @escaping ([String]) -> Void) {
+        self.load = load
+        self.save = save
+    }
+
+    static func inMemory(_ initial: [String] = []) -> CommandPaletteRecentSearches {
+        var stored = initial
+        return CommandPaletteRecentSearches(load: { stored }, save: { stored = $0 })
+    }
+
+    /// Read on every access, so every window shows the same list.
+    static func userDefaults(_ defaults: UserDefaults) -> CommandPaletteRecentSearches {
+        CommandPaletteRecentSearches(
+            load: { defaults.stringArray(forKey: defaultsKey) ?? [] },
+            save: { defaults.set($0, forKey: defaultsKey) }
+        )
+    }
+
+    var queries: [String] {
+        Array(load().prefix(Self.capacity))
+    }
+
+    /// Moves `query` to the front, once, ignoring case and surrounding spaces.
+    func record(_ query: String) {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        var list = load().filter { $0.caseInsensitiveCompare(trimmed) != .orderedSame }
+        list.insert(trimmed, at: 0)
+        save(Array(list.prefix(Self.capacity)))
     }
 }
 

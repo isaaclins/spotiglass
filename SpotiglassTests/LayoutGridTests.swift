@@ -92,6 +92,7 @@ final class LayoutGridTests: XCTestCase {
         ("standaloneSettingsMinWidth", SpotiglassDesign.Layout.standaloneSettingsMinWidth),
         ("standaloneSettingsMinHeight", SpotiglassDesign.Layout.standaloneSettingsMinHeight),
         ("paletteMaxWidth", SpotiglassDesign.Layout.paletteMaxWidth),
+        ("paletteTopInset", SpotiglassDesign.Layout.paletteTopInset),
         ("paletteResultsHeight", SpotiglassDesign.Layout.paletteResultsHeight),
         ("paletteProgressMaxWidth", SpotiglassDesign.Layout.paletteProgressMaxWidth),
         ("settingsWindowWidth", SpotiglassDesign.settingsWindowWidth),

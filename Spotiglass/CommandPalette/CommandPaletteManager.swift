@@ -130,8 +130,12 @@ final class CommandPaletteManager: ObservableObject {
     private var cancellables: Set<AnyCancellable> = []
     private var playbackReadinessCancellables: Set<AnyCancellable> = []
 
-    init(keymapStore: CommandPaletteKeymapStore? = nil) {
+    init(
+        keymapStore: CommandPaletteKeymapStore? = nil,
+        recentSearches: CommandPaletteRecentSearches = .inMemory()
+    ) {
         self.keymapStore = keymapStore ?? CommandPaletteKeymapStore()
+        viewModel.recentSearches = recentSearches
         viewModel.staticItemsProvider = { [weak self] in
             self?.baseItems() ?? []
         }
