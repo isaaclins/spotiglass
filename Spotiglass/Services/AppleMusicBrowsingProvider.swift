@@ -501,7 +501,12 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         let firstCatalog = await Self.capture {
             try await source.catalogSearch(term: term, limit: pageLimit, offset: offset)
         }
-        let library = await libraryResult
+        var library = await libraryResult
+        // Only the first page shows library matches; later pages read them to hide duplicates.
+        if offset == 0, case var .success(items) = library {
+            items.albums = await source.withArtists(libraryAlbums: items.albums)
+            library = .success(items)
+        }
         var page = try searchPage(
             catalog: firstCatalog, library: library, limit: limit, pageLimit: pageLimit, offset: offset
         )

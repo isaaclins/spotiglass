@@ -937,6 +937,24 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
             [MusicArtistRef(id: "5201", name: "Bonobo")],
             [MusicArtistRef(id: "r.1", name: "Bonobo")],
         ], "the catalog copy's artists when it's on the page, else the library's own")
+        XCTAssertEqual(source.calls.filter { $0.hasPrefix("withArtists") }, ["withArtists(2)"])
+    }
+
+    /// Later pages read the library only to hide its duplicates and show none of its albums,
+    /// so Load More doesn't load their artists again.
+    func testLaterSearchPagesDontLoadSavedAlbumsArtists() async throws {
+        let source = MockAppleMusicSource()
+        source.librarySearchItems = AppleMusicSearchItems(
+            albums: [try AppleMusicFixtures.album(id: "l.a", title: "Migration", artists: [("r.1", "Bonobo")])]
+        )
+        source.catalogSearchItems = AppleMusicSearchItems(
+            albums: [try AppleMusicFixtures.album(id: "b", title: "Fragments")]
+        )
+        _ = try await AppleMusicBrowsingProvider(source: source)
+            .search(query: "bonobo", limit: 10, offset: 10, cacheMode: .freshOnly)
+
+        XCTAssertTrue(source.calls.contains { $0.hasPrefix("librarySearch") })
+        XCTAssertFalse(source.calls.contains { $0.hasPrefix("withArtists") })
     }
 
     func testSearchPutsLibraryMatchesFirstAndDropsCatalogDuplicates() async throws {
@@ -1569,6 +1587,12 @@ private final class MockAppleMusicSource: AppleMusicContentSource, @unchecked Se
         var items = librarySearchItems
         items.songs = Array(items.songs.prefix(limit))
         return items
+    }
+
+    /// The fixtures already carry their artists; this records who asks for them.
+    func withArtists(libraryAlbums: [Album]) async -> [Album] {
+        record("withArtists(\(libraryAlbums.count))")
+        return libraryAlbums
     }
 
     func storefrontCountryCode() async throws -> String {

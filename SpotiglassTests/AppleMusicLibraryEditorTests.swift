@@ -1230,6 +1230,7 @@ final class EditTestContentSource: AppleMusicContentSource, @unchecked Sendable 
     func artistTopSongs(artistID: String) async throws -> [Song] { [] }
     func catalogSearch(term: String, limit: Int, offset: Int) async throws -> AppleMusicSearchItems { AppleMusicSearchItems() }
     func librarySearch(term: String, limit: Int) async throws -> AppleMusicSearchItems { AppleMusicSearchItems() }
+    func withArtists(libraryAlbums: [Album]) async -> [Album] { libraryAlbums }
     func storefrontCountryCode() async throws -> String { "ch" }
 }
 
