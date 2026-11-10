@@ -509,12 +509,16 @@ struct GlassPanel<Content: View>: View {
     }
 }
 
+/// Behind the full-window cards: the welcome screen, signing in, Apple Music access and loading.
+/// Each card carries the app's name as its heading, so the bar above it shows no title; the
+/// window keeps the name for the Window menu and VoiceOver (#495).
 struct ShellBackground: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var body: some View {
         Color(nsColor: reduceTransparency ? .windowBackgroundColor : .underPageBackgroundColor)
         .ignoresSafeArea()
+        .toolbar(removing: .title)
     }
 }
 

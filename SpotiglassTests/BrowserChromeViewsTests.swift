@@ -507,6 +507,30 @@ final class BrowserWindowTitleTests: XCTestCase {
 
         XCTAssertNotEqual(window.title, AppMetadata.displayName)
     }
+
+    /// The welcome, sign-in and Apple Music access screens are a card whose heading is the
+    /// app's name; the bar above it said "Spotiglass" a second time. The bar shows nothing
+    /// there and the window keeps its name.
+    func testCardScreensShowNoTitleInTheBar() {
+        let welcome = MusicServiceWelcomeView(services: MusicService.allCases, choose: { _ in })
+        let controller = NSHostingController(rootView: welcome)
+        controller.sceneBridgingOptions = [.title, .toolbars]
+        let window = OffscreenTestWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 900, height: 600),
+            styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = AppMetadata.displayName
+        window.contentViewController = controller
+        window.setContentSize(CGSize(width: 900, height: 600))
+        window.isReleasedWhenClosed = false
+        self.window = window
+        AppKitTestSupport.pumpRunLoop(for: 0.4)
+
+        XCTAssertEqual(window.titleVisibility, .hidden)
+        XCTAssertEqual(window.title, AppMetadata.displayName)
+    }
 }
 
 private final class TitleTestTokenProvider: PlaybackAccessTokenProviding, SpotifyAccessTokenProviding {
