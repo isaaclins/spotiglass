@@ -57,14 +57,19 @@ extension PlaylistBrowserViewModel {
         playlistNameEditRequestID = nil
     }
 
-    /// The rename request the sidebar row takes: an empty playlist shows a message instead of
-    /// its header, so the header can't (#478).
-    var sidebarPlaylistNameEditRequestID: String? {
+    /// The rename request for an empty playlist: its page shows a message instead of its
+    /// header, so the sidebar row takes it (#478). The window shows a hidden sidebar for it.
+    var pendingSidebarPlaylistNameEditID: String? {
         guard let id = playlistNameEditRequestID,
               sidebarSelection == .playlist(id),
               case .empty = detailState
         else { return nil }
         return id
+    }
+
+    /// The same request once the sidebar shows, which is when its row can edit.
+    var sidebarPlaylistNameEditRequestID: String? {
+        isSidebarShown ? pendingSidebarPlaylistNameEditID : nil
     }
 
     func canDeletePlaylist(_ summary: MusicPlaylistSummary) -> Bool {

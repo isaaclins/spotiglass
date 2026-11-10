@@ -918,14 +918,17 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
     }
 
     /// The library shows up to 100 matches and a catalog page 25, so a saved album's catalog copy
-    /// is often on a later page. The saved album then links its own library artists.
-    func testSavedSearchAlbumWithoutItsCatalogCopyLinksItsLibraryArtists() async throws {
+    /// is often on a later page. The saved album then links the artist of the same name among the
+    /// page's artist results (a library artist, whose page opens). The IDs from a saved album's own
+    /// artists relationship led to an error page instead.
+    func testSavedSearchAlbumWithoutItsCatalogCopyLinksThePagesArtistOfThatName() async throws {
         let source = MockAppleMusicSource()
         source.librarySearchItems = AppleMusicSearchItems(
             albums: [
-                try AppleMusicFixtures.album(id: "l.a", title: "Migration", artists: [("r.1", "Bonobo")]),
-                try AppleMusicFixtures.album(id: "l.b", title: "Black Sands", artists: [("r.1", "Bonobo")]),
-            ]
+                try AppleMusicFixtures.album(id: "l.a", title: "Migration"),
+                try AppleMusicFixtures.album(id: "l.b", title: "Black Sands"),
+            ],
+            artists: [try AppleMusicFixtures.artist(id: "r.1", name: "Bonobo")]
         )
         source.catalogSearchItems = AppleMusicSearchItems(
             albums: [try AppleMusicFixtures.album(id: "a", title: "Migration", artists: [("5201", "Bonobo")])]
@@ -936,25 +939,21 @@ final class AppleMusicBrowsingProviderTests: XCTestCase {
         XCTAssertEqual(results.albums.map(\.artistRefs), [
             [MusicArtistRef(id: "5201", name: "Bonobo")],
             [MusicArtistRef(id: "r.1", name: "Bonobo")],
-        ], "the catalog copy's artists when it's on the page, else the library's own")
-        XCTAssertEqual(source.calls.filter { $0.hasPrefix("withArtists") }, ["withArtists(2)"])
+        ], "the catalog copy's artists when it's on the page, else the page's artist of that name")
     }
 
-    /// Later pages read the library only to hide its duplicates and show none of its albums,
-    /// so Load More doesn't load their artists again.
-    func testLaterSearchPagesDontLoadSavedAlbumsArtists() async throws {
+    /// With neither a catalog copy nor an artist of that name on the page, the name stays plain
+    /// text rather than a link to a page that can't load.
+    func testSavedSearchAlbumWithNoArtistOnThePageKeepsAPlainName() async throws {
         let source = MockAppleMusicSource()
         source.librarySearchItems = AppleMusicSearchItems(
-            albums: [try AppleMusicFixtures.album(id: "l.a", title: "Migration", artists: [("r.1", "Bonobo")])]
+            albums: [try AppleMusicFixtures.album(id: "l.b", title: "Black Sands")]
         )
-        source.catalogSearchItems = AppleMusicSearchItems(
-            albums: [try AppleMusicFixtures.album(id: "b", title: "Fragments")]
-        )
-        _ = try await AppleMusicBrowsingProvider(source: source)
-            .search(query: "bonobo", limit: 10, offset: 10, cacheMode: .freshOnly)
+        let results = try await AppleMusicBrowsingProvider(source: source).search(query: "black sands", limit: 10)
 
-        XCTAssertTrue(source.calls.contains { $0.hasPrefix("librarySearch") })
-        XCTAssertFalse(source.calls.contains { $0.hasPrefix("withArtists") })
+        XCTAssertEqual(results.albums.map(\.id), ["l.b"])
+        XCTAssertEqual(results.albums.map(\.artistRefs), [[]])
+        XCTAssertEqual(results.albums.map(\.artists), [["Bonobo"]])
     }
 
     func testSearchPutsLibraryMatchesFirstAndDropsCatalogDuplicates() async throws {
@@ -1587,12 +1586,6 @@ private final class MockAppleMusicSource: AppleMusicContentSource, @unchecked Se
         var items = librarySearchItems
         items.songs = Array(items.songs.prefix(limit))
         return items
-    }
-
-    /// The fixtures already carry their artists; this records who asks for them.
-    func withArtists(libraryAlbums: [Album]) async -> [Album] {
-        record("withArtists(\(libraryAlbums.count))")
-        return libraryAlbums
     }
 
     func storefrontCountryCode() async throws -> String {

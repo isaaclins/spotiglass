@@ -35,6 +35,9 @@ final class PlaylistBrowserViewModel: ObservableObject {
     /// The playlist whose header should start editing its name when it shows
     /// (``openPlaylistForNameEditing(_:)``). The header clears it once it has.
     @Published var playlistNameEditRequestID: String?
+    /// Whether the sidebar column shows (the window keeps it in step). A rename the sidebar row
+    /// takes waits for it: a row editing inside a hidden sidebar loses its field (#478).
+    @Published var isSidebarShown = true
     /// The playlist whose "Delete Playlist" confirmation is showing.
     @Published var playlistPendingDeletion: MusicPlaylistSummary?
     /// The library removal whose confirmation is showing (`MusicLibraryEdits.confirmLibraryRemoval`).

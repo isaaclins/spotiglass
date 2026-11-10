@@ -331,6 +331,23 @@ final class CollectionContextMenuTests: XCTestCase {
         XCTAssertNil(viewModel.playlistNameEditRequestID, "The row took the request")
     }
 
+    /// With the sidebar hidden, the row used to take the rename inside the hidden column and lose
+    /// its field as the sidebar came back: nothing was editable. The row now waits for it to show.
+    func testEmptyPlaylistsRenameWaitsForAHiddenSidebarToShow() async {
+        let viewModel = makeBrowserViewModel(api: MockBrowsingAPI(
+            playlistResults: [.success([ownPlaylist])],
+            trackResults: [ownPlaylist.id: [.success([])]]
+        ))
+        viewModel.isSidebarShown = false
+
+        await viewModel.openPlaylistForNameEditing(ownPlaylist)
+
+        XCTAssertEqual(viewModel.pendingSidebarPlaylistNameEditID, ownPlaylist.id, "the window shows the sidebar for it")
+        XCTAssertNil(viewModel.sidebarPlaylistNameEditRequestID, "the hidden row doesn't take it")
+        viewModel.isSidebarShown = true
+        XCTAssertEqual(viewModel.sidebarPlaylistNameEditRequestID, ownPlaylist.id)
+    }
+
     func testEditPlaylistNameIsDroppedWhenThePlaylistDoesntOpen() async {
         let viewModel = makeBrowserViewModel(api: MockBrowsingAPI(
             playlistResults: [.success([ownPlaylist])],

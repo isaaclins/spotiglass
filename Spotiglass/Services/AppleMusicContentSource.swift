@@ -76,9 +76,6 @@ protocol AppleMusicContentSource: Sendable {
     func artistTopSongs(artistID: String) async throws -> [Song]
     func catalogSearch(term: String, limit: Int, offset: Int) async throws -> AppleMusicSearchItems
     func librarySearch(term: String, limit: Int) async throws -> AppleMusicSearchItems
-    /// Saved albums from `librarySearch` with their artists loaded, for the links under their
-    /// cards (#478). Separate so only the page that shows them pays for it.
-    func withArtists(libraryAlbums: [Album]) async -> [Album]
     /// Two-letter storefront country code, e.g. `ch`.
     func storefrontCountryCode() async throws -> String
 }
@@ -318,21 +315,6 @@ struct MusicKitContentSource: AppleMusicContentSource {
             artists: try await Self.collect(response.artists, limit: limit),
             playlists: try await Self.collect(response.playlists, limit: limit)
         )
-    }
-
-    /// Saved albums arrive without their artists too. They come from the local library, so each
-    /// loads its own; an album whose artists can't be read keeps its plain artist name (#478).
-    func withArtists(libraryAlbums albums: [Album]) async -> [Album] {
-        await withTaskGroup(of: (Int, Album).self) { group in
-            for (index, album) in albums.enumerated() {
-                group.addTask { (index, (try? await album.with([.artists])) ?? album) }
-            }
-            var loaded = albums
-            for await (index, album) in group {
-                loaded[index] = album
-            }
-            return loaded
-        }
     }
 
     func storefrontCountryCode() async throws -> String {

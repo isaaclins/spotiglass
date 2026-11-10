@@ -501,12 +501,7 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
         let firstCatalog = await Self.capture {
             try await source.catalogSearch(term: term, limit: pageLimit, offset: offset)
         }
-        var library = await libraryResult
-        // Only the first page shows library matches; later pages read them to hide duplicates.
-        if offset == 0, case var .success(items) = library {
-            items.albums = await source.withArtists(libraryAlbums: items.albums)
-            library = .success(items)
-        }
+        let library = await libraryResult
         var page = try searchPage(
             catalog: firstCatalog, library: library, limit: limit, pageLimit: pageLimit, offset: offset
         )
@@ -568,13 +563,22 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
             "\($0.title)|\($0.artistName)|\($0.contentRating == .explicit)".lowercased()
         }
         let albums = Self.merged(libraryItems.albums, catalogItems.albums, limit: limit, showsLibrary: showsLibrary, id: { $0.id.rawValue }, match: albumMatch)
-        // A saved album shows instead of its catalog copy. When the copy is on this page the
-        // saved one links the copy's catalog artists, whose pages show everything they made;
-        // otherwise it keeps its own library artists (#478).
+        // Saved albums come without their artists, and the IDs a saved album's own artists
+        // relationship gives don't open an artist page. So a saved album links the artists of
+        // its catalog copy when that is on this page, else the artist of the same name among
+        // this page's artist results, which open; with neither its name stays plain (#478).
         let catalogAlbumArtists = Dictionary(
             catalogItems.albums.map { (albumMatch($0), AppleMusicItemMapping.album($0).artistRefs) },
             uniquingKeysWith: { first, _ in first }
         )
+        let pageArtistsByName = Dictionary(
+            (libraryItems.artists + catalogItems.artists).map { ($0.name.lowercased(), MusicArtistRef(id: $0.id.rawValue, name: $0.name)) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        func linkedArtists(of album: Album) -> [MusicArtistRef]? {
+            if let refs = catalogAlbumArtists[albumMatch(album)], !refs.isEmpty { return refs }
+            return pageArtistsByName[album.artistName.lowercased()].map { [$0] }
+        }
         let playlists = Self.merged(libraryItems.playlists, catalogItems.playlists, limit: limit, showsLibrary: showsLibrary, id: { $0.id.rawValue }) {
             $0.id.rawValue
         }
@@ -583,8 +587,7 @@ struct AppleMusicBrowsingProvider: MusicBrowsingProvider {
             artists: artists.map(AppleMusicItemMapping.artist),
             albums: albums.map { album in
                 let mapped = AppleMusicItemMapping.album(album)
-                guard let refs = catalogAlbumArtists[albumMatch(album)], !refs.isEmpty, refs != mapped.artistRefs
-                else { return mapped }
+                guard mapped.artistRefs.isEmpty, let refs = linkedArtists(of: album) else { return mapped }
                 return mapped.withArtistRefs(refs)
             },
             playlists: playlists.map {
