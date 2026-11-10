@@ -265,6 +265,7 @@
 		EQHELPERPLIST0000000000001 /* com.isaaclins.spotiglass.eqprivilegedhelper.plist in CopyFiles */ = {isa = PBXBuildFile; fileRef = EQHELPERPLIST0000000000002 /* com.isaaclins.spotiglass.eqprivilegedhelper.plist */; };
 		EQHELPEREMBED000000000001 /* SpotiglassEQPrivilegedHelper in Embed Privileged Helper */ = {isa = PBXBuildFile; fileRef = EQHELPERPRODUCT000000000001 /* SpotiglassEQPrivilegedHelper */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		EQSMFRAMEWORK00000000000001 /* ServiceManagement.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EQSMFRAMEWORK00000000000002 /* ServiceManagement.framework */; };
+		515545A0C26A278485622323 /* SettingsLanguageSwitchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D614C9B833214402B058244D /* SettingsLanguageSwitchTests.swift */; };
 		EQSECURITY000000000001 /* Security.framework in Helper Frameworks */ = {isa = PBXBuildFile; fileRef = EQSECURITY000000000002 /* Security.framework */; };
 		EQPOLICYTEST0000000000001 /* EqualizerDriverInstallPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EQPOLICYTEST0000000000002 /* EqualizerDriverInstallPolicyTests.swift */; };
 		TST00000000000000000000D0 /* SpotifyPlaybackAPITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST00000000000000000100D0 /* SpotifyPlaybackAPITests.swift */; };
@@ -868,6 +869,7 @@
 		EQHELPERINFO0000000000001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		EQHELPERPRODUCT000000000001 /* SpotiglassEQPrivilegedHelper */ = {isa = PBXFileReference; includeInIndex = 0; path = SpotiglassEQPrivilegedHelper; sourceTree = BUILT_PRODUCTS_DIR; };
 		EQSMFRAMEWORK00000000000002 /* ServiceManagement.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ServiceManagement.framework; path = System/Library/Frameworks/ServiceManagement.framework; sourceTree = SDKROOT; };
+		D614C9B833214402B058244D /* SettingsLanguageSwitchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsLanguageSwitchTests.swift; sourceTree = "<group>"; };
 		EQSECURITY000000000002 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
 		EQPOLICYTEST0000000000002 /* EqualizerDriverInstallPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EqualizerDriverInstallPolicyTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -1108,6 +1110,7 @@
 				SRC0000000000000000080B01 /* PlaybackPositionUpdateScopeTests.swift */,
 				F42200000000000000000004 /* PlayPauseRenderScopeTests.swift */,
 				TST00000000000000000800D1 /* ScrubberViewTests.swift */,
+				D614C9B833214402B058244D /* SettingsLanguageSwitchTests.swift */,
 				TST00000000000000000800C1 /* MusicServiceStoreTests.swift */,
 				TST00000000000000000101B1 /* PlaylistBrowserLibraryEditsTests.swift */,
 				TST00000000000000000101B0 /* AppleMusicLibraryEditorTests.swift */,
@@ -1924,6 +1927,7 @@
 				SRC0000000000000000080B00 /* PlaybackPositionUpdateScopeTests.swift in Sources */,
 				F42200000000000000000003 /* PlayPauseRenderScopeTests.swift in Sources */,
 				TST00000000000000000800D0 /* ScrubberViewTests.swift in Sources */,
+				515545A0C26A278485622323 /* SettingsLanguageSwitchTests.swift in Sources */,
 				TST00000000000000000800C0 /* MusicServiceStoreTests.swift in Sources */,
 				TST00000000000000000001B1 /* PlaylistBrowserLibraryEditsTests.swift in Sources */,
 				TST00000000000000000001B0 /* AppleMusicLibraryEditorTests.swift in Sources */,

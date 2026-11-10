@@ -72,6 +72,7 @@ struct AppearanceSettingsView: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
+            .rebuildsOnLanguageChange(settingsStore.settings.appearance.language)
             Text(SpotiglassL10n.string("settings.appearance.colorScheme.hint"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -125,6 +126,7 @@ struct AppearanceSettingsView: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
+            .rebuildsOnLanguageChange(settingsStore.settings.appearance.language)
 
             lyricsTextScaleSlider
 
